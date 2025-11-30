@@ -46,9 +46,9 @@ All scripts automatically handle large files via `index_manager.py`.
 
 This skill provides three slash commands for common workflows:
 
-- **`/scrape-official-docs`** - Scrape all configured Claude documentation sources, then refresh index and validate
-- **`/refresh-official-docs-index`** - Refresh the local index and metadata without scraping from remote sources
-- **`/validate-official-docs`** - Validate the index and references for consistency and drift without scraping
+- **`/claude-ecosystem:scrape-docs`** - Scrape all configured Claude documentation sources, then refresh index and validate
+- **`/claude-ecosystem:refresh-docs`** - Refresh the local index and metadata without scraping from remote sources
+- **`/claude-ecosystem:validate-docs`** - Validate the index and references for consistency and drift without scraping
 
 ## Overview
 

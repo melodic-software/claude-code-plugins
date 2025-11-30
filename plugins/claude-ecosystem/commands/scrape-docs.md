@@ -58,5 +58,5 @@ Report per-domain statistics accurately.
 
 ## Related Commands
 
-- `/claude-ecosystem:refresh` - Refresh index without scraping
-- `/claude-ecosystem:validate` - Validate index without scraping
+- `/claude-ecosystem:refresh-docs` - Refresh index without scraping
+- `/claude-ecosystem:validate-docs` - Validate index without scraping

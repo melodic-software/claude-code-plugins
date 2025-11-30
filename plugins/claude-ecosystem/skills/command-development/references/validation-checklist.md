@@ -81,8 +81,8 @@ Review the code in $1 for:
 
 **Example:**
 - Plugin: `claude-ecosystem`
-- Command file: `commands/scrape.md`
-- Invocation: `/claude-ecosystem:scrape` or just `/scrape` if unique
+- Command file: `commands/scrape-docs.md`
+- Invocation: `/claude-ecosystem:scrape-docs` or just `/scrape-docs` if unique
 
 ## Pre-Creation Verification
 

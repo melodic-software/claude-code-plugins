@@ -253,70 +253,63 @@ User asks: "Should I use a skill or slash command for code review?"
 | MCP command missing | "MCP slash commands", "dynamic discovery" |
 | MCP permission denied | "MCP permissions wildcards", "mcp__servername" |
 
-## Repository-Specific Notes
+## Plugin Commands (claude-ecosystem)
 
-This repository has custom slash commands stored in `.claude/commands/`.
+This plugin provides slash commands in `plugins/claude-ecosystem/commands/`:
+
+- `/claude-ecosystem:scrape-docs` - Scrape Claude documentation from official sources
+- `/claude-ecosystem:refresh-docs` - Refresh local index without network scraping
+- `/claude-ecosystem:validate-docs` - Validate index integrity and detect drift
 
 **Discovery:**
 
-- Use `/help` to see all available commands (built-in + custom)
-- Use `/list-commands` for formatted listing of custom commands only
-- Browse `.claude/commands/` directly to see command source files
+- Use `/help` to see all available commands (built-in + plugin)
+- Plugin commands can be invoked with or without the `claude-ecosystem:` prefix (when no conflicts)
 
-**Notable commands include:** `/commit`, `/lint-md`, `/audit-skills`, `/scrape-official-docs`, `/list-skills`, `/list-commands`, and various `speckit.*` workflow commands.
+## Naming Conventions
 
-## Repository Naming Convention
+### Official Patterns (from Built-in Commands)
 
-This repository uses a hybrid naming approach for slash commands:
+Claude Code's built-in commands use these patterns:
 
-### 1. Dot-Namespacing for Command Families
+| Pattern | Use Case | Examples |
+| ------- | -------- | -------- |
+| **Verb-noun kebab-case** | Action commands | `/add-dir`, `/release-notes`, `/security-review` |
+| **Single noun** | State/display commands | `/status`, `/permissions`, `/config`, `/cost` |
+| **Single verb** | Simple actions | `/clear`, `/exit`, `/login`, `/resume` |
 
-Use `{domain}.{action}` pattern when creating 2+ related commands in the same domain:
+**Key insight:** Built-in commands do NOT use dot-namespacing or noun-first grouping.
 
-| Domain | Purpose | Examples |
-| ------ | ------- | -------- |
-| `check.*` | Verification/validation checks | `/check.temp`, `/check.paths`, `/check.duplication`, `/check.guide` |
-| `docs.*` | Documentation management | `/docs.refresh`, `/docs.validate` |
-| `skill.*` | Skill management | `/skill.create`, `/skill.audit-log` |
-| `speckit.*` | Spec workflows (existing) | `/speckit.analyze`, `/speckit.plan`, `/speckit.specify` |
-| `agent.*` | Agent workflows | `/agent.handoff` |
+### Recommended Approach
 
-### 2. Flat Kebab-Case for Standalone Commands
+**For action commands (scrape, refresh, validate, create, etc.):**
 
-Use simple kebab-case for single-purpose commands without siblings:
+Use **verb-noun kebab-case**: `/scrape-docs`, `/refresh-docs`, `/validate-docs`
 
-- `/commit` - Git commit workflow
-- `/lint-md` - Markdown linting
-- `/utc` - Get UTC timestamp
+**For display/status commands (built-in examples):**
 
-### 3. Rationale
+Use **single noun**: `/status`, `/config`, `/todos`
 
-**Why dot-namespacing over subdirectories:**
+**For simple utilities (built-in examples):**
 
-- **Tab-completion grouping**: Type `/check.` to see all check commands
-- **Self-documenting**: Namespace indicates domain ownership
-- **Established pattern**: Aligns with existing `speckit.*` commands in this repo
-- **Discoverability**: Subdirectories don't change command names (they only add context in `/help`)
+Use **single verb or short descriptive name**: `/clear`, `/compact`, `/review`
 
-**When to create a new family:**
+### Plugin Commands
 
-- Creating 2+ related commands in the same domain
-- Commands share a common purpose or workflow area
-- Commands would logically group together for discoverability
+Plugin commands get automatic namespacing via `/plugin-name:command`:
 
-**When to use standalone:**
+- `/claude-ecosystem:scrape-docs` (fully qualified)
+- `/scrape-docs` (short form when no conflicts)
 
-- Single-purpose utility with no planned siblings
-- Simple command that doesn't fit existing families
-- Command purpose is immediately clear without namespace
+This means you don't need to embed the domain in the command name—the plugin prefix handles disambiguation.
 
-### 4. File Naming
+### File Naming
 
 Command files use the exact command name with `.md` extension:
 
-- `/check.temp` -> `.claude/commands/check.temp.md`
-- `/commit` -> `.claude/commands/commit.md`
-- `/speckit.analyze` -> `.claude/commands/speckit.analyze.md`
+- `/scrape-docs` -> `commands/scrape-docs.md`
+- `/refresh-docs` -> `commands/refresh-docs.md`
+- `/validate-docs` -> `commands/validate-docs.md`
 
 ## References
 
@@ -325,13 +318,18 @@ Command files use the exact command name with `.md` extension:
 - Primary: "slash-commands" documentation
 - Related: "skills", "plugins", "MCP", "interactive-mode"
 
-**Repository-Specific:**
+**This Plugin:**
 
-- Custom commands: `.claude/commands/`
-- Skills for complex workflows: `.claude/skills/`
+- Plugin commands: `plugins/claude-ecosystem/commands/`
+- Plugin skills: `plugins/claude-ecosystem/skills/`
 
 ## Version History
 
+- **v1.0.3** (2025-11-30): Revised naming conventions based on official docs analysis
+  - Updated naming conventions to align with built-in command patterns
+  - Recommended verb-noun kebab-case for action commands
+  - Removed dot-namespacing recommendation (not used by built-in commands)
+  - Documented plugin command automatic namespacing
 - **v1.0.2** (2025-11-27): Added Repository Naming Convention
   - Added comprehensive naming convention section
   - Documented dot-namespacing for command families
@@ -339,12 +337,10 @@ Command files use the exact command name with `.md` extension:
   - Added rationale and decision guidance
   - Added file naming examples
 - **v1.0.1** (2025-11-27): Audit and enhancement
-  - Updated Repository-Specific Notes to use folder reference pattern
   - Added MCP permissions wildcards keywords
   - Added character budget keywords
   - Added MCP permissions decision path to quick decision tree
   - Added MCP permission denied troubleshooting entry
-  - Referenced new `/list-commands` command for dynamic command discovery
 - **v1.0.0** (2025-11-26): Initial release
   - Pure delegation architecture
   - Comprehensive keyword registry
@@ -356,5 +352,5 @@ Command files use the exact command name with `.md` extension:
 
 ## Last Updated
 
-**Date:** 2025-11-28
+**Date:** 2025-11-30
 **Model:** claude-opus-4-5-20251101

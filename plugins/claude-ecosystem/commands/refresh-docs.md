@@ -16,7 +16,7 @@ Use this command when you want to:
 - Validate metadata coverage
 - Generate summary report
 
-For full scraping + refresh, use `/claude-ecosystem:scrape` instead.
+For full scraping + refresh, use `/claude-ecosystem:scrape-docs` instead.
 
 ## Instructions
 
