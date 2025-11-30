@@ -1,0 +1,15 @@
+{
+  "name": "official-docs",
+  "version": "1.1.0",
+  "description": "Claude Code official documentation skill with local search, caching, and offline access. Provides keyword-based discovery, doc_id resolution, and token-optimized subsection extraction for Claude Code, Claude API, Agent SDK, and MCP documentation.",
+  "author": {
+    "name": "Kyle Sexton",
+    "url": "https://github.com/kyle-sexton"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/official-docs",
+  "keywords": ["documentation", "offline", "search", "claude-docs", "api-reference", "mcp", "agent-sdk", "hooks", "agents"],
+  "skills": "./skills",
+  "agents": ["./agents/official-docs-researcher.md"]
+}

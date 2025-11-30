@@ -1,0 +1,16 @@
+{
+  "description": "Detect Claude Code ecosystem questions and inject official-docs skill reminder",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/suggest-official-docs-delegation.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
