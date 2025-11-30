@@ -1,13 +1,18 @@
 {
   "name": "claude-ecosystem",
-  "description": "Claude Code meta-skills for hooks, memory, skills, MCP, configuration, security, and more. Provides keyword registries and navigation for Claude Code documentation topics.",
-  "version": "1.0.0",
+  "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills for all Claude Code features, and development guidance. Provides keyword-based doc discovery, doc_id resolution, token-optimized subsection extraction, and authoritative knowledge hubs for hooks, memory, skills, MCP, configuration, security, subagents, plugins, and more.",
+  "version": "2.0.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"
   },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/claude-ecosystem",
   "keywords": [
     "claude-code",
+    "documentation",
+    "docs-management",
     "meta-skills",
     "hooks",
     "memory",
@@ -20,6 +25,11 @@
     "plugins",
     "output-styles",
     "status-line",
-    "agent-sdk"
-  ]
+    "agent-sdk",
+    "offline",
+    "search",
+    "api-reference"
+  ],
+  "skills": "./skills",
+  "agents": ["./agents/docs-researcher.md"]
 }

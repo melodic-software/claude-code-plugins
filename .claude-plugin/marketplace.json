@@ -5,26 +5,15 @@
     "url": "https://github.com/melodic-software"
   },
   "metadata": {
-    "description": "Claude Code plugin collection with documentation management and plugin utilities",
-    "version": "1.0.0"
+    "description": "Claude Code plugin collection with comprehensive ecosystem support, documentation management, and development guidance",
+    "version": "2.0.0"
   },
   "plugins": [
     {
-      "name": "official-docs",
-      "source": "./plugins/official-docs",
-      "description": "Claude Code official documentation skill with local search, caching, and offline access",
-      "version": "1.0.0",
-      "author": {
-        "name": "Kyle Sexton",
-        "url": "https://github.com/kyle-sexton"
-      },
-      "license": "MIT"
-    },
-    {
       "name": "claude-ecosystem",
       "source": "./plugins/claude-ecosystem",
-      "description": "Claude Code meta-skills for hooks, memory, skills, MCP, configuration, security, and more",
-      "version": "1.0.0",
+      "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills for all Claude Code features, and development guidance",
+      "version": "2.0.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
