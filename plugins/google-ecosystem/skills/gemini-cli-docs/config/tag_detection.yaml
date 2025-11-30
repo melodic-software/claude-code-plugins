@@ -1,0 +1,272 @@
+# Tag Detection Configuration for Gemini CLI Documentation
+# Version: 1.0
+
+tags:
+  api:
+    terms:
+      - authentication
+      - authorization
+      - api key
+      - api endpoint
+      - api reference
+      - http request
+      - api response
+    min_mentions: 8
+
+  tools:
+    terms:
+      - tool
+      - tools
+      - shell tool
+      - file system
+      - web fetch
+      - web search
+      - memory tool
+      - todo tool
+      - tool use
+    min_mentions: 5
+
+  mcp:
+    terms:
+      - mcp
+      - model context protocol
+      - mcp server
+      - mcp tool
+    min_mentions: 5
+
+  memory:
+    terms:
+      - memory
+      - memport
+      - persistent memory
+      - memory management
+    min_mentions: 5
+
+  extensions:
+    terms:
+      - extension
+      - extensions
+      - plugin
+      - plugins
+    min_mentions: 5
+
+  troubleshooting:
+    terms:
+      - troubleshoot
+      - troubleshooting
+      - fix error
+      - error handling
+      - debug
+      - debugging
+    min_mentions: 3
+    additional_terms:
+      - issue
+      - problem
+    additional_min_mentions: 3
+
+  security:
+    terms:
+      - security
+      - secure
+      - permission
+      - permissions
+      - access control
+      - policy engine
+      - trusted folders
+    min_mentions: 4
+
+  installation:
+    terms:
+      - install
+      - installation
+      - setup
+      - prerequisites
+      - dependencies
+      - getting started
+      - quickstart
+    min_mentions: 5
+
+  configuration:
+    terms:
+      - configuration
+      - config
+      - settings
+      - environment variable
+      - configure
+    min_mentions: 6
+
+  checkpointing:
+    terms:
+      - checkpoint
+      - checkpointing
+      - rewind
+      - session
+      - restore
+    min_mentions: 4
+
+  models:
+    terms:
+      - model
+      - models
+      - gemini
+      - model selection
+      - model routing
+    min_mentions: 6
+
+  authentication:
+    terms:
+      - authentication
+      - auth
+      - api key
+      - credentials
+      - oauth
+    min_mentions: 5
+
+  performance:
+    terms:
+      - performance
+      - optimization
+      - latency
+      - token caching
+      - prompt compression
+    min_mentions: 4
+
+  caching:
+    terms:
+      - caching
+      - cache
+      - token caching
+      - cached
+    min_mentions: 4
+
+  ide:
+    terms:
+      - ide
+      - vscode
+      - visual studio
+      - editor
+      - ide companion
+      - ide integration
+    min_mentions: 4
+
+  cli:
+    terms:
+      - cli
+      - command line
+      - terminal
+      - commands
+      - repl
+    min_mentions: 6
+
+  telemetry:
+    terms:
+      - telemetry
+      - analytics
+      - metrics
+      - usage tracking
+      - observability
+    min_mentions: 4
+
+categories:
+  api:
+    path_patterns:
+      - api
+      - /api/
+    tag_mapping:
+      - api
+    content_terms:
+      - api
+      - endpoint
+      - authentication
+
+  tools:
+    path_patterns:
+      - tool
+      - tools
+    tag_mapping:
+      - tools
+    content_terms:
+      - tool
+      - shell
+      - file system
+
+  guides:
+    path_patterns:
+      - guide
+      - tutorial
+      - quickstart
+    tag_mapping:
+      - guides
+    content_terms:
+      - guide
+      - tutorial
+      - how to
+      - getting started
+
+  installation:
+    path_patterns:
+      - setup
+      - install
+      - quickstart
+    tag_mapping:
+      - installation
+    content_terms:
+      - install
+      - installation
+      - setup
+      - prerequisites
+
+  configuration:
+    path_patterns:
+      - config
+      - settings
+    tag_mapping:
+      - configuration
+    content_terms:
+      - configuration
+      - config
+      - settings
+
+  cli:
+    path_patterns:
+      - cli
+      - commands
+    tag_mapping:
+      - cli
+    content_terms:
+      - cli
+      - command
+      - terminal
+
+  extensions:
+    path_patterns:
+      - extension
+      - plugin
+    tag_mapping:
+      - extensions
+    content_terms:
+      - extension
+      - plugin
+
+  ide:
+    path_patterns:
+      - ide
+      - vscode
+      - editor
+    tag_mapping:
+      - ide
+    content_terms:
+      - ide
+      - vscode
+      - editor
+
+  core:
+    path_patterns:
+      - core
+      - architecture
+    tag_mapping:
+      - core
+    content_terms:
+      - core
+      - architecture
+      - system

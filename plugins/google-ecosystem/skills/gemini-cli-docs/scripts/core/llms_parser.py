@@ -57,7 +57,7 @@ class LlmsParser:
         - [Page Title](https://example.com/page.md): Optional description
         - [Another Page](https://example.com/another.md)
 
-    Also supports embedded markdown links (e.g., geminicli.com style):
+    Also supports embedded markdown links (geminicli.com style):
         # [Page Title](http://example.com/docs/page.md)
         Content with [inline links](/docs/other.md)...
 
@@ -70,7 +70,7 @@ class LlmsParser:
         r'^-\s*\[([^\]]+)\]\((https?://[^\)]+)\)(?::\s*(.*))?$'
     )
 
-    # Pattern: # [Title](URL) - header with embedded link
+    # Pattern: # [Title](URL) - header with embedded link (geminicli.com format)
     HEADER_LINK_PATTERN = re.compile(
         r'^#+\s*\[([^\]]+)\]\((https?://[^\)]+)\)\s*$'
     )
@@ -89,7 +89,7 @@ class LlmsParser:
         Initialize parser.
 
         Args:
-            base_url: Base URL for resolving relative paths (e.g., "http://example.com")
+            base_url: Base URL for resolving relative paths (e.g., "http://geminicli.com")
         """
         self.base_url = base_url.rstrip('/') if base_url else None
 
@@ -300,7 +300,7 @@ def parse_llms_txt(content: str, base_url: str | None = None) -> list[str]:
 
     Args:
         content: llms.txt file content
-        base_url: Base URL for resolving relative paths (e.g., "http://example.com")
+        base_url: Base URL for resolving relative paths (e.g., "http://geminicli.com")
 
     Returns:
         List of documentation URLs
@@ -390,28 +390,28 @@ if __name__ == '__main__':
     urls = parser.extract_urls(sample_llms_txt)
     print(f"\n   Extracted {len(urls)} URLs")
 
-    # Test LlmsParser with embedded link format
-    print("\n2. Testing LlmsParser with embedded link format:")
-    sample_embedded_llms_txt = """# Documentation
+    # Test LlmsParser with geminicli.com style format (embedded links)
+    print("\n2. Testing LlmsParser with embedded link format (geminicli.com style):")
+    sample_embedded_llms_txt = """# Gemini CLI Documentation
 
-# [Architecture Overview](http://example.com/docs/architecture.md)
+# [Gemini CLI Architecture Overview](http://geminicli.com/docs/architecture.md)
 
 This document provides a high-level overview.
 
 ## Core components
 
-The system has several components:
-1. **CLI package:**
+The Gemini CLI is primarily composed of:
+1. **CLI package (`packages/cli`):**
    - [Input processing](/docs/cli/commands.md)
-   - [Theme customization](/docs/cli/themes.md)
-   - [Configuration](/docs/get-started/configuration.md)
+   - [Theme and UI customization](/docs/cli/themes.md)
+   - [CLI configuration settings](/docs/get-started/configuration.md)
 
-# [Welcome to documentation](http://example.com/docs.md)
+# [Welcome to Gemini CLI documentation](http://geminicli.com/docs.md)
 
 This documentation provides a comprehensive guide.
 """
 
-    parser2 = LlmsParser(base_url="http://example.com")
+    parser2 = LlmsParser(base_url="http://geminicli.com")
     entries2 = parser2.parse_to_list(sample_embedded_llms_txt)
     print(f"   Found {len(entries2)} entries")
     for entry in entries2:

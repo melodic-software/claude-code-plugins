@@ -1,0 +1,13 @@
+[
+  {
+    "name": "geminicli.com (llms-txt)",
+    "type": "llms-txt",
+    "url": "https://geminicli.com/llms.txt",
+    "skip_existing": true,
+    "expected_count": 73,
+    "expected_count_tolerance": 10,
+    "timeout": 300,
+    "try_markdown": true,
+    "comment": "Gemini CLI documentation from llms.txt discovery index. The llms.txt contains embedded markdown links that are extracted by the parser."
+  }
+]

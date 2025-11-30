@@ -1,0 +1,52 @@
+# Content Section Filtering Configuration
+# Version: 1.0 (Adapted for Gemini CLI)
+#
+# Purpose: Filter out non-primary content from scraped documentation
+# Strategy: Minimal filtering for technical docs
+
+# Global patterns (apply to ALL sources)
+global_stop_sections:
+  # Social media and external links
+  - pattern: '^##\s+Follow us on'
+    regex: true
+    reason: 'Social media links'
+  - pattern: '^##\s+Connect with'
+    regex: true
+    reason: 'Social media links'
+  - pattern: '^##\s+\[.*\]\(https?://(x\.com|twitter\.com|linkedin\.com|youtube\.com|instagram\.com|facebook\.com)'
+    regex: true
+    reason: 'Social media link sections'
+
+# Documentation content filtering (geminicli.com)
+# Technical docs - be very conservative
+docs_stop_sections:
+  # Only filter obvious non-content like empty placeholders
+  - pattern: '^## No items found'
+    regex: true
+    reason: 'Empty placeholder sections'
+
+# Source mapping - which filter set to apply to which sources
+source_filters:
+  # Technical documentation - minimal filtering
+  'geminicli-com':
+    applies:
+      - global_stop_sections
+      - docs_stop_sections
+
+# Behavior configuration
+filtering_behavior:
+  # When stop_after: true, should we keep the matched heading itself?
+  keep_stop_heading: false
+
+  # Should we log what was filtered for auditing?
+  log_filtered_content: true
+
+  # Should we add a comment to the markdown showing content was filtered?
+  add_filtered_marker: true
+  marker_text: '<!-- Content filtered: site navigation/footer -->'
+
+# Empty section detection patterns
+empty_section_patterns:
+  - 'No items found'
+  - 'Coming soon'
+  - '^\s*$'  # Just whitespace

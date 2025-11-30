@@ -1,0 +1,188 @@
+# Default Configuration Values for gemini-cli-docs Skill
+# Adapted from claude-ecosystem docs-management skill
+# Values can be overridden via environment variables (see config_registry.py)
+
+# HTTP and Network Configuration
+http:
+  # Default timeout for HTTP requests (seconds)
+  default_timeout: 30
+
+  # Maximum timeout for long-running operations (seconds)
+  max_timeout: 1800
+
+  # Default number of retry attempts for transient failures
+  default_max_retries: 3
+
+  # Initial delay for exponential backoff (seconds)
+  initial_retry_delay: 1.0
+
+  # Backoff multiplier for exponential backoff
+  backoff_factor: 2.0
+
+  # Retryable HTTP status codes
+  retryable_status_codes:
+    - 429  # Too Many Requests (rate limit)
+    - 500  # Internal Server Error
+    - 502  # Bad Gateway
+    - 503  # Service Unavailable
+    - 504  # Gateway Timeout
+
+  # User agent string for HTTP requests
+  user_agent: "Gemini-Docs-Scraper/1.0 (Educational purposes)"
+
+  # Timeout for HEAD requests (seconds)
+  head_request_timeout: 10
+
+  # Timeout for markdown URL requests (seconds)
+  markdown_request_timeout: 30
+
+# Scraping Configuration
+scraping:
+  # Delay between requests (seconds) - rate limiting
+  rate_limit: 0.5
+
+  # Delay between HEAD requests (seconds)
+  header_rate_limit: 0.3
+
+  # Legacy names (for backward compatibility)
+  rate_limit_delay: 0.5
+  header_rate_limit_delay: 0.3
+
+  # Maximum parallel workers for URL processing
+  # Reduced from 8 - only ~43 pages, no need for high parallelism
+  max_workers: 4
+
+  # Maximum parallel workers for multi-source scraping
+  max_source_workers: 4
+
+  # Default timeout for scraping operations (seconds)
+  default_timeout: 300
+
+  # Default timeout for source scraping operations
+  sources_default_timeout: 300
+
+  # Lock acquisition timeout (seconds)
+  lock_timeout: 30.0
+
+  # Index update lock timeout (seconds)
+  index_lock_timeout: 60.0
+
+  # Progress lock timeout (seconds)
+  progress_lock_timeout: 30.0
+
+  # Maximum content age in days (for filtering old content)
+  max_content_age_days: 0  # 0 = no age filtering
+
+  # Skip existing files by default
+  skip_existing: true
+
+  # Progress reporting intervals
+  progress_interval: 30  # Report progress every N seconds
+  progress_url_interval: 10  # Report progress every N URLs
+
+# Index Management Configuration
+index:
+  # Chunk size for reading large YAML files (lines per chunk)
+  chunk_size: 1000
+
+  # Token estimate threshold - files smaller than this are loaded all at once
+  token_estimate_threshold: 20000
+
+  # Lock timeout for index operations (seconds)
+  lock_timeout: 30.0
+
+  # Lock retry delay (seconds)
+  lock_retry_delay: 0.1
+
+  # Lock retry backoff delay (seconds)
+  lock_retry_backoff: 0.5
+
+  # File operation retry delay (seconds)
+  file_retry_delay: 0.2
+
+  # Maximum retries for file operations
+  file_max_retries: 5
+
+# Path Configuration
+paths:
+  # Base directory for canonical documentation storage (relative to skill dir)
+  base_dir: "canonical"
+
+  # Index filename
+  index_filename: "index.yaml"
+
+  # Temporary directory for reports and logs (relative to skill dir)
+  temp_dir: "temp"
+
+  # Output directory mappings (domain -> output subdirectory)
+  output_dirs: {}
+
+# File System Configuration (deprecated - use paths section)
+filesystem:
+  default_base_dir: "canonical"
+  default_index_filename: "index.yaml"
+
+# Validation Configuration
+validation:
+  timeout: 60
+  max_retries: 1
+
+# Drift Detection Configuration
+drift:
+  max_workers: 5
+  timeout: 300
+
+# Subprocess Configuration
+subprocess:
+  default_timeout: 10
+  quick_timeout: 5
+  install_timeout: 300
+  long_timeout: 600
+  build_timeout: 600
+
+# Performance Configuration
+performance:
+  parallel_enabled: true
+  parallel_min_urls: 2
+
+# Search and Relevance Configuration
+search:
+  # Domain priority weights for relevance ranking
+  # Single domain for Gemini CLI docs
+  domain_weights:
+    geminicli.com: 10.0  # Gemini CLI docs (only domain)
+
+# Keyword Extraction Configuration
+keyword_extraction:
+  limits:
+    max_file_tokens: 4
+    max_heading_phrases: 10
+    max_heading_keywords: 8
+    max_body_keywords: 6
+    max_total_keywords: 12
+
+  # YAKE automatic keyword extraction configuration
+  yake:
+    language: 'en'
+    max_ngram_size: 3
+    dedup_threshold: 0.7
+    top_keywords: 15
+    min_text_length: 50
+
+# File Pattern Configuration
+files:
+  markdown_extension: ".md"
+  yaml_extension: ".yaml"
+  json_extension: ".json"
+
+# User Agent Configuration
+user_agents:
+  default: "Gemini-Docs-Scraper/1.0 (Educational purposes)"
+  management: "Gemini-Docs-Management-Bot/1.0"
+  scraper: "Gemini-Docs-Scraper/1.0 (Educational purposes)"
+
+# Environment Variable Override Prefix
+# All values can be overridden by setting environment variables with prefix:
+# GEMINI_DOCS_<SECTION>_<KEY>
+# Example: GEMINI_DOCS_HTTP_DEFAULT_TIMEOUT=60
+# Example: GEMINI_DOCS_SCRAPING_MAX_WORKERS=5
