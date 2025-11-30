@@ -1,0 +1,37 @@
+{
+  // .vscode/settings.json
+  // VS Code workspace settings for markdown linting
+  //
+  // Copy this file to your project's .vscode/ directory
+  // and customize as needed.
+  //
+  // Prerequisites:
+  // - VS Code markdownlint extension installed
+  //   (davidanson.vscode-markdownlint)
+
+  // Enable built-in markdown validation
+  "markdown.validate.enabled": true,
+
+  // Markdown-specific editor settings
+  "[markdown]": {
+    // Format markdown files on save
+    "editor.formatOnSave": true,
+
+    // Format pasted content
+    "editor.formatOnPaste": true
+  },
+
+  // Run markdownlint auto-fix on save
+  // "explicit" means it runs when you save, not continuously
+  "editor.codeActionsOnSave": {
+    "source.fixAll.markdownlint": "explicit"
+  }
+
+  // Optional settings (uncomment as needed):
+  //
+  // Lint on type (default) vs on save only:
+  // "markdownlint.run": "onType",
+  //
+  // Focus mode (dim unfocused sections):
+  // "markdownlint.focusMode": false
+}

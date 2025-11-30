@@ -1,0 +1,28 @@
+{
+  "name": "code-quality",
+  "description": "Code quality tools for Claude Code: markdown linting with auto-fix, validation hooks, and CI/CD templates. Provides automated enforcement of documentation standards through hooks, skills, and commands.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/code-quality",
+  "keywords": [
+    "code-quality",
+    "markdown",
+    "linting",
+    "markdownlint",
+    "markdownlint-cli2",
+    "documentation",
+    "validation",
+    "hooks",
+    "auto-fix",
+    "github-actions",
+    "ci-cd"
+  ],
+  "skills": "./skills",
+  "commands": "./commands",
+  "hooks": "./hooks/hooks.json"
+}

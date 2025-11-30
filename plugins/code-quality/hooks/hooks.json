@@ -1,0 +1,17 @@
+{
+  "description": "Code quality hooks: markdown linting with auto-fix on file write/edit operations",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/markdown-lint.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

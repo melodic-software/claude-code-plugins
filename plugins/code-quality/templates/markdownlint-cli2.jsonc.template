@@ -1,0 +1,46 @@
+// .markdownlint-cli2.jsonc
+// Single source of truth for markdown linting configuration
+// Used by both markdownlint-cli2 CLI and VS Code extension
+//
+// Copy this file to your project root as '.markdownlint-cli2.jsonc'
+// and customize as needed for your project.
+{
+  // Automatically respect .gitignore patterns
+  // Excludes node_modules, dist, .cache, etc. automatically
+  "gitignore": true,
+
+  // Additional files/patterns to ignore (for committed files)
+  // Use glob patterns - see https://github.com/isaacs/node-glob
+  "ignores": [
+    // Temporary files (ephemeral, may not be gitignored)
+    ".claude/temp/**",
+
+    // Third-party documentation (exact copies, should not be modified)
+    // "docs/external/**",
+
+    // Generated documentation
+    // "docs/api/auto-generated-*.md",
+
+    // Archived content
+    // "archive/**/*.md"
+  ],
+
+  // Linting rules configuration
+  // See https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  "config": {
+    // Enable all default rules
+    "default": true,
+
+    // MD013 - Line length
+    // Disabled: Often too strict for documentation with long URLs, tables, code
+    "MD013": false
+
+    // Other commonly disabled rules (uncomment if needed):
+    //
+    // MD033 - Inline HTML
+    // "MD033": false,
+    //
+    // MD041 - First line should be a top-level heading
+    // "MD041": false
+  }
+}

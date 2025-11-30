@@ -1,0 +1,37 @@
+{
+  "write_markdown_file": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "docs/test.md",
+      "content": "# Test Document\n\nThis is test content.\n"
+    }
+  },
+  "edit_markdown_file": {
+    "tool_name": "Edit",
+    "tool_input": {
+      "file_path": "docs/example.md",
+      "old_string": "old content",
+      "new_string": "new content"
+    }
+  },
+  "write_non_markdown": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "test.txt",
+      "content": "plain text content"
+    }
+  },
+  "write_excluded_path": {
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": ".claude/temp/test.md",
+      "content": "# Temporary file\n"
+    }
+  },
+  "non_write_edit_tool": {
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "echo 'test'"
+    }
+  }
+}
