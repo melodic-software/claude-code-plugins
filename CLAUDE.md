@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+See @README for project overview and installation.
+
 ## Critical Rules
 
 - **NEVER read `index.yaml` directly** - use `manage_index.py` scripts
@@ -20,11 +22,6 @@ For Gemini CLI topics, invoke the `gemini-cli-docs` skill or use:
 ```bash
 python plugins/google-ecosystem/skills/gemini-cli-docs/scripts/core/find_docs.py search <keywords>
 ```
-
-## Discovery
-
-- `/claude-ecosystem:list-skills` - list available skills
-- `/claude-ecosystem:list-commands` - list available commands
 
 ## Conventions
 

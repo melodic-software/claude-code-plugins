@@ -2,6 +2,11 @@
 
 Plugins for Claude Code: documentation management, code quality, and ecosystem support.
 
+## Prerequisites
+
+- [Claude Code](https://code.claude.com) installed
+- Python 3.12+ (for spaCy-based operations)
+
 ## Installation
 
 ```bash
@@ -18,11 +23,13 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 | [code-quality](plugins/code-quality/) | Code review, linting, debugging |
 | [google-ecosystem](plugins/google-ecosystem/) | Gemini CLI docs and planning |
 
-## Discovery
+## Usage
+
+List available skills and commands:
 
 ```bash
-/claude-ecosystem:list-skills    # List all skills
-/claude-ecosystem:list-commands  # List all commands
+/claude-ecosystem:list-skills
+/claude-ecosystem:list-commands
 ```
 
 ## Architecture
@@ -31,3 +38,7 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 - **Progressive disclosure**: Content loads on-demand to optimize tokens
 
 See individual plugin READMEs for details.
+
+## License
+
+MIT - see [LICENSE](LICENSE)
