@@ -31,5 +31,5 @@
     "api-reference"
   ],
   "skills": "./skills",
-  "agents": ["./agents/docs-researcher.md"]
+  "agents": ["./agents/docs-researcher.md", "./agents/skill-auditor.md"]
 }
