@@ -36,7 +36,7 @@ Central authority for Claude Code plugins. This skill uses **100% delegation to 
 
 ## When to Use This Skill
 
-**Keywords:** plugins, plugin creation, plugin structure, plugin.json, plugin manifest, plugin commands, plugin agents, plugin skills, plugin hooks, plugin marketplaces, marketplace.json, /plugin command, plugin install, plugin uninstall, plugin enable, plugin disable, plugin browse, team plugins, plugin development, plugin testing, plugin debugging, plugin sharing, plugin distribution, MCP servers plugins, plugin settings, enabledPlugins, extraKnownMarketplaces
+**Keywords:** plugins, plugin creation, plugin structure, plugin.json, plugin manifest, plugin commands, plugin agents, plugin skills, plugin hooks, plugin marketplaces, marketplace.json, /plugin command, plugin install, plugin uninstall, plugin enable, plugin disable, plugin browse, team plugins, plugin development, plugin testing, plugin debugging, plugin sharing, plugin distribution, MCP servers plugins, plugin settings, enabledPlugins, extraKnownMarketplaces, plugin hook configuration, disable plugin hook, CLAUDE_HOOK_DISABLED, hook environment variables, configurable hooks, hook enforcement mode
 
 **Use this skill when:**
 
@@ -52,6 +52,8 @@ Central authority for Claude Code plugins. This skill uses **100% delegation to 
 - Sharing and distributing plugins
 - Configuring MCP servers in plugins
 - Managing plugin settings
+- **Configuring plugin hooks for consumers to enable/disable**
+- **Making plugin hooks configurable via environment variables**
 
 ## Keyword Registry for docs-management Queries
 
@@ -137,6 +139,17 @@ Use these keywords when querying docs-management skill for official documentatio
 | Plugin Settings | "plugin settings", "enabledPlugins" |
 | Marketplace Settings | "extraKnownMarketplaces", "marketplace configuration" |
 
+### Plugin Hook Configuration
+
+| Topic | Keywords |
+| ----- | -------- |
+| Hook Basics | "plugin hooks", "hooks.json plugins" |
+| Consumer Control | "disable plugin hook", "hook environment variables" |
+| Enforcement Modes | "hook enforcement mode", "CLAUDE_HOOK_ENFORCEMENT" |
+| Disable Hooks | "CLAUDE_HOOK_DISABLED", "disable specific hook" |
+
+**Note:** Plugin hook configuration uses environment variables (not YAML configs like local hooks). See [Plugin Hook Utilities Reference](references/plugin-hook-utilities.md) for implementation patterns and [Consumer Configuration Reference](references/plugin-hook-consumer-config.md) for end-user guidance.
+
 ### Reference
 
 | Topic | Keywords |
@@ -163,6 +176,8 @@ Use these keywords when querying docs-management skill for official documentatio
 12. **Debug plugin issues** -> Query docs-management: "debug plugin issues", "plugin troubleshooting"
 13. **Validate plugin structure** -> Query docs-management: "claude plugin validate", "plugin validation"
 14. **Debug plugin loading** -> Query docs-management: "claude --debug", "plugin loading debug"
+15. **Make hooks configurable** -> See [Plugin Hook Utilities Reference](references/plugin-hook-utilities.md)
+16. **Disable a plugin's hook** -> See [Consumer Configuration Reference](references/plugin-hook-consumer-config.md)
 
 ## Topic Coverage
 
@@ -243,6 +258,32 @@ Use these keywords when querying docs-management skill for official documentatio
 - extraKnownMarketplaces configuration
 - Plugin-related settings in settings.json
 
+### Plugin Hook Configuration (Repository-Specific)
+
+Plugin hooks are automatically merged when a plugin is enabled. Unlike local hooks (`.claude/hooks/`), plugin hooks use **environment variables** for consumer control:
+
+**Environment Variable Convention:**
+
+| Variable | Values | Purpose |
+| -------- | ------ | ------- |
+| `CLAUDE_HOOK_DISABLED_<NAME>` | `1` or `true` | Disable specific hook |
+| `CLAUDE_HOOK_ENFORCEMENT_<NAME>` | `block`, `warn`, `log` | Control enforcement behavior |
+| `CLAUDE_HOOK_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | Logging verbosity |
+
+**Consumer Configuration via settings.json:**
+
+```json
+{
+  "env": {
+    "CLAUDE_HOOK_DISABLED_MARKDOWN_LINT": "1",
+    "CLAUDE_HOOK_ENFORCEMENT_SECRET_SCAN": "warn"
+  }
+}
+```
+
+**For Plugin Authors:** See [Plugin Hook Utilities Reference](references/plugin-hook-utilities.md)
+**For Plugin Consumers:** See [Consumer Configuration Reference](references/plugin-hook-consumer-config.md)
+
 ## Delegation Patterns
 
 ### Standard Query Pattern
@@ -294,6 +335,8 @@ User reports: "My plugin commands aren't showing up"
 | MCP server not starting | "MCP servers plugins", "CLAUDE_PLUGIN_ROOT" |
 | Custom paths not loading | "component path fields", "path behavior rules" |
 | Plugin validation errors | "claude plugin validate", "plugin validation" |
+| Hook not running | Check CLAUDE_HOOK_DISABLED env var in settings.json |
+| Hook enforcement wrong | Check CLAUDE_HOOK_ENFORCEMENT env var in settings.json |
 
 ## Repository-Specific Notes
 
@@ -315,9 +358,17 @@ When working with plugin topics, always use the docs-management skill to access 
 **Repository-Specific:**
 
 - Plugin settings: `.claude/settings.json` (enabledPlugins, extraKnownMarketplaces)
+- [Plugin Hook Utilities Reference](references/plugin-hook-utilities.md) - For plugin authors implementing configurable hooks
+- [Consumer Configuration Reference](references/plugin-hook-consumer-config.md) - For plugin consumers controlling hook behavior
 
 ## Version History
 
+- **v1.1.0** (2025-11-30): Plugin hook configuration documentation
+  - Added Plugin Hook Configuration section to keyword registry
+  - Added topic coverage for hook configuration patterns (env vars, enforcement modes)
+  - Added decision tree paths: make hooks configurable, disable plugin hooks
+  - Added troubleshooting entries for hook configuration issues
+  - Created references directory with plugin-hook-utilities.md and plugin-hook-consumer-config.md
 - **v1.0.1** (2025-11-27): Minor enhancements
   - Added keywords: CLAUDE_PLUGIN_ROOT, claude --debug, claude plugin validate, marketplace schema fields, path behavior rules
   - Expanded decision tree: +2 paths (validate plugin structure, debug plugin loading)
@@ -333,5 +384,5 @@ When working with plugin topics, always use the docs-management skill to access 
 
 ## Last Updated
 
-**Date:** 2025-11-28
+**Date:** 2025-11-30
 **Model:** claude-opus-4-5-20251101
