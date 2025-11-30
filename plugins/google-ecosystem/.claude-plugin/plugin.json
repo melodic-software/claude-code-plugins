@@ -1,11 +1,28 @@
 {
   "name": "google-ecosystem",
-  "version": "1.0.0",
-  "description": "Google Gemini CLI documentation and guidance plugin with full search infrastructure",
+  "version": "1.1.0",
+  "description": "Google Gemini CLI ecosystem plugin with documentation management, Claude-to-Gemini integration agents, and meta-skills for configuration, checkpointing, sandboxing, and session management",
+  "keywords": [
+    "gemini-cli",
+    "google",
+    "documentation",
+    "integration",
+    "sandbox",
+    "checkpointing",
+    "delegation",
+    "second-opinion",
+    "bulk-analysis",
+    "interactive-shell"
+  ],
   "skills": "./skills",
   "agents": [
     "./agents/gemini-docs-researcher.md",
-    "./agents/gemini-planner.md"
+    "./agents/gemini-planner.md",
+    "./agents/gemini-sandboxed-executor.md",
+    "./agents/gemini-checkpoint-experimenter.md",
+    "./agents/gemini-bulk-analyzer.md",
+    "./agents/gemini-interactive-shell.md",
+    "./agents/gemini-second-opinion.md"
   ],
   "commands": "./commands"
 }
