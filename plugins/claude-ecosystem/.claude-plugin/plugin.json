@@ -1,0 +1,25 @@
+{
+  "name": "claude-ecosystem",
+  "description": "Claude Code meta-skills for hooks, memory, skills, MCP, configuration, security, and more. Provides keyword registries and navigation for Claude Code documentation topics.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "keywords": [
+    "claude-code",
+    "meta-skills",
+    "hooks",
+    "memory",
+    "skills",
+    "mcp",
+    "configuration",
+    "security",
+    "subagents",
+    "slash-commands",
+    "plugins",
+    "output-styles",
+    "status-line",
+    "agent-sdk"
+  ]
+}

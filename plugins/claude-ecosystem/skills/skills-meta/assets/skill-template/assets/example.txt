@@ -1,0 +1,18 @@
+Example Asset Template File
+
+This file demonstrates how to organize assets within a skill.
+
+Assets are files not intended to be loaded into context, but rather
+used within the output Claude produces. Examples include:
+
+- Template files (.txt, .json, .yaml, .xml)
+- Boilerplate code structures
+- Document templates (.md, .html)
+- Images, icons, fonts (if applicable)
+- Configuration examples
+
+Replace this file with actual assets relevant to your skill.
+
+For example, if your skill generates configuration files, you might
+include a configuration template here that Claude can reference when
+creating new configurations for users.
