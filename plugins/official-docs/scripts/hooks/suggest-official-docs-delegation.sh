@@ -1,257 +1,150 @@
 #!/usr/bin/env bash
-# suggest-official-docs-delegation.sh - Detect Claude Code ecosystem questions and inject reminder
+# suggest-official-docs-delegation.sh - Detect Claude Code topics and inject docs reminder
 #
-# Event: UserPromptSubmit
-# Purpose: Remind Claude to use official-docs skill for Claude Code questions
+# TWO-TIER DETECTION:
+# - Tier 1 (high-confidence): Unique Claude Code terms - always fire
+# - Tier 2 (low-confidence): Generic terms - only fire if "claude" in prompt
 #
-# Exit Codes:
-#   0 - Success (always allows prompt, may inject context)
+# This prevents false positives on generic prompts like "install docker" or "github rate limits"
 
 set -euo pipefail
 
-# Get plugin root directory (two levels up from this script)
-PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-# Source shared utilities (optional, graceful fallback if not available)
-source "${PLUGIN_ROOT}/hooks/shared/json-utils.sh" 2>/dev/null || true
-source "${PLUGIN_ROOT}/hooks/shared/config-utils.sh" 2>/dev/null || true
-
-# Check if hook is enabled
-if command -v is_hook_enabled &>/dev/null && ! is_hook_enabled "SUGGEST_CLAUDE_DOCS_DELEGATION"; then
-    exit 0
-fi
-
-# Read JSON input from stdin
+# === FAST PATH: Read input and extract prompt ===
 INPUT=$(cat)
 
-# Extract prompt text
-PROMPT=""
 if command -v jq &>/dev/null; then
-    PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || echo "")
+    PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null) || PROMPT=""
 else
-    # Fallback: basic extraction without jq (portable, no grep -oP)
-    PROMPT=$(echo "$INPUT" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' 2>/dev/null || echo "")
+    PROMPT=$(echo "$INPUT" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' 2>/dev/null) || PROMPT=""
 fi
 
-# If no prompt, exit silently
-if [ -z "$PROMPT" ]; then
+[[ -z "$PROMPT" ]] && exit 0
+
+# Bash 4+ builtin lowercase (no subprocess)
+PROMPT_LOWER="${PROMPT,,}"
+
+# === TIER 1: HIGH-CONFIDENCE PATTERNS (always match) ===
+# These are uniquely Claude Code - no false positives possible
+
+TIER1_PATTERNS='hooks-meta|memory-meta|skills-meta|subagents-meta|plugins-meta|mcp-meta|configuration-meta|security-meta|output-styles-meta|status-line-meta|agent-sdk-meta'
+TIER1_PATTERNS+='|pretooluse|posttooluse|userpromptsubmit|sessionstart|sessionend|precompact|subagentstop'
+TIER1_PATTERNS+='|claude\.md|\.claude/|\.claude-plugin'
+TIER1_PATTERNS+='|allowed-tools|yaml.?frontmatter|skill\.md'
+TIER1_PATTERNS+='|sub-?agent|agent.?file|agent.?yaml'
+TIER1_PATTERNS+='|model.?context.?protocol|mcp.?server'
+TIER1_PATTERNS+='|/output-style|/statusline|/rewind|/cost|/model|/terminal-setup|/compact'
+TIER1_PATTERNS+='|--allowedtools|--disallowedtools|--permission-mode|--dangerously'
+TIER1_PATTERNS+='|claude.?code|anthropic'
+
+# === TIER 2: LOW-CONFIDENCE PATTERNS (need "claude" context) ===
+# Generic terms that could apply to anything - only match if "claude" in prompt
+
+TIER2_PATTERNS='cost|billing|pricing|spend|subscription'
+TIER2_PATTERNS+='|rate.?limit|tpm|rpm|quota'
+TIER2_PATTERNS+='|analytics|usage|token.?usage|developer.?day'
+TIER2_PATTERNS+='|error|debug|troubleshoot|install|setup|configure'
+TIER2_PATTERNS+='|hooks?|plugins?|skills?|agents?|commands?'
+TIER2_PATTERNS+='|vscode|vs.?code|jetbrains|intellij|ide'
+TIER2_PATTERNS+='|docker|devcontainer|container|terminal'
+TIER2_PATTERNS+='|proxy|network|gateway|certificate|mtls|firewall'
+TIER2_PATTERNS+='|github|gitlab|ci/?cd|actions?|workflow'
+TIER2_PATTERNS+='|headless|programmatic|automation|non-interactive'
+TIER2_PATTERNS+='|sonnet|opus|haiku|model'
+TIER2_PATTERNS+='|bedrock|vertex|foundry|aws|gcp|azure'
+TIER2_PATTERNS+='|checkpoint|rewind|session|memory'
+TIER2_PATTERNS+='|sandbox|security|permission'
+TIER2_PATTERNS+='|quickstart|getting.?started'
+
+# === DETECTION LOGIC ===
+
+# Check if "claude" appears anywhere (for tier 2)
+HAS_CLAUDE_CONTEXT=false
+if [[ $PROMPT_LOWER =~ claude ]]; then
+    HAS_CLAUDE_CONTEXT=true
+fi
+
+# Check Tier 1 first (always match)
+MATCHED=false
+if [[ $PROMPT_LOWER =~ ($TIER1_PATTERNS) ]]; then
+    MATCHED=true
+fi
+
+# Check Tier 2 only if claude context exists
+if [[ $HAS_CLAUDE_CONTEXT == true ]] && [[ $PROMPT_LOWER =~ ($TIER2_PATTERNS) ]]; then
+    MATCHED=true
+fi
+
+# Early exit if no match
+if [[ $MATCHED == false ]]; then
     exit 0
 fi
 
-# Convert to lowercase for pattern matching
-PROMPT_LOWER=$(echo "$PROMPT" | tr '[:upper:]' '[:lower:]')
+# === TOPIC DETECTION ===
+TOPIC="claude-code"
+META_SKILL="official-docs"
+KEYWORDS="Claude Code documentation"
 
-# Detection results
-DETECTED_TOPICS=()
-DETECTED_META_SKILL=""
-DETECTED_KEYWORDS=""
-
-# ============================================================================
-# Pattern 1: Direct meta-skill mentions
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '(hooks-meta|memory-meta|skills-meta|subagents-meta|slash-commands-meta|plugins-meta|mcp-meta|configuration-meta|security-meta|output-styles-meta|status-line-meta|agent-sdk-meta)'; then
-    DETECTED_TOPICS+=("meta-skill-direct")
+# Check specific categories (most specific first)
+if [[ $PROMPT_LOWER =~ (hooks?|pretooluse|posttooluse|hook) ]]; then
+    TOPIC="hooks"; META_SKILL="hooks-meta"; KEYWORDS="hooks, PreToolUse, PostToolUse"
+elif [[ $PROMPT_LOWER =~ (plugin|\.claude-plugin|marketplace) ]]; then
+    TOPIC="plugins"; META_SKILL="plugins-meta"; KEYWORDS="plugins, plugin.json"
+elif [[ $PROMPT_LOWER =~ (mcp|model.?context.?protocol) ]]; then
+    TOPIC="mcp"; META_SKILL="mcp-meta"; KEYWORDS="MCP, MCP servers"
+elif [[ $PROMPT_LOWER =~ (skill|yaml.?frontmatter|allowed-tools) ]]; then
+    TOPIC="skills"; META_SKILL="skills-meta"; KEYWORDS="skills, YAML frontmatter"
+elif [[ $PROMPT_LOWER =~ (sub-?agent|agent.?file) ]]; then
+    TOPIC="subagents"; META_SKILL="subagents-meta"; KEYWORDS="subagents, agent files"
+elif [[ $PROMPT_LOWER =~ (claude\.md|\.claude/) ]]; then
+    TOPIC="memory"; META_SKILL="memory-meta"; KEYWORDS="CLAUDE.md, static memory"
+elif [[ $PROMPT_LOWER =~ (settings|sandbox|permission) ]]; then
+    TOPIC="configuration"; META_SKILL="configuration-meta"; KEYWORDS="settings.json, permissions"
+elif [[ $PROMPT_LOWER =~ (sdk|typescript.?sdk|python.?sdk) ]]; then
+    TOPIC="agent-sdk"; META_SKILL="agent-sdk-meta"; KEYWORDS="Agent SDK"
+elif [[ $PROMPT_LOWER =~ (cost|billing|rate.?limit|analytics) ]]; then
+    TOPIC="costs"; KEYWORDS="costs, billing, rate limits"
+elif [[ $PROMPT_LOWER =~ (bedrock|vertex|foundry) ]]; then
+    TOPIC="cloud-providers"; KEYWORDS="Bedrock, Vertex AI, Foundry"
+elif [[ $PROMPT_LOWER =~ (github|gitlab|ci/?cd) ]]; then
+    TOPIC="cicd"; KEYWORDS="GitHub Actions, GitLab CI"
+elif [[ $PROMPT_LOWER =~ (vs.?code|vscode|jetbrains|ide) ]]; then
+    TOPIC="ide-integration"; KEYWORDS="VS Code, JetBrains"
+elif [[ $PROMPT_LOWER =~ (output.?style|/output-style) ]]; then
+    TOPIC="output-styles"; META_SKILL="output-styles-meta"; KEYWORDS="output styles"
+elif [[ $PROMPT_LOWER =~ (status.?line|/statusline) ]]; then
+    TOPIC="status-line"; META_SKILL="status-line-meta"; KEYWORDS="status line"
+elif [[ $PROMPT_LOWER =~ (slash.?command|\.claude/commands) ]]; then
+    TOPIC="slash-commands"; META_SKILL="slash-commands-meta"; KEYWORDS="slash commands"
+elif [[ $PROMPT_LOWER =~ (troubleshoot|error|debug|install) ]]; then
+    TOPIC="troubleshooting"; KEYWORDS="troubleshooting, debugging"
+elif [[ $PROMPT_LOWER =~ (headless|non-interactive|programmatic) ]]; then
+    TOPIC="headless"; KEYWORDS="headless mode"
+elif [[ $PROMPT_LOWER =~ (checkpoint|/rewind|session) ]]; then
+    TOPIC="checkpointing"; KEYWORDS="checkpointing, rewinding"
+elif [[ $PROMPT_LOWER =~ (sonnet|opus|haiku|/model) ]]; then
+    TOPIC="model-config"; KEYWORDS="model selection"
+elif [[ $PROMPT_LOWER =~ (devcontainer|docker|terminal) ]]; then
+    TOPIC="dev-environment"; KEYWORDS="devcontainer, Docker, terminal"
+elif [[ $PROMPT_LOWER =~ (proxy|network|gateway|mtls) ]]; then
+    TOPIC="network-enterprise"; KEYWORDS="proxy, network, mTLS"
+elif [[ $PROMPT_LOWER =~ (quickstart|getting.?started) ]]; then
+    TOPIC="quickstart"; KEYWORDS="quickstart, getting started"
 fi
 
-# ============================================================================
-# Pattern 2: Hooks-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(hooks?|pretooluse|posttooluse|userpromptsubmit|sessionstart|sessionend|precompact|notification|permissionrequest|subagentstop|hook event|hook config|hooks\.json|hooks\.yaml|hook matcher)\b'; then
-    DETECTED_TOPICS+=("hooks")
-    DETECTED_META_SKILL="hooks-meta"
-    DETECTED_KEYWORDS="hooks, PreToolUse, PostToolUse, hook events, hook configuration, hook matchers"
-fi
+# === OUTPUT ===
+CONTEXT="<system-reminder>
+CLAUDE CODE DOCUMENTATION REQUIREMENT DETECTED.
 
-# ============================================================================
-# Pattern 3: Memory/CLAUDE.md related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(claude\.md|static memory|memory hierarchy|import syntax|\.claude/memory|progressive disclosure)\b'; then
-    DETECTED_TOPICS+=("memory")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="memory-meta"
-        DETECTED_KEYWORDS="CLAUDE.md, static memory, memory hierarchy, import syntax, progressive disclosure"
-    fi
-fi
+Topic: $TOPIC
+Meta-skill: $META_SKILL
+Keywords: $KEYWORDS
 
-# ============================================================================
-# Pattern 4: Skills-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(agent skill|skill creation|yaml frontmatter|allowed-tools|skill file|create.*skill|skill\.md)\b'; then
-    DETECTED_TOPICS+=("skills")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="skills-meta"
-        DETECTED_KEYWORDS="skills, agent skills, YAML frontmatter, allowed-tools, skill creation"
-    fi
-fi
-
-# ============================================================================
-# Pattern 5: Subagents-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(subagent|sub-agent|agent file|agent yaml|task tool.*agent|explore agent|plan agent|agent model selection)\b'; then
-    DETECTED_TOPICS+=("subagents")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="subagents-meta"
-        DETECTED_KEYWORDS="subagents, agent files, Task tool, Explore agent, Plan agent, agent model selection"
-    fi
-fi
-
-# ============================================================================
-# Pattern 6: Slash commands-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(slash command|custom command|\.claude/commands|command\.md)\b'; then
-    DETECTED_TOPICS+=("slash-commands")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="slash-commands-meta"
-        DETECTED_KEYWORDS="slash commands, custom commands, .claude/commands"
-    fi
-fi
-
-# ============================================================================
-# Pattern 7: Plugins-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(plugin(s)?|plugin\.json|\.claude-plugin|plugin hook|plugin skill|plugin marketplace|marketplace\.json)\b'; then
-    DETECTED_TOPICS+=("plugins")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="plugins-meta"
-        DETECTED_KEYWORDS="plugins, plugin.json, plugin hooks, plugin skills, marketplace"
-    fi
-fi
-
-# ============================================================================
-# Pattern 8: MCP-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(mcp server|model context protocol|mcp tool|mcp config|mcp resource)\b'; then
-    DETECTED_TOPICS+=("mcp")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="mcp-meta"
-        DETECTED_KEYWORDS="MCP, MCP servers, Model Context Protocol, MCP tools, MCP configuration"
-    fi
-fi
-
-# ============================================================================
-# Pattern 9: Configuration/Settings-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(settings\.json|\.claude/settings|permission setting|sandbox setting|claude code config|enterprise.*setting)\b'; then
-    DETECTED_TOPICS+=("configuration")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="configuration-meta"
-        DETECTED_KEYWORDS="settings.json, permissions, sandbox, Claude Code configuration"
-    fi
-fi
-
-# ============================================================================
-# Pattern 10: Security-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(claude code security|sandboxing|iam|permission.*mode|tool.*restriction)\b'; then
-    DETECTED_TOPICS+=("security")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="security-meta"
-        DETECTED_KEYWORDS="security, sandboxing, IAM, permissions, tool restrictions"
-    fi
-fi
-
-# ============================================================================
-# Pattern 11: Output styles-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(output style|output format|explanatory style|learning style|/output-style)\b'; then
-    DETECTED_TOPICS+=("output-styles")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="output-styles-meta"
-        DETECTED_KEYWORDS="output styles, output format, explanatory style, learning style"
-    fi
-fi
-
-# ============================================================================
-# Pattern 12: Status line-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(status line|statusline|terminal status)\b'; then
-    DETECTED_TOPICS+=("status-line")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="status-line-meta"
-        DETECTED_KEYWORDS="status line, terminal status, statusline configuration"
-    fi
-fi
-
-# ============================================================================
-# Pattern 13: Agent SDK-related topics
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '\b(agent sdk|typescript sdk|python sdk|claude sdk|sdk session|sdk tool)\b'; then
-    DETECTED_TOPICS+=("agent-sdk")
-    if [ -z "$DETECTED_META_SKILL" ]; then
-        DETECTED_META_SKILL="agent-sdk-meta"
-        DETECTED_KEYWORDS="Agent SDK, TypeScript SDK, Python SDK, sessions, custom tools"
-    fi
-fi
-
-# ============================================================================
-# Pattern 14: Generic "how to" questions about Claude Code features
-# ============================================================================
-if echo "$PROMPT_LOWER" | grep -qE '(how (do|can|to)|what is|explain|help with|set up|configure|create|use).*(claude code|hooks?|skills?|subagents?|mcp|plugins?|memory|claude\.md)'; then
-    DETECTED_TOPICS+=("how-to-question")
-fi
-
-# If no patterns detected, exit silently (no context injection needed)
-if [ ${#DETECTED_TOPICS[@]} -eq 0 ]; then
-    exit 0
-fi
-
-# Build context injection message
-CONTEXT_MSG="<system-reminder>
-CLAUDE CODE DOCUMENTATION REQUIREMENT DETECTED in user prompt.
-
-Detected topics: ${DETECTED_TOPICS[*]}
-
-MANDATORY ACTION (per CLAUDE.md rule):
-Before answering ANY question about Claude Code features:
-
-1. INVOKE official-docs skill (or appropriate meta-skill) FIRST
-2. Load official documentation for the detected topic
-3. Base your response 100% on official docs - NEVER rely on memory or assumptions"
-
-# Add meta-skill suggestion if detected
-if [ -n "$DETECTED_META_SKILL" ]; then
-    CONTEXT_MSG+="
-
-Relevant meta-skill: $DETECTED_META_SKILL
-Keywords for official-docs: $DETECTED_KEYWORDS"
-fi
-
-CONTEXT_MSG+="
-
-See Claude Code documentation for complete guidance on official-docs skill usage.
+ACTION: Invoke official-docs skill (or $META_SKILL) before answering.
 </system-reminder>"
 
-# JSON escape function (fallback when jq not available)
-json_escape() {
-    local str="$1"
-    str="${str//\\/\\\\}"
-    str="${str//\"/\\\"}"
-    str="${str//$'\n'/\\n}"
-    str="${str//$'\r'/}"
-    str="${str//$'\t'/\\t}"
-    echo "\"$str\""
-}
+# Escape for JSON
+CONTEXT_ESC="${CONTEXT//\\/\\\\}"
+CONTEXT_ESC="${CONTEXT_ESC//\"/\\\"}"
+CONTEXT_ESC="${CONTEXT_ESC//$'\n'/\\n}"
 
-# Build user-visible system message (brief summary of what hook detected)
-SYSTEM_MSG="official-docs hook: Detected [${DETECTED_TOPICS[*]}] - context injected"
-
-# Output JSON with both systemMessage (user feedback) and additionalContext (Claude context)
-if command -v jq &>/dev/null; then
-    ESCAPED_CONTEXT=$(echo "$CONTEXT_MSG" | jq -Rs .)
-    ESCAPED_SYSTEM_MSG=$(echo "$SYSTEM_MSG" | jq -Rs .)
-else
-    ESCAPED_CONTEXT=$(json_escape "$CONTEXT_MSG")
-    ESCAPED_SYSTEM_MSG=$(json_escape "$SYSTEM_MSG")
-fi
-
-cat << EOF
-{
-  "systemMessage": $ESCAPED_SYSTEM_MSG,
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": $ESCAPED_CONTEXT
-  }
-}
-EOF
-
-exit 0
+printf '{"systemMessage":"official-docs: [%s] detected","hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' "$TOPIC" "$CONTEXT_ESC"
