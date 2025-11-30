@@ -23,6 +23,88 @@ fi
 # Bash 4+ builtin lowercase (no subprocess)
 PROMPT_LOWER="${PROMPT,,}"
 
+# === ECOSYSTEM SCORING FUNCTION ===
+# Prevents cross-ecosystem misfires by detecting which ecosystem the user is asking about
+# Returns: "claude", "gemini", or "ambiguous"
+
+get_ecosystem_context() {
+    local prompt_lower="$1"
+    local gemini_score=0
+    local claude_score=0
+
+    # HIGH-WEIGHT SIGNALS (explicit product mentions) - 10 points each
+    [[ $prompt_lower =~ gemini.?cli ]] && ((gemini_score+=10))
+    [[ $prompt_lower =~ geminicli ]] && ((gemini_score+=10))
+    [[ $prompt_lower =~ google.?gemini ]] && ((gemini_score+=10))
+    [[ $prompt_lower =~ geminicli\.com ]] && ((gemini_score+=10))
+
+    [[ $prompt_lower =~ claude[[:space:]]code ]] && ((claude_score+=10))
+    [[ $prompt_lower =~ anthropic ]] && ((claude_score+=10))
+
+    # MEDIUM-WEIGHT SIGNALS (config paths, unique terms) - 5 points each
+    # Gemini-unique signals
+    [[ $prompt_lower =~ \.gemini/ ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ ~/\.gemini ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ gemini\.md ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ \.geminiignore ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ memport ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ trusted.?folder ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ policy.?engine ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ llms\.txt ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ model.?routing ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ token.?caching ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ prompt.?compression ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ /compress ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ /chat[[:space:]]+(save|resume|delete|share) ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ --yolo ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ shadow.?git ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ checkpointing\.enabled ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ gemini_api_key ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ permissive-open|permissive-closed|restrictive-open ]] && ((gemini_score+=5))
+    [[ $prompt_lower =~ sandbox-exec|seatbelt ]] && ((gemini_score+=5))
+
+    # Claude-unique signals
+    [[ $prompt_lower =~ \.claude/ ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ claude\.md ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ \.claude-plugin ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ settings\.local\.json ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ pretooluse|posttooluse|userpromptsubmit ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ sessionstart|sessionend|precompact|subagentstop ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ allowed-?tools|disallowed-?tools ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ permission-?mode|bypasspermissions|acceptedits ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ agent-?sdk ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ /doctor|/compact|/cost|/statusline|/terminal-setup ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ /output-style|/permissions|/memory|/plugin ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ managed-settings\.json|managed-mcp\.json ]] && ((claude_score+=5))
+    [[ $prompt_lower =~ --dangerously|--permission-prompt-tool ]] && ((claude_score+=5))
+
+    # LOW-WEIGHT SIGNALS (generic but associated terms) - 2 points each
+    [[ $prompt_lower =~ gemini ]] && ((gemini_score+=2))
+    [[ $prompt_lower =~ claude ]] && ((claude_score+=2))
+
+    # Debug logging (controlled by environment variable)
+    if [[ "${HOOK_DEBUG:-}" == "1" ]]; then
+        echo "ecosystem_score: claude=$claude_score gemini=$gemini_score" >&2
+    fi
+
+    # DECISION LOGIC
+    # Require a significant lead (>5 points) to declare a winner
+    if ((gemini_score > claude_score + 5)); then
+        echo "gemini"
+    elif ((claude_score > gemini_score + 5)); then
+        echo "claude"
+    else
+        echo "ambiguous"
+    fi
+}
+
+# Check ecosystem context - exit early if Claude is clearly dominant
+ECOSYSTEM=$(get_ecosystem_context "$PROMPT_LOWER")
+if [[ "$ECOSYSTEM" == "claude" ]]; then
+    [[ "${HOOK_DEBUG:-}" == "1" ]] && echo "gemini-hook: exiting, claude dominant" >&2
+    exit 0  # Let Claude hook handle this
+fi
+
 # === TIER 1: HIGH-CONFIDENCE PATTERNS (always match) ===
 # These are uniquely Gemini CLI - no false positives possible
 
