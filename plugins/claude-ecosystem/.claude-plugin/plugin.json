@@ -1,7 +1,7 @@
 {
   "name": "claude-ecosystem",
-  "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills for all Claude Code features, and development guidance. Provides keyword-based doc discovery, doc_id resolution, token-optimized subsection extraction, and authoritative knowledge hubs for hooks, memory, skills, MCP, configuration, security, subagents, plugins, and more.",
-  "version": "2.0.0",
+  "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills, development guidance, event logging, and observability hooks. Provides keyword-based doc discovery, doc_id resolution, token-optimized subsection extraction, authoritative knowledge hubs for hooks, memory, skills, MCP, configuration, security, subagents, plugins, and more. Includes comprehensive hook event logging, date/time injection, and file validation.",
+  "version": "3.0.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"
@@ -28,8 +28,18 @@
     "agent-sdk",
     "offline",
     "search",
-    "api-reference"
+    "api-reference",
+    "observability",
+    "logging",
+    "event-logging",
+    "date-injection",
+    "validation"
   ],
   "skills": "./skills",
-  "agents": ["./agents/docs-researcher.md", "./agents/skill-auditor.md"]
+  "agents": [
+    "./agents/docs-researcher.md",
+    "./agents/skill-auditor.md",
+    "./agents/mcp-research.md"
+  ],
+  "commands": "./commands"
 }

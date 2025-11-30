@@ -34,7 +34,7 @@ Central authority for managing Claude Code hooks in this repository. Automates e
 
 ## When to Use This Skill
 
-**Keywords:** hooks, hook management, automation, validation, enforcement, PreToolUse, PostToolUse, SessionEnd, hook configuration
+**Keywords:** hooks, hook management, automation, validation, enforcement, PreToolUse, PostToolUse, SessionEnd, hook configuration, plugin hooks, local hooks
 
 **Use this skill when:**
 
@@ -98,6 +98,19 @@ Central authority for managing Claude Code hooks in this repository. Automates e
 8. **Troubleshoot issues** → See [Common Issues](references/troubleshooting/common-issues.md)
 9. **Debug hooks** → See [Debugging Guide](references/troubleshooting/debugging-guide.md)
 10. **Official hooks documentation** → Use docs-management skill with keywords above
+11. **Create/configure plugin hooks** → Use `plugin-development` skill (see below)
+
+### Plugin Hooks Delegation
+
+**If you're working with plugin hooks** (hooks bundled in a Claude Code plugin), use the `plugin-development` skill instead. Plugin hooks use a different configuration pattern:
+
+| Aspect | Local Hooks (this skill) | Plugin Hooks |
+| ------ | ------------------------ | ------------ |
+| Location | `.claude/hooks/` directory | Plugin `hooks/hooks.json` |
+| Configuration | YAML files (`config.yaml`) | Environment variables |
+| Consumer Control | Edit config files directly | Via `settings.json` `env` section |
+
+**For plugin hooks:** Invoke `plugin-development` skill and see the Plugin Hook Configuration section.
 
 ## Reference Loading Guide
 
@@ -418,6 +431,12 @@ CLAUDE.md references hooks for automated enforcement:
 
 ## Version History
 
+- **v1.2.2** (2025-11-30): Plugin hooks delegation
+  - Added decision tree entry for plugin hooks (delegates to plugin-development skill)
+  - Added Plugin Hooks Delegation section with comparison table
+  - Added "plugin hooks", "local hooks" keywords
+  - Clarifies scope: this skill is for local hooks (`.claude/hooks/`), plugin hooks use different patterns
+
 - **v1.2.1** (2025-11-25): Audit improvements
   - Added Test Scenarios section for activation testing
   - Added Last Audit tracking to metadata
@@ -453,5 +472,5 @@ CLAUDE.md references hooks for automated enforcement:
 
 ## Last Updated
 
-**Date:** 2025-11-28
+**Date:** 2025-11-30
 **Model:** claude-opus-4-5-20251101
