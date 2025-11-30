@@ -30,6 +30,17 @@
         "url": "https://github.com/melodic-software"
       },
       "license": "MIT"
+    },
+    {
+      "name": "code-quality",
+      "source": "./plugins/code-quality",
+      "description": "Code quality tools for Claude Code: markdown linting with auto-fix, validation hooks, and CI/CD templates",
+      "version": "1.0.0",
+      "author": {
+        "name": "Melodic Software",
+        "url": "https://github.com/melodic-software"
+      },
+      "license": "MIT"
     }
   ]
 }

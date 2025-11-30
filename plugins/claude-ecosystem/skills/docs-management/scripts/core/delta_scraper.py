@@ -141,6 +141,8 @@ class DeltaScraper:
 
     def _load_cache(self) -> None:
         """Load cached manifest states from disk."""
+        from utils.cache_manager import compute_plugin_fingerprint
+
         if not self.cache_path.exists():
             return
 
@@ -148,7 +150,15 @@ class DeltaScraper:
             with open(self.cache_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
+            # Validate fingerprint - if code changed, invalidate cache
+            if data.get('_plugin_fingerprint') != compute_plugin_fingerprint():
+                print("Plugin code changed - clearing stale manifest cache")
+                self._manifest_states = {}
+                return
+
             for source_name, state_dict in data.items():
+                if source_name.startswith('_'):  # Skip metadata keys
+                    continue
                 self._manifest_states[source_name] = ManifestState.from_dict(state_dict)
 
         except (json.JSONDecodeError, KeyError) as e:
@@ -157,9 +167,11 @@ class DeltaScraper:
 
     def _save_cache(self) -> None:
         """Save manifest states to disk."""
+        from utils.cache_manager import compute_plugin_fingerprint
+
         data = {
-            name: state.to_dict()
-            for name, state in self._manifest_states.items()
+            '_plugin_fingerprint': compute_plugin_fingerprint(),
+            **{name: state.to_dict() for name, state in self._manifest_states.items()}
         }
 
         with open(self.cache_path, 'w', encoding='utf-8') as f:

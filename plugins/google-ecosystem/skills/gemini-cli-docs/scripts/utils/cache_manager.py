@@ -68,6 +68,34 @@ def compute_file_hash(file_path: Path) -> str:
             hasher.update(chunk)
     return f"sha256:{hasher.hexdigest()}"
 
+def compute_plugin_fingerprint() -> str:
+    """
+    Compute fingerprint of all plugin Python scripts.
+
+    Any code change will change this hash, triggering cache invalidation.
+    This is fool-proof: no manual version updates needed.
+
+    Returns:
+        Hash string in format "sha256:<short_hex_digest>"
+    """
+    # Navigate to scripts directory (this file is in scripts/utils/)
+    scripts_dir = Path(__file__).resolve().parents[1]  # scripts/
+
+    hasher = hashlib.sha256()
+
+    # Hash all .py files in sorted order for determinism
+    py_files = sorted(scripts_dir.rglob("*.py"))
+    for py_file in py_files:
+        try:
+            # Include relative path in hash (detects renames/moves)
+            rel_path = py_file.relative_to(scripts_dir)
+            hasher.update(str(rel_path).encode('utf-8'))
+            hasher.update(py_file.read_bytes())
+        except OSError:
+            continue
+
+    return f"sha256:{hasher.hexdigest()[:16]}"  # Short hash sufficient
+
 
 class CacheManager:
     """
@@ -122,6 +150,7 @@ class CacheManager:
 
             version_info = {
                 "cache_format_version": CACHE_FORMAT_VERSION,
+                "plugin_fingerprint": compute_plugin_fingerprint(),
                 "index_yaml_hash": index_hash,
                 "index_yaml_mtime": self._index_path.stat().st_mtime if self._index_path.exists() else 0,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -142,8 +171,9 @@ class CacheManager:
 
         Uses hybrid approach:
         1. Fast path: check if cache exists and version file exists
-        2. mtime check: if index.yaml mtime unchanged, assume valid
-        3. Hash check: if mtime changed, verify content hash
+        2. Plugin fingerprint: invalidate if any script changed
+        3. mtime check: if index.yaml mtime unchanged, assume valid
+        4. Hash check: if mtime changed, verify content hash
 
         Returns:
             True if cache is valid and can be used, False if rebuild needed
@@ -159,6 +189,10 @@ class CacheManager:
 
         # Check format version
         if version_info.get("cache_format_version") != CACHE_FORMAT_VERSION:
+            return False
+
+        # Check plugin fingerprint - invalidate if ANY script changed
+        if version_info.get("plugin_fingerprint") != compute_plugin_fingerprint():
             return False
 
         # Index file must exist
