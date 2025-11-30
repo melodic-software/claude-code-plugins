@@ -26,6 +26,10 @@
     "auto-fix"
   ],
   "skills": "./skills",
-  "agents": "./agents",
+  "agents": [
+    "./agents/code-reviewer.md",
+    "./agents/codebase-analyst.md",
+    "./agents/debugger.md"
+  ],
   "commands": "./commands"
 }
