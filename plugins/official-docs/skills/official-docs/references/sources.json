@@ -1,0 +1,112 @@
+[
+  {
+    "name": "docs.claude.com /en/docs/",
+    "type": "sitemap",
+    "url": "https://docs.claude.com/sitemap.xml",
+    "filter": "/en/docs/",
+    "skip_existing": true,
+    "expected_count": 97,
+    "timeout": 1800,
+    "last_scraped": "2025-11-18"
+  },
+  {
+    "name": "docs.claude.com /en/api/",
+    "type": "sitemap",
+    "url": "https://docs.claude.com/sitemap.xml",
+    "filter": "/en/api/",
+    "skip_existing": true,
+    "expected_count": 62,
+    "timeout": 1800
+  },
+  {
+    "name": "docs.claude.com /en/resources/",
+    "type": "sitemap",
+    "url": "https://docs.claude.com/sitemap.xml",
+    "filter": "/en/resources/",
+    "skip_existing": true,
+    "expected_count": 66,
+    "timeout": 1800
+  },
+  {
+    "name": "docs.claude.com /en/release-notes/",
+    "type": "sitemap",
+    "url": "https://docs.claude.com/sitemap.xml",
+    "filter": "/en/release-notes/",
+    "skip_existing": true,
+    "expected_count": 2,
+    "expected_count_tolerance": 10,
+    "timeout": 1800,
+    "last_scraped": "2025-11-17"
+  },
+  {
+    "name": "code.claude.com (docs-map)",
+    "type": "docs-map",
+    "url": "https://code.claude.com/docs/en/claude_code_docs_map.md",
+    "enabled": false,
+    "skip_existing": true,
+    "expected_count": 43,
+    "timeout": 1800,
+    "expected_errors": [
+      {
+        "url": "https://code.claude.com/docs/en/migration-guide.md",
+        "type": "404",
+        "reason": "Page removed from site"
+      }
+    ],
+    "last_scraped": "2025-11-25",
+    "deprecated": "2025-11-27: Replaced by llms-txt which is a superset (46 vs 43 URLs)"
+  },
+  {
+    "name": "code.claude.com (llms-txt)",
+    "type": "llms-txt",
+    "url": "https://code.claude.com/docs/llms.txt",
+    "skip_existing": true,
+    "expected_count": 46,
+    "timeout": 300,
+    "comment": "llms.txt is a superset of docs-map with 2 additional URLs (desktop.md, microsoft-foundry.md)"
+  },
+  {
+    "name": "anthropic.com /engineering/",
+    "type": "sitemap",
+    "url": "https://www.anthropic.com/sitemap.xml",
+    "filter": "/engineering/",
+    "skip_existing": true,
+    "try_markdown": false,
+    "max_age_days": 180,
+    "expected_count": 10,
+    "timeout": 1800,
+    "last_scraped": "2025-11-25"
+  },
+  {
+    "name": "anthropic.com /news/",
+    "type": "sitemap",
+    "url": "https://www.anthropic.com/sitemap.xml",
+    "filter": "/news/",
+    "skip_existing": true,
+    "try_markdown": false,
+    "max_age_days": 180,
+    "expected_count": 153,
+    "expected_count_tolerance": 10,
+    "timeout": 1800,
+    "last_scraped": "2025-11-18"
+  },
+  {
+    "name": "anthropic.com /research/",
+    "type": "sitemap",
+    "url": "https://www.anthropic.com/sitemap.xml",
+    "filter": "/research/",
+    "skip_existing": true,
+    "try_markdown": false,
+    "max_age_days": 180,
+    "expected_count": 79,
+    "timeout": 1800
+  },
+  {
+    "name": "claude-code CHANGELOG",
+    "type": "url",
+    "url": "https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG.md",
+    "output": "code-claude-com/CHANGELOG.md",
+    "skip_existing": true,
+    "timeout": 1800
+  }
+]
