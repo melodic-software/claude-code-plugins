@@ -19,6 +19,17 @@
         "url": "https://github.com/melodic-software"
       },
       "license": "MIT"
+    },
+    {
+      "name": "google-ecosystem",
+      "source": "./plugins/google-ecosystem",
+      "description": "Google ecosystem plugin with Gemini CLI documentation management, searchable docs index, and development guidance",
+      "version": "1.0.0",
+      "author": {
+        "name": "Melodic Software",
+        "url": "https://github.com/melodic-software"
+      },
+      "license": "MIT"
     }
   ]
 }
