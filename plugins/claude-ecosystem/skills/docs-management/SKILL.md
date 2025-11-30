@@ -440,7 +440,7 @@ When you run any major script (scrape, refresh, rebuild), a mode banner will dis
 
 **Dev mode:**
 
-```
+```text
 [DEV MODE] Using development skill directory:
   D:\repos\gh\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management
   Set via: DOCS_MANAGEMENT_DEV_ROOT
@@ -449,7 +449,7 @@ Canonical dir: D:\...\canonical
 
 **Prod mode:**
 
-```
+```text
 [PROD MODE] Using installed skill directory
   (Set DOCS_MANAGEMENT_DEV_ROOT to enable dev mode)
 ```

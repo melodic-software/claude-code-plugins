@@ -33,6 +33,7 @@ This skill provides the operational knowledge to execute the `gemini` binary eff
 ## Execution Patterns
 
 ### 1. Single Shot Query (Non-Interactive)
+
 Use the `query` command (or equivalent based on version) for direct prompts.
 
 ```bash
@@ -40,6 +41,7 @@ gemini query "Create a plan for a React app"
 ```
 
 ### 2. Piping Context
+
 Pass file content or logs via stdin.
 
 ```bash
@@ -47,6 +49,7 @@ cat logs.txt | gemini query "Analyze these error logs"
 ```
 
 ### 3. Context via Flags
+
 If the CLI supports adding context via flags (verify with `gemini-cli-docs`).
 
 ```bash
@@ -54,9 +57,11 @@ gemini query --context file.js "Explain this code"
 ```
 
 ### 4. Interactive Shell Mode
+
 Enable interactive shell for commands requiring user input (e.g., `vim`, `git rebase`).
-*   **Enable:** Set `tools.shell.enableInteractiveShell: true` in `settings.json`.
-*   **Usage:** `gemini query "run vim file.txt"` (User must handle input).
+
+- **Enable:** Set `tools.shell.enableInteractiveShell: true` in `settings.json`.
+- **Usage:** `gemini query "run vim file.txt"` (User must handle input).
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
@@ -72,10 +77,10 @@ Enable interactive shell for commands requiring user input (e.g., `vim`, `git re
 
 **What do you want to do?**
 
-1.  **Ask a Question** -> `gemini query "Question"`
-2.  **Analyze a File** -> `cat file | gemini query "Analyze"`
-3.  **Generate a Plan** -> `gemini query "Plan for X"`
-4.  **Run Interactive Tool** -> `gemini query "run interactive command"`
+1. **Ask a Question** -> `gemini query "Question"`
+2. **Analyze a File** -> `cat file | gemini query "Analyze"`
+3. **Generate a Plan** -> `gemini query "Plan for X"`
+4. **Run Interactive Tool** -> `gemini query "run interactive command"`
 
 ## Troubleshooting
 
@@ -86,5 +91,6 @@ Enable interactive shell for commands requiring user input (e.g., `vim`, `git re
 
 **Official Documentation:**
 Query `gemini-cli-docs` for:
+
 - "cli commands"
 - "headless usage"

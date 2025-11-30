@@ -51,6 +51,7 @@ Use natural language to narrow scope:
 ## Accurate Reporting
 
 **Distinguish by domain:**
+
 - `docs.claude.com` and `code.claude.com`: Serve .md URLs successfully
 - `anthropic.com`: Does NOT serve .md URLs (expected 404s, falls back to HTML)
 

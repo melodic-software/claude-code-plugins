@@ -53,12 +53,13 @@ prompt = "The actual prompt to send..."
 
 **What do you want to do?**
 
-1.  **Create a Simple Alias** -> Query `gemini-cli-docs`: "create custom command"
-2.  **Package Command in Extension** -> Query `gemini-cli-docs`: "extension commands structure"
+1. **Create a Simple Alias** -> Query `gemini-cli-docs`: "create custom command"
+2. **Package Command in Extension** -> Query `gemini-cli-docs`: "extension commands structure"
 
 ## References
 
 **Official Documentation:**
 Query `gemini-cli-docs` for:
+
 - "custom commands"
 - "slash commands"

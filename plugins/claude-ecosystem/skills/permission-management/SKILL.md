@@ -101,7 +101,7 @@ Use these keywords when querying docs-management skill for official documentatio
 
 ## Topic Coverage
 
-### Permission System
+### Permission System Topics
 
 - Tiered permission model (read-only, bash, file modification)
 - Allow rules (auto-approve)
@@ -110,7 +110,7 @@ Use these keywords when querying docs-management skill for official documentatio
 - Rule precedence (deny > ask > allow)
 - Permission rule format
 
-### Permission Modes
+### Permission Modes Topics
 
 - default mode (standard prompting)
 - acceptEdits mode (auto-accept file edits)
@@ -127,7 +127,7 @@ Use these keywords when querying docs-management skill for official documentatio
 - MCP tool permissions (no wildcards)
 - Hooks for custom permission evaluation
 
-### Working Directories
+### Working Directories Topics
 
 - additionalDirectories configuration
 - --add-dir CLI flag

@@ -107,7 +107,7 @@ Resolve documentation references like "geminicli-com-docs-cli-checkpointing" to 
 ## Gemini CLI Feature Categories
 
 | Category | Topics |
-|----------|--------|
+| ---------- | -------- |
 | Get Started | installation, authentication, configuration, quickstart |
 | CLI | commands, settings, themes, checkpointing, telemetry, trusted folders |
 | Core | architecture, tools API, policy engine, memport |

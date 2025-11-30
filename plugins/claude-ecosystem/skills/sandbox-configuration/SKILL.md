@@ -107,7 +107,7 @@ Use these keywords when querying docs-management skill for official documentatio
 - OS-level enforcement (bubblewrap on Linux, Seatbelt on macOS)
 - Open source sandbox runtime
 
-### Filesystem Isolation
+### Filesystem Isolation Topics
 
 - Default writes behavior
 - Default read behavior
@@ -115,7 +115,7 @@ Use these keywords when querying docs-management skill for official documentatio
 - Custom allowed and denied paths
 - Protection against critical file modification
 
-### Network Isolation
+### Network Isolation Topics
 
 - Domain restrictions
 - User confirmation for new domains
@@ -123,7 +123,7 @@ Use these keywords when querying docs-management skill for official documentatio
 - Comprehensive coverage for subprocesses
 - httpProxyPort and socksProxyPort settings
 
-### Configuration Options
+### Configuration Options Topics
 
 - dangerouslyDisableSandbox escape hatch
 - allowUnsandboxedCommands configuration

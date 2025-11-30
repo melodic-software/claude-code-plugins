@@ -20,6 +20,7 @@ Use this checklist before creating custom slash commands. All rules are extracte
 - [ ] **Subdirectories for organization** (don't affect command name)
 
 **Examples:**
+
 - `.claude/commands/review.md` → `/review`
 - `.claude/commands/frontend/component.md` → `/component` (description shows "(project:frontend)")
 
@@ -38,6 +39,7 @@ Use this checklist before creating custom slash commands. All rules are extracte
 - [ ] **Omit for default tool access**
 
 **Example:**
+
 ```yaml
 ---
 description: Review code for quality and suggest improvements
@@ -60,6 +62,7 @@ allowed-tools: Read, Glob, Grep
 - [ ] **Arguments are optional** - command works without them
 
 **Example:**
+
 ```markdown
 Review the code in $1 for:
 - Code quality
@@ -80,6 +83,7 @@ Review the code in $1 for:
 - [ ] **Namespace required** when command names conflict across plugins
 
 **Example:**
+
 - Plugin: `claude-ecosystem`
 - Command file: `commands/scrape-docs.md`
 - Invocation: `/claude-ecosystem:scrape-docs` or just `/scrape-docs` if unique
@@ -106,4 +110,5 @@ Before creating a new command:
 
 **Last Updated:** 2025-11-30
 **Source References:**
+
 - `code-claude-com/docs/en/slash-commands.md`

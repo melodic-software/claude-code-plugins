@@ -1,0 +1,30 @@
+// markdownlint-cli2 configuration file
+// Configuration format: https://github.com/DavidAnson/markdownlint-cli2#configuration
+//
+// This is the single source of truth for markdown linting configuration
+// Both markdownlint-cli2 CLI and VS Code extension read this file
+{
+  // Automatically respect .gitignore patterns
+  "gitignore": true,
+
+  // Files to ignore (glob patterns)
+  "ignores": [
+    // Temporary files
+    "**/temp/**",
+    "**/tmp/**",
+    "**/.tmp/**",
+
+    // Scraped documentation (external sources, not under our control)
+    "**/canonical/**",
+    "**/plugins/google-ecosystem/skills/gemini-cli-docs/**",
+
+    // Test fixtures (intentionally contain lint errors)
+    "**/tests/**/fixtures/**"
+  ],
+
+  // Linting rules configuration
+  "config": {
+    "default": true,
+    "MD013": false
+  }
+}

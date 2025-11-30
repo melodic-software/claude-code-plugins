@@ -10,7 +10,7 @@ This is a Claude Code plugins repository containing the `claude-ecosystem` plugi
 
 ### Plugin Structure
 
-```
+```text
 plugins/claude-ecosystem/
 ├── .claude-plugin/plugin.json  # Plugin manifest (v2.0.0)
 ├── agents/                     # Custom agents (docs-researcher)
@@ -25,6 +25,7 @@ plugins/claude-ecosystem/
 ### Skills Architecture
 
 All skills follow a **pure delegation architecture**:
+
 1. Each `SKILL.md` provides keyword registries and navigation
 2. `docs-management` skill is the single source of truth for official documentation
 3. Meta-skills do NOT duplicate official documentation - they delegate to `docs-management`
@@ -110,6 +111,7 @@ python plugins/claude-ecosystem/skills/docs-management/scripts/setup/setup_depen
 **CRITICAL: Never chain `cd` with `&&` in PowerShell** - causes path doubling issues.
 
 Use one of:
+
 - Helper scripts that handle path resolution
 - Absolute paths
 - Separate commands (not chained with `&&`)
@@ -126,6 +128,7 @@ Use one of:
 ## Slash Commands
 
 Available plugin commands:
+
 - `/claude-ecosystem:scrape-docs` - Scrape documentation sources, then refresh and validate
 - `/claude-ecosystem:refresh-docs` - Refresh local index without scraping
 - `/claude-ecosystem:validate-docs` - Validate index integrity and detect drift

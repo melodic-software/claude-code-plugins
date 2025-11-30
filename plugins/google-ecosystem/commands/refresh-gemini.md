@@ -14,13 +14,13 @@ Refresh the local index without re-scraping from the web. Use this when you've m
 python "${CLAUDE_PLUGIN_ROOT}/skills/gemini-cli-docs/scripts/management/rebuild_index.py"
 ```
 
-2. Verify the index integrity:
+1. Verify the index integrity:
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/skills/gemini-cli-docs/scripts/management/manage_index.py" verify
 ```
 
-3. Report the document count:
+1. Report the document count:
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/skills/gemini-cli-docs/scripts/management/manage_index.py" count

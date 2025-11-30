@@ -15,12 +15,14 @@ Use this checklist before creating or renaming skills. All rules are extracted f
 - [ ] **Non-empty**
 
 **Valid examples:**
+
 - `processing-pdfs`
 - `analyzing-spreadsheets`
 - `managing-databases`
 - `skill-development`
 
 **Invalid examples:**
+
 - `Processing-PDFs` (uppercase letters)
 - `claude-helper` (reserved word "claude")
 - `anthropic-docs` (reserved word "anthropic")
@@ -37,11 +39,13 @@ Use this checklist before creating or renaming skills. All rules are extracted f
 - [ ] **Includes specific triggers/contexts**
 
 **Good example:**
+
 ```yaml
 description: Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.
 ```
 
 **Bad examples:**
+
 ```yaml
 description: Helps with documents  # Too vague
 description: I can process PDFs for you  # First person
@@ -89,5 +93,6 @@ Before creating a new skill:
 
 **Last Updated:** 2025-11-30
 **Source References:**
+
 - `platform-claude-com/docs/en/agents-and-tools/agent-skills/best-practices.md`
 - `code-claude-com/docs/en/skills.md`

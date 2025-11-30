@@ -37,19 +37,19 @@ Expert skill for managing Google Gemini CLI configuration. It handles the hierar
 
 Gemini CLI uses a cascading configuration system:
 
-1.  **Global Scope:** `~/.gemini/settings.json` (User-wide defaults)
-2.  **Project Scope:** `.gemini/settings.json` (Per-project overrides)
-3.  **Environment Variables:** `GEMINI_*` (Runtime overrides)
+1. **Global Scope:** `~/.gemini/settings.json` (User-wide defaults)
+2. **Project Scope:** `.gemini/settings.json` (Per-project overrides)
+3. **Environment Variables:** `GEMINI_*` (Runtime overrides)
 
 ## Trusted Folders Security
 
 The **Trusted Folders** feature is a critical security boundary.
 
-*   **Enabled via:** `"security.folderTrust.enabled": true` in `settings.json`.
-*   **States:**
-    *   **Trusted:** Full access (MCP, extensions, shell execution).
-    *   **Untrusted:** Restricted "Safe Mode" (No shell, no MCP, read-only).
-*   **Storage:** Decisions saved in `~/.gemini/trustedFolders.json`.
+- **Enabled via:** `"security.folderTrust.enabled": true` in `settings.json`.
+- **States:**
+  - **Trusted:** Full access (MCP, extensions, shell execution).
+  - **Untrusted:** Restricted "Safe Mode" (No shell, no MCP, read-only).
+- **Storage:** Decisions saved in `~/.gemini/trustedFolders.json`.
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
@@ -65,11 +65,11 @@ The **Trusted Folders** feature is a critical security boundary.
 
 **What do you want to do?**
 
-1.  **Enable Trusted Folders** -> Query `gemini-cli-docs`: "enable trusted folders settings"
-2.  **Edit Global Settings** -> Query `gemini-cli-docs`: "global settings.json location"
-3.  **Override for Project** -> Query `gemini-cli-docs`: "project specific settings .gemini"
-4.  **Configure UI/Telemetry** -> Query `gemini-cli-docs`: "telemetry configuration settings"
-5.  **Debug Config** -> Query `gemini-cli-docs`: "debug configuration loading"
+1. **Enable Trusted Folders** -> Query `gemini-cli-docs`: "enable trusted folders settings"
+2. **Edit Global Settings** -> Query `gemini-cli-docs`: "global settings.json location"
+3. **Override for Project** -> Query `gemini-cli-docs`: "project specific settings .gemini"
+4. **Configure UI/Telemetry** -> Query `gemini-cli-docs`: "telemetry configuration settings"
+5. **Debug Config** -> Query `gemini-cli-docs`: "debug configuration loading"
 
 ## Troubleshooting
 
@@ -81,6 +81,7 @@ The **Trusted Folders** feature is a critical security boundary.
 
 **Official Documentation:**
 Query `gemini-cli-docs` for:
+
 - "configuration"
 - "trusted folders"
 - "policy engine"

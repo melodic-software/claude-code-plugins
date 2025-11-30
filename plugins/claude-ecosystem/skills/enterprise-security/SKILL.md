@@ -110,14 +110,14 @@ Use these keywords when querying docs-management skill for official documentatio
 
 ## Topic Coverage
 
-### Enterprise Managed Policies
+### Managed Policies Topics
 
 - managed-settings.json locations (macOS, Linux, Windows)
 - Settings precedence hierarchy
 - Unoverridable organizational policies
 - Policy enforcement mechanisms
 
-### Cloud Execution Security
+### Cloud Security Topics
 
 - Isolated virtual machines
 - Network access controls
@@ -126,19 +126,19 @@ Use these keywords when querying docs-management skill for official documentatio
 - Audit logging
 - Automatic cleanup
 
-### IDE Security
+### IDE Security Topics
 
 - VS Code extension security
 - JetBrains plugin security
 - IDE-specific security contexts
 
-### DevContainer Security
+### DevContainer Topics
 
 - Container isolation benefits
 - Security features in devcontainer setup
 - Integration with sandboxing
 
-### Security Best Practices
+### Best Practices Topics
 
 - Working with sensitive code
 - Team security standards

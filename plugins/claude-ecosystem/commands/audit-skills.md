@@ -353,16 +353,19 @@ After all audits complete:
 ### Agent Coordination
 
 **Main conversation thread manages**:
+
 - Reading audit logs before audits
 - Updating audit logs after audits (per source)
 - Collecting and summarizing results
 
 **Agents manage**:
+
 - Individual skill audits
 - Writing findings to temp files
 - Fixing critical issues during audit
 
 **Agents do NOT**:
+
 - Update audit logs (main thread only - prevents race conditions)
 - Spawn sub-agents
 - Wait for other agents
@@ -370,10 +373,12 @@ After all audits complete:
 ### Error Handling
 
 If git log fails (file not in repo):
+
 - Use current date as "last modified"
 - Note in audit report
 
 If audit log is missing:
+
 - Create fresh audit log with all skills, empty dates
 - Continue with audit
 

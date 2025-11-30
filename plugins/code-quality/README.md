@@ -15,16 +15,19 @@ Code quality tools for Claude Code: markdown linting with auto-fix, validation h
 Automatic markdown linting and auto-fix on file write/edit operations.
 
 **Skill:** `code-quality:markdown-linting`
+
 - Comprehensive markdown linting guidance
 - Rule explanations and fixing strategies
 - VS Code extension setup
 - GitHub Actions integration
 
 **Command:** `/code-quality:lint-md`
+
 - Lint specific files or directories
 - Natural language targeting support
 
 **Hook:** PostToolUse (Write|Edit)
+
 - Automatically runs `markdownlint-cli2 --fix` on markdown files
 - Warns about unfixable errors
 - Configurable enforcement mode via `CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT`
@@ -46,7 +49,7 @@ To customize for your project:
 ## Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `CLAUDE_HOOK_DISABLED_MARKDOWN_LINT` | `false` | Set to `1` or `true` to disable the hook |
 | `CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT` | `warn` | Enforcement mode: `block`, `warn`, or `log` |
 | `CLAUDE_HOOK_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |

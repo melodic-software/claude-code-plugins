@@ -7,7 +7,7 @@ Comprehensive Claude Code ecosystem plugin with official documentation managemen
 All skills delegate to `docs-management` for authoritative documentation content.
 
 | Skill | Purpose |
-|-------|---------|
+| ------- | --------- |
 | `agent-sdk-development` | Claude Agent SDK (TypeScript/Python SDKs, sessions, tools, permissions) |
 | `command-development` | Slash commands (built-in, custom, plugin, arguments, bash execution) |
 | `docs-management` | Official documentation management (scraping, indexing, discovery, resolution) |

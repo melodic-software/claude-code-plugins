@@ -14,6 +14,7 @@ Use this checklist before creating or renaming agents. All rules are extracted f
 - [ ] **Unique identifier** for the agent
 
 **Valid examples:**
+
 - `code-reviewer`
 - `debugger`
 - `data-scientist`
@@ -21,6 +22,7 @@ Use this checklist before creating or renaming agents. All rules are extracted f
 - `docs-researcher`
 
 **Invalid examples:**
+
 - `Code-Reviewer` (uppercase letters)
 - `claude-helper` (reserved word "claude")
 - `my agent` (spaces)
@@ -34,6 +36,7 @@ Use this checklist before creating or renaming agents. All rules are extracted f
 - [ ] **Consider using "PROACTIVELY" or "MUST BE USED"** for important agents
 
 **Good examples:**
+
 ```yaml
 description: Expert code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying code.
 ```
@@ -43,6 +46,7 @@ description: PROACTIVELY use when researching Claude Code features, searching of
 ```
 
 **Bad examples:**
+
 ```yaml
 description: Reviews code  # Too vague
 description: I help with debugging  # First person
@@ -51,7 +55,7 @@ description: I help with debugging  # First person
 ### Optional Fields
 
 | Field | Description | Values |
-|-------|-------------|--------|
+| ------- | ------------- | -------- |
 | `tools` | Tools the agent can use | Tool names (e.g., `Read, Edit, Bash`) |
 | `model` | Model to use | `inherit`, `sonnet`, `haiku`, `opus` |
 | `color` | Agent color in UI | Color name (e.g., `purple`, `blue`) |
@@ -62,7 +66,7 @@ description: I help with debugging  # First person
 When agent names conflict:
 
 | Type | Location | Priority |
-|------|----------|----------|
+| ------ | ---------- | ---------- |
 | Project subagents | `.claude/agents/` | Highest |
 | CLI-defined | `--agents` flag | Medium |
 | User subagents | `~/.claude/agents/` | Lower |
@@ -95,6 +99,7 @@ Before creating a new agent:
 
 **Last Updated:** 2025-11-30
 **Source References:**
+
 - `code-claude-com/docs/en/sub-agents.md`
 - `platform-claude-com/docs/en/agent-sdk/subagents.md`
 - `platform-claude-com/docs/en/agents-and-tools/agent-skills/best-practices.md`

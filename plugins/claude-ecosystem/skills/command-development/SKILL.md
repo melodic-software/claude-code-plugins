@@ -294,7 +294,7 @@ Use **single noun**: `/status`, `/config`, `/todos`
 
 Use **single verb or short descriptive name**: `/clear`, `/compact`, `/review`
 
-### Plugin Commands
+### Plugin Command Namespacing
 
 Plugin commands get automatic namespacing via `/plugin-name:command`:
 

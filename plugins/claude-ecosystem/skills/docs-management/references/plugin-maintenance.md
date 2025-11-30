@@ -82,7 +82,7 @@ git push origin main
 Follow semver for plugin versions:
 
 | Change Type | Version Bump | Example |
-|-------------|--------------|---------|
+| ------------- | -------------- | --------- |
 | Documentation refresh (same sources) | Patch | 1.0.0 → 1.0.1 |
 | New documentation source added | Minor | 1.0.1 → 1.1.0 |
 | New skill features or capabilities | Minor | 1.1.0 → 1.2.0 |

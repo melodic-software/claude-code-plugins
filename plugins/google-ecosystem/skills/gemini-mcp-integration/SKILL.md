@@ -36,12 +36,14 @@ MCP servers are defined in the `mcpServers` object in `settings.json`.
 
 ### Transport Types
 
-1.  **Stdio (`command`):** Runs a local executable. Best for local scripts/tools.
+1. **Stdio (`command`):** Runs a local executable. Best for local scripts/tools.
+
     ```json
     "local-server": { "command": "node", "args": ["server.js"] }
     ```
-2.  **HTTP (`httpUrl`):** Connects via standard HTTP.
-3.  **SSE (`url`):** Server-Sent Events for streaming updates.
+
+2. **HTTP (`httpUrl`):** Connects via standard HTTP.
+3. **SSE (`url`):** Server-Sent Events for streaming updates.
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
@@ -56,21 +58,22 @@ MCP servers are defined in the `mcpServers` object in `settings.json`.
 
 **What do you want to do?**
 
-1.  **Connect a Local Tool** -> Query `gemini-cli-docs`: "configure stdio mcp server"
-2.  **Connect a Remote API** -> Query `gemini-cli-docs`: "configure http mcp server"
-3.  **Trust a Server** -> Query `gemini-cli-docs`: "mcp server trust settings"
-4.  **List Tools** -> Query `gemini-cli-docs`: "list mcp tools command"
-5.  **Debug Connection** -> Query `gemini-cli-docs`: "troubleshoot mcp connection"
+1. **Connect a Local Tool** -> Query `gemini-cli-docs`: "configure stdio mcp server"
+2. **Connect a Remote API** -> Query `gemini-cli-docs`: "configure http mcp server"
+3. **Trust a Server** -> Query `gemini-cli-docs`: "mcp server trust settings"
+4. **List Tools** -> Query `gemini-cli-docs`: "list mcp tools command"
+5. **Debug Connection** -> Query `gemini-cli-docs`: "troubleshoot mcp connection"
 
 ## Common Commands
 
-*   `gemini mcp add` - Interactive wizard to add a server.
-*   `/mcp` - List connected servers and their status.
-*   `gemini --debug` - View raw MCP connection logs (essential for troubleshooting connection issues).
+- `gemini mcp add` - Interactive wizard to add a server.
+- `/mcp` - List connected servers and their status.
+- `gemini --debug` - View raw MCP connection logs (essential for troubleshooting connection issues).
 
 ## References
 
 **Official Documentation:**
 Query `gemini-cli-docs` for:
+
 - "mcp servers"
 - "mcp configuration"
