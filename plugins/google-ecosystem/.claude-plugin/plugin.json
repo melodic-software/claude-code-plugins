@@ -4,6 +4,5 @@
   "description": "Google Gemini CLI documentation and guidance plugin with full search infrastructure",
   "skills": "./skills",
   "agents": ["./agents/gemini-docs-researcher.md"],
-  "commands": "./commands",
-  "hooks": "./hooks/hooks.json"
+  "commands": "./commands"
 }
