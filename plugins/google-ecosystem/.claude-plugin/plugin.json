@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Google Gemini CLI documentation and guidance plugin with full search infrastructure",
   "skills": "./skills",
-  "agents": ["./agents/gemini-docs-researcher.md"],
+  "agents": [
+    "./agents/gemini-docs-researcher.md",
+    "./agents/gemini-planner.md"
+  ],
   "commands": "./commands"
 }
