@@ -19,7 +19,10 @@
     "**/plugins/google-ecosystem/skills/gemini-cli-docs/**",
 
     // Test fixtures (intentionally contain lint errors)
-    "**/tests/**/fixtures/**"
+    "**/tests/**/fixtures/**",
+
+    // Generated reports (auto-generated, not manually authored)
+    "AUDIT-*.md"
   ],
 
   // Linting rules configuration

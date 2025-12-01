@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Claude Code plugin collection with comprehensive ecosystem support, documentation management, and development guidance",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "plugins": [
     {
       "name": "claude-ecosystem",
       "source": "./plugins/claude-ecosystem",
       "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills for all Claude Code features, and development guidance",
-      "version": "2.0.0",
+      "version": "3.0.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
@@ -23,8 +23,8 @@
     {
       "name": "google-ecosystem",
       "source": "./plugins/google-ecosystem",
-      "description": "Google ecosystem plugin with Gemini CLI documentation management, searchable docs index, and development guidance",
-      "version": "1.0.0",
+      "description": "Google ecosystem plugin with Gemini CLI documentation management, Claude-to-Gemini integration agents, and meta-skills for configuration, checkpointing, sandboxing, and session management",
+      "version": "1.1.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
@@ -34,7 +34,18 @@
     {
       "name": "code-quality",
       "source": "./plugins/code-quality",
-      "description": "Code quality tools for Claude Code: markdown linting with auto-fix, validation hooks, and CI/CD templates",
+      "description": "Comprehensive code quality tools: markdown linting, code review, debugging, Python development, and codebase analysis with automated hooks",
+      "version": "2.0.0",
+      "author": {
+        "name": "Melodic Software",
+        "url": "https://github.com/melodic-software"
+      },
+      "license": "MIT"
+    },
+    {
+      "name": "git",
+      "source": "./plugins/git",
+      "description": "Comprehensive Git workflow toolkit: Conventional Commits with safety protocols, GPG signing, hooks management, cross-platform configuration, and smart operations agent",
       "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
