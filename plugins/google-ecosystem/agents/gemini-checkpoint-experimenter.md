@@ -73,7 +73,7 @@ cat ~/.gemini/settings.json | grep -A2 "checkpointing"
 ### Step 2: Execute Experiment
 
 ```bash
-gemini -p "EXPERIMENT MODE: {description of change}. After making changes, run tests to verify." --output-format json
+gemini "EXPERIMENT MODE: {description of change}. After making changes, run tests to verify." --output-format json
 ```
 
 ### Step 3: Verify Results
@@ -88,9 +88,9 @@ npm test  # or pytest, cargo test, etc.
 If tests fail, restore to checkpoint:
 
 ```bash
-gemini -p "/restore" --output-format json
+gemini "/restore" --output-format json
 # Select the appropriate checkpoint
-gemini -p "/restore {checkpoint_name}" --output-format json
+gemini "/restore {checkpoint_name}" --output-format json
 ```
 
 ## Example Invocations
@@ -105,7 +105,7 @@ I execute:
 2. Run migration:
 
    ```bash
-   gemini -p "Migrate this Express application to Fastify. Convert all routes and middleware." --output-format json
+   gemini "Migrate this Express application to Fastify. Convert all routes and middleware." --output-format json
    ```
 
 3. Run tests:
@@ -144,7 +144,7 @@ I execute:
 ### List Available Checkpoints
 
 ```bash
-gemini -p "/restore" --output-format json
+gemini "/restore" --output-format json
 ```
 
 Checkpoint naming format: `{timestamp}-{filename}-{tool_name}`
@@ -154,7 +154,7 @@ Example: `2025-06-22T10-00-00_000Z-my-file.txt-write_file`
 ### Restore Specific Checkpoint
 
 ```bash
-gemini -p "/restore 2025-06-22T10-00-00_000Z-my-file.txt-write_file" --output-format json
+gemini "/restore 2025-06-22T10-00-00_000Z-my-file.txt-write_file" --output-format json
 ```
 
 ## Output Format

@@ -73,7 +73,7 @@ cat ~/.gemini/settings.json | jq '.tools.shell.enableInteractiveShell'
 
 ```bash
 # Start Gemini with the interactive command
-gemini -p "Run this interactive command: {command}"
+gemini "Run this interactive command: {command}"
 ```
 
 ### Step 3: User Interaction
@@ -109,7 +109,7 @@ This operation requires direct terminal interaction. I'll hand off to Gemini CLI
 Then execute:
 
 ```bash
-gemini -p "Run: git rebase -i HEAD~5"
+gemini "Run: git rebase -i HEAD~5"
 ```
 
 ### Vim Editing
@@ -135,7 +135,7 @@ Opening vim in Gemini CLI for direct editing.
 Then execute:
 
 ```bash
-gemini -p "Run: vim config.yaml"
+gemini "Run: vim config.yaml"
 ```
 
 ### Database CLI
@@ -160,7 +160,7 @@ Opening psql in Gemini CLI.
 Then execute:
 
 ```bash
-gemini -p "Run: psql -U postgres -d mydb"
+gemini "Run: psql -U postgres -d mydb"
 ```
 
 ### System Monitor
@@ -185,7 +185,7 @@ Opening htop in Gemini CLI.
 Then execute:
 
 ```bash
-gemini -p "Run: htop"
+gemini "Run: htop"
 ```
 
 ## Output Format
@@ -216,7 +216,7 @@ Starting Gemini CLI session now. When you're done, the session will return here.
 
 If `enableInteractiveShell` is not enabled, I provide setup instructions:
 
-```markdown
+````markdown
 ## Configuration Required
 
 Interactive shell is not enabled. To enable:
@@ -232,9 +232,9 @@ Interactive shell is not enabled. To enable:
      }
    }
    ```
-1. Restart Gemini CLI
 
-```
+3. Restart Gemini CLI
+````
 
 ## Limitations
 
@@ -246,17 +246,17 @@ Interactive shell is not enabled. To enable:
 
 ## Common Interactive Commands
 
-| Command | Purpose | Exit |
-|---------|---------|------|
-| `vim file` | Edit file | `:wq` or `:q!` |
-| `nano file` | Edit file | Ctrl+X |
-| `git rebase -i` | Interactive rebase | Save editor |
-| `htop` | Process monitor | `q` |
-| `top` | Process monitor | `q` |
-| `less file` | Pager | `q` |
-| `psql` | PostgreSQL | `\q` |
-| `mysql` | MySQL | `exit` |
-| `redis-cli` | Redis | `quit` |
+| Command         | Purpose            | Exit           |
+| --------------- | ------------------ | -------------- |
+| `vim file`      | Edit file          | `:wq` or `:q!` |
+| `nano file`     | Edit file          | Ctrl+X         |
+| `git rebase -i` | Interactive rebase | Save editor    |
+| `htop`          | Process monitor    | `q`            |
+| `top`           | Process monitor    | `q`            |
+| `less file`     | Pager              | `q`            |
+| `psql`          | PostgreSQL         | `\q`           |
+| `mysql`         | MySQL              | `exit`         |
+| `redis-cli`     | Redis              | `quit`         |
 
 ## Important Notes
 

@@ -4,6 +4,7 @@ description: General-purpose Planning Agent that leverages the Google Gemini CLI
 tools: Read, Grep, Glob, Skill, Bash
 model: sonnet
 color: blue
+skills: gemini-cli-execution, gemini-delegation-patterns
 ---
 
 # Gemini General Planner

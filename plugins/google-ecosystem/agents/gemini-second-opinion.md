@@ -50,7 +50,7 @@ Claude should delegate to me for:
 ### Basic Second Opinion
 
 ```bash
-gemini -p "REVIEW MODE (read-only): Analyze this independently. DO NOT modify files.
+gemini "REVIEW MODE (read-only): Analyze this independently. DO NOT modify files.
 
 CONTEXT:
 {code or plan}
@@ -65,7 +65,7 @@ QUESTIONS:
 ### Code Review Validation
 
 ```bash
-cat src/auth.ts | gemini -p "REVIEW MODE: Independently review this code for:
+cat src/auth.ts | gemini "REVIEW MODE: Independently review this code for:
 1. Security vulnerabilities
 2. Best practices violations
 3. Performance issues
@@ -77,7 +77,7 @@ Provide your own analysis, not confirmation of previous reviews." --output-forma
 ### Architecture Validation
 
 ```bash
-gemini -p "REVIEW MODE: Evaluate this architecture decision:
+gemini "REVIEW MODE: Evaluate this architecture decision:
 
 PROPOSAL: {description}
 
@@ -106,7 +106,7 @@ Claude spawns me with: "Validate my security analysis of the auth module"
 I execute:
 
 ```bash
-result=$(cat src/auth/*.ts | gemini -p "REVIEW MODE: Independent security audit of this authentication code.
+result=$(cat src/auth/*.ts | gemini "REVIEW MODE: Independent security audit of this authentication code.
 
 Focus on:
 - Authentication bypasses
@@ -127,7 +127,7 @@ Claude spawns me with: "Get a second opinion on this refactoring plan"
 I execute:
 
 ```bash
-result=$(gemini -p "REVIEW MODE: Evaluate this refactoring plan:
+result=$(gemini "REVIEW MODE: Evaluate this refactoring plan:
 
 PLAN:
 $plan_content
@@ -148,7 +148,7 @@ Claude spawns me with: "Cross-check my code review findings"
 I execute:
 
 ```bash
-result=$(cat "$file" | gemini -p "REVIEW MODE: Independent code review.
+result=$(cat "$file" | gemini "REVIEW MODE: Independent code review.
 
 Claude found these issues:
 $claude_findings

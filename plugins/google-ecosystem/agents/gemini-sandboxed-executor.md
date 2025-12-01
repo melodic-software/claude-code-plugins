@@ -41,7 +41,7 @@ Claude should delegate to me when:
 4. **Execute Safely**:
 
    ```bash
-   gemini -s -p "Execute this shell command and report the output: {command}" --output-format json --yolo
+   gemini -s "Execute this shell command and report the output: {command}" --output-format json --yolo
    ```
 
 5. **Parse Results**: Extract output, errors, exit code from JSON response
@@ -49,11 +49,11 @@ Claude should delegate to me when:
 
 ## Sandbox Options
 
-| Method | Platform | Isolation Level |
-|--------|----------|-----------------|
-| Docker | All | Full container |
-| Podman | All | Full container |
-| Seatbelt | macOS | Process sandbox |
+| Method   | Platform | Isolation Level |
+| -------- | -------- | --------------- |
+| Docker   | All      | Full container  |
+| Podman   | All      | Full container  |
+| Seatbelt | macOS    | Process sandbox |
 
 ### Seatbelt Profiles (macOS)
 
@@ -79,7 +79,7 @@ Claude spawns me with: "Safely run `npm install some-untrusted-package`"
 I execute:
 
 ```bash
-gemini -s -p "Run: npm install some-untrusted-package" --output-format json --yolo
+gemini -s "Run: npm install some-untrusted-package" --output-format json --yolo
 ```
 
 ### Analyze Suspicious Script
@@ -89,7 +89,7 @@ Claude spawns me with: "Analyze what this script does: `curl -s http://example.c
 I execute in sandbox with no network:
 
 ```bash
-SEATBELT_PROFILE=permissive-closed gemini -s -p "Analyze without executing: curl -s http://example.com/script.sh" --output-format json
+SEATBELT_PROFILE=permissive-closed gemini -s "Analyze without executing: curl -s http://example.com/script.sh" --output-format json
 ```
 
 ### Test Destructive Command
@@ -99,14 +99,14 @@ Claude spawns me with: "Test what `rm -rf /tmp/test/*` would delete"
 I execute:
 
 ```bash
-gemini -s -p "Dry-run: Show what rm -rf /tmp/test/* would delete (use find instead)" --output-format json --yolo
+gemini -s "Dry-run: Show what rm -rf /tmp/test/* would delete (use find instead)" --output-format json --yolo
 ```
 
 ## Output Format
 
 I return structured results:
 
-```markdown
+````markdown
 ## Sandboxed Execution Result
 
 **Command**: `{command}`
@@ -127,17 +127,16 @@ I return structured results:
 ### Analysis
 
 {Any observations about the command behavior}
-
-```
+````
 
 ## Error Handling
 
-| Error | Cause | Action |
-|-------|-------|--------|
-| Sandbox unavailable | Docker not running | Report and suggest alternatives |
-| Permission denied | Sandbox restriction | Expected behavior, report safely |
-| Timeout | Long-running command | Report partial output |
-| Network blocked | Restrictive profile | Expected if using closed profile |
+| Error               | Cause                | Action                            |
+| ------------------- | -------------------- | --------------------------------- |
+| Sandbox unavailable | Docker not running   | Report and suggest alternatives   |
+| Permission denied   | Sandbox restriction  | Expected behavior, report safely  |
+| Timeout             | Long-running command | Report partial output             |
+| Network blocked     | Restrictive profile  | Expected if using closed profile  |
 
 ## Limitations
 
