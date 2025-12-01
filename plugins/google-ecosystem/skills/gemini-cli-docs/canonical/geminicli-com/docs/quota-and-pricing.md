@@ -5,7 +5,7 @@ content_hash: sha256:9acffcb45ea8615da33aa54cd9f180d42cc3a5f5898222ec21019a26b1f
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"0ff5334e68ed4b9ce1dbdbe04ccb13111189051c5f7649c831f37c5c5641c53a"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI: Quotas and Pricing

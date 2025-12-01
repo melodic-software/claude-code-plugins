@@ -5,7 +5,7 @@ content_hash: sha256:eb0d3fd017728be556d8ec858f9b3792c5936f82f6c4dcf2240df4457c3
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"756ebe174a359cacab70e59680a0cf1b3fd611e28d02487cc6d4122510195216"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Uninstalling the CLI

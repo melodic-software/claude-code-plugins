@@ -5,7 +5,7 @@ content_hash: sha256:c7c3a71ec3407e9daae31028d69104217fb88a247376239d76620b61fe5
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"43bb83c0ebe0ab37fde4bcf0db072d4dc54b3dbff41643e66e300e8b0c034ce5"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI Model Selection (`/model` Command)

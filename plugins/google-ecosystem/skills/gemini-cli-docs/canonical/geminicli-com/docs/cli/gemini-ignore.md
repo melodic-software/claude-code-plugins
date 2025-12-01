@@ -5,7 +5,7 @@ content_hash: sha256:fbd3aaa4e19e18181aa20a25c679ddada6ffb80eb0b6ccb88c3110eceb9
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"a7765a4590c195e97821ecdbb91f41c59b5e41ddb7db066df55b3f012b394767"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Ignoring Files

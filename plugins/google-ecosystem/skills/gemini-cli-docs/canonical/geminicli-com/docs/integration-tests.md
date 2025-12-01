@@ -5,7 +5,7 @@ content_hash: sha256:a915d7bd5a47bea50171084f4f4cb355cad6866dfb8afb6653741b1f248
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"28a3cd928b699b248096e1c42d62e9fa2c8fe0517c70acf425010569ae5e8ea9"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Integration Tests

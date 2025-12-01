@@ -5,7 +5,7 @@ content_hash: sha256:182c3ad1d9e490fa281a842c5018fff77ce0e6a9130f42823fb33ec8f9b
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"5c5b25f325b9b14a403995cc9f3b8910c5df516ddaf9070bbdb47f293be0212e"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Headless Mode

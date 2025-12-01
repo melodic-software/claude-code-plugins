@@ -18,7 +18,7 @@ geminicli-com-docs:
   - memory tool
   - mcp server
   - shell tool
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -110,7 +110,7 @@ geminicli-com-docs-architecture:
   - provides
   - design
   - level
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/architecture.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -167,7 +167,7 @@ geminicli-com-docs-changelogs:
   - changelog
   - wondering
   - provides
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/changelogs.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -290,7 +290,7 @@ geminicli-com-docs-cli:
   - associated
   - checkpoint
   - advanced
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -337,7 +337,7 @@ geminicli-com-docs-cli-authentication:
   - authentication
   - authentication setup
   - setup
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/authentication.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -365,7 +365,7 @@ geminicli-com-docs-cli-checkpointing:
   - command
   - feature
   - powered
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/checkpointing.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -436,7 +436,7 @@ geminicli-com-docs-cli-commands:
   - passthrough
   - checkpoint
   - customize
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/commands.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -527,7 +527,7 @@ geminicli-com-docs-cli-configuration:
   - mcp server
   - api keys
   - checkpointing
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/configuration.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -698,7 +698,7 @@ geminicli-com-docs-cli-custom-commands:
   - prompt uses
   - changelog.toml
   - commit.toml
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/custom-commands.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -844,7 +844,7 @@ geminicli-com-docs-cli-enterprise:
   - disabling yolo
   - mcp servers
   - mcp server
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/enterprise.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1006,7 +1006,7 @@ geminicli-com-docs-cli-gemini-ignore:
   - apikeys
   - exclude
   - feature
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/gemini-ignore.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1059,7 +1059,7 @@ geminicli-com-docs-cli-gemini-md:
   - instructional
   - instructions
   - customize
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/gemini-md.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1152,7 +1152,7 @@ geminicli-com-docs-cli-headless:
   - programmatically
   - configuration
   - interactive
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/headless.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1295,7 +1295,7 @@ geminicli-com-docs-cli-keyboard-shortcuts:
   - text input
   - combinations
   - completions
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/keyboard-shortcuts.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1334,7 +1334,7 @@ geminicli-com-docs-cli-model:
   - results
   - dialog
   - giving
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/model.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1391,7 +1391,7 @@ geminicli-com-docs-cli-model-routing:
   - provides
   - switches
   - untitled
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/model-routing.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1444,7 +1444,7 @@ geminicli-com-docs-cli-sandbox:
   - configuration
   - prerequisites
   - settings.json
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/sandbox.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1620,7 +1620,7 @@ geminicli-com-docs-cli-session-management:
   - automatic saving
   - listing sessions
   - context window
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/session-management.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1737,7 +1737,7 @@ geminicli-com-docs-cli-settings:
   - experience
   - including
   - security
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/settings.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1847,7 +1847,7 @@ geminicli-com-docs-cli-telemetry:
   - token usage
   - agent runs
   - configuration
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/telemetry.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -1990,7 +1990,7 @@ geminicli-com-docs-cli-themes:
   - configuration
   - preferences
   - appearance
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/themes.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2197,7 +2197,7 @@ geminicli-com-docs-cli-token-caching:
   - previous
   - context
   - feature
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/token-caching.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2227,7 +2227,7 @@ geminicli-com-docs-cli-trusted-folders:
   - trust dialog
   - mcp servers
   - mcp server
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/trusted-folders.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2302,7 +2302,7 @@ geminicli-com-docs-cli-tutorials:
   - context
   - github
   - launch
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/tutorials.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2357,7 +2357,7 @@ geminicli-com-docs-cli-uninstall:
   - global
   - method
   - cache
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/uninstall.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2405,7 +2405,7 @@ geminicli-com-docs-contributing:
   - file system
   - contributions
   - contribute
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/contributing.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2683,7 +2683,7 @@ geminicli-com-docs-core:
   - considerations
   - communication
   - compression
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/core.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -2781,7 +2781,7 @@ geminicli-com-docs-core-memport:
   - alloweddirectories
   - modularize
   - claude.md
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/core/memport.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3057,7 +3057,7 @@ geminicli-com-docs-core-policy-engine:
   - policy engine
   - anchors like
   - command text
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/core/policy-engine.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3190,7 +3190,7 @@ geminicli-com-docs-core-tools-api:
   - mcp server
   - web search
   - capabilities
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/core/tools-api.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3257,7 +3257,7 @@ geminicli-com-docs-examples-proxy-script:
   - following
   - variable
   - allows
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/examples/proxy-script.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3283,7 +3283,7 @@ geminicli-com-docs-extensions:
   - documentation
   - boilerplate
   - disabling
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/extensions.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3431,7 +3431,7 @@ geminicli-com-docs-extensions-extension-releasing:
   - archives
   - channels
   - actions
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/extensions/extension-releasing.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3509,7 +3509,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
   - conclusion
   - extension
   - gemini.md
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/extensions/getting-started-extensions.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3637,7 +3637,7 @@ geminicli-com-docs-faq:
   - code assist
   - rate limits
   - api keys
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/faq.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3834,7 +3834,7 @@ geminicli-com-docs-get-started:
   - workflow
   - enhance
   - install
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -3910,7 +3910,7 @@ geminicli-com-docs-get-started-authentication:
   - interactive mode
   - compute engine
   - api keys
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/authentication.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4021,7 +4021,7 @@ geminicli-com-docs-get-started-configuration:
   - context window
   - model routing
   - policy engine
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/configuration.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4188,7 +4188,7 @@ geminicli-com-docs-get-started-configuration-v1:
   - file content
   - mcp servers
   - mcp server
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/configuration-v1.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4366,7 +4366,7 @@ geminicli-com-docs-get-started-deployment:
   - installation
   - execution
   - directly
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/deployment.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4455,7 +4455,7 @@ geminicli-com-docs-get-started-examples:
   - reading
   - variety
   - covers
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/examples.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4522,7 +4522,7 @@ geminicli-com-docs-get-started-gemini-3:
   - fallback
   - waitlist
   - excited
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/gemini-3.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4614,7 +4614,7 @@ geminicli-com-docs-get-started-installation:
   - deployment
   - execution
   - directly
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/get-started/installation.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4707,7 +4707,7 @@ geminicli-com-docs-ide-integration:
   - understand
   - automatic
   - disabling
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/ide-integration.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -4862,7 +4862,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
   - companion plugin
   - closediff tool
   - mcp server
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/ide-integration/ide-companion-spec.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5000,7 +5000,7 @@ geminicli-com-docs-integration-tests:
   - keeping test
   - file system
   - single test
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/integration-tests.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5174,7 +5174,7 @@ geminicli-com-docs-issue-and-pr-automation:
   - ongoing triage
   - pull requests
   - label sync
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/issue-and-pr-automation.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5267,7 +5267,7 @@ geminicli-com-docs-local-development:
   - provides
   - setting
   - tracing
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/local-development.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5318,7 +5318,7 @@ geminicli-com-docs-npm:
   - packages
   - package
   - works
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/npm.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5388,7 +5388,7 @@ geminicli-com-docs-quota-and-pricing:
   - free usage
   - paid tier
   - professional
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/quota-and-pricing.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5507,7 +5507,7 @@ geminicli-com-docs-release-confidence:
   - data review
   - automated
   - checklist
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/release-confidence.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5650,7 +5650,7 @@ geminicli-com-docs-releases:
   - main branch
   - patch pull
   - environments
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/releases.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5854,7 +5854,7 @@ geminicli-com-docs-tools:
   - capabilities
   - confirmation
   - environment
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5919,7 +5919,7 @@ geminicli-com-docs-tools-file-system:
   - provides
   - readfile
   - replace
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/file-system.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -5998,7 +5998,7 @@ geminicli-com-docs-tools-mcp-server:
   - automatic oauth
   - slash commands
   - basic syntax
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/mcp-server.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6419,7 +6419,7 @@ geminicli-com-docs-tools-memory:
   - memory tool
   - arguments
   - describes
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/memory.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6491,7 +6491,7 @@ geminicli-com-docs-tools-shell:
   - configuration
   - environment
   - arguments
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/shell.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6632,7 +6632,7 @@ geminicli-com-docs-tools-todos:
   - arguments
   - describes
   - behavior
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/todos.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6688,7 +6688,7 @@ geminicli-com-docs-tools-web-fetch:
   - web fetch
   - arguments
   - describes
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/web-fetch.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6752,7 +6752,7 @@ geminicli-com-docs-tools-web-search:
   - web search
   - arguments
   - describes
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tools/web-search.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6821,7 +6821,7 @@ geminicli-com-docs-tos-privacy:
   - licensed
   - powerful
   - services
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/tos-privacy.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -6898,7 +6898,7 @@ geminicli-com-docs-troubleshooting:
   - including
   - solutions
   - creating
-  last_fetched: '2025-11-30'
+  last_fetched: '2025-12-01'
   path: geminicli-com/docs/troubleshooting.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt

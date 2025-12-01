@@ -5,7 +5,7 @@ content_hash: sha256:449ebd842d7996bb10c7686e4cec04183e0f0e9de116e9f9496d086eecb
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"2f75587d882b5538d4a1ed15476d8fef587f9d49bd92f9fa3f1fbb8ca69514ae"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Release Confidence Strategy

@@ -5,7 +5,7 @@ content_hash: sha256:82e511603a5fb1e58b950c71c2e0072d1d64f67fd0f8d227ee27bddefae
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"f3932c9af52c9721e5b01b7a623f7ae8e35b5d1125ca6937b4318d7c354b255e"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI Keyboard Shortcuts

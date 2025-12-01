@@ -5,7 +5,7 @@ content_hash: sha256:5412ba43989a76d8185805317b4ae2b20f72065248d50b8de4437b675f4
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"306b798cc63db49a77eb3236f6972b767b7972257a291fee1067c690279ea746"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Trusted Folders

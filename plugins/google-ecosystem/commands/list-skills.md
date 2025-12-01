@@ -1,6 +1,6 @@
 ---
 description: List all available Gemini CLI skills with their descriptions
-model: haiku
+model: claude-haiku-4-5-20251001
 allowed-tools:
 ---
 

@@ -5,7 +5,7 @@ content_hash: sha256:f435fea4fdae87eed86ff7f9753237527bcc81e8802b23819637d041251
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"e95c7bb68ca1a17987c08f61d47c80a8e736b77d38166e4910a6dcbf4ac4cb37"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Provide Context with GEMINI.md Files

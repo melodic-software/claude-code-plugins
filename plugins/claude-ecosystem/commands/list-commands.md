@@ -1,6 +1,6 @@
 ---
 description: List all custom slash commands with their descriptions
-model: haiku
+model: claude-haiku-4-5-20251001
 allowed-tools: Bash(grep:*), Bash(wc:*), Bash(ls:*), Bash(test:*)
 ---
 

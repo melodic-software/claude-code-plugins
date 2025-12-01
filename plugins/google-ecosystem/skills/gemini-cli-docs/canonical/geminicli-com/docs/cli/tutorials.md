@@ -5,7 +5,7 @@ content_hash: sha256:3352bc1bd22d10942e8ce583c11f9f0747f582b38ff1c9a1d3100aec2a4
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"d0095fe9f292db4bc2a97449340c15b3079cd4850818269437b441f6e8931181"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Tutorials

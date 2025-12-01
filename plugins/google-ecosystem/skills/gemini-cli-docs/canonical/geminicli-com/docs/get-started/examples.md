@@ -5,7 +5,7 @@ content_hash: sha256:449975ff814a7202878bffabe5e3cf497ba18f64b43931e1d2839ccd2f4
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"72790cd6bd5c4f7b9ad9398bb245fe75981c14fdf34129eeb7517abff70dcf63"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI Examples

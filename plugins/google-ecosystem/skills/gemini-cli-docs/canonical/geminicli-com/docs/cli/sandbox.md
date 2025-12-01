@@ -5,7 +5,7 @@ content_hash: sha256:e3c79d4c1ab3fef16e95f262437d8f6c460707cfc4e53c3e172ab24ecd9
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"7d3160803aa47a9d8da8615725d6870eb0e6f8330f89c81a33a37fd03a355061"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Sandboxing in the Gemini CLI

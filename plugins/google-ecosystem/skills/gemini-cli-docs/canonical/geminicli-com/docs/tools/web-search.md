@@ -5,7 +5,7 @@ content_hash: sha256:1de02d8c6f91f7c75d857b7d449bde200b4fc9f269e01d49e5e24f053bf
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"a0632c909de697316e9899b9d8b760b87521fcaea4b9d3b47e2b166f5fb5899b"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Web Search Tool (`google_web_search`)

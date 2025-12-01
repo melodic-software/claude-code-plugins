@@ -5,7 +5,7 @@ content_hash: sha256:1b37d7c18988b530244f3354c5478e0ea8821fad5947fe4e95609769aae
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"49cb9a0522e8c604b1a0b9dde0125bba2dbfcf52140aa4569f1ebb201a796caa"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Observability with OpenTelemetry

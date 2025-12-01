@@ -5,7 +5,7 @@ content_hash: sha256:cdbb2f297c50bb481cbd914522fdb5afc5414c04ac92371af905101fa2d
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"0ebedd731435b4bddda9f7e6821e1fbbc22849bffa8e8d0512b28ff3c21f2ab5"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # IDE Integration

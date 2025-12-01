@@ -5,7 +5,7 @@ content_hash: sha256:67c037982968978f0dfd07d78af34b4fa7c1938a204c6ff817d5ef0630c
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"a7e36065cf8c0ddfe187fd9f94279393f6559dfc0f38d301c06ba2a331012bf5"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Automation and Triage Processes

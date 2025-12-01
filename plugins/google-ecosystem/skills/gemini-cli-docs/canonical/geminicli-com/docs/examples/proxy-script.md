@@ -5,7 +5,7 @@ content_hash: sha256:bac86838741dc70e0c3173c33ae4775c571de0b4c7d4341cac6634bc6bc
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"ae11a5ef43e7d0bb37b497e9eea5b42f777ec9818f18236f2d6e9e9fcd0a0ce2"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Example Proxy Script

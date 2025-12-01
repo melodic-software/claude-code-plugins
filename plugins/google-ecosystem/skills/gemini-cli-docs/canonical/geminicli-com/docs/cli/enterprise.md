@@ -5,7 +5,7 @@ content_hash: sha256:5868ff83a0ae1f6f50f550d49644b616c833415d1aa24d30a4af55d3233
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"c47a52dfd26266be40eab3b39943dfcbac50af51e4a388c3d64e24c3741d32e9"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI for the Enterprise

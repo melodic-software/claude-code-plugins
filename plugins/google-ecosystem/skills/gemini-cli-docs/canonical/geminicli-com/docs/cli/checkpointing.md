@@ -5,7 +5,7 @@ content_hash: sha256:1a089a23e75e0f177483c45ee707517e2a8bdc55e517660118f69667955
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"a4812ef3d263ea112b531b8656760f918769ca2eac792a94ff03c8adf99b44e7"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Checkpointing

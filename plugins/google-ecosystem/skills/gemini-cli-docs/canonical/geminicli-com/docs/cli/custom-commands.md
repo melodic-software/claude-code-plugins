@@ -5,7 +5,7 @@ content_hash: sha256:efcccea1f12fcd2cdbac4b1b401c65f4f569b8ce341bece16abcc23f072
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"ca52ecaf45319de83be644fa7c18d05679ec54595398b561fc774cf4877cc165"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Custom Commands

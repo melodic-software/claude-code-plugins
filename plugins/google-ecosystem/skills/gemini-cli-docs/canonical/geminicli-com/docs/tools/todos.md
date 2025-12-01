@@ -5,7 +5,7 @@ content_hash: sha256:35b7640b6fff5886e6faa28ff2842aebb58cbd5a63e75a4a05c03308139
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"420152866f8018b20e95f2d39d9a61e7d1d40d04d97cdb1469c6407723ef709e"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Todo Tool (`write_todos`)

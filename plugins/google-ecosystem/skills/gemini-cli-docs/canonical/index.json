@@ -18,7 +18,7 @@
       "mcp server",
       "shell tool"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -141,7 +141,7 @@
       "design",
       "level"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/architecture.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -210,7 +210,7 @@
       "wondering",
       "provides"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/changelogs.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -365,7 +365,7 @@
       "checkpoint",
       "advanced"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -425,7 +425,7 @@
       "authentication setup",
       "setup"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/authentication.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -454,7 +454,7 @@
       "feature",
       "powered"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/checkpointing.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -542,7 +542,7 @@
       "checkpoint",
       "customize"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/commands.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -656,7 +656,7 @@
       "api keys",
       "checkpointing"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/configuration.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -877,7 +877,7 @@
       "changelog.toml",
       "commit.toml"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/custom-commands.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1064,7 +1064,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/enterprise.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1274,7 +1274,7 @@
       "exclude",
       "feature"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/gemini-ignore.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1338,7 +1338,7 @@
       "instructions",
       "customize"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/gemini-md.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1454,7 +1454,7 @@
       "configuration",
       "interactive"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/headless.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1638,7 +1638,7 @@
       "combinations",
       "completions"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/keyboard-shortcuts.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1682,7 +1682,7 @@
       "dialog",
       "giving"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/model.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1750,7 +1750,7 @@
       "switches",
       "untitled"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/model-routing.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1815,7 +1815,7 @@
       "prerequisites",
       "settings.json"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/sandbox.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2044,7 +2044,7 @@
       "listing sessions",
       "context window"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/session-management.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2193,7 +2193,7 @@
       "including",
       "security"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/settings.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2337,7 +2337,7 @@
       "agent runs",
       "configuration"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/telemetry.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2521,7 +2521,7 @@
       "preferences",
       "appearance"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/themes.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2796,7 +2796,7 @@
       "context",
       "feature"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/token-caching.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2827,7 +2827,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/trusted-folders.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2921,7 +2921,7 @@
       "github",
       "launch"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/tutorials.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -2988,7 +2988,7 @@
       "method",
       "cache"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/cli/uninstall.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -3045,7 +3045,7 @@
       "contributions",
       "contribute"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/contributing.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -3412,7 +3412,7 @@
       "communication",
       "compression"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/core.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -3536,7 +3536,7 @@
       "modularize",
       "claude.md"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/core/memport.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -3902,7 +3902,7 @@
       "anchors like",
       "command text"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/core/policy-engine.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4073,7 +4073,7 @@
       "web search",
       "capabilities"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/core/tools-api.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4154,7 +4154,7 @@
       "variable",
       "allows"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/examples/proxy-script.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4183,7 +4183,7 @@
       "boilerplate",
       "disabling"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/extensions.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4377,7 +4377,7 @@
       "channels",
       "actions"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/extensions/extension-releasing.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4472,7 +4472,7 @@
       "extension",
       "gemini.md"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/extensions/getting-started-extensions.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4636,7 +4636,7 @@
       "rate limits",
       "api keys"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/faq.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4889,7 +4889,7 @@
       "enhance",
       "install"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -4986,7 +4986,7 @@
       "compute engine",
       "api keys"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/authentication.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5126,7 +5126,7 @@
       "model routing",
       "policy engine"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/configuration.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5345,7 +5345,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/configuration-v1.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5578,7 +5578,7 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/deployment.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5691,7 +5691,7 @@
       "variety",
       "covers"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/examples.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5772,7 +5772,7 @@
       "waitlist",
       "excited"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/gemini-3.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -5888,7 +5888,7 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/get-started/installation.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6004,7 +6004,7 @@
       "automatic",
       "disabling"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/ide-integration.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6203,7 +6203,7 @@
       "closediff tool",
       "mcp server"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/ide-integration/ide-companion-spec.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6380,7 +6380,7 @@
       "file system",
       "single test"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/integration-tests.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6607,7 +6607,7 @@
       "pull requests",
       "label sync"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/issue-and-pr-automation.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6724,7 +6724,7 @@
       "setting",
       "tracing"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/local-development.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6787,7 +6787,7 @@
       "package",
       "works"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/npm.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6874,7 +6874,7 @@
       "paid tier",
       "professional"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/quota-and-pricing.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -7025,7 +7025,7 @@
       "automated",
       "checklist"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/release-confidence.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -7211,7 +7211,7 @@
       "patch pull",
       "environments"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/releases.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -7476,7 +7476,7 @@
       "confirmation",
       "environment"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -7555,7 +7555,7 @@
       "readfile",
       "replace"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/file-system.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -7655,7 +7655,7 @@
       "slash commands",
       "basic syntax"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/mcp-server.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8215,7 +8215,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/memory.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8305,7 +8305,7 @@
       "environment",
       "arguments"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/shell.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8492,7 +8492,7 @@
       "describes",
       "behavior"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/todos.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8564,7 +8564,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/web-fetch.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8647,7 +8647,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tools/web-search.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8733,7 +8733,7 @@
       "powerful",
       "services"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/tos-privacy.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -8826,7 +8826,7 @@
       "solutions",
       "creating"
     ],
-    "last_fetched": "2025-11-30",
+    "last_fetched": "2025-12-01",
     "path": "geminicli-com/docs/troubleshooting.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",

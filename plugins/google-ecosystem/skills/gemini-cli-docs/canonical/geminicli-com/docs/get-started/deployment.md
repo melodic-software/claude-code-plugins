@@ -5,7 +5,7 @@ content_hash: sha256:d0d08004308c37613bc2f8cd50103cea3b1e9d24856859054ef6732b61a
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"3186ba5a81faefc329931a20448fedf78f8a98ca3f672f35af427a29efb868f5"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini CLI Installation, Execution, and Deployment

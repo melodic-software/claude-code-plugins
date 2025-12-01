@@ -5,7 +5,7 @@ content_hash: sha256:53fb0073def6170e5019717489beccdd5f460b09eea1426cbe09ee0c602
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"03c500aeae1bdc961cbe81cb8eafc35c73d2a36d816bc068ec5464bcf28b39e7"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Token Caching and Cost Optimization

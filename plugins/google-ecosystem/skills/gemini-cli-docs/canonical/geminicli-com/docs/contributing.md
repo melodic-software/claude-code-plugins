@@ -5,7 +5,7 @@ content_hash: sha256:14595343b8d7d858c586a8d170463f666687e23caf9c299eb29c850cf88
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"020be9618f7c1906b37aed08164d4085b8f986e8bb028488fb729c72b4de9935"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # How to Contribute

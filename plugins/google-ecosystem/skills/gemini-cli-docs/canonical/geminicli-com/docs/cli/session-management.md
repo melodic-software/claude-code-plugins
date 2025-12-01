@@ -5,7 +5,7 @@ content_hash: sha256:2ed54e168256ad206b67a0568fd211e05af98ef748ecb5419ffd33f638c
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"37542e5e145c0a19c2459a8f4cbfb98f862293d89a8c6a9c187872639590a073"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Session Management

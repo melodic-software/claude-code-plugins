@@ -5,7 +5,7 @@ content_hash: sha256:e875616b191614d7f476d75215537cd02c64bd6c4cb6b9828d4c567f1c0
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"e339216dcf82b60cf6eeb45377eea6534ad5e06f8a63c140780a3b56207ebd8e"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Gemini 3 Pro on Gemini CLI (Join the Waitlist)

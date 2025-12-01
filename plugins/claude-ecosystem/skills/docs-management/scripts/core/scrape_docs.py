@@ -891,11 +891,17 @@ class DocScraper:
                     from email.utils import parsedate_to_datetime
                     last_modified_str = head_response.headers['Last-Modified']
                     server_date = parsedate_to_datetime(last_modified_str)
-                    
-                    # Parse existing date
-                    existing_date = datetime.fromisoformat(existing_last_modified.replace('Z', '+00:00'))
-                    
-                    if server_date <= existing_date:
+
+                    # Parse existing date - handle both ISO8601 and RFC 2822 formats
+                    existing_date = None
+                    try:
+                        # Try ISO8601 format first (new format: 2025-12-01T02:03:17Z)
+                        existing_date = datetime.fromisoformat(existing_last_modified.replace('Z', '+00:00'))
+                    except ValueError:
+                        # Fall back to RFC 2822 format (old format: Mon, 01 Dec 2025 02:03:17 GMT)
+                        existing_date = parsedate_to_datetime(existing_last_modified)
+
+                    if existing_date and server_date <= existing_date:
                         return True  # Not modified, skip
                 except (ValueError, TypeError):
                     pass  # Date parsing failed, fall back to content check
@@ -1054,7 +1060,14 @@ class DocScraper:
                     # Store in original format for reference, but comparison will use normalized
                     headers['etag'] = raw_etag
             if 'Last-Modified' in head_response.headers:
-                headers['last_modified'] = head_response.headers['Last-Modified']
+                # Convert RFC 2822 format to ISO8601 UTC format
+                from email.utils import parsedate_to_datetime
+                try:
+                    last_modified_dt = parsedate_to_datetime(head_response.headers['Last-Modified'])
+                    headers['last_modified'] = last_modified_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                except (ValueError, TypeError):
+                    # If parsing fails, store raw value as fallback
+                    headers['last_modified'] = head_response.headers['Last-Modified']
             
             # Log if headers are not available (informational, not an error)
             if verbose and not headers['etag'] and not headers['last_modified']:

@@ -5,7 +5,7 @@ content_hash: sha256:1cae1ce4e68d5fa0b6cf1a1e689d5f63ed297a017ac8ea1bd708fa63636
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"7ad8859e14e9e03bae72fe3143481614b66fa3c9ded29ecf6b9c3c331ce5fbd0"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Extension Releasing

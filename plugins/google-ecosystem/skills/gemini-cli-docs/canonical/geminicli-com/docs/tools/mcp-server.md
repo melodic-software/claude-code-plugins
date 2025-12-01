@@ -5,7 +5,7 @@ content_hash: sha256:b65adb1d42490c62d4ce15d98b4b070ed42c6b60d5f1c0466e4181c959e
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"0213346d9c6c2857210ce009a424ad7a21d13645a0224d4976bd2e4dd22f354b"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # MCP servers with the Gemini CLI

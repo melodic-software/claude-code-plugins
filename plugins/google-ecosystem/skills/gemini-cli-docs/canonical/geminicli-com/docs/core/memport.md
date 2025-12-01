@@ -5,7 +5,7 @@ content_hash: sha256:a52dcb9d9216475b02dd0a7132eaa9c0ab43341818988bd19fe35cab0aa
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"be9cbada974c3b7059ada6b82702ecd4236dbf26df2cea7add5b353682a687e8"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Memory Import Processor

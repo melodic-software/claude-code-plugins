@@ -5,7 +5,7 @@ content_hash: sha256:2b7ef6b036414a9d6b10b66e55a017967b399678265f3c0382ba61f3031
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
 etag: '"07c3264e6204e5f2dc9386cce22c34fe98626dc51e47a0e81ab58095da2dfd1a"'
-last_modified: Sun, 30 Nov 2025 17:03:27 GMT
+last_modified: '2025-12-01T02:03:17Z'
 ---
 
 # Local Development Guide
