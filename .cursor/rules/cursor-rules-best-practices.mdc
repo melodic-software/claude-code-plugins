@@ -1,0 +1,79 @@
+---
+description: Guidelines for creating and modifying Cursor rules in .cursor/rules
+globs:
+  - ".cursor/rules/**/*.mdc"
+alwaysApply: false
+---
+
+# Cursor Rules Best Practices
+
+## Rule Format (MDC)
+
+```markdown
+---
+description: Clear description of what this rule does
+globs:
+  - "pattern/**/*.ts"
+alwaysApply: false
+---
+
+# Rule Title
+
+Rule content...
+```
+
+### Metadata
+
+**Required fields**:
+- **`description`**: Helps Agent decide when to apply (be specific)
+- **`globs`**: File patterns for scoped application
+- **`alwaysApply`**: Use `true` sparingly - only for universal rules
+
+**Optional fields** (for advanced use):
+- **`tags`**: Categorization keywords for AI discovery
+- **`priority`**: 1-5 for conflict resolution (1 = highest)
+- **`version`**: Semantic versioning for rule changes
+
+## Rule Types
+
+| Type | Configuration | Use Case |
+|------|--------------|----------|
+| Always Apply | `alwaysApply: true` | Universal, project-wide guidance |
+| Apply Intelligently | `alwaysApply: false` + clear description | Agent decides based on context |
+| Apply to Files | `globs` patterns | Triggers when matching files referenced |
+| Apply Manually | Minimal description | Only when @-mentioned |
+
+## Best Practices
+
+### Content
+
+- Keep under 500 lines - split large rules
+- Be specific and actionable (not "write good code")
+- Include concrete examples with do's and don'ts
+- Use `@filename` to reference actual codebase files
+
+### Scoping
+
+- Be specific: `"src/api/**/*.ts"` over `"**/*.ts"`
+- Avoid `alwaysApply: true` unless truly universal
+- Use nested rules in subdirectories for module-specific guidance
+
+### Structure
+
+- Clear headings and logical sections
+- Context about when/why the rule applies
+- Code examples showing correct patterns
+
+## Anti-Patterns
+
+- Overly broad rules covering everything
+- Vague descriptions ("code style" vs "TypeScript interfaces for API responses")
+- Duplicate guidance across rules
+- Rules without examples
+
+## Testing
+
+1. Verify glob patterns match intended files
+2. Check rule applies when expected (and doesn't when it shouldn't)
+3. Test that Agent follows the guidance
+4. Refine based on actual usage

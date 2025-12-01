@@ -1,0 +1,82 @@
+---
+description: Prevent content duplication in documentation, reports, and code. Check for existing content before creating new. Consolidate duplicates to single source of truth.
+alwaysApply: true
+---
+
+# Anti-Duplication Rule
+
+## Core Principle
+
+**Every piece of information should exist in EXACTLY ONE authoritative location.** All other references should link to that location.
+
+## Before Creating Content
+
+1. **Search first**: Does this content already exist?
+2. **If similar content exists**: Link to it, update it, or consolidate - don't duplicate
+3. **If truly new**: Create in ONE canonical location, link from elsewhere
+
+## Common Scenarios
+
+### Multiple Reports on Same Topic
+
+**Wrong**: Separate files for findings, analysis, verification, summary
+
+**Right**: ONE comprehensive report with sections for each
+
+### Documentation in Multiple Files
+
+**Wrong**: Same setup instructions in README.md and docs/setup.md
+
+**Right**: Complete instructions in one file, link from the other
+
+### Version/Config Info Scattered
+
+**Wrong**: Version "2.0.0" mentioned in 4 different files
+
+**Right**: Version in ONE canonical location, all others link to it
+
+### Configuration Examples
+
+**Wrong**: Same config example copied into 3+ files
+
+**Right**: ONE canonical example, all others link to it
+
+## Detection Questions
+
+Before creating content, ask:
+
+1. Have I seen this information before in this repo?
+2. Is there an existing file covering this topic?
+3. Am I about to copy-paste from another file?
+4. Could this be a link instead of duplicate text?
+
+If YES to any: **STOP, SEARCH, CONSOLIDATE**
+
+## Progressive Disclosure Pattern
+
+```text
+main.md (Entry Point)
+├─ Brief overview
+├─ Quick reference
+└─ Links to detailed guides
+
+guide-1.md (Detail) - Complete details on topic 1
+guide-2.md (Detail) - Complete details on topic 2
+```
+
+- Entry point: Overview + links (no duplicate content from details)
+- Detail files: Complete information (each topic in exactly ONE file)
+
+## When Duplication is Found
+
+1. Identify all instances
+2. Choose canonical location
+3. Consolidate to that ONE location
+4. Replace duplicates with links
+5. Verify links work
+
+## Golden Rule
+
+**Link, don't duplicate.**
+
+If information must appear in multiple places: store it ONCE, link from everywhere else.

@@ -1,0 +1,16 @@
+---
+description: Use Cursor attribution for git commits made via Cursor
+alwaysApply: true
+---
+
+# Git Commit Attribution
+
+When creating git commits via Cursor, include this attribution:
+
+```text
+Generated with [Cursor](https://cursor.com)
+
+Co-Authored-By: Cursor <noreply@cursor.com>
+```
+
+If other AI tools are used in the same repository, each tool should use its own attribution when it creates commits.

@@ -3,13 +3,14 @@
 //
 // This is the single source of truth for markdown linting configuration
 // Both markdownlint-cli2 CLI and VS Code extension read this file
+// VS Code extension precedence: .markdownlint-cli2.jsonc > .markdownlint.json > VS Code settings
 {
   // Automatically respect .gitignore patterns
   "gitignore": true,
 
   // Files to ignore (glob patterns)
   "ignores": [
-    // Temporary files
+    // Temporary files (ephemeral, not committed)
     "**/temp/**",
     "**/tmp/**",
     "**/.tmp/**",
@@ -17,6 +18,12 @@
     // Scraped documentation (external sources, not under our control)
     "**/canonical/**",
     "**/plugins/google-ecosystem/skills/gemini-cli-docs/**",
+
+    // SpecKit command files (generated templates with specific formatting requirements)
+    "**/speckit.*.md",
+
+    // SpecKit .specify folder contents (generated specification artifacts)
+    "**/.specify/**",
 
     // Test fixtures (intentionally contain lint errors)
     "**/tests/**/fixtures/**",
@@ -27,7 +34,7 @@
 
   // Linting rules configuration
   "config": {
-    "default": true,
-    "MD013": false
+    "default": true,   // Enable all default markdownlint rules
+    "MD013": false     // Disable line-length rule (often too strict for documentation)
   }
 }

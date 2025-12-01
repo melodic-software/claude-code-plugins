@@ -1,0 +1,150 @@
+# .editorconfig for claude-code-plugins repository
+# EditorConfig helps maintain consistent coding styles across different editors and IDEs
+#
+# Official Documentation: https://editorconfig.org/
+# For VS Code: Install "EditorConfig for VS Code" extension
+
+# top-most EditorConfig file
+root = true
+
+# ===========================
+# Default Settings (All Files)
+# ===========================
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# ===========================
+# Documentation Files
+# ===========================
+
+[*.md]
+# Markdown may use trailing spaces for line breaks (two spaces = <br>)
+# However, markdownlint prefers explicit <br> tags, so trim is safe
+trim_trailing_whitespace = true
+indent_size = 2
+
+[*.txt]
+indent_size = 2
+
+# ===========================
+# Configuration Files
+# ===========================
+
+[*.{json,yml,yaml,toml}]
+indent_size = 2
+
+[*.ini]
+indent_size = 2
+
+[.editorconfig]
+indent_size = 2
+
+[.gitignore]
+indent_size = 2
+
+[.gitattributes]
+indent_size = 2
+
+# ===========================
+# Shell Scripts (Unix)
+# ===========================
+
+[*.{sh,bash,zsh,fish}]
+end_of_line = lf
+indent_size = 2
+
+# ===========================
+# PowerShell Scripts (Windows)
+# ===========================
+
+[*.{ps1,psm1,psd1}]
+end_of_line = crlf
+indent_size = 4
+
+# ===========================
+# Windows Batch Files
+# ===========================
+
+[*.{cmd,bat}]
+end_of_line = crlf
+indent_size = 2
+
+# ===========================
+# Web Files
+# ===========================
+
+[*.{html,css,scss,js,ts,jsx,tsx,vue}]
+indent_size = 2
+
+# ===========================
+# Source Code
+# ===========================
+
+[*.{c,cpp,h,cs,java,py,rb,go,rs}]
+indent_size = 4
+
+# Python follows PEP 8 (4 spaces)
+[*.py]
+indent_size = 4
+
+# C# follows Microsoft conventions (4 spaces)
+[*.cs]
+indent_size = 4
+
+# ===========================
+# .NET Project Files
+# ===========================
+
+[*.{csproj,vbproj,fsproj,sln,props,targets}]
+end_of_line = crlf
+indent_size = 2
+
+# ===========================
+# Docker Files
+# ===========================
+
+[Dockerfile*]
+end_of_line = lf
+indent_size = 2
+
+[*.dockerfile]
+end_of_line = lf
+indent_size = 2
+
+[docker-compose*.yml]
+end_of_line = lf
+indent_size = 2
+
+# ===========================
+# CI/CD Configuration
+# ===========================
+
+[*.{jenkinsfile}]
+end_of_line = lf
+indent_size = 2
+
+[.{gitlab-ci,travis,appveyor}.yml]
+end_of_line = lf
+indent_size = 2
+
+# ===========================
+# Special Cases
+# ===========================
+
+# Makefiles require tabs
+[Makefile]
+indent_style = tab
+
+[*.mk]
+indent_style = tab
+
+# Calendar files (Windows convention)
+[*.ics]
+end_of_line = crlf
+indent_size = 2

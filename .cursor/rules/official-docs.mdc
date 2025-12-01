@@ -1,0 +1,40 @@
+---
+description: Consult official documentation before making changes to frameworks, libraries, or platform features
+alwaysApply: false
+---
+
+# Official Documentation First
+
+When working with frameworks, libraries, or platform-specific features, consult official documentation before making changes.
+
+## Workflow
+
+1. **Check docs first**: Before implementing, find and read relevant official documentation
+2. **Base decisions on docs**: Don't guess at APIs, patterns, or best practices
+3. **Follow documented patterns**: Use examples and structures from official sources
+4. **Verify against current docs**: Documentation changes - ensure your approach is up to date
+
+## Documentation Skills
+
+Some ecosystems have dedicated skills for accessing official documentation:
+
+| Ecosystem | Skill | Purpose |
+|-----------|-------|---------|
+| Claude Code | `docs-management` | Official Claude Code documentation |
+| Gemini CLI | `gemini-cli-docs` | Official Gemini CLI documentation |
+
+*Future ecosystems (OpenAI/Codex, etc.) may have similar documentation skills.*
+
+When a documentation skill exists for the ecosystem you're working with, use it to access canonical, up-to-date documentation.
+
+## When to Apply
+
+- Implementing framework-specific features
+- Using library APIs or SDKs
+- Configuring platform settings
+- Working with integrations or plugins
+- Any feature where official guidance exists
+
+## Exception
+
+If official documentation is unavailable or incomplete, document assumptions clearly and note the gap for future reference.

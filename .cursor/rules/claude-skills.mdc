@@ -1,0 +1,33 @@
+---
+description: Use when Claude Code skills are referenced by name, path, or implied usage. Skills define reusable workflows with phases like gather, analyze, execute, verify.
+alwaysApply: false
+---
+
+# Claude Code Skills in Cursor
+
+When a **skill reference** is detected (by name, path, or implied usage):
+
+## Locate the Skill
+
+Skills may be in the project OR in user-installed plugins:
+
+1. **Project skills**: Check project's `skills/` or `.claude/skills/` directories
+2. **Plugin skills**: Check `~/.claude/plugins/marketplaces/{marketplace}/{plugin}/skills/`
+3. Find the skill's `SKILL.md` file
+4. Load any referenced context files or documentation
+5. If files are @-referenced, read them in full
+6. For scripts, understand the public API
+
+**See `claude-code-plugins.mdc` for plugin directory structure and installation locations.**
+
+## Execute the Workflow
+
+1. **Follow the documented workflow literally** - respect phases (gather, analyze, execute, verify) and safety rules
+2. Use local tools (git, tests, scripts) for gather/verify steps
+3. Propose concrete commands and edits for execute steps
+
+## Precedence
+
+- Skill workflows take precedence over generic rules **within the skill's scope**
+- Global safety rules ("NEVER" rules) always apply
+- When in doubt, the skill's documentation is authoritative for that skill's domain
