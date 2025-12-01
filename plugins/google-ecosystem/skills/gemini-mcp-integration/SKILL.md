@@ -70,6 +70,35 @@ MCP servers are defined in the `mcpServers` object in `settings.json`.
 - `/mcp` - List connected servers and their status.
 - `gemini --debug` - View raw MCP connection logs (essential for troubleshooting connection issues).
 
+## Test Scenarios
+
+### Scenario 1: Add MCP Server
+
+**Query**: "How do I add an MCP server to Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "MCP" or "mcp servers"
+- Delegates to gemini-cli-docs for configuration
+**Success Criteria**: User receives mcpServers settings.json structure
+
+### Scenario 2: Configure Transport
+
+**Query**: "What transport should I use for my MCP server?"
+**Expected Behavior**:
+
+- Skill activates on "mcp transport"
+- Provides comparison of stdio, HTTP, SSE
+**Success Criteria**: User receives transport selection guidance
+
+### Scenario 3: Debug Connection
+
+**Query**: "My MCP server isn't connecting to Gemini"
+**Expected Behavior**:
+
+- Skill activates on "mcp connection error"
+- Provides debugging steps with --debug flag
+**Success Criteria**: User receives troubleshooting workflow
+
 ## References
 
 **Official Documentation:**
@@ -77,3 +106,8 @@ Query `gemini-cli-docs` for:
 
 - "mcp servers"
 - "mcp configuration"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

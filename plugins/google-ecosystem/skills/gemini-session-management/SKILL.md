@@ -66,11 +66,11 @@ Configure automatic cleanup in `settings.json`:
 }
 ```
 
-| Setting | Description | Example |
-|---------|-------------|---------|
-| `maxAge` | Maximum session age | `"7d"`, `"24h"` |
-| `maxCount` | Maximum sessions to keep | `100`, `50` |
-| `minRetention` | Minimum time before deletion | `"1d"`, `"12h"` |
+| Setting        | Description                   | Example         |
+| -------------- | ----------------------------- | --------------- |
+| `maxAge`       | Maximum session age           | `"7d"`, `"24h"` |
+| `maxCount`     | Maximum sessions to keep      | `100`, `50`     |
+| `minRetention` | Minimum time before deletion  | `"1d"`, `"12h"` |
 
 ## Session Limits
 
@@ -94,21 +94,21 @@ Sessions are stored in:
 
 ## Command Line Options
 
-| Option | Description |
-|--------|-------------|
-| `--resume`, `-r` | Resume last session |
-| `--list-sessions` | List available sessions |
-| `--delete-session <id>` | Delete specific session |
+| Option                  | Description              |
+| ----------------------- | ------------------------ |
+| `--resume`, `-r`        | Resume last session      |
+| `--list-sessions`       | List available sessions  |
+| `--delete-session <id>` | Delete specific session  |
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
-| Topic | Query Keywords |
-|-------|----------------|
-| Resume | `--resume flag`, `resume session`, `/resume command` |
-| Browser | `session browser`, `search sessions`, `/resume interactive` |
-| Retention | `sessionRetention`, `maxAge maxCount`, `session cleanup` |
-| Limits | `maxSessionTurns`, `session limits`, `turn limits` |
-| Storage | `session storage`, `~/.gemini/tmp`, `session location` |
+| Topic      | Query Keywords                                              |
+| ---------- | ----------------------------------------------------------- |
+| Resume     | `--resume flag`, `resume session`, `/resume command`        |
+| Browser    | `session browser`, `search sessions`, `/resume interactive` |
+| Retention  | `sessionRetention`, `maxAge maxCount`, `session cleanup`    |
+| Limits     | `maxSessionTurns`, `session limits`, `turn limits`          |
+| Storage    | `session storage`, `~/.gemini/tmp`, `session location`      |
 | Management | `--list-sessions`, `--delete-session`, `session management` |
 
 ## Quick Decision Tree
@@ -135,6 +135,35 @@ Sessions are stored in:
 - [ ] Did official documentation load?
 - [ ] Is my response based EXCLUSIVELY on official docs?
 
+## Test Scenarios
+
+### Scenario 1: Resume Session
+
+**Query**: "How do I resume my last Gemini CLI session?"
+**Expected Behavior**:
+
+- Skill activates on "resume" or "session"
+- Provides `gemini --resume` command
+**Success Criteria**: User receives resume command and /resume browser option
+
+### Scenario 2: Configure Retention
+
+**Query**: "How do I limit Gemini session storage?"
+**Expected Behavior**:
+
+- Skill activates on "retention" or "session storage"
+- Delegates to gemini-cli-docs for sessionRetention settings
+**Success Criteria**: User receives settings.json configuration with maxAge/maxCount
+
+### Scenario 3: Delete Session
+
+**Query**: "How do I delete old Gemini sessions?"
+**Expected Behavior**:
+
+- Skill activates on "delete session" or "session management"
+- Provides --delete-session command
+**Success Criteria**: User receives deletion workflow and list-sessions option
+
 ## References
 
 Query `gemini-cli-docs` for official documentation on:
@@ -142,3 +171,8 @@ Query `gemini-cli-docs` for official documentation on:
 - "session management"
 - "session resume"
 - "sessionRetention"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

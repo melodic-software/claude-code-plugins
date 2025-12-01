@@ -139,3 +139,37 @@ export GEMINI_DOCS_SCRAPING_MAX_WORKERS=8
 ## Source
 
 Documentation is scraped from: https://geminicli.com/llms.txt
+
+## Test Scenarios
+
+### Scenario 1: Keyword Search
+
+**Query**: "Search for checkpointing documentation"
+**Expected Behavior**:
+
+- Skill activates on keyword "documentation"
+- Returns relevant docs from index
+**Success Criteria**: User receives matching documentation entries
+
+### Scenario 2: Natural Language Query
+
+**Query**: "How do I configure model routing in Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "Gemini CLI"
+- Uses find_docs.py query command
+**Success Criteria**: Returns relevant documentation with configuration steps
+
+### Scenario 3: Doc ID Resolution
+
+**Query**: "Resolve geminicli-com-docs-cli-checkpointing"
+**Expected Behavior**:
+
+- Resolves doc_id to file path
+- Returns document metadata
+**Success Criteria**: User receives full path and document content
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

@@ -32,11 +32,11 @@ Meta-skill for configuring Gemini CLI's sandbox isolation. Sandboxing isolates p
 
 ## Sandbox Methods
 
-| Method | Platform | Isolation |
-|--------|----------|-----------|
-| Docker | All | Full container |
-| Podman | All | Rootless container |
-| Seatbelt | macOS | Process sandbox |
+| Method   | Platform | Isolation          |
+| -------- | -------- | ------------------ |
+| Docker   | All      | Full container     |
+| Podman   | All      | Rootless container |
+| Seatbelt | macOS    | Process sandbox    |
 
 ## Configuration
 
@@ -50,7 +50,7 @@ gemini -s -p "command"
 
 ```bash
 export GEMINI_SANDBOX=true
-gemini -p "command"
+gemini "command"
 
 # Or specify method
 export GEMINI_SANDBOX=docker
@@ -84,13 +84,13 @@ Or specify method:
 
 Set via `SEATBELT_PROFILE` environment variable:
 
-| Profile | Writes | Network |
-|---------|--------|---------|
-| `permissive-open` (default) | Restricted | Allowed |
-| `permissive-closed` | Restricted | Blocked |
-| `permissive-proxied` | Restricted | Via proxy |
-| `restrictive-open` | Strict | Allowed |
-| `restrictive-closed` | Strict | Blocked |
+| Profile                     | Writes     | Network   |
+| --------------------------- | ---------- | --------- |
+| `permissive-open` (default) | Restricted | Allowed   |
+| `permissive-closed`         | Restricted | Blocked   |
+| `permissive-proxied`        | Restricted | Via proxy |
+| `restrictive-open`          | Strict     | Allowed   |
+| `restrictive-closed`        | Strict     | Blocked   |
 
 ## Custom Sandbox Flags
 
@@ -102,13 +102,13 @@ export SANDBOX_FLAGS="--security-opt label=disable"
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
-| Topic | Query Keywords |
-|-------|----------------|
-| Enable | `enable sandbox`, `-s flag`, `GEMINI_SANDBOX` |
-| Docker | `docker sandbox`, `container isolation` |
-| Podman | `podman sandbox`, `rootless container` |
-| Seatbelt | `seatbelt profiles`, `sandbox-exec macos` |
-| Custom flags | `SANDBOX_FLAGS`, `custom docker flags` |
+| Topic           | Query Keywords                                       |
+| --------------- | ---------------------------------------------------- |
+| Enable          | `enable sandbox`, `-s flag`, `GEMINI_SANDBOX`        |
+| Docker          | `docker sandbox`, `container isolation`              |
+| Podman          | `podman sandbox`, `rootless container`               |
+| Seatbelt        | `seatbelt profiles`, `sandbox-exec macos`            |
+| Custom flags    | `SANDBOX_FLAGS`, `custom docker flags`               |
 | Troubleshooting | `sandbox troubleshooting`, `operation not permitted` |
 
 ## Quick Decision Tree
@@ -123,12 +123,12 @@ export SANDBOX_FLAGS="--security-opt label=disable"
 
 ## Troubleshooting
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| "Operation not permitted" | Sandbox restriction | Expected behavior |
-| "Docker not found" | Docker not running | Start Docker daemon |
-| Network blocked | Restrictive profile | Use `permissive-open` |
-| Missing commands | Not in sandbox image | Add to custom Dockerfile |
+| Error                     | Cause                | Solution                   |
+| ------------------------- | -------------------- | -------------------------- |
+| "Operation not permitted" | Sandbox restriction  | Expected behavior          |
+| "Docker not found"        | Docker not running   | Start Docker daemon        |
+| Network blocked           | Restrictive profile  | Use `permissive-open`      |
+| Missing commands          | Not in sandbox image | Add to custom Dockerfile   |
 
 ## Security Notes
 
@@ -143,6 +143,35 @@ export SANDBOX_FLAGS="--security-opt label=disable"
 - [ ] Did official documentation load?
 - [ ] Is my response based EXCLUSIVELY on official docs?
 
+## Test Scenarios
+
+### Scenario 1: Enable Sandbox
+
+**Query**: "How do I enable sandboxing in Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "sandbox" keyword
+- Delegates to gemini-cli-docs for configuration options
+**Success Criteria**: User receives -s flag and settings.json configuration
+
+### Scenario 2: macOS Seatbelt
+
+**Query**: "How do I configure Seatbelt profiles for Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "seatbelt" or "macos sandbox"
+- Provides SEATBELT_PROFILE environment variable options
+**Success Criteria**: User receives profile comparison table
+
+### Scenario 3: Troubleshoot Sandbox
+
+**Query**: "Getting 'operation not permitted' in Gemini sandbox"
+**Expected Behavior**:
+
+- Skill activates on "sandbox troubleshooting" or "operation not permitted"
+- Explains expected sandbox restrictions
+**Success Criteria**: User understands behavior is expected and gets workarounds
+
 ## References
 
 Query `gemini-cli-docs` for official documentation on:
@@ -150,3 +179,8 @@ Query `gemini-cli-docs` for official documentation on:
 - "sandbox"
 - "seatbelt profiles"
 - "docker sandbox"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

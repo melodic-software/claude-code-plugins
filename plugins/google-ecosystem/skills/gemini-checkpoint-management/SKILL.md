@@ -88,19 +88,19 @@ Example: `2025-06-22T10-00-00_000Z-my-file.txt-write_file`
 
 ## Storage Locations
 
-| Data | Location |
-|------|----------|
-| Git snapshots | `~/.gemini/history/<project_hash>` |
+| Data                | Location                                   |
+| ------------------- | ------------------------------------------ |
+| Git snapshots       | `~/.gemini/history/<project_hash>`         |
 | Checkpoint metadata | `~/.gemini/tmp/<project_hash>/checkpoints` |
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
-| Topic | Query Keywords |
-|-------|----------------|
-| Enable | `checkpointing enabled`, `enable checkpointing settings` |
-| Commands | `/restore command`, `list checkpoints`, `restore checkpoint` |
-| Storage | `checkpoint storage`, `~/.gemini/history`, `snapshot location` |
-| Workflow | `checkpointing workflow`, `automatic snapshots` |
+| Topic    | Query Keywords                                                   |
+| -------- | ---------------------------------------------------------------- |
+| Enable   | `checkpointing enabled`, `enable checkpointing settings`         |
+| Commands | `/restore command`, `list checkpoints`, `restore checkpoint`     |
+| Storage  | `checkpoint storage`, `~/.gemini/history`, `snapshot location`   |
+| Workflow | `checkpointing workflow`, `automatic snapshots`                  |
 
 ## Quick Decision Tree
 
@@ -125,6 +125,35 @@ Example: `2025-06-22T10-00-00_000Z-my-file.txt-write_file`
 - [ ] Did official documentation load?
 - [ ] Is my response based EXCLUSIVELY on official docs?
 
+## Test Scenarios
+
+### Scenario 1: Direct Activation
+
+**Query**: "Use the gemini-checkpoint-management skill to enable checkpointing"
+**Expected Behavior**:
+
+- Skill activates on keyword "checkpoint"
+- Delegates to gemini-cli-docs for official documentation
+**Success Criteria**: User receives accurate checkpointing configuration steps
+
+### Scenario 2: Keyword Activation
+
+**Query**: "How do I rollback changes in Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on keywords "rollback", "restore"
+- Provides /restore command usage
+**Success Criteria**: Response includes command syntax and checkpoint listing
+
+### Scenario 3: Troubleshooting
+
+**Query**: "Where are Gemini checkpoints stored?"
+**Expected Behavior**:
+
+- Skill activates on "checkpoint storage"
+- Provides ~/.gemini/history path information
+**Success Criteria**: User understands checkpoint storage structure
+
 ## References
 
 Query `gemini-cli-docs` for official documentation on:
@@ -132,3 +161,8 @@ Query `gemini-cli-docs` for official documentation on:
 - "checkpointing"
 - "/restore command"
 - "checkpoint storage"
+
+## Version History
+
+- v1.1.0 (2025-11-30): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

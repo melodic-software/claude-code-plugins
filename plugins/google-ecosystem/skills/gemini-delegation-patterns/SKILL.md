@@ -6,6 +6,14 @@ allowed-tools: Read, Glob, Grep, Skill
 
 # Gemini Delegation Patterns
 
+## 🚨 MANDATORY: Invoke gemini-cli-docs First
+
+> **STOP - Before providing ANY response about Gemini CLI capabilities:**
+>
+> 1. **INVOKE** `gemini-cli-docs` skill
+> 2. **QUERY** for the specific feature topic
+> 3. **BASE** all responses EXCLUSIVELY on official documentation loaded
+
 ## Overview
 
 Meta-skill for determining when and how Claude should delegate to Gemini CLI. Documents decision criteria, execution patterns, and result handling.
@@ -23,18 +31,18 @@ Meta-skill for determining when and how Claude should delegate to Gemini CLI. Do
 
 ## Decision Matrix
 
-| Scenario | Delegate to Gemini? | Rationale |
-|----------|---------------------|-----------|
-| Interactive TUI needed (vim, git rebase -i) | YES | Claude cannot handle PTY |
-| Risky shell command | YES | Gemini sandbox isolation |
-| Large codebase analysis (100K+ tokens) | YES | Gemini 1M+ context window |
-| GCP/Firebase/Vertex auth required | YES | Native Google integration |
-| Need instant rollback capability | YES | Gemini checkpointing |
-| Quick code edit | NO | Claude is faster |
-| Multi-turn conversation | NO | Claude maintains context better |
-| Complex reasoning with files | NO | Claude's Edit tool is superior |
-| Need persistent session | NO | Claude Code has better UX |
-| Security-sensitive analysis | MAYBE | Gemini sandbox + Claude reasoning |
+| Scenario                                    | Delegate to Gemini? | Rationale                           |
+| ------------------------------------------- | ------------------- | ----------------------------------- |
+| Interactive TUI needed (vim, git rebase -i) | YES                 | Claude cannot handle PTY            |
+| Risky shell command                         | YES                 | Gemini sandbox isolation            |
+| Large codebase analysis (100K+ tokens)      | YES                 | Gemini 1M+ context window           |
+| GCP/Firebase/Vertex auth required           | YES                 | Native Google integration           |
+| Need instant rollback capability            | YES                 | Gemini checkpointing                |
+| Quick code edit                             | NO                  | Claude is faster                    |
+| Multi-turn conversation                     | NO                  | Claude maintains context better     |
+| Complex reasoning with files                | NO                  | Claude's Edit tool is superior      |
+| Need persistent session                     | NO                  | Claude Code has better UX           |
+| Security-sensitive analysis                 | MAYBE               | Gemini sandbox + Claude reasoning   |
 
 ## Execution Patterns
 
@@ -43,7 +51,7 @@ Meta-skill for determining when and how Claude should delegate to Gemini CLI. Do
 Best for: Quick queries, analysis, code generation
 
 ```bash
-gemini -p "{prompt}" --output-format json
+gemini "{prompt}" --output-format json
 ```
 
 **When to use:**
@@ -57,7 +65,7 @@ gemini -p "{prompt}" --output-format json
 Best for: Risky commands, untrusted code
 
 ```bash
-gemini -s -p "Execute: {command}" --output-format json --yolo
+gemini -s "Execute: {command}" --output-format json --yolo
 ```
 
 **When to use:**
@@ -104,7 +112,7 @@ Best for: TUI commands (vim, rebase, htop)
 Best for: Large codebases exceeding Claude's context
 
 ```bash
-cat $(find src -name "*.ts") | gemini -p "Analyze architecture" --output-format json -m gemini-2.5-flash
+cat $(find src -name "*.ts") | gemini "Analyze architecture" --output-format json -m gemini-2.5-flash
 ```
 
 **When to use:**
@@ -119,7 +127,7 @@ cat $(find src -name "*.ts") | gemini -p "Analyze architecture" --output-format 
 Best for: Validation and alternative perspectives
 
 ```bash
-gemini -p "REVIEW MODE (read-only): Analyze this independently: {content}" --output-format json
+gemini "REVIEW MODE (read-only): Analyze this independently: {content}" --output-format json
 ```
 
 **When to use:**
@@ -131,10 +139,10 @@ gemini -p "REVIEW MODE (read-only): Analyze this independently: {content}" --out
 
 ## Model Selection Guide
 
-| Model | Context | Cost | Best For |
-|-------|---------|------|----------|
-| gemini-2.5-flash | 1M+ tokens | Lower | Bulk analysis, simple tasks |
-| gemini-2.5-pro | 2M+ tokens | Higher | Complex reasoning, quality critical |
+| Model            | Context    | Cost   | Best For                            |
+| ---------------- | ---------- | ------ | ----------------------------------- |
+| gemini-2.5-flash | Large      | Lower  | Bulk analysis, simple tasks         |
+| gemini-2.5-pro   | Very large | Higher | Complex reasoning, quality critical |
 
 **Use Flash when:**
 
@@ -191,32 +199,32 @@ Keep in Claude ─────────────────────�
 
 ## Keyword Registry (Delegates to gemini-cli-docs)
 
-| Topic | Query Keywords |
-|-------|----------------|
-| Headless mode | `headless json output`, `output format`, `-p flag` |
-| Sandboxing | `sandbox docker podman`, `seatbelt`, `-s flag` |
-| Checkpointing | `checkpoint restore`, `rollback`, `/restore command` |
-| Interactive | `interactive shell`, `enableInteractiveShell`, `PTY` |
-| Model selection | `model routing`, `flash vs pro`, `-m flag` |
-| Auto-approve | `yolo mode`, `--yolo`, `auto approve` |
+| Topic           | Query Keywords                                       |
+| --------------- | ---------------------------------------------------- |
+| Headless mode   | `headless json output`, `output format`, `-p flag`   |
+| Sandboxing      | `sandbox docker podman`, `seatbelt`, `-s flag`       |
+| Checkpointing   | `checkpoint restore`, `rollback`, `/restore command` |
+| Interactive     | `interactive shell`, `enableInteractiveShell`, `PTY` |
+| Model selection | `model routing`, `flash vs pro`, `-m flag`           |
+| Auto-approve    | `yolo mode`, `--yolo`, `auto approve`                |
 
 ## Error Handling
 
 ### Common Errors and Recovery
 
-| Error | Cause | Recovery |
-|-------|-------|----------|
-| JSON parse error | Malformed output | Retry with `--output-format json` |
-| Timeout | Long-running task | Increase timeout, use streaming |
-| Auth error | Missing credentials | Check `gemini auth` status |
-| Sandbox error | Missing container | Build sandbox image first |
+| Error            | Cause               | Recovery                          |
+| ---------------- | ------------------- | --------------------------------- |
+| JSON parse error | Malformed output    | Retry with `--output-format json` |
+| Timeout          | Long-running task   | Increase timeout, use streaming   |
+| Auth error       | Missing credentials | Check `gemini auth` status        |
+| Sandbox error    | Missing container   | Build sandbox image first         |
 
 ### Retry Strategy
 
 ```bash
 # Retry with exponential backoff
 for i in 1 2 4; do
-  result=$(gemini -p "query" --output-format json 2>&1) && break
+  result=$(gemini "query" --output-format json 2>&1) && break
   sleep $i
 done
 ```
@@ -229,3 +237,37 @@ Query `gemini-cli-docs` for official documentation on:
 - "sandbox configuration"
 - "checkpointing setup"
 - "model selection"
+
+## Test Scenarios
+
+### Scenario 1: Delegation Decision
+
+**Query**: "Should I delegate this task to Gemini?"
+**Expected Behavior**:
+
+- Skill activates on "delegate to gemini" or "which agent"
+- Consults decision matrix
+**Success Criteria**: User receives clear recommendation with rationale
+
+### Scenario 2: TUI Handoff
+
+**Query**: "I need to run git rebase -i, can Claude do this?"
+**Expected Behavior**:
+
+- Skill activates on "interactive" or "rebase"
+- Recommends gemini-interactive-shell agent
+**Success Criteria**: User understands TUI limitation and handoff pattern
+
+### Scenario 3: Bulk Analysis
+
+**Query**: "I have a 100K+ token codebase to analyze"
+**Expected Behavior**:
+
+- Skill activates on "large file" or "bulk analysis"
+- Recommends gemini-bulk-analyzer agent
+**Success Criteria**: User receives Gemini delegation recommendation
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

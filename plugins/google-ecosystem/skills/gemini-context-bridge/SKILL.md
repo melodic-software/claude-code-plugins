@@ -6,6 +6,14 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Gemini Context Bridge
 
+## 🚨 MANDATORY: Invoke gemini-cli-docs First
+
+> **STOP - Before providing ANY response about GEMINI.md syntax:**
+>
+> 1. **INVOKE** `gemini-cli-docs` skill
+> 2. **QUERY** for the specific context topic
+> 3. **BASE** all responses EXCLUSIVELY on official documentation loaded
+
 ## Overview
 
 This skill bridges the gap between **Claude Code** and **Gemini CLI** by providing workflows to synchronize project context and strategic guidance on agent delegation. It ensures that project conventions defined in `CLAUDE.md` are understood by Gemini (via `GEMINI.md`) and helps users leverage the unique strengths of each agent.
@@ -28,7 +36,7 @@ When orchestrating tasks, use this guide to choose the right agent:
 ### Delegate to **Gemini CLI** for
 
 1. **Google Ecosystem Auth**: Tasks requiring authenticated access to GCP, Vertex AI, or Firebase.
-2. **Long Context / Low Cost**: Operations best suited for Gemini 1.5 Flash (1M+ tokens) or Pro (2M+).
+2. **Long Context / Low Cost**: Operations best suited for Gemini Flash (large context) or Pro (very large context).
 3. **Interactive Tools**: Running interactive CLIs (e.g., `top`, `vim`, `git rebase`) via `enableInteractiveShell`.
 4. **Smart Edits**: Using the `edit` tool with the specific "Smart Edit" strategies of Gemini.
 5. **Memory/Todos**: Utilizing the built-in programmable `save_memory` and `write_todos` tools for state tracking.
@@ -73,7 +81,41 @@ Periodically check if the two context files have diverged.
 - **Specialization:** Use `GEMINI.md` for Gemini-specific overrides (e.g., "Always use Flash model for this repo").
 - **Shared Memory:** While they have separate memory stores, you can manually copy high-value facts from `save_memory` (Gemini) to `save_memory` (Claude).
 
+## Test Scenarios
+
+### Scenario 1: Context Sync
+
+**Query**: "Sync my CLAUDE.md to GEMINI.md"
+**Expected Behavior**:
+
+- Skill activates on "sync context" or "copy instructions"
+- Provides workflow to extract and transform sections
+**Success Criteria**: User receives step-by-step sync workflow
+
+### Scenario 2: Agent Selection
+
+**Query**: "Should I use Claude or Gemini for this large file analysis?"
+**Expected Behavior**:
+
+- Skill activates on "claude or gemini" or "which agent"
+- Provides delegation matrix guidance
+**Success Criteria**: User receives recommendation based on task type
+
+### Scenario 3: Context Drift Detection
+
+**Query**: "Check if my CLAUDE.md and GEMINI.md are in sync"
+**Expected Behavior**:
+
+- Skill activates on "compare" or "drift"
+- Suggests diff command and comparison workflow
+**Success Criteria**: User receives drift detection method
+
 ## Related Skills
 
 - `gemini-config-management`: For configuring the `.gemini` folder.
 - `gemini-cli-docs`: For official documentation on `GEMINI.md` syntax.
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

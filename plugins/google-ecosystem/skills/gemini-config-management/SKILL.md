@@ -77,6 +77,35 @@ The **Trusted Folders** feature is a critical security boundary.
 **Check:** Is the folder trusted? If Untrusted, project settings are IGNORED.
 **Action:** Run `/permissions` to check trust status.
 
+## Test Scenarios
+
+### Scenario 1: Global Settings
+
+**Query**: "Where is the Gemini CLI global settings file?"
+**Expected Behavior**:
+
+- Skill activates on "settings.json" or "global settings"
+- Provides `~/.gemini/settings.json` path
+**Success Criteria**: User receives correct path and configuration options
+
+### Scenario 2: Trusted Folders
+
+**Query**: "How do I enable trusted folders in Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "trusted folders"
+- Delegates to gemini-cli-docs for security settings
+**Success Criteria**: User receives security.folderTrust configuration
+
+### Scenario 3: Configuration Debugging
+
+**Query**: "My Gemini settings aren't applying, how do I debug?"
+**Expected Behavior**:
+
+- Skill activates on "settings not applying"
+- Checks trust status recommendation
+**Success Criteria**: User receives troubleshooting steps including /permissions check
+
 ## References
 
 **Official Documentation:**
@@ -85,3 +114,8 @@ Query `gemini-cli-docs` for:
 - "configuration"
 - "trusted folders"
 - "policy engine"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

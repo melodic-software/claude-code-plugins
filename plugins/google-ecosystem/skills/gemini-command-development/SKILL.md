@@ -56,6 +56,35 @@ prompt = "The actual prompt to send..."
 1. **Create a Simple Alias** -> Query `gemini-cli-docs`: "create custom command"
 2. **Package Command in Extension** -> Query `gemini-cli-docs`: "extension commands structure"
 
+## Test Scenarios
+
+### Scenario 1: Create Custom Command
+
+**Query**: "How do I create a custom slash command in Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "custom slash commands"
+- Delegates to gemini-cli-docs for TOML syntax
+**Success Criteria**: User receives TOML command definition example
+
+### Scenario 2: Extension Commands
+
+**Query**: "How do I add commands to my Gemini extension?"
+**Expected Behavior**:
+
+- Skill activates on "extension commands"
+- Provides extension command structure
+**Success Criteria**: User receives extension commands path and format
+
+### Scenario 3: Command Arguments
+
+**Query**: "How do I pass arguments to a Gemini command?"
+**Expected Behavior**:
+
+- Skill activates on "command arguments"
+- Delegates to docs for variable syntax
+**Success Criteria**: User receives argument handling pattern
+
 ## References
 
 **Official Documentation:**
@@ -63,3 +92,8 @@ Query `gemini-cli-docs` for:
 
 - "custom commands"
 - "slash commands"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

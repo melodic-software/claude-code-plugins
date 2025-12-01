@@ -6,6 +6,14 @@ allowed-tools: Read, Bash
 
 # Gemini JSON Parsing
 
+## 🚨 MANDATORY: Invoke gemini-cli-docs First
+
+> **STOP - Before providing ANY response about Gemini JSON output:**
+>
+> 1. **INVOKE** `gemini-cli-docs` skill
+> 2. **QUERY** for the specific output format topic
+> 3. **BASE** all responses EXCLUSIVELY on official documentation loaded
+
 ## Overview
 
 Skill for parsing Gemini CLI's structured output formats. Essential for integration workflows where Claude needs to process Gemini's responses programmatically.
@@ -86,14 +94,14 @@ Single JSON object returned after completion:
 
 Newline-delimited JSON (JSONL) with real-time events:
 
-| Event Type | Description | Fields |
-|------------|-------------|--------|
-| `init` | Session start | session_id, model, timestamp |
-| `message` | User/assistant messages | role, content, timestamp |
-| `tool_use` | Tool call requests | tool_name, tool_id, parameters |
-| `tool_result` | Tool execution results | tool_id, status, output |
-| `error` | Non-fatal errors | type, message |
-| `result` | Final outcome | status, stats |
+| Event Type    | Description              | Fields                         |
+| ------------- | ------------------------ | ------------------------------ |
+| `init`        | Session start            | session_id, model, timestamp   |
+| `message`     | User/assistant messages  | role, content, timestamp       |
+| `tool_use`    | Tool call requests       | tool_name, tool_id, parameters |
+| `tool_result` | Tool execution results   | tool_id, status, output        |
+| `error`       | Non-fatal errors         | type, message                  |
+| `result`      | Final outcome            | status, stats                  |
 
 Example stream:
 
@@ -112,10 +120,10 @@ Example stream:
 
 ```bash
 # Get main response
-gemini -p "query" --output-format json | jq -r '.response'
+gemini "query" --output-format json | jq -r '.response'
 
 # With error handling
-result=$(gemini -p "query" --output-format json)
+result=$(gemini "query" --output-format json)
 if echo "$result" | jq -e '.error' > /dev/null 2>&1; then
   echo "Error: $(echo "$result" | jq -r '.error.message')"
 else
@@ -232,19 +240,19 @@ done
 
 ## Quick Reference
 
-| What | jq Command |
-|------|------------|
-| Response text | `.response` |
-| Total tokens | `.stats.models \| to_entries \| map(.value.tokens.total) \| add` |
-| Cached tokens | `.stats.models \| to_entries \| map(.value.tokens.cached) \| add` |
-| Tool calls | `.stats.tools.totalCalls` |
-| Tools used | `.stats.tools.byName \| keys \| join(", ")` |
-| Models used | `.stats.models \| keys \| join(", ")` |
-| Error message | `.error.message // "none"` |
-| Error type | `.error.type // "none"` |
-| Lines added | `.stats.files.totalLinesAdded` |
-| Lines removed | `.stats.files.totalLinesRemoved` |
-| Total latency | `.stats.models \| to_entries \| map(.value.api.totalLatencyMs) \| add` |
+| What          | jq Command                                                                   |
+| ------------- | ---------------------------------------------------------------------------- |
+| Response text | `.response`                                                                  |
+| Total tokens  | `.stats.models \| to_entries \| map(.value.tokens.total) \| add`             |
+| Cached tokens | `.stats.models \| to_entries \| map(.value.tokens.cached) \| add`            |
+| Tool calls    | `.stats.tools.totalCalls`                                                    |
+| Tools used    | `.stats.tools.byName \| keys \| join(", ")`                                  |
+| Models used   | `.stats.models \| keys \| join(", ")`                                        |
+| Error message | `.error.message // "none"`                                                   |
+| Error type    | `.error.type // "none"`                                                      |
+| Lines added   | `.stats.files.totalLinesAdded`                                               |
+| Lines removed | `.stats.files.totalLinesRemoved`                                             |
+| Total latency | `.stats.models \| to_entries \| map(.value.api.totalLatencyMs) \| add`       |
 
 ## Complete Example
 
@@ -252,7 +260,7 @@ done
 #!/bin/bash
 # Analyze code and report stats
 
-result=$(cat src/main.ts | gemini -p "Review this code for security issues" --output-format json)
+result=$(cat src/main.ts | gemini "Review this code for security issues" --output-format json)
 
 # Check for errors
 if echo "$result" | jq -e '.error' > /dev/null 2>&1; then
@@ -277,6 +285,35 @@ echo "Models: $models"
 echo "Tool calls: $tools"
 ```
 
+## Test Scenarios
+
+### Scenario 1: Extract Response
+
+**Query**: "How do I extract the response from Gemini JSON output?"
+**Expected Behavior**:
+
+- Skill activates on "parse gemini output" or "json output"
+- Provides jq extraction pattern
+**Success Criteria**: User receives `.response` extraction command
+
+### Scenario 2: Token Usage Analysis
+
+**Query**: "How do I track token usage from Gemini CLI?"
+**Expected Behavior**:
+
+- Skill activates on "token usage" or "gemini stats"
+- Provides stats extraction patterns
+**Success Criteria**: User receives token calculation jq commands
+
+### Scenario 3: Stream Processing
+
+**Query**: "How do I process Gemini CLI stream-json output?"
+**Expected Behavior**:
+
+- Skill activates on "stream json"
+- Provides JSONL processing patterns
+**Success Criteria**: User receives real-time stream processing example
+
 ## References
 
 Query `gemini-cli-docs` for official documentation on:
@@ -284,3 +321,8 @@ Query `gemini-cli-docs` for official documentation on:
 - "json output format"
 - "stream-json output"
 - "headless mode"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release

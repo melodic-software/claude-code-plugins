@@ -71,6 +71,35 @@ An extension can contain:
 5. **Install an Extension** -> Query `gemini-cli-docs`: "install extension from url"
 6. **Release an Extension** -> Query `gemini-cli-docs`: "extension releasing git vs github"
 
+## Test Scenarios
+
+### Scenario 1: Create Extension
+
+**Query**: "How do I create a new Gemini CLI extension?"
+**Expected Behavior**:
+
+- Skill activates on "create extension"
+- Delegates to gemini-cli-docs for template command
+**Success Criteria**: User receives `gemini extensions create` syntax
+
+### Scenario 2: Link for Development
+
+**Query**: "How do I test my Gemini extension locally?"
+**Expected Behavior**:
+
+- Skill activates on "test extension" or "link extension"
+- Provides `gemini extensions link .` workflow
+**Success Criteria**: User receives local development workflow
+
+### Scenario 3: Release Extension
+
+**Query**: "How do I publish my Gemini extension?"
+**Expected Behavior**:
+
+- Skill activates on "release extension" or "publish"
+- Delegates to docs for Git/GitHub release options
+**Success Criteria**: User receives release workflow options
+
 ## References
 
 **Official Documentation:**
@@ -78,3 +107,8 @@ Query `gemini-cli-docs` for:
 
 - "extensions"
 - "extension development"
+
+## Version History
+
+- v1.1.0 (2025-12-01): Added Test Scenarios section
+- v1.0.0 (2025-11-25): Initial release
