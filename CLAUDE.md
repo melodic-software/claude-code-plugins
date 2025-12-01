@@ -8,6 +8,7 @@ See @README for project overview and installation.
 - **NEVER chain `cd &&` in PowerShell** - causes path doubling
 - **Use `MSYS_NO_PATHCONV=1`** in Git Bash
 - **Use Python 3.12** for spaCy operations
+- **Plugin dev mode required** - When modifying plugin scripts, set env vars to use local code instead of installed plugin. See `.claude/memory/plugin-dev-mode.md`
 
 ## Quick Reference
 
@@ -136,9 +137,10 @@ For comprehensive guidance on working with this repository, see:
 - **Session Configuration** `.claude/memory/session-configuration.md` (~1,930 tokens) - HTTPS_PROXY, timeout, session management
 - **GitHub Actions Patterns** `.claude/memory/github-actions-patterns.md` (~2,195 tokens) - GitHub Actions, CI/CD, PR automation
 - **MCP Usage Patterns** `.claude/memory/mcp-usage-patterns.md` (~650 tokens) - MCP, microsoft-learn, context7, ref, perplexity
+- **Plugin Dev Mode** `.claude/memory/plugin-dev-mode.md` (~1,200 tokens) - Dev mode env vars, installed vs local plugin, scraping to dev repo
 
 **Claude Code Ecosystem:**
 
 - **Claude Code Topics Index** `.claude/memory/claude-code-topics-index.md` (~3,420 tokens) - Hooks, memory, skills, subagents, MCP, plugins, settings, SDK
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-01
