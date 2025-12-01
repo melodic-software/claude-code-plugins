@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/extensions
 source_type: llms-txt
-content_hash: sha256:886d302cb3a19b28806de3edfdac46ddd85c8b5715a3846a14e29c266c6c901c
+content_hash: sha256:9b06b2ed8f0aa2ff10b5f9036adc296298c68cad8d53307c097b4e633d00438f
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"361929f3daf60c8a5a2abde901ee65e3b527e8731d1958f6952ebdfc6a2c73a7"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"1bb5ecfd033370a49a1c655a40344418984225405347ae732435f3132839db66"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Extensions
+# Gemini CLI extensions
 
 _This documentation is up-to-date with the v0.4.0 release._
 

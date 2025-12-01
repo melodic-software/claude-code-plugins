@@ -1,14 +1,14 @@
 ---
-source_url: https://geminicli.com/docs/faq
+source_url: http://geminicli.com/docs/faq
 source_type: llms-txt
-content_hash: sha256:b55b1db2155479bebb6727b09fa7903db55c2e1403cf534a4364ecaf1b5c66a6
+content_hash: sha256:ae180978d536b75477e27f998c2e5e4e56def804be22698e24cb3cbdc8d16ddc
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"59f3ca125db565b4b413992b6fa00af300bf9592cd312edbd2c24ab6a55c86b6"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"1e365557c413a64bf9b765310ee574a66caf9202d270adbe04956e8df2a04fe9"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Frequently Asked Questions (FAQ)
+# Frequently asked questions (FAQ)
 
 This page provides answers to common questions and solutions to frequent
 problems encountered while using Gemini CLI.

@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/core
 source_type: llms-txt
-content_hash: sha256:c0900817b0db15a2b303347c6c25e695b30dc1b736f613bcee54c019e6f79601
+content_hash: sha256:3f97d2b96fc29c8093fa6d67f409d63add8472e3cfbb31b25fdb327e3f4f460f
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"5ab8e2bc42e78fe99cebecb4ae0566b4de711e48a3c03d16383c5af0fc651ff4"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"d16f22d3b8f3443bca8b395ca42ab297d01641976fc3bb9c3056e768351329d0"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Core
+# Gemini CLI core
 
 Gemini CLI's core package (`packages/core`) is the backend portion of Gemini
 CLI, handling communication with the Gemini API, managing tools, and processing

@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/get-started/examples
 source_type: llms-txt
-content_hash: sha256:449975ff814a7202878bffabe5e3cf497ba18f64b43931e1d2839ccd2f456bf1
+content_hash: sha256:9eb972c61f423b0610e3cd68806b090802322985b05fba26bf30c648a30af4af
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"72790cd6bd5c4f7b9ad9398bb245fe75981c14fdf34129eeb7517abff70dcf63"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"047bfa8c6d1c321e4f5aa9c002dde3ea2ec0391d3f32bc0971a3d9847cdb43ce"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Examples
+# Gemini CLI examples
 
 Not sure where to get started with Gemini CLI? This document covers examples on
 how to use Gemini CLI for a variety of tasks.
@@ -67,7 +67,7 @@ Gemini CLI will return an explanation based on the actual source code:
 The `chalk` library is a popular npm package for styling terminal output with
 colors. After analyzing the source code, here's how it works:
 
-- **Core Functionality:** The main file sets up a chainable API. Each color or
+- **Core functionality:** The main file sets up a chainable API. Each color or
   modifier (like `bold` or `italic`) is a getter that appends the corresponding
   ANSI escape code to an internal stack.
 
@@ -75,7 +75,7 @@ colors. After analyzing the source code, here's how it works:
   getters. The `red` getter adds the red color code, and the `bold` getter adds
   the bold code.
 
-- **Output Generation:** When the chain is treated as a string (e.g., in
+- **Output generation:** When the chain is treated as a string (e.g., in
   `console.log`), a final `toString()` method is called. This method joins all
   the stored ANSI codes, wraps them around the input string ('Hello'), and adds
   a reset code at the end. This produces the final, styled string that the

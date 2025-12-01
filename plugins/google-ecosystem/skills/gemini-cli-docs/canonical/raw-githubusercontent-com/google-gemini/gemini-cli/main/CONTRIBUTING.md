@@ -1,11 +1,9 @@
 ---
-source_url: http://geminicli.com/docs/contributing
+source_url: https://raw.githubusercontent.com/google-gemini/gemini-cli/main/CONTRIBUTING
 source_type: llms-txt
-content_hash: sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a
+content_hash: sha256:69252a0a4fcf8f5c4911d6cbcb9bbb4c1d9018655656442059e58747bc0c9e78
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"a17abd3c9a928a3845e533836857230bd4b7973e68ead74c65fe287f0e0100f0"'
-last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # How to contribute

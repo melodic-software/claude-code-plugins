@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/examples/proxy-script
 source_type: llms-txt
-content_hash: sha256:bac86838741dc70e0c3173c33ae4775c571de0b4c7d4341cac6634bc6bccfa8a
+content_hash: sha256:7d0b26c540e3984882e7c4781018ad0416ee366b0be60e7bd6f6c08ae5dedba3
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"ae11a5ef43e7d0bb37b497e9eea5b42f777ec9818f18236f2d6e9e9fcd0a0ce2"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"432157ca78dbc0d80f7ac889f94bacc360a3bd94454ff40e584b40f11bf76108"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Example Proxy Script
+# Example proxy script
 
 The following is an example of a proxy script that can be used with the
 `GEMINI_SANDBOX_PROXY_COMMAND` environment variable. This script only allows

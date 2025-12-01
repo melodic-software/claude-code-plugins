@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/troubleshooting
 source_type: llms-txt
-content_hash: sha256:f9ac4a56a424af28cb4f2c6f58ae3f968b0d79ce2252a84b23131481b24c8d58
+content_hash: sha256:139ce25cd3f0ef3219da8e821d5b34208b7d3c4239c4f7311c95562c18d1379b
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"30c624c0223a3d062690e55a5c83b5d4957261b9545977d735b4fb7fcf8c7cea"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"19239012a05ab14f3a070269f06740ac9d276a76e3b3e7effd2d16a1e454bbd3"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Troubleshooting guide
@@ -100,7 +100,7 @@ topics on:
     `advanced.excludedEnvVars` setting in your `settings.json` to exclude fewer
     variables.
 
-## Exit Codes
+## Exit codes
 
 The Gemini CLI uses specific exit codes to indicate the reason for termination.
 This is especially useful for scripting and automation.
@@ -113,7 +113,7 @@ This is especially useful for scripting and automation.
 | 52        | `FatalConfigError`         | A configuration file (`settings.json`) is invalid or contains errors.                               |
 | 53        | `FatalTurnLimitedError`    | The maximum number of conversational turns for the session was reached. (non-interactive mode only) |
 
-## Debugging Tips
+## Debugging tips
 
 - **CLI debugging:**
   - Use the `--verbose` flag (if available) with CLI commands for more detailed
@@ -139,7 +139,7 @@ This is especially useful for scripting and automation.
   - Always run `npm run preflight` before committing code. This can catch many
     common issues related to formatting, linting, and type errors.
 
-## Existing GitHub Issues similar to yours or creating new Issues
+## Existing GitHub issues similar to yours or creating new issues
 
 If you encounter an issue that was not covered here in this _Troubleshooting
 guide_, consider searching the Gemini CLI

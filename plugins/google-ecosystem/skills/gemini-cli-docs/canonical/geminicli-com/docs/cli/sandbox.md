@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/cli/sandbox
 source_type: llms-txt
-content_hash: sha256:e3c79d4c1ab3fef16e95f262437d8f6c460707cfc4e53c3e172ab24ecd93e02d
+content_hash: sha256:c06ded19f8939a12cc73ade62aa64a93b3062185c998073903b2ba04d3101c2c
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"7d3160803aa47a9d8da8615725d6870eb0e6f8330f89c81a33a37fd03a355061"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"f9c9c4a3e008e76c40dea5abef2b0e2d26dae6557638283e88a406b6d826ac88"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Sandboxing in the Gemini CLI
@@ -97,7 +97,7 @@ Built-in profiles (set via `SEATBELT_PROFILE` env var):
 - `restrictive-open`: Strict restrictions, network allowed
 - `restrictive-closed`: Maximum restrictions
 
-### Custom Sandbox Flags
+### Custom sandbox flags
 
 For container-based sandboxing, you can inject custom flags into the `docker` or
 `podman` command using the `SANDBOX_FLAGS` environment variable. This is useful

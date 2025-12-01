@@ -1,19 +1,19 @@
 ---
 source_url: http://geminicli.com/docs/local-development
 source_type: llms-txt
-content_hash: sha256:2b7ef6b036414a9d6b10b66e55a017967b399678265f3c0382ba61f30319a4c7
+content_hash: sha256:a3932ca3300e1472de18b90859e9dd5573cf3726d42231b8252819cb5f49183e
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"07c3264e6204e5f2dc9386cce22c34fe98626dc51e47a0e81ab58095da2dfd1a"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"4f1adbe9d700903a34c0e7f15977e0f4b2c47c75d604aec0b7fd06d2a722a619"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Local Development Guide
+# Local development guide
 
 This guide provides instructions for setting up and using local development
 features, such as development tracing.
 
-## Development Tracing
+## Development tracing
 
 Development traces (dev traces) are OpenTelemetry (OTel) traces that help you
 debug your code by instrumenting interesting events like model calls, tool
@@ -25,7 +25,7 @@ behaviour and debugging issues. They are disabled by default.
 To enable dev traces, set the `GEMINI_DEV_TRACING=true` environment variable
 when running Gemini CLI.
 
-### Viewing Dev Traces
+### Viewing dev traces
 
 You can view dev traces using either Jaeger or the Genkit Developer UI.
 
@@ -33,7 +33,7 @@ You can view dev traces using either Jaeger or the Genkit Developer UI.
 
 Genkit provides a web-based UI for viewing traces and other telemetry data.
 
-1.  **Start the Genkit Telemetry Server:**
+1.  **Start the Genkit telemetry server:**
 
     Run the following command to start the Genkit server:
 
@@ -47,7 +47,7 @@ Genkit provides a web-based UI for viewing traces and other telemetry data.
     Genkit Developer UI: http://localhost:4000
     ```
 
-2.  **Run Gemini CLI with Dev Tracing:**
+2.  **Run Gemini CLI with dev tracing:**
 
     In a separate terminal, run your Gemini CLI command with the
     `GEMINI_DEV_TRACING` environment variable:
@@ -56,7 +56,7 @@ Genkit provides a web-based UI for viewing traces and other telemetry data.
     GEMINI_DEV_TRACING=true gemini
     ```
 
-3.  **View the Traces:**
+3.  **View the traces:**
 
     Open the Genkit Developer UI URL in your browser and navigate to the
     **Traces** tab to view the traces.
@@ -94,7 +94,7 @@ You can view dev traces in the Jaeger UI. To get started, follow these steps:
 For more detailed information on telemetry, see the
 [telemetry documentation](/docs/cli/telemetry).
 
-### Instrumenting Code with Dev Traces
+### Instrumenting code with dev traces
 
 You can add dev traces to your own code for more detailed instrumentation. This
 is useful for debugging and understanding the flow of execution.

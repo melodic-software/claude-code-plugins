@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/gemini-ignore
 source_type: llms-txt
-content_hash: sha256:fbd3aaa4e19e18181aa20a25c679ddada6ffb80eb0b6ccb88c3110eceb97ccbc
+content_hash: sha256:e5b00b678c2af2e6936d77f4cf42e5320e0e76059311fab8d6e13da18186c184
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"a7765a4590c195e97821ecdbb91f41c59b5e41ddb7db066df55b3f012b394767"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"64324d7aabd6857bc7010c6da9a5075f0ce33724c7dcf3b40db8e0f560ca41d2"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Ignoring Files
+# Ignoring files
 
 This document provides an overview of the Gemini Ignore (`.geminiignore`)
 feature of the Gemini CLI.

@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/tools/web-fetch
 source_type: llms-txt
-content_hash: sha256:ba5c3070378c5d7811522f050e742daa6fbbae8c506682194e60146860a0dcc2
+content_hash: sha256:407bb0366741f6b7cf0c91bc62a8bbe67fd09674f8202b5e9ae8dabda64f7a38
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"793fab45fcb5b53229710139e59799ff4d64f9a07c7c849e998ff7771dae07f4"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"76752a37b312641bef88937fdc0cc0e8de10fc540a03584fc0f0f20d3462aff3"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Web Fetch Tool (`web_fetch`)
+# Web fetch tool (`web_fetch`)
 
 This document describes the `web_fetch` tool for the Gemini CLI.
 

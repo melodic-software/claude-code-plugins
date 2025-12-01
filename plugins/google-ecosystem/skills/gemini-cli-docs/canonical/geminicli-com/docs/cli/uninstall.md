@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/cli/uninstall
 source_type: llms-txt
-content_hash: sha256:eb0d3fd017728be556d8ec858f9b3792c5936f82f6c4dcf2240df4457c32d66f
+content_hash: sha256:72ca379de3ea73cb64be1214df8bf71c535b005da1ef66f5533407769ea9ba85
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"756ebe174a359cacab70e59680a0cf1b3fd611e28d02487cc6d4122510195216"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"578017eb4604106ce92c3c4bf5ba72ad627d472f228d3095f548884cc9289082"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Uninstalling the CLI
@@ -45,7 +45,7 @@ _PowerShell_
 Remove-Item -Path (Join-Path $env:LocalAppData "npm-cache\_npx") -Recurse -Force
 ```
 
-## Method 2: Using npm (Global Install)
+## Method 2: Using npm (global install)
 
 If you installed the CLI globally (e.g., `npm install -g @google/gemini-cli`),
 use the `npm uninstall` command with the `-g` flag to remove it.

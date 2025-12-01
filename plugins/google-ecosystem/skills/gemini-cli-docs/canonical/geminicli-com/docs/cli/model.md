@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/model
 source_type: llms-txt
-content_hash: sha256:c7c3a71ec3407e9daae31028d69104217fb88a247376239d76620b61fe537396
+content_hash: sha256:4503679dec0599d258687c93a094fe389d79c0a1f8832c9ad219da6acf37d4dc
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"43bb83c0ebe0ab37fde4bcf0db072d4dc54b3dbff41643e66e300e8b0c034ce5"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"b6bc5233b1d756157439be04daf101b889d190c7af2534fe018113327ab49cfe"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Model Selection (`/model` Command)
+# Gemini CLI model selection (`/model` command)
 
 Select your Gemini CLI model. The `/model` command opens a dialog where you can
 configure the model used by Gemini CLI, giving you more control over your
@@ -31,7 +31,7 @@ Running this command will open a dialog with your model options:
 | Flash              | For tasks that need a balance of speed and reasoning.         | gemini-2.5-flash                                                                           |
 | Flash-Lite         | For simple tasks that need to be done quickly.                | gemini-2.5-flash-lite                                                                      |
 
-### Gemini 3 Pro and Preview Features
+### Gemini 3 Pro and preview features
 
 Note: Gemini 3 is not currently available on all account types. To learn more
 about Gemini 3 access, refer to

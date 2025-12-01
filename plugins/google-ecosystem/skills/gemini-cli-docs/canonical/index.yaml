@@ -1,282 +1,31 @@
 geminicli-com-docs:
-  category: cli
-  description: This documentation provides a comprehensive guide to installing, using,
-    and developing Gemini CLI. This tool lets you interact with Gemini models through
-    a command-line interface.
-  domain: geminicli.com
-  hash: sha256:d70d43edb15e8d1568e5b6438f51a580685ab6c2280975c48152357521992647
-  keywords:
-  - gemini-cli-docs
-  - ide integration
-  - model selection
-  - trusted folders
-  - ide companion
-  - policy engine
-  - token caching
-  - file system
-  - mcp servers
-  - memory tool
-  - mcp server
-  - shell tool
+  content_hash: sha256:e8e66b6810993d3e7cafc4d3ea8debfd08bd54a9bf5e3629b32736dc8e54dc3f
+  doc_id: geminicli-com-docs
+  hash: sha256:e8e66b6810993d3e7cafc4d3ea8debfd08bd54a9bf5e3629b32736dc8e54dc3f
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#overview'
-    heading: Overview
-    keywords:
-    - brings
-    - capabilities
-    - models
-    level: 2
-  - anchor: '#navigating-the-documentation'
-    heading: Navigating the documentation
-    keywords:
-    - navigating
-    - documentation
-    - organized
-    - following
-    level: 2
-  - anchor: '#get-started'
-    heading: Get started
-    keywords:
-    - started
-    - quickstart
-    level: 3
-  - anchor: '#cli'
-    heading: CLI
-    keywords:
-    - command
-    - line
-    - interface
-    level: 3
-  - anchor: '#core'
-    heading: Core
-    keywords:
-    - core
-    - information
-    level: 3
-  - anchor: '#tools'
-    heading: Tools
-    keywords:
-    - tools
-    - information
-    level: 3
-  - anchor: '#extensions'
-    heading: Extensions
-    keywords:
-    - extensions
-    - extend
-    level: 3
-  - anchor: '#ide-integration'
-    heading: IDE integration
-    keywords:
-    - ide
-    - integration
-    - connect
-    level: 3
-  - anchor: '#about-the-gemini-cli-project'
-    heading: About the Gemini CLI project
-    keywords:
-    - project
-    - architecture
-    - understand
-    level: 3
-  tags:
-  - authentication
-  - caching
-  - checkpointing
-  - cli
-  - configuration
-  - extensions
-  title: Welcome to Gemini CLI documentation
-  url: http://geminicli.com/docs
+  path: geminicli-com\docs.md
+  source_url: http://geminicli.com/docs.md
 geminicli-com-docs-architecture:
-  category: cli
-  description: This document provides a high-level overview of the Gemini CLI's architecture.
-  domain: geminicli.com
-  hash: sha256:6e01738ae99c277480e80d1fdcf134141562a922ed6280dde36b1d2dfbed3a42
-  keywords:
-  - architecture
-  - design principles
-  - interaction flow
-  - core components
-  - file system
-  - web fetch
-  - interaction
-  - components
-  - principles
-  - provides
-  - design
-  - level
+  content_hash: sha256:438f2206e5f8c47273939ff08c9091146ce5ee052542de36823732ff5f576b69
+  doc_id: geminicli-com-docs-architecture
+  hash: sha256:438f2206e5f8c47273939ff08c9091146ce5ee052542de36823732ff5f576b69
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/architecture.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#core-components'
-    heading: Core components
-    keywords:
-    - core
-    - components
-    - primarily
-    - composed
-    - main
-    level: 2
-  - anchor: '#interaction-flow'
-    heading: Interaction Flow
-    keywords:
-    - interaction
-    - flow
-    - typical
-    - follows
-    level: 2
-  - anchor: '#key-design-principles'
-    heading: Key Design Principles
-    keywords:
-    - key
-    - design
-    - principles
-    - modularity
-    - separating
-    level: 2
-  tags:
-  - cli
-  - configuration
-  - models
-  - tools
-  title: Gemini CLI Architecture Overview
-  url: http://geminicli.com/docs/architecture
+  path: geminicli-com\docs\architecture.md
+  source_url: http://geminicli.com/docs/architecture.md
 geminicli-com-docs-changelogs:
-  category: cli
-  description: Wondering what's new in Gemini CLI? This document provides key highlights
-    and notable changes to Gemini CLI.
-  domain: geminicli.com
+  content_hash: sha256:e80cfc18a29d8a9ddbe117fdecf10644a46c11cb48d5a5ba158cf0002a4e8231
+  doc_id: geminicli-com-docs-changelogs
   hash: sha256:e80cfc18a29d8a9ddbe117fdecf10644a46c11cb48d5a5ba158cf0002a4e8231
-  keywords:
-  - changelogs
-  - codebase investigator
-  - model selection
-  - slash commands
-  - model routing
-  - weekly update
-  - shell tool
-  - web fetch
-  - highlights
-  - changelog
-  - wondering
-  - provides
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/changelogs.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#v0150---gemini-cli-weekly-update---2025-11-03'
-    heading: v0.15.0 - Gemini CLI weekly update - 2025-11-03
-    keywords:
-    - weekly
-    - update
-    - seamless
-    - scrollable
-    - mouse
-    level: 2
-  - anchor: '#v0120---gemini-cli-weekly-update---2025-10-27'
-    heading: v0.12.0 - Gemini CLI weekly update - 2025-10-27
-    keywords:
-    - weekly
-    - update
-    - codebase
-    - investigator
-    - subagent
-    level: 2
-  - anchor: '#v0110---gemini-cli-weekly-update---2025-10-20'
-    heading: v0.11.0 - Gemini CLI weekly update - 2025-10-20
-    keywords:
-    - weekly
-    - update
-    - jules
-    - https
-    - storage
-    level: 2
-  - anchor: '#v0100---gemini-cli-weekly-update---2025-10-13'
-    heading: v0.10.0 - Gemini CLI weekly update - 2025-10-13
-    keywords:
-    - weekly
-    - update
-    - polish
-    - team
-    - heads
-    level: 2
-  - anchor: '#v090---gemini-cli-weekly-update---2025-10-06'
-    heading: v0.9.0 - Gemini CLI weekly update - 2025-10-06
-    keywords:
-    - weekly
-    - update
-    - interactive
-    - shell
-    level: 2
-  - anchor: '#v080---gemini-cli-weekly-update---2025-09-29'
-    heading: v0.8.0 - Gemini CLI weekly update - 2025-09-29
-    keywords:
-    - weekly
-    - update
-    - announcing
-    - extensions
-    - completely
-    level: 2
-  - anchor: '#v070---gemini-cli-weekly-update---2025-09-22'
-    heading: v0.7.0 - Gemini CLI weekly update - 2025-09-22
-    keywords:
-    - weekly
-    - update
-    - build
-    - plugin
-    - published
-    level: 2
-  - anchor: '#v060---gemini-cli-weekly-update---2025-09-15'
-    heading: v0.6.0 - Gemini CLI weekly update - 2025-09-15
-    keywords:
-    - weekly
-    - update
-    - higher
-    - limits
-    - ultra
-    level: 2
-  - anchor: '#v050---gemini-cli-weekly-update---2025-09-08'
-    heading: v0.5.0 - Gemini CLI weekly update - 2025-09-08
-    keywords:
-    - weekly
-    - update
-    - fastmcp
-    - quickly
-    - install
-    level: 2
-  - anchor: '#v040---gemini-cli-weekly-update---2025-09-01'
-    heading: v0.4.0 - Gemini CLI weekly update - 2025-09-01
-    keywords:
-    - weekly
-    - update
-    - cloudrun
-    - security
-    - integrations
-    level: 2
-  tags:
-  - authentication
-  - checkpointing
-  - cli
-  - configuration
-  - extensions
-  - ide
-  title: Gemini CLI Changelog
-  url: http://geminicli.com/docs/changelogs
+  path: geminicli-com\docs\changelogs.md
+  source_url: http://geminicli.com/docs/changelogs.md
 geminicli-com-docs-cli:
   category: cli
   description: Within Gemini CLI, `packages/cli` is the frontend for users to send
     and receive prompts with the Gemini AI model and its associated tools. For a general
     overview of Gemini CLI, see the [main...
   domain: geminicli.com
-  hash: sha256:ed0401f7a5f14962968ade96e1d66dfd065ee3fbc0b21fd1818c9e4832e3c02f
+  hash: sha256:57d52f19f9fe569f577572d5e71949da388a2f776901e30873ab25b21c0fc210
   keywords:
   - advanced features
   - interactive mode
@@ -332,7 +81,7 @@ geminicli-com-docs-cli-authentication:
   category: cli
   description: 'See: [Getting Started - Authentication Setup](/docs/get-started/authentication).'
   domain: geminicli.com
-  hash: sha256:f46051ddfc922099072b6df9676f3f8c48a4b898b70e2e8a076fca74fb6841b9
+  hash: sha256:451bfce508a909a824de9166876c023c95ce8915466e490819d31bdd09e66c27
   keywords:
   - authentication
   - authentication setup
@@ -343,7 +92,7 @@ geminicli-com-docs-cli-authentication:
   source_type: llms-txt
   tags:
   - authentication
-  title: Authentication Setup
+  title: Authentication setup
   url: http://geminicli.com/docs/cli/authentication
 geminicli-com-docs-cli-checkpointing:
   category: cli
@@ -351,7 +100,7 @@ geminicli-com-docs-cli-checkpointing:
     saves a snapshot of your project's state before any file modifications are made
     by AI-powered tools. This allows you to safely...
   domain: geminicli.com
-  hash: sha256:1a089a23e75e0f177483c45ee707517e2a8bdc55e517660118f69667955f1a15
+  hash: sha256:f4df5337f18c46c5eafff7a955fe4dfdf517618b334084fa21688004b432b90e
   keywords:
   - checkpointing
   - restore command
@@ -371,7 +120,7 @@ geminicli-com-docs-cli-checkpointing:
   source_type: llms-txt
   subsections:
   - anchor: '#how-it-works'
-    heading: How It Works
+    heading: How it works
     keywords:
     - works
     - approve
@@ -379,7 +128,7 @@ geminicli-com-docs-cli-checkpointing:
     - modifies
     level: 2
   - anchor: '#enabling-the-feature'
-    heading: Enabling the Feature
+    heading: Enabling the feature
     keywords:
     - enabling
     - feature
@@ -387,7 +136,7 @@ geminicli-com-docs-cli-checkpointing:
     - disabled
     level: 2
   - anchor: '#using-the-restore-command'
-    heading: Using the `/restore` Command
+    heading: Using the `/restore` command
     keywords:
     - restore
     - command
@@ -396,7 +145,7 @@ geminicli-com-docs-cli-checkpointing:
     - created
     level: 2
   - anchor: '#list-available-checkpoints'
-    heading: List Available Checkpoints
+    heading: List available checkpoints
     keywords:
     - list
     - available
@@ -404,7 +153,7 @@ geminicli-com-docs-cli-checkpointing:
     - saved
     level: 3
   - anchor: '#restore-a-specific-checkpoint'
-    heading: Restore a Specific Checkpoint
+    heading: Restore a specific checkpoint
     keywords:
     - restore
     - specific
@@ -417,103 +166,19 @@ geminicli-com-docs-cli-checkpointing:
   title: Checkpointing
   url: http://geminicli.com/docs/cli/checkpointing
 geminicli-com-docs-cli-commands:
-  category: cli
-  description: Gemini CLI supports several built-in commands to help you manage your
-    session, customize the interface, and control its behavior. These commands are
-    prefixed with a forward slash (`/`), an at symbol...
-  domain: geminicli.com
-  hash: sha256:2c72fd9a7887b05b704e2ae8bd315e0822781e8b3dab9ca1f6f1a017cc8cdec4
-  keywords:
-  - model context protocol
-  - session management
-  - error handling
-  - slash commands
-  - input prompt
-  - mcp servers
-  - mcp server
-  - shell mode
-  - checkpointing
-  - passthrough
-  - checkpoint
-  - customize
+  content_hash: sha256:7f1dc8e627d2b9425764aa1238402cd4c057277d6aa6f18e961eb50f1ab639eb
+  doc_id: geminicli-com-docs-cli-commands
+  hash: sha256:7f1dc8e627d2b9425764aa1238402cd4c057277d6aa6f18e961eb50f1ab639eb
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/cli/commands.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#slash-commands'
-    heading: Slash commands (`/`)
-    keywords:
-    - slash
-    - commands
-    - provide
-    level: 2
-  - anchor: '#built-in-commands'
-    heading: Built-in Commands
-    keywords:
-    - built
-    - commands
-    - description
-    - file
-    - issue
-    level: 3
-  - anchor: '#custom-commands'
-    heading: Custom Commands
-    keywords:
-    - custom
-    - commands
-    - allow
-    level: 3
-  - anchor: '#input-prompt-shortcuts'
-    heading: Input Prompt Shortcuts
-    keywords:
-    - input
-    - prompt
-    - shortcuts
-    - apply
-    - directly
-    level: 2
-  - anchor: '#at-commands'
-    heading: At commands (`@`)
-    keywords:
-    - commands
-    - include
-    - content
-    level: 2
-  - anchor: '#error-handling-for--commands'
-    heading: Error handling for `@` commands
-    keywords:
-    - error
-    - handling
-    - commands
-    - path
-    - specified
-    level: 3
-  - anchor: '#shell-mode--passthrough-commands'
-    heading: Shell mode & passthrough commands (`!`)
-    keywords:
-    - shell
-    - mode
-    - passthrough
-    - commands
-    - prefix
-    level: 2
-  tags:
-  - authentication
-  - caching
-  - checkpointing
-  - cli
-  - configuration
-  - extensions
-  title: CLI Commands
-  url: http://geminicli.com/docs/cli/commands
+  path: geminicli-com\docs\cli\commands.md
+  source_url: http://geminicli.com/docs/cli/commands.md
 geminicli-com-docs-cli-configuration:
   category: configuration
   description: Gemini CLI offers several ways to configure its behavior, including
     environment variables, command-line arguments, and settings files. This document
     outlines the different configuration methods and...
   domain: geminicli.com
-  hash: sha256:c012bc70407fd2c99d2dd99091210ae5ce02e883f334e9aef4159d0709fd109f
+  hash: sha256:17457d237b4417043960552f53f3499f2683f8669252c2fd0c6a5d4e3773bb26
   keywords:
   - configuration
   - environment variables
@@ -575,14 +240,14 @@ geminicli-com-docs-cli-configuration:
     - github
     level: 3
   - anchor: '#shell-history'
-    heading: Shell History
+    heading: Shell history
     keywords:
     - shell
     - history
     - keeps
     level: 2
-  - anchor: '#environment-variables--env-files'
-    heading: Environment Variables & `.env` Files
+  - anchor: '#environment-variables-and-env-files'
+    heading: Environment variables and `.env` files
     keywords:
     - environment
     - variables
@@ -591,7 +256,7 @@ geminicli-com-docs-cli-configuration:
     - common
     level: 2
   - anchor: '#command-line-arguments'
-    heading: Command-Line Arguments
+    heading: Command-line arguments
     keywords:
     - command
     - line
@@ -600,7 +265,7 @@ geminicli-com-docs-cli-configuration:
     - directly
     level: 2
   - anchor: '#context-files-hierarchical-instructional-context'
-    heading: Context Files (Hierarchical Instructional Context)
+    heading: Context files (hierarchical instructional context)
     keywords:
     - context
     - files
@@ -609,7 +274,7 @@ geminicli-com-docs-cli-configuration:
     - strictly
     level: 2
   - anchor: '#example-context-file-content-eg-geminimd'
-    heading: Example Context File Content (e.g., `GEMINI.md`)
+    heading: Example context file content (e.g., `GEMINI.md`)
     keywords:
     - example
     - context
@@ -661,7 +326,7 @@ geminicli-com-docs-cli-configuration:
     - unsafe
     level: 2
   - anchor: '#usage-statistics'
-    heading: Usage Statistics
+    heading: Usage statistics
     keywords:
     - usage
     - statistics
@@ -676,7 +341,7 @@ geminicli-com-docs-cli-configuration:
   - cli
   - configuration
   - extensions
-  title: Gemini CLI Configuration
+  title: Gemini CLI configuration
   url: http://geminicli.com/docs/cli/configuration
 geminicli-com-docs-cli-custom-commands:
   category: cli
@@ -684,7 +349,7 @@ geminicli-com-docs-cli-custom-commands:
     used prompts as personal shortcuts within Gemini CLI. You can create commands
     that are specific to a single project or commands...
   domain: geminicli.com
-  hash: sha256:efcccea1f12fcd2cdbac4b1b401c65f4f569b8ce341bece16abcc23f072c75d1
+  hash: sha256:81a7414cb4b7e3e1fb3ba080341aa85afbd091016ed27d09ec51bd91175b2ce9
   keywords:
   - custom-commands
   - custom
@@ -722,7 +387,7 @@ geminicli-com-docs-cli-custom-commands:
     - file
     level: 2
   - anchor: '#toml-file-format-v1'
-    heading: TOML File Format (v1)
+    heading: TOML file format (v1)
     keywords:
     - toml
     - file
@@ -791,7 +456,7 @@ geminicli-com-docs-cli-custom-commands:
     - file
     level: 2
   - anchor: '#3-executing-shell-commands-with'
-    heading: 3. Executing Shell commands with `!{...}`
+    heading: 3. Executing shell commands with `!{...}`
     keywords:
     - executing
     - shell
@@ -822,7 +487,7 @@ geminicli-com-docs-cli-custom-commands:
   - models
   - security
   - troubleshooting
-  title: Custom Commands
+  title: Custom commands
   url: http://geminicli.com/docs/cli/custom-commands
 geminicli-com-docs-cli-enterprise:
   category: cli
@@ -830,7 +495,7 @@ geminicli-com-docs-cli-enterprise:
     deploying and managing Gemini CLI in an enterprise environment. By leveraging
     system-level settings, administrators can enforce...
   domain: geminicli.com
-  hash: sha256:5868ff83a0ae1f6f50f550d49644b616c833415d1aa24d30a4af55d3233d6179
+  hash: sha256:14a9c8472fe66651221173c9f94b22978bc40cc5b2988f0a45ef8039839d725d
   keywords:
   - enterprise
   - centralized configuration
@@ -850,7 +515,7 @@ geminicli-com-docs-cli-enterprise:
   source_type: llms-txt
   subsections:
   - anchor: '#centralized-configuration-the-system-settings-file'
-    heading: 'Centralized Configuration: The System Settings File'
+    heading: 'Centralized configuration: The system settings file'
     keywords:
     - centralized
     - configuration
@@ -859,7 +524,7 @@ geminicli-com-docs-cli-enterprise:
     - file
     level: 2
   - anchor: '#restricting-tool-access'
-    heading: Restricting Tool Access
+    heading: Restricting tool access
     keywords:
     - restricting
     - tool
@@ -886,7 +551,7 @@ geminicli-com-docs-cli-enterprise:
     - tools
     level: 3
   - anchor: '#disabling-yolo-mode'
-    heading: Disabling YOLO Mode
+    heading: Disabling YOLO mode
     keywords:
     - disabling
     - yolo
@@ -895,7 +560,7 @@ geminicli-com-docs-cli-enterprise:
     - users
     level: 3
   - anchor: '#managing-custom-tools-mcp-servers'
-    heading: Managing Custom Tools (MCP Servers)
+    heading: Managing custom tools (MCP servers)
     keywords:
     - managing
     - custom
@@ -904,7 +569,7 @@ geminicli-com-docs-cli-enterprise:
     - servers
     level: 2
   - anchor: '#how-mcp-server-configurations-are-merged'
-    heading: How MCP Server Configurations are Merged
+    heading: How MCP server configurations are merged
     keywords:
     - mcp
     - server
@@ -913,7 +578,7 @@ geminicli-com-docs-cli-enterprise:
     - loads
     level: 3
   - anchor: '#enforcing-a-catalog-of-tools'
-    heading: Enforcing a Catalog of Tools
+    heading: Enforcing a catalog of tools
     keywords:
     - enforcing
     - catalog
@@ -922,7 +587,7 @@ geminicli-com-docs-cli-enterprise:
     - tool
     level: 3
   - anchor: '#restricting-tools-within-an-mcp-server'
-    heading: Restricting Tools Within an MCP Server
+    heading: Restricting tools within an MCP server
     keywords:
     - restricting
     - tools
@@ -931,7 +596,7 @@ geminicli-com-docs-cli-enterprise:
     - greater
     level: 3
   - anchor: '#less-secure-pattern-omitting-the-allowlist'
-    heading: 'Less Secure Pattern: Omitting the Allowlist'
+    heading: 'Less secure pattern: Omitting the allowlist'
     keywords:
     - secure
     - pattern
@@ -940,7 +605,7 @@ geminicli-com-docs-cli-enterprise:
     - administrator
     level: 3
   - anchor: '#enforcing-sandboxing-for-security'
-    heading: Enforcing Sandboxing for Security
+    heading: Enforcing sandboxing for security
     keywords:
     - enforcing
     - sandboxing
@@ -949,7 +614,7 @@ geminicli-com-docs-cli-enterprise:
     - risk
     level: 2
   - anchor: '#controlling-network-access-via-proxy'
-    heading: Controlling Network Access via Proxy
+    heading: Controlling network access via proxy
     keywords:
     - controlling
     - network
@@ -958,7 +623,7 @@ geminicli-com-docs-cli-enterprise:
     - corporate
     level: 2
   - anchor: '#telemetry-and-auditing'
-    heading: Telemetry and Auditing
+    heading: Telemetry and auditing
     keywords:
     - telemetry
     - auditing
@@ -973,7 +638,7 @@ geminicli-com-docs-cli-enterprise:
     - specific
     level: 2
   - anchor: '#putting-it-all-together-example-system-settingsjson'
-    heading: 'Putting It All Together: Example System `settings.json`'
+    heading: 'Putting it all together: Example system `settings.json`'
     keywords:
     - putting
     - example
@@ -988,14 +653,14 @@ geminicli-com-docs-cli-enterprise:
   - ide
   - mcp
   - models
-  title: Gemini CLI for the Enterprise
+  title: Gemini CLI for the enterprise
   url: http://geminicli.com/docs/cli/enterprise
 geminicli-com-docs-cli-gemini-ignore:
   category: cli
   description: This document provides an overview of the Gemini Ignore (`.geminiignore`)
     feature of the Gemini CLI.
   domain: geminicli.com
-  hash: sha256:fbd3aaa4e19e18181aa20a25c679ddada6ffb80eb0b6ccb88c3110eceb97ccbc
+  hash: sha256:e5b00b678c2af2e6936d77f4cf42e5320e0e76059311fab8d6e13da18186c184
   keywords:
   - gemini-ignore
   - ignore
@@ -1037,7 +702,7 @@ geminicli-com-docs-cli-gemini-ignore:
     level: 3
   tags:
   - models
-  title: Ignoring Files
+  title: Ignoring files
   url: http://geminicli.com/docs/cli/gemini-ignore
 geminicli-com-docs-cli-gemini-md:
   category: cli
@@ -1045,7 +710,7 @@ geminicli-com-docs-cli-gemini-md:
     feature for providing instructional context to the Gemini model. You can use these
     files to give project-specific instructions,...
   domain: geminicli.com
-  hash: sha256:f435fea4fdae87eed86ff7f9753237527bcc81e8802b23819637d041251ce8dd
+  hash: sha256:8bfe56e01ac016046b8e68af88bab09ee96d4d7169f4afb379a0b6c852ba5ff3
   keywords:
   - gemini-md
   - general instructions
@@ -1130,7 +795,7 @@ geminicli-com-docs-cli-gemini-md:
   - ide
   - memory
   - models
-  title: Provide Context with GEMINI.md Files
+  title: Provide context with GEMINI.md files
   url: http://geminicli.com/docs/cli/gemini-md
 geminicli-com-docs-cli-headless:
   category: cli
@@ -1138,7 +803,7 @@ geminicli-com-docs-cli-headless:
     line scripts and automation tools without any interactive UI. This is ideal for
     scripting, automation, CI/CD pipelines, and...
   domain: geminicli.com
-  hash: sha256:182c3ad1d9e490fa281a842c5018fff77ce0e6a9130f42823fb33ec8f9bed1e3
+  hash: sha256:0c209cd364da4a03239cf93757d1dcc2b9033a1daf83e2f36a10831dc0fb8c09
   keywords:
   - headless
   - configuration options
@@ -1165,7 +830,7 @@ geminicli-com-docs-cli-headless:
     - provides
     level: 2
   - anchor: '#basic-usage'
-    heading: Basic Usage
+    heading: Basic usage
     keywords:
     - basic
     - usage
@@ -1174,7 +839,7 @@ geminicli-com-docs-cli-headless:
     - prompt
     level: 2
   - anchor: '#direct-prompts'
-    heading: Direct Prompts
+    heading: Direct prompts
     keywords:
     - direct
     - prompts
@@ -1183,7 +848,7 @@ geminicli-com-docs-cli-headless:
     - headless
     level: 3
   - anchor: '#stdin-input'
-    heading: Stdin Input
+    heading: Stdin input
     keywords:
     - stdin
     - input
@@ -1191,7 +856,7 @@ geminicli-com-docs-cli-headless:
     - terminal
     level: 3
   - anchor: '#combining-with-file-input'
-    heading: Combining with File Input
+    heading: Combining with file input
     keywords:
     - combining
     - file
@@ -1200,7 +865,7 @@ geminicli-com-docs-cli-headless:
     - files
     level: 3
   - anchor: '#output-formats'
-    heading: Output Formats
+    heading: Output formats
     keywords:
     - output
     - formats
@@ -1208,7 +873,7 @@ geminicli-com-docs-cli-headless:
     - default
     level: 2
   - anchor: '#text-output-default'
-    heading: Text Output (Default)
+    heading: Text output (default)
     keywords:
     - text
     - output
@@ -1217,7 +882,7 @@ geminicli-com-docs-cli-headless:
     - human
     level: 3
   - anchor: '#json-output'
-    heading: JSON Output
+    heading: JSON output
     keywords:
     - json
     - output
@@ -1226,7 +891,7 @@ geminicli-com-docs-cli-headless:
     - data
     level: 3
   - anchor: '#streaming-json-output'
-    heading: Streaming JSON Output
+    heading: Streaming JSON output
     keywords:
     - streaming
     - json
@@ -1235,7 +900,7 @@ geminicli-com-docs-cli-headless:
     - real
     level: 3
   - anchor: '#file-redirection'
-    heading: File Redirection
+    heading: File redirection
     keywords:
     - file
     - redirection
@@ -1244,7 +909,7 @@ geminicli-com-docs-cli-headless:
     - files
     level: 3
   - anchor: '#configuration-options'
-    heading: Configuration Options
+    heading: Configuration options
     keywords:
     - configuration
     - options
@@ -1273,7 +938,7 @@ geminicli-com-docs-cli-headless:
   - cli
   - configuration
   - ide
-  title: Headless Mode
+  title: Headless mode
   url: http://geminicli.com/docs/cli/headless
 geminicli-com-docs-cli-keyboard-shortcuts:
   category: cli
@@ -1281,7 +946,7 @@ geminicli-com-docs-cli-keyboard-shortcuts:
     input, navigating history, and controlling the UI. Use this reference to learn
     the available combinations.
   domain: geminicli.com
-  hash: sha256:82e511603a5fb1e58b950c71c2e0072d1d64f67fd0f8d227ee27bddefaeb6952
+  hash: sha256:f3e65d0a4908d4b87f7dce2de9a1850006cce494f3ddc1cb84e0e4dcb76bbcf2
   keywords:
   - keyboard-shortcuts
   - shortcuts
@@ -1301,7 +966,7 @@ geminicli-com-docs-cli-keyboard-shortcuts:
   source_type: llms-txt
   subsections:
   - anchor: '#additional-context-specific-shortcuts'
-    heading: Additional Context-Specific Shortcuts
+    heading: Additional context-specific shortcuts
     keywords:
     - additional
     - context
@@ -1312,7 +977,7 @@ geminicli-com-docs-cli-keyboard-shortcuts:
   tags:
   - cli
   - ide
-  title: Gemini CLI Keyboard Shortcuts
+  title: Gemini CLI keyboard shortcuts
   url: http://geminicli.com/docs/cli/keyboard-shortcuts
 geminicli-com-docs-cli-model:
   category: cli
@@ -1320,7 +985,7 @@ geminicli-com-docs-cli-model:
     you can configure the model used by Gemini CLI, giving you more control over your
     results.
   domain: geminicli.com
-  hash: sha256:c7c3a71ec3407e9daae31028d69104217fb88a247376239d76620b61fe537396
+  hash: sha256:4503679dec0599d258687c93a094fe389d79c0a1f8832c9ad219da6acf37d4dc
   keywords:
   - preview features
   - model selection
@@ -1348,7 +1013,7 @@ geminicli-com-docs-cli-model:
     - following
     level: 2
   - anchor: '#gemini-3-pro-and-preview-features'
-    heading: Gemini 3 Pro and Preview Features
+    heading: Gemini 3 Pro and preview features
     keywords:
     - pro
     - preview
@@ -1369,7 +1034,7 @@ geminicli-com-docs-cli-model:
   - cli
   - configuration
   - models
-  title: Gemini CLI Model Selection (`/model` Command)
+  title: Gemini CLI model selection (`/model` command)
   url: http://geminicli.com/docs/cli/model
 geminicli-com-docs-cli-model-routing:
   category: cli
@@ -1377,7 +1042,7 @@ geminicli-com-docs-cli-model-routing:
     to a fallback model in case of a model failure. This feature is enabled by default
     and provides resilience when the primary...
   domain: geminicli.com
-  hash: sha256:8ad03a752aec021b8b03472f81b24fe7696d92f33a921c8a565bb1d32468ab52
+  hash: sha256:1f7f6179f4c65cc3881466daf4d012789b8cd9b42583778242611ca0fa325a3e
   keywords:
   - model-routing
   - routing
@@ -1397,14 +1062,14 @@ geminicli-com-docs-cli-model-routing:
   source_type: llms-txt
   subsections:
   - anchor: '#model-routing'
-    heading: Model Routing
+    heading: Model routing
     keywords:
     - model
     - routing
     - includes
     level: 2
   - anchor: '#how-it-works'
-    heading: How it Works
+    heading: How it works
     keywords:
     - works
     - model
@@ -1412,7 +1077,7 @@ geminicli-com-docs-cli-model-routing:
     - based
     level: 2
   - anchor: '#model-selection-precedence'
-    heading: Model Selection Precedence
+    heading: Model selection precedence
     keywords:
     - model
     - selection
@@ -1430,7 +1095,7 @@ geminicli-com-docs-cli-sandbox:
   description: This document provides a guide to sandboxing in the Gemini CLI, including
     prerequisites, quickstart, and configuration.
   domain: geminicli.com
-  hash: sha256:e3c79d4c1ab3fef16e95f262437d8f6c460707cfc4e53c3e172ab24ecd93e02d
+  hash: sha256:c06ded19f8939a12cc73ade62aa64a93b3062185c998073903b2ba04d3101c2c
   keywords:
   - sandbox
   - environment variable
@@ -1525,7 +1190,7 @@ geminicli-com-docs-cli-sandbox:
     - permissive
     level: 3
   - anchor: '#custom-sandbox-flags'
-    heading: Custom Sandbox Flags
+    heading: Custom sandbox flags
     keywords:
     - custom
     - sandbox
@@ -1601,129 +1266,19 @@ geminicli-com-docs-cli-sandbox:
   title: Sandboxing in the Gemini CLI
   url: http://geminicli.com/docs/cli/sandbox
 geminicli-com-docs-cli-session-management:
-  category: cli
-  description: Gemini CLI includes robust session management features that automatically
-    save your conversation history. This allows you to interrupt your work and resume
-    exactly where you left off, review past...
-  domain: geminicli.com
+  content_hash: sha256:2ed54e168256ad206b67a0568fd211e05af98ef748ecb5419ffd33f638c2ca62
+  doc_id: geminicli-com-docs-cli-session-management
   hash: sha256:2ed54e168256ad206b67a0568fd211e05af98ef748ecb5419ffd33f638c2ca62
-  keywords:
-  - session-management
-  - management
-  - session
-  - interactive interface
-  - session management
-  - deleting sessions
-  - managing sessions
-  - resuming sessions
-  - session retention
-  - automatic saving
-  - listing sessions
-  - context window
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/cli/session-management.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#automatic-saving'
-    heading: Automatic Saving
-    keywords:
-    - automatic
-    - saving
-    - time
-    - interact
-    - session
-    level: 2
-  - anchor: '#resuming-sessions'
-    heading: Resuming Sessions
-    keywords:
-    - resuming
-    - sessions
-    - resume
-    - previous
-    - session
-    level: 2
-  - anchor: '#from-the-command-line'
-    heading: From the Command Line
-    keywords:
-    - command
-    - line
-    - starting
-    - resume
-    - flag
-    level: 3
-  - anchor: '#from-the-interactive-interface'
-    heading: From the Interactive Interface
-    keywords:
-    - interactive
-    - interface
-    - running
-    - resume
-    - slash
-    level: 3
-  - anchor: '#managing-sessions'
-    heading: Managing Sessions
-    keywords:
-    - managing
-    - sessions
-    - listing
-    - list
-    level: 2
-  - anchor: '#listing-sessions'
-    heading: Listing Sessions
-    keywords:
-    - listing
-    - sessions
-    - list
-    - available
-    level: 3
-  - anchor: '#deleting-sessions'
-    heading: Deleting Sessions
-    keywords:
-    - deleting
-    - sessions
-    - remove
-    - unwanted
-    level: 3
-  - anchor: '#configuration'
-    heading: Configuration
-    keywords:
-    - configuration
-    - configure
-    - manages
-    - session
-    level: 2
-  - anchor: '#session-retention'
-    heading: Session Retention
-    keywords:
-    - session
-    - retention
-    - prevent
-    - history
-    - growing
-    level: 3
-  - anchor: '#session-limits'
-    heading: Session Limits
-    keywords:
-    - session
-    - limits
-    - limit
-    - length
-    - individual
-    level: 3
-  tags:
-  - checkpointing
-  - cli
-  - models
-  title: Session Management
-  url: http://geminicli.com/docs/cli/session-management
+  path: geminicli-com\docs\cli\session-management.md
+  source_url: http://geminicli.com/docs/cli/session-management.md
 geminicli-com-docs-cli-settings:
   category: configuration
   description: Control your Gemini CLI experience with the `/settings` command. The
     `/settings` command opens a dialog to view and edit all your Gemini CLI settings,
     including your UI experience, keybindings, and...
   domain: geminicli.com
-  hash: sha256:4e065133b1eff91924443b741da7ef5ff26351266c5e8b963403fcc0de72b455
+  hash: sha256:0e4e947fbc5f30f96dde3b17bc9a1d509f8bd23d21bab7e58de5fdc3a41d9c88
   keywords:
   - settings
   - codebase investigator
@@ -1827,33 +1382,33 @@ geminicli-com-docs-cli-settings:
   - extensions
   - ide
   - memory
-  title: Gemini CLI Settings (`/settings` Command)
+  title: Gemini CLI settings (`/settings` command)
   url: http://geminicli.com/docs/cli/settings
 geminicli-com-docs-cli-telemetry:
   category: cli
   description: Learn how to enable and setup OpenTelemetry for Gemini CLI.
   domain: geminicli.com
-  hash: sha256:1b37d7c18988b530244f3354c5478e0ea8821fad5947fe4e95609769aaeb6f9b
+  hash: sha256:34fd69d02f6aa09885ef0c5a3df1b3f782398820f80f4e7bac60163b1151b453
   keywords:
   - telemetry
   - opentelemetry integration
   - local telemetry
-  - model selection
   - genai semantic
-  - slash commands
   - direct export
   - ide companion
   - model routing
   - token usage
   - agent runs
   - configuration
+  - observability
+  - opentelemetry
   last_fetched: '2025-12-01'
   path: geminicli-com/docs/cli/telemetry.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
   subsections:
   - anchor: '#key-benefits'
-    heading: Key Benefits
+    heading: Key benefits
     keywords:
     - key
     - benefits
@@ -1862,7 +1417,7 @@ geminicli-com-docs-cli-telemetry:
     - understand
     level: 2
   - anchor: '#opentelemetry-integration'
-    heading: OpenTelemetry Integration
+    heading: OpenTelemetry integration
     keywords:
     - opentelemetry
     - integration
@@ -1878,7 +1433,7 @@ geminicli-com-docs-cli-telemetry:
     - controlled
     level: 2
   - anchor: '#google-cloud-telemetry'
-    heading: Google Cloud Telemetry
+    heading: Google Cloud telemetry
     keywords:
     - cloud
     - telemetry
@@ -1895,7 +1450,7 @@ geminicli-com-docs-cli-telemetry:
     - steps
     level: 3
   - anchor: '#direct-export-recommended'
-    heading: Direct Export (Recommended)
+    heading: Direct export (recommended)
     keywords:
     - direct
     - export
@@ -1904,7 +1459,7 @@ geminicli-com-docs-cli-telemetry:
     - telemetry
     level: 3
   - anchor: '#collector-based-export-advanced'
-    heading: Collector-Based Export (Advanced)
+    heading: Collector-based export (advanced)
     keywords:
     - collector
     - based
@@ -1913,7 +1468,7 @@ geminicli-com-docs-cli-telemetry:
     - custom
     level: 3
   - anchor: '#local-telemetry'
-    heading: Local Telemetry
+    heading: Local telemetry
     keywords:
     - local
     - telemetry
@@ -1921,7 +1476,7 @@ geminicli-com-docs-cli-telemetry:
     - debugging
     level: 2
   - anchor: '#file-based-output-recommended'
-    heading: File-based Output (Recommended)
+    heading: File-based output (recommended)
     keywords:
     - file
     - based
@@ -1930,7 +1485,7 @@ geminicli-com-docs-cli-telemetry:
     - enable
     level: 3
   - anchor: '#collector-based-export-advanced'
-    heading: Collector-Based Export (Advanced)
+    heading: Collector-based export (advanced)
     keywords:
     - collector
     - based
@@ -1939,7 +1494,7 @@ geminicli-com-docs-cli-telemetry:
     - automation
     level: 3
   - anchor: '#logs-and-metrics'
-    heading: Logs and Metrics
+    heading: Logs and metrics
     keywords:
     - logs
     - metrics
@@ -1971,219 +1526,19 @@ geminicli-com-docs-cli-telemetry:
   title: Observability with OpenTelemetry
   url: http://geminicli.com/docs/cli/telemetry
 geminicli-com-docs-cli-themes:
-  category: cli
-  description: Gemini CLI supports a variety of themes to customize its color scheme
-    and appearance. You can change the theme to suit your preferences via the `/theme`
-    command or `"theme":` configuration setting.
-  domain: geminicli.com
-  hash: sha256:19ed3b1786a57caf9a79fbe9ec1590458cf8b4ecb67511cc95874ab5c8713687
-  keywords:
-  - themes
-  - changing themes
-  - default light
-  - atom onedark
-  - custom color
-  - custom theme
-  - github light
-  - dark themes
-  - ansi light
-  - configuration
-  - preferences
-  - appearance
+  content_hash: sha256:6bdc97361db6b94a648be4b77edb9f42c9933e20fbd39f60bd2f8063cc75c5f3
+  doc_id: geminicli-com-docs-cli-themes
+  hash: sha256:6bdc97361db6b94a648be4b77edb9f42c9933e20fbd39f60bd2f8063cc75c5f3
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/cli/themes.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#available-themes'
-    heading: Available Themes
-    keywords:
-    - available
-    - themes
-    - comes
-    - selection
-    - defined
-    level: 2
-  - anchor: '#changing-themes'
-    heading: Changing Themes
-    keywords:
-    - changing
-    - themes
-    - enter
-    - theme
-    - dialog
-    level: 3
-  - anchor: '#theme-persistence'
-    heading: Theme Persistence
-    keywords:
-    - theme
-    - persistence
-    - selected
-    - themes
-    - saved
-    level: 3
-  - anchor: '#custom-color-themes'
-    heading: Custom Color Themes
-    keywords:
-    - custom
-    - color
-    - themes
-    - allows
-    - create
-    level: 2
-  - anchor: '#how-to-define-a-custom-theme'
-    heading: How to Define a Custom Theme
-    keywords:
-    - define
-    - custom
-    - theme
-    - customthemes
-    - block
-    level: 3
-  - anchor: '#loading-themes-from-a-file'
-    heading: Loading Themes from a File
-    keywords:
-    - loading
-    - themes
-    - file
-    - addition
-    - defining
-    level: 3
-  - anchor: '#example-custom-theme'
-    heading: Example Custom Theme
-    keywords:
-    - example
-    - custom
-    - theme
-    - assets
-    level: 3
-  - anchor: '#using-your-custom-theme'
-    heading: Using Your Custom Theme
-    keywords:
-    - custom
-    - theme
-    - select
-    level: 3
-  - anchor: '#dark-themes'
-    heading: Dark Themes
-    keywords:
-    - dark
-    - themes
-    - ansi
-    - assets
-    - theme
-    level: 2
-  - anchor: '#ansi'
-    heading: ANSI
-    keywords:
-    - ansi
-    - assets
-    - theme
-    level: 3
-  - anchor: '#atom-onedark'
-    heading: Atom OneDark
-    keywords:
-    - atom
-    - onedark
-    - assets
-    - theme
-    level: 3
-  - anchor: '#ayu'
-    heading: Ayu
-    keywords:
-    - ayu
-    - assets
-    - theme
-    level: 3
-  - anchor: '#default'
-    heading: Default
-    keywords:
-    - default
-    - assets
-    - theme
-    level: 3
-  - anchor: '#dracula'
-    heading: Dracula
-    keywords:
-    - dracula
-    - assets
-    - theme
-    level: 3
-  - anchor: '#github'
-    heading: GitHub
-    keywords:
-    - github
-    - assets
-    - theme
-    level: 3
-  - anchor: '#light-themes'
-    heading: Light Themes
-    keywords:
-    - light
-    - themes
-    - ansi
-    - assets
-    level: 2
-  - anchor: '#ansi-light'
-    heading: ANSI Light
-    keywords:
-    - ansi
-    - light
-    - assets
-    - theme
-    level: 3
-  - anchor: '#ayu-light'
-    heading: Ayu Light
-    keywords:
-    - ayu
-    - light
-    - assets
-    - theme
-    level: 3
-  - anchor: '#default-light'
-    heading: Default Light
-    keywords:
-    - default
-    - light
-    - assets
-    - theme
-    level: 3
-  - anchor: '#github-light'
-    heading: GitHub Light
-    keywords:
-    - github
-    - light
-    - assets
-    - theme
-    level: 3
-  - anchor: '#google-code'
-    heading: Google Code
-    keywords:
-    - code
-    - assets
-    - theme
-    - light
-    level: 3
-  - anchor: '#xcode'
-    heading: Xcode
-    keywords:
-    - xcode
-    - assets
-    - theme
-    level: 3
-  tags:
-  - cli
-  - configuration
-  - models
-  title: Themes
-  url: http://geminicli.com/docs/cli/themes
+  path: geminicli-com\docs\cli\themes.md
+  source_url: http://geminicli.com/docs/cli/themes.md
 geminicli-com-docs-cli-token-caching:
   category: cli
   description: Gemini CLI automatically optimizes API costs through token caching
     when using API key authentication (Gemini API key or Vertex AI). This feature
     reuses previous system instructions and context to...
   domain: geminicli.com
-  hash: sha256:53fb0073def6170e5019717489beccdd5f460b09eea1426cbe09ee0c6021ed6f
+  hash: sha256:f5ab05cebdb36f905848e4ba266716804d33461a0311510926b0de095f427a29
   keywords:
   - token-caching
   - caching
@@ -2205,7 +1560,7 @@ geminicli-com-docs-cli-token-caching:
   - authentication
   - caching
   - performance
-  title: Token Caching and Cost Optimization
+  title: Token caching and cost optimization
   url: http://geminicli.com/docs/cli/token-caching
 geminicli-com-docs-cli-trusted-folders:
   category: cli
@@ -2213,7 +1568,7 @@ geminicli-com-docs-cli-trusted-folders:
     over which projects can use the full capabilities of the Gemini CLI. It prevents
     potentially malicious code from running by...
   domain: geminicli.com
-  hash: sha256:5412ba43989a76d8185805317b4ae2b20f72065248d50b8de4437b675f4a040e
+  hash: sha256:a705200c005d8ab3988e3f5c37db20c5503f32c5af70e7b806c93ca58ba708e5
   keywords:
   - trusted-folders
   - folders
@@ -2233,7 +1588,7 @@ geminicli-com-docs-cli-trusted-folders:
   source_type: llms-txt
   subsections:
   - anchor: '#enabling-the-feature'
-    heading: Enabling the Feature
+    heading: Enabling the feature
     keywords:
     - enabling
     - feature
@@ -2241,7 +1596,7 @@ geminicli-com-docs-cli-trusted-folders:
     - folders
     level: 2
   - anchor: '#how-it-works-the-trust-dialog'
-    heading: 'How It Works: The Trust Dialog'
+    heading: 'How it works: The trust dialog'
     keywords:
     - works
     - trust
@@ -2250,7 +1605,7 @@ geminicli-com-docs-cli-trusted-folders:
     - enabled
     level: 2
   - anchor: '#why-trust-matters-the-impact-of-an-untrusted-workspace'
-    heading: 'Why Trust Matters: The Impact of an Untrusted Workspace'
+    heading: 'Why trust matters: The impact of an untrusted workspace'
     keywords:
     - trust
     - matters
@@ -2259,7 +1614,7 @@ geminicli-com-docs-cli-trusted-folders:
     - workspace
     level: 2
   - anchor: '#managing-your-trust-settings'
-    heading: Managing Your Trust Settings
+    heading: Managing your trust settings
     keywords:
     - managing
     - trust
@@ -2268,7 +1623,7 @@ geminicli-com-docs-cli-trusted-folders:
     - change
     level: 2
   - anchor: '#the-trust-check-process-advanced'
-    heading: The Trust Check Process (Advanced)
+    heading: The trust check process (advanced)
     keywords:
     - trust
     - check
@@ -2286,65 +1641,18 @@ geminicli-com-docs-cli-trusted-folders:
   title: Trusted Folders
   url: http://geminicli.com/docs/cli/trusted-folders
 geminicli-com-docs-cli-tutorials:
-  category: guides
-  description: This page contains tutorials for interacting with Gemini CLI.
-  domain: geminicli.com
+  content_hash: sha256:3352bc1bd22d10942e8ce583c11f9f0747f582b38ff1c9a1d3100aec2a4cb581
+  doc_id: geminicli-com-docs-cli-tutorials
   hash: sha256:3352bc1bd22d10942e8ce583c11f9f0747f582b38ff1c9a1d3100aec2a4cb581
-  keywords:
-  - tutorials
-  - model context protocol
-  - mcp server
-  - settings.json
-  - interacting
-  - connection
-  - configure
-  - contains
-  - context
-  - github
-  - launch
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/cli/tutorials.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#setting-up-a-model-context-protocol-mcp-server'
-    heading: Setting up a Model Context Protocol (MCP) server
-    keywords:
-    - setting
-    - model
-    - context
-    - protocol
-    - mcp
-    level: 2
-  - anchor: '#prerequisites'
-    heading: Prerequisites
-    keywords:
-    - prerequisites
-    - begin
-    - ensure
-    - following
-    level: 3
-  - anchor: '#guide'
-    heading: Guide
-    keywords:
-    - configure
-    - server
-    - settings
-    level: 3
-  tags:
-  - configuration
-  - guides
-  - ide
-  - mcp
-  - models
-  title: Tutorials
-  url: http://geminicli.com/docs/cli/tutorials
+  path: geminicli-com\docs\cli\tutorials.md
+  source_url: http://geminicli.com/docs/cli/tutorials.md
 geminicli-com-docs-cli-uninstall:
   category: installation
   description: Your uninstall method depends on how you ran the CLI. Follow the instructions
     for either npx or a global npm installation.
   domain: geminicli.com
-  hash: sha256:eb0d3fd017728be556d8ec858f9b3792c5936f82f6c4dcf2240df4457c32d66f
+  hash: sha256:72ca379de3ea73cb64be1214df8bf71c535b005da1ef66f5533407769ea9ba85
   keywords:
   - uninstall
   - global install
@@ -2372,7 +1680,7 @@ geminicli-com-docs-cli-uninstall:
     - temporary
     level: 2
   - anchor: '#method-2-using-npm-global-install'
-    heading: 'Method 2: Using npm (Global Install)'
+    heading: 'Method 2: Using npm (global install)'
     keywords:
     - method
     - npm
@@ -2391,7 +1699,7 @@ geminicli-com-docs-contributing:
   description: 'We would love to accept your patches and contributions to this project.
     This document includes:'
   domain: geminicli.com
-  hash: sha256:14595343b8d7d858c586a8d170463f666687e23caf9c299eb29c850cf881d99d
+  hash: sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a
   keywords:
   - contributing
   - development environment
@@ -2661,7 +1969,7 @@ geminicli-com-docs-contributing:
   - installation
   - models
   - tools
-  title: How to Contribute
+  title: How to contribute
   url: http://geminicli.com/docs/contributing
 geminicli-com-docs-core:
   category: cli
@@ -2669,7 +1977,7 @@ geminicli-com-docs-core:
     of Gemini CLI, handling communication with the Gemini API, managing tools, and
     processing requests sent from `packages/cli`. For a...
   domain: geminicli.com
-  hash: sha256:c0900817b0db15a2b303347c6c25e695b30dc1b736f613bcee54c019e6f79601
+  hash: sha256:3f97d2b96fc29c8093fa6d67f409d63add8472e3cfbb31b25fdb327e3f4f460f
   keywords:
   - security considerations
   - prompt engineering
@@ -2759,7 +2067,7 @@ geminicli-com-docs-core:
   - memory
   - models
   - security
-  title: Gemini CLI Core
+  title: Gemini CLI core
   url: http://geminicli.com/docs/core
 geminicli-com-docs-core-memport:
   category: cli
@@ -2767,7 +2075,7 @@ geminicli-com-docs-core-memport:
     your GEMINI.md files by importing content from other files using the `@file.md`
     syntax.
   domain: geminicli.com
-  hash: sha256:a52dcb9d9216475b02dd0a7132eaa9c0ab43341818988bd19fe35cab0aa49e10
+  hash: sha256:97e6e8d225111d49ce49d010b86b4f87f791fa8f254d574fe91f8ad1c1eab842
   keywords:
   - memport
   - circular import
@@ -2802,7 +2110,7 @@ geminicli-com-docs-core-memport:
     - path
     level: 2
   - anchor: '#supported-path-formats'
-    heading: Supported Path Formats
+    heading: Supported path formats
     keywords:
     - supported
     - path
@@ -2811,7 +2119,7 @@ geminicli-com-docs-core-memport:
     - paths
     level: 2
   - anchor: '#relative-paths'
-    heading: Relative Paths
+    heading: Relative paths
     keywords:
     - relative
     - paths
@@ -2820,7 +2128,7 @@ geminicli-com-docs-core-memport:
     - directory
     level: 3
   - anchor: '#absolute-paths'
-    heading: Absolute Paths
+    heading: Absolute paths
     keywords:
     - absolute
     - paths
@@ -2836,7 +2144,7 @@ geminicli-com-docs-core-memport:
     - markdown
     level: 2
   - anchor: '#basic-import'
-    heading: Basic Import
+    heading: Basic import
     keywords:
     - basic
     - import
@@ -2852,7 +2160,7 @@ geminicli-com-docs-core-memport:
     - imports
     level: 2
   - anchor: '#nested-imports'
-    heading: Nested Imports
+    heading: Nested imports
     keywords:
     - nested
     - imports
@@ -2861,7 +2169,7 @@ geminicli-com-docs-core-memport:
     - contain
     level: 3
   - anchor: '#safety-features'
-    heading: Safety Features
+    heading: Safety features
     keywords:
     - safety
     - features
@@ -2870,7 +2178,7 @@ geminicli-com-docs-core-memport:
     - detection
     level: 2
   - anchor: '#circular-import-detection'
-    heading: Circular Import Detection
+    heading: Circular import detection
     keywords:
     - circular
     - import
@@ -2879,7 +2187,7 @@ geminicli-com-docs-core-memport:
     - automatically
     level: 3
   - anchor: '#file-access-security'
-    heading: File Access Security
+    heading: File access security
     keywords:
     - file
     - access
@@ -2888,7 +2196,7 @@ geminicli-com-docs-core-memport:
     - function
     level: 3
   - anchor: '#maximum-import-depth'
-    heading: Maximum Import Depth
+    heading: Maximum import depth
     keywords:
     - maximum
     - import
@@ -2897,7 +2205,7 @@ geminicli-com-docs-core-memport:
     - infinite
     level: 3
   - anchor: '#error-handling'
-    heading: Error Handling
+    heading: Error handling
     keywords:
     - error
     - handling
@@ -2906,7 +2214,7 @@ geminicli-com-docs-core-memport:
     - referenced
     level: 2
   - anchor: '#missing-files'
-    heading: Missing Files
+    heading: Missing files
     keywords:
     - missing
     - files
@@ -2915,7 +2223,7 @@ geminicli-com-docs-core-memport:
     - doesn
     level: 3
   - anchor: '#file-access-errors'
-    heading: File Access Errors
+    heading: File access errors
     keywords:
     - file
     - access
@@ -2924,7 +2232,7 @@ geminicli-com-docs-core-memport:
     - issues
     level: 3
   - anchor: '#code-region-detection'
-    heading: Code Region Detection
+    heading: Code region detection
     keywords:
     - code
     - region
@@ -2933,7 +2241,7 @@ geminicli-com-docs-core-memport:
     - processor
     level: 2
   - anchor: '#import-tree-structure'
-    heading: Import Tree Structure
+    heading: Import tree structure
     keywords:
     - import
     - tree
@@ -2942,7 +2250,7 @@ geminicli-com-docs-core-memport:
     - returns
     level: 2
   - anchor: '#comparison-to-claude-codes-memory-claudemd-approach'
-    heading: Comparison to Claude Code's `/memory` (`claude.md`) Approach
+    heading: Comparison to Claude Code's `/memory` (`claude.md`) approach
     keywords:
     - comparison
     - claude
@@ -2951,7 +2259,7 @@ geminicli-com-docs-core-memport:
     - approach
     level: 2
   - anchor: '#api-reference'
-    heading: API Reference
+    heading: API reference
     keywords:
     - processimports
     - content
@@ -3016,7 +2324,7 @@ geminicli-com-docs-core-memport:
     - import
     level: 2
   - anchor: '#common-issues'
-    heading: Common Issues
+    heading: Common issues
     keywords:
     - common
     - issues
@@ -3025,7 +2333,7 @@ geminicli-com-docs-core-memport:
     - check
     level: 3
   - anchor: '#debug-mode'
-    heading: Debug Mode
+    heading: Debug mode
     keywords:
     - debug
     - mode
@@ -3043,7 +2351,7 @@ geminicli-com-docs-core-policy-engine:
   description: ':::note This feature is currently in testing. To enable it, set `tools.enableMessageBusIntegration`
     to `true` in your `settings.json` file. :::'
   domain: geminicli.com
-  hash: sha256:1aca38868d4cb859ad4e6a81a19f0c1e7d62d6e1de7d8d8d33cf988fd68ce370
+  hash: sha256:c3013f06ecfce251b5df08c51599a14a79de47b5a441cc1de079fdd6ec8480c4
   keywords:
   - policy-engine
   - engine
@@ -3085,8 +2393,8 @@ geminicli-com-docs-core-policy-engine:
     - possible
     - rule
     level: 3
-  - anchor: '#priority-system--tiers'
-    heading: Priority system & tiers
+  - anchor: '#priority-system-and-tiers'
+    heading: Priority system and tiers
     keywords:
     - priority
     - system
@@ -3168,7 +2476,7 @@ geminicli-com-docs-core-policy-engine:
   - models
   - security
   - tools
-  title: Policy Engine
+  title: Policy engine
   url: http://geminicli.com/docs/core/policy-engine
 geminicli-com-docs-core-tools-api:
   category: api
@@ -3176,7 +2484,7 @@ geminicli-com-docs-core-tools-api:
     defining, registering, and executing tools. These tools extend the capabilities
     of the Gemini model, allowing it to interact with...
   domain: geminicli.com
-  hash: sha256:8de9c45dda93a5e34fdbba65816011f581a30fd4f26497d6be27017aeea03024
+  hash: sha256:b86d0d5b7bd15fe79de84789db9f3ec968b24317a31452d859b1f20867c211b5
   keywords:
   - tools-api
   - tools
@@ -3196,7 +2504,7 @@ geminicli-com-docs-core-tools-api:
   source_type: llms-txt
   subsections:
   - anchor: '#core-concepts'
-    heading: Core Concepts
+    heading: Core concepts
     keywords:
     - core
     - concepts
@@ -3205,7 +2513,7 @@ geminicli-com-docs-core-tools-api:
     - interface
     level: 2
   - anchor: '#built-in-tools'
-    heading: Built-in Tools
+    heading: Built-in tools
     keywords:
     - built
     - tools
@@ -3214,7 +2522,7 @@ geminicli-com-docs-core-tools-api:
     - suite
     level: 2
   - anchor: '#tool-execution-flow'
-    heading: Tool Execution Flow
+    heading: Tool execution flow
     keywords:
     - tool
     - execution
@@ -3223,7 +2531,7 @@ geminicli-com-docs-core-tools-api:
     - request
     level: 2
   - anchor: '#extending-with-custom-tools'
-    heading: Extending with Custom Tools
+    heading: Extending with custom tools
     keywords:
     - extending
     - custom
@@ -3238,7 +2546,7 @@ geminicli-com-docs-core-tools-api:
   - mcp
   - models
   - tools
-  title: 'Gemini CLI Core: Tools API'
+  title: 'Gemini CLI core: Tools API'
   url: http://geminicli.com/docs/core/tools-api
 geminicli-com-docs-examples-proxy-script:
   category: cli
@@ -3246,7 +2554,7 @@ geminicli-com-docs-examples-proxy-script:
     the `GEMINI_SANDBOX_PROXY_COMMAND` environment variable. This script only allows
     `HTTPS` connections to `example.com:443` and...
   domain: geminicli.com
-  hash: sha256:bac86838741dc70e0c3173c33ae4775c571de0b4c7d4341cac6634bc6bccfa8a
+  hash: sha256:7d0b26c540e3984882e7c4781018ad0416ee366b0be60e7bd6f6c08ae5dedba3
   keywords:
   - proxy-script
   - script
@@ -3263,13 +2571,13 @@ geminicli-com-docs-examples-proxy-script:
   source_type: llms-txt
   tags:
   - cli
-  title: Example Proxy Script
+  title: Example proxy script
   url: http://geminicli.com/docs/examples/proxy-script
 geminicli-com-docs-extensions:
   category: cli
   description: _This documentation is up-to-date with the v0.4.0 release._
   domain: geminicli.com
-  hash: sha256:886d302cb3a19b28806de3edfdac46ddd85c8b5715a3846a14e29c266c6c901c
+  hash: sha256:9b06b2ed8f0aa2ff10b5f9036adc296298c68cad8d53307c097b4e633d00438f
   keywords:
   - extensions
   - boilerplate extension
@@ -3411,13 +2719,13 @@ geminicli-com-docs-extensions:
   - ide
   - installation
   - mcp
-  title: Gemini CLI Extensions
+  title: Gemini CLI extensions
   url: http://geminicli.com/docs/extensions
 geminicli-com-docs-extensions-extension-releasing:
   category: cli
   description: 'There are two primary ways of releasing extensions to users:'
   domain: geminicli.com
-  hash: sha256:1cae1ce4e68d5fa0b6cf1a1e689d5f63ed297a017ac8ea1bd708fa6363656d42
+  hash: sha256:0e1b6125ff4009542921af84bec3093a5b07db295f99d71d991ee73693bae942
   keywords:
   - extension-releasing
   - extensions
@@ -3464,7 +2772,7 @@ geminicli-com-docs-extensions-extension-releasing:
     - repo
     level: 3
   - anchor: '#releasing-through-github-releases'
-    heading: Releasing through Github releases
+    heading: Releasing through GitHub releases
     keywords:
     - releasing
     - github
@@ -3487,7 +2795,7 @@ geminicli-com-docs-extensions-extension-releasing:
   - installation
   - models
   - tools
-  title: Extension Releasing
+  title: Extension releasing
   url: http://geminicli.com/docs/extensions/extension-releasing
 geminicli-com-docs-extensions-getting-started-extensions:
   category: cli
@@ -3495,7 +2803,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     You'll learn how to set up a new extension, add a custom tool via an MCP server,
     create a custom command, and provide...
   domain: geminicli.com
-  hash: sha256:b4f635ccd548bbf9057e0b9a68c847ac552f7af6d53cd55b167752af9635ce28
+  hash: sha256:6ab030048f973446f79160e17fe54af7d63a99ee20c82ae97cdb18c3d3822581
   keywords:
   - getting-started-extensions
   - extensions
@@ -3523,7 +2831,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - installed
     level: 2
   - anchor: '#step-1-create-a-new-extension'
-    heading: 'Step 1: Create a New Extension'
+    heading: 'Step 1: Create a new extension'
     keywords:
     - step
     - create
@@ -3532,7 +2840,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - easiest
     level: 2
   - anchor: '#step-2-understand-the-extension-files'
-    heading: 'Step 2: Understand the Extension Files'
+    heading: 'Step 2: Understand the extension files'
     keywords:
     - step
     - understand
@@ -3566,7 +2874,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - configuration
     level: 3
   - anchor: '#step-3-build-and-link-your-extension'
-    heading: 'Step 3: Build and Link Your Extension'
+    heading: 'Step 3: Build and link your extension'
     keywords:
     - step
     - build
@@ -3575,7 +2883,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - need
     level: 2
   - anchor: '#step-4-add-a-custom-command'
-    heading: 'Step 4: Add a Custom Command'
+    heading: 'Step 4: Add a custom command'
     keywords:
     - step
     - add
@@ -3584,7 +2892,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - commands
     level: 2
   - anchor: '#step-5-add-a-custom-geminimd'
-    heading: 'Step 5: Add a Custom `GEMINI.md`'
+    heading: 'Step 5: Add a custom `GEMINI.md`'
     keywords:
     - step
     - add
@@ -3593,7 +2901,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
     - persistent
     level: 2
   - anchor: '#step-6-releasing-your-extension'
-    heading: 'Step 6: Releasing Your Extension'
+    heading: 'Step 6: Releasing your extension'
     keywords:
     - step
     - releasing
@@ -3616,216 +2924,21 @@ geminicli-com-docs-extensions-getting-started-extensions:
   - ide
   - installation
   - mcp
-  title: Getting Started with Gemini CLI Extensions
+  title: Getting started with Gemini CLI extensions
   url: http://geminicli.com/docs/extensions/getting-started-extensions
 geminicli-com-docs-faq:
-  category: cli
-  description: This page provides answers to common questions and solutions to frequent
-    problems encountered while using Gemini CLI.
-  domain: geminicli.com
-  hash: sha256:b55b1db2155479bebb6727b09fa7903db55c2e1403cf534a4364ecaf1b5c66a6
-  keywords:
-  - frequently asked
-  - machine learning
-  - general issues
-  - latest version
-  - higher limits
-  - hitting quota
-  - keys securely
-  - cached token
-  - command like
-  - code assist
-  - rate limits
-  - api keys
+  content_hash: sha256:ae180978d536b75477e27f998c2e5e4e56def804be22698e24cb3cbdc8d16ddc
+  doc_id: geminicli-com-docs-faq
+  hash: sha256:ae180978d536b75477e27f998c2e5e4e56def804be22698e24cb3cbdc8d16ddc
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/faq.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#general-issues'
-    heading: General issues
-    keywords:
-    - general
-    - issues
-    - getting
-    - error
-    - resource
-    level: 2
-  - anchor: '#why-am-i-getting-an-api-error-429---resource-exhausted'
-    heading: 'Why am I getting an `API error: 429 - Resource exhausted`?'
-    keywords:
-    - getting
-    - error
-    - resource
-    - exhausted
-    - indicates
-    level: 3
-  - anchor: '#why-am-i-getting-an-err_require_esm-error-when-running-npm-run-start'
-    heading: Why am I getting an `ERR_REQUIRE_ESM` error when running `npm run start`?
-    keywords:
-    - getting
-    - error
-    - running
-    - npm
-    - run
-    level: 3
-  - anchor: '#why-dont-i-see-cached-token-counts-in-my-stats-output'
-    heading: Why don't I see cached token counts in my stats output?
-    keywords:
-    - don
-    - cached
-    - token
-    - counts
-    - stats
-    level: 3
-  - anchor: '#installation-and-updates'
-    heading: Installation and updates
-    keywords:
-    - installation
-    - updates
-    - update
-    - latest
-    - version
-    level: 2
-  - anchor: '#how-do-i-update-gemini-cli-to-the-latest-version'
-    heading: How do I update Gemini CLI to the latest version?
-    keywords:
-    - update
-    - latest
-    - version
-    - installed
-    - globally
-    level: 3
-  - anchor: '#platform-specific-issues'
-    heading: Platform-specific issues
-    keywords:
-    - platform
-    - specific
-    - issues
-    - crash
-    - windows
-    level: 2
-  - anchor: '#why-does-the-cli-crash-on-windows-when-i-run-a-command-like-chmod-x'
-    heading: Why does the CLI crash on Windows when I run a command like `chmod +x`?
-    keywords:
-    - crash
-    - windows
-    - run
-    - command
-    - like
-    level: 3
-  - anchor: '#configuration'
-    heading: Configuration
-    keywords:
-    - configuration
-    - configure
-    - cloud
-    level: 2
-  - anchor: '#how-do-i-configure-my-google_cloud_project'
-    heading: How do I configure my `GOOGLE_CLOUD_PROJECT`?
-    keywords:
-    - configure
-    - cloud
-    - project
-    level: 3
-  - anchor: '#what-is-the-best-way-to-store-my-api-keys-securely'
-    heading: What is the best way to store my API keys securely?
-    keywords:
-    - best
-    - way
-    - store
-    - keys
-    - securely
-    level: 3
-  - anchor: '#where-are-the-gemini-cli-configuration-and-settings-files-stored'
-    heading: Where are the Gemini CLI configuration and settings files stored?
-    keywords:
-    - configuration
-    - settings
-    - files
-    - stored
-    level: 3
-  - anchor: '#google-ai-proultra-and-subscription-faqs'
-    heading: Google AI Pro/Ultra and subscription FAQs
-    keywords:
-    - pro
-    - ultra
-    - subscription
-    - faqs
-    - learn
-    level: 2
-  - anchor: '#where-can-i-learn-more-about-my-google-ai-pro-or-google-ai-ultra-subscription'
-    heading: Where can I learn more about my Google AI Pro or Google AI Ultra subscription?
-    keywords:
-    - learn
-    - pro
-    - ultra
-    - subscription
-    level: 3
-  - anchor: '#how-do-i-know-if-i-have-higher-limits-for-google-ai-pro-or-ultra'
-    heading: How do I know if I have higher limits for Google AI Pro or Ultra?
-    keywords:
-    - know
-    - higher
-    - limits
-    - pro
-    - ultra
-    level: 3
-  - anchor: '#what-is-the-privacy-policy-for-using-gemini-code-assist-or-gemini-cli-if-ive-subscribed-to-google-ai-pro-or-ultra'
-    heading: What is the privacy policy for using Gemini Code Assist or Gemini CLI
-      if I've subscribed to Google AI Pro or Ultra?
-    keywords:
-    - privacy
-    - policy
-    - code
-    - assist
-    - subscribed
-    level: 3
-  - anchor: '#ive-upgraded-to-google-ai-pro-or-ultra-but-it-still-says-i-am-hitting-quota-limits-is-this-a-bug'
-    heading: I've upgraded to Google AI Pro or Ultra but it still says I am hitting
-      quota limits. Is this a bug?
-    keywords:
-    - upgraded
-    - pro
-    - ultra
-    - says
-    - hitting
-    level: 3
-  - anchor: '#if-i-upgrade-to-higher-limits-for-gemini-cli-and-gemini-code-assist-by-purchasing-a-google-ai-pro-or-ultra-subscription-will-gemini-start-using-my-data-to-improve-its-machine-learning-models'
-    heading: If I upgrade to higher limits for Gemini CLI and Gemini Code Assist by
-      purchasing a Google AI Pro or Ultra subscription, will Gemini start using my
-      data to improve its machine learning models?
-    keywords:
-    - upgrade
-    - higher
-    - limits
-    - code
-    - assist
-    level: 3
-  - anchor: '#not-seeing-your-question'
-    heading: Not seeing your question?
-    keywords:
-    - seeing
-    - question
-    - search
-    - discussions
-    - github
-    level: 2
-  tags:
-  - authentication
-  - caching
-  - cli
-  - configuration
-  - ide
-  - installation
-  title: Frequently Asked Questions (FAQ)
-  url: https://geminicli.com/docs/faq
+  path: geminicli-com\docs\faq.md
+  source_url: https://geminicli.com/docs/faq.md
 geminicli-com-docs-get-started:
   category: cli
   description: Welcome to Gemini CLI! This guide will help you install, configure,
     and start using the Gemini CLI to enhance your workflow right from your terminal.
   domain: geminicli.com
-  hash: sha256:a203d90f35905aaeaa643f35599c11a5a4edf16ed4fbdcbd55d4562c6eb95db0
+  hash: sha256:70b24b5940733b396f51b34a964d2f5eaf83cf9daeda9d933f2993ce4f14c064
   keywords:
   - get-started
   - authenticate
@@ -3889,14 +3002,14 @@ geminicli-com-docs-get-started:
   - configuration
   - installation
   - models
-  title: Get Started with Gemini CLI
+  title: Get started with Gemini CLI
   url: http://geminicli.com/docs/get-started
 geminicli-com-docs-get-started-authentication:
   category: cli
   description: 'Gemini CLI requires authentication using Google''s services. Before
     using Gemini CLI, configure **one** of the following authentication methods:'
   domain: geminicli.com
-  hash: sha256:16d622b8238abadc4896b09db402d29deee87443cc20f46480e61b14dba3d8fd
+  hash: sha256:75097a1ba5e92413ac6ef3fde8277dc334b68f21ad60fb0e0d6a5d830d52c4e8
   keywords:
   - get-started
   - authentication
@@ -3916,7 +3029,7 @@ geminicli-com-docs-get-started-authentication:
   source_type: llms-txt
   subsections:
   - anchor: '#quick-check-running-in-google-cloud-shell'
-    heading: 'Quick Check: Running in Google Cloud Shell?'
+    heading: 'Quick check: Running in Google Cloud Shell?'
     keywords:
     - quick
     - check
@@ -3925,7 +3038,7 @@ geminicli-com-docs-get-started-authentication:
     - shell
     level: 2
   - anchor: '#other-google-cloud-environments-eg-compute-engine'
-    heading: Other Google Cloud Environments (e.g., Compute Engine)
+    heading: Other Google Cloud environments (e.g., Compute Engine)
     keywords:
     - cloud
     - environments
@@ -3933,7 +3046,7 @@ geminicli-com-docs-get-started-authentication:
     - engine
     level: 3
   - anchor: '#authenticate-in-interactive-mode'
-    heading: Authenticate in Interactive mode
+    heading: Authenticate in interactive mode
     keywords:
     - authenticate
     - interactive
@@ -3951,7 +3064,7 @@ geminicli-com-docs-get-started-authentication:
     - machine
     level: 3
   - anchor: '#use-gemini-api-key'
-    heading: Use Gemini API Key
+    heading: Use Gemini API key
     keywords:
     - use
     - key
@@ -3968,7 +3081,7 @@ geminicli-com-docs-get-started-authentication:
     - cloud
     level: 3
   - anchor: '#persisting-environment-variables'
-    heading: Persisting Environment Variables
+    heading: Persisting environment variables
     keywords:
     - persisting
     - environment
@@ -3999,182 +3112,20 @@ geminicli-com-docs-get-started-authentication:
   - cli
   - configuration
   - ide
-  title: Gemini CLI Authentication Setup
+  title: Gemini CLI authentication setup
   url: http://geminicli.com/docs/get-started/authentication
 geminicli-com-docs-get-started-configuration:
-  category: configuration
-  description: Gemini CLI offers several ways to configure its behavior, including
-    environment variables, command-line arguments, and settings files. This document
-    outlines the different configuration methods and...
-  domain: geminicli.com
-  hash: sha256:355bee8f643e3b5c63317d3002fe1fd96dd88d72235f9b0bfc8fbc6cc79987ec
-  keywords:
-  - get-started
-  - configuration
-  - codebase investigator
-  - environment variables
-  - configuration layers
-  - general instructions
-  - awesome typescript
-  - session management
-  - ide integration
-  - context window
-  - model routing
-  - policy engine
+  content_hash: sha256:78b31f831366d9aec4c846c27d434fea872d0eaddb1730547fc9c448565460da
+  doc_id: geminicli-com-docs-get-started-configuration
+  hash: sha256:78b31f831366d9aec4c846c27d434fea872d0eaddb1730547fc9c448565460da
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/get-started/configuration.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#configuration-layers'
-    heading: Configuration layers
-    keywords:
-    - configuration
-    - layers
-    - applied
-    - following
-    level: 2
-  - anchor: '#settings-files'
-    heading: Settings files
-    keywords:
-    - settings
-    - files
-    - uses
-    - json
-    level: 2
-  - anchor: '#the-gemini-directory-in-your-project'
-    heading: The `.gemini` directory in your project
-    keywords:
-    - directory
-    - project
-    - addition
-    - settings
-    level: 3
-  - anchor: '#available-settings-in-settingsjson'
-    heading: Available settings in `settings.json`
-    keywords:
-    - available
-    - settings
-    - json
-    - organized
-    - categories
-    level: 3
-  - anchor: '#example-settingsjson'
-    heading: Example `settings.json`
-    keywords:
-    - example
-    - settings
-    - json
-    level: 3
-  - anchor: '#shell-history'
-    heading: Shell History
-    keywords:
-    - shell
-    - history
-    - keeps
-    level: 2
-  - anchor: '#environment-variables--env-files'
-    heading: Environment Variables & `.env` Files
-    keywords:
-    - environment
-    - variables
-    - env
-    - files
-    - common
-    level: 2
-  - anchor: '#command-line-arguments'
-    heading: Command-Line Arguments
-    keywords:
-    - command
-    - line
-    - arguments
-    - passed
-    - directly
-    level: 2
-  - anchor: '#context-files-hierarchical-instructional-context'
-    heading: Context Files (Hierarchical Instructional Context)
-    keywords:
-    - context
-    - files
-    - hierarchical
-    - instructional
-    - strictly
-    level: 2
-  - anchor: '#example-context-file-content-eg-geminimd'
-    heading: Example Context File Content (e.g., `GEMINI.md`)
-    keywords:
-    - example
-    - context
-    - file
-    - content
-    - conceptual
-    level: 3
-  - anchor: '#general-instructions'
-    heading: 'General Instructions:'
-    keywords:
-    - general
-    - instructions
-    - generating
-    - typescript
-    - code
-    level: 2
-  - anchor: '#coding-style'
-    heading: 'Coding Style:'
-    keywords:
-    - coding
-    - style
-    - spaces
-    - indentation
-    - interface
-    level: 2
-  - anchor: '#specific-component-srcapiclientts'
-    heading: 'Specific Component: `src/api/client.ts`'
-    keywords:
-    - specific
-    - component
-    - src
-    - client
-    - file
-    level: 2
-  - anchor: '#regarding-dependencies'
-    heading: 'Regarding Dependencies:'
-    keywords:
-    - dependencies
-    - avoid
-    - introducing
-    - external
-    level: 2
-  - anchor: '#sandboxing'
-    heading: Sandboxing
-    keywords:
-    - sandboxing
-    - execute
-    - potentially
-    - unsafe
-    level: 2
-  - anchor: '#usage-statistics'
-    heading: Usage Statistics
-    keywords:
-    - usage
-    - statistics
-    - help
-    - improve
-    - collect
-    level: 2
-  tags:
-  - api
-  - authentication
-  - checkpointing
-  - cli
-  - configuration
-  - extensions
-  title: Gemini CLI Configuration
-  url: http://geminicli.com/docs/get-started/configuration
+  path: geminicli-com\docs\get-started\configuration.md
+  source_url: http://geminicli.com/docs/get-started/configuration.md
 geminicli-com-docs-get-started-configuration-v1:
   category: configuration
-  description: '**Note on Deprecated Configuration Format**'
+  description: '**Note on deprecated configuration format**'
   domain: geminicli.com
-  hash: sha256:ae7eeffa750738fe057f3d5db868d2947eeea11ec1d6319ecb8399935641af9a
+  hash: sha256:1b6992a962bfba2adb7986346a33e5b626c477d90366a287228c92e6749ccf12
   keywords:
   - configuration-v1
   - get-started
@@ -4227,7 +3178,7 @@ geminicli-com-docs-get-started-configuration-v1:
     - string
     level: 3
   - anchor: '#troubleshooting-file-search-performance'
-    heading: Troubleshooting File Search Performance
+    heading: Troubleshooting file search performance
     keywords:
     - troubleshooting
     - file
@@ -4245,14 +3196,14 @@ geminicli-com-docs-get-started-configuration-v1:
     - github
     level: 3
   - anchor: '#shell-history'
-    heading: Shell History
+    heading: Shell history
     keywords:
     - shell
     - history
     - keeps
     level: 2
-  - anchor: '#environment-variables--env-files'
-    heading: Environment Variables & `.env` Files
+  - anchor: '#environment-variables-and-env-files'
+    heading: Environment variables and `.env` files
     keywords:
     - environment
     - variables
@@ -4261,7 +3212,7 @@ geminicli-com-docs-get-started-configuration-v1:
     - common
     level: 2
   - anchor: '#command-line-arguments'
-    heading: Command-Line Arguments
+    heading: Command-line arguments
     keywords:
     - command
     - line
@@ -4270,7 +3221,7 @@ geminicli-com-docs-get-started-configuration-v1:
     - directly
     level: 2
   - anchor: '#context-files-hierarchical-instructional-context'
-    heading: Context Files (Hierarchical Instructional Context)
+    heading: Context files (hierarchical instructional context)
     keywords:
     - context
     - files
@@ -4279,7 +3230,7 @@ geminicli-com-docs-get-started-configuration-v1:
     - strictly
     level: 2
   - anchor: '#example-context-file-content-eg-geminimd'
-    heading: Example Context File Content (e.g., `GEMINI.md`)
+    heading: Example context file content (e.g., `GEMINI.md`)
     keywords:
     - example
     - context
@@ -4331,7 +3282,7 @@ geminicli-com-docs-get-started-configuration-v1:
     - unsafe
     level: 2
   - anchor: '#usage-statistics'
-    heading: Usage Statistics
+    heading: Usage statistics
     keywords:
     - usage
     - statistics
@@ -4346,13 +3297,13 @@ geminicli-com-docs-get-started-configuration-v1:
   - cli
   - configuration
   - extensions
-  title: Gemini CLI Configuration
+  title: Gemini CLI configuration
   url: http://geminicli.com/docs/get-started/configuration-v1
 geminicli-com-docs-get-started-deployment:
   category: cli
   description: 'Note: This page will be replaced by [installation.md](/docs/get-started/installation).'
   domain: geminicli.com
-  hash: sha256:d0d08004308c37613bc2f8cd50103cea3b1e9d24856859054ef6732b61aa5b83
+  hash: sha256:6b4ee728575835c3ca6fca38f72a50f8a905d062345eac4736748f9d411083c8
   keywords:
   - get-started
   - deployment
@@ -4437,14 +3388,14 @@ geminicli-com-docs-get-started-deployment:
   - ide
   - installation
   - models
-  title: Gemini CLI Installation, Execution, and Deployment
+  title: Gemini CLI installation, execution, and deployment
   url: http://geminicli.com/docs/get-started/deployment
 geminicli-com-docs-get-started-examples:
   category: cli
   description: Not sure where to get started with Gemini CLI? This document covers
     examples on how to use Gemini CLI for a variety of tasks.
   domain: geminicli.com
-  hash: sha256:449975ff814a7202878bffabe5e3cf497ba18f64b43931e1d2839ccd2f456bf1
+  hash: sha256:9eb972c61f423b0610e3cd68806b090802322985b05fba26bf30c648a30af4af
   keywords:
   - get-started
   - unit tests
@@ -4500,7 +3451,7 @@ geminicli-com-docs-get-started-examples:
   - cli
   - models
   - security
-  title: Gemini CLI Examples
+  title: Gemini CLI examples
   url: http://geminicli.com/docs/get-started/examples
 geminicli-com-docs-get-started-gemini-3:
   category: cli
@@ -4508,7 +3459,7 @@ geminicli-com-docs-get-started-gemini-3:
     users (Google AI Ultra for Business is not currently supported) and paid Gemini
     and Vertex API key holders, Gemini 3 Pro is...
   domain: geminicli.com
-  hash: sha256:e875616b191614d7f476d75215537cd02c64bd6c4cb6b9828d4c567f1c0c2218
+  hash: sha256:1d27d37eaed0013baa37557a0543a975b32edb57c2e8502ba7ed394a579d894b
   keywords:
   - get-started
   - gemini-3
@@ -4572,8 +3523,8 @@ geminicli-com-docs-get-started-gemini-3:
     - model
     - overloaded
     level: 3
-  - anchor: '#model-selection--routing-types'
-    heading: Model selection & routing types
+  - anchor: '#model-selection-and-routing-types'
+    heading: Model selection and routing types
     keywords:
     - model
     - selection
@@ -4593,14 +3544,14 @@ geminicli-com-docs-get-started-gemini-3:
   - cli
   - models
   - troubleshooting
-  title: Gemini 3 Pro on Gemini CLI (Join the Waitlist)
+  title: Gemini 3 Pro on Gemini CLI (join the waitlist)
   url: http://geminicli.com/docs/get-started/gemini-3
 geminicli-com-docs-get-started-installation:
   category: installation
   description: Install and run Gemini CLI. This document provides an overview of Gemini
     CLI's installation methods and deployment architecture.
   domain: geminicli.com
-  hash: sha256:8f4ac2ee5e106a920844c0a1af7a40d32463c3ff163323fd4dad36f4c4ef8cbd
+  hash: sha256:a8eb7b45f269d2fa4284ddda6661c7408e01dc767ced1b0c493398cf4cff703d
   keywords:
   - get-started
   - installation
@@ -4685,7 +3636,7 @@ geminicli-com-docs-get-started-installation:
   - ide
   - installation
   - models
-  title: Gemini CLI Installation, Execution, and Deployment
+  title: Gemini CLI installation, execution, and deployment
   url: http://geminicli.com/docs/get-started/installation
 geminicli-com-docs-ide-integration:
   category: cli
@@ -4693,7 +3644,7 @@ geminicli-com-docs-ide-integration:
     context-aware experience. This integration allows the CLI to understand your workspace
     better and enables powerful features like...
   domain: geminicli.com
-  hash: sha256:cdbb2f297c50bb481cbd914522fdb5afc5414c04ac92371af905101fa2db85a5
+  hash: sha256:17e6402fc2e331fc378cc47da150ea9f1e9cc102395ea04f4d97ddb4fd49772a
   keywords:
   - ide-integration
   - integration
@@ -4721,7 +3672,7 @@ geminicli-com-docs-ide-integration:
     - automatically
     level: 2
   - anchor: '#installation-and-setup'
-    heading: Installation and Setup
+    heading: Installation and setup
     keywords:
     - installation
     - setup
@@ -4730,7 +3681,7 @@ geminicli-com-docs-ide-integration:
     - automatic
     level: 2
   - anchor: '#1-automatic-nudge-recommended'
-    heading: 1. Automatic Nudge (Recommended)
+    heading: 1. Automatic nudge (recommended)
     keywords:
     - automatic
     - nudge
@@ -4739,7 +3690,7 @@ geminicli-com-docs-ide-integration:
     - supported
     level: 3
   - anchor: '#2-manual-installation-from-cli'
-    heading: 2. Manual Installation from CLI
+    heading: 2. Manual installation from CLI
     keywords:
     - manual
     - installation
@@ -4748,7 +3699,7 @@ geminicli-com-docs-ide-integration:
     - prompt
     level: 3
   - anchor: '#3-manual-installation-from-a-marketplace'
-    heading: 3. Manual Installation from a Marketplace
+    heading: 3. Manual installation from a marketplace
     keywords:
     - manual
     - installation
@@ -4765,7 +3716,7 @@ geminicli-com-docs-ide-integration:
     - control
     level: 2
   - anchor: '#enabling-and-disabling'
-    heading: Enabling and Disabling
+    heading: Enabling and disabling
     keywords:
     - enabling
     - disabling
@@ -4774,7 +3725,7 @@ geminicli-com-docs-ide-integration:
     - enable
     level: 3
   - anchor: '#checking-the-status'
-    heading: Checking the Status
+    heading: Checking the status
     keywords:
     - checking
     - status
@@ -4782,7 +3733,7 @@ geminicli-com-docs-ide-integration:
     - connection
     level: 3
   - anchor: '#working-with-diffs'
-    heading: Working with Diffs
+    heading: Working with diffs
     keywords:
     - working
     - diffs
@@ -4791,7 +3742,7 @@ geminicli-com-docs-ide-integration:
     - open
     level: 3
   - anchor: '#using-with-sandboxing'
-    heading: Using with Sandboxing
+    heading: Using with sandboxing
     keywords:
     - sandboxing
     - sandbox
@@ -4807,7 +3758,7 @@ geminicli-com-docs-ide-integration:
     - integration
     level: 2
   - anchor: '#connection-errors'
-    heading: Connection Errors
+    heading: Connection errors
     keywords:
     - connection
     - errors
@@ -4816,7 +3767,7 @@ geminicli-com-docs-ide-integration:
     - failed
     level: 3
   - anchor: '#configuration-errors'
-    heading: Configuration Errors
+    heading: Configuration errors
     keywords:
     - configuration
     - errors
@@ -4825,7 +3776,7 @@ geminicli-com-docs-ide-integration:
     - directory
     level: 3
   - anchor: '#general-errors'
-    heading: General Errors
+    heading: General errors
     keywords:
     - general
     - errors
@@ -4840,7 +3791,7 @@ geminicli-com-docs-ide-integration:
   - ide
   - installation
   - models
-  title: IDE Integration
+  title: IDE integration
   url: http://geminicli.com/docs/ide-integration
 geminicli-com-docs-ide-integration-ide-companion-spec:
   category: cli
@@ -4848,7 +3799,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     to enable Gemini CLI's IDE mode. For VS Code, these features (native diffing,
     context awareness) are provided by the official...
   domain: geminicli.com
-  hash: sha256:727dc3635d8686cda76b04d55032c8bab729e16e18b30dba78c9d7c41d483a2a
+  hash: sha256:bd2a3eaf0623e5feb29c7684a4555a5863d06edcb5414c896e697db5a2582fb0
   keywords:
   - ide-companion-spec
   - ide-integration
@@ -4868,7 +3819,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
   source_type: llms-txt
   subsections:
   - anchor: '#i-the-communication-interface'
-    heading: I. The Communication Interface
+    heading: I. The communication interface
     keywords:
     - communication
     - interface
@@ -4877,7 +3828,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - local
     level: 2
   - anchor: '#1-transport-layer-mcp-over-http'
-    heading: '1. Transport Layer: MCP over HTTP'
+    heading: '1. Transport layer: MCP over HTTP'
     keywords:
     - transport
     - layer
@@ -4886,7 +3837,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - plugin
     level: 3
   - anchor: '#2-discovery-mechanism-the-port-file'
-    heading: '2. Discovery Mechanism: The Port File'
+    heading: '2. Discovery mechanism: The port file'
     keywords:
     - discovery
     - mechanism
@@ -4895,7 +3846,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - connect
     level: 3
   - anchor: '#ii-the-context-interface'
-    heading: II. The Context Interface
+    heading: II. The context interface
     keywords:
     - context
     - interface
@@ -4903,7 +3854,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - awareness
     level: 2
   - anchor: '#idecontextupdate-notification'
-    heading: '`ide/contextUpdate` Notification'
+    heading: '`ide/contextUpdate` notification'
     keywords:
     - ide
     - contextupdate
@@ -4912,7 +3863,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - send
     level: 3
   - anchor: '#how-the-cli-uses-this-context'
-    heading: How the CLI Uses This Context
+    heading: How the CLI uses this context
     keywords:
     - uses
     - context
@@ -4921,7 +3872,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - object
     level: 3
   - anchor: '#iii-the-diffing-interface'
-    heading: III. The Diffing Interface
+    heading: III. The diffing interface
     keywords:
     - iii
     - diffing
@@ -4930,7 +3881,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - interactive
     level: 2
   - anchor: '#opendiff-tool'
-    heading: '`openDiff` Tool'
+    heading: '`openDiff` tool'
     keywords:
     - opendiff
     - tool
@@ -4938,7 +3889,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - register
     level: 3
   - anchor: '#closediff-tool'
-    heading: '`closeDiff` Tool'
+    heading: '`closeDiff` tool'
     keywords:
     - closediff
     - tool
@@ -4946,7 +3897,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - register
     level: 3
   - anchor: '#idediffaccepted-notification'
-    heading: '`ide/diffAccepted` Notification'
+    heading: '`ide/diffAccepted` notification'
     keywords:
     - ide
     - diffaccepted
@@ -4955,7 +3906,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - accepts
     level: 3
   - anchor: '#idediffrejected-notification'
-    heading: '`ide/diffRejected` Notification'
+    heading: '`ide/diffRejected` notification'
     keywords:
     - ide
     - diffrejected
@@ -4964,7 +3915,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
     - rejects
     level: 3
   - anchor: '#iv-the-lifecycle-interface'
-    heading: IV. The Lifecycle Interface
+    heading: IV. The lifecycle interface
     keywords:
     - lifecycle
     - interface
@@ -4979,281 +3930,28 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
   - ide
   - mcp
   - models
-  title: 'Gemini CLI Companion Plugin: Interface Specification'
+  title: 'Gemini CLI companion plugin: Interface specification'
   url: http://geminicli.com/docs/ide-integration/ide-companion-spec
 geminicli-com-docs-integration-tests:
-  category: cli
-  description: This document provides information about the integration testing framework
-    used in this project.
-  domain: geminicli.com
-  hash: sha256:a915d7bd5a47bea50171084f4f4cb355cad6866dfb8afb6653741b1f248b3cc1
-  keywords:
-  - integration-tests
-  - integration
-  - tests
-  - continuous integration
-  - integration tests
-  - deflake workflow
-  - deflake script
-  - sandbox matrix
-  - verbose output
-  - keeping test
-  - file system
-  - single test
+  content_hash: sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e
+  doc_id: geminicli-com-docs-integration-tests
+  hash: sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/integration-tests.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#overview'
-    heading: Overview
-    keywords:
-    - integration
-    - tests
-    - designed
-    level: 2
-  - anchor: '#building-the-tests'
-    heading: Building the tests
-    keywords:
-    - building
-    - tests
-    - prior
-    - running
-    - integration
-    level: 2
-  - anchor: '#running-the-tests'
-    heading: Running the tests
-    keywords:
-    - running
-    - tests
-    - integration
-    - default
-    level: 2
-  - anchor: '#running-a-specific-set-of-tests'
-    heading: Running a specific set of tests
-    keywords:
-    - running
-    - specific
-    - set
-    - tests
-    - subset
-    level: 2
-  - anchor: '#running-a-single-test-by-name'
-    heading: Running a single test by name
-    keywords:
-    - running
-    - single
-    - test
-    level: 3
-  - anchor: '#regenerating-model-responses'
-    heading: Regenerating model responses
-    keywords:
-    - regenerating
-    - model
-    - responses
-    - integration
-    - tests
-    level: 3
-  - anchor: '#deflaking-a-test'
-    heading: Deflaking a test
-    keywords:
-    - deflaking
-    - test
-    - adding
-    - integration
-    level: 3
-  - anchor: '#deflake-script'
-    heading: Deflake script
-    keywords:
-    - deflake
-    - script
-    - bash
-    - runs
-    level: 3
-  - anchor: '#running-all-tests'
-    heading: Running all tests
-    keywords:
-    - running
-    - tests
-    - entire
-    - suite
-    - integration
-    level: 3
-  - anchor: '#sandbox-matrix'
-    heading: Sandbox matrix
-    keywords:
-    - sandbox
-    - matrix
-    - command
-    - tests
-    - sandboxing
-    level: 3
-  - anchor: '#diagnostics'
-    heading: Diagnostics
-    keywords:
-    - diagnostics
-    - integration
-    - test
-    - runner
-    level: 2
-  - anchor: '#keeping-test-output'
-    heading: Keeping test output
-    keywords:
-    - keeping
-    - test
-    - output
-    - preserve
-    - temporary
-    level: 3
-  - anchor: '#verbose-output'
-    heading: Verbose output
-    keywords:
-    - verbose
-    - output
-    - detailed
-    - debugging
-    level: 3
-  - anchor: '#linting-and-formatting'
-    heading: Linting and formatting
-    keywords:
-    - linting
-    - formatting
-    - ensure
-    - code
-    - quality
-    level: 2
-  - anchor: '#running-the-linter'
-    heading: Running the linter
-    keywords:
-    - running
-    - linter
-    - check
-    - linting
-    - errors
-    level: 3
-  - anchor: '#directory-structure'
-    heading: Directory structure
-    keywords:
-    - directory
-    - structure
-    - integration
-    - tests
-    - create
-    level: 2
-  - anchor: '#continuous-integration'
-    heading: Continuous integration
-    keywords:
-    - continuous
-    - integration
-    - ensure
-    - tests
-    level: 2
-  tags:
-  - ide
-  - models
-  - troubleshooting
-  title: Integration Tests
-  url: https://geminicli.com/docs/integration-tests
+  path: geminicli-com\docs\integration-tests.md
+  source_url: https://geminicli.com/docs/integration-tests.md
 geminicli-com-docs-issue-and-pr-automation:
-  category: cli
-  description: This document provides a detailed overview of the automated processes
-    we use to manage and triage issues and pull requests. Our goal is to provide prompt
-    feedback and ensure that contributions are...
-  domain: geminicli.com
-  hash: sha256:67c037982968978f0dfd07d78af34b4fa7c1938a204c6ff817d5ef0630c351c2
-  keywords:
-  - issue-and-pr-automation
-  - automation
-  - issue
-  - continuous integration
-  - detailed automation
-  - release automation
-  - guiding principle
-  - automated issue
-  - scheduled issue
-  - ongoing triage
-  - pull requests
-  - label sync
+  content_hash: sha256:8d28663310843af3546dd6a657bc08e9e805eb2b57451de21fe31485368016b6
+  doc_id: geminicli-com-docs-issue-and-pr-automation
+  hash: sha256:8d28663310843af3546dd6a657bc08e9e805eb2b57451de21fe31485368016b6
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/issue-and-pr-automation.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#guiding-principle-issues-and-pull-requests'
-    heading: 'Guiding Principle: Issues and Pull Requests'
-    keywords:
-    - guiding
-    - principle
-    - issues
-    - pull
-    - requests
-    level: 2
-  - anchor: '#detailed-automation-workflows'
-    heading: Detailed Automation Workflows
-    keywords:
-    - detailed
-    - automation
-    - workflows
-    - breakdown
-    - specific
-    level: 2
-  - anchor: '#1-when-you-open-an-issue-automated-issue-triage'
-    heading: '1. When you open an Issue: `Automated Issue Triage`'
-    keywords:
-    - open
-    - issue
-    - automated
-    - triage
-    - interact
-    level: 3
-  - anchor: '#2-when-you-open-a-pull-request-continuous-integration-ci'
-    heading: '2. When you open a Pull Request: `Continuous Integration (CI)`'
-    keywords:
-    - open
-    - pull
-    - request
-    - continuous
-    - integration
-    level: 3
-  - anchor: '#3-ongoing-triage-for-pull-requests-pr-auditing-and-label-sync'
-    heading: '3. Ongoing Triage for Pull Requests: `PR Auditing and Label Sync`'
-    keywords:
-    - ongoing
-    - triage
-    - pull
-    - requests
-    - auditing
-    level: 3
-  - anchor: '#4-ongoing-triage-for-issues-scheduled-issue-triage'
-    heading: '4. Ongoing Triage for Issues: `Scheduled Issue Triage`'
-    keywords:
-    - ongoing
-    - triage
-    - issues
-    - scheduled
-    - issue
-    level: 3
-  - anchor: '#5-release-automation'
-    heading: 5. Release Automation
-    keywords:
-    - release
-    - automation
-    - workflow
-    - handles
-    - process
-    level: 3
-  tags:
-  - ide
-  - models
-  - troubleshooting
-  title: Automation and Triage Processes
-  url: http://geminicli.com/docs/issue-and-pr-automation
+  path: geminicli-com\docs\issue-and-pr-automation.md
+  source_url: http://geminicli.com/docs/issue-and-pr-automation.md
 geminicli-com-docs-local-development:
   category: cli
   description: This guide provides instructions for setting up and using local development
     features, such as development tracing.
   domain: geminicli.com
-  hash: sha256:2b7ef6b036414a9d6b10b66e55a017967b399678265f3c0382ba61f30319a4c7
+  hash: sha256:a3932ca3300e1472de18b90859e9dd5573cf3726d42231b8252819cb5f49183e
   keywords:
   - local-development
   - development
@@ -5273,14 +3971,14 @@ geminicli-com-docs-local-development:
   source_type: llms-txt
   subsections:
   - anchor: '#development-tracing'
-    heading: Development Tracing
+    heading: Development tracing
     keywords:
     - development
     - tracing
     - traces
     level: 2
   - anchor: '#viewing-dev-traces'
-    heading: Viewing Dev Traces
+    heading: Viewing dev traces
     keywords:
     - viewing
     - dev
@@ -5289,7 +3987,7 @@ geminicli-com-docs-local-development:
     - jaeger
     level: 3
   - anchor: '#instrumenting-code-with-dev-traces'
-    heading: Instrumenting Code with Dev Traces
+    heading: Instrumenting code with dev traces
     keywords:
     - instrumenting
     - code
@@ -5303,14 +4001,14 @@ geminicli-com-docs-local-development:
   - models
   - telemetry
   - troubleshooting
-  title: Local Development Guide
+  title: Local development guide
   url: http://geminicli.com/docs/local-development
 geminicli-com-docs-npm:
   category: cli
   description: 'This monorepo contains two main packages: `@google/gemini-cli` and
     `@google/gemini-cli-core`.'
   domain: geminicli.com
-  hash: sha256:2ff7f4b0b8313f6f2c1f84d3895a28448d2293198e3bec640a5271524208373f
+  hash: sha256:bc2069978b6c6acfb8518e2f458094c2925999ed20dc0eb690e2298cbd7d982b
   keywords:
   - workspaces
   - contains
@@ -5338,7 +4036,7 @@ geminicli-com-docs-npm:
     - contains
     level: 2
   - anchor: '#npm-workspaces'
-    heading: NPM Workspaces
+    heading: NPM workspaces
     keywords:
     - npm
     - workspaces
@@ -5346,7 +4044,7 @@ geminicli-com-docs-npm:
     - uses
     level: 2
   - anchor: '#how-it-works'
-    heading: How it Works
+    heading: How it works
     keywords:
     - works
     - root
@@ -5354,7 +4052,7 @@ geminicli-com-docs-npm:
     - json
     level: 3
   - anchor: '#benefits-of-workspaces'
-    heading: Benefits of Workspaces
+    heading: Benefits of workspaces
     keywords:
     - benefits
     - workspaces
@@ -5366,134 +4064,22 @@ geminicli-com-docs-npm:
   - cli
   - installation
   - models
-  title: Package Overview
+  title: Package overview
   url: http://geminicli.com/docs/npm
 geminicli-com-docs-quota-and-pricing:
-  category: cli
-  description: Gemini CLI offers a generous free tier that covers the use cases for
-    many individual developers. For enterprise / professional usage, or if you need
-    higher limits, there are multiple possible avenues...
-  domain: geminicli.com
-  hash: sha256:9acffcb45ea8615da33aa54cd9f180d42cc3a5f5898222ec21019a26b1f04e81
-  keywords:
-  - quota-and-pricing
-  - pricing
-  - quota
-  - workspace plans
-  - higher limits
-  - express mode
-  - rate limits
-  - avoid high
-  - fixed cost
-  - free usage
-  - paid tier
-  - professional
+  content_hash: sha256:c52f4179898f1bd8dd138ab3e92bcd5edd29d6fdb42815bd734e1c385f3a0eff
+  doc_id: geminicli-com-docs-quota-and-pricing
+  hash: sha256:c52f4179898f1bd8dd138ab3e92bcd5edd29d6fdb42815bd734e1c385f3a0eff
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/quota-and-pricing.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#free-usage'
-    heading: Free Usage
-    keywords:
-    - free
-    - usage
-    - journey
-    - begins
-    - generous
-    level: 2
-  - anchor: '#log-in-with-google-gemini-code-assist-for-individuals'
-    heading: Log in with Google (Gemini Code Assist for individuals)
-    keywords:
-    - log
-    - code
-    - assist
-    - individuals
-    - users
-    level: 3
-  - anchor: '#log-in-with-gemini-api-key-unpaid'
-    heading: Log in with Gemini API Key (Unpaid)
-    keywords:
-    - log
-    - key
-    - unpaid
-    - benefit
-    - free
-    level: 3
-  - anchor: '#log-in-with-vertex-ai-express-mode'
-    heading: Log in with Vertex AI (Express Mode)
-    keywords:
-    - log
-    - vertex
-    - express
-    - mode
-    - offers
-    level: 3
-  - anchor: '#paid-tier-higher-limits-for-a-fixed-cost'
-    heading: 'Paid tier: Higher limits for a fixed cost'
-    keywords:
-    - paid
-    - tier
-    - higher
-    - limits
-    - fixed
-    level: 2
-  - anchor: '#pay-as-you-go'
-    heading: Pay As You Go
-    keywords:
-    - pay
-    - daily
-    - request
-    - limits
-    level: 2
-  - anchor: '#gemini-for-workspace-plans'
-    heading: Gemini for Workspace plans
-    keywords:
-    - workspace
-    - plans
-    - currently
-    - apply
-    level: 2
-  - anchor: '#tips-to-avoid-high-costs'
-    heading: Tips to Avoid High Costs
-    keywords:
-    - tips
-    - avoid
-    - high
-    - costs
-    - mindful
-    level: 2
-  - anchor: '#gemini-api-vs-vertex'
-    heading: Gemini API vs. Vertex
-    keywords:
-    - vertex
-    - developer
-    - fastest
-    - models
-    level: 2
-  - anchor: '#understanding-your-usage'
-    heading: Understanding your usage
-    keywords:
-    - understanding
-    - usage
-    - summary
-    - model
-    level: 2
-  tags:
-  - api
-  - authentication
-  - cli
-  - ide
-  - models
-  title: 'Gemini CLI: Quotas and Pricing'
-  url: https://geminicli.com/docs/quota-and-pricing
+  path: geminicli-com\docs\quota-and-pricing.md
+  source_url: https://geminicli.com/docs/quota-and-pricing.md
 geminicli-com-docs-release-confidence:
   category: cli
   description: This document outlines the strategy for gaining confidence in every
     release of the Gemini CLI. It serves as a checklist and quality gate for release
     manager to ensure we are shipping a high-quality...
   domain: geminicli.com
-  hash: sha256:449ebd842d7996bb10c7686e4cec04183e0f0e9de116e9f9496d086eecbc64d7
+  hash: sha256:493531cd464cd6fe6a02c20cca36e0574a644163b39de4d020408fd9deda9612
   keywords:
   - release-confidence
   - confidence
@@ -5513,7 +4099,7 @@ geminicli-com-docs-release-confidence:
   source_type: llms-txt
   subsections:
   - anchor: '#the-goal'
-    heading: The Goal
+    heading: The goal
     keywords:
     - goal
     - answer
@@ -5521,7 +4107,7 @@ geminicli-com-docs-release-confidence:
     - release
     level: 2
   - anchor: '#level-1-automated-gates-must-pass'
-    heading: 'Level 1: Automated Gates (Must Pass)'
+    heading: 'Level 1: Automated gates (must pass)'
     keywords:
     - level
     - automated
@@ -5530,14 +4116,14 @@ geminicli-com-docs-release-confidence:
     - baseline
     level: 2
   - anchor: '#1-cicd-health'
-    heading: 1. CI/CD Health
+    heading: 1. CI/CD health
     keywords:
     - health
     - workflows
     - github
     level: 3
   - anchor: '#2-end-to-end-e2e-tests'
-    heading: 2. End-to-End (E2E) Tests
+    heading: 2. End-to-end (E2E) tests
     keywords:
     - end
     - tests
@@ -5545,7 +4131,7 @@ geminicli-com-docs-release-confidence:
     - github
     level: 3
   - anchor: '#3-post-deployment-smoke-tests'
-    heading: 3. Post-Deployment Smoke Tests
+    heading: 3. Post-deployment smoke tests
     keywords:
     - post
     - deployment
@@ -5553,8 +4139,8 @@ geminicli-com-docs-release-confidence:
     - tests
     - release
     level: 3
-  - anchor: '#level-2-manual-verification--dogfooding'
-    heading: 'Level 2: Manual Verification & Dogfooding'
+  - anchor: '#level-2-manual-verification-and-dogfooding'
+    heading: 'Level 2: Manual verification and dogfooding'
     keywords:
     - level
     - manual
@@ -5563,7 +4149,7 @@ geminicli-com-docs-release-confidence:
     - automated
     level: 2
   - anchor: '#1-dogfooding-via-preview-tag'
-    heading: 1. Dogfooding via `preview` Tag
+    heading: 1. Dogfooding via `preview` tag
     keywords:
     - dogfooding
     - preview
@@ -5572,7 +4158,7 @@ geminicli-com-docs-release-confidence:
     - release
     level: 3
   - anchor: '#2-critical-user-journey-cuj-checklist'
-    heading: 2. Critical User Journey (CUJ) Checklist
+    heading: 2. Critical user journey (CUJ) checklist
     keywords:
     - critical
     - user
@@ -5580,8 +4166,8 @@ geminicli-com-docs-release-confidence:
     - cuj
     - checklist
     level: 3
-  - anchor: '#3-pre-launch-bug-bash-tier-1--2-launches'
-    heading: 3. Pre-Launch Bug Bash (Tier 1 & 2 Launches)
+  - anchor: '#3-pre-launch-bug-bash-tier-1-and-2-launches'
+    heading: 3. Pre-Launch bug bash (tier 1 and 2 launches)
     keywords:
     - pre
     - launch
@@ -5589,8 +4175,8 @@ geminicli-com-docs-release-confidence:
     - bash
     - tier
     level: 3
-  - anchor: '#level-3-telemetry--data-review'
-    heading: 'Level 3: Telemetry & Data Review'
+  - anchor: '#level-3-telemetry-and-data-review'
+    heading: 'Level 3: Telemetry and data review'
     keywords:
     - level
     - telemetry
@@ -5599,7 +4185,7 @@ geminicli-com-docs-release-confidence:
     - dashboard
     level: 2
   - anchor: '#dashboard-health'
-    heading: Dashboard Health
+    heading: Dashboard health
     keywords:
     - dashboard
     - health
@@ -5608,7 +4194,7 @@ geminicli-com-docs-release-confidence:
     - tool
     level: 3
   - anchor: '#model-evaluation'
-    heading: Model Evaluation
+    heading: Model evaluation
     keywords:
     - model
     - evaluation
@@ -5617,7 +4203,7 @@ geminicli-com-docs-release-confidence:
     - evals
     level: 3
   - anchor: '#the-gono-go-decision'
-    heading: The "Go/No-Go" Decision
+    heading: The "go/no-go" decision
     keywords:
     - decision
     - triggering
@@ -5630,13 +4216,13 @@ geminicli-com-docs-release-confidence:
   - installation
   - models
   - troubleshooting
-  title: Release Confidence Strategy
+  title: Release confidence strategy
   url: http://geminicli.com/docs/release-confidence
 geminicli-com-docs-releases:
   category: cli
   description: Our release flows support both `dev` and `prod` environments.
   domain: geminicli.com
-  hash: sha256:a79085d11aff9dd95a0fbafb00198c974dee002cc15125eaed24804195bba09d
+  hash: sha256:fe27807dad16d716d356af0937b1ab275cbaad70fe3c663b469d66aaf41e7bab
   keywords:
   - releases
   - automatic release
@@ -5673,7 +4259,7 @@ geminicli-com-docs-releases:
     - wombat
     level: 3
   - anchor: '#release-cadence-and-tags'
-    heading: Release Cadence and Tags
+    heading: Release cadence and tags
     keywords:
     - release
     - cadence
@@ -5706,7 +4292,7 @@ geminicli-com-docs-releases:
     - changes
     level: 3
   - anchor: '#weekly-release-promotion'
-    heading: Weekly Release Promotion
+    heading: Weekly release promotion
     keywords:
     - weekly
     - release
@@ -5715,7 +4301,7 @@ geminicli-com-docs-releases:
     - engineer
     level: 2
   - anchor: '#source-of-truth-for-versioning'
-    heading: Source of Truth for Versioning
+    heading: Source of truth for versioning
     keywords:
     - source
     - truth
@@ -5724,7 +4310,7 @@ geminicli-com-docs-releases:
     - highest
     level: 3
   - anchor: '#manual-releases'
-    heading: Manual Releases
+    heading: Manual releases
     keywords:
     - manual
     - releases
@@ -5733,7 +4319,7 @@ geminicli-com-docs-releases:
     - release
     level: 2
   - anchor: '#how-to-create-a-manual-release'
-    heading: How to Create a Manual Release
+    heading: How to create a manual release
     keywords:
     - create
     - manual
@@ -5742,7 +4328,7 @@ geminicli-com-docs-releases:
     - actions
     level: 3
   - anchor: '#rollbackrollforward'
-    heading: Rollback/Rollforward
+    heading: Rollback/rollforward
     keywords:
     - rollback
     - rollforward
@@ -5751,7 +4337,7 @@ geminicli-com-docs-releases:
     - critical
     level: 2
   - anchor: '#how-to-change-a-release-tag'
-    heading: How to Change a Release Tag
+    heading: How to change a release tag
     keywords:
     - change
     - release
@@ -5768,7 +4354,7 @@ geminicli-com-docs-releases:
     - main
     level: 2
   - anchor: '#how-to-patch'
-    heading: How to Patch
+    heading: How to patch
     keywords:
     - patch
     - create
@@ -5783,7 +4369,7 @@ geminicli-com-docs-releases:
     - called
     level: 3
   - anchor: '#release-validation'
-    heading: Release Validation
+    heading: Release validation
     keywords:
     - release
     - validation
@@ -5791,8 +4377,8 @@ geminicli-com-docs-releases:
     - smoke
     level: 2
   - anchor: '#local-testing-and-validation-changes-to-the-packaging-and-publishing-process'
-    heading: 'Local Testing and Validation: Changes to the Packaging and Publishing
-      Process'
+    heading: 'Local testing and validation: Changes to the packaging and publishing
+      process'
     keywords:
     - local
     - testing
@@ -5801,7 +4387,7 @@ geminicli-com-docs-releases:
     - packaging
     level: 2
   - anchor: '#release-deep-dive'
-    heading: Release Deep Dive
+    heading: Release deep dive
     keywords:
     - release
     - deep
@@ -5832,80 +4418,22 @@ geminicli-com-docs-releases:
   - models
   - tools
   - troubleshooting
-  title: Gemini CLI Releases
+  title: Gemini CLI releases
   url: http://geminicli.com/docs/releases
 geminicli-com-docs-tools:
-  category: tools
-  description: The Gemini CLI includes built-in tools that the Gemini model uses to
-    interact with your local environment, access information, and perform actions.
-    These tools enhance the CLI's capabilities,...
-  domain: geminicli.com
+  content_hash: sha256:f2127f2523d938754414716f8c2cfe80149cbc9b4cd4f84f0edbddb6b6bb8a91
+  doc_id: geminicli-com-docs-tools
   hash: sha256:f2127f2523d938754414716f8c2cfe80149cbc9b4cd4f84f0edbddb6b6bb8a91
-  keywords:
-  - tools
-  - file system
-  - mcp servers
-  - memory tool
-  - mcp server
-  - shell tool
-  - web search
-  - todo tool
-  - web fetch
-  - capabilities
-  - confirmation
-  - environment
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/tools.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#overview-of-gemini-cli-tools'
-    heading: Overview of Gemini CLI tools
-    keywords:
-    - tools
-    - context
-    - specific
-    level: 2
-  - anchor: '#how-to-use-gemini-cli-tools'
-    heading: How to use Gemini CLI tools
-    keywords:
-    - use
-    - tools
-    - provide
-    - prompt
-    level: 2
-  - anchor: '#security-and-confirmation'
-    heading: Security and confirmation
-    keywords:
-    - security
-    - confirmation
-    - tools
-    - especially
-    - modify
-    level: 2
-  - anchor: '#learn-more-about-gemini-clis-tools'
-    heading: Learn more about Gemini CLI's tools
-    keywords:
-    - learn
-    - tools
-    - built
-    - broadly
-    level: 2
-  tags:
-  - cli
-  - ide
-  - mcp
-  - models
-  - tools
-  title: Gemini CLI tools
-  url: http://geminicli.com/docs/tools
+  path: geminicli-com\docs\tools.md
+  source_url: http://geminicli.com/docs/tools.md
 geminicli-com-docs-tools-file-system:
   category: tools
   description: The Gemini CLI provides a comprehensive suite of tools for interacting
     with the local file system. These tools allow the Gemini model to read from, write
     to, list, search, and modify files and...
   domain: geminicli.com
-  hash: sha256:e88fa902744d393f0cebfc56669a164aac6cf8e168e0ce4fde07c589b4cf4faf
+  hash: sha256:e2e233e7e2812923614f825784c2b757fcffb154a0fa198dabb36a1bfccccaa1
   keywords:
   - file-system
   - system
@@ -5984,7 +4512,7 @@ geminicli-com-docs-tools-mcp-server:
   description: This document provides a guide to configuring and using Model Context
     Protocol (MCP) servers with the Gemini CLI.
   domain: geminicli.com
-  hash: sha256:b65adb1d42490c62d4ce15d98b4b070ed42c6b60d5f1c0466e4181c959e0d79b
+  hash: sha256:694f97a6510d541a19c175cbebc9e96bde6ff012be6dbfb5a50b73f540790b3f
   keywords:
   - mcp-server
   - server
@@ -6012,7 +4540,7 @@ geminicli-com-docs-tools-mcp-server:
     - exposes
     level: 2
   - anchor: '#core-integration-architecture'
-    heading: Core Integration Architecture
+    heading: Core integration architecture
     keywords:
     - core
     - integration
@@ -6030,7 +4558,7 @@ geminicli-com-docs-tools-mcp-server:
     - process
     level: 3
   - anchor: '#execution-layer-mcp-toolts'
-    heading: Execution Layer (`mcp-tool.ts`)
+    heading: Execution layer (`mcp-tool.ts`)
     keywords:
     - execution
     - layer
@@ -6039,7 +4567,7 @@ geminicli-com-docs-tools-mcp-server:
     - discovered
     level: 3
   - anchor: '#transport-mechanisms'
-    heading: Transport Mechanisms
+    heading: Transport mechanisms
     keywords:
     - transport
     - mechanisms
@@ -6065,7 +4593,7 @@ geminicli-com-docs-tools-mcp-server:
     - json
     level: 3
   - anchor: '#configuration-structure'
-    heading: Configuration Structure
+    heading: Configuration structure
     keywords:
     - configuration
     - structure
@@ -6074,7 +4602,7 @@ geminicli-com-docs-tools-mcp-server:
     - settings
     level: 3
   - anchor: '#configuration-properties'
-    heading: Configuration Properties
+    heading: Configuration properties
     keywords:
     - configuration
     - properties
@@ -6082,7 +4610,7 @@ geminicli-com-docs-tools-mcp-server:
     - supports
     level: 3
   - anchor: '#oauth-support-for-remote-mcp-servers'
-    heading: OAuth Support for Remote MCP Servers
+    heading: OAuth support for remote MCP servers
     keywords:
     - oauth
     - support
@@ -6091,7 +4619,7 @@ geminicli-com-docs-tools-mcp-server:
     - servers
     level: 3
   - anchor: '#example-configurations'
-    heading: Example Configurations
+    heading: Example configurations
     keywords:
     - example
     - configurations
@@ -6100,7 +4628,7 @@ geminicli-com-docs-tools-mcp-server:
     - stdio
     level: 3
   - anchor: '#sse-mcp-server-with-sa-impersonation'
-    heading: SSE MCP Server with SA Impersonation
+    heading: SSE MCP server with SA impersonation
     keywords:
     - sse
     - mcp
@@ -6109,7 +4637,7 @@ geminicli-com-docs-tools-mcp-server:
     - json
     level: 3
   - anchor: '#discovery-process-deep-dive'
-    heading: Discovery Process Deep Dive
+    heading: Discovery process deep dive
     keywords:
     - discovery
     - process
@@ -6118,7 +4646,7 @@ geminicli-com-docs-tools-mcp-server:
     - starts
     level: 2
   - anchor: '#1-server-iteration-and-connection'
-    heading: 1. Server Iteration and Connection
+    heading: 1. Server iteration and connection
     keywords:
     - server
     - iteration
@@ -6127,7 +4655,7 @@ geminicli-com-docs-tools-mcp-server:
     - mcpservers
     level: 3
   - anchor: '#2-tool-discovery'
-    heading: 2. Tool Discovery
+    heading: 2. Tool discovery
     keywords:
     - tool
     - discovery
@@ -6135,7 +4663,7 @@ geminicli-com-docs-tools-mcp-server:
     - connection
     level: 3
   - anchor: '#3-conflict-resolution'
-    heading: 3. Conflict Resolution
+    heading: 3. Conflict resolution
     keywords:
     - conflict
     - resolution
@@ -6144,7 +4672,7 @@ geminicli-com-docs-tools-mcp-server:
     - expose
     level: 3
   - anchor: '#4-schema-processing'
-    heading: 4. Schema Processing
+    heading: 4. Schema processing
     keywords:
     - schema
     - processing
@@ -6153,7 +4681,7 @@ geminicli-com-docs-tools-mcp-server:
     - schemas
     level: 3
   - anchor: '#5-connection-management'
-    heading: 5. Connection Management
+    heading: 5. Connection management
     keywords:
     - connection
     - management
@@ -6162,7 +4690,7 @@ geminicli-com-docs-tools-mcp-server:
     - connections
     level: 3
   - anchor: '#tool-execution-flow'
-    heading: Tool Execution Flow
+    heading: Tool execution flow
     keywords:
     - tool
     - execution
@@ -6171,7 +4699,7 @@ geminicli-com-docs-tools-mcp-server:
     - decides
     level: 2
   - anchor: '#1-tool-invocation'
-    heading: 1. Tool Invocation
+    heading: 1. Tool invocation
     keywords:
     - tool
     - invocation
@@ -6180,7 +4708,7 @@ geminicli-com-docs-tools-mcp-server:
     - functioncall
     level: 3
   - anchor: '#2-confirmation-process'
-    heading: 2. Confirmation Process
+    heading: 2. Confirmation process
     keywords:
     - confirmation
     - process
@@ -6197,7 +4725,7 @@ geminicli-com-docs-tools-mcp-server:
     - bypass
     level: 3
   - anchor: '#4-response-handling'
-    heading: 4. Response Handling
+    heading: 4. Response handling
     keywords:
     - response
     - handling
@@ -6215,7 +4743,7 @@ geminicli-com-docs-tools-mcp-server:
     - provides
     level: 2
   - anchor: '#using-the-mcp-command'
-    heading: Using the `/mcp` Command
+    heading: Using the `/mcp` command
     keywords:
     - mcp
     - command
@@ -6223,7 +4751,7 @@ geminicli-com-docs-tools-mcp-server:
     - comprehensive
     level: 3
   - anchor: '#example-mcp-output'
-    heading: Example `/mcp` Output
+    heading: Example `/mcp` output
     keywords:
     - example
     - mcp
@@ -6232,7 +4760,7 @@ geminicli-com-docs-tools-mcp-server:
     - status
     level: 3
   - anchor: '#tool-usage'
-    heading: Tool Usage
+    heading: Tool usage
     keywords:
     - tool
     - usage
@@ -6241,7 +4769,7 @@ geminicli-com-docs-tools-mcp-server:
     - available
     level: 3
   - anchor: '#status-monitoring-and-troubleshooting'
-    heading: Status Monitoring and Troubleshooting
+    heading: Status monitoring and troubleshooting
     keywords:
     - status
     - monitoring
@@ -6250,7 +4778,7 @@ geminicli-com-docs-tools-mcp-server:
     - states
     level: 2
   - anchor: '#connection-states'
-    heading: Connection States
+    heading: Connection states
     keywords:
     - connection
     - states
@@ -6258,7 +4786,7 @@ geminicli-com-docs-tools-mcp-server:
     - tracks
     level: 3
   - anchor: '#common-issues-and-solutions'
-    heading: Common Issues and Solutions
+    heading: Common issues and solutions
     keywords:
     - common
     - issues
@@ -6267,7 +4795,7 @@ geminicli-com-docs-tools-mcp-server:
     - connect
     level: 3
   - anchor: '#debugging-tips'
-    heading: Debugging Tips
+    heading: Debugging tips
     keywords:
     - debugging
     - tips
@@ -6276,24 +4804,24 @@ geminicli-com-docs-tools-mcp-server:
     - mode
     level: 3
   - anchor: '#important-notes'
-    heading: Important Notes
+    heading: Important notes
     keywords:
     - important
     - notes
     - security
-    - considerations
+    - sonsiderations
     - trust
     level: 2
-  - anchor: '#security-considerations'
-    heading: Security Considerations
+  - anchor: '#security-sonsiderations'
+    heading: Security sonsiderations
     keywords:
     - security
-    - considerations
+    - sonsiderations
     - trust
     - settings
     level: 3
   - anchor: '#performance-and-resource-management'
-    heading: Performance and Resource Management
+    heading: Performance and resource management
     keywords:
     - performance
     - resource
@@ -6302,7 +4830,7 @@ geminicli-com-docs-tools-mcp-server:
     - persistence
     level: 3
   - anchor: '#schema-compatibility'
-    heading: Schema Compatibility
+    heading: Schema compatibility
     keywords:
     - schema
     - compatibility
@@ -6311,7 +4839,7 @@ geminicli-com-docs-tools-mcp-server:
     - system
     level: 3
   - anchor: '#returning-rich-content-from-tools'
-    heading: Returning Rich Content from Tools
+    heading: Returning rich content from tools
     keywords:
     - returning
     - rich
@@ -6320,7 +4848,7 @@ geminicli-com-docs-tools-mcp-server:
     - limited
     level: 2
   - anchor: '#how-it-works'
-    heading: How It Works
+    heading: How it works
     keywords:
     - works
     - return
@@ -6328,7 +4856,7 @@ geminicli-com-docs-tools-mcp-server:
     - content
     level: 3
   - anchor: '#example-returning-text-and-an-image'
-    heading: 'Example: Returning Text and an Image'
+    heading: 'Example: Returning text and an image'
     keywords:
     - example
     - returning
@@ -6337,7 +4865,7 @@ geminicli-com-docs-tools-mcp-server:
     - valid
     level: 3
   - anchor: '#mcp-prompts-as-slash-commands'
-    heading: MCP Prompts as Slash Commands
+    heading: MCP prompts as slash commands
     keywords:
     - mcp
     - prompts
@@ -6346,7 +4874,7 @@ geminicli-com-docs-tools-mcp-server:
     - addition
     level: 2
   - anchor: '#defining-prompts-on-the-server'
-    heading: Defining Prompts on the Server
+    heading: Defining prompts on the server
     keywords:
     - defining
     - prompts
@@ -6355,7 +4883,7 @@ geminicli-com-docs-tools-mcp-server:
     - example
     level: 3
   - anchor: '#invoking-prompts'
-    heading: Invoking Prompts
+    heading: Invoking prompts
     keywords:
     - invoking
     - prompts
@@ -6364,7 +4892,7 @@ geminicli-com-docs-tools-mcp-server:
     - invoke
     level: 3
   - anchor: '#managing-mcp-servers-with-gemini-mcp'
-    heading: Managing MCP Servers with `gemini mcp`
+    heading: Managing MCP servers with `gemini mcp`
     keywords:
     - managing
     - mcp
@@ -6373,7 +4901,7 @@ geminicli-com-docs-tools-mcp-server:
     - manually
     level: 2
   - anchor: '#adding-a-server-gemini-mcp-add'
-    heading: Adding a Server (`gemini mcp add`)
+    heading: Adding a server (`gemini mcp add`)
     keywords:
     - adding
     - server
@@ -6382,7 +4910,7 @@ geminicli-com-docs-tools-mcp-server:
     - command
     level: 3
   - anchor: '#listing-servers-gemini-mcp-list'
-    heading: Listing Servers (`gemini mcp list`)
+    heading: Listing servers (`gemini mcp list`)
     keywords:
     - listing
     - servers
@@ -6391,7 +4919,7 @@ geminicli-com-docs-tools-mcp-server:
     - view
     level: 3
   - anchor: '#removing-a-server-gemini-mcp-remove'
-    heading: Removing a Server (`gemini mcp remove`)
+    heading: Removing a server (`gemini mcp remove`)
     keywords:
     - removing
     - server
@@ -6399,6 +4927,13 @@ geminicli-com-docs-tools-mcp-server:
     - remove
     - delete
     level: 3
+  - anchor: '#instructions'
+    heading: Instructions
+    keywords:
+    - instructions
+    - supports
+    - server
+    level: 2
   tags:
   - api
   - authentication
@@ -6412,7 +4947,7 @@ geminicli-com-docs-tools-memory:
   category: tools
   description: This document describes the `save_memory` tool for the Gemini CLI.
   domain: geminicli.com
-  hash: sha256:1083baf074e9468737086be7075d905741053a44488dc72fdda6527e80180e05
+  hash: sha256:987588d478ed93df77980f77c6109ae862671e213d220d8a7bfdac01107a1342
   keywords:
   - memory
   - tools
@@ -6470,14 +5005,14 @@ geminicli-com-docs-tools-memory:
   - memory
   - models
   - tools
-  title: Memory Tool (`save_memory`)
+  title: Memory tool (`save_memory`)
   url: http://geminicli.com/docs/tools/memory
 geminicli-com-docs-tools-shell:
   category: tools
   description: This document describes the `run_shell_command` tool for the Gemini
     CLI.
   domain: geminicli.com
-  hash: sha256:39d632be6e151f000d8f934fd50dc58a3a7b9218d89f7f4d51d17a9409216726
+  hash: sha256:7184b66c77a66bf6b8f3b5c79bf6e521b18ce29052884427b34e27916a594f75
   keywords:
   - shell
   - tools
@@ -6536,7 +5071,7 @@ geminicli-com-docs-tools-shell:
     - tool
     level: 2
   - anchor: '#enabling-interactive-commands'
-    heading: Enabling Interactive Commands
+    heading: Enabling interactive commands
     keywords:
     - enabling
     - interactive
@@ -6544,7 +5079,7 @@ geminicli-com-docs-tools-shell:
     - enable
     level: 3
   - anchor: '#showing-color-in-output'
-    heading: Showing Color in Output
+    heading: Showing color in output
     keywords:
     - showing
     - color
@@ -6552,7 +5087,7 @@ geminicli-com-docs-tools-shell:
     - shell
     level: 3
   - anchor: '#setting-the-pager'
-    heading: Setting the Pager
+    heading: Setting the pager
     keywords:
     - setting
     - pager
@@ -6560,7 +5095,7 @@ geminicli-com-docs-tools-shell:
     - shell
     level: 3
   - anchor: '#interactive-commands'
-    heading: Interactive Commands
+    heading: Interactive commands
     keywords:
     - interactive
     - commands
@@ -6577,7 +5112,7 @@ geminicli-com-docs-tools-shell:
     - executing
     level: 2
   - anchor: '#environment-variables'
-    heading: Environment Variables
+    heading: Environment variables
     keywords:
     - environment
     - variables
@@ -6586,7 +5121,7 @@ geminicli-com-docs-tools-shell:
     - sets
     level: 2
   - anchor: '#command-restrictions'
-    heading: Command Restrictions
+    heading: Command restrictions
     keywords:
     - command
     - restrictions
@@ -6595,7 +5130,7 @@ geminicli-com-docs-tools-shell:
     - executed
     level: 2
   - anchor: '#command-restriction-examples'
-    heading: Command Restriction Examples
+    heading: Command restriction examples
     keywords:
     - command
     - restriction
@@ -6604,7 +5139,7 @@ geminicli-com-docs-tools-shell:
     - specific
     level: 3
   - anchor: '#security-note-for-excludetools'
-    heading: Security Note for `excludeTools`
+    heading: Security note for `excludeTools`
     keywords:
     - security
     - note
@@ -6618,13 +5153,13 @@ geminicli-com-docs-tools-shell:
   - models
   - security
   - tools
-  title: Shell Tool (`run_shell_command`)
+  title: Shell tool (`run_shell_command`)
   url: http://geminicli.com/docs/tools/shell
 geminicli-com-docs-tools-todos:
   category: tools
   description: This document describes the `write_todos` tool for the Gemini CLI.
   domain: geminicli.com
-  hash: sha256:35b7640b6fff5886e6faa28ff2842aebb58cbd5a63e75a4a05c03308139e6142
+  hash: sha256:1d566aa79452ffbd3b2df6072bf41d483d34b4060b19150ab0afe7f522811234
   keywords:
   - todos
   - tools
@@ -6672,13 +5207,13 @@ geminicli-com-docs-tools-todos:
     level: 2
   tags:
   - tools
-  title: Todo Tool (`write_todos`)
+  title: Todo tool (`write_todos`)
   url: http://geminicli.com/docs/tools/todos
 geminicli-com-docs-tools-web-fetch:
   category: tools
   description: This document describes the `web_fetch` tool for the Gemini CLI.
   domain: geminicli.com
-  hash: sha256:ba5c3070378c5d7811522f050e742daa6fbbae8c506682194e60146860a0dcc2
+  hash: sha256:407bb0366741f6b7cf0c91bc62a8bbe67fd09674f8202b5e9ae8dabda64f7a38
   keywords:
   - web-fetch
   - fetch
@@ -6737,13 +5272,13 @@ geminicli-com-docs-tools-web-fetch:
   tags:
   - models
   - tools
-  title: Web Fetch Tool (`web_fetch`)
+  title: Web fetch tool (`web_fetch`)
   url: http://geminicli.com/docs/tools/web-fetch
 geminicli-com-docs-tools-web-search:
   category: tools
   description: This document describes the `google_web_search` tool.
   domain: geminicli.com
-  hash: sha256:1de02d8c6f91f7c75d857b7d449bde200b4fc9f269e01d49e5e24f053bf9dd55
+  hash: sha256:aad833f5327cdd3d776bee6f023736371203a06e9702406ee3827ec0f38e2c69
   keywords:
   - web-search
   - search
@@ -6799,92 +5334,21 @@ geminicli-com-docs-tools-web-search:
     level: 2
   tags:
   - tools
-  title: Web Search Tool (`google_web_search`)
+  title: Web search tool (`google_web_search`)
   url: http://geminicli.com/docs/tools/web-search
 geminicli-com-docs-tos-privacy:
-  category: cli
-  description: Gemini CLI is an open-source tool that lets you interact with Google's
-    powerful AI services directly from your command-line interface. The Gemini CLI
-    software is licensed under the When you use...
-  domain: geminicli.com
+  content_hash: sha256:132d8c6a820192cc1c7a71afbbbe986787098ab6e5097779837ca20c1fb33d0a
+  doc_id: geminicli-com-docs-tos-privacy
   hash: sha256:132d8c6a820192cc1c7a71afbbbe986787098ab6e5097779837ca20c1fb33d0a
-  keywords:
-  - tos-privacy
-  - privacy
-  - supported authentication
-  - usage statistics
-  - privacy notices
-  - authentication
-  - interface
-  - directly
-  - interact
-  - licensed
-  - powerful
-  - services
   last_fetched: '2025-12-01'
-  path: geminicli-com/docs/tos-privacy.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  subsections:
-  - anchor: '#supported-authentication-methods'
-    heading: Supported authentication methods
-    keywords:
-    - supported
-    - authentication
-    - methods
-    - method
-    - refers
-    level: 2
-  - anchor: '#1-if-you-have-logged-in-with-your-google-account-to-gemini-code-assist'
-    heading: 1. If you have logged in with your Google account to Gemini Code Assist
-    keywords:
-    - logged
-    - account
-    - code
-    - assist
-    - users
-    level: 2
-  - anchor: '#2-if-you-have-logged-in-with-a-gemini-api-key-to-the-gemini-developer-api'
-    heading: 2. If you have logged in with a Gemini API key to the Gemini Developer
-      API
-    keywords:
-    - logged
-    - key
-    - developer
-    - authentication
-    - https
-    level: 2
-  - anchor: '#3-if-you-have-logged-in-with-a-gemini-api-key-to-the-vertex-ai-genai-api'
-    heading: 3. If you have logged in with a Gemini API key to the Vertex AI GenAI
-      API
-    keywords:
-    - logged
-    - key
-    - vertex
-    - genai
-    - authentication
-    level: 2
-  - anchor: '#usage-statistics-opt-out'
-    heading: Usage statistics opt-out
-    keywords:
-    - usage
-    - statistics
-    - opt
-    - sending
-    level: 2
-  tags:
-  - api
-  - authentication
-  - cli
-  - models
-  title: 'Gemini CLI: License, Terms of Service, and Privacy Notices'
-  url: http://geminicli.com/docs/tos-privacy
+  path: geminicli-com\docs\tos-privacy.md
+  source_url: http://geminicli.com/docs/tos-privacy.md
 geminicli-com-docs-troubleshooting:
   category: cli
   description: 'This guide provides solutions to common issues and debugging tips,
     including topics on:'
   domain: geminicli.com
-  hash: sha256:f9ac4a56a424af28cb4f2c6f58ae3f968b0d79ce2252a84b23131481b24c8d58
+  hash: sha256:139ce25cd3f0ef3219da8e821d5b34208b7d3c4239c4f7311c95562c18d1379b
   keywords:
   - troubleshooting
   - existing github
@@ -6922,7 +5386,7 @@ geminicli-com-docs-troubleshooting:
     - eaddrinuse
     level: 2
   - anchor: '#exit-codes'
-    heading: Exit Codes
+    heading: Exit codes
     keywords:
     - exit
     - codes
@@ -6930,7 +5394,7 @@ geminicli-com-docs-troubleshooting:
     - specific
     level: 2
   - anchor: '#debugging-tips'
-    heading: Debugging Tips
+    heading: Debugging tips
     keywords:
     - debugging
     - tips
@@ -6938,7 +5402,7 @@ geminicli-com-docs-troubleshooting:
     - flag
     level: 2
   - anchor: '#existing-github-issues-similar-to-yours-or-creating-new-issues'
-    heading: Existing GitHub Issues similar to yours or creating new Issues
+    heading: Existing GitHub issues similar to yours or creating new issues
     keywords:
     - existing
     - github
@@ -7048,53 +5512,6 @@ geminicli-com-gemini-docs-codeassist-overview:
   - troubleshooting
   title: Gemini Code Assist Standard and Enterprise overview
   url: https://cloud.google.com/gemini/docs/codeassist/overview
-geminicli-com-google-gemini-gemini-cli-blob-main-CONTRIBUTING:
-  category: cli
-  description: gemini-cli/CONTRIBUTING.md at main · google-gemini/gemini-cli · GitHub
-  domain: github.com
-  hash: sha256:e6634cc201674e80bf90ba476cd6e427bc1f90ab526223f9a7c6adfb6a008441
-  keywords:
-  - google-gemini
-  - gemini-cli
-  - contributing
-  - refresh
-  - session
-  - github
-  - reload
-  - signed
-  - window
-  last_fetched: '2025-11-30'
-  path: geminicli-com/google-gemini/gemini-cli/blob/main/CONTRIBUTING.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  tags:
-  - cli
-  - models
-  title: Contributing
-  url: https://github.com/google-gemini/gemini-cli/blob/main/CONTRIBUTING.md
-geminicli-com-google-gemini-gemini-cli-blob-main-GEMINI:
-  category: cli
-  description: gemini-cli/GEMINI.md at main · google-gemini/gemini-cli · GitHub
-  domain: github.com
-  hash: sha256:fe9ad26fdc835dfbedc7b2bfb0d295db7ad276af3072386bf66e68936f783abc
-  keywords:
-  - google-gemini
-  - gemini-cli
-  - refresh
-  - session
-  - github
-  - reload
-  - signed
-  - window
-  last_fetched: '2025-11-30'
-  path: geminicli-com/google-gemini/gemini-cli/blob/main/GEMINI.md
-  sitemap_url: https://geminicli.com/llms.txt
-  source_type: llms-txt
-  tags:
-  - cli
-  - models
-  title: Gemini
-  url: https://github.com/google-gemini/gemini-cli/blob/main/GEMINI.md
 geminicli-com-products-gemini-pricing:
   category: cli
   description: Gemini for Google Cloud pricing | Google Cloud
@@ -7171,3 +5588,280 @@ geminicli-com-products-gemini-pricing:
   - troubleshooting
   title: Gemini for Google Cloud pricing
   url: https://cloud.google.com/products/gemini/pricing
+raw-githubusercontent-com-google-gemini-gemini-cli-main-CONTRIBUTING:
+  category: cli
+  description: 'We would love to accept your patches and contributions to this project.
+    This document includes:'
+  domain: raw.githubusercontent.com
+  hash: sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a
+  keywords:
+  - google-gemini
+  - gemini-cli
+  - contributing
+  - development environment
+  - community guidelines
+  - contributor license
+  - coding conventions
+  - code contribution
+  - build process
+  - code reviews
+  - checks pass
+  - file system
+  last_fetched: '2025-12-01'
+  path: raw-githubusercontent-com/google-gemini/gemini-cli/main/CONTRIBUTING.md
+  sitemap_url: https://geminicli.com/llms.txt
+  source_type: llms-txt
+  subsections:
+  - anchor: '#before-you-begin'
+    heading: Before you begin
+    keywords:
+    - begin
+    - sign
+    - contributor
+    - license
+    level: 2
+  - anchor: '#sign-our-contributor-license-agreement'
+    heading: Sign our Contributor License Agreement
+    keywords:
+    - sign
+    - contributor
+    - license
+    - agreement
+    - contributions
+    level: 3
+  - anchor: '#review-our-community-guidelines'
+    heading: Review our Community Guidelines
+    keywords:
+    - review
+    - community
+    - guidelines
+    - project
+    - follows
+    level: 3
+  - anchor: '#code-contribution-process'
+    heading: Code contribution process
+    keywords:
+    - code
+    - contribution
+    - process
+    - started
+    - contributing
+    level: 2
+  - anchor: '#get-started'
+    heading: Get started
+    keywords:
+    - started
+    - process
+    - contributing
+    - code
+    level: 3
+  - anchor: '#code-reviews'
+    heading: Code reviews
+    keywords:
+    - code
+    - reviews
+    - submissions
+    - including
+    level: 3
+  - anchor: '#self-assigning-issues'
+    heading: Self assigning issues
+    keywords:
+    - self
+    - assigning
+    - issues
+    - assign
+    - issue
+    level: 3
+  - anchor: '#pull-request-guidelines'
+    heading: Pull request guidelines
+    keywords:
+    - pull
+    - request
+    - guidelines
+    - help
+    - review
+    level: 3
+  - anchor: '#forking'
+    heading: Forking
+    keywords:
+    - forking
+    - repository
+    - able
+    level: 3
+  - anchor: '#development-setup-and-workflow'
+    heading: Development setup and workflow
+    keywords:
+    - development
+    - setup
+    - workflow
+    - section
+    - guides
+    level: 3
+  - anchor: '#setting-up-the-development-environment'
+    heading: Setting up the development environment
+    keywords:
+    - setting
+    - development
+    - environment
+    - prerequisites
+    - node
+    level: 3
+  - anchor: '#build-process'
+    heading: Build process
+    keywords:
+    - build
+    - process
+    - clone
+    - repository
+    - bash
+    level: 3
+  - anchor: '#enabling-sandboxing'
+    heading: Enabling sandboxing
+    keywords:
+    - enabling
+    - sandboxing
+    - highly
+    level: 3
+  - anchor: '#running-the-cli'
+    heading: Running the CLI
+    keywords:
+    - running
+    - start
+    - source
+    - code
+    level: 3
+  - anchor: '#running-tests'
+    heading: Running tests
+    keywords:
+    - running
+    - tests
+    - project
+    - contains
+    - types
+    level: 3
+  - anchor: '#linting-and-preflight-checks'
+    heading: Linting and preflight checks
+    keywords:
+    - linting
+    - preflight
+    - checks
+    - ensure
+    - code
+    level: 3
+  - anchor: '#coding-conventions'
+    heading: Coding conventions
+    keywords:
+    - coding
+    - conventions
+    - adhere
+    - style
+    level: 3
+  - anchor: '#project-structure'
+    heading: Project structure
+    keywords:
+    - project
+    - structure
+    - packages
+    - contains
+    - individual
+    level: 3
+  - anchor: '#debugging'
+    heading: Debugging
+    keywords:
+    - debugging
+    - code
+    - interactively
+    - debug
+    level: 3
+  - anchor: '#react-devtools'
+    heading: React DevTools
+    keywords:
+    - react
+    - devtools
+    - debug
+    - based
+    level: 3
+  - anchor: '#sandboxing'
+    heading: Sandboxing
+    keywords:
+    - sandboxing
+    - macos
+    - seatbelt
+    level: 3
+  - anchor: '#manual-publish'
+    heading: Manual publish
+    keywords:
+    - manual
+    - publish
+    - artifact
+    - commit
+    level: 3
+  - anchor: '#documentation-contribution-process'
+    heading: Documentation contribution process
+    keywords:
+    - documentation
+    - contribution
+    - process
+    - kept
+    - date
+    level: 2
+  - anchor: '#getting-started'
+    heading: Getting started
+    keywords:
+    - getting
+    - started
+    - process
+    - contributing
+    - documentation
+    level: 3
+  - anchor: '#documentation-structure'
+    heading: Documentation structure
+    keywords:
+    - documentation
+    - structure
+    - organized
+    - sidebar
+    level: 3
+  - anchor: '#style-guide'
+    heading: Style guide
+    keywords:
+    - style
+    - follow
+    - developer
+    - documentation
+    level: 3
+  - anchor: '#linting-and-formatting'
+    heading: Linting and formatting
+    keywords:
+    - linting
+    - formatting
+    - prettier
+    - enforce
+    - consistent
+    level: 3
+  - anchor: '#before-you-submit'
+    heading: Before you submit
+    keywords:
+    - submit
+    - submitting
+    - documentation
+    - pull
+    level: 3
+  - anchor: '#need-help'
+    heading: Need help?
+    keywords:
+    - need
+    - help
+    - questions
+    - contributing
+    - documentation
+    level: 3
+  tags:
+  - cli
+  - configuration
+  - ide
+  - installation
+  - models
+  - tools
+  title: How to contribute
+  url: https://raw.githubusercontent.com/google-gemini/gemini-cli/main/CONTRIBUTING

@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/keyboard-shortcuts
 source_type: llms-txt
-content_hash: sha256:82e511603a5fb1e58b950c71c2e0072d1d64f67fd0f8d227ee27bddefaeb6952
+content_hash: sha256:f3e65d0a4908d4b87f7dce2de9a1850006cce494f3ddc1cb84e0e4dcb76bbcf2
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"f3932c9af52c9721e5b01b7a623f7ae8e35b5d1125ca6937b4318d7c354b255e"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"9905be49c089c3ec702c31a10f2cd8b45d66f83d9c3f8f76c0f85d951e811abb"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Keyboard Shortcuts
+# Gemini CLI keyboard shortcuts
 
 Gemini CLI ships with a set of default keyboard shortcuts for editing input,
 navigating history, and controlling the UI. Use this reference to learn the
@@ -120,7 +120,7 @@ available combinations.
 
 <!-- KEYBINDINGS-AUTOGEN:END -->
 
-## Additional Context-Specific Shortcuts
+## Additional context-specific shortcuts
 
 - `Ctrl+Y`: Toggle YOLO (auto-approval) mode for tool calls.
 - `Shift+Tab`: Toggle Auto Edit (auto-accept edits) mode.

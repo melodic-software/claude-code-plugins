@@ -1,11 +1,11 @@
 ---
-source_url: http://geminicli.com/docs/cli/themes
+source_url: https://geminicli.com/docs/cli/themes
 source_type: llms-txt
-content_hash: sha256:19ed3b1786a57caf9a79fbe9ec1590458cf8b4ecb67511cc95874ab5c8713687
+content_hash: sha256:6bdc97361db6b94a648be4b77edb9f42c9933e20fbd39f60bd2f8063cc75c5f3
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"1270d1d4c5305add30de937fa5727bdbedae85e861173896313290eb2ad164f3"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"0ca216f66dac54ab0e39e713337555ea3235c94f58e4e8c04ade1f4fe02a5cf5"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Themes
@@ -14,19 +14,19 @@ Gemini CLI supports a variety of themes to customize its color scheme and
 appearance. You can change the theme to suit your preferences via the `/theme`
 command or `"theme":` configuration setting.
 
-## Available Themes
+## Available themes
 
 Gemini CLI comes with a selection of pre-defined themes, which you can list
 using the `/theme` command within Gemini CLI:
 
-- **Dark Themes:**
+- **Dark themes:**
   - `ANSI`
   - `Atom One`
   - `Ayu`
   - `Default`
   - `Dracula`
   - `GitHub`
-- **Light Themes:**
+- **Light themes:**
   - `ANSI Light`
   - `Ayu Light`
   - `Default Light`
@@ -34,7 +34,7 @@ using the `/theme` command within Gemini CLI:
   - `Google Code`
   - `Xcode`
 
-### Changing Themes
+### Changing themes
 
 1.  Enter `/theme` into Gemini CLI.
 2.  A dialog or selection prompt appears, listing the available themes.
@@ -46,7 +46,7 @@ using the `/theme` command within Gemini CLI:
 by a file path), you must remove the `"theme"` setting from the file before you
 can change the theme using the `/theme` command.
 
-### Theme Persistence
+### Theme persistence
 
 Selected themes are saved in Gemini CLI's
 [configuration](/docs/get-started/configuration) so your preference is
@@ -54,13 +54,13 @@ remembered across sessions.
 
 ---
 
-## Custom Color Themes
+## Custom color themes
 
 Gemini CLI allows you to create your own custom color themes by specifying them
 in your `settings.json` file. This gives you full control over the color palette
 used in the CLI.
 
-### How to Define a Custom Theme
+### How to define a custom theme
 
 Add a `customThemes` block to your user, project, or system `settings.json`
 file. Each custom theme is defined as an object with a unique name and a set of
@@ -103,7 +103,7 @@ This object supports the keys `primary`, `secondary`, `link`, `accent`, and
 `response`. When `text.response` is provided it takes precedence over
 `text.primary` for rendering model responses in chat.
 
-**Required Properties:**
+**Required properties:**
 
 - `name` (must match the key in the `customThemes` object and be a string)
 - `type` (must be the string `"custom"`)
@@ -127,7 +127,7 @@ for a full list of supported names.
 You can define multiple custom themes by adding more entries to the
 `customThemes` object.
 
-### Loading Themes from a File
+### Loading themes from a file
 
 In addition to defining custom themes in `settings.json`, you can also load a
 theme directly from a JSON file by specifying the file path in your
@@ -172,17 +172,17 @@ custom theme defined in `settings.json`.
 }
 ```
 
-**Security Note:** For your safety, Gemini CLI will only load theme files that
+**Security note:** For your safety, Gemini CLI will only load theme files that
 are located within your home directory. If you attempt to load a theme from
 outside your home directory, a warning will be displayed and the theme will not
 be loaded. This is to prevent loading potentially malicious theme files from
 untrusted sources.
 
-### Example Custom Theme
+### Example custom theme
 
 <img src="../assets/theme-custom.png" alt="Custom theme example" width="600" />
 
-### Using Your Custom Theme
+### Using your custom theme
 
 - Select your custom theme using the `/theme` command in Gemini CLI. Your custom
   theme will appear in the theme selection dialog.
@@ -194,7 +194,7 @@ untrusted sources.
 
 ---
 
-## Dark Themes
+## Dark themes
 
 ### ANSI
 
@@ -220,7 +220,7 @@ untrusted sources.
 
 <img src="/assets/theme-github.png" alt="GitHub theme" width="600">
 
-## Light Themes
+## Light themes
 
 ### ANSI Light
 

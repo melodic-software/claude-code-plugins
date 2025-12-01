@@ -1,21 +1,21 @@
 ---
 source_url: http://geminicli.com/docs/cli/enterprise
 source_type: llms-txt
-content_hash: sha256:5868ff83a0ae1f6f50f550d49644b616c833415d1aa24d30a4af55d3233d6179
+content_hash: sha256:14a9c8472fe66651221173c9f94b22978bc40cc5b2988f0a45ef8039839d725d
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"c47a52dfd26266be40eab3b39943dfcbac50af51e4a388c3d64e24c3741d32e9"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"438e2df4cb97dc8e1a83cf1d85b093ba43b1665b5b3ac42ee4bfd84fe733eb7e"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI for the Enterprise
+# Gemini CLI for the enterprise
 
 This document outlines configuration patterns and best practices for deploying
 and managing Gemini CLI in an enterprise environment. By leveraging system-level
 settings, administrators can enforce security policies, manage tool access, and
 ensure a consistent experience for all users.
 
-> **A Note on Security:** The patterns described in this document are intended
+> **A note on security:** The patterns described in this document are intended
 > to help administrators create a more controlled and secure environment for
 > using Gemini CLI. However, they should not be considered a foolproof security
 > boundary. A determined user with sufficient privileges on their local machine
@@ -24,7 +24,7 @@ ensure a consistent experience for all users.
 > managed environment, not to defend against a malicious actor with local
 > administrative rights.
 
-## Centralized Configuration: The System Settings File
+## Centralized configuration: The system settings file
 
 The most powerful tools for enterprise administration are the system-wide
 settings files. These files allow you to define a baseline configuration
@@ -43,11 +43,11 @@ settings (like `theme`) is:
 This means the System Overrides file has the final say. For settings that are
 arrays (`includeDirectories`) or objects (`mcpServers`), the values are merged.
 
-**Example of Merging and Precedence:**
+**Example of merging and precedence:**
 
 Here is how settings from different levels are combined.
 
-- **System Defaults `system-defaults.json`:**
+- **System defaults `system-defaults.json`:**
 
   ```json
   {
@@ -99,7 +99,7 @@ Here is how settings from different levels are combined.
   }
   ```
 
-- **System Overrides `settings.json`:**
+- **System overrides `settings.json`:**
   ```json
   {
     "ui": {
@@ -118,7 +118,7 @@ Here is how settings from different levels are combined.
 
 This results in the following merged configuration:
 
-- **Final Merged Configuration:**
+- **Final merged configuration:**
   ```json
   {
     "ui": {
@@ -169,7 +169,7 @@ This results in the following merged configuration:
 By using the system settings file, you can enforce the security and
 configuration patterns described below.
 
-## Restricting Tool Access
+## Restricting tool access
 
 You can significantly enhance security by controlling which tools the Gemini
 model can use. This is achieved through the `tools.core` and `tools.exclude`
@@ -207,12 +207,12 @@ environment to a blocklist.
 }
 ```
 
-**Security Note:** Blocklisting with `excludeTools` is less secure than
+**Security note:** Blocklisting with `excludeTools` is less secure than
 allowlisting with `coreTools`, as it relies on blocking known-bad commands, and
 clever users may find ways to bypass simple string-based blocks. **Allowlisting
 is the recommended approach.**
 
-### Disabling YOLO Mode
+### Disabling YOLO mode
 
 To ensure that users cannot bypass the confirmation prompt for tool execution,
 you can disable YOLO mode at the policy level. This adds a critical layer of
@@ -232,14 +232,14 @@ approval.
 This setting is highly recommended in an enterprise environment to prevent
 unintended tool execution.
 
-## Managing Custom Tools (MCP Servers)
+## Managing custom tools (MCP servers)
 
 If your organization uses custom tools via
 [Model-Context Protocol (MCP) servers](/docs/core/tools-api), it is crucial to
 understand how server configurations are managed to apply security policies
 effectively.
 
-### How MCP Server Configurations are Merged
+### How MCP server configurations are merged
 
 Gemini CLI loads `settings.json` files from three levels: System, Workspace, and
 User. When it comes to the `mcpServers` object, these configurations are
@@ -256,12 +256,12 @@ This means a user **cannot** override the definition of a server that is already
 defined in the system-level settings. However, they **can** add new servers with
 unique names.
 
-### Enforcing a Catalog of Tools
+### Enforcing a catalog of tools
 
 The security of your MCP tool ecosystem depends on a combination of defining the
 canonical servers and adding their names to an allowlist.
 
-### Restricting Tools Within an MCP Server
+### Restricting tools within an MCP server
 
 For even greater security, especially when dealing with third-party MCP servers,
 you can restrict which specific tools from a server are exposed to the model.
@@ -290,7 +290,7 @@ third-party MCP server, even if the server offers other tools like
 }
 ```
 
-#### More Secure Pattern: Define and Add to Allowlist in System Settings
+#### More secure pattern: Define and add to allowlist in system settings
 
 To create a secure, centrally-managed catalog of tools, the system administrator
 **must** do both of the following in the system-level `settings.json` file:
@@ -303,7 +303,7 @@ To create a secure, centrally-managed catalog of tools, the system administrator
     any servers that are not on this list. If this setting is omitted, the CLI
     will merge and allow any server defined by the user.
 
-**Example System `settings.json`:**
+**Example system `settings.json`:**
 
 1. Add the _names_ of all approved servers to an allowlist. This will prevent
    users from adding their own servers.
@@ -332,12 +332,12 @@ Any server a user defines will either be overridden by the system definition (if
 it has the same name) or blocked because its name is not in the `mcp.allowed`
 list.
 
-### Less Secure Pattern: Omitting the Allowlist
+### Less secure pattern: Omitting the allowlist
 
 If the administrator defines the `mcpServers` object but fails to also specify
 the `mcp.allowed` allowlist, users may add their own servers.
 
-**Example System `settings.json`:**
+**Example system `settings.json`:**
 
 This configuration defines servers but does not enforce the allowlist. The
 administrator has NOT included the "mcp.allowed" setting.
@@ -357,7 +357,7 @@ In this scenario, a user can add their own server in their local
 results, the user's server will be added to the list of available tools and
 allowed to run.
 
-## Enforcing Sandboxing for Security
+## Enforcing sandboxing for security
 
 To mitigate the risk of potentially harmful operations, you can enforce the use
 of sandboxing for all tool execution. The sandbox isolates tool execution in a
@@ -377,14 +377,14 @@ You can also specify a custom, hardened Docker image for the sandbox by building
 a custom `sandbox.Dockerfile` as described in the
 [Sandboxing documentation](/docs/cli/sandbox).
 
-## Controlling Network Access via Proxy
+## Controlling network access via proxy
 
 In corporate environments with strict network policies, you can configure Gemini
 CLI to route all outbound traffic through a corporate proxy. This can be set via
 an environment variable, but it can also be enforced for custom tools via the
 `mcpServers` configuration.
 
-**Example (for an MCP Server):**
+**Example (for an MCP server):**
 
 ```json
 {
@@ -401,7 +401,7 @@ an environment variable, but it can also be enforced for custom tools via the
 }
 ```
 
-## Telemetry and Auditing
+## Telemetry and auditing
 
 For auditing and monitoring purposes, you can configure Gemini CLI to send
 telemetry data to a central location. This allows you to track tool usage and
@@ -444,7 +444,7 @@ prompted to switch to the enforced method. In non-interactive mode, the CLI will
 exit with an error if the configured authentication method does not match the
 enforced one.
 
-## Putting It All Together: Example System `settings.json`
+## Putting it all together: Example system `settings.json`
 
 Here is an example of a system `settings.json` file that combines several of the
 patterns discussed above to create a secure, controlled environment for Gemini

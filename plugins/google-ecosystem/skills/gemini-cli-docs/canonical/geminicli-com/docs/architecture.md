@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/architecture
 source_type: llms-txt
-content_hash: sha256:6e01738ae99c277480e80d1fdcf134141562a922ed6280dde36b1d2dfbed3a42
+content_hash: sha256:438f2206e5f8c47273939ff08c9091146ce5ee052542de36823732ff5f576b69
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"e7ad96cccd6282a97543d65a1caa9058e1f95ded4482530dda5dcc3bd29bbaae"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"166493ee8a5d3a60ac4c74b4037feeb90d544ee9bfbd72152b24988a392c8997"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Gemini CLI Architecture Overview
@@ -47,7 +47,7 @@ input:
     - **Interaction:** `packages/core` invokes these tools based on requests
       from the Gemini model.
 
-## Interaction Flow
+## Interaction flow
 
 A typical interaction with the Gemini CLI follows this flow:
 
@@ -79,7 +79,7 @@ A typical interaction with the Gemini CLI follows this flow:
 7.  **Display to user:** The CLI package formats and displays the response to
     the user in the terminal.
 
-## Key Design Principles
+## Key design principles
 
 - **Modularity:** Separating the CLI (frontend) from the Core (backend) allows
   for independent development and potential future extensions (e.g., different

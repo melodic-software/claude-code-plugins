@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/settings
 source_type: llms-txt
-content_hash: sha256:4e065133b1eff91924443b741da7ef5ff26351266c5e8b963403fcc0de72b455
+content_hash: sha256:0e4e947fbc5f30f96dde3b17bc9a1d509f8bd23d21bab7e58de5fdc3a41d9c88
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"2e961f7498e373733375b00812a9de2abd8e1f86c0191039645f6a7492df2c56"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"535f97d8113aa8bd171bb820794a44c1d62d1b1f2c8db65abffafba901256117"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Settings (`/settings` Command)
+# Gemini CLI settings (`/settings` command)
 
 Control your Gemini CLI experience with the `/settings` command. The `/settings`
 command opens a dialog to view and edit all your Gemini CLI settings, including

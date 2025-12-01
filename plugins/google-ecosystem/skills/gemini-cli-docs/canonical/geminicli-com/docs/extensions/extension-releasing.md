@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/extensions/extension-releasing
 source_type: llms-txt
-content_hash: sha256:1cae1ce4e68d5fa0b6cf1a1e689d5f63ed297a017ac8ea1bd708fa6363656d42
+content_hash: sha256:0e1b6125ff4009542921af84bec3093a5b07db295f99d71d991ee73693bae942
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"7ad8859e14e9e03bae72fe3143481614b66fa3c9ded29ecf6b9c3c331ce5fbd0"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"67abe5cd543b2b7dab6f71ccac419468a329fdbf52589f002c50a83764f46fce"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Extension Releasing
+# Extension releasing
 
 There are two primary ways of releasing extensions to users:
 
@@ -74,7 +74,7 @@ If you plan on doing cherry picks, you may want to avoid having your default
 branch be the stable branch to avoid force-pushing to the default branch which
 should generally be avoided.
 
-## Releasing through Github releases
+## Releasing through GitHub releases
 
 Gemini CLI extensions can be distributed through
 [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
@@ -115,9 +115,9 @@ To ensure Gemini CLI can automatically find the correct release asset for each
 platform, you must follow this naming convention. The CLI will search for assets
 in the following order:
 
-1.  **Platform and Architecture-Specific:**
+1.  **Platform and architecture-Specific:**
     `{platform}.{arch}.{name}.{extension}`
-2.  **Platform-Specific:** `{platform}.{name}.{extension}`
+2.  **Platform-specific:** `{platform}.{name}.{extension}`
 3.  **Generic:** If only one asset is provided, it will be used as a generic
     fallback.
 

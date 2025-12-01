@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/token-caching
 source_type: llms-txt
-content_hash: sha256:53fb0073def6170e5019717489beccdd5f460b09eea1426cbe09ee0c6021ed6f
+content_hash: sha256:f5ab05cebdb36f905848e4ba266716804d33461a0311510926b0de095f427a29
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"03c500aeae1bdc961cbe81cb8eafc35c73d2a36d816bc068ec5464bcf28b39e7"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"4737b47f7690c12da4b76418378e48a9b7f2e153de5f35435934d740bafc623f"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Token Caching and Cost Optimization
+# Token caching and cost optimization
 
 Gemini CLI automatically optimizes API costs through token caching when using
 API key authentication (Gemini API key or Vertex AI). This feature reuses

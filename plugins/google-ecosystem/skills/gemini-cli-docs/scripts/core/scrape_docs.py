@@ -455,6 +455,24 @@ class DocScraper:
         
         return (None, None)
 
+    def _transform_github_url(self, url: str) -> str:
+        """
+        Transform GitHub blob URLs to raw.githubusercontent.com URLs.
+
+        GitHub blob URLs return HTML pages, not raw markdown content.
+        This transforms them to raw URLs that return actual file content.
+
+        Example:
+            https://github.com/org/repo/blob/branch/path/file.md
+            -> https://raw.githubusercontent.com/org/repo/branch/path/file.md
+        """
+        import re
+        match = re.match(r'https://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)', url)
+        if match:
+            org, repo, branch, path = match.groups()
+            return f'https://raw.githubusercontent.com/{org}/{repo}/{branch}/{path}'
+        return url
+
     def try_fetch_markdown(self, url: str) -> tuple[str | None, str | None, str | None]:
         """
         Try to fetch clean markdown from URL with retry logic
@@ -474,6 +492,9 @@ class DocScraper:
         # Skip markdown attempt if disabled
         if not self.try_markdown:
             return (None, None, None)
+
+        # Transform GitHub blob URLs to raw.githubusercontent.com for clean markdown
+        url = self._transform_github_url(url)
 
         try:
             # Handle URLs that already end with .md vs URLs that need .md appended
@@ -1241,6 +1262,25 @@ class DocScraper:
                     print(f"  ⏭️  Skipping (published {published_at}, {days_old} days old, exceeds max age of {max_content_age_days} days): {url}")
                     return True  # Return True to indicate successful processing (just skipped)
 
+        # Pre-write content hash check: Skip if content unchanged (avoids metadata-only diffs)
+        if output_path.exists():
+            try:
+                existing_content = output_path.read_text(encoding='utf-8')
+                if existing_content.startswith('---'):
+                    fm_end = existing_content.find('---', 3)
+                    if fm_end != -1:
+                        existing_fm = yaml.safe_load(existing_content[3:fm_end])
+                        existing_hash = existing_fm.get('content_hash')
+                        if existing_hash:
+                            new_hash = self.calculate_hash(markdown)
+                            if existing_hash == new_hash:
+                                print(f"  ⏭️  Skipping (content unchanged, metadata-only diff): {url}")
+                                self._track_skip('content_unchanged_pre_write')
+                                return True
+            except Exception as e:
+                # On error, proceed with write (safety fallback)
+                pass
+
         # Add frontmatter (include HTTP headers for change detection)
         final_content = self.add_frontmatter(markdown, url, source_type, sitemap_url, fetch_method,
                                             include_http_headers=True)
@@ -1252,8 +1292,9 @@ class DocScraper:
         if not final_content.endswith('\n'):
             final_content += '\n'
 
-        # Write file
-        output_path.write_text(final_content, encoding='utf-8')
+        # Write file (explicitly use LF line endings for cross-platform consistency)
+        with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(final_content)
         safe_print(f"  ✅ Saved: {output_path}")
 
         # Construct metadata for index

@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/core/memport
 source_type: llms-txt
-content_hash: sha256:a52dcb9d9216475b02dd0a7132eaa9c0ab43341818988bd19fe35cab0aa49e10
+content_hash: sha256:97e6e8d225111d49ce49d010b86b4f87f791fa8f254d574fe91f8ad1c1eab842
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"be9cbada974c3b7059ada6b82702ecd4236dbf26df2cea7add5b353682a687e8"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"b0b61dd44451adc48ecf52064bf34bea94d9a91187ab558d3f626e93e2d4a6e9"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Memory Import Processor
@@ -37,21 +37,21 @@ More content here.
 @./shared/configuration.md
 ```
 
-## Supported Path Formats
+## Supported path formats
 
-### Relative Paths
+### Relative paths
 
 - `@./file.md` - Import from the same directory
 - `@../file.md` - Import from parent directory
 - `@./components/file.md` - Import from subdirectory
 
-### Absolute Paths
+### Absolute paths
 
 - `@/absolute/path/to/file.md` - Import using absolute path
 
 ## Examples
 
-### Basic Import
+### Basic import
 
 ```markdown
 # My GEMINI.md
@@ -65,7 +65,7 @@ Welcome to my project!
 @./features/overview.md
 ```
 
-### Nested Imports
+### Nested imports
 
 The imported files can themselves contain imports, creating a nested structure:
 
@@ -83,9 +83,9 @@ The imported files can themselves contain imports, creating a nested structure:
 @./shared/title.md
 ```
 
-## Safety Features
+## Safety features
 
-### Circular Import Detection
+### Circular import detection
 
 The processor automatically detects and prevents circular imports:
 
@@ -99,37 +99,37 @@ The processor automatically detects and prevents circular imports:
 @./file-a.md <!-- This will be detected and prevented -->
 ```
 
-### File Access Security
+### File access security
 
 The `validateImportPath` function ensures that imports are only allowed from
 specified directories, preventing access to sensitive files outside the allowed
 scope.
 
-### Maximum Import Depth
+### Maximum import depth
 
 To prevent infinite recursion, there's a configurable maximum import depth
 (default: 5 levels).
 
-## Error Handling
+## Error handling
 
-### Missing Files
+### Missing files
 
 If a referenced file doesn't exist, the import will fail gracefully with an
 error comment in the output.
 
-### File Access Errors
+### File access errors
 
 Permission issues or other file system errors are handled gracefully with
 appropriate error messages.
 
-## Code Region Detection
+## Code region detection
 
 The import processor uses the `marked` library to detect code blocks and inline
 code spans, ensuring that `@` imports inside these regions are properly ignored.
 This provides robust handling of nested code blocks and complex Markdown
 structures.
 
-## Import Tree Structure
+## Import tree structure
 
 The processor returns an import tree that shows the hierarchy of imported files,
 similar to Claude's `/memory` feature. This helps users debug problems with
@@ -153,7 +153,7 @@ Memory Files
 The tree preserves the order that files were imported and shows the complete
 import chain for debugging purposes.
 
-## Comparison to Claude Code's `/memory` (`claude.md`) Approach
+## Comparison to Claude Code's `/memory` (`claude.md`) approach
 
 Claude Code's `/memory` feature (as seen in `claude.md`) produces a flat, linear
 document by concatenating all included files, always marking file boundaries
@@ -164,7 +164,7 @@ for reconstructing the hierarchy if needed.
 > [!NOTE] The import tree is mainly for clarity during development and has
 > limited relevance to LLM consumption.
 
-## API Reference
+## API reference
 
 ### `processImports(content, basePath, debugMode?, importState?)`
 
@@ -235,7 +235,7 @@ directory if no `.git` is found)
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 
 1. **Import not working**: Check that the file exists and the path is correct
 2. **Circular import warnings**: Review your import structure for circular
@@ -245,7 +245,7 @@ directory if no `.git` is found)
 4. **Path resolution issues**: Use absolute paths if relative paths aren't
    resolving correctly
 
-### Debug Mode
+### Debug mode
 
 Enable debug mode to see detailed logging of the import process:
 

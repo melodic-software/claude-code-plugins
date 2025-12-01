@@ -1,14 +1,14 @@
 ---
-source_url: https://geminicli.com/docs/integration-tests
+source_url: http://geminicli.com/docs/integration-tests
 source_type: llms-txt
-content_hash: sha256:a915d7bd5a47bea50171084f4f4cb355cad6866dfb8afb6653741b1f248b3cc1
+content_hash: sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"28a3cd928b699b248096e1c42d62e9fa2c8fe0517c70acf425010569ae5e8ea9"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"e1f66c7bc7f897b900286e6985e91b6373277363a8079849d5c0d830275c23fc"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Integration Tests
+# Integration tests
 
 This document provides information about the integration testing framework used
 in this project.
@@ -96,7 +96,7 @@ with the deflake script or workflow to make sure that it is not flaky.
 npm run deflake -- --runs=5 --command="npm run test:e2e -- -- --test-name-pattern '<your-new-test-name>'"
 ```
 
-#### Deflake Workflow
+#### Deflake workflow
 
 ```bash
 gh workflow run deflake.yml --ref <your-branch> -f test_name_pattern="<your-test-name-pattern>"

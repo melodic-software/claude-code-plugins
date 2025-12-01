@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/get-started/deployment
 source_type: llms-txt
-content_hash: sha256:d0d08004308c37613bc2f8cd50103cea3b1e9d24856859054ef6732b61aa5b83
+content_hash: sha256:6b4ee728575835c3ca6fca38f72a50f8a905d062345eac4736748f9d411083c8
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"3186ba5a81faefc329931a20448fedf78f8a98ca3f672f35af427a29efb868f5"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"73fe8528bf239388778b27f55d8cf520440ce8eb24a94252d48df783a6400d73"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini CLI Installation, Execution, and Deployment
+# Gemini CLI installation, execution, and deployment
 
 Note: This page will be replaced by [installation.md](/docs/get-started/installation).
 
@@ -54,7 +54,7 @@ downloading the Gemini CLI package from the NPM registry.
 For security and isolation, Gemini CLI can be run inside a container. This is
 the default way that the CLI executes tools that might have side effects.
 
-- **Directly from the Registry:** You can run the published sandbox image
+- **Directly from the registry:** You can run the published sandbox image
   directly. This is useful for environments where you only have Docker and want
   to run the CLI.
   ```bash
@@ -73,7 +73,7 @@ the default way that the CLI executes tools that might have side effects.
 Contributors to the project will want to run the CLI directly from the source
 code.
 
-- **Development Mode:** This method provides hot-reloading and is useful for
+- **Development mode:** This method provides hot-reloading and is useful for
   active development.
   ```bash
   # From the root of the repository

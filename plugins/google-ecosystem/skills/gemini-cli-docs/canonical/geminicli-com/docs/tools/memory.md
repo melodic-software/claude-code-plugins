@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/tools/memory
 source_type: llms-txt
-content_hash: sha256:1083baf074e9468737086be7075d905741053a44488dc72fdda6527e80180e05
+content_hash: sha256:987588d478ed93df77980f77c6109ae862671e213d220d8a7bfdac01107a1342
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"35e66b8bb9cb2324155dfe432d3b50dec1f5fa2f17b1b18e44400fc96091c2a1"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"5f1d7cb130d7eaf99aaf8acea9e7cb30e295b5ea08d9623f66460e452cc4a886"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Memory Tool (`save_memory`)
+# Memory tool (`save_memory`)
 
 This document describes the `save_memory` tool for the Gemini CLI.
 

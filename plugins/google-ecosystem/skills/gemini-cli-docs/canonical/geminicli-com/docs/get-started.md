@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/get-started
 source_type: llms-txt
-content_hash: sha256:a203d90f35905aaeaa643f35599c11a5a4edf16ed4fbdcbd55d4562c6eb95db0
+content_hash: sha256:70b24b5940733b396f51b34a964d2f5eaf83cf9daeda9d933f2993ce4f14c064
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"5d49105c661c3a69bf03d132b41b5a7b8e121222747d074a87070bc25b4b481e"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"56a8447c845c97a361daed0aaae3b5cdb9037890d38b89412e2a60354a31decc"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Get Started with Gemini CLI
+# Get started with Gemini CLI
 
 Welcome to Gemini CLI! This guide will help you install, configure, and start
 using the Gemini CLI to enhance your workflow right from your terminal.

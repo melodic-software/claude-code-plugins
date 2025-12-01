@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/get-started/gemini-3
 source_type: llms-txt
-content_hash: sha256:e875616b191614d7f476d75215537cd02c64bd6c4cb6b9828d4c567f1c0c2218
+content_hash: sha256:1d27d37eaed0013baa37557a0543a975b32edb57c2e8502ba7ed394a579d894b
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"e339216dcf82b60cf6eeb45377eea6534ad5e06f8a63c140780a3b56207ebd8e"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"e9ea6ed49f6f43fbe13bd1cb15f496488200e91ad9a55ebb5283d052db1ebae2"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Gemini 3 Pro on Gemini CLI (Join the Waitlist)
+# Gemini 3 Pro on Gemini CLI (join the waitlist)
 
 We’re excited to bring Gemini 3 Pro to Gemini CLI. For Google AI Ultra users
 (Google AI Ultra for Business is not currently supported) and paid Gemini and
@@ -18,7 +18,7 @@ For everyone else, we're gradually expanding access
 waitlist now to access Gemini 3 Pro once approved.
 
 **Note:** Please wait until you have been approved to use Gemini 3 Pro to enable
-**Preview Features**. If enabled early, the CLI will fallback to Gemini 2.5 Pro.
+**preview features**. If enabled early, the CLI will fallback to Gemini 2.5 Pro.
 
 ## Do I need to join the waitlist?
 
@@ -91,7 +91,7 @@ CLI waits longer between each retry, when the system is busy. If the retry
 doesn't happen immediately, please wait a few minutes for the request to
 process.
 
-## Model selection & routing types
+## Model selection and routing types
 
 When using Gemini CLI, you may want to control how your requests are routed
 between models. By default, Gemini CLI uses **Auto** routing.

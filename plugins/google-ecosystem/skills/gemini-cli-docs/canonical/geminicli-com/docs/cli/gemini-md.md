@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/cli/gemini-md
 source_type: llms-txt
-content_hash: sha256:f435fea4fdae87eed86ff7f9753237527bcc81e8802b23819637d041251ce8dd
+content_hash: sha256:8bfe56e01ac016046b8e68af88bab09ee96d4d7169f4afb379a0b6c852ba5ff3
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"e95c7bb68ca1a17987c08f61d47c80a8e736b77d38166e4910a6dcbf4ac4cb37"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"0c8f73adc25ab15c32fcae0eb8f47a6a7eaa101b06eed7de477730c27ba358a1"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Provide Context with GEMINI.md Files
+# Provide context with GEMINI.md files
 
 Context files, which use the default name `GEMINI.md`, are a powerful feature
 for providing instructional context to the Gemini model. You can use these files

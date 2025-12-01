@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/core/policy-engine
 source_type: llms-txt
-content_hash: sha256:1aca38868d4cb859ad4e6a81a19f0c1e7d62d6e1de7d8d8d33cf988fd68ce370
+content_hash: sha256:c3013f06ecfce251b5df08c51599a14a79de47b5a441cc1de079fdd6ec8480c4
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"6a03b4491b4d40dedf5f34c025329cb7a3c441c18896b39f1b791ec0f4507024"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"abf37cce7e3985843a95169967a02463d97ff80488ce6383f65e46ad7d8a2a9e"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Policy Engine
+# Policy engine
 
 :::note This feature is currently in testing. To enable it, set
 `tools.enableMessageBusIntegration` to `true` in your `settings.json` file. :::
@@ -59,7 +59,7 @@ The `toolName` in the rule must match the name of the tool being called.
   wildcard. A `toolName` of `my-server__*` will match any tool from the
   `my-server` MCP.
 
-#### Arguments Pattern
+#### Arguments pattern
 
 If `argsPattern` is specified, the tool's arguments are converted to a stable
 JSON string, which is then tested against the provided regular expression. If
@@ -74,7 +74,7 @@ There are three possible decisions a rule can enforce:
 - `ask_user`: The user is prompted to approve or deny the tool call. (In
   non-interactive mode, this is treated as `deny`.)
 
-### Priority system & tiers
+### Priority system and tiers
 
 The policy engine uses a sophisticated priority system to resolve conflicts when
 multiple rules match a single tool call. The core principle is simple: **the
@@ -122,12 +122,12 @@ outcome.
 
 A rule matches a tool call if all of its conditions are met:
 
-1.  **Tool Name**: The `toolName` in the rule must match the name of the tool
+1.  **Tool name**: The `toolName` in the rule must match the name of the tool
     being called.
     - **Wildcards**: For Model-hosting-protocol (MCP) servers, you can use a
       wildcard. A `toolName` of `my-server__*` will match any tool from the
       `my-server` MCP.
-2.  **Arguments Pattern**: If `argsPattern` is specified, the tool's arguments
+2.  **Arguments pattern**: If `argsPattern` is specified, the tool's arguments
     are converted to a stable JSON string, which is then tested against the
     provided regular expression. If the arguments don't match the pattern, the
     rule does not apply.
@@ -230,7 +230,7 @@ decision = "allow"
 priority = 200
 ```
 
-**2. Using a Wildcard**
+**2. Using a wildcard**
 
 To create a rule that applies to _all_ tools on a specific MCP server, specify
 only the `mcpName`.

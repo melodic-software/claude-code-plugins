@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/tools/web-search
 source_type: llms-txt
-content_hash: sha256:1de02d8c6f91f7c75d857b7d449bde200b4fc9f269e01d49e5e24f053bf9dd55
+content_hash: sha256:aad833f5327cdd3d776bee6f023736371203a06e9702406ee3827ec0f38e2c69
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"a0632c909de697316e9899b9d8b760b87521fcaea4b9d3b47e2b166f5fb5899b"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"ec0f3e1b74b2b1bac96d1a92d7d4ceb629b26aa37c0ce9f12130d760fb3acf7b"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Web Search Tool (`google_web_search`)
+# Web search tool (`google_web_search`)
 
 This document describes the `google_web_search` tool.
 

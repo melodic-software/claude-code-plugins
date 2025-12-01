@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/tools/file-system
 source_type: llms-txt
-content_hash: sha256:e88fa902744d393f0cebfc56669a164aac6cf8e168e0ce4fde07c589b4cf4faf
+content_hash: sha256:e2e233e7e2812923614f825784c2b757fcffb154a0fa198dabb36a1bfccccaa1
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"9710f68f73ff6af6d08c5a29fb196e2353e6f6a77178a5435aebd7188b792506"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"e08a0762a237fd44bd479312ad7e0aea910d4713bf18c99953b6a048f193008a"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
 # Gemini CLI file system tools
@@ -194,7 +194,7 @@ context around the `old_string` to ensure it modifies the correct location.
   - If `old_string` is provided, it reads the `file_path` and attempts to find
     exactly one occurrence of `old_string`.
   - If one occurrence is found, it replaces it with `new_string`.
-  - **Enhanced Reliability (Multi-Stage Edit Correction):** To significantly
+  - **Enhanced reliability (multi-stage edit correction):** To significantly
     improve the success rate of edits, especially when the model-provided
     `old_string` might not be perfectly precise, the tool incorporates a
     multi-stage edit correction mechanism.

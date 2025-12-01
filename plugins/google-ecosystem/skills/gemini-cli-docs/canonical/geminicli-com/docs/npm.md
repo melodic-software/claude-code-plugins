@@ -1,14 +1,14 @@
 ---
 source_url: http://geminicli.com/docs/npm
 source_type: llms-txt
-content_hash: sha256:2ff7f4b0b8313f6f2c1f84d3895a28448d2293198e3bec640a5271524208373f
+content_hash: sha256:bc2069978b6c6acfb8518e2f458094c2925999ed20dc0eb690e2298cbd7d982b
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"25eac2d74972863f2bdaabd1703636658259cb2cd8ff7f3e1be35f4d906ec043"'
-last_modified: '2025-12-01T02:03:17Z'
+etag: '"7d41dc31efdf2815412fc549c4b40c1369999d12af11edf075128ee2d221fc27"'
+last_modified: '2025-12-01T20:04:32Z'
 ---
 
-# Package Overview
+# Package overview
 
 This monorepo contains two main packages: `@google/gemini-cli` and
 `@google/gemini-cli-core`.
@@ -35,7 +35,7 @@ Node.js package with its own dependencies. This allows it to be used as a
 standalone package in other projects, if needed. All transpiled js code in the
 `dist` folder is included in the package.
 
-## NPM Workspaces
+## NPM workspaces
 
 This project uses
 [NPM Workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) to manage
@@ -43,7 +43,7 @@ the packages within this monorepo. This simplifies development by allowing us to
 manage dependencies and run scripts across multiple packages from the root of
 the project.
 
-### How it Works
+### How it works
 
 The root `package.json` file defines the workspaces for this project:
 
@@ -56,17 +56,17 @@ The root `package.json` file defines the workspaces for this project:
 This tells NPM that any folder inside the `packages` directory is a separate
 package that should be managed as part of the workspace.
 
-### Benefits of Workspaces
+### Benefits of workspaces
 
-- **Simplified Dependency Management**: Running `npm install` from the root of
+- **Simplified dependency management**: Running `npm install` from the root of
   the project will install all dependencies for all packages in the workspace
   and link them together. This means you don't need to run `npm install` in each
   package's directory.
-- **Automatic Linking**: Packages within the workspace can depend on each other.
+- **Automatic linking**: Packages within the workspace can depend on each other.
   When you run `npm install`, NPM will automatically create symlinks between the
   packages. This means that when you make changes to one package, the changes
   are immediately available to other packages that depend on it.
-- **Simplified Script Execution**: You can run scripts in any package from the
+- **Simplified script execution**: You can run scripts in any package from the
   root of the project using the `--workspace` flag. For example, to run the
   `build` script in the `cli` package, you can run
   `npm run build --workspace @google/gemini-cli`.
