@@ -1,6 +1,7 @@
 ---
 name: git-hooks
 description: Central authority on git hook implementations, modern best practices, and tooling for .NET/C#, JavaScript/TypeScript, Python, and polyglot repositories. Covers framework selection (Husky.Net, lefthook, Husky, pre-commit), setup workflows, Conventional Commits, semantic versioning, secret scanning (gitleaks, TruffleHog), performance optimization, CI/CD integration, testing strategies, and team collaboration patterns. Adaptive to project scale from solo developers to enterprise teams. Use for setting up git hooks, configuring pre-commit/commit-msg/pre-push hooks, integrating dotnet format/dotnet test, ESLint/Prettier, Black/Ruff/mypy, commitlint, choosing between frameworks, optimizing hook performance, enforcing code quality, automating testing, and troubleshooting hook issues.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Hooks
@@ -240,25 +241,25 @@ For repositories with multiple languages, use **lefthook** (recommended for perf
 
 ### Gradual Rollout Strategy
 
-**Phase 1: Start with formatting (low risk)**
+#### Phase 1: Start with formatting (low risk)
 
 - Add dotnet format / Prettier / Black
 - Warning mode (don't block commits)
 - Team feedback and adjustment
 
-**Phase 2: Add linting**
+#### Phase 2: Add linting
 
 - Add ESLint / Ruff / StyleCop
 - Error mode (block commits)
 - Fix existing violations
 
-**Phase 3: Add commit message validation**
+#### Phase 3: Add commit message validation
 
 - Add commitlint
 - Educate team on Conventional Commits
 - Provide commitizen for assistance
 
-**Phase 4: Add testing and security**
+#### Phase 4: Add testing and security
 
 - Add dotnet test in pre-push
 - Add gitleaks in pre-commit

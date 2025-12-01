@@ -1,6 +1,7 @@
 ---
 name: gpg-multi-key
 description: Advanced GPG multi-key management strategies for consultants, CI/CD automation, and enterprise teams. Configure, set up, run, and execute multi-key GPG workflows. Use when managing multiple GPG keys (personal + automation, per-client keys, enterprise keys), configuring CI/CD commit signing, implementing per-client key isolation, using conditional Git includes, setting up automated signing, or scaling GPG key strategies beyond single-key setups.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # GPG Multi-Key

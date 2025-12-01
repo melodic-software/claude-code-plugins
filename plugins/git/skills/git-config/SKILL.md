@@ -1,6 +1,7 @@
 ---
 name: git-config
 description: Comprehensive Git configuration guide covering global settings, aliases, performance tuning, credential management, maintenance, .gitattributes, clone shortcuts, and troubleshooting. Use when configuring Git beyond basic setup, optimizing Git performance, setting up aliases, managing credentials (GitHub CLI, Windows Credential Manager), configuring line ending strategy, setting up .gitattributes, enabling Git maintenance, or troubleshooting configuration issues. Cross-platform guidance for Windows, macOS, and Linux.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Configuration

@@ -1,6 +1,7 @@
 ---
 name: git-gui-tools
 description: Provides guidance for installing, configuring, and choosing Git graphical interface clients (GitKraken, Sourcetree, GitHub Desktop) across platforms. Compares features, licensing, and workflows. Troubleshoots graphical tool configuration and setup issues. Use when installing Git graphical clients, setting up Git visualization tools, configuring graphical commit tools, choosing between options, or troubleshooting configuration. Covers Windows, macOS, and Linux. All tools are optional and based on user preference.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git GUI Tools

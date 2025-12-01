@@ -1,6 +1,7 @@
 ---
 name: git-gpg-signing
 description: Comprehensive guide to GPG commit signing. Set up, configure, and troubleshoot GPG commit signing. Fix GPG signing errors, configure passphrase caching, verify commit signatures. Use when working with Git commit signing, GPG keys, commit verification, signature verification, GPG configuration, or when encountering GPG signing errors. Covers Windows (Gpg4win), macOS (GPG Suite), Linux (gnupg), and WSL installation and setup.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git GPG Signing

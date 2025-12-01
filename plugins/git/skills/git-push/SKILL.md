@@ -1,6 +1,7 @@
 ---
 name: git-push
 description: Comprehensive Git push operations including basic push, force push safety protocols, tag pushing, remote management, and troubleshooting. Use when pushing commits, managing remotes, pushing tags, resolving push conflicts, handling rejected pushes, or dealing with force push scenarios. Covers push strategies, branch protection, upstream configuration, and push --force-with-lease best practices.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Push

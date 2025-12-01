@@ -1,6 +1,7 @@
 ---
 name: git-line-endings
 description: Comprehensive guide to Git line ending configuration for cross-platform development teams. Use when configuring line endings, setting up .gitattributes, troubleshooting line ending issues, understanding core.autocrlf/core.eol/core.safecrlf, working with Git LFS, normalizing line endings in repositories, or resolving cross-platform line ending conflicts. Covers Windows, macOS, Linux, and WSL. Includes decision trees, workflows, best practices, and real-world scenarios.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Line Endings

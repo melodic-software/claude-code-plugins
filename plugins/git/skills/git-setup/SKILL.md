@@ -1,6 +1,7 @@
 ---
 name: git-setup
 description: Complete guide to installing Git and performing basic configuration across all platforms (Windows, macOS, Linux, WSL). Use when setting up Git for the first time, installing Git on new systems, configuring user identity, setting default branch, choosing editor, verifying installation, or troubleshooting Git installation issues. Covers platform-specific installation methods, basic required configuration, and verification steps.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Setup

@@ -1,6 +1,7 @@
 ---
 name: git-commit
 description: Comprehensive Git commit workflow using Conventional Commits format with safety protocols. Create, validate, and execute commits following best practices. Use when creating commits, drafting commit messages, handling pre-commit hooks, creating pull requests, or uncertain about commit safety, timing, or message format. CRITICAL - Always invoke before any commit operation - contains NEVER rules, attribution requirements, and proper message formatting.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Git Commit

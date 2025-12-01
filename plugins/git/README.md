@@ -18,29 +18,29 @@ Or for local development:
 
 ### Skills (9)
 
-| Skill | Description |
-|-------|-------------|
-| `git:git-commit` | Conventional Commits with safety protocols, 4-step workflow |
-| `git:git-push` | Push operations with force-push safety (force-with-lease) |
-| `git:git-config` | Configuration, aliases, performance tuning, credentials |
-| `git:git-gpg-signing` | GPG commit signing setup and troubleshooting |
-| `git:git-hooks` | Pre-commit hooks, Husky, lefthook, secret scanning |
-| `git:git-line-endings` | Cross-platform line ending configuration |
-| `git:git-setup` | Git installation and initial configuration |
-| `git:git-gui-tools` | GitKraken, Sourcetree, GitHub Desktop |
-| `git:gpg-multi-key` | Advanced multi-key GPG for consultants/CI/enterprise |
+| Skill                  | Description                                                 |
+| ---------------------- | ----------------------------------------------------------- |
+| `git:git-commit`       | Conventional Commits with safety protocols, 4-step workflow |
+| `git:git-push`         | Push operations with force-push safety (force-with-lease)   |
+| `git:git-config`       | Configuration, aliases, performance tuning, credentials     |
+| `git:git-gpg-signing`  | GPG commit signing setup and troubleshooting                |
+| `git:git-hooks`        | Pre-commit hooks, Husky, lefthook, secret scanning          |
+| `git:git-line-endings` | Cross-platform line ending configuration                    |
+| `git:git-setup`        | Git installation and initial configuration                  |
+| `git:git-gui-tools`    | GitKraken, Sourcetree, GitHub Desktop                       |
+| `git:gpg-multi-key`    | Advanced multi-key GPG for consultants/CI/enterprise        |
 
 ### Agent (1)
 
-| Agent | Description |
-|-------|-------------|
+| Agent            | Description                                                                     |
+| ---------------- | ------------------------------------------------------------------------------- |
 | `git-operations` | Read-only git operations with smart summaries (diff, status, log, blame, stash) |
 
 ### Command (1)
 
-| Command | Description |
-|---------|-------------|
-| `/git:commit` | Create commits using Conventional Commits format with full safety protocols |
+| Command       | Description                                                                  |
+| ------------- | ---------------------------------------------------------------------------- |
+| `/git:commit` | Create commits using Conventional Commits format with full safety protocols  |
 
 ## Usage Examples
 
