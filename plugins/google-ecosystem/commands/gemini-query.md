@@ -25,7 +25,7 @@ Execute a quick headless query to Gemini CLI and display the response.
 Run the query using Gemini CLI headless mode:
 
 ```bash
-result=$(gemini -p "$ARGUMENTS" --output-format json 2>&1)
+result=$(gemini "$ARGUMENTS" --output-format json 2>&1)
 ```
 
 ## Output

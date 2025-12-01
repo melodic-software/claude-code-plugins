@@ -62,9 +62,35 @@ Example: `/google-ecosystem:gemini-second-opinion Is this database schema correc
 
 ### **/google-ecosystem:gemini-sandbox** `<command>`
 
-Execute a shell command in Gemini CLI sandbox for isolation. Safe for untrusted operations.
+Execute a shell command in Gemini CLI sandbox for isolation. Safe for untrusted operations. Requires Docker, Podman, or macOS Seatbelt.
 
 Example: `/google-ecosystem:gemini-sandbox npm install unknown-package`
+
+---
+
+### **/google-ecosystem:gemini-explore** `[scope] [--output <path>]`
+
+Explore entire codebase with Gemini's large context window. Outputs a structured markdown report.
+
+Scopes: `architecture`, `dependencies`, `patterns`, `all` (default)
+
+Example: `/google-ecosystem:gemini-explore architecture`
+
+---
+
+### **/google-ecosystem:gemini-plan** `<task-description> [--context <files>]`
+
+Generate Claude-executable implementation plans using Gemini's reasoning. Plans are formatted for Claude to execute.
+
+Example: `/google-ecosystem:gemini-plan "Add user authentication with JWT"`
+
+---
+
+### **/google-ecosystem:sync-context** `[--status] [--init] [--force]`
+
+Synchronize CLAUDE.md to GEMINI.md and check for context drift. Uses @import pattern for automatic sync.
+
+Example: `/google-ecosystem:sync-context --init`
 
 ---
 
@@ -84,10 +110,10 @@ List all google-ecosystem slash commands (this command).
 
 ---
 
-## Total: 9 Commands
+## Total: 13 Commands
 
-| Category | Count |
-|----------|-------|
-| Documentation | 3 |
-| Integration | 4 |
-| Discovery | 2 |
+| Category      | Count |
+| ------------- | ----- |
+| Documentation | 3     |
+| Integration   | 7     |
+| Discovery     | 2     |

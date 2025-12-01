@@ -56,7 +56,7 @@ DO NOT modify any files. This is analysis only."
 ### Execute Query
 
 ```bash
-result=$(gemini -p "$prompt" --output-format json)
+result=$(gemini "$prompt" --output-format json)
 ```
 
 ### Parse Response

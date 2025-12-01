@@ -24,7 +24,7 @@ Core documentation skill. Single source of truth for Gemini CLI official documen
 
 ### **gemini-cli-execution**
 
-Expert guide for executing Gemini CLI in headless and automation modes. Covers command syntax, piping input, output handling, and context management.
+Expert guide for executing Gemini CLI in headless and automation modes. Covers command syntax (positional prompts), piping input, JSON output handling, and context management.
 
 ---
 
@@ -50,13 +50,19 @@ Optimize token usage when delegating to Gemini. Covers caching, batch queries, m
 
 ---
 
-### Management Skills
+### **gemini-exploration-patterns**
+
+Strategic patterns for codebase exploration using Gemini's large context window. Covers token thresholds, model routing, exploration strategies, and output format standards.
 
 ---
 
-### **gemini-command-development**
+### **gemini-context-bridge**
 
-Expert guide for creating custom Gemini CLI commands. Covers TOML command files, arguments, and shell injection patterns.
+Facilitates context sharing between Claude Code and Gemini CLI. Covers CLAUDE.md to GEMINI.md synchronization and delegation strategies.
+
+---
+
+### Management Skills
 
 ---
 
@@ -84,6 +90,18 @@ Manage Gemini CLI sessions. Covers resume, retention policies, session browser, 
 
 ---
 
+### **gemini-memory-sync**
+
+Synchronization patterns for CLAUDE.md and GEMINI.md memory files. Covers import syntax, drift detection, one-way sync, and consistent context maintenance.
+
+---
+
+### **gemini-workspace-bridge**
+
+Central authority for Claude-Gemini shared workspace architecture. Defines directory structure, artifact exchange patterns, and file naming conventions.
+
+---
+
 ### Development Skills
 
 ---
@@ -100,17 +118,29 @@ Expert guide for MCP (Model Context Protocol) integration with Gemini CLI. Cover
 
 ---
 
-### **gemini-context-bridge**
+### **gemini-command-development**
 
-Facilitates context sharing between Claude Code and Gemini CLI. Covers CLAUDE.md to GEMINI.md synchronization and delegation strategies.
+Expert guide for creating custom Gemini CLI commands. Covers TOML command files, arguments, and shell injection patterns.
 
 ---
 
-## Total: 13 Skills
+### **toml-command-builder**
 
-| Category | Count |
-|----------|-------|
-| Documentation | 2 |
-| Integration | 3 |
-| Management | 4 |
-| Development | 4 |
+Guide for building Gemini CLI TOML custom commands. Covers syntax, templates, argument handling, shell injection, file injection, and validation patterns.
+
+---
+
+### **policy-engine-builder**
+
+Guide for creating Gemini CLI policy engine TOML rules. Covers rule syntax, priority tiers, conditions, MCP wildcards, and enterprise patterns.
+
+---
+
+## Total: 18 Skills
+
+| Category      | Count |
+| ------------- | ----- |
+| Documentation | 2     |
+| Integration   | 5     |
+| Management    | 5     |
+| Development   | 6     |

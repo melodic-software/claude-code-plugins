@@ -43,7 +43,7 @@ fi
 Run with sandbox flag (`-s`) and auto-approve (`--yolo`):
 
 ```bash
-result=$(gemini -s -p "Execute this shell command and report the complete output:
+result=$(gemini -s "Execute this shell command and report the complete output:
 
 $ARGUMENTS
 
@@ -100,11 +100,11 @@ The command could not be executed. Possible causes:
 
 Gemini CLI supports multiple sandbox methods:
 
-| Method | Platform | Description |
-|--------|----------|-------------|
-| Docker | All | Full container isolation |
-| Podman | All | Rootless container isolation |
-| Seatbelt | macOS | Process sandbox using sandbox-exec |
+| Method   | Platform | Description                        |
+| -------- | -------- | ---------------------------------- |
+| Docker   | All      | Full container isolation           |
+| Podman   | All      | Rootless container isolation       |
+| Seatbelt | macOS    | Process sandbox using sandbox-exec |
 
 ## Security Notes
 
@@ -138,6 +138,24 @@ Gemini CLI supports multiple sandbox methods:
 
 ```text
 /google-ecosystem:gemini-sandbox strace -f ./binary 2>&1 | head -100
+```
+
+## Prerequisites
+
+**Sandbox requires one of the following to be configured:**
+
+- **Docker**: Must be installed and running (`docker ps` should work)
+- **Podman**: Must be installed (`podman --version` should work)
+- **macOS Seatbelt**: Available on macOS by default
+
+If sandbox is not available, the command will fail with an error. Configure sandbox in Gemini's `settings.json`:
+
+```json
+{
+  "sandbox": {
+    "type": "docker"
+  }
+}
 ```
 
 ## Notes

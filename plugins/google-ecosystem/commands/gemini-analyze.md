@@ -111,7 +111,7 @@ esac
 ### Step 4: Execute Analysis
 
 ```bash
-result=$(cat "$1" | gemini -p "$prompt" --output-format json -m gemini-2.5-flash)
+result=$(cat "$1" | gemini "$prompt" --output-format json -m gemini-2.5-flash)
 ```
 
 ### Step 5: Parse Results
