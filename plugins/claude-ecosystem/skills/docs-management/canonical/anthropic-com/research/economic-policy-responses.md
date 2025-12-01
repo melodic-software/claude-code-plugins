@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/economic-policy-responses
 source_type: sitemap
-content_hash: sha256:7bc716401c1ab1f16d171dd551343b05efa895ec196a44d289006a8c0b837728
+content_hash: sha256:f11eb416530e29dcdb7dd8377fdd60c052c3906d8db3dcb7cf809db9dfac4629
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-14'
 ---
-
-Preparing for AI’s economic impact: exploring policy responses \ Anthropic
 
 Policy
 

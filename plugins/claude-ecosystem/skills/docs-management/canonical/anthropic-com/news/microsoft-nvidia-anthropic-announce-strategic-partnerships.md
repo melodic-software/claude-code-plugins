@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships
 source_type: sitemap
-content_hash: sha256:608ec1c7277cbf395a774fc27960dbbdae4501c1940327c194cb15d9d522ecc5
+content_hash: sha256:d20e308b2878c14039592f6379b2131e646e062061d00f298ad19587f145a8a4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
 ---
-
-Microsoft, NVIDIA and Anthropic announced new strategic partnerships. \ Anthropic
 
 Announcements
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/emergent-misalignment-reward-hacking
 source_type: sitemap
-content_hash: sha256:36b8dd15c82566f3d2211db55db2641b9ea3640ba572ee3ce4838d7237f1dbd3
+content_hash: sha256:3c685c7cf4629df2edeeb46ca6378c3f7c8566eb80e567623847d4c9e506cad3
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-21'
 ---
-
-From shortcuts to sabotage: natural emergent misalignment from reward hacking \ Anthropic
 
 Alignment
 

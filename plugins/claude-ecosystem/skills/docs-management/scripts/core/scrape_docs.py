@@ -730,6 +730,9 @@ class DocScraper:
         if source_url:
             markdown = self._filter_domain_specific_content(markdown, source_url)
 
+        # Remove trailing page titles (e.g., "Title \ Anthropic" at end of document)
+        markdown = self._remove_trailing_page_title(markdown)
+
         return markdown.strip()
     
     def _filter_domain_specific_content(self, content: str, source_url: str) -> str:
@@ -816,16 +819,68 @@ class DocScraper:
 
         return pattern.sub(replace_nextjs_url, markdown)
 
-    def calculate_hash(self, content: str) -> str:
+    def _remove_trailing_page_title(self, markdown: str) -> str:
+        """
+        Remove trailing page title lines that appear at the end of Anthropic docs.
+
+        HTML-to-markdown conversion sometimes captures the <title> element content
+        at the end of the document (from <noscript> or similar tags), resulting in
+        lines like "Article Title \\ Anthropic" appearing after the main content.
+
+        Args:
+            markdown: Markdown content that may have trailing title
+
+        Returns:
+            Markdown with trailing title line removed if present
+        """
+        lines = markdown.rstrip().split('\n')
+
+        # Check if last non-empty line matches pattern "... \ Anthropic" or "... \\ Anthropic"
+        # The backslash may be escaped in markdown
+        if lines:
+            last_line = lines[-1].strip()
+            # Match patterns like "Title \ Anthropic" or "Title \\ Anthropic"
+            if re.match(r'^.+\s*\\+\s*Anthropic$', last_line):
+                lines = lines[:-1]
+                # Also remove any trailing empty lines that were before the title
+                while lines and not lines[-1].strip():
+                    lines.pop()
+
+        return '\n'.join(lines)
+
+    def normalize_for_hash(self, content: str) -> str:
+        """
+        Normalize content for stable hash comparison.
+
+        This removes volatile elements that change between scrapes but don't
+        represent meaningful content changes (e.g., rotating redirect GUIDs).
+
+        Args:
+            content: Content to normalize
+
+        Returns:
+            Normalized content for hash comparison
+        """
+        # Normalize claude.ai redirect GUIDs (e.g., claude.ai/redirect/website.v1.{uuid})
+        # These GUIDs rotate between scrapes but the destination remains the same
+        pattern = r'(claude\.ai/redirect/website\.v1\.)[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
+        normalized = re.sub(pattern, r'\1NORMALIZED', content)
+        return normalized
+
+    def calculate_hash(self, content: str, normalize: bool = True) -> str:
         """
         Calculate SHA-256 hash of content
 
         Args:
             content: Content to hash
+            normalize: If True, normalize content before hashing to ignore
+                      volatile elements like rotating GUIDs (default: True)
 
         Returns:
             SHA-256 hash as hex string with 'sha256:' prefix
         """
+        if normalize:
+            content = self.normalize_for_hash(content)
         hash_obj = hashlib.sha256(content.encode('utf-8'))
         return f"sha256:{hash_obj.hexdigest()}"
     
@@ -1240,6 +1295,10 @@ class DocScraper:
                     days_old = (datetime.now().date() - pub_date).days
                     print(f"  ⏭️  Skipping (published {published_at}, {days_old} days old, exceeds max age of {max_content_age_days} days): {url}")
                     return True  # Return True to indicate successful processing (just skipped)
+
+        # Normalize volatile content (e.g., claude.ai redirect GUIDs) before saving
+        # This prevents unnecessary file changes when only GUIDs rotate
+        markdown = self.normalize_for_hash(markdown)
 
         # Add frontmatter (include HTTP headers for change detection)
         final_content = self.add_frontmatter(markdown, url, source_type, sitemap_url, fetch_method,

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/introspection
 source_type: sitemap
-content_hash: sha256:89d19361b08cb2c1eb5e37f21a1ce5ba999dec8934d57d5fa14216771b095942
+content_hash: sha256:aebd297478ce099084952e0ac0247e4c5efda40b4aff5487afc649116056f062
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
 ---
-
-Emergent introspective awareness in large language models \ Anthropic
 
 Interpretability
 

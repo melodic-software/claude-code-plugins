@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/prompt-injection-defenses
 source_type: sitemap
-content_hash: sha256:bf9b00583090144266a4dad711b819652993305d7d52cdf9639c6ff6e2df4169
+content_hash: sha256:c7e328fc67492530c595920a4aa18cdbb80426d8dfa51567f8899cfb3197c6d0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
 ---
-
-Mitigating the risk of prompt injections in browser use \ Anthropic
 
 Product
 

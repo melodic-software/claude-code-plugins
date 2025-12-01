@@ -1,9 +1,9 @@
 {
   "anthropic-com-engineering-a-postmortem-of-three-recent-issues": {
     "category": "engineering",
-    "description": "A postmortem of three recent issues \\ Anthropic",
+    "description": "Published Sep 17, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:7a905bec9448ab2e6a71babef2507975c307641f5743cc54ac7cea5db86372a3",
+    "hash": "sha256:ff8e7ba993f817973755d90a15a5f4253f52811fdcd18ec1982064c5fac87a30",
     "keywords": [
       "recent-issues",
       "engineering",
@@ -16,9 +16,9 @@
       "approximate",
       "corruption",
       "detection",
-      "changing"
+      "published"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/a-postmortem-of-three-recent-issues.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -141,9 +141,9 @@
   },
   "anthropic-com-engineering-advanced-tool-use": {
     "category": "engineering",
-    "description": "Introducing advanced tool use on the Claude Developer Platform \\ Anthropic",
+    "description": "Published Nov 24, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:dd2cc0ee5fe2095f32e4ca25ddfbce96badf779f6491af4ce0616c4b92c29d81",
+    "hash": "sha256:3c14625f9bb4981a7245a5239f574ddd70c266926984b78767fb5aeffa752d12",
     "keywords": [
       "advanced-tool-use",
       "engineering",
@@ -158,7 +158,7 @@
       "layer features",
       "prompt caching"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/advanced-tool-use.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -417,9 +417,9 @@
   },
   "anthropic-com-engineering-building-agents-with-the-claude-agent-sdk": {
     "category": "engineering",
-    "description": "Building agents with the Claude Agent SDK \\ Anthropic",
+    "description": "Published Sep 29, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:475001307850ab47b3ef30313be727e755587d6aeec41d48d7261111f5194aad",
+    "hash": "sha256:91a4327f83469524780e3fd18d026d1db2c9f0fa2dabf7637c7e128c1245801f",
     "keywords": [
       "building-agents",
       "agent-sdk",
@@ -434,7 +434,7 @@
       "agentic search",
       "context window"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/building-agents-with-the-claude-agent-sdk.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -678,9 +678,9 @@
   },
   "anthropic-com-engineering-claude-code-sandboxing": {
     "category": "engineering",
-    "description": "Making Claude Code more secure and autonomous with sandboxing \\ Anthropic",
+    "description": "Published Oct 20, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:c67f31ce29d9cacdb8ccd938926da02254d59c806149bbdd3cf052154b7e7b0d",
+    "hash": "sha256:a9f0c97a418f188a20ec8c486666b5ccc394295c321ada3ad60420c63268ea60",
     "keywords": [
       "claude-code-sandboxing",
       "engineering",
@@ -695,7 +695,7 @@
       "safe bash",
       "acknowledgements"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/claude-code-sandboxing.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -772,12 +772,11 @@
   },
   "anthropic-com-engineering-code-execution-with-mcp": {
     "category": "engineering",
-    "description": "Code execution with MCP: building more efficient AI agents \\ Anthropic",
+    "description": "Published Nov 04, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:83df148e5706f51c2992c436e70b5c4b408b5a99624aaaa6af0bd7a69cb05593",
+    "hash": "sha256:a44a1040c19b3444e2804aa2d822201bdac0c4e463f171299e9ecd2c59f929a5",
     "keywords": [
       "code-execution-with-mcp",
-      "code-execution",
       "engineering",
       "execution",
       "model context protocol",
@@ -787,9 +786,10 @@
       "efficient control",
       "intermediate tool",
       "efficient agents",
-      "improves context"
+      "improves context",
+      "excessive token"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/code-execution-with-mcp.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -834,11 +834,11 @@
         "anchor": "#code-execution-with-mcp-improves-context-efficiency",
         "heading": "**Code execution with MCP improves context efficiency**",
         "keywords": [
-          "code",
           "execution",
           "mcp",
           "improves",
-          "context"
+          "context",
+          "efficiency"
         ],
         "level": 2
       },
@@ -847,10 +847,10 @@
         "heading": "**Benefits of code execution with MCP**",
         "keywords": [
           "benefits",
-          "code",
           "execution",
           "mcp",
-          "enables"
+          "enables",
+          "agents"
         ],
         "level": 2
       },
@@ -886,7 +886,7 @@
           "preserving",
           "operations",
           "agents",
-          "code"
+          "execution"
         ],
         "level": 3
       },
@@ -897,8 +897,8 @@
           "state",
           "persistence",
           "skills",
-          "code",
-          "execution"
+          "execution",
+          "filesystem"
         ],
         "level": 3
       },
@@ -938,9 +938,9 @@
   },
   "anthropic-com-engineering-desktop-extensions": {
     "category": "engineering",
-    "description": "Claude Desktop Extensions: One-click MCP server installation for Claude Desktop \\ Anthropic",
+    "description": "Published Jun 26, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:a279e9f059cdfe558066c50e9a3a04326ec62ed0ed8b125473270437586afb0e",
+    "hash": "sha256:b9c06ead3add275915660fae00c98c19d7d6010d920eed3fa9e656b34ce17b44",
     "keywords": [
       "desktop-extensions",
       "engineering",
@@ -955,7 +955,7 @@
       "advanced features",
       "install node"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/desktop-extensions.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1069,7 +1069,6 @@
         "heading": "Building with Claude Code",
         "keywords": [
           "building",
-          "code",
           "internally",
           "found",
           "great"
@@ -1113,9 +1112,9 @@
   },
   "anthropic-com-engineering-effective-context-engineering-for-ai-agents": {
     "category": "engineering",
-    "description": "Effective context engineering for AI agents \\ Anthropic",
+    "description": "Published Sep 29, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:5b99d98e320b5e7faaca648958a5df47713886d4efa62170423b20f7d44ff11a",
+    "hash": "sha256:cbbae935b0c9a92a315a074498a2f087d7ce31e361d2929b10aa267f8dfda954",
     "keywords": [
       "effective-context-engineering",
       "context-engineering",
@@ -1130,7 +1129,7 @@
       "prompt engineering",
       "context retrieval"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/effective-context-engineering-for-ai-agents.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1230,9 +1229,9 @@
   },
   "anthropic-com-engineering-effective-harnesses-for-long-running-agents": {
     "category": "engineering",
-    "description": "Effective harnesses for long-running agents \\ Anthropic",
+    "description": "Published Nov 26, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:31631b44f20f6673116ced8e104ed4838e86aee1ff8ae7e0fcf7e943da893ab4",
+    "hash": "sha256:c063ae5a99d26f7e89228ab112d12fbaaca2d7a4baffc91b32d140e069ab2e1c",
     "keywords": [
       "effective-harnesses",
       "long-running-agents",
@@ -1247,7 +1246,7 @@
       "incremental progress",
       "effective harnesses"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/effective-harnesses-for-long-running-agents.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1371,9 +1370,9 @@
   },
   "anthropic-com-engineering-equipping-agents-for-the-real-world-with-agent-skills": {
     "category": "skills",
-    "description": "Equipping agents for the real world with Agent Skills \\ Anthropic",
+    "description": "Published Oct 16, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:3545888bfed076d1c36fa855c146accacbb997b39de098e1b8f874bec9531c8e",
+    "hash": "sha256:188f1bdd64585e8851827bc3baf3fd8eb35760001864cb22f6a5c20f6630be7d",
     "keywords": [
       "equipping-agents",
       "agent-skills",
@@ -1388,7 +1387,7 @@
       "progressive disclosure",
       "evaluating skills"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/equipping-agents-for-the-real-world-with-agent-skills.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1488,9 +1487,9 @@
   },
   "anthropic-com-engineering-multi-agent-research-system": {
     "category": "research",
-    "description": "How we built our multi-agent research system \\ Anthropic",
+    "description": "Published Jun 13, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:4548702680a58af025ad50ab57fb73873b9bf71db8851b7a6fa4ec1c3b3e3d74",
+    "hash": "sha256:723363c3d03bc5dce97ba5f00d51ddf1296e07d12be0411b7aeb2852202b13ba",
     "keywords": [
       "multi-agent-research-system",
       "agent-research-system",
@@ -1505,7 +1504,7 @@
       "multi",
       "engineering challenges"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/multi-agent-research-system.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1628,9 +1627,9 @@
   },
   "anthropic-com-engineering-writing-tools-for-agents": {
     "category": "engineering",
-    "description": "Writing effective tools for AI agents—using AI agents \\ Anthropic",
+    "description": "Published Sep 11, 2025",
     "domain": "anthropic.com",
-    "hash": "sha256:30b56381b46104153ad6fa2d4e9dc29486607824a101cd7beeea32c1251e8e2e",
+    "hash": "sha256:0487fc346be9f9d6941b2d62084731d650490b4c8ecae83ffa4ecfce677ead4f",
     "keywords": [
       "writing-tools-for-agents",
       "writing-tools",
@@ -1645,7 +1644,7 @@
       "writing effective",
       "natural language"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/engineering/writing-tools-for-agents.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1829,9 +1828,9 @@
   },
   "anthropic-com-news-advancing-claude-for-education": {
     "category": "news",
-    "description": "Advancing Claude for Education \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:8687601df65b59d46b23fe7452bc8b1470ea99d320cc0e69c6fdea3a4293b8e5",
+    "hash": "sha256:1cd36faa93baf69517344dee06c0dadafacaaac5bfa178c235e80554326e894e",
     "keywords": [
       "advancing-claude-for-education",
       "advancing",
@@ -1846,7 +1845,7 @@
       "mcp servers",
       "announce"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/advancing-claude-for-education.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1956,9 +1955,9 @@
   },
   "anthropic-com-news-advancing-claude-for-financial-services": {
     "category": "news",
-    "description": "Advancing Claude for Financial Services \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:f5f9caf0819e89baeacd76fb61c353b7e4b5a957e326dea734777bbb1a146592",
+    "hash": "sha256:87966532bfb78eccf63737e6ad4a46c096843aeb2d918a565bdd471b0afc661e",
     "keywords": [
       "financial-services",
       "advancing",
@@ -1973,7 +1972,7 @@
       "agent skills",
       "computer use"
     ],
-    "last_fetched": "2025-11-28",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/advancing-claude-for-financial-services.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2098,9 +2097,9 @@
   },
   "anthropic-com-news-anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots": {
     "category": "news",
-    "description": "Anthropic and Iceland announce one of the world’s first national AI education pilots \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:2dac98e40127ad2cd027ae470d3adbfe84605d446b7a549d912f478a2c05a5d8",
+    "hash": "sha256:125ea80fda11e07cfec38cf407feded0b5f9b54445b4f528cd7f89bf2ace7431",
     "keywords": [
       "education-pilots",
       "iceland-announce",
@@ -2115,8 +2114,10 @@
       "microsoft foundry",
       "education pilots"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#iceland-launches-transformative-ai-education-initiative",
@@ -2211,9 +2212,9 @@
   },
   "anthropic-com-news-anthropic-and-the-department-of-defense-to-advance-responsible-ai-in-defense-operations": {
     "category": "news",
-    "description": "Anthropic awarded $200M DOD agreement for AI capabilities \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:011ce1fa563f1e5366b6ed9ec1062ef757b5fada6070230cfbabfb7bc77e485b",
+    "hash": "sha256:4dbd2689c23eef4fc388718d1d2727db778f2c7b1baa1217ea19628f2f693cda",
     "keywords": [
       "advance-responsible",
       "defense-operations",
@@ -2228,8 +2229,10 @@
       "defense operations",
       "microsoft foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-and-the-department-of-defense-to-advance-responsible-ai-in-defense-operations.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#our-commitment-to-responsible-ai-deployment",
@@ -2314,9 +2317,9 @@
   },
   "anthropic-com-news-anthropic-education-report-how-educators-use-claude": {
     "category": "news",
-    "description": "Anthropic education report: How educators use Claude \\ Anthropic",
+    "description": "Societal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:2ecb869bf58a83c224a5e1e133a8c4bda46e1d1f74e8b4a2d164b81a43cf0404",
+    "hash": "sha256:04a92f66ffe4d17f871b1f1accaf9ca96511ea285803389d2add452797d9e89b",
     "keywords": [
       "education-report",
       "educators-use",
@@ -2331,7 +2334,7 @@
       "looking ahead",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-education-report-how-educators-use-claude.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2515,9 +2518,9 @@
   },
   "anthropic-com-news-anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of": {
     "category": "news",
-    "description": "Anthropic expands global leadership in enterprise AI, naming Chris Ciauri as Managing Director of International \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:1f12fdd50086a887acbd662d95010b4ec470f9ef4a5f621b464c3ffb05e78187",
+    "hash": "sha256:8d4393c2d2f6a2257ea762c384bf0829f0787adf409cbca766db50c6d0bf94fd",
     "keywords": [
       "expands-global-leadership",
       "naming-chris-ciauri",
@@ -2532,8 +2535,10 @@
       "managing",
       "expands"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#global-leadership-for-worldwide-expansion",
@@ -2617,9 +2622,9 @@
   },
   "anthropic-com-news-anthropic-higher-education-initiatives": {
     "category": "news",
-    "description": "Anthropic launches higher education advisory board and AI Fluency courses \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:0a5772d35b8b6ee3744bdbc9694994e8266b9df0df74ea27a05b4bc510c61bb7",
+    "hash": "sha256:945ffa1b4a0225fb5f5a1c8b694b657325d291d85822cde3a2a4f7c1a4a8afb4",
     "keywords": [
       "anthropic-higher-education-initiatives",
       "higher-education-initiatives",
@@ -2634,8 +2639,10 @@
       "fluency courses",
       "advisory board"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-higher-education-initiatives.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#higher-education-advisory-board",
@@ -2730,9 +2737,9 @@
   },
   "anthropic-com-news-anthropic-invests-50-billion-in-american-ai-infrastructure": {
     "category": "news",
-    "description": "Anthropic invests $50 billion in American AI infrastructure \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:5b10fa81f038929e763c53dea4fc8a3831941cdd819200fd9784acb899a9ee8e",
+    "hash": "sha256:1e8d9096347b1a101af492c86708c849bd33f9de6796c210005bea228b6aac98",
     "keywords": [
       "infrastructure",
       "american",
@@ -2741,13 +2748,16 @@
       "strategic partnerships",
       "microsoft foundry",
       "computer use",
+      "announcements",
       "announce",
       "content",
       "copilot",
       "foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-invests-50-billion-in-american-ai-infrastructure.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -2806,14 +2816,15 @@
   },
   "anthropic-com-news-anthropic-is-endorsing-sb-53": {
     "category": "news",
-    "description": "Anthropic is endorsing SB 53 \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:60b577f8d0de1673ed25a2f1066cdd35dfc1a88964bcfd90bc36a397d8bace6e",
+    "hash": "sha256:64e0709f4e01a31e17e388bf23b7b781680b037df3d1e35c996921884e084147",
     "keywords": [
       "endorsing",
       "strategic partnerships",
       "microsoft foundry",
       "computer use",
+      "announcements",
       "introducing",
       "microsoft",
       "announce",
@@ -2821,8 +2832,10 @@
       "copilot",
       "foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-is-endorsing-sb-53.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -2883,9 +2896,9 @@
   },
   "anthropic-com-news-anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic": {
     "category": "news",
-    "description": "Anthropic partners with the University of Chicago’s Becker Friedman Institute for Economics on AI economic research \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:cd14066fe72e488432e4b4b208642071914d19a29a68afb39aaee9a86d1cc979",
+    "hash": "sha256:0d79d6723f99e46137c5eeece12efb1e651776d028768fc6f0f18fdc3f0c66c2",
     "keywords": [
       "becker-friedman-institute",
       "friedman-institute",
@@ -2900,8 +2913,10 @@
       "strategic partnerships",
       "economic research"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -2960,9 +2975,9 @@
   },
   "anthropic-com-news-anthropic-raises-series-f-at-usd183b-post-money-valuation": {
     "category": "news",
-    "description": "Anthropic raises $13B Series F at $183B post-money valuation \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:49ac60af0800dabbbece3e746474a07ffd8054287fb0ac9f76ce9bcc020a78e3",
+    "hash": "sha256:3d47278bb5ee6c9536edcff117897fe9a57ccb0fdd72b4be117834a1d63d3fa4",
     "keywords": [
       "post-money-valuation",
       "usd183b-post-money",
@@ -2977,8 +2992,10 @@
       "money",
       "strategic partnerships"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -3038,9 +3055,9 @@
   },
   "anthropic-com-news-anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-healthcare-interoperability": {
     "category": "news",
-    "description": "Anthropic signs CMS health tech pledge \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:e68dbd9036d15b2a560b97aacc255638cabf4958f48c16a9a6014bdea46643c1",
+    "hash": "sha256:2b138209a7d3e4f0d9b9fa743e34f708b4ea618822e45a2ac6ed24abb7fb08bf",
     "keywords": [
       "advance-healthcare-interoperability",
       "healthcare-interoperability",
@@ -3055,8 +3072,10 @@
       "cms-health",
       "signs-cms"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-healthcare-interoperability.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#ai-solutions-for-healthcare",
@@ -3127,9 +3146,9 @@
   },
   "anthropic-com-news-anthropic-signs-pledge-to-americas-youth-investing-in-ai-education": {
     "category": "news",
-    "description": "Anthropic joins White House pledge for AI education \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:4245c19848735e4241720d3c77501af790c61f0733796cd2f8976e157691bd01",
+    "hash": "sha256:566b0c7faba55aaab7a589ac6f7392a19e7831e0d5b8ce775c1b28aeb7a8cd99",
     "keywords": [
       "americas-youth-investing",
       "youth-investing",
@@ -3144,8 +3163,10 @@
       "cybersecurity education",
       "strategic partnerships"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/anthropic-signs-pledge-to-americas-youth-investing-in-ai-education.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#1-million-investment-in-k-12-cybersecurity-education",
@@ -3277,9 +3298,9 @@
   },
   "anthropic-com-news-build-ai-in-america": {
     "category": "news",
-    "description": "Build AI in America: Anthropic Energy Report \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:5eea978ec8516de394a20d9bcc4e9703def22ba1815c126e0a6263a6a54bd199",
+    "hash": "sha256:aa46438abd8ebea3c381e2903927cecc58126342d74aac7ecb032d2fdd4313df",
     "keywords": [
       "build-ai-in-america",
       "america",
@@ -3294,8 +3315,10 @@
       "copilot",
       "energy"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/build-ai-in-america.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#energy-needs-for-global-ai-leadership",
@@ -3380,9 +3403,9 @@
   },
   "anthropic-com-news-building-safeguards-for-claude": {
     "category": "news",
-    "description": "Building safeguards for Claude \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:698e71708de27fe0301b0ffae7f7132777396a1909b08cc1e5c737c9bf143bad",
+    "hash": "sha256:119863fcd86a52e7939b36b8fa82638070bf646236515efde1670fcfda98ee88",
     "keywords": [
       "building-safeguards-for-claude",
       "building-safeguards",
@@ -3397,7 +3420,7 @@
       "time detection",
       "system prompt"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/building-safeguards-for-claude.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3535,9 +3558,9 @@
   },
   "anthropic-com-news-claude-code-on-team-and-enterprise": {
     "category": "news",
-    "description": "Claude Code and new admin controls for business plans \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:7cabffaba73e3bdadb509fa018e4919b31b972840564ad9618586563e67e5d53",
+    "hash": "sha256:1d79d9f840f419f52944d29bc78c3ca6d623663001b6ab23037807da3eb13a85",
     "keywords": [
       "enterprise",
       "strategic partnerships",
@@ -3552,18 +3575,20 @@
       "announce",
       "business"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-code-on-team-and-enterprise.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#add-claude-code-to-your-plan",
         "heading": "Add Claude Code to your plan",
         "keywords": [
           "add",
-          "code",
           "plan",
           "admins",
-          "flexibility"
+          "flexibility",
+          "assign"
         ],
         "level": 2
       },
@@ -3672,9 +3697,9 @@
   },
   "anthropic-com-news-claude-for-financial-services": {
     "category": "news",
-    "description": "Claude for Financial Services \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:b7767b185f66638660de3a1dac9efc7af75def0db1b9fa2a6c55f69b516bf804",
+    "hash": "sha256:27c00c4ae40b6b0ca3b391fd3413766ca3970508e2bf12e3c631c9eac5086ea3",
     "keywords": [
       "claude-for-financial-services",
       "financial-services",
@@ -3689,7 +3714,7 @@
       "accelerating",
       "ecosystem"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-for-financial-services.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3804,9 +3829,9 @@
   },
   "anthropic-com-news-claude-for-life-sciences": {
     "category": "news",
-    "description": "Claude for Life Sciences \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:e44653e3049e38c8150190b8405a51d61bac5516ff5b48ecf9a3e6b43ce01362",
+    "hash": "sha256:1f56d2398f8ad7277b01469388a93dd9fd641a3f57394629c9671bd2a91bbc7c",
     "keywords": [
       "claude-for-life-sciences",
       "life-sciences",
@@ -3821,7 +3846,7 @@
       "computer use",
       "mcp servers"
     ],
-    "last_fetched": "2025-11-28",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-for-life-sciences.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3969,9 +3994,9 @@
   },
   "anthropic-com-news-claude-gov-models-for-u-s-national-security-customers": {
     "category": "news",
-    "description": "Claude Gov models for U.S. national security customers \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:ecef20864748df5bca15798becc97aff3209bd602c7da25a460acea2318f3aef",
+    "hash": "sha256:7db4e7c928b6e6a3802fea26e33fef2a0fa3b204e6d78f1fbacc09eada35ba44",
     "keywords": [
       "national-security-customers",
       "security-customers",
@@ -3984,10 +4009,12 @@
       "microsoft foundry",
       "national security",
       "computer use",
-      "introducing"
+      "announcements"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-gov-models-for-u-s-national-security-customers.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -4047,9 +4074,9 @@
   },
   "anthropic-com-news-claude-haiku-4-5": {
     "category": "news",
-    "description": "Introducing Claude Haiku 4.5 \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:b2c3948ad29983e4f2485674ed952131e80ffbf07fea8a778f48c0a8485d36f2",
+    "hash": "sha256:b9c3e6ea40e373de849640f04bac8d896e6c41739a6ca6299d57a55b6aad71f0",
     "keywords": [
       "claude-haiku-4-5",
       "haiku",
@@ -4064,7 +4091,7 @@
       "introducing",
       "benchmarks"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-haiku-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4163,9 +4190,9 @@
   },
   "anthropic-com-news-claude-in-amazon-bedrock-fedramp-high": {
     "category": "news",
-    "description": "Claude in Amazon Bedrock: Approved for Use in FedRAMP High and DoD IL4/5 Workloads \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:7a87b72d53eb7c909047ece68a128ae2c763b6877bc407bfbe75defe6a2d69d9",
+    "hash": "sha256:16a405eb462b74c44a6094d3da2c722da631e09fd692c762f498c9ad76a11dba",
     "keywords": [
       "amazon-bedrock-fedramp",
       "bedrock-fedramp-high",
@@ -4180,8 +4207,10 @@
       "microsoft foundry",
       "enabling secure"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-in-amazon-bedrock-fedramp-high.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#enabling-secure-ai-for-the-most-sensitive-workloads",
@@ -4278,9 +4307,9 @@
   },
   "anthropic-com-news-claude-in-microsoft-foundry": {
     "category": "news",
-    "description": "Claude now available in Microsoft Foundry and Microsoft 365 Copilot \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:a59a54fd0b698581906c7af5456f82abc2ed653221e9f7d04afc239650cbc76e",
+    "hash": "sha256:64a888753652741da6929723a559346f6c556a14232056b84e97cb350cbc3748",
     "keywords": [
       "claude-in-microsoft-foundry",
       "microsoft-foundry",
@@ -4295,8 +4324,10 @@
       "tool use",
       "announce"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-in-microsoft-foundry.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#build-with-claude-in-microsoft-foundry",
@@ -4392,9 +4423,9 @@
   },
   "anthropic-com-news-claude-in-xcode": {
     "category": "news",
-    "description": "Claude is now generally available in Xcode \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:753c388067ff881aa5165f7341df60e141bedb057f7fdfa9bb9314f5d4ea144a",
+    "hash": "sha256:d6e75c0e5fd4948adc87f889f1071776211f7079db0fa06533e220daf31f6556",
     "keywords": [
       "claude-in-xcode",
       "xcode",
@@ -4409,7 +4440,7 @@
       "copilot",
       "foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-in-xcode.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4493,9 +4524,9 @@
   },
   "anthropic-com-news-claude-opus-4-1": {
     "category": "news",
-    "description": "Claude Opus 4.1 \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:a9842a9661b84f9d7bd609d5caeebc53bff9b51912d5cf8ebc73e1d77307afde",
+    "hash": "sha256:5592a81bd3a3b2dffc4b69a705f67100a3e7f2c924373f7a7cc5ba4c8a0fc9ac",
     "keywords": [
       "claude-opus-4-1",
       "strategic partnerships",
@@ -4505,12 +4536,12 @@
       "computer use",
       "bash tool",
       "tool use",
+      "announcements",
       "introducing",
       "announce",
-      "appendix",
-      "content"
+      "appendix"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-opus-4-1.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4597,9 +4628,9 @@
   },
   "anthropic-com-news-claude-opus-4-5": {
     "category": "news",
-    "description": "Introducing Claude Opus 4.5 \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:d669051745c545dc66d13b1fea899492bc1510bfb717ac56a4b7f656614bef21",
+    "hash": "sha256:20e3f7b7b242b0c7b92243ddb357e0c4b4aadc9b8075a029dd10b3f7f4058632",
     "keywords": [
       "claude-opus-4-5",
       "strategic partnerships",
@@ -4609,12 +4640,12 @@
       "computer use",
       "step forward",
       "tool use",
+      "announcements",
       "introducing",
       "announce",
-      "content",
-      "copilot"
+      "content"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-opus-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4740,9 +4771,9 @@
   },
   "anthropic-com-news-claude-sonnet-4-5": {
     "category": "news",
-    "description": "Introducing Claude Sonnet 4.5 \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:a137c86b3049c0564b004df1250d192ab335a104b5bc628ae2b188498b852ef5",
+    "hash": "sha256:1e73b51c98943144d96aa945d86a97c5eb7cf0b299287c2c25eb31a6e5df0be6",
     "keywords": [
       "claude-sonnet-4-5",
       "sonnet",
@@ -4757,7 +4788,7 @@
       "system prompt",
       "computer use"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/claude-sonnet-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4882,9 +4913,9 @@
   },
   "anthropic-com-news-cognizant-partnership": {
     "category": "news",
-    "description": "Cognizant will make Claude available to 350,000 employees, accelerating enterprise AI adoption and internal transformation \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:48e288a4b517a20c8b06a10cc6a9ac3f657ff5a4425c9cd26435004a75513cd6",
+    "hash": "sha256:72c37fe503437783ff579443faad2961d4a625a2dd0cc46f5524b2020d1324cc",
     "keywords": [
       "cognizant-partnership",
       "partnership",
@@ -4899,8 +4930,10 @@
       "solving real",
       "agent sdk"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/cognizant-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#solving-real-enterprise-challenges",
@@ -4976,9 +5009,9 @@
   },
   "anthropic-com-news-deloitte-anthropic-partnership": {
     "category": "news",
-    "description": "Anthropic Deloitte Partnership \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:be5b057f241e1e597afa8923dd4d8ef13bb229bcde11432d0b1a4ba1b6ddf8bc",
+    "hash": "sha256:933a438fbebb2763098306e9e1b4dbf8f9f8cec29bc46d6e2ae3e03eebe11cd2",
     "keywords": [
       "deloitte-anthropic-partnership",
       "partnership",
@@ -4989,12 +5022,14 @@
       "global network",
       "computer use",
       "differentiated",
+      "announcements",
       "announce",
-      "approach",
-      "content"
+      "approach"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/deloitte-anthropic-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#differentiated-approach",
@@ -5077,9 +5112,9 @@
   },
   "anthropic-com-news-detecting-countering-misuse-aug-2025": {
     "category": "news",
-    "description": "Detecting and countering misuse of AI: August 2025 \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:fe2db0c9d6101e343492efc7711ee7c22f0a9969b5a0d44d51045c8108b625bb",
+    "hash": "sha256:71404d3a75278fbd64e9e67a037aade50a63a043850d2a39236b04320935edab",
     "keywords": [
       "detecting-countering-misuse",
       "countering-misuse-aug",
@@ -5094,7 +5129,7 @@
       "strategic partnerships",
       "generated ransomware"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/detecting-countering-misuse-aug-2025.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5106,8 +5141,8 @@
           "vibe",
           "hacking",
           "cybercriminals",
-          "code",
-          "scale"
+          "scale",
+          "data"
         ],
         "level": 2
       },
@@ -5127,11 +5162,11 @@
         "anchor": "#no-code-malware-selling-ai-generated-ransomware-as-a-service",
         "heading": "**No-code malware: selling AI-generated ransomware-as-a-service**",
         "keywords": [
-          "code",
           "malware",
           "selling",
           "generated",
-          "ransomware"
+          "ransomware",
+          "service"
         ],
         "level": 2
       },
@@ -5219,9 +5254,9 @@
   },
   "anthropic-com-news-developing-nuclear-safeguards-for-ai-through-public-private-partnership": {
     "category": "news",
-    "description": "Developing nuclear safeguards for AI through public-private partnership \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:61d1e40299094231f4d5e415adb68214e49d7e76942551ce64142d2b4a262f50",
+    "hash": "sha256:cb636a2cafb0b02ff316d23b28bcbb74ba170e19afb4db5d0c1b8b8d5273aa50",
     "keywords": [
       "developing-nuclear-safeguards",
       "public-private-partnership",
@@ -5236,8 +5271,10 @@
       "private",
       "public"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/developing-nuclear-safeguards-for-ai-through-public-private-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -5296,9 +5333,9 @@
   },
   "anthropic-com-news-disrupting-AI-espionage": {
     "category": "news",
-    "description": "Disrupting the first reported AI-orchestrated cyber espionage campaign \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:e6688fe8e62f0e04745f93f65e000e1bc504a451770184324afc5f9921cd9a6b",
+    "hash": "sha256:2e179d264d4fd5205a30d922c9c1c4d276d81e3e6675ef98463c284b7d90f037",
     "keywords": [
       "disrupting-ai-espionage",
       "disrupting",
@@ -5313,7 +5350,7 @@
       "orchestrated",
       "cyberattack"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/disrupting-AI-espionage.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5402,9 +5439,9 @@
   },
   "anthropic-com-news-economic-futures-uk-europe": {
     "category": "news",
-    "description": "Launching the Anthropic Economic Futures Programme in the UK and Europe \\ Anthropic",
+    "description": "Economic Research",
     "domain": "anthropic.com",
-    "hash": "sha256:f9cea8e65f2df231c6428aeaf9cf1832fa6994f5efe8d49c9d448572d8c657bd",
+    "hash": "sha256:e330c00b807a67a65f55774b662746fa26d65a6ca9d4f334bad73c10b0ab8dbe",
     "keywords": [
       "economic-futures-uk-europe",
       "economic-futures",
@@ -5419,8 +5456,10 @@
       "launching",
       "programme"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/economic-futures-uk-europe.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#a-look-into-uk-and-european-ai-adoption",
@@ -5525,9 +5564,9 @@
   },
   "anthropic-com-news-enabling-claude-code-to-work-more-autonomously": {
     "category": "news",
-    "description": "Enabling Claude Code to work more autonomously \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:fee4643ff5e86085c890495fe45e13e48ce1809a6bcf18ad16a31bcd71ec65a5",
+    "hash": "sha256:9fba50a653281dd4003b3badf504d9fc1bb423ae61db6b597eadfd9a13f3dfd9",
     "keywords": [
       "enabling",
       "strategic partnerships",
@@ -5539,9 +5578,10 @@
       "confidence",
       "announce",
       "content",
-      "copilot"
+      "copilot",
+      "execute"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/enabling-claude-code-to-work-more-autonomously.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5550,10 +5590,10 @@
         "anchor": "#claude-code-on-more-surfaces",
         "heading": "Claude Code on more surfaces",
         "keywords": [
-          "code",
           "surfaces",
           "extension",
-          "introducing"
+          "introducing",
+          "native"
         ],
         "level": 2
       },
@@ -5577,7 +5617,7 @@
           "started",
           "updates",
           "available",
-          "code"
+          "users"
         ],
         "level": 2
       },
@@ -5643,9 +5683,9 @@
   },
   "anthropic-com-news-eu-code-practice": {
     "category": "news",
-    "description": "Anthropic to sign the EU Code of Practice \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:334b02d975e1afac944822331f32e80c6ade6af0bc78c9a879615d071b3d55b2",
+    "hash": "sha256:96604e2884bd4bad47af01c34e651cefae73b783eb5e2158da54f8c5c8ea9fe4",
     "keywords": [
       "eu-code-practice",
       "practice",
@@ -5660,8 +5700,10 @@
       "content",
       "copilot"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/eu-code-practice.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#building-on-our-commitment-to-transparency",
@@ -5745,9 +5787,9 @@
   },
   "anthropic-com-news-expanding-global-operations-to-india": {
     "category": "news",
-    "description": "Anthropic expands global operations to India, plans to open an office in Bengaluru. \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:6dd9e00671f204c71e5e254f07b73bb0f10c9e5bf2ab35b0f1d1118022e11699",
+    "hash": "sha256:6f2dd7a335fc6167f095a66fdc4631920fb001142bb4ad9cc3b6baa9adb93ee4",
     "keywords": [
       "expanding-global-operations",
       "global-operations",
@@ -5762,8 +5804,10 @@
       "pacific office",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/expanding-global-operations-to-india.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -5823,9 +5867,9 @@
   },
   "anthropic-com-news-expanding-our-use-of-google-cloud-tpus-and-services": {
     "category": "news",
-    "description": "Expanding our use of Google Cloud TPUs and Services \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:51eb2a3b5e68681f6090e025d7d675b2e5f6e672990f956be0f99380269cabac",
+    "hash": "sha256:e8461067fdfb72a6fa107004502aee4ff25afe9a09eb6259cb4b6dcbc20fc551",
     "keywords": [
       "google-cloud-tpus",
       "google-cloud",
@@ -5838,10 +5882,12 @@
       "microsoft foundry",
       "computer use",
       "google cloud",
-      "announce"
+      "announcements"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/expanding-our-use-of-google-cloud-tpus-and-services.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -5901,9 +5947,9 @@
   },
   "anthropic-com-news-federal-government-departments-and-agencies-can-now-purchase-claude-through-the-gsa-schedule": {
     "category": "news",
-    "description": "U.S. federal departments and agencies can now more quickly and easily get access to Claude \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:5c08a1b9a0b741df4fd0275686b797e136572f25d9e70a6af6d261e65bd04951",
+    "hash": "sha256:eb3e3edebd68f5f10391ef1ced07f2f2407c09a5c769eafbfdafbd0f911830eb",
     "keywords": [
       "federal-government-departments",
       "government-departments",
@@ -5918,8 +5964,10 @@
       "strategic partnerships",
       "federal government"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/federal-government-departments-and-agencies-can-now-purchase-claude-through-the-gsa-schedule.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -5980,9 +6028,9 @@
   },
   "anthropic-com-news-head-of-japan-hiring-plans": {
     "category": "news",
-    "description": "Anthropic appoints Hidetoshi Tojo as Head of Japan and announces hiring plans \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:6edceca439b08ec3ea715eadbc30bc45522f0487b2f147013e47bb8cc3886992",
+    "hash": "sha256:9eae0a7a0c1ed364349bdcf1a8cc1b0354589375989619d0a05d6cf6ad7af438",
     "keywords": [
       "japan-hiring-plans",
       "hiring-plans",
@@ -5997,8 +6045,10 @@
       "hidetoshi tojo",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/head-of-japan-hiring-plans.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6057,9 +6107,9 @@
   },
   "anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship": {
     "category": "news",
-    "description": "How people use Claude for support, advice, and companionship \\ Anthropic",
+    "description": "Societal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:bd95ac9e28a67365beeee882a3d047a6c4825b3b4e1a1acc49312ae2b13bc604",
+    "hash": "sha256:1b87c5009bc26a4b60960302f3976cc6e6fb605f708e29a78a1389d79f4c4468",
     "keywords": [
       "support-advice",
       "people-use",
@@ -6074,7 +6124,7 @@
       "computer use",
       "people bring"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/how-people-use-claude-for-support-advice-and-companionship.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6238,9 +6288,9 @@
   },
   "anthropic-com-news-introducing-the-anthropic-economic-futures-program": {
     "category": "news",
-    "description": "Anthropic Economic Futures Program Launch \\ Anthropic",
+    "description": "AnnouncementsPolicy",
     "domain": "anthropic.com",
-    "hash": "sha256:4e8940989b3d7b095ef005a207093e35f517356eb4180f33c9ad8a65c8bafe39",
+    "hash": "sha256:ff457b42df9ecaddaaaa5858063e27268bf9e86e9ed0b068893a6b65cbd25009",
     "keywords": [
       "economic-futures-program",
       "economic-futures",
@@ -6255,8 +6305,10 @@
       "looking ahead",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/introducing-the-anthropic-economic-futures-program.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#why-this-matters-now",
@@ -6338,9 +6390,9 @@
   },
   "anthropic-com-news-introducing-the-anthropic-national-security-and-public-sector-advisory-council": {
     "category": "news",
-    "description": "Introducing the Anthropic National Security and Public Sector Advisory Council \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:5a7b2200d4fa4af7b07ed82703060e63ea6503a2d58a005617f385990402a2e9",
+    "hash": "sha256:5013c1cd047ff050d206342eb0ce6489b43ac0624d5b3018acff7c45607da3ec",
     "keywords": [
       "sector-advisory-council",
       "public-sector-advisory",
@@ -6355,8 +6407,10 @@
       "council",
       "public"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/introducing-the-anthropic-national-security-and-public-sector-advisory-council.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6417,9 +6471,9 @@
   },
   "anthropic-com-news-investing-in-energy-to-secure-america-s-ai-future": {
     "category": "news",
-    "description": "Investing in energy to secure America's AI future \\ Anthropic",
+    "description": "AlignmentPolicy",
     "domain": "anthropic.com",
-    "hash": "sha256:3dc8ce4e2a202b86254d928e4771973bac10c0b22a4b1adf70934ad7483712f6",
+    "hash": "sha256:717faebb196a81363faf6979ce0258bb3f6d3b5069e33d2d8f0826abe7dd3b88",
     "keywords": [
       "secure-america",
       "investing",
@@ -6431,11 +6485,13 @@
       "microsoft foundry",
       "secure america",
       "computer use",
-      "announce",
-      "content"
+      "alignmentpolicy",
+      "announce"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/investing-in-energy-to-secure-america-s-ai-future.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6497,9 +6553,9 @@
   },
   "anthropic-com-news-lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and": {
     "category": "news",
-    "description": "Claude for Enterprise Powers LLNL Research \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:06a393f359e2181cac0ce22b65455b3c6e345b0f31b982096b285834b0a9c6d3",
+    "hash": "sha256:eae3cbd489f270cdf227c6f9b106ad0c0faca604cec4fa86e1bc1e465275a53f",
     "keywords": [
       "livermore-national-laboratory",
       "lawrence-livermore-national",
@@ -6514,8 +6570,10 @@
       "scientists",
       "livermore"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#building-on-proven-partnership",
@@ -6624,9 +6682,9 @@
   },
   "anthropic-com-news-maryland-partnership": {
     "category": "news",
-    "description": "The State of Maryland partners with Anthropic to better serve residents \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:f2c060f45fad7dc101a52e7328ea92a8bb269045ae6832f1bb2cb704932d1a12",
+    "hash": "sha256:8a116eea9cccdacf0fe7510d9404a462d906a4a8f54cbc346dc0ce2be4d10a71",
     "keywords": [
       "maryland-partnership",
       "partnership",
@@ -6634,15 +6692,17 @@
       "strategic partnerships",
       "microsoft foundry",
       "computer use",
+      "announcements",
       "introducing",
       "residents",
       "announce",
       "partners",
-      "content",
-      "copilot"
+      "content"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/maryland-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6701,9 +6761,9 @@
   },
   "anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships": {
     "category": "news",
-    "description": "Microsoft, NVIDIA and Anthropic announced new strategic partnerships. \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:608ec1c7277cbf395a774fc27960dbbdae4501c1940327c194cb15d9d522ecc5",
+    "hash": "sha256:d20e308b2878c14039592f6379b2131e646e062061d00f298ad19587f145a8a4",
     "keywords": [
       "announce-strategic-partnerships",
       "strategic-partnerships",
@@ -6718,8 +6778,10 @@
       "microsoft foundry",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6779,9 +6841,9 @@
   },
   "anthropic-com-news-national-security-expert-richard-fontaine-appointed-to-anthropic-s-long-term-benefit-trust": {
     "category": "news",
-    "description": "National security expert Richard Fontaine appointed to Anthropic’s long-term benefit trust \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:152dcfa19cdc50fc28fd01011ca4a2f7b2b5716a709c71dc4a9f0a39a84caa07",
+    "hash": "sha256:058a34da9c540625e654d3556eec198d50fdb51a5e9cf1607c950590c05b5ae1",
     "keywords": [
       "richard-fontaine-appointed",
       "national-security-expert",
@@ -6796,8 +6858,10 @@
       "expert-richard",
       "benefit-trust"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/national-security-expert-richard-fontaine-appointed-to-anthropic-s-long-term-benefit-trust.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6856,9 +6920,9 @@
   },
   "anthropic-com-news-new-offices-in-paris-and-munich-expand-european-presence": {
     "category": "news",
-    "description": "New offices in Paris and Munich expand Anthropic’s European presence \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:4a23ad6fa70e197c51ac1972cc1e657cd9bc55bf8bc9fafcea483ebe1daabb00",
+    "hash": "sha256:e935d7888d790775d6330c325e35fb07c7fa44eeb1875215f91a0d727fded6f3",
     "keywords": [
       "expand-european-presence",
       "munich-expand-european",
@@ -6873,8 +6937,10 @@
       "munich",
       "paris"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/new-offices-in-paris-and-munich-expand-european-presence.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -6933,9 +6999,9 @@
   },
   "anthropic-com-news-offering-expanded-claude-access-across-all-three-branches-of-government": {
     "category": "news",
-    "description": "Offering expanded Claude access across all three branches of government \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:87d9fbb53f834b2a2086a688ba80b0e399963136b1b6c10704de07b5b3b056e8",
+    "hash": "sha256:dac31726b36b40f7dac07ded9f46d48349aa476bbd6714dbf18784c329b59cb1",
     "keywords": [
       "offering-expanded",
       "government",
@@ -6946,12 +7012,14 @@
       "microsoft foundry",
       "offering expanded",
       "computer use",
+      "announcements",
       "announce",
-      "content",
-      "copilot"
+      "content"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/offering-expanded-claude-access-across-all-three-branches-of-government.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -7012,9 +7080,9 @@
   },
   "anthropic-com-news-opening-our-tokyo-office": {
     "category": "news",
-    "description": "Anthropic opens Tokyo office, signs a Memorandum of Cooperation with the Japan AI Safety Institute \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:8eb0a2eb6673949d5dbc78ffe58f4d01aa1624909a2d56d81e27f49a57087642",
+    "hash": "sha256:4e45f073163632905d88bfd1fdfbbfe85c58c407c820150de6b8e8a7e94f4c0c",
     "keywords": [
       "opening-our-tokyo-office",
       "tokyo-office",
@@ -7029,8 +7097,10 @@
       "building shared",
       "looking forward"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/opening-our-tokyo-office.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#building-shared-standards-for-ai-evaluation",
@@ -7138,9 +7208,9 @@
   },
   "anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents": {
     "category": "news",
-    "description": "Our framework for developing safe and trustworthy agents \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:0e2aac7dbda8e7e80ff9751751b2cad9516a4673666b97f7c7684dbf0b312b56",
+    "hash": "sha256:739a36913f920b7764e68b8c43ccce092067be6548ae4898b0c6dc0b67bbc129",
     "keywords": [
       "trustworthy-agents",
       "developing-safe",
@@ -7155,7 +7225,7 @@
       "natural language",
       "aligning agents"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/our-framework-for-developing-safe-and-trustworthy-agents.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7305,9 +7375,9 @@
   },
   "anthropic-com-news-paul-smith-to-join-anthropic": {
     "category": "news",
-    "description": "Paul Smith to join Anthropic as Chief Commercial Officer \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:24542eb5f4e2a8d627814033edaa20179bb16d393ac530f41d2ca84122501bf9",
+    "hash": "sha256:9ceb4be7ab003bba6ad0682a62b987adaa8643864d68db822dbc1d4c0f5e860b",
     "keywords": [
       "paul-smith",
       "smith",
@@ -7316,14 +7386,16 @@
       "chief commercial",
       "computer use",
       "paul smith",
+      "announcements",
       "introducing",
       "commercial",
       "announce",
-      "content",
-      "copilot"
+      "content"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/paul-smith-to-join-anthropic.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -7382,9 +7454,9 @@
   },
   "anthropic-com-news-political-even-handedness": {
     "category": "news",
-    "description": "Measuring political bias in Claude \\ Anthropic",
+    "description": "ProductSocietal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:eb57fcc093a9311030aac694da4ac2ae3dcf37692b0b1f18b095fb7fe477cc2c",
+    "hash": "sha256:019e899e99f2802c8c70d507e0638a6bd50e60305b63a38a9bd6754db94141f9",
     "keywords": [
       "political-even-handedness",
       "handedness",
@@ -7397,9 +7469,9 @@
       "ideal behaviors",
       "system prompt",
       "computer use",
-      "conclusions"
+      "productsocietal"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/political-even-handedness.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7581,9 +7653,9 @@
   },
   "anthropic-com-news-rahul-patil-joins-anthropic": {
     "category": "news",
-    "description": "Rahul Patil joins Anthropic as Chief Technology Officer \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:d9101611578e255bbeeeabefb6794f4b74353b93ccf51a52c6c27ab087ae511a",
+    "hash": "sha256:fd96dc9c5ac2c8b4eed07a2b3b67a3b6402c895e25b5e76a8eb2b9413af2033f",
     "keywords": [
       "rahul-patil-joins-anthropic",
       "rahul-patil-joins",
@@ -7598,8 +7670,10 @@
       "computer use",
       "rahul patil"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/rahul-patil-joins-anthropic.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -7736,9 +7810,9 @@
   },
   "anthropic-com-news-rwandan-government-partnership-ai-education": {
     "category": "news",
-    "description": "Anthropic partners with Rwandan Government and ALX to bring AI education to hundreds of thousands of learners across Africa \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:0c028718f7663b72ea9d361e74599183cc1008a91afe946233ae13defb1853cd",
+    "hash": "sha256:770b5e4160e67c958921e9c1d00725657d5f4044ecaff5c8f05458bbce01cc2c",
     "keywords": [
       "rwandan-government-partnership",
       "government-partnership",
@@ -7751,10 +7825,12 @@
       "microsoft foundry",
       "building skills",
       "computer use",
-      "continent"
+      "announcements"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/rwandan-government-partnership-ai-education.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#partnering-with-the-government-of-rwanda",
@@ -7850,9 +7926,9 @@
   },
   "anthropic-com-news-salesforce-anthropic-expanded-partnership": {
     "category": "news",
-    "description": "Anthropic and Salesforce expand partnership to bring Claude to regulated industries \\ Anthropic",
+    "description": "AnnouncementsProduct",
     "domain": "anthropic.com",
-    "hash": "sha256:79763c62e8b4b90f08b7c7de1b3ccad8f654e02d843b4f6a0d9f8c1741fbe0f7",
+    "hash": "sha256:1ebc809d1437c8471edb501bcb7154531e450ac426c2d41d2572b2a9c1932dee",
     "keywords": [
       "salesforce-anthropic-expanded-partnership",
       "expanded-partnership",
@@ -7867,8 +7943,10 @@
       "salesforce deploys",
       "building industry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/salesforce-anthropic-expanded-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#the-expanded-partnership-includes-three-new-initiatives",
@@ -7923,9 +8001,9 @@
         "keywords": [
           "salesforce",
           "deploys",
-          "code",
           "runs",
-          "slack"
+          "slack",
+          "partnership"
         ],
         "level": 2
       },
@@ -7989,9 +8067,9 @@
   },
   "anthropic-com-news-seoul-becomes-third-anthropic-office-in-asia-pacific": {
     "category": "news",
-    "description": "Seoul becomes Anthropic’s third office in Asia-Pacific as we continue our international growth \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:cbdefea6efb8b877fc538a0feef729134db24022bd66246284b82954a115873d",
+    "hash": "sha256:b486d839f4981c8c917a766d3c05ef41433493a03a1e80143fe20ad95248c83a",
     "keywords": [
       "asia-pacific",
       "pacific",
@@ -8001,13 +8079,15 @@
       "international growth",
       "microsoft foundry",
       "computer use",
+      "announcements",
       "international",
       "announce",
-      "continue",
-      "content"
+      "continue"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/seoul-becomes-third-anthropic-office-in-asia-pacific.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -8066,9 +8146,9 @@
   },
   "anthropic-com-news-statement-dario-amodei-american-ai-leadership": {
     "category": "news",
-    "description": "A statement from Dario Amodei on Anthropic's commitment to American AI leadership \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:e8febe0df13cf1a5de13d033028bfbb8538a71c33e2606d987c0387ebef006d5",
+    "hash": "sha256:53c3e29ebd895e23c9629efe3362c7158f422db73eb34acd7b875429d7aed59f",
     "keywords": [
       "statement-dario-amodei",
       "dario-amodei-american",
@@ -8083,8 +8163,10 @@
       "strategic partnerships",
       "microsoft foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/statement-dario-amodei-american-ai-leadership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -8145,9 +8227,9 @@
   },
   "anthropic-com-news-strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi": {
     "category": "news",
-    "description": "Strengthening our safeguards through collaboration with US CAISI and UK AISI \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:280e90deaa46bf1655ef8b7fe247392ed9ce1ed55c136b8fc5253dd35054b65a",
+    "hash": "sha256:16a0db7f17329b4b5b5eb838b79856cd3063a8031f20613720a08287bda7cb9d",
     "keywords": [
       "collaboration",
       "strengthening",
@@ -8160,10 +8242,12 @@
       "microsoft foundry",
       "computer use",
       "collaborations",
-      "addressing"
+      "announcements"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#uncovering-and-addressing-vulnerabilities",
@@ -8261,9 +8345,9 @@
   },
   "anthropic-com-news-the-need-for-transparency-in-frontier-ai": {
     "category": "news",
-    "description": "A framework for AI development transparency \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:92969be2674d30dec5bfb4c0b788dc700eaadf880380b20c36d40cb16c7b0dbc",
+    "hash": "sha256:571258d9376d6334759061266dddfc05e1743ef48dd84745d3ccbce5cc570434",
     "keywords": [
       "transparency",
       "frontier",
@@ -8271,15 +8355,17 @@
       "microsoft foundry",
       "minimum standards",
       "computer use",
-      "development",
       "introducing",
-      "framework",
       "microsoft",
       "announce",
-      "content"
+      "content",
+      "copilot",
+      "foundry"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/the-need-for-transparency-in-frontier-ai.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#minimum-standards-for-ai-transparency",
@@ -8352,9 +8438,9 @@
   },
   "anthropic-com-news-thoughts-on-america-s-ai-action-plan": {
     "category": "news",
-    "description": "Thoughts on America’s AI Action Plan \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:b858530201121f8817ead8b5ae6a3666471a0a65374e68cf3ae96867083f4649",
+    "hash": "sha256:c82711de750d18932933733c0bc0a65e06054b7e533dfcce18c671f6a06a6766",
     "keywords": [
       "action-plan",
       "thoughts",
@@ -8369,8 +8455,10 @@
       "looking ahead",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/thoughts-on-america-s-ai-action-plan.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#accelerating-ai-infrastructure-and-adoption",
@@ -8506,9 +8594,9 @@
   },
   "anthropic-com-news-updates-to-our-consumer-terms": {
     "category": "news",
-    "description": "Updates to Consumer Terms and Privacy Policy \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:67f81d96d5eab236d39c1802418d1331c76de980558ecedc3b57666d17e9dabc",
+    "hash": "sha256:6e6fa850c0abb980ac270a8a54a4ba0859f9d9bd09a33ec4d1d538fda7687c2f",
     "keywords": [
       "consumer-terms",
       "consumer",
@@ -8523,7 +8611,7 @@
       "extended data",
       "computer use"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/updates-to-our-consumer-terms.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8598,9 +8686,9 @@
   },
   "anthropic-com-news-updating-restrictions-of-sales-to-unsupported-regions": {
     "category": "news",
-    "description": "Updating restrictions of sales to unsupported regions \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:c55762da2f35964643fa7bbfc1890967ae0f80040195393f154981a7762709f3",
+    "hash": "sha256:eb75caca0d9411988a3f87cfd52152917f08ec3c1f071c4cd699eba3dbee4522",
     "keywords": [
       "updating-restrictions",
       "unsupported-regions",
@@ -8615,8 +8703,10 @@
       "microsoft foundry",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/updating-restrictions-of-sales-to-unsupported-regions.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#related-content",
@@ -8676,9 +8766,9 @@
   },
   "anthropic-com-news-usage-policy-update": {
     "category": "news",
-    "description": "Usage Policy Update \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:43f3c850e29e313fc878850e94d64aa23faa5ba44ccb8082b8812ce482635eb4",
+    "hash": "sha256:fc0360785ac09ca6173f4634b3d2656e847199bfece3002465085d42df37eee4",
     "keywords": [
       "usage-policy-update",
       "policy",
@@ -8693,8 +8783,10 @@
       "risk consumer",
       "computer use"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/news/usage-policy-update.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#addressing-cybersecurity-and-agentic-use",
@@ -8814,9 +8906,9 @@
   },
   "anthropic-com-research-agentic-misalignment": {
     "category": "research",
-    "description": "Agentic Misalignment: How LLMs could be insider threats \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:da68fce50c00991a2a983673394e71a9b3c2bfcd1d2c0b0c1c826cdd6683bf4b",
+    "hash": "sha256:12f4f0b0bb5d6cbade06fd57e76cede57803dd97dc555c867ba8b47699f1c460",
     "keywords": [
       "agentic-misalignment",
       "misalignment",
@@ -8831,7 +8923,7 @@
       "harmful actions",
       "goal conflicts"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/agentic-misalignment.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -9004,7 +9096,6 @@
         "heading": "Appendix and code",
         "keywords": [
           "appendix",
-          "code",
           "provide",
           "details",
           "analyses"
@@ -9084,9 +9175,9 @@
   },
   "anthropic-com-research-anthropic-economic-index-september-2025-report": {
     "category": "research",
-    "description": "Anthropic Economic Index report: Uneven geographic and enterprise AI adoption \\ Anthropic",
+    "description": "Economic Research",
     "domain": "anthropic.com",
-    "hash": "sha256:28eb19dce81876d6e48eaa52c3975dcb797a4888172b5052d59d97073b92cadf",
+    "hash": "sha256:bbdca31775aed8d7d4440a47f8f783fb6271124b258116d9a6836f38f46bb65b",
     "keywords": [
       "september-2025-report",
       "september-2025",
@@ -9101,7 +9192,7 @@
       "geographic patterns",
       "concluding remarks"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/anthropic-economic-index-september-2025-report.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -9506,9 +9597,9 @@
   },
   "anthropic-com-research-building-ai-cyber-defenders": {
     "category": "research",
-    "description": "Building AI for cyber defenders \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:4c3d46884abad69db090b6a72a30574c3db39827b4d0ea8569afe5cc939021de",
+    "hash": "sha256:5c78233c5223f61a58a14bbf106436200787576be044fe7cbc3bc74a934b662a",
     "keywords": [
       "building-ai-cyber-defenders",
       "cyber-defenders",
@@ -9523,7 +9614,7 @@
       "trusted partners",
       "cyber defenders"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/building-ai-cyber-defenders.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -9669,9 +9760,9 @@
   },
   "anthropic-com-research-confidential-inference-trusted-vms": {
     "category": "research",
-    "description": "Confidential Inference via Trusted Virtual Machines \\ Anthropic",
+    "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:71bba7d03e6e814f380f2d4075565e4a71b88886520415b2f7697a4d34eedb68",
+    "hash": "sha256:abc879bba0b179a5f60a9ed56663e3edc69dd92c6e2e755519925890c706e464",
     "keywords": [
       "confidential-inference-trusted-vms",
       "confidential-inference-trusted",
@@ -9686,7 +9777,7 @@
       "confidential inference",
       "trusted environment"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/confidential-inference-trusted-vms.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -9810,9 +9901,9 @@
   },
   "anthropic-com-research-deprecation-commitments": {
     "category": "research",
-    "description": "Commitments on model deprecation and preservation \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:2590108d4a2a852eb0a5b3a5f0009eb5b446a3774195a73be3ece804ea858f24",
+    "hash": "sha256:737407b50cf71c56ed4efa491d38311aeb21ad9581f7d19d32bfd36c35ca4c64",
     "keywords": [
       "deprecation-commitments",
       "commitments",
@@ -9825,9 +9916,9 @@
       "conversations",
       "preservation",
       "estimating",
-      "emergent"
+      "alignment"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/deprecation-commitments.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -9891,9 +9982,9 @@
   },
   "anthropic-com-research-economic-index-geography": {
     "category": "research",
-    "description": "Anthropic Economic Index: Tracking AI's role in the US and global economy \\ Anthropic",
+    "description": "Economic Research",
     "domain": "anthropic.com",
-    "hash": "sha256:6ffce55cfb89ee93a493f4b251474b7349ee2367bbde9a95a465dff97016014d",
+    "hash": "sha256:77dd98c93afd29e8e93df4b5add1fc3dca829f9d7661747d2a73cf25a13f8700",
     "keywords": [
       "economic-index-geography",
       "geography",
@@ -9908,7 +9999,7 @@
       "open data",
       "conversations"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/economic-index-geography.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -10086,9 +10177,9 @@
   },
   "anthropic-com-research-economic-policy-responses": {
     "category": "research",
-    "description": "Preparing for AI’s economic impact: exploring policy responses \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:7bc716401c1ab1f16d171dd551343b05efa895ec196a44d289006a8c0b837728",
+    "hash": "sha256:f11eb416530e29dcdb7dd8377fdd60c052c3906d8db3dcb7cf809db9dfac4629",
     "keywords": [
       "economic-policy-responses",
       "responses",
@@ -10103,7 +10194,7 @@
       "economic impact",
       "establish trade"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/economic-policy-responses.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -10336,9 +10427,9 @@
   },
   "anthropic-com-research-emergent-misalignment-reward-hacking": {
     "category": "research",
-    "description": "From shortcuts to sabotage: natural emergent misalignment from reward hacking \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:36b8dd15c82566f3d2211db55db2641b9ea3640ba572ee3ce4838d7237f1dbd3",
+    "hash": "sha256:3c685c7cf4629df2edeeb46ca6378c3f7c8566eb80e567623847d4c9e506cad3",
     "keywords": [
       "emergent-misalignment-reward-hacking",
       "emergent-misalignment-reward",
@@ -10353,7 +10444,7 @@
       "reward",
       "productivity gains"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/emergent-misalignment-reward-hacking.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -10454,9 +10545,9 @@
   },
   "anthropic-com-research-end-subset-conversations": {
     "category": "research",
-    "description": "Claude Opus 4 and 4.1 can now end a rare subset of conversations \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:a553978ec6c1602160c9c35b4ab0f7f47d0ae1ab476be21c7e0cd1bfd2e2975d",
+    "hash": "sha256:bb792c268f27403e1dcd51fdb12d086b992256f6b29c31aacb7e455973077d7b",
     "keywords": [
       "end-subset-conversations",
       "conversations",
@@ -10468,10 +10559,10 @@
       "reward hacking",
       "rare subset",
       "estimating",
-      "emergent",
-      "browser"
+      "alignment",
+      "emergent"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/end-subset-conversations.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -10534,9 +10625,9 @@
   },
   "anthropic-com-research-estimating-productivity-gains": {
     "category": "research",
-    "description": "Estimating AI productivity gains \\ Anthropic",
+    "description": "Economic Research",
     "domain": "anthropic.com",
-    "hash": "sha256:143fdde0c4c91eeff2a4d46c8c848e9e266630976c33288c9154bee7f54a431c",
+    "hash": "sha256:4122fdf12db498a66b6cef6112b8cc8faea4861bfa7a5936d3fe40b2aebbc129",
     "keywords": [
       "estimating-productivity-gains",
       "productivity",
@@ -10551,7 +10642,7 @@
       "highly uneven",
       "level savings"
     ],
-    "last_fetched": "2025-11-29",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/estimating-productivity-gains.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -10786,9 +10877,9 @@
   },
   "anthropic-com-research-introspection": {
     "category": "research",
-    "description": "Emergent introspective awareness in large language models \\ Anthropic",
+    "description": "Interpretability",
     "domain": "anthropic.com",
-    "hash": "sha256:89d19361b08cb2c1eb5e37f21a1ce5ba999dec8934d57d5fa14216771b095942",
+    "hash": "sha256:aebd297478ce099084952e0ac0247e4c5efda40b4aff5487afc649116056f062",
     "keywords": [
       "introspection",
       "research",
@@ -10803,7 +10894,7 @@
       "large language",
       "actually work"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/introspection.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11021,9 +11112,9 @@
   },
   "anthropic-com-research-persona-vectors": {
     "category": "research",
-    "description": "Persona vectors: Monitoring and controlling character traits in language models \\ Anthropic",
+    "description": "Interpretability",
     "domain": "anthropic.com",
-    "hash": "sha256:18ad352722e3c9bf192bf4e55895a885fbceb65126eb707ef8bf9248cd58d4bc",
+    "hash": "sha256:6d0cc136c4a62843e20f84e90d4750bb0ca54ed1f931dee3683c57d8a8e7382c",
     "keywords": [
       "persona-vectors",
       "research",
@@ -11038,7 +11129,7 @@
       "productivity gains",
       "natural emergent"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/persona-vectors.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11176,7 +11267,6 @@
     "tags": [
       "deployment",
       "models",
-      "monitoring",
       "research",
       "troubleshooting"
     ],
@@ -11185,9 +11275,9 @@
   },
   "anthropic-com-research-petri-open-source-auditing": {
     "category": "research",
-    "description": "Petri: An open-source auditing tool to accelerate AI safety research \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:8677bffe6a2e8044e5524f8ea4a5340fac32ff96d7867abdd19c70bc56840474",
+    "hash": "sha256:cc13d2acc49b969f3744b6f48cbed1db366a23483d64eaaadad8bda7c4e5a23f",
     "keywords": [
       "petri-open-source-auditing",
       "open-source-auditing",
@@ -11202,7 +11292,7 @@
       "alignment evaluations",
       "productivity gains"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/petri-open-source-auditing.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11326,9 +11416,9 @@
   },
   "anthropic-com-research-project-fetch-robot-dog": {
     "category": "research",
-    "description": "Project Fetch: Can Claude train a robot dog? \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:d70f39e4d67461873dc7a38bc03a8a911a65e091c005143692c7fbf87e3a48b2",
+    "hash": "sha256:161a8693c0af498ac2369b3e789d36115bae496c51f9ab7d7d2151dddf49a193",
     "keywords": [
       "project-fetch-robot-dog",
       "project-fetch-robot",
@@ -11343,7 +11433,7 @@
       "prompt injections",
       "natural emergent"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/project-fetch-robot-dog.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11508,9 +11598,9 @@
   },
   "anthropic-com-research-project-vend-1": {
     "category": "research",
-    "description": "Project Vend: Can Claude run a small shop? (And why does that matter?) \\ Anthropic",
+    "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:5f5d1b80e6268a53cee8470fe8e767c548d2cb793b4447fcb34e3315ef12be3e",
+    "hash": "sha256:e673b4979e751177d688257c1930363898ff95c29198e6ea1766e4a6aeef962a",
     "keywords": [
       "project-vend-1",
       "research",
@@ -11525,7 +11615,7 @@
       "small business",
       "system prompt"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/project-vend-1.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11649,9 +11739,9 @@
   },
   "anthropic-com-research-prompt-injection-defenses": {
     "category": "research",
-    "description": "Mitigating the risk of prompt injections in browser use \\ Anthropic",
+    "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:bf9b00583090144266a4dad711b819652993305d7d52cdf9639c6ff6e2df4169",
+    "hash": "sha256:c7e328fc67492530c595920a4aa18cdbb80426d8dfa51567f8899cfb3197c6d0",
     "keywords": [
       "prompt-injection-defenses",
       "injection",
@@ -11666,7 +11756,7 @@
       "creates unique",
       "reward hacking"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/prompt-injection-defenses.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11778,9 +11868,9 @@
   },
   "anthropic-com-research-shade-arena-sabotage-monitoring": {
     "category": "research",
-    "description": "SHADE-Arena: Evaluating Sabotage and Monitoring in LLM Agents \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:d9823a38c1bfe5d7fed506c70a95349607bcac6680dbe614a7d5b180dfd94601",
+    "hash": "sha256:ac317c7b32306bf007217e955c91961e664ad716f86269ed038e3f0972ad2370",
     "keywords": [
       "shade-arena-sabotage-monitoring",
       "arena-sabotage-monitoring",
@@ -11795,7 +11885,7 @@
       "shade",
       "evaluating sabotage"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/shade-arena-sabotage-monitoring.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -11918,7 +12008,6 @@
       "agents",
       "deployment",
       "models",
-      "monitoring",
       "research",
       "testing"
     ],
@@ -11927,9 +12016,9 @@
   },
   "anthropic-com-research-small-samples-poison": {
     "category": "research",
-    "description": "A small number of samples can poison LLMs of any size \\ Anthropic",
+    "description": "Alignment",
     "domain": "anthropic.com",
-    "hash": "sha256:48c8fa4ee9433df15299ca25029fa037582435b5d607ee2446dc9738f6e46451",
+    "hash": "sha256:548c4b200e586ef283a9ba023694a24c9a0f8fe580c14666009a0ac8d16ba5c0",
     "keywords": [
       "small-samples-poison",
       "research",
@@ -11944,7 +12033,7 @@
       "reward hacking",
       "small number"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/small-samples-poison.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -12054,9 +12143,9 @@
   },
   "anthropic-com-research-team-alignment": {
     "category": "research",
-    "description": "Alignment Research \\ Anthropic",
+    "description": "Future AI systems will be even more powerful than today’s, likely in ways that break key assumptions behind current safety techniques. That’s why it’s important to develop sophisticated safeguards to...",
     "domain": "anthropic.com",
-    "hash": "sha256:cb47c65fd4fdfbc8bdd424a9d614b9129a3a6ffa857e79b654579b21b72c6e05",
+    "hash": "sha256:7af98f822e724ff27622f728e2dbb975949ccc6e5429ae9cd348980738100bab",
     "keywords": [
       "alignment",
       "research",
@@ -12067,11 +12156,11 @@
       "alignment faking",
       "large language",
       "investigating",
-      "evaluation",
-      "auditing",
-      "language"
+      "sophisticated",
+      "assumptions",
+      "evaluation"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/team/alignment.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -12122,9 +12211,9 @@
   },
   "anthropic-com-research-team-interpretability": {
     "category": "research",
-    "description": "Interpretability Research \\ Anthropic",
+    "description": "The mission of the Interpretability team is to discover and understand how large language models work internally, as a foundation for AI safety and positive outcomes.",
     "domain": "anthropic.com",
-    "hash": "sha256:99176b3d8e556cbefe3402cba768e0a4bdfab1643eacebe151a98bd65073843b",
+    "hash": "sha256:43d858b3fb0e7fbdc13a7c75d8ff98461952a2f598d8ee8d3626b78b088cb133",
     "keywords": [
       "interpretability",
       "research",
@@ -12134,12 +12223,12 @@
       "large language",
       "introspection",
       "controlling",
-      "character",
-      "approach",
-      "language",
-      "large"
+      "foundation",
+      "internally",
+      "understand",
+      "character"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/team/interpretability.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -12188,9 +12277,9 @@
   },
   "anthropic-com-research-team-societal-impacts": {
     "category": "research",
-    "description": "Societal Impacts Research \\ Anthropic",
+    "description": "Working closely with the Anthropic Policy and Safeguards teams, Societal Impacts is a technical research team that explores how AI is used in the real world.",
     "domain": "anthropic.com",
-    "hash": "sha256:1d1fd8a8ea60787d0b67c3ca4516d7c2a242a03fb68f767c9a769bf39dd61521",
+    "hash": "sha256:7745e0e654d3e0ac55a21710e5ade5291ecbd118d731f052098502a222397154",
     "keywords": [
       "societal-impacts",
       "research",
@@ -12205,7 +12294,7 @@
       "societal impacts",
       "world language"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-01",
     "path": "anthropic-com/research/team/societal-impacts.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -59952,68 +60041,6 @@
     "title": "OpenAI SDK compatibility",
     "url": "https://platform.claude.com/docs/en/api/openai-sdk"
   },
-  "platform-claude-com-docs-en-api-overview": {
-    "aliases": [
-      "platform-claude-com-docs-en-build-with-claude-overview"
-    ],
-    "category": "api",
-    "description": "Explore Claude's advanced features and capabilities.",
-    "domain": "platform.claude.com",
-    "hash": "sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15",
-    "keywords": [
-      "progressive disclosure",
-      "core capabilities",
-      "extended thinking",
-      "batch processing",
-      "context editing",
-      "code execution",
-      "context window",
-      "prompt caching",
-      "search results",
-      "token counting",
-      "mcp connector",
-      "agent skills"
-    ],
-    "last_fetched": "2025-11-29",
-    "path": "platform-claude-com/docs/en/api/overview.md",
-    "sitemap_url": "https://docs.claude.com/sitemap.xml",
-    "source_type": "sitemap",
-    "subsections": [
-      {
-        "anchor": "#core-capabilities",
-        "heading": "Core capabilities",
-        "keywords": [
-          "core",
-          "capabilities",
-          "features",
-          "enhance",
-          "fundamental"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#tools",
-        "heading": "Tools",
-        "keywords": [
-          "tools",
-          "features",
-          "enable",
-          "interact"
-        ],
-        "level": 2
-      }
-    ],
-    "tags": [
-      "agents",
-      "batch",
-      "caching",
-      "files",
-      "mcp",
-      "skills"
-    ],
-    "title": "Features overview",
-    "url": "https://platform.claude.com/docs/en/api/overview"
-  },
   "platform-claude-com-docs-en-api-rate-limits": {
     "category": "api",
     "description": "To mitigate misuse and manage capacity on our API, we have implemented limits on how much an organization can use the Claude API.",
@@ -62944,6 +62971,66 @@
     ],
     "title": "Multilingual support",
     "url": "https://platform.claude.com/docs/en/build-with-claude/multilingual-support"
+  },
+  "platform-claude-com-docs-en-build-with-claude-overview": {
+    "aliases": [
+      "platform-claude-com-docs-en-api-overview"
+    ],
+    "category": "skills",
+    "description": "Explore Claude's advanced features and capabilities.",
+    "domain": "platform.claude.com",
+    "hash": "sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15",
+    "keywords": [
+      "build-with-claude",
+      "build",
+      "progressive disclosure",
+      "core capabilities",
+      "extended thinking",
+      "batch processing",
+      "context editing",
+      "code execution",
+      "context window",
+      "prompt caching",
+      "search results",
+      "token counting"
+    ],
+    "last_fetched": "2025-12-01",
+    "path": "platform-claude-com/docs/en/build-with-claude/overview.md",
+    "subsections": [
+      {
+        "anchor": "#core-capabilities",
+        "heading": "Core capabilities",
+        "keywords": [
+          "core",
+          "capabilities",
+          "features",
+          "enhance",
+          "fundamental"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#tools",
+        "heading": "Tools",
+        "keywords": [
+          "tools",
+          "features",
+          "enable",
+          "interact"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "agents",
+      "batch",
+      "caching",
+      "files",
+      "mcp",
+      "skills"
+    ],
+    "title": "Features overview",
+    "url": "https://platform.claude.com/docs/en/build-with-claude/overview"
   },
   "platform-claude-com-docs-en-build-with-claude-pdf-support": {
     "category": "models",

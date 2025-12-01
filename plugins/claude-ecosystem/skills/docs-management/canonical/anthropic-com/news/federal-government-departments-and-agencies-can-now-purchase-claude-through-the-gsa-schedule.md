@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/federal-government-departments-and-agencies-can-now-purchase-claude-through-the-gsa-schedule
 source_type: sitemap
-content_hash: sha256:5c08a1b9a0b741df4fd0275686b797e136572f25d9e70a6af6d261e65bd04951
+content_hash: sha256:eb3e3edebd68f5f10391ef1ced07f2f2407c09a5c769eafbfdafbd0f911830eb
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-05'
 ---
-
-U.S. federal departments and agencies can now more quickly and easily get access to Claude \ Anthropic
 
 Announcements
 

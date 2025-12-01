@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/economic-futures-uk-europe
 source_type: sitemap
-content_hash: sha256:f9cea8e65f2df231c6428aeaf9cf1832fa6994f5efe8d49c9d448572d8c657bd
+content_hash: sha256:e330c00b807a67a65f55774b662746fa26d65a6ca9d4f334bad73c10b0ab8dbe
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-05'
 ---
-
-Launching the Anthropic Economic Futures Programme in the UK and Europe \ Anthropic
 
 Economic Research
 

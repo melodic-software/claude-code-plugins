@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/petri-open-source-auditing
 source_type: sitemap
-content_hash: sha256:8677bffe6a2e8044e5524f8ea4a5340fac32ff96d7867abdd19c70bc56840474
+content_hash: sha256:cc13d2acc49b969f3744b6f48cbed1db366a23483d64eaaadad8bda7c4e5a23f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-06'
 ---
-
-Petri: An open-source auditing tool to accelerate AI safety research \ Anthropic
 
 Alignment
 

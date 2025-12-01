@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/advancing-claude-for-education
 source_type: sitemap
-content_hash: sha256:8687601df65b59d46b23fe7452bc8b1470ea99d320cc0e69c6fdea3a4293b8e5
+content_hash: sha256:1cd36faa93baf69517344dee06c0dadafacaaac5bfa178c235e80554326e894e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-09'
 ---
-
-Advancing Claude for Education \ Anthropic
 
 Product
 

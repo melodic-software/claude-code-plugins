@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/project-vend-1
 source_type: sitemap
-content_hash: sha256:5f5d1b80e6268a53cee8470fe8e767c548d2cb793b4447fcb34e3315ef12be3e
+content_hash: sha256:e673b4979e751177d688257c1930363898ff95c29198e6ea1766e4a6aeef962a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
 ---
-
-Project Vend: Can Claude run a small shop? (And why does that matter?) \ Anthropic
 
 Policy
 

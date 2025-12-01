@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/updating-restrictions-of-sales-to-unsupported-regions
 source_type: sitemap
-content_hash: sha256:c55762da2f35964643fa7bbfc1890967ae0f80040195393f154981a7762709f3
+content_hash: sha256:eb75caca0d9411988a3f87cfd52152917f08ec3c1f071c4cd699eba3dbee4522
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-04'
 ---
-
-Updating restrictions of sales to unsupported regions \ Anthropic
 
 Announcements
 

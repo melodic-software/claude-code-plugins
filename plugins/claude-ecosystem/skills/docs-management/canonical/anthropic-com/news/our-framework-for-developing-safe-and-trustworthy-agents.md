@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents
 source_type: sitemap
-content_hash: sha256:0e2aac7dbda8e7e80ff9751751b2cad9516a4673666b97f7c7684dbf0b312b56
+content_hash: sha256:739a36913f920b7764e68b8c43ccce092067be6548ae4898b0c6dc0b67bbc129
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-04'
 ---
-
-Our framework for developing safe and trustworthy agents \ Anthropic
 
 Policy
 

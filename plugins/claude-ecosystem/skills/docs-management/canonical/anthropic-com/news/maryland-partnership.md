@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/maryland-partnership
 source_type: sitemap
-content_hash: sha256:f2c060f45fad7dc101a52e7328ea92a8bb269045ae6832f1bb2cb704932d1a12
+content_hash: sha256:8a116eea9cccdacf0fe7510d9404a462d906a4a8f54cbc346dc0ce2be4d10a71
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
 ---
-
-The State of Maryland partners with Anthropic to better serve residents \ Anthropic
 
 Announcements
 

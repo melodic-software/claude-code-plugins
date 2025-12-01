@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-code-on-team-and-enterprise
 source_type: sitemap
-content_hash: sha256:7cabffaba73e3bdadb509fa018e4919b31b972840564ad9618586563e67e5d53
+content_hash: sha256:1d79d9f840f419f52944d29bc78c3ca6d623663001b6ab23037807da3eb13a85
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-20'
 ---
-
-Claude Code and new admin controls for business plans \ Anthropic
 
 Product
 

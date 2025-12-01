@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/disrupting-AI-espionage
 source_type: sitemap
-content_hash: sha256:e6688fe8e62f0e04745f93f65e000e1bc504a451770184324afc5f9921cd9a6b
+content_hash: sha256:2e179d264d4fd5205a30d922c9c1c4d276d81e3e6675ef98463c284b7d90f037
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
 ---
-
-Disrupting the first reported AI-orchestrated cyber espionage campaign \ Anthropic
 
 Policy
 

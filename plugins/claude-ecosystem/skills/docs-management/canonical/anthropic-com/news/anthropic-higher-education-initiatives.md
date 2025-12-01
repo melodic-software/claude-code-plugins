@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-higher-education-initiatives
 source_type: sitemap
-content_hash: sha256:0a5772d35b8b6ee3744bdbc9694994e8266b9df0df74ea27a05b4bc510c61bb7
+content_hash: sha256:945ffa1b4a0225fb5f5a1c8b694b657325d291d85822cde3a2a4f7c1a4a8afb4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-21'
 ---
-
-Anthropic launches higher education advisory board and AI Fluency courses \ Anthropic
 
 Announcements
 

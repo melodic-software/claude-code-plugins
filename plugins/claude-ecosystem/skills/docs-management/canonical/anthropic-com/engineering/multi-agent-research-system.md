@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/multi-agent-research-system
 source_type: sitemap
-content_hash: sha256:4548702680a58af025ad50ab57fb73873b9bf71db8851b7a6fa4ec1c3b3e3d74
+content_hash: sha256:723363c3d03bc5dce97ba5f00d51ddf1296e07d12be0411b7aeb2852202b13ba
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-13'
 ---
-
-How we built our multi-agent research system \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

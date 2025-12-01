@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/building-ai-cyber-defenders
 source_type: sitemap
-content_hash: sha256:4c3d46884abad69db090b6a72a30574c3db39827b4d0ea8569afe5cc939021de
+content_hash: sha256:5c78233c5223f61a58a14bbf106436200787576be044fe7cbc3bc74a934b662a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-03'
 ---
-
-Building AI for cyber defenders \ Anthropic
 
 Policy
 

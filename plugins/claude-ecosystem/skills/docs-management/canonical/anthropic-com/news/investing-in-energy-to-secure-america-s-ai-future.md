@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/investing-in-energy-to-secure-america-s-ai-future
 source_type: sitemap
-content_hash: sha256:3dc8ce4e2a202b86254d928e4771973bac10c0b22a4b1adf70934ad7483712f6
+content_hash: sha256:717faebb196a81363faf6979ce0258bb3f6d3b5069e33d2d8f0826abe7dd3b88
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
 ---
-
-Investing in energy to secure America's AI future \ Anthropic
 
 AlignmentPolicy
 

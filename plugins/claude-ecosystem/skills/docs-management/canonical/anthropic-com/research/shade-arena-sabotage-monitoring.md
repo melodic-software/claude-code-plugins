@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/shade-arena-sabotage-monitoring
 source_type: sitemap
-content_hash: sha256:d9823a38c1bfe5d7fed506c70a95349607bcac6680dbe614a7d5b180dfd94601
+content_hash: sha256:ac317c7b32306bf007217e955c91961e664ad716f86269ed038e3f0972ad2370
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-16'
 ---
-
-SHADE-Arena: Evaluating Sabotage and Monitoring in LLM Agents \ Anthropic
 
 Alignment
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi
 source_type: sitemap
-content_hash: sha256:280e90deaa46bf1655ef8b7fe247392ed9ce1ed55c136b8fc5253dd35054b65a
+content_hash: sha256:16a0db7f17329b4b5b5eb838b79856cd3063a8031f20613720a08287bda7cb9d
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-12'
 ---
-
-Strengthening our safeguards through collaboration with US CAISI and UK AISI \ Anthropic
 
 Announcements
 

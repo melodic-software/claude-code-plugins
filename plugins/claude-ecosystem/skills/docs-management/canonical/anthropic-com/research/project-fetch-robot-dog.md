@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/project-fetch-robot-dog
 source_type: sitemap
-content_hash: sha256:d70f39e4d67461873dc7a38bc03a8a911a65e091c005143692c7fbf87e3a48b2
+content_hash: sha256:161a8693c0af498ac2369b3e789d36115bae496c51f9ab7d7d2151dddf49a193
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-12'
 ---
-
-Project Fetch: Can Claude train a robot dog? \ Anthropic
 
 Policy
 

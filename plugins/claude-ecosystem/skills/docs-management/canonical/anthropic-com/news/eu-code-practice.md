@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/eu-code-practice
 source_type: sitemap
-content_hash: sha256:334b02d975e1afac944822331f32e80c6ade6af0bc78c9a879615d071b3d55b2
+content_hash: sha256:96604e2884bd4bad47af01c34e651cefae73b783eb5e2158da54f8c5c8ea9fe4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-21'
 ---
-
-Anthropic to sign the EU Code of Practice \ Anthropic
 
 Policy
 

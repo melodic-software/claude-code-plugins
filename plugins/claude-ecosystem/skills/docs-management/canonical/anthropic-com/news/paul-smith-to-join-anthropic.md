@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/paul-smith-to-join-anthropic
 source_type: sitemap
-content_hash: sha256:24542eb5f4e2a8d627814033edaa20179bb16d393ac530f41d2ca84122501bf9
+content_hash: sha256:9ceb4be7ab003bba6ad0682a62b987adaa8643864d68db822dbc1d4c0f5e860b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
 ---
-
-Paul Smith to join Anthropic as Chief Commercial Officer \ Anthropic
 
 Announcements
 

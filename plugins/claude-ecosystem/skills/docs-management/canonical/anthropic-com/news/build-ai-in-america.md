@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/build-ai-in-america
 source_type: sitemap
-content_hash: sha256:5eea978ec8516de394a20d9bcc4e9703def22ba1815c126e0a6263a6a54bd199
+content_hash: sha256:aa46438abd8ebea3c381e2903927cecc58126342d74aac7ecb032d2fdd4313df
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-21'
 ---
-
-Build AI in America: Anthropic Energy Report \ Anthropic
 
 Policy
 

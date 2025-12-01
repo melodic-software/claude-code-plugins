@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/deprecation-commitments
 source_type: sitemap
-content_hash: sha256:2590108d4a2a852eb0a5b3a5f0009eb5b446a3774195a73be3ece804ea858f24
+content_hash: sha256:737407b50cf71c56ed4efa491d38311aeb21ad9581f7d19d32bfd36c35ca4c64
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
 ---
-
-Commitments on model deprecation and preservation \ Anthropic
 
 Alignment
 

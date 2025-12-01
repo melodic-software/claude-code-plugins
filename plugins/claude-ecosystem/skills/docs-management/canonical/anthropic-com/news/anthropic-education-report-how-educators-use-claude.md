@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-education-report-how-educators-use-claude
 source_type: sitemap
-content_hash: sha256:2ecb869bf58a83c224a5e1e133a8c4bda46e1d1f74e8b4a2d164b81a43cf0404
+content_hash: sha256:04a92f66ffe4d17f871b1f1accaf9ca96511ea285803389d2add452797d9e89b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-27'
 ---
-
-Anthropic education report: How educators use Claude \ Anthropic
 
 Societal Impacts
 

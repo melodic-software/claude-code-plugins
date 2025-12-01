@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/statement-dario-amodei-american-ai-leadership
 source_type: sitemap
-content_hash: sha256:e8febe0df13cf1a5de13d033028bfbb8538a71c33e2606d987c0387ebef006d5
+content_hash: sha256:53c3e29ebd895e23c9629efe3362c7158f422db73eb34acd7b875429d7aed59f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-21'
 ---
-
-A statement from Dario Amodei on Anthropic's commitment to American AI leadership \ Anthropic
 
 Announcements
 

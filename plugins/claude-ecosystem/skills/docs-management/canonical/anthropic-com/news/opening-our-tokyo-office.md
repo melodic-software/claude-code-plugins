@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/opening-our-tokyo-office
 source_type: sitemap
-content_hash: sha256:8eb0a2eb6673949d5dbc78ffe58f4d01aa1624909a2d56d81e27f49a57087642
+content_hash: sha256:4e45f073163632905d88bfd1fdfbbfe85c58c407c820150de6b8e8a7e94f4c0c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
 ---
-
-Anthropic opens Tokyo office, signs a Memorandum of Cooperation with the Japan AI Safety Institute \ Anthropic
 
 Announcements
 

@@ -339,6 +339,8 @@ class MetadataExtractor:
                 continue
             if line.startswith('---'):
                 continue
+            if line.startswith('!['):  # Skip image-only lines
+                continue
             if line.startswith('[') and '](' in line:  # Skip link-only lines
                 continue
             if line.startswith('>'):  # Skip blockquote lines (markdown artifacts)

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
 source_type: sitemap
-content_hash: sha256:31631b44f20f6673116ced8e104ed4838e86aee1ff8ae7e0fcf7e943da893ab4
+content_hash: sha256:c063ae5a99d26f7e89228ab112d12fbaaca2d7a4baffc91b32d140e069ab2e1c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-26'
 ---
-
-Effective harnesses for long-running agents \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 
@@ -29,7 +27,7 @@ We developed a two-fold solution to enable the [Claude Agent SDK](https://platfo
 
 The Claude Agent SDK is a powerful, general-purpose agent harness adept at coding, as well as other tasks that require the model to use tools to gather context, plan, and execute. It has context management capabilities such as compaction, which enables an agent to work on a task without exhausting the context window. Theoretically, given this setup, it should be possible for an agent to continue to do useful work for an arbitrarily long time.
 
-However, compaction isn’t sufficient. Out of the box, even a frontier coding model like Opus 4.5 running on the Claude Agent SDK in a loop across multiple context windows will fall short of building a production-quality web app if it’s only given a high-level prompt, such as “build a clone of [claude.ai](http://claude.ai/redirect/website.v1.49ce1bfa-de59-4e84-a894-10a9fa2ff84c).”
+However, compaction isn’t sufficient. Out of the box, even a frontier coding model like Opus 4.5 running on the Claude Agent SDK in a loop across multiple context windows will fall short of building a production-quality web app if it’s only given a high-level prompt, such as “build a clone of [claude.ai](http://claude.ai/redirect/website.v1.NORMALIZED).”
 
 Claude’s failures manifested in two patterns. First, the agent tended to try to do too much at once—essentially to attempt to one-shot the app. Often, this led to the model running out of context in the middle of its implementation, leaving the next session to start with a feature half-implemented and undocumented. The agent would then have to guess at what had happened, and spend substantial time trying to get the basic app working again. This happens even with compaction, which doesn’t always pass perfectly clear instructions to the next agent.
 
@@ -50,7 +48,7 @@ In the updated [Claude 4 prompting guide](https://docs.claude.com/en/docs/build-
 
 ### Feature list
 
-To address the problem of the agent one-shotting an app or prematurely considering the project complete, we prompted the initializer agent to write a comprehensive file of feature requirements expanding on the user’s initial prompt. In the [claude.ai](http://claude.ai/redirect/website.v1.49ce1bfa-de59-4e84-a894-10a9fa2ff84c) clone example, this meant over 200 features, such as “a user can open a new chat, type in a query, press enter, and see an AI response.” These features were all initially marked as “failing” so that later coding agents would have a clear outline of what full functionality looked like.
+To address the problem of the agent one-shotting an app or prematurely considering the project complete, we prompted the initializer agent to write a comprehensive file of feature requirements expanding on the user’s initial prompt. In the [claude.ai](http://claude.ai/redirect/website.v1.NORMALIZED) clone example, this meant over 200 features, such as “a user can open a new chat, type in a query, press enter, and see an AI response.” These features were all initially marked as “failing” so that later coding agents would have a clear outline of what full functionality looked like.
 
 ```
 {

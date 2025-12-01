@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic
 source_type: sitemap
-content_hash: sha256:cd14066fe72e488432e4b4b208642071914d19a29a68afb39aaee9a86d1cc979
+content_hash: sha256:0d79d6723f99e46137c5eeece12efb1e651776d028768fc6f0f18fdc3f0c66c2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-23'
 ---
-
-Anthropic partners with the University of Chicago’s Becker Friedman Institute for Economics on AI economic research \ Anthropic
 
 Announcements
 

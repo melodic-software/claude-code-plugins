@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/salesforce-anthropic-expanded-partnership
 source_type: sitemap
-content_hash: sha256:79763c62e8b4b90f08b7c7de1b3ccad8f654e02d843b4f6a0d9f8c1741fbe0f7
+content_hash: sha256:1ebc809d1437c8471edb501bcb7154531e450ac426c2d41d2572b2a9c1932dee
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-14'
 ---
-
-Anthropic and Salesforce expand partnership to bring Claude to regulated industries \ Anthropic
 
 AnnouncementsProduct
 

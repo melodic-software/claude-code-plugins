@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/end-subset-conversations
 source_type: sitemap
-content_hash: sha256:a553978ec6c1602160c9c35b4ab0f7f47d0ae1ab476be21c7e0cd1bfd2e2975d
+content_hash: sha256:bb792c268f27403e1dcd51fdb12d086b992256f6b29c31aacb7e455973077d7b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
 ---
-
-Claude Opus 4 and 4.1 can now end a rare subset of conversations \ Anthropic
 
 Alignment
 

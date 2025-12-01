@@ -1,12 +1,10 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:1d1fd8a8ea60787d0b67c3ca4516d7c2a242a03fb68f767c9a769bf39dd61521
+content_hash: sha256:7745e0e654d3e0ac55a21710e5ade5291ecbd118d731f052098502a222397154
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
-
-Societal Impacts Research \ Anthropic
 
 [Back to Overview](/research)
 

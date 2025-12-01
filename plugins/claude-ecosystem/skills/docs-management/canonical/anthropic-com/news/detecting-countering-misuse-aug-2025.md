@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/detecting-countering-misuse-aug-2025
 source_type: sitemap
-content_hash: sha256:fe2db0c9d6101e343492efc7711ee7c22f0a9969b5a0d44d51045c8108b625bb
+content_hash: sha256:71404d3a75278fbd64e9e67a037aade50a63a043850d2a39236b04320935edab
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-27'
 ---
-
-Detecting and countering misuse of AI: August 2025 \ Anthropic
 
 Announcements
 

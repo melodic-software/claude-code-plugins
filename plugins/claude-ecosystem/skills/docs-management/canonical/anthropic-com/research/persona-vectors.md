@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/persona-vectors
 source_type: sitemap
-content_hash: sha256:18ad352722e3c9bf192bf4e55895a885fbceb65126eb707ef8bf9248cd58d4bc
+content_hash: sha256:6d0cc136c4a62843e20f84e90d4750bb0ca54ed1f931dee3683c57d8a8e7382c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-01'
 ---
-
-Persona vectors: Monitoring and controlling character traits in language models \ Anthropic
 
 Interpretability
 

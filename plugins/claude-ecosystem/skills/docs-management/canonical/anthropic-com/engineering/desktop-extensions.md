@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/desktop-extensions
 source_type: sitemap
-content_hash: sha256:a279e9f059cdfe558066c50e9a3a04326ec62ed0ed8b125473270437586afb0e
+content_hash: sha256:b9c06ead3add275915660fae00c98c19d7d6010d920eed3fa9e656b34ce17b44
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-26'
 ---
-
-Claude Desktop Extensions: One-click MCP server installation for Claude Desktop \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

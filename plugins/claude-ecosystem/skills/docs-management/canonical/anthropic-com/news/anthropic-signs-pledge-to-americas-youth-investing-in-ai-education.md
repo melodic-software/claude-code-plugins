@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-signs-pledge-to-americas-youth-investing-in-ai-education
 source_type: sitemap
-content_hash: sha256:4245c19848735e4241720d3c77501af790c61f0733796cd2f8976e157691bd01
+content_hash: sha256:566b0c7faba55aaab7a589ac6f7392a19e7831e0d5b8ce775c1b28aeb7a8cd99
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-04'
 ---
-
-Anthropic joins White House pledge for AI education \ Anthropic
 
 Announcements
 

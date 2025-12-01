@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/expanding-global-operations-to-india
 source_type: sitemap
-content_hash: sha256:6dd9e00671f204c71e5e254f07b73bb0f10c9e5bf2ab35b0f1d1118022e11699
+content_hash: sha256:6f2dd7a335fc6167f095a66fdc4631920fb001142bb4ad9cc3b6baa9adb93ee4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-07'
 ---
-
-Anthropic expands global operations to India, plans to open an office in Bengaluru. \ Anthropic
 
 Announcements
 

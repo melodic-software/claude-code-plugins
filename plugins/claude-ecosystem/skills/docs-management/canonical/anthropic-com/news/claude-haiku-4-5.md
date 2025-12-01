@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-haiku-4-5
 source_type: sitemap
-content_hash: sha256:b2c3948ad29983e4f2485674ed952131e80ffbf07fea8a778f48c0a8485d36f2
+content_hash: sha256:b9c3e6ea40e373de849640f04bac8d896e6c41739a6ca6299d57a55b6aad71f0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-15'
 ---
-
-Introducing Claude Haiku 4.5 \ Anthropic
 
 Product
 
@@ -23,7 +21,7 @@ What was recently at the frontier is now cheaper and faster. Five months ago, Cl
 
 ![Chart comparing frontier models on SWE-bench Verified which measures performance on real-world coding tasks](https://www-cdn.anthropic.com/images/4zrzovbb/website/1a27d7a85f953c5a0577dc19b507d6e1b93444d5-1920x1080.png&w=3840&q=75)
 
-Claude Haiku 4.5 even surpasses Claude Sonnet 4 at certain tasks, like using computers. These advances make applications like [Claude for Chrome](http://claude.ai/redirect/website.v1.625e97eb-61f9-4c27-bed0-43f02b69fc6c/chrome) faster and more useful than ever before.
+Claude Haiku 4.5 even surpasses Claude Sonnet 4 at certain tasks, like using computers. These advances make applications like [Claude for Chrome](http://claude.ai/redirect/website.v1.NORMALIZED/chrome) faster and more useful than ever before.
 
 Users who rely on AI for real-time, low-latency tasks like chat assistants, customer service agents, or pair programming will appreciate Haiku 4.5’s combination of high intelligence and remarkable speed. And users of Claude Code will find that Haiku 4.5 makes the coding experience—from multiple-agent projects to rapid prototyping—markedly more responsive.
 

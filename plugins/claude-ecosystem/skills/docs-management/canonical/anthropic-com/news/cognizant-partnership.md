@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/cognizant-partnership
 source_type: sitemap
-content_hash: sha256:48e288a4b517a20c8b06a10cc6a9ac3f657ff5a4425c9cd26435004a75513cd6
+content_hash: sha256:72c37fe503437783ff579443faad2961d4a625a2dd0cc46f5524b2020d1324cc
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
 ---
-
-Cognizant will make Claude available to 350,000 employees, accelerating enterprise AI adoption and internal transformation \ Anthropic
 
 Announcements
 

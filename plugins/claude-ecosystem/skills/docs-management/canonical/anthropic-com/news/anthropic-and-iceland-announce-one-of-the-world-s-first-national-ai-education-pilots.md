@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots
 source_type: sitemap
-content_hash: sha256:2dac98e40127ad2cd027ae470d3adbfe84605d446b7a549d912f478a2c05a5d8
+content_hash: sha256:125ea80fda11e07cfec38cf407feded0b5f9b54445b4f528cd7f89bf2ace7431
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
 ---
-
-Anthropic and Iceland announce one of the world’s first national AI education pilots \ Anthropic
 
 Announcements
 

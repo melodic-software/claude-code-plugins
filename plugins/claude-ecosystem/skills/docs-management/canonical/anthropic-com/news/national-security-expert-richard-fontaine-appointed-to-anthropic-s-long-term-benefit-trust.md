@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/national-security-expert-richard-fontaine-appointed-to-anthropic-s-long-term-benefit-trust
 source_type: sitemap
-content_hash: sha256:152dcfa19cdc50fc28fd01011ca4a2f7b2b5716a709c71dc4a9f0a39a84caa07
+content_hash: sha256:058a34da9c540625e654d3556eec198d50fdb51a5e9cf1607c950590c05b5ae1
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-07'
 ---
-
-National security expert Richard Fontaine appointed to Anthropic’s long-term benefit trust \ Anthropic
 
 Announcements
 

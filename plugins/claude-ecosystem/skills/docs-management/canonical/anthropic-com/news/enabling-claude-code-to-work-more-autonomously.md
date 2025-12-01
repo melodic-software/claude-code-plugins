@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously
 source_type: sitemap
-content_hash: sha256:fee4643ff5e86085c890495fe45e13e48ce1809a6bcf18ad16a31bcd71ec65a5
+content_hash: sha256:9fba50a653281dd4003b3badf504d9fc1bb423ae61db6b597eadfd9a13f3dfd9
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
 ---
-
-Enabling Claude Code to work more autonomously \ Anthropic
 
 Product
 

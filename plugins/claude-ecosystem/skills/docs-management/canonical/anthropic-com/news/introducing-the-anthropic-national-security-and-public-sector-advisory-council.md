@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/introducing-the-anthropic-national-security-and-public-sector-advisory-council
 source_type: sitemap
-content_hash: sha256:5a7b2200d4fa4af7b07ed82703060e63ea6503a2d58a005617f385990402a2e9
+content_hash: sha256:5013c1cd047ff050d206342eb0ce6489b43ac0624d5b3018acff7c45607da3ec
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-27'
 ---
-
-Introducing the Anthropic National Security and Public Sector Advisory Council \ Anthropic
 
 Announcements
 

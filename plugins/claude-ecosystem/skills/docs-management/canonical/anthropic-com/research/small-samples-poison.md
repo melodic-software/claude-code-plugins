@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/small-samples-poison
 source_type: sitemap
-content_hash: sha256:48c8fa4ee9433df15299ca25029fa037582435b5d607ee2446dc9738f6e46451
+content_hash: sha256:548c4b200e586ef283a9ba023694a24c9a0f8fe580c14666009a0ac8d16ba5c0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-09'
 ---
-
-A small number of samples can poison LLMs of any size \ Anthropic
 
 Alignment
 

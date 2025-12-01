@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk
 source_type: sitemap
-content_hash: sha256:475001307850ab47b3ef30313be727e755587d6aeec41d48d7261111f5194aad
+content_hash: sha256:91a4327f83469524780e3fd18d026d1db2c9f0fa2dabf7637c7e128c1245801f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
 ---
-
-Building agents with the Claude Agent SDK \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 
@@ -110,7 +108,7 @@ The Claude Agent SDK excels at code generation—and for good reason. Code is pr
 
 When building agents, consider: which tasks would benefit from being expressed as code? Often, the answer unlocks significant capabilities.
 
-For example, our recent launch of [file creation in](https://www.anthropic.com/news/create-files) [Claude.AI](http://claude.ai/redirect/website.v1.49ce1bfa-de59-4e84-a894-10a9fa2ff84c) relies entirely on code generation. Claude writes Python scripts to create Excel spreadsheets, PowerPoint presentations, and Word documents, ensuring consistent formatting and complex functionality that would be difficult to achieve any other way.
+For example, our recent launch of [file creation in](https://www.anthropic.com/news/create-files) [Claude.AI](http://claude.ai/redirect/website.v1.NORMALIZED) relies entirely on code generation. Claude writes Python scripts to create Excel spreadsheets, PowerPoint presentations, and Word documents, ensuring consistent formatting and complex functionality that would be difficult to achieve any other way.
 
 In our email agent, we might want to allow users to create rules for inbound emails. To achieve this, we could write code to run on that event:
 

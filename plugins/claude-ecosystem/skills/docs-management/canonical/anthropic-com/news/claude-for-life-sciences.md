@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-life-sciences
 source_type: sitemap
-content_hash: sha256:e44653e3049e38c8150190b8405a51d61bac5516ff5b48ecf9a3e6b43ce01362
+content_hash: sha256:1f56d2398f8ad7277b01469388a93dd9fd641a3f57394629c9671bd2a91bbc7c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-20'
 ---
-
-Claude for Life Sciences \ Anthropic
 
 Announcements
 
@@ -33,7 +31,7 @@ To make Claude more useful for scientific work, we’re now adding several [new 
 
 ## Connecting Claude to scientific tools
 
-[**Connectors**](https://claude.ai/redirect/website.v1.625e97eb-61f9-4c27-bed0-43f02b69fc6c/settings/connectors) allow Claude to access other platforms and tools directly. We’re adding several new connectors that are designed to make it easier to use Claude for scientific discovery:
+[**Connectors**](https://claude.ai/redirect/website.v1.NORMALIZED/settings/connectors) allow Claude to access other platforms and tools directly. We’re adding several new connectors that are designed to make it easier to use Claude for scientific discovery:
 
 * **Benchling** gives Claude the ability to respond to scientists’ questions with links back to source experiments, notebooks, and records;
 * **BioRender** connects Claude to its extensive library of vetted scientific figures, icons, and templates;

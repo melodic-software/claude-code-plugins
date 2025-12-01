@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-gov-models-for-u-s-national-security-customers
 source_type: sitemap
-content_hash: sha256:ecef20864748df5bca15798becc97aff3209bd602c7da25a460acea2318f3aef
+content_hash: sha256:7db4e7c928b6e6a3802fea26e33fef2a0fa3b204e6d78f1fbacc09eada35ba44
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-06'
 ---
-
-Claude Gov models for U.S. national security customers \ Anthropic
 
 Announcements
 

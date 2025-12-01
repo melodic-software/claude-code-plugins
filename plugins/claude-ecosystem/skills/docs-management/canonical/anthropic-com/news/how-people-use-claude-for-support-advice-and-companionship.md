@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/how-people-use-claude-for-support-advice-and-companionship
 source_type: sitemap
-content_hash: sha256:bd95ac9e28a67365beeee882a3d047a6c4825b3b4e1a1acc49312ae2b13bc604
+content_hash: sha256:1b87c5009bc26a4b60960302f3976cc6e6fb605f708e29a78a1389d79f4c4468
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
 ---
-
-How people use Claude for support, advice, and companionship \ Anthropic
 
 Societal Impacts
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/a-postmortem-of-three-recent-issues
 source_type: sitemap
-content_hash: sha256:7a905bec9448ab2e6a71babef2507975c307641f5743cc54ac7cea5db86372a3
+content_hash: sha256:ff8e7ba993f817973755d90a15a5f4253f52811fdcd18ec1982064c5fac87a30
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-17'
 ---
-
-A postmortem of three recent issues \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

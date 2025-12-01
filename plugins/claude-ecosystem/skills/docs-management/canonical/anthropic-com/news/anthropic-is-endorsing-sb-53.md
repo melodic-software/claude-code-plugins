@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-is-endorsing-sb-53
 source_type: sitemap
-content_hash: sha256:60b577f8d0de1673ed25a2f1066cdd35dfc1a88964bcfd90bc36a397d8bace6e
+content_hash: sha256:64e0709f4e01a31e17e388bf23b7b781680b037df3d1e35c996921884e084147
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-08'
 ---
-
-Anthropic is endorsing SB 53 \ Anthropic
 
 Announcements
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of
 source_type: sitemap
-content_hash: sha256:1f12fdd50086a887acbd662d95010b4ec470f9ef4a5f621b464c3ffb05e78187
+content_hash: sha256:8d4393c2d2f6a2257ea762c384bf0829f0787adf409cbca766db50c6d0bf94fd
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-26'
 ---
-
-Anthropic expands global leadership in enterprise AI, naming Chris Ciauri as Managing Director of International \ Anthropic
 
 Announcements
 

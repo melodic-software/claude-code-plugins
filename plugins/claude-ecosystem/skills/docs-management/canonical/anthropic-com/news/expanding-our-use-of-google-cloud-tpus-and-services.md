@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/expanding-our-use-of-google-cloud-tpus-and-services
 source_type: sitemap
-content_hash: sha256:51eb2a3b5e68681f6090e025d7d675b2e5f6e672990f956be0f99380269cabac
+content_hash: sha256:e8461067fdfb72a6fa107004502aee4ff25afe9a09eb6259cb4b6dcbc20fc551
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-23'
 ---
-
-Expanding our use of Google Cloud TPUs and Services \ Anthropic
 
 Announcements
 

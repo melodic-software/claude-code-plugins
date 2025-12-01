@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/thoughts-on-america-s-ai-action-plan
 source_type: sitemap
-content_hash: sha256:b858530201121f8817ead8b5ae6a3666471a0a65374e68cf3ae96867083f4649
+content_hash: sha256:c82711de750d18932933733c0bc0a65e06054b7e533dfcce18c671f6a06a6766
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-23'
 ---
-
-Thoughts on America’s AI Action Plan \ Anthropic
 
 Policy
 

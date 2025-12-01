@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-amazon-bedrock-fedramp-high
 source_type: sitemap
-content_hash: sha256:7a87b72d53eb7c909047ece68a128ae2c763b6877bc407bfbe75defe6a2d69d9
+content_hash: sha256:16a405eb462b74c44a6094d3da2c722da631e09fd692c762f498c9ad76a11dba
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-11'
 ---
-
-Claude in Amazon Bedrock: Approved for Use in FedRAMP High and DoD IL4/5 Workloads \ Anthropic
 
 Announcements
 

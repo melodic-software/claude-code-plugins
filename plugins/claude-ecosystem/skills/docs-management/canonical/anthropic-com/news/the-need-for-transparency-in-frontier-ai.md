@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/the-need-for-transparency-in-frontier-ai
 source_type: sitemap
-content_hash: sha256:92969be2674d30dec5bfb4c0b788dc700eaadf880380b20c36d40cb16c7b0dbc
+content_hash: sha256:571258d9376d6334759061266dddfc05e1743ef48dd84745d3ccbce5cc570434
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-07'
 ---
-
-A framework for AI development transparency \ Anthropic
 
 Policy
 

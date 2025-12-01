@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/advanced-tool-use
 source_type: sitemap
-content_hash: sha256:dd2cc0ee5fe2095f32e4ca25ddfbce96badf779f6491af4ce0616c4b92c29d81
+content_hash: sha256:3c14625f9bb4981a7245a5239f574ddd70c266926984b78767fb5aeffa752d12
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
 ---
-
-Introducing advanced tool use on the Claude Developer Platform \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

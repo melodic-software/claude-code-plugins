@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/rwandan-government-partnership-ai-education
 source_type: sitemap
-content_hash: sha256:0c028718f7663b72ea9d361e74599183cc1008a91afe946233ae13defb1853cd
+content_hash: sha256:770b5e4160e67c958921e9c1d00725657d5f4044ecaff5c8f05458bbce01cc2c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
 ---
-
-Anthropic partners with Rwandan Government and ALX to bring AI education to hundreds of thousands of learners across Africa \ Anthropic
 
 Announcements
 

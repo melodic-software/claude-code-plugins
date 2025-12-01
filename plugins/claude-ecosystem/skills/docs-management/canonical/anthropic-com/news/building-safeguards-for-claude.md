@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/building-safeguards-for-claude
 source_type: sitemap
-content_hash: sha256:698e71708de27fe0301b0ffae7f7132777396a1909b08cc1e5c737c9bf143bad
+content_hash: sha256:119863fcd86a52e7939b36b8fa82638070bf646236515efde1670fcfda98ee88
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-12'
 ---
-
-Building safeguards for Claude \ Anthropic
 
 Product
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-and-the-department-of-defense-to-advance-responsible-ai-in-defense-operations
 source_type: sitemap
-content_hash: sha256:011ce1fa563f1e5366b6ed9ec1062ef757b5fada6070230cfbabfb7bc77e485b
+content_hash: sha256:4dbd2689c23eef4fc388718d1d2727db778f2c7b1baa1217ea19628f2f693cda
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-14'
 ---
-
-Anthropic awarded $200M DOD agreement for AI capabilities \ Anthropic
 
 Announcements
 

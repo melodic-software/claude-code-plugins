@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/rahul-patil-joins-anthropic
 source_type: sitemap
-content_hash: sha256:d9101611578e255bbeeeabefb6794f4b74353b93ccf51a52c6c27ab087ae511a
+content_hash: sha256:fd96dc9c5ac2c8b4eed07a2b3b67a3b6402c895e25b5e76a8eb2b9413af2033f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-07'
 ---
-
-Rahul Patil joins Anthropic as Chief Technology Officer \ Anthropic
 
 Announcements
 

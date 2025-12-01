@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-healthcare-interoperability
 source_type: sitemap
-content_hash: sha256:e68dbd9036d15b2a560b97aacc255638cabf4958f48c16a9a6014bdea46643c1
+content_hash: sha256:2b138209a7d3e4f0d9b9fa743e34f708b4ea618822e45a2ac6ed24abb7fb08bf
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-30'
 ---
-
-Anthropic signs CMS health tech pledge \ Anthropic
 
 Policy
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/writing-tools-for-agents
 source_type: sitemap
-content_hash: sha256:30b56381b46104153ad6fa2d4e9dc29486607824a101cd7beeea32c1251e8e2e
+content_hash: sha256:0487fc346be9f9d6941b2d62084731d650490b4c8ecae83ffa4ecfce677ead4f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-11'
 ---
-
-Writing effective tools for AI agents—using AI agents \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

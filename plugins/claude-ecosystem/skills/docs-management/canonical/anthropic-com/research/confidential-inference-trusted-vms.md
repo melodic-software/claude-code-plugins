@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/research/confidential-inference-trusted-vms
 source_type: sitemap
-content_hash: sha256:71bba7d03e6e814f380f2d4075565e4a71b88886520415b2f7697a4d34eedb68
+content_hash: sha256:abc879bba0b179a5f60a9ed56663e3edc69dd92c6e2e755519925890c706e464
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-18'
 ---
-
-Confidential Inference via Trusted Virtual Machines \ Anthropic
 
 Announcements
 

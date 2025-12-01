@@ -1,12 +1,10 @@
 ---
 source_url: https://www.anthropic.com/research/team/interpretability
 source_type: sitemap
-content_hash: sha256:99176b3d8e556cbefe3402cba768e0a4bdfab1643eacebe151a98bd65073843b
+content_hash: sha256:43d858b3fb0e7fbdc13a7c75d8ff98461952a2f598d8ee8d3626b78b088cb133
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
-
-Interpretability Research \ Anthropic
 
 [Back to Overview](/research)
 

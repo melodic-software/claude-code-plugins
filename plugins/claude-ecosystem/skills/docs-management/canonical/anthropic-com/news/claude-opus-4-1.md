@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-opus-4-1
 source_type: sitemap
-content_hash: sha256:a9842a9661b84f9d7bd609d5caeebc53bff9b51912d5cf8ebc73e1d77307afde
+content_hash: sha256:5592a81bd3a3b2dffc4b69a705f67100a3e7f2c924373f7a7cc5ba4c8a0fc9ac
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-05'
 ---
-
-Claude Opus 4.1 \ Anthropic
 
 Announcements
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
 source_type: sitemap
-content_hash: sha256:5b99d98e320b5e7faaca648958a5df47713886d4efa62170423b20f7d44ff11a
+content_hash: sha256:cbbae935b0c9a92a315a074498a2f087d7ce31e361d2929b10aa267f8dfda954
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
 ---
-
-Effective context engineering for AI agents \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

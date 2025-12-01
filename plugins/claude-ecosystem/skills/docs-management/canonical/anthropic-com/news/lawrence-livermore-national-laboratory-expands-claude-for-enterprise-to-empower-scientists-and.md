@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and
 source_type: sitemap
-content_hash: sha256:06a393f359e2181cac0ce22b65455b3c6e345b0f31b982096b285834b0a9c6d3
+content_hash: sha256:eae3cbd489f270cdf227c6f9b106ad0c0faca604cec4fa86e1bc1e465275a53f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-09'
 ---
-
-Claude for Enterprise Powers LLNL Research \ Anthropic
 
 Announcements
 

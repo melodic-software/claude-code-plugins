@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/usage-policy-update
 source_type: sitemap
-content_hash: sha256:43f3c850e29e313fc878850e94d64aa23faa5ba44ccb8082b8812ce482635eb4
+content_hash: sha256:fc0360785ac09ca6173f4634b3d2656e847199bfece3002465085d42df37eee4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
 ---
-
-Usage Policy Update \ Anthropic
 
 Policy
 

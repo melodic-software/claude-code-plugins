@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-xcode
 source_type: sitemap
-content_hash: sha256:753c388067ff881aa5165f7341df60e141bedb057f7fdfa9bb9314f5d4ea144a
+content_hash: sha256:d6e75c0e5fd4948adc87f889f1071776211f7079db0fa06533e220daf31f6556
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-15'
 ---
-
-Claude is now generally available in Xcode \ Anthropic
 
 Product
 

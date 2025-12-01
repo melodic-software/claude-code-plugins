@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/introducing-the-anthropic-economic-futures-program
 source_type: sitemap
-content_hash: sha256:4e8940989b3d7b095ef005a207093e35f517356eb4180f33c9ad8a65c8bafe39
+content_hash: sha256:ff457b42df9ecaddaaaa5858063e27268bf9e86e9ed0b068893a6b65cbd25009
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
 ---
-
-Anthropic Economic Futures Program Launch \ Anthropic
 
 AnnouncementsPolicy
 

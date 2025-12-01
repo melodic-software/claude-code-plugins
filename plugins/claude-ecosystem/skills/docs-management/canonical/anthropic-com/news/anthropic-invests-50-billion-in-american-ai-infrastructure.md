@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-invests-50-billion-in-american-ai-infrastructure
 source_type: sitemap
-content_hash: sha256:5b10fa81f038929e763c53dea4fc8a3831941cdd819200fd9784acb899a9ee8e
+content_hash: sha256:1e8d9096347b1a101af492c86708c849bd33f9de6796c210005bea228b6aac98
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-12'
 ---
-
-Anthropic invests $50 billion in American AI infrastructure \ Anthropic
 
 Announcements
 

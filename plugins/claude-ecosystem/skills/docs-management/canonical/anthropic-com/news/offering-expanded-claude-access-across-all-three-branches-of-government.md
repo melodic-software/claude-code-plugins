@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/offering-expanded-claude-access-across-all-three-branches-of-government
 source_type: sitemap
-content_hash: sha256:87d9fbb53f834b2a2086a688ba80b0e399963136b1b6c10704de07b5b3b056e8
+content_hash: sha256:dac31726b36b40f7dac07ded9f46d48349aa476bbd6714dbf18784c329b59cb1
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-12'
 ---
-
-Offering expanded Claude access across all three branches of government \ Anthropic
 
 Announcements
 

@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/seoul-becomes-third-anthropic-office-in-asia-pacific
 source_type: sitemap
-content_hash: sha256:cbdefea6efb8b877fc538a0feef729134db24022bd66246284b82954a115873d
+content_hash: sha256:b486d839f4981c8c917a766d3c05ef41433493a03a1e80143fe20ad95248c83a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-23'
 ---
-
-Seoul becomes Anthropic’s third office in Asia-Pacific as we continue our international growth \ Anthropic
 
 Announcements
 

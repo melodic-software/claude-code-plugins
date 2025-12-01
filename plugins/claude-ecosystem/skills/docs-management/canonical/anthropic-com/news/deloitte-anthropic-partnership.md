@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/deloitte-anthropic-partnership
 source_type: sitemap
-content_hash: sha256:be5b057f241e1e597afa8923dd4d8ef13bb229bcde11432d0b1a4ba1b6ddf8bc
+content_hash: sha256:933a438fbebb2763098306e9e1b4dbf8f9f8cec29bc46d6e2ae3e03eebe11cd2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-06'
 ---
-
-Anthropic Deloitte Partnership \ Anthropic
 
 Announcements
 

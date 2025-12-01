@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-microsoft-foundry
 source_type: sitemap
-content_hash: sha256:a59a54fd0b698581906c7af5456f82abc2ed653221e9f7d04afc239650cbc76e
+content_hash: sha256:64a888753652741da6929723a559346f6c556a14232056b84e97cb350cbc3748
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
 ---
-
-Claude now available in Microsoft Foundry and Microsoft 365 Copilot \ Anthropic
 
 Product
 

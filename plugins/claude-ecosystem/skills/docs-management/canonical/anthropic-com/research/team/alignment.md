@@ -1,12 +1,10 @@
 ---
 source_url: https://www.anthropic.com/research/team/alignment
 source_type: sitemap
-content_hash: sha256:cb47c65fd4fdfbc8bdd424a9d614b9129a3a6ffa857e79b654579b21b72c6e05
+content_hash: sha256:7af98f822e724ff27622f728e2dbb975949ccc6e5429ae9cd348980738100bab
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
-
-Alignment Research \ Anthropic
 
 [Back to Overview](/research)
 

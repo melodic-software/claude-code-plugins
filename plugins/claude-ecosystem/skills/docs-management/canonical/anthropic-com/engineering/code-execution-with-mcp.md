@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/engineering/code-execution-with-mcp
 source_type: sitemap
-content_hash: sha256:83df148e5706f51c2992c436e70b5c4b408b5a99624aaaa6af0bd7a69cb05593
+content_hash: sha256:a44a1040c19b3444e2804aa2d822201bdac0c4e463f171299e9ecd2c59f929a5
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
 ---
-
-Code execution with MCP: building more efficient AI agents \ Anthropic
 
 [Engineering at Anthropic](/engineering)
 

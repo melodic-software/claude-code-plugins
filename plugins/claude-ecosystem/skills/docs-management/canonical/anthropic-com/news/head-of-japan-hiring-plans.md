@@ -1,13 +1,11 @@
 ---
 source_url: https://www.anthropic.com/news/head-of-japan-hiring-plans
 source_type: sitemap
-content_hash: sha256:6edceca439b08ec3ea715eadbc30bc45522f0487b2f147013e47bb8cc3886992
+content_hash: sha256:9eae0a7a0c1ed364349bdcf1a8cc1b0354589375989619d0a05d6cf6ad7af438
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-06'
 ---
-
-Anthropic appoints Hidetoshi Tojo as Head of Japan and announces hiring plans \ Anthropic
 
 Announcements
 
