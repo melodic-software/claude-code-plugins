@@ -57,27 +57,27 @@ Follow the ordered steps covering package management, Git (via git skills), runt
 ## Topics Index
 
 | Topic | Windows | macOS | Linux | WSL |
-|-------|---------|-------|-------|-----|
-| Package Management | [link](references/package-management/package-managers-windows.md) | [link](references/package-management/package-managers-macos.md) | [link](references/package-management/package-managers-linux.md) | - |
-| WSL Setup | [link](references/wsl/wsl-setup-windows.md) | - | - | - |
-| Linux Fundamentals | - | - | [link](references/linux-fundamentals/common-commands-linux.md) | [link](references/linux-fundamentals/common-commands-wsl.md) |
-| Runtime Environments | [link](references/runtime-environments/nvm-setup-windows.md) | [link](references/runtime-environments/nvm-setup-macos.md) | [link](references/runtime-environments/nvm-setup-linux.md) | - |
-| PowerShell | [link](references/shell-terminal/powershell-setup-windows.md) | [link](references/shell-terminal/powershell-setup-macos.md) | [link](references/shell-terminal/powershell-setup-linux.md) | - |
-| Shell Customization | [link](references/shell-terminal/shell-customization-windows.md) | [link](references/shell-terminal/shell-customization-macos.md) | [link](references/shell-terminal/shell-customization-linux.md) | - |
-| Alternative Shells | [link](references/shell-terminal/alternative-shells-windows.md) | [link](references/shell-terminal/alternative-shells-macos.md) | [link](references/shell-terminal/alternative-shells-linux.md) | - |
-| Code Editors | [link](references/code-editors/code-editors-windows.md) | [link](references/code-editors/code-editors-macos.md) | [link](references/code-editors/code-editors-linux.md) | - |
-| AI Tooling | [link](references/ai-tooling/ai-tooling-windows.md) | [link](references/ai-tooling/ai-tooling-macos.md) | [link](references/ai-tooling/ai-tooling-linux.md) | - |
-| Docker | [link](references/containerization/docker-setup-windows.md) | [link](references/containerization/docker-setup-macos.md) | [link](references/containerization/docker-setup-linux.md) | - |
-| API Tools | [link](references/api-development/api-tools-windows.md) | [link](references/api-development/api-tools-macos.md) | [link](references/api-development/api-tools-linux.md) | [link](references/api-development/api-tools-wsl.md) |
-| Web Browsers | [link](references/web-browsers/browsers-windows.md) | [link](references/web-browsers/browsers-macos.md) | [link](references/web-browsers/browsers-linux.md) | - |
-| Azure CLI | [link](references/cloud-platforms/azure-cli-setup-windows.md) | [link](references/cloud-platforms/azure-cli-setup-macos.md) | [link](references/cloud-platforms/azure-cli-setup-linux.md) | - |
-| Database Tools | [link](references/database-tools/database-tools-windows.md) | [link](references/database-tools/database-tools-macos.md) | [link](references/database-tools/database-tools-linux.md) | - |
-| Productivity | [link](references/productivity/productivity-tools-windows.md) | [link](references/productivity/productivity-tools-macos.md) | [link](references/productivity/productivity-tools-linux.md) | - |
-| Figma | [link](references/productivity/figma-setup-windows.md) | [link](references/productivity/figma-setup-macos.md) | [link](references/productivity/figma-setup-linux.md) | - |
-| Security Tools | [link](references/security/security-tools-windows.md) | [link](references/security/security-tools-macos.md) | [link](references/security/security-tools-linux.md) | - |
-| Windows Sandbox | [link](references/security/windows-sandbox.md) | - | - | - |
-| System Utilities | [link](references/system-tools/system-utilities-windows.md) | [link](references/system-tools/system-utilities-macos.md) | [link](references/system-tools/system-utilities-linux.md) | - |
-| Other | [link](references/other/other-windows.md) | [link](references/other/other-macos.md) | [link](references/other/other-linux.md) | - |
+| ----- | ------- | ----- | ----- | --- |
+| Package Management | [Windows](references/package-management/package-managers-windows.md) | [macOS](references/package-management/package-managers-macos.md) | [Linux](references/package-management/package-managers-linux.md) | - |
+| WSL Setup | [Windows](references/wsl/wsl-setup-windows.md) | - | - | - |
+| Linux Fundamentals | - | - | [Linux](references/linux-fundamentals/common-commands-linux.md) | [WSL](references/linux-fundamentals/common-commands-wsl.md) |
+| Runtime Environments | [Windows](references/runtime-environments/nvm-setup-windows.md) | [macOS](references/runtime-environments/nvm-setup-macos.md) | [Linux](references/runtime-environments/nvm-setup-linux.md) | - |
+| PowerShell | [Windows](references/shell-terminal/powershell-setup-windows.md) | [macOS](references/shell-terminal/powershell-setup-macos.md) | [Linux](references/shell-terminal/powershell-setup-linux.md) | - |
+| Shell Customization | [Windows](references/shell-terminal/shell-customization-windows.md) | [macOS](references/shell-terminal/shell-customization-macos.md) | [Linux](references/shell-terminal/shell-customization-linux.md) | - |
+| Alternative Shells | [Windows](references/shell-terminal/alternative-shells-windows.md) | [macOS](references/shell-terminal/alternative-shells-macos.md) | [Linux](references/shell-terminal/alternative-shells-linux.md) | - |
+| Code Editors | [Windows](references/code-editors/code-editors-windows.md) | [macOS](references/code-editors/code-editors-macos.md) | [Linux](references/code-editors/code-editors-linux.md) | - |
+| AI Tooling | [Windows](references/ai-tooling/ai-tooling-windows.md) | [macOS](references/ai-tooling/ai-tooling-macos.md) | [Linux](references/ai-tooling/ai-tooling-linux.md) | - |
+| Docker | [Windows](references/containerization/docker-setup-windows.md) | [macOS](references/containerization/docker-setup-macos.md) | [Linux](references/containerization/docker-setup-linux.md) | - |
+| API Tools | [Windows](references/api-development/api-tools-windows.md) | [macOS](references/api-development/api-tools-macos.md) | [Linux](references/api-development/api-tools-linux.md) | [WSL](references/api-development/api-tools-wsl.md) |
+| Web Browsers | [Windows](references/web-browsers/browsers-windows.md) | [macOS](references/web-browsers/browsers-macos.md) | [Linux](references/web-browsers/browsers-linux.md) | - |
+| Azure CLI | [Windows](references/cloud-platforms/azure-cli-setup-windows.md) | [macOS](references/cloud-platforms/azure-cli-setup-macos.md) | [Linux](references/cloud-platforms/azure-cli-setup-linux.md) | - |
+| Database Tools | [Windows](references/database-tools/database-tools-windows.md) | [macOS](references/database-tools/database-tools-macos.md) | [Linux](references/database-tools/database-tools-linux.md) | - |
+| Productivity | [Windows](references/productivity/productivity-tools-windows.md) | [macOS](references/productivity/productivity-tools-macos.md) | [Linux](references/productivity/productivity-tools-linux.md) | - |
+| Figma | [Windows](references/productivity/figma-setup-windows.md) | [macOS](references/productivity/figma-setup-macos.md) | [Linux](references/productivity/figma-setup-linux.md) | - |
+| Security Tools | [Windows](references/security/security-tools-windows.md) | [macOS](references/security/security-tools-macos.md) | [Linux](references/security/security-tools-linux.md) | - |
+| Windows Sandbox | [Windows](references/security/windows-sandbox.md) | - | - | - |
+| System Utilities | [Windows](references/system-tools/system-utilities-windows.md) | [macOS](references/system-tools/system-utilities-macos.md) | [Linux](references/system-tools/system-utilities-linux.md) | - |
+| Other | [Windows](references/other/other-windows.md) | [macOS](references/other/other-macos.md) | [Linux](references/other/other-linux.md) | - |
 
 ## Cross-Platform Content
 
