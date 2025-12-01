@@ -84,8 +84,43 @@ If repositories break due to Windows file path limitations:
 
 - Ensure `core.fsmonitor=true` is set (see **git-config** skill)
 - Ensure `core.untrackedCache=true` is set (see **git-config** skill)
-- Consider excluding antivirus scanning for `.git` folders
+- Consider excluding antivirus scanning for development directories (see below)
 - Consider using WSL2 for repositories with many files (better filesystem performance)
+
+**Antivirus interference (Windows Defender):**
+
+If you see errors like `error: unable to stat just-written file` during Git operations (checkout, clone, merge), Windows Defender is likely scanning files before Git can access them.
+
+Symptoms:
+
+- `error: unable to stat just-written file '<path>': No such file or directory`
+- Git operations fail intermittently on repos with many files
+- Operations succeed on retry
+
+Solution - Add exclusion (requires Administrator PowerShell):
+
+```powershell
+# Exclude your development directory (subfolders are automatically included)
+Add-MpPreference -ExclusionPath "C:\Users\<username>\repos"
+
+# Or exclude a specific repo
+Add-MpPreference -ExclusionPath "C:\Users\<username>\repos\my-project"
+```
+
+Verify exclusion was added:
+
+```powershell
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+```
+
+View/manage exclusions via GUI:
+
+1. Open **Windows Security** (search in Start)
+2. Click **Virus & threat protection**
+3. Scroll to **Virus & threat protection settings** -> **Manage settings**
+4. Scroll to **Exclusions** -> **Add or remove exclusions**
+
+**Security note:** Only exclude trusted development directories you control. Excluding large portions of your filesystem reduces antivirus protection.
 
 **Git Bash command history not working in Windows Terminal:**
 
