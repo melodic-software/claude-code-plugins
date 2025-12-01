@@ -12,15 +12,17 @@ Use this naming convention for all plugin hooks:
 
 | Variable Pattern | Purpose | Values |
 | ---------------- | ------- | ------ |
-| `CLAUDE_HOOK_DISABLED_<NAME>` | Disable hook entirely | `1` or `true` |
-| `CLAUDE_HOOK_ENFORCEMENT_<NAME>` | Control enforcement behavior | `block`, `warn`, `log` |
+| `CLAUDE_HOOK_{NAME}_ENABLED` | Enable/disable hook | `1`/`true` (enabled), `0`/`false` (disabled) |
+| `CLAUDE_HOOK_ENFORCEMENT_{NAME}` | Control enforcement behavior | `block`, `warn`, `log` |
 | `CLAUDE_HOOK_LOG_LEVEL` | Global logging verbosity | `debug`, `info`, `warn`, `error` |
 
-**Naming `<NAME>`:** Use SCREAMING_SNAKE_CASE matching the hook's purpose. Examples:
+**Naming `{NAME}`:** Use SCREAMING_SNAKE_CASE matching the hook's purpose. Examples:
 
 - `MARKDOWN_LINT` for markdown linting hook
 - `SECRET_SCAN` for secret scanning hook
 - `GPG_SIGNING` for GPG signing enforcement
+
+**Default Behavior:** Hooks should define a sensible default (enabled or disabled) and only change behavior when the environment variable is explicitly set.
 
 ## Standard Exit Codes
 
@@ -46,7 +48,7 @@ All hooks must use these exit codes (per official Claude Code documentation):
 # Purpose: Brief description
 #
 # Environment Variables:
-#   CLAUDE_HOOK_DISABLED_MY_HOOK - Set to 1 to disable hook
+#   CLAUDE_HOOK_MY_HOOK_ENABLED - Set to 0/false to disable (default: enabled)
 #   CLAUDE_HOOK_ENFORCEMENT_MY_HOOK - block, warn (default), or log
 #   CLAUDE_HOOK_LOG_LEVEL - debug, info (default), warn, or error
 
@@ -59,9 +61,10 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." &
 # Configuration Check - Early Exit if Disabled
 #=============================================================================
 
-# Check if hook is disabled via environment variable
-if [ "${CLAUDE_HOOK_DISABLED_MY_HOOK:-}" = "1" ] || \
-   [ "${CLAUDE_HOOK_DISABLED_MY_HOOK:-}" = "true" ]; then
+# Check if hook is enabled via environment variable (default: enabled)
+# To disable: CLAUDE_HOOK_MY_HOOK_ENABLED=0 or CLAUDE_HOOK_MY_HOOK_ENABLED=false
+if [ "${CLAUDE_HOOK_MY_HOOK_ENABLED:-1}" = "0" ] || \
+   [ "${CLAUDE_HOOK_MY_HOOK_ENABLED:-true}" = "false" ]; then
     exit 0  # Silently skip
 fi
 
@@ -170,15 +173,31 @@ log_message() {
 }
 
 # Check if hook is enabled via environment variable
-# Usage: is_hook_enabled "HOOK_NAME" || exit 0
+# Usage: is_hook_enabled "HOOK_NAME" ["default_enabled"]
+# Examples:
+#   is_hook_enabled "MY_HOOK" || exit 0          # Default enabled
+#   is_hook_enabled "MY_HOOK" "false" || exit 0  # Default disabled
 is_hook_enabled() {
     local hook_name="$1"
-    local env_var="CLAUDE_HOOK_DISABLED_${hook_name}"
+    local default_enabled="${2:-true}"
+    local env_var="CLAUDE_HOOK_${hook_name}_ENABLED"
+    local value="${!env_var:-}"
 
-    if [ "${!env_var:-}" = "1" ] || [ "${!env_var:-}" = "true" ]; then
+    # If explicitly set, use that value
+    if [ -n "$value" ]; then
+        if [ "$value" = "1" ] || [ "$value" = "true" ]; then
+            return 0  # Enabled
+        else
+            return 1  # Disabled
+        fi
+    fi
+
+    # Use default
+    if [ "$default_enabled" = "true" ]; then
+        return 0
+    else
         return 1
     fi
-    return 0
 }
 
 # Load enforcement mode for a hook
@@ -254,7 +273,7 @@ Plugin authors should document hooks in:
     Validates files after Write/Edit operations.
 
     **Configuration:**
-    - `CLAUDE_HOOK_DISABLED_MY_HOOK=1` - Disable this hook
+    - `CLAUDE_HOOK_MY_HOOK_ENABLED=0` - Disable this hook (default: enabled)
     - `CLAUDE_HOOK_ENFORCEMENT_MY_HOOK=warn` - Set to `block`, `warn`, or `log`
     ```
 
@@ -264,13 +283,14 @@ Plugin authors should document hooks in:
 
 ## Best Practices
 
-1. **Always check disabled state first** - Exit early with code 0 if disabled
+1. **Always check enabled state first** - Exit early with code 0 if disabled
 2. **Default to non-blocking** - Use `warn` as default enforcement mode
 3. **Log at appropriate levels** - Use `debug` for verbose output, `info` for normal operation
 4. **Handle missing dependencies gracefully** - Exit with warning, not error
 5. **Document all env vars** - In README, hook header, and hooks.json
-6. **Use SCREAMING_SNAKE_CASE** - For env var names (e.g., `CLAUDE_HOOK_DISABLED_MY_HOOK`)
+6. **Use SCREAMING_SNAKE_CASE** - For env var names (e.g., `CLAUDE_HOOK_MY_HOOK_ENABLED`)
 7. **Test with all enforcement modes** - Verify `block`, `warn`, and `log` all work correctly
+8. **Choose sensible defaults** - Essential hooks default enabled; opt-in hooks default disabled
 
 ## Example: Real Implementation
 

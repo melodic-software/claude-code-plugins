@@ -36,7 +36,7 @@ Central authority for Claude Code plugins. This skill uses **100% delegation to 
 
 ## When to Use This Skill
 
-**Keywords:** plugins, plugin creation, plugin structure, plugin.json, plugin manifest, plugin commands, plugin agents, plugin skills, plugin hooks, plugin marketplaces, marketplace.json, /plugin command, plugin install, plugin uninstall, plugin enable, plugin disable, plugin browse, team plugins, plugin development, plugin testing, plugin debugging, plugin sharing, plugin distribution, MCP servers plugins, plugin settings, enabledPlugins, extraKnownMarketplaces, plugin hook configuration, disable plugin hook, CLAUDE_HOOK_DISABLED, hook environment variables, configurable hooks, hook enforcement mode
+**Keywords:** plugins, plugin creation, plugin structure, plugin.json, plugin manifest, plugin commands, plugin agents, plugin skills, plugin hooks, plugin marketplaces, marketplace.json, /plugin command, plugin install, plugin uninstall, plugin enable, plugin disable, plugin browse, team plugins, plugin development, plugin testing, plugin debugging, plugin sharing, plugin distribution, MCP servers plugins, plugin settings, enabledPlugins, extraKnownMarketplaces, plugin hook configuration, disable plugin hook, CLAUDE_HOOK_ENABLED, hook environment variables, configurable hooks, hook enforcement mode
 
 **Use this skill when:**
 
@@ -146,7 +146,7 @@ Use these keywords when querying docs-management skill for official documentatio
 | Hook Basics | "plugin hooks", "hooks.json plugins" |
 | Consumer Control | "disable plugin hook", "hook environment variables" |
 | Enforcement Modes | "hook enforcement mode", "CLAUDE_HOOK_ENFORCEMENT" |
-| Disable Hooks | "CLAUDE_HOOK_DISABLED", "disable specific hook" |
+| Disable Hooks | "CLAUDE_HOOK_ENABLED", "disable specific hook" |
 
 **Note:** Plugin hook configuration uses environment variables (not YAML configs like local hooks). See [Plugin Hook Utilities Reference](references/plugin-hook-utilities.md) for implementation patterns and [Consumer Configuration Reference](references/plugin-hook-consumer-config.md) for end-user guidance.
 
@@ -266,8 +266,8 @@ Plugin hooks are automatically merged when a plugin is enabled. Unlike local hoo
 
 | Variable | Values | Purpose |
 | -------- | ------ | ------- |
-| `CLAUDE_HOOK_DISABLED_<NAME>` | `1` or `true` | Disable specific hook |
-| `CLAUDE_HOOK_ENFORCEMENT_<NAME>` | `block`, `warn`, `log` | Control enforcement behavior |
+| `CLAUDE_HOOK_{NAME}_ENABLED` | `1`/`true` (enabled), `0`/`false` (disabled) | Enable/disable hook |
+| `CLAUDE_HOOK_ENFORCEMENT_{NAME}` | `block`, `warn`, `log` | Control enforcement behavior |
 | `CLAUDE_HOOK_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | Logging verbosity |
 
 **Consumer Configuration via settings.json:**
@@ -275,7 +275,7 @@ Plugin hooks are automatically merged when a plugin is enabled. Unlike local hoo
 ```json
 {
   "env": {
-    "CLAUDE_HOOK_DISABLED_MARKDOWN_LINT": "1",
+    "CLAUDE_HOOK_MARKDOWN_LINT_ENABLED": "1",
     "CLAUDE_HOOK_ENFORCEMENT_SECRET_SCAN": "warn"
   }
 }
@@ -335,8 +335,8 @@ User reports: "My plugin commands aren't showing up"
 | MCP server not starting | "MCP servers plugins", "CLAUDE_PLUGIN_ROOT" |
 | Custom paths not loading | "component path fields", "path behavior rules" |
 | Plugin validation errors | "claude plugin validate", "plugin validation" |
-| Hook not running | Check CLAUDE_HOOK_DISABLED env var in settings.json |
-| Hook enforcement wrong | Check CLAUDE_HOOK_ENFORCEMENT env var in settings.json |
+| Hook not running | Check CLAUDE_HOOK_{NAME}_ENABLED env var in settings.json |
+| Hook enforcement wrong | Check CLAUDE_HOOK_ENFORCEMENT_{NAME} env var in settings.json |
 
 ## Repository-Specific Notes
 
@@ -363,6 +363,12 @@ When working with plugin topics, always use the docs-management skill to access 
 
 ## Version History
 
+- **v1.2.0** (2025-12-01): Environment variable standardization
+  - Updated to `CLAUDE_HOOK_{NAME}_ENABLED` pattern (from deprecated `CLAUDE_HOOK_DISABLED_*`)
+  - Updated all documentation, examples, and references to new pattern
+  - Updated plugin-hook-utilities.md with new `is_hook_enabled()` function supporting defaults
+  - Updated plugin-hook-consumer-config.md with new configuration examples
+  - Updated troubleshooting entries for new pattern
 - **v1.1.0** (2025-11-30): Plugin hook configuration documentation
   - Added Plugin Hook Configuration section to keyword registry
   - Added topic coverage for hook configuration patterns (env vars, enforcement modes)
@@ -384,5 +390,5 @@ When working with plugin topics, always use the docs-management skill to access 
 
 ## Last Updated
 
-**Date:** 2025-11-30
+**Date:** 2025-12-01
 **Model:** claude-opus-4-5-20251101

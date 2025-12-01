@@ -12,9 +12,13 @@
 #   3 - Error (missing dependencies, etc.)
 #
 # Environment Variables:
-#   CLAUDE_HOOK_DISABLED_MARKDOWN_LINT - Set to 1 to disable hook
+#   CLAUDE_HOOK_MARKDOWN_LINT_ENABLED - Set to 1 to enable hook (default: disabled)
 #   CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT - block, warn (default), or log
 #   CLAUDE_HOOK_LOG_LEVEL - debug, info (default), warn, or error
+#
+# NOTE: This hook is DISABLED by default because it requires markdownlint-cli2
+# to be installed and configured. Plugin consumers may not have this setup.
+# To enable: Set CLAUDE_HOOK_MARKDOWN_LINT_ENABLED=1
 
 set -euo pipefail
 
@@ -26,9 +30,9 @@ source "${PLUGIN_ROOT}/scripts/shared/json-utils.sh" || { echo "ERROR: Cannot lo
 source "${PLUGIN_ROOT}/scripts/shared/path-utils.sh" || { echo "ERROR: Cannot load path-utils.sh" >&2; exit 3; }
 source "${PLUGIN_ROOT}/scripts/shared/config-utils.sh" || { echo "ERROR: Cannot load config-utils.sh" >&2; exit 3; }
 
-# Check if hook is enabled
-if ! is_hook_enabled "MARKDOWN_LINT"; then
-    log_message "debug" "markdown-lint: Hook disabled via CLAUDE_HOOK_DISABLED_MARKDOWN_LINT"
+# Check if hook is enabled (default: disabled - requires external tooling setup)
+if ! is_hook_enabled "MARKDOWN_LINT" "false"; then
+    log_message "debug" "markdown-lint: Hook disabled (set CLAUDE_HOOK_MARKDOWN_LINT_ENABLED=1 to enable)"
     exit 0
 fi
 

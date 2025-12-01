@@ -38,19 +38,35 @@ log_message() {
 }
 
 # Check if hook is enabled via environment variable
-# Usage: is_hook_enabled "HOOK_NAME" || exit 0
-# Example: is_hook_enabled "MARKDOWN_LINT" || exit 0
-# Set CLAUDE_HOOK_DISABLED_MARKDOWN_LINT=1 to disable
+# Usage: is_hook_enabled "HOOK_NAME" ["true"|"false"] || exit 0
+# Example: is_hook_enabled "MARKDOWN_LINT" "false" || exit 0
+# Set CLAUDE_HOOK_MARKDOWN_LINT_ENABLED=1 to enable (if default is false)
+# Set CLAUDE_HOOK_INJECT_CURRENT_DATE_ENABLED=0 to disable (if default is true)
+#
+# Args:
+#   $1 - Hook name (e.g., "MARKDOWN_LINT")
+#   $2 - Default enabled state: "true" (default) or "false"
 is_hook_enabled() {
     local hook_name="$1"
-    local env_var="CLAUDE_HOOK_DISABLED_${hook_name}"
+    local default_enabled="${2:-true}"
+    local env_var="CLAUDE_HOOK_${hook_name}_ENABLED"
+    local value="${!env_var:-}"
 
-    # Check if explicitly disabled via environment variable
-    if [ "${!env_var:-}" = "1" ] || [ "${!env_var:-}" = "true" ]; then
-        return 1
+    # If explicitly set, use that value
+    if [ -n "$value" ]; then
+        if [ "$value" = "1" ] || [ "$value" = "true" ]; then
+            return 0
+        else
+            return 1
+        fi
     fi
 
-    return 0
+    # Use default
+    if [ "$default_enabled" = "true" ]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Load enforcement mode for a hook

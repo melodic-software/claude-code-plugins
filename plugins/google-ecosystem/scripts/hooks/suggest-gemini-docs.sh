@@ -9,6 +9,13 @@
 
 set -euo pipefail
 
+# Check if hook is enabled (default: enabled)
+# To disable: Set CLAUDE_HOOK_SUGGEST_GEMINI_DOCS_ENABLED=0
+if [ "${CLAUDE_HOOK_SUGGEST_GEMINI_DOCS_ENABLED:-1}" != "1" ] && \
+   [ "${CLAUDE_HOOK_SUGGEST_GEMINI_DOCS_ENABLED:-true}" != "true" ]; then
+    exit 0
+fi
+
 # === FAST PATH: Read input and extract prompt ===
 INPUT=$(cat)
 
@@ -83,7 +90,7 @@ get_ecosystem_context() {
     [[ $prompt_lower =~ claude ]] && ((claude_score+=2))
 
     # Debug logging (controlled by environment variable)
-    if [[ "${HOOK_DEBUG:-}" == "1" ]]; then
+    if [[ "${CLAUDE_HOOK_DEBUG:-}" == "1" ]]; then
         echo "ecosystem_score: claude=$claude_score gemini=$gemini_score" >&2
     fi
 
@@ -101,7 +108,7 @@ get_ecosystem_context() {
 # Check ecosystem context - exit early if Claude is clearly dominant
 ECOSYSTEM=$(get_ecosystem_context "$PROMPT_LOWER")
 if [[ "$ECOSYSTEM" == "claude" ]]; then
-    [[ "${HOOK_DEBUG:-}" == "1" ]] && echo "gemini-hook: exiting, claude dominant" >&2
+    [[ "${CLAUDE_HOOK_DEBUG:-}" == "1" ]] && echo "gemini-hook: exiting, claude dominant" >&2
     exit 0  # Let Claude hook handle this
 fi
 

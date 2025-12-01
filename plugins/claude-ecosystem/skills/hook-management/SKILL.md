@@ -34,7 +34,7 @@ Central authority for managing Claude Code hooks in this repository. Automates e
 
 ## When to Use This Skill
 
-**Keywords:** hooks, hook management, automation, validation, enforcement, PreToolUse, PostToolUse, SessionEnd, hook configuration, plugin hooks, local hooks
+**Keywords:** hooks, hook management, automation, validation, enforcement, PreToolUse, PostToolUse, SessionEnd, hook configuration, plugin hooks, local hooks, CLAUDE_HOOK_ENABLED, hook environment variables, enable hook, disable hook
 
 **Use this skill when:**
 
@@ -177,7 +177,49 @@ For complete details, see [Active Hooks Reference](references/inventory/active-h
 
 ## Configuration Quick Reference
 
-### Master Control
+### Environment Variable Convention (Authoritative)
+
+**This is the single source of truth for hook environment variable patterns.**
+
+All hooks in this repository use a consistent environment variable convention:
+
+| Variable Pattern | Purpose | Default | Values |
+| ---------------- | ------- | ------- | ------ |
+| `CLAUDE_HOOK_{NAME}_ENABLED` | Enable/disable hook | Varies by hook | `1`/`true` to enable, `0`/`false` to disable |
+| `CLAUDE_HOOK_ENFORCEMENT_{NAME}` | Control enforcement behavior | `warn` | `block`, `warn`, `log` |
+| `CLAUDE_HOOK_LOG_LEVEL` | Logging verbosity | `info` | `debug`, `info`, `warn`, `error` |
+| `CLAUDE_HOOK_DEBUG` | Debug mode for hooks | Off | `1` to enable |
+
+**Hook Default States:**
+
+| Category | Hooks | Default | Rationale |
+| -------- | ----- | ------- | --------- |
+| Essential | inject-current-date, prevent-backup-files, suggest-docs-delegation, suggest-gemini-docs | **Enabled** | Low overhead, useful utilities |
+| Opt-in | markdown-lint | **Disabled** | Requires external tooling (markdownlint-cli2) |
+| Log Events | All log-* hooks | **Disabled** | Requires master toggle, can be noisy |
+
+**Log Events Special Logic:**
+
+```text
+CLAUDE_HOOK_LOG_EVENTS_ENABLED controls ALL log hooks:
+  - If NOT set or "0"/"false": ALL log events disabled (no exceptions)
+  - If "1" or "true": ALL log events enabled by default
+    - Individual events can be disabled: CLAUDE_HOOK_LOG_{EVENT}_ENABLED=0
+```
+
+**Example: Configure via settings.json:**
+
+```json
+{
+  "env": {
+    "CLAUDE_HOOK_MARKDOWN_LINT_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_EVENTS_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_PRETOOLUSE_ENABLED": "0"
+  }
+}
+```
+
+### Master Control (Legacy YAML)
 
 **Disable ALL hooks:**
 
@@ -189,7 +231,7 @@ enabled: false
 
 Changes take effect immediately on next hook execution.
 
-### Per-Hook Control
+### Per-Hook Control (Legacy YAML)
 
 **Disable specific hook:**
 
@@ -431,6 +473,14 @@ CLAUDE.md references hooks for automated enforcement:
 
 ## Version History
 
+- **v1.3.0** (2025-12-01): Environment variable standardization
+  - Standardized all hook environment variables to `CLAUDE_HOOK_{NAME}_ENABLED` pattern
+  - Added authoritative "Environment Variable Convention" section as single source of truth
+  - Documented hook default states (Essential=enabled, Opt-in=disabled, Log Events=disabled)
+  - Documented log events special logic (master toggle + individual toggles)
+  - Added keywords: CLAUDE_HOOK_ENABLED, hook environment variables, enable hook, disable hook
+  - Marked legacy YAML configuration sections appropriately
+
 - **v1.2.2** (2025-11-30): Plugin hooks delegation
   - Added decision tree entry for plugin hooks (delegates to plugin-development skill)
   - Added Plugin Hooks Delegation section with comparison table
@@ -472,5 +522,5 @@ CLAUDE.md references hooks for automated enforcement:
 
 ## Last Updated
 
-**Date:** 2025-11-30
+**Date:** 2025-12-01
 **Model:** claude-opus-4-5-20251101

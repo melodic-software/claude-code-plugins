@@ -50,9 +50,11 @@ To customize for your project:
 
 | Variable | Default | Description |
 | ---------- | --------- | ------------- |
-| `CLAUDE_HOOK_DISABLED_MARKDOWN_LINT` | `false` | Set to `1` or `true` to disable the hook |
+| `CLAUDE_HOOK_MARKDOWN_LINT_ENABLED` | `0` (disabled) | Set to `1` or `true` to enable the hook |
 | `CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT` | `warn` | Enforcement mode: `block`, `warn`, or `log` |
 | `CLAUDE_HOOK_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+
+**Note:** The markdown-lint hook is disabled by default because it requires `markdownlint-cli2` to be installed. Enable it explicitly after ensuring the dependency is available.
 
 ## Requirements
 

@@ -8,7 +8,7 @@
 #   0 - Success (injects date context)
 #
 # Configuration: Inline (official Claude Code pattern)
-# To disable: Set CLAUDE_HOOK_DISABLED_INJECT_CURRENT_DATE=1
+# To disable: Set CLAUDE_HOOK_INJECT_CURRENT_DATE_ENABLED=0
 
 set -euo pipefail
 
@@ -18,8 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source shared utilities (optional, may not be loaded for SessionStart)
 source "${SCRIPT_DIR}/../../shared/config-utils.sh" 2>/dev/null || true
 
-# Check if hook is enabled
-if command -v is_hook_enabled &>/dev/null && ! is_hook_enabled "INJECT_CURRENT_DATE"; then
+# Check if hook is enabled (default: enabled)
+if command -v is_hook_enabled &>/dev/null && ! is_hook_enabled "INJECT_CURRENT_DATE" "true"; then
     exit 0
 fi
 

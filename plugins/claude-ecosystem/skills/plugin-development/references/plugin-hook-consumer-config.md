@@ -29,11 +29,13 @@ Configurable plugin hooks use this naming convention:
 
 | Variable | Values | Purpose |
 | -------- | ------ | ------- |
-| `CLAUDE_HOOK_DISABLED_<NAME>` | `1` or `true` | Disable specific hook |
-| `CLAUDE_HOOK_ENFORCEMENT_<NAME>` | `block`, `warn`, `log` | Control enforcement |
+| `CLAUDE_HOOK_{NAME}_ENABLED` | `1`/`true` (enabled), `0`/`false` (disabled) | Enable/disable hook |
+| `CLAUDE_HOOK_ENFORCEMENT_{NAME}` | `block`, `warn`, `log` | Control enforcement |
 | `CLAUDE_HOOK_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | Logging verbosity |
 
-**`<NAME>`** is the hook identifier in SCREAMING_SNAKE_CASE (e.g., `MARKDOWN_LINT`, `SECRET_SCAN`).
+**`{NAME}`** is the hook identifier in SCREAMING_SNAKE_CASE (e.g., `MARKDOWN_LINT`, `SECRET_SCAN`).
+
+**Note:** Each hook defines its own default state. Check the plugin documentation to see whether a hook is enabled or disabled by default.
 
 ## Configuration Examples
 
@@ -42,7 +44,7 @@ Configurable plugin hooks use this naming convention:
 ```json
 {
   "env": {
-    "CLAUDE_HOOK_DISABLED_MARKDOWN_LINT": "1"
+    "CLAUDE_HOOK_MARKDOWN_LINT_ENABLED": "0"
   }
 }
 ```
@@ -82,7 +84,7 @@ For troubleshooting hook behavior:
 ```json
 {
   "env": {
-    "CLAUDE_HOOK_DISABLED_MARKDOWN_LINT": "1",
+    "CLAUDE_HOOK_MARKDOWN_LINT_ENABLED": "0",
     "CLAUDE_HOOK_ENFORCEMENT_SECRET_SCAN": "block",
     "CLAUDE_HOOK_ENFORCEMENT_GPG_SIGNING": "warn",
     "CLAUDE_HOOK_LOG_LEVEL": "info"
@@ -102,9 +104,9 @@ Check the plugin's documentation for available hooks and their environment varia
 
 The `code-quality` plugin provides:
 
-| Hook | Disable Variable | Enforcement Variable |
-| ---- | ---------------- | -------------------- |
-| markdown-lint | `CLAUDE_HOOK_DISABLED_MARKDOWN_LINT` | `CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT` |
+| Hook | Enable/Disable Variable | Default | Enforcement Variable |
+| ---- | ----------------------- | ------- | -------------------- |
+| markdown-lint | `CLAUDE_HOOK_MARKDOWN_LINT_ENABLED` | Disabled | `CLAUDE_HOOK_ENFORCEMENT_MARKDOWN_LINT` |
 
 ## Settings Precedence
 
@@ -137,10 +139,11 @@ This disables **all** hooks (project hooks, user hooks, and plugin hooks). Use s
 
 ### Hook Still Running After Disabling
 
-1. **Check variable name** - Must match exactly (case-sensitive)
-2. **Check value** - Must be `"1"` or `"true"` (as strings in JSON)
-3. **Restart session** - Settings are read at session start
-4. **Check precedence** - Enterprise policies may override your settings
+1. **Check variable name** - Must match exactly (case-sensitive), use `CLAUDE_HOOK_{NAME}_ENABLED`
+2. **Check value** - Must be `"0"` or `"false"` to disable (as strings in JSON)
+3. **Check default** - Some hooks are disabled by default; you need `"1"` or `"true"` to enable
+4. **Restart session** - Settings are read at session start
+5. **Check precedence** - Enterprise policies may override your settings
 
 ### Hook Not Working as Expected
 
@@ -159,7 +162,7 @@ Run `/hooks` in Claude Code to see active hooks from all sources (project, user,
 | Configuration | Environment variables | YAML config files |
 | Control | Via `settings.json` `env` section | Via `config.yaml` per hook |
 | Scope | All projects using the plugin | Single repository |
-| Enable/Disable | `CLAUDE_HOOK_DISABLED_*` env var | `enabled: false` in config.yaml |
+| Enable/Disable | `CLAUDE_HOOK_{NAME}_ENABLED` env var | `enabled: false` in config.yaml |
 
 ## Related References
 

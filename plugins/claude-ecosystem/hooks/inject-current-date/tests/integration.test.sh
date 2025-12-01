@@ -35,8 +35,6 @@ test_suite_start "inject-current-date Integration Tests"
 test_section "Hook Setup"
 
 assert_file_exists "${HOOK_DIR}/bash/inject-current-date.sh" "Hook script exists"
-assert_file_exists "${HOOK_DIR}/config.yaml" "Hook config.yaml exists"
-assert_file_exists "${HOOK_DIR}/hook.yaml" "Hook hook.yaml exists"
 assert_file_exists "${HOOK_DIR}/README.md" "Hook README.md exists"
 
 # ============================================================================

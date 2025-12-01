@@ -62,16 +62,18 @@ assert_equals "new file content" "$result" "get_content extracts Write payload"
 result=$(echo '{"tool_input": {"new_string": "updated text"}}' | get_new_string)
 assert_equals "updated text" "$result" "get_new_string extracts Edit payload"
 
-# Test output_json_decision
+# Test output_json_decision (uses official hookSpecificOutput schema)
 test_section "output_json_decision Tests"
 
 result=$(output_json_decision "allow")
-assert_contains "$result" '"decision"' "output_json_decision includes decision field"
+assert_contains "$result" '"permissionDecision"' "output_json_decision includes permissionDecision field"
 assert_contains "$result" '"allow"' "output_json_decision includes allow value"
+assert_contains "$result" '"hookSpecificOutput"' "output_json_decision uses hookSpecificOutput wrapper"
 
 result=$(output_json_decision "ask" "Please confirm")
 assert_contains "$result" '"ask"' "output_json_decision with message includes decision"
-assert_contains "$result" '"Please confirm"' "output_json_decision includes message"
+assert_contains "$result" '"Please confirm"' "output_json_decision includes reason message"
+assert_contains "$result" '"permissionDecisionReason"' "output_json_decision includes reason field"
 
 # Test output_json_error
 test_section "output_json_error Tests"

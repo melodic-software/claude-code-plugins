@@ -14,7 +14,6 @@ Example:
 
 import json
 import os
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,82 +59,17 @@ def get_log_file_path(event_name: str) -> Path:
     return log_dir / f"{date_str}.jsonl"
 
 
-def _parse_yaml_bool(value: str) -> bool | None:
-    """Parse YAML boolean values. Returns None if not a boolean."""
-    value = value.strip().lower()
-    if value in ("true", "yes", "on", "1"):
-        return True
-    if value in ("false", "no", "off", "0"):
-        return False
-    return None
-
-
-def _get_yaml_value(config_text: str, key_path: str) -> str | None:
-    """
-    Extract a value from YAML text using simple regex parsing.
-
-    Supports dot notation for nested keys (e.g., "events.pretooluse.enabled").
-    Does not require a YAML library.
-
-    Args:
-        config_text: Full YAML file contents
-        key_path: Dot-separated key path
-
-    Returns:
-        String value if found, None otherwise
-    """
-    keys = key_path.split(".")
-    lines = config_text.split("\n")
-
-    # Track indentation levels as we descend into nested keys
-    current_indent = -1
-    looking_for_idx = 0
-
-    for line in lines:
-        # Skip empty lines and comments
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        # Calculate indentation (spaces before content)
-        indent = len(line) - len(line.lstrip())
-
-        # If we moved to same or lower indent, reset search if not at root
-        if indent <= current_indent and looking_for_idx > 0:
-            # We've exited the section we were searching in
-            looking_for_idx = 0
-            current_indent = -1
-
-        key_to_find = keys[looking_for_idx]
-
-        # Check for key match (handle "key:" and "key: value" patterns)
-        key_pattern = rf"^{re.escape(key_to_find)}\s*:\s*(.*?)$"
-        match = re.match(key_pattern, stripped)
-
-        if match:
-            if looking_for_idx == len(keys) - 1:
-                # Found the final key - return its value
-                value = match.group(1).strip()
-                # Remove inline comments
-                if "#" in value:
-                    value = value.split("#")[0].strip()
-                return value if value else None
-            else:
-                # Found intermediate key - descend into it
-                looking_for_idx += 1
-                current_indent = indent
-
-    return None
-
-
 def is_logging_enabled(event_name: str) -> bool:
     """
     Check if logging is enabled for this event.
 
-    Uses process-local caching via environment variables to avoid repeated
-    config file reads within a single invocation. Since each hook event
-    spawns a new Python process, caching doesn't persist across events -
-    config changes take effect on the next event automatically (no TTL needed).
+    Logic:
+    1. Check master toggle: CLAUDE_HOOK_LOG_EVENTS_ENABLED
+       - If not set or "0"/"false": logging is disabled (default off)
+       - If "1" or "true": continue to step 2
+    2. Check individual toggle: CLAUDE_HOOK_LOG_{EVENT}_ENABLED
+       - If "0" or "false": this event is disabled
+       - Otherwise: this event is enabled (implicit enable from master)
 
     Args:
         event_name: Event name (lowercase, e.g., "pretooluse")
@@ -147,50 +81,24 @@ def is_logging_enabled(event_name: str) -> bool:
     if event_name not in VALID_EVENTS:
         print(f"WARNING: Unknown event '{event_name}', logging anyway", file=sys.stderr)
 
-    # Check process-local cache (only persists within this invocation)
-    cache_key = f"HOOK_LOG_{event_name.upper()}_ENABLED"
-    cached_value = os.environ.get(cache_key)
+    # Check master toggle first
+    master_key = "CLAUDE_HOOK_LOG_EVENTS_ENABLED"
+    master_value = os.environ.get(master_key, "").lower()
 
-    if cached_value is not None:
-        return cached_value == "1"
+    # If master not set or explicitly disabled, logging is off
+    if master_value not in ("1", "true"):
+        return False
 
-    # Load config (simple YAML parsing - just need enabled flags)
-    script_dir = Path(__file__).resolve().parent
-    config_file = script_dir.parent / "config.yaml"
+    # Master is enabled, check individual toggle
+    event_key = f"CLAUDE_HOOK_LOG_{event_name.upper()}_ENABLED"
+    event_value = os.environ.get(event_key, "").lower()
 
-    if not config_file.exists():
-        # Default to enabled if config missing
-        os.environ[cache_key] = "1"
-        return True
+    # If explicitly disabled, return False
+    if event_value in ("0", "false"):
+        return False
 
-    try:
-        config_text = config_file.read_text(encoding="utf-8")
-
-        # Check master enabled flag (top-level "enabled: false")
-        master_enabled = _get_yaml_value(config_text, "enabled")
-        if master_enabled is not None:
-            parsed = _parse_yaml_bool(master_enabled)
-            if parsed is False:
-                os.environ[cache_key] = "0"
-                return False
-
-        # Check event-specific enabled flag (events.<event_name>.enabled)
-        event_enabled = _get_yaml_value(config_text, f"events.{event_name}.enabled")
-        if event_enabled is not None:
-            parsed = _parse_yaml_bool(event_enabled)
-            if parsed is False:
-                os.environ[cache_key] = "0"
-                return False
-
-        # Default to enabled
-        os.environ[cache_key] = "1"
-        return True
-
-    except Exception as e:
-        # On any error, default to enabled (logging is non-critical)
-        print(f"WARNING: Config read error ({e}), defaulting to enabled", file=sys.stderr)
-        os.environ[cache_key] = "1"
-        return True
+    # Otherwise enabled (implicit from master)
+    return True
 
 
 # Thread lock for writes within this process

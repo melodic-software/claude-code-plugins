@@ -10,7 +10,7 @@ test_suite_start "prevent-backup-files Integration Tests"
 # Test: Hook script exists and is executable
 test_section "Hook Setup"
 assert_file_exists "${HOOK_DIR}/bash/prevent-backup-files.sh" "Hook script exists"
-assert_file_exists "${HOOK_DIR}/hook.yaml" "Hook configuration exists"
+assert_file_exists "${HOOK_DIR}/README.md" "Hook README exists"
 
 # Test: Hook blocks/warns/allows based on scenarios
 test_section "Hook Behavior"

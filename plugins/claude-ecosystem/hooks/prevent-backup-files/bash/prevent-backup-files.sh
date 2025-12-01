@@ -11,7 +11,7 @@
 #   3 - Error (missing dependencies, etc.)
 #
 # Configuration: Inline (official Claude Code pattern)
-# To disable: Set CLAUDE_HOOK_DISABLED_PREVENT_BACKUP_FILES=1
+# To disable: Set CLAUDE_HOOK_PREVENT_BACKUP_FILES_ENABLED=0
 
 set -euo pipefail
 
@@ -47,8 +47,8 @@ MSG_DOC="See CLAUDE.md for file management guidelines."
 # HOOK LOGIC
 # ============================================================================
 
-# Check if hook is enabled
-if ! is_hook_enabled "PREVENT_BACKUP_FILES"; then
+# Check if hook is enabled (default: enabled)
+if ! is_hook_enabled "PREVENT_BACKUP_FILES" "true"; then
     log_message "debug" "prevent-backup-files: Hook disabled, exiting"
     exit 0
 fi
