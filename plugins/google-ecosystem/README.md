@@ -12,85 +12,117 @@ This plugin enables Claude to delegate tasks to Gemini CLI where Gemini excels:
 - **Interactive Shells**: Handle TUI commands (vim, git rebase -i)
 - **Second Opinions**: Independent validation from another AI
 
-## Skills (13)
+## Skills (18)
 
-### Documentation
+### Skill Category: Documentation
 
-| Skill | Purpose |
-|-------|---------|
-| `gemini-cli-docs` | Core documentation skill - search, resolve, query official docs |
-| `gemini-cli-execution` | Execute Gemini CLI in headless/automation modes |
+| Skill                  | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `gemini-cli-docs`      | Core documentation skill - search, resolve, query official docs |
+| `gemini-cli-execution` | Execute Gemini CLI in headless/automation modes                 |
 
-### Integration
+### Skill Category: Integration
 
-| Skill | Purpose |
-|-------|---------|
-| `gemini-delegation-patterns` | Decision criteria for when/how to delegate to Gemini |
-| `gemini-json-parsing` | Parse JSON/stream-JSON output from Gemini CLI |
-| `gemini-token-optimization` | Optimize costs with caching, batching, model selection |
+| Skill                        | Purpose                                                |
+| ---------------------------- | ------------------------------------------------------ |
+| `gemini-delegation-patterns` | Decision criteria for when/how to delegate to Gemini   |
+| `gemini-json-parsing`        | Parse JSON/stream-JSON output from Gemini CLI          |
+| `gemini-token-optimization`  | Optimize costs with caching, batching, model selection |
 
-### Management
+### Skill Category: Workspace & Memory (NEW in v1.2.0)
 
-| Skill | Purpose |
-|-------|---------|
-| `gemini-command-development` | Create custom TOML commands |
-| `gemini-config-management` | Configure settings.json, policies, themes |
-| `gemini-checkpoint-management` | Git-based snapshots and /restore rollback |
-| `gemini-sandbox-configuration` | Docker/Podman/Seatbelt isolation setup |
-| `gemini-session-management` | Session resume, retention, cleanup |
+| Skill                         | Purpose                                                    |
+| ----------------------------- | ---------------------------------------------------------- |
+| `gemini-workspace-bridge`     | Hybrid workspace architecture, artifact exchange patterns  |
+| `gemini-memory-sync`          | CLAUDE.md ↔ GEMINI.md synchronization via @import pattern  |
+| `gemini-exploration-patterns` | Token thresholds, model routing, exploration strategies    |
 
-### Development
+### Skill Category: Meta-Tooling (NEW in v1.2.0)
 
-| Skill | Purpose |
-|-------|---------|
-| `gemini-extension-development` | Build Gemini CLI extensions |
-| `gemini-mcp-integration` | Model Context Protocol server integration |
-| `gemini-context-bridge` | CLAUDE.md to GEMINI.md context synchronization |
+| Skill                   | Purpose                                                 |
+| ----------------------- | ------------------------------------------------------- |
+| `toml-command-builder`  | Build Gemini CLI TOML commands with syntax guidance     |
+| `policy-engine-builder` | Create policy engine TOML rules for tool control        |
 
-## Agents (7)
+### Skill Category: Management
 
-### Documentation
+| Skill                          | Purpose                                    |
+| ------------------------------ | ------------------------------------------ |
+| `gemini-command-development`   | Create custom TOML commands                |
+| `gemini-config-management`     | Configure settings.json, policies, themes  |
+| `gemini-checkpoint-management` | Git-based snapshots and /restore rollback  |
+| `gemini-sandbox-configuration` | Docker/Podman/Seatbelt isolation setup     |
+| `gemini-session-management`    | Session resume, retention, cleanup         |
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| `gemini-docs-researcher` | haiku | Research Gemini CLI documentation |
-| `gemini-planner` | sonnet | Second-brain planning via Gemini CLI |
+### Skill Category: Development
 
-### Integration
+| Skill                          | Purpose                                          |
+| ------------------------------ | ------------------------------------------------ |
+| `gemini-extension-development` | Build Gemini CLI extensions                      |
+| `gemini-mcp-integration`       | Model Context Protocol server integration        |
+| `gemini-context-bridge`        | CLAUDE.md to GEMINI.md context synchronization   |
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| `gemini-sandboxed-executor` | sonnet | Execute risky commands in sandbox |
-| `gemini-checkpoint-experimenter` | sonnet | Experimental refactors with rollback |
-| `gemini-bulk-analyzer` | haiku | Analyze large codebases (1M+ tokens) |
-| `gemini-interactive-shell` | sonnet | Handle TUI commands (vim, rebase) |
-| `gemini-second-opinion` | haiku | Independent validation and alternatives |
+## Agents (10)
 
-## Commands (9)
+### Agent Category: Documentation
 
-### Documentation
+| Agent                    | Model  | Purpose                              |
+| ------------------------ | ------ | ------------------------------------ |
+| `gemini-docs-researcher` | haiku  | Research Gemini CLI documentation    |
+| `gemini-planner`         | sonnet | Second-brain planning via Gemini CLI |
 
-| Command | Purpose |
-|---------|---------|
-| `/scrape-docs` | Scrape docs from geminicli.com |
-| `/refresh-docs` | Rebuild index without scraping |
-| `/validate-docs` | Validate index integrity |
+### Agent Category: Integration
 
-### Integration
+| Agent                            | Model  | Purpose                                 |
+| -------------------------------- | ------ | --------------------------------------- |
+| `gemini-sandboxed-executor`      | sonnet | Execute risky commands in sandbox       |
+| `gemini-checkpoint-experimenter` | sonnet | Experimental refactors with rollback    |
+| `gemini-bulk-analyzer`           | haiku  | Analyze large codebases                 |
+| `gemini-interactive-shell`       | sonnet | Handle TUI commands (vim, rebase)       |
+| `gemini-second-opinion`          | haiku  | Independent validation and alternatives |
 
-| Command | Purpose |
-|---------|---------|
-| `/gemini-query <prompt>` | Quick headless query |
-| `/gemini-analyze <file> [type]` | File analysis (security, performance, etc.) |
-| `/gemini-second-opinion [topic]` | Get Gemini's perspective |
-| `/gemini-sandbox <command>` | Execute in sandbox |
+### Agent Category: Exploration & Sync (NEW in v1.2.0)
 
-### Discovery
+| Agent                      | Model  | Purpose                                          |
+| -------------------------- | ------ | ------------------------------------------------ |
+| `gemini-deep-explorer`     | haiku  | Full codebase exploration with large context     |
+| `gemini-safe-experimenter` | sonnet | Checkpoint + sandbox for risky operations        |
+| `gemini-context-syncer`    | haiku  | Auto-sync CLAUDE.md → GEMINI.md                  |
 
-| Command | Purpose |
-|---------|---------|
-| `/list-skills` | List all skills |
-| `/list-commands` | List all commands |
+## Commands (13)
+
+### Command Category: Documentation
+
+| Command          | Purpose                         |
+| ---------------- | ------------------------------- |
+| `/scrape-docs`   | Scrape docs from geminicli.com  |
+| `/refresh-docs`  | Rebuild index without scraping  |
+| `/validate-docs` | Validate index integrity        |
+
+### Command Category: Integration
+
+| Command                          | Purpose                                       |
+| -------------------------------- | --------------------------------------------- |
+| `/gemini-query <prompt>`         | Quick headless query                          |
+| `/gemini-analyze <file> [type]`  | File analysis (security, performance, etc.)   |
+| `/gemini-second-opinion [topic]` | Get Gemini's perspective                      |
+| `/gemini-sandbox <command>`      | Execute in sandbox                            |
+
+### Command Category: Exploration & Planning (NEW in v1.2.0)
+
+| Command                        | Purpose                                          |
+| ------------------------------ | ------------------------------------------------ |
+| `/gemini-explore <scope>`      | Full codebase exploration with large context     |
+| `/gemini-plan <task>`          | Generate Claude-executable implementation plans  |
+| `/sync-context [--init]`       | Synchronize CLAUDE.md to GEMINI.md               |
+| `/build-toml-command [name]`   | Interactive wizard for TOML custom commands      |
+
+### Command Category: Discovery
+
+| Command          | Purpose            |
+| ---------------- | ------------------ |
+| `/list-skills`   | List all skills    |
+| `/list-commands` | List all commands  |
 
 ## Installation
 
@@ -149,7 +181,7 @@ The plugin includes hooks that detect Gemini CLI questions and suggest the appro
 
 ## Version
 
-**v1.1.0** - Integration-first expansion with 5 delegation agents, 4 integration commands, 6 new skills.
+**v1.2.0** - Workspace bridging expansion with 3 exploration/sync agents, 4 planning commands, 5 new skills for workspace architecture, memory sync, and meta-tooling (TOML commands, policy engine).
 
 ## Related
 

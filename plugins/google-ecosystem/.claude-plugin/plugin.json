@@ -1,7 +1,7 @@
 {
   "name": "google-ecosystem",
-  "version": "1.1.0",
-  "description": "Google Gemini CLI ecosystem plugin with documentation management, Claude-to-Gemini integration agents, and meta-skills for configuration, checkpointing, sandboxing, and session management",
+  "version": "1.2.0",
+  "description": "Google Gemini CLI ecosystem plugin with documentation management, Claude-to-Gemini integration agents, exploration/planning commands, workspace bridging, and meta-skills for configuration, checkpointing, sandboxing, and session management",
   "keywords": [
     "gemini-cli",
     "google",
@@ -12,7 +12,13 @@
     "delegation",
     "second-opinion",
     "bulk-analysis",
-    "interactive-shell"
+    "interactive-shell",
+    "exploration",
+    "planning",
+    "workspace-bridge",
+    "memory-sync",
+    "toml-commands",
+    "policy-engine"
   ],
   "skills": "./skills",
   "agents": [
@@ -22,7 +28,10 @@
     "./agents/gemini-checkpoint-experimenter.md",
     "./agents/gemini-bulk-analyzer.md",
     "./agents/gemini-interactive-shell.md",
-    "./agents/gemini-second-opinion.md"
+    "./agents/gemini-second-opinion.md",
+    "./agents/gemini-deep-explorer.md",
+    "./agents/gemini-safe-experimenter.md",
+    "./agents/gemini-context-syncer.md"
   ],
   "commands": "./commands"
 }
