@@ -1,0 +1,28 @@
+{
+  "name": "melodic-software",
+  "description": "Developer onboarding and environment setup guides for Windows, macOS, Linux, and WSL. Covers package management, shell configuration, AI tooling, containerization, cloud platforms, databases, and productivity tools.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/melodic-software",
+  "keywords": [
+    "onboarding",
+    "developer-setup",
+    "windows",
+    "macos",
+    "linux",
+    "wsl",
+    "package-management",
+    "shell-terminal",
+    "docker",
+    "ai-tooling",
+    "nvm",
+    "code-editors",
+    "productivity"
+  ],
+  "skills": "./skills"
+}
