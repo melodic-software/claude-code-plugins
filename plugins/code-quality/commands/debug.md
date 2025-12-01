@@ -87,7 +87,7 @@ If test failure provided:
 
 The agent returns debugging analysis:
 
-```markdown
+````markdown
 ## Debug Analysis: [Error/Issue]
 
 ### Error Summary
@@ -107,7 +107,7 @@ The agent returns debugging analysis:
 **File**: `path/to/file.ext`
 **Change**: [Specific code change needed]
 
-```[language]
+```language
 // Before
 [problematic code]
 
@@ -116,10 +116,11 @@ The agent returns debugging analysis:
 ```
 
 ### Verification
+
 1. [How to verify the fix]
 2. [Test to run]
 3. [Expected outcome]
-```
+````
 
 ## Command Design Notes
 

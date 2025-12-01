@@ -1,6 +1,7 @@
 ---
 name: markdown-linting
 description: Comprehensive markdown linting guidance using markdownlint-cli2. Run, execute, check, and validate markdown files. Fix linting errors (MD0XX rules). Configure .markdownlint-cli2.jsonc (rules and ignores). Set up VS Code extension and GitHub Actions workflows. Use when working with markdown files, encountering validation errors, configuring markdownlint, setting up linting workflows, troubleshooting linting issues, or establishing markdown quality standards.
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Markdown Linting

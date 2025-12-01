@@ -1,6 +1,7 @@
 ---
 name: python
 description: Adaptive Python development guide with tiered complexity levels (Minimal/Standard/Full). Automatically selects appropriate guidance based on project context - from simple scripts (just clean Python code) to full production systems (complete tooling ecosystem). Covers modern conventions, testing, tooling, security, and best practices. Use when writing Python code, converting scripts, setting up projects, or building production systems. Keywords: PEP-8, Ruff, pytest, mypy, simple scripts, project structure, PyPI, packaging, type hints, clean code
+allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # Python Development Skill
