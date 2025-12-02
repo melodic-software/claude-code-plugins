@@ -25,7 +25,7 @@ When invoked without qualifiers:
    ```text
    Please scrape all configured Claude documentation sources. Skip unchanged documents, then refresh the local index and metadata and validate. Run in foreground so we can see progress.
 
-   IMPORTANT: Use Python 3.12 for validation (py -3.12) due to spaCy compatibility. Python 3.14 works for scraping.
+   IMPORTANT: Use Python 3.13 for validation (py -3.13) due to spaCy compatibility. Python 3.14 works for scraping.
    ```
 
 3. Let the skill decide which scripts to run based on its SKILL.md guidance.

@@ -311,8 +311,8 @@ def _auto_install_optional_dependencies(verbose: bool = False) -> None:
 
         # Check Python version for spaCy compatibility
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        python312_available = detect_python_for_spacy()
-        needs_python312 = python_version >= '3.14' or python_version < '3.7'
+        python313_available = detect_python_for_spacy()
+        needs_python313 = python_version >= '3.14' or python_version < '3.7'
 
         # Always show what we're checking (diagnostic)
         if verbose:
@@ -323,14 +323,14 @@ def _auto_install_optional_dependencies(verbose: bool = False) -> None:
                 print(f"     pip:    {env_info['pip_location']} ({match} this interpreter)")
             print(f"  🔍 Dependency check: YAKE={yake_available}, spaCy={spacy_available}, spaCy model={spacy_model_available}")
             print(f"  🔍 Missing: YAKE={not yake_available}, spaCy={spacy_missing}, spaCy model={spacy_model_missing}")
-            print(f"  🔍 Python version: {python_version}, Python 3.12 available: {python312_available is not None}")
-            if needs_python312:
-                print("  ℹ️  spaCy officially supports Python 3.7-3.12 - will prefer Python 3.12 if available")
+            print(f"  🔍 Python version: {python_version}, Python 3.13 available: {python313_available is not None}")
+            if needs_python313:
+                print("  ℹ️  spaCy officially supports Python 3.7-3.13 - will prefer Python 3.13 if available")
 
         if missing_optional or spacy_missing or spacy_model_missing:
             print("📦 Auto-installing optional dependencies for better keyword extraction...")
-            if needs_python312 and python312_available:
-                print("   (Will use Python 3.12 for spaCy - pre-built wheels available, no compiler needed)")
+            if needs_python313 and python313_available:
+                print("   (Will use Python 3.13 for spaCy - pre-built wheels available, no compiler needed)")
             else:
                 print("   (Using pre-built wheels when available - no compiler needed)")
             print("=" * 60)
@@ -349,8 +349,8 @@ def _auto_install_optional_dependencies(verbose: bool = False) -> None:
             # Install spaCy with model using unified helper (prefers 3.12 when appropriate)
             if spacy_missing or spacy_model_missing:
                 print("  📦 Installing spaCy and model...")
-                if needs_python312 and python312_available and verbose:
-                    print(f"     Current Python {python_version} detected - preferring Python 3.12 for spaCy")
+                if needs_python313 and python313_available and verbose:
+                    print(f"     Current Python {python_version} detected - preferring Python 3.13 for spaCy")
                     print("     (Pre-built wheels available, no compilation needed)")
                 try:
                     success, message = install_spacy_with_model(
@@ -449,7 +449,7 @@ def cmd_extract_keywords(manager: IndexManager, base_dir: Path, skip_existing: b
         print("         → Using heading/content analysis (still effective)")
 
     # For spaCy, distinguish clearly between current-interpreter importability
-    # and overall usage (which may come via a separate Python 3.12 process).
+    # and overall usage (which may come via a separate Python 3.13 process).
     if effective_spacy:
         current_diag = effective_spacy.get("current") or {}
         current_importable = bool(current_diag.get("spacy_importable"))
@@ -671,7 +671,7 @@ def cmd_extract_keywords(manager: IndexManager, base_dir: Path, skip_existing: b
         spacy_pct = min(100, spacy_used * 100 // max(updated_count, 1))
         print(f"   YAKE used: {yake_used}/{updated_count} docs ({yake_pct}%)")
         # This reflects actual spaCy-based stop-word usage (either via current
-        # interpreter or via a Python 3.12 helper), not just importability.
+        # interpreter or via a Python 3.13 helper), not just importability.
         print(f"   spaCy-based stop words used: {spacy_used}/{updated_count} docs ({spacy_pct}%)")
         if stats_aggregate['yake_used_count'] > 0:
             avg_yake = stats_aggregate['total_yake_keywords'] // max(stats_aggregate['yake_used_count'], 1)
@@ -687,7 +687,7 @@ def cmd_extract_keywords(manager: IndexManager, base_dir: Path, skip_existing: b
 
         # Only warn about missing spaCy if we *didn't* manage to use spaCy-based
         # stop words at all. If spacy_used > 0, spaCy is in play (typically via
-        # Python 3.12) even if the current interpreter can't import it.
+        # Python 3.13) even if the current interpreter can't import it.
         needs_optional_summary = (not YAKE_AVAILABLE) or (spacy_used == 0)
         if needs_optional_summary:
             print()

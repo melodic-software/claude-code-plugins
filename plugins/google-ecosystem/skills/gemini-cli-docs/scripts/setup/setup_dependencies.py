@@ -322,25 +322,25 @@ def print_environment_info(info: dict[str, Any | None] = None, verbose: bool = F
 
 def detect_python_for_spacy() -> str | None:
     """
-    Detect Python 3.12 installation for spaCy (spaCy supports 3.7-3.12, not 3.14+)
-    
+    Detect Python 3.13 installation for spaCy (spaCy supports 3.7-3.13, not 3.14+)
+
     Returns:
-        Path to Python 3.12 executable if available, None otherwise
+        Path to Python 3.13 executable if available, None otherwise
     """
     if sys.platform == 'win32':
-        # On Windows, use py launcher to find Python 3.12
+        # On Windows, use py launcher to find Python 3.13
         try:
             result = subprocess.run(
-                ['py', '-3.12', '--version'],
+                ['py', '-3.13', '--version'],
                 capture_output=True,
                 text=True,
                 timeout=int(get_subprocess_quick_timeout())
             )
             if result.returncode == 0:
-                # Get the actual Python 3.12 executable path
+                # Get the actual Python 3.13 executable path
                 try:
                     result2 = subprocess.run(
-                        ['py', '-3.12', '-c', 'import sys; print(sys.executable)'],
+                        ['py', '-3.13', '-c', 'import sys; print(sys.executable)'],
                         capture_output=True,
                         text=True,
                         timeout=int(get_subprocess_quick_timeout())
@@ -351,28 +351,28 @@ def detect_python_for_spacy() -> str | None:
                             return python_path
                 except Exception:
                     pass
-                # Fallback: use py -3.12 as command
-                return 'py -3.12'
+                # Fallback: use py -3.13 as command
+                return 'py -3.13'
         except Exception:
             pass
-        
+
         # Fallback: check common installation paths
         common_paths = [
-            Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Python' / 'Python312' / 'python.exe',
-            Path(os.environ.get('APPDATA', '')) / 'Python' / 'Python312' / 'python.exe',
-            Path('C:/Python312/python.exe'),
-            Path('C:/Program Files/Python312/python.exe'),
-            Path('C:/Program Files (x86)/Python312/python.exe'),
+            Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Python' / 'Python313' / 'python.exe',
+            Path(os.environ.get('APPDATA', '')) / 'Python' / 'Python313' / 'python.exe',
+            Path('C:/Python313/python.exe'),
+            Path('C:/Program Files/Python313/python.exe'),
+            Path('C:/Program Files (x86)/Python313/python.exe'),
         ]
         for python_path in common_paths:
             if python_path.exists():
                 return str(python_path)
     else:
-        # On Unix-like systems, check for python3.12
-        python312_path = shutil.which('python3.12')
-        if python312_path:
-            return python312_path
-    
+        # On Unix-like systems, check for python3.13
+        python313_path = shutil.which('python3.13')
+        if python313_path:
+            return python313_path
+
     return None
 
 def check_compiler_accessible() -> bool:
@@ -463,7 +463,7 @@ def get_effective_spacy_status() -> dict[str, Any]:
     Returns:
         Dictionary with keys:
         - current: diagnostics for current interpreter (spacy_importable/model_loadable/etc.)
-        - alt: diagnostics for an alternate compatible interpreter (e.g. Python 3.12), or None
+        - alt: diagnostics for an alternate compatible interpreter (e.g. Python 3.13), or None
         - effective_available: True if spaCy import is available in any supported interpreter
         - effective_model_available: True if en_core_web_sm is loadable in any supported interpreter
         - effective_python: Python executable used for spaCy if different from current, else None
@@ -510,16 +510,16 @@ def get_effective_spacy_status() -> dict[str, Any]:
     current_has_model = bool(current_diag.get("model_loadable"))
 
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    python312_path = None
+    python313_path = None
     try:
-        python312_path = detect_python_for_spacy()
+        python313_path = detect_python_for_spacy()
     except Exception:
-        python312_path = None
+        python313_path = None
 
     alt_diag: dict[str, Any | None] = None
 
-    # If an alternate compatible Python exists (e.g., 3.12), try diagnostics there as well.
-    if python312_path:
+    # If an alternate compatible Python exists (e.g., 3.13), try diagnostics there as well.
+    if python313_path:
         try:
             # Build a small helper script that reports spaCy diagnostics as JSON.
             helper_code = (
@@ -551,12 +551,12 @@ def get_effective_spacy_status() -> dict[str, Any]:
                 "print(json.dumps(info))\n"
             )
 
-            # python312_path can be an executable path or 'py -3.12'
-            if " " in str(python312_path):
-                # Treat as launcher command (e.g., 'py -3.12')
-                cmd = str(python312_path).split() + ["-c", helper_code]
+            # python313_path can be an executable path or 'py -3.13'
+            if " " in str(python313_path):
+                # Treat as launcher command (e.g., 'py -3.13')
+                cmd = str(python313_path).split() + ["-c", helper_code]
             else:
-                cmd = [str(python312_path), "-c", helper_code]
+                cmd = [str(python313_path), "-c", helper_code]
 
             result = subprocess.run(
                 cmd,
@@ -580,7 +580,7 @@ def get_effective_spacy_status() -> dict[str, Any]:
 
     # Decide which Python should be considered the effective spaCy provider.
     if effective_available and not current_has_spacy and alt_diag and alt_diag.get("spacy_importable"):
-        status["effective_python"] = python312_path
+        status["effective_python"] = python313_path
 
     # Attach version/model_location for convenience at top level when available.
     if effective_available:
@@ -595,7 +595,7 @@ def get_effective_spacy_status() -> dict[str, Any]:
             status["model_location"] = alt_diag.get("model_location")
 
     status["python_version"] = python_version
-    status["python312_available"] = python312_path is not None
+    status["python313_available"] = python313_path is not None
     return status
 
 def setup_vs_environment(arch: str = "x64", verbose: bool = False) -> bool:
@@ -727,20 +727,20 @@ def get_troubleshooting_guide(issue: str) -> list[str]:
     if issue == 'python_version':
         if sys.platform == 'win32':
             steps = [
-                "Python 3.14 is not supported by spaCy (supports up to 3.12)",
-                "Install Python 3.12:",
-                "  winget install --id Python.Python.3.12 -e --source winget",
+                "Python 3.14 is not supported by spaCy (supports up to 3.13)",
+                "Install Python 3.13:",
+                "  winget install --id Python.Python.3.13 -e --source winget",
                 "Or use py launcher:",
-                "  py -3.12 -m pip install spacy",
-                "The script will automatically use Python 3.12 if available"
+                "  py -3.13 -m pip install spacy",
+                "The script will automatically use Python 3.13 if available"
             ]
         else:
             steps = [
-                "Python 3.14 is not supported by spaCy (supports up to 3.12)",
-                "Install Python 3.12:",
-                "  macOS: brew install python@3.12",
-                "  Linux: sudo apt install python3.12 python3.12-venv python3.12-dev",
-                "Then use: python3.12 -m pip install spacy"
+                "Python 3.14 is not supported by spaCy (supports up to 3.13)",
+                "Install Python 3.13:",
+                "  macOS: brew install python@3.13",
+                "  Linux: sudo apt install python3.13 python3.13-venv python3.13-dev",
+                "Then use: python3.13 -m pip install spacy"
             ]
     
     elif issue == 'compiler':
@@ -752,32 +752,32 @@ def get_troubleshooting_guide(issue: str) -> list[str]:
                 "1. Install Visual Studio Build Tools:",
                 "   winget install --id Microsoft.VisualStudio.BuildTools --exact",
                 "2. Restart your terminal/PowerShell window",
-                "3. Or use Python 3.12 (pre-built wheels, no compilation needed):",
-                "   py -3.12 -m pip install spacy"
+                "3. Or use Python 3.13 (pre-built wheels, no compilation needed):",
+                "   py -3.13 -m pip install spacy"
             ]
         elif sys.platform == 'darwin':
             steps = [
                 "Install Xcode Command Line Tools:",
                 "  xcode-select --install",
-                "Or use Python 3.12 with pre-built wheels:",
-                "  python3.12 -m pip install spacy"
+                "Or use Python 3.13 with pre-built wheels:",
+                "  python3.13 -m pip install spacy"
             ]
         else:
             steps = [
                 "Install build-essential:",
                 "  sudo apt update && sudo apt install -y build-essential",
-                "Or use Python 3.12 with pre-built wheels:",
-                "  python3.12 -m pip install spacy"
+                "Or use Python 3.13 with pre-built wheels:",
+                "  python3.13 -m pip install spacy"
             ]
     
     elif issue == 'spacy_install':
         steps = [
-            "Recommended: Use Python 3.12 (pre-built wheels available, no compilation needed)",
-            f"  {'py -3.12' if sys.platform == 'win32' else 'python3.12'} -m pip install -U pip setuptools wheel",
-            f"  {'py -3.12' if sys.platform == 'win32' else 'python3.12'} -m pip install -U spacy",
-            f"  {'py -3.12' if sys.platform == 'win32' else 'python3.12'} -m spacy download en_core_web_sm",
+            "Recommended: Use Python 3.13 (pre-built wheels available, no compilation needed)",
+            f"  {'py -3.13' if sys.platform == 'win32' else 'python3.13'} -m pip install -U pip setuptools wheel",
+            f"  {'py -3.13' if sys.platform == 'win32' else 'python3.13'} -m pip install -U spacy",
+            f"  {'py -3.13' if sys.platform == 'win32' else 'python3.13'} -m spacy download en_core_web_sm",
             "",
-            "The script will automatically detect and use Python 3.12 if available"
+            "The script will automatically detect and use Python 3.13 if available"
         ]
     
     return steps
@@ -1293,7 +1293,7 @@ def run_pip_install(packages: list[str], dry_run: bool = False, install_individu
                             for line in build_instructions['manual']:
                                 print(f"       {line}")
                             print()
-                            print(f"     Alternative: Use Python 3.11/3.12 (better pre-built wheel support)")
+                            print(f"     Alternative: Use Python 3.11/3.13 (better pre-built wheel support)")
                     else:
                         print(f"     Error: {e2.stderr[:300] if e2.stderr else str(e2)}...")  # Truncate long errors
                 else:
@@ -1404,7 +1404,7 @@ def install_spacy_with_model(
     """
     Install spaCy and model with comprehensive error handling
     
-    Automatically uses Python 3.12 if available (spaCy supports 3.7-3.12, not 3.14+)
+    Automatically uses Python 3.13 if available (spaCy supports 3.7-3.13, not 3.14+)
     Sets up VS Build Tools environment automatically if needed for source installs.
     
     Args:
@@ -1422,44 +1422,44 @@ def install_spacy_with_model(
     
     install_start = datetime.now()
     
-    # Step 2: Detect and use Python 3.12 for spaCy (spaCy supports 3.7-3.12, not 3.14+)
+    # Step 2: Detect and use Python 3.13 for spaCy (spaCy supports 3.7-3.13, not 3.14+)
     python_executable = sys.executable
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    python312_executable = detect_python_for_spacy()
-    using_python312 = False
+    python313_executable = detect_python_for_spacy()
+    using_python313 = False
     install_method = None
     
-    # Check if we need Python 3.12 (current version is 3.14+ or not supported)
-    if python_version >= '3.14' or (python312_executable and python_version < '3.7'):
-        if python312_executable:
-            if isinstance(python312_executable, str) and python312_executable.startswith('py -3.12'):
+    # Check if we need Python 3.13 (current version is 3.14+ or not supported)
+    if python_version >= '3.14' or (python313_executable and python_version < '3.7'):
+        if python313_executable:
+            if isinstance(python313_executable, str) and python313_executable.startswith('py -3.13'):
                 # Use py launcher command
-                python_executable = python312_executable
-                using_python312 = True
+                python_executable = python313_executable
+                using_python313 = True
                 if verbose:
-                    print(f"  🔍 Python {python_version} detected - spaCy requires 3.7-3.12")
-                    print(f"  ✅ Using Python 3.12 via py launcher (pre-built wheels available, no compilation needed)")
-            elif Path(python312_executable).exists():
+                    print(f"  🔍 Python {python_version} detected - spaCy requires 3.7-3.13")
+                    print(f"  ✅ Using Python 3.13 via py launcher (pre-built wheels available, no compilation needed)")
+            elif Path(python313_executable).exists():
                 # Use direct path
-                python_executable = python312_executable
-                using_python312 = True
+                python_executable = python313_executable
+                using_python313 = True
                 if verbose:
-                    print(f"  🔍 Python {python_version} detected - spaCy requires 3.7-3.12")
-                    print(f"  ✅ Using Python 3.12: {python_executable}")
+                    print(f"  🔍 Python {python_version} detected - spaCy requires 3.7-3.13")
+                    print(f"  ✅ Using Python 3.13: {python_executable}")
                     print(f"     (Pre-built wheels available, no compilation needed)")
         else:
-            # Python 3.12 not available - provide clear error message
-            error_msg = f"spaCy requires Python 3.7-3.12, but Python {python_version} is being used. "
+            # Python 3.13 not available - provide clear error message
+            error_msg = f"spaCy requires Python 3.7-3.13, but Python {python_version} is being used. "
             troubleshooting = get_troubleshooting_guide('python_version')
-            error_msg += "Python 3.12 not found. "
+            error_msg += "Python 3.13 not found. "
             if troubleshooting:
                 error_msg += "\n".join(troubleshooting[:3])  # First few steps
             return False, error_msg
     
     # Step 3: Check if VS Build Tools needed (only for source installs or Python 3.14)
-    # If using Python 3.12, skip VS setup (pre-built wheels don't need compiler)
+    # If using Python 3.13, skip VS setup (pre-built wheels don't need compiler)
     build_tools_needed = False
-    if not using_python312 and not prefer_wheel:
+    if not using_python313 and not prefer_wheel:
         build_tools_available = check_build_tools_installed()
         build_tools_needed = not build_tools_available
         
@@ -1489,13 +1489,13 @@ def install_spacy_with_model(
                 if not build_tools_available:
                     instructions = get_build_tools_install_instructions()
                     error_msg = "Build tools required for source installation. "
-                    if using_python312:
-                        error_msg += "Alternatively, use Python 3.12 (pre-built wheels, no compiler needed). "
+                    if using_python313:
+                        error_msg += "Alternatively, use Python 3.13 (pre-built wheels, no compiler needed). "
                     error_msg += f"Run: {' '.join(instructions.get('command', []))}"
                     return False, error_msg
     
-    # Step 4: If not using Python 3.12 and source install needed, ensure compiler accessible
-    if not using_python312 and not prefer_wheel:
+    # Step 4: If not using Python 3.13 and source install needed, ensure compiler accessible
+    if not using_python313 and not prefer_wheel:
         if verbose:
             print("  🔍 Ensuring compiler is accessible for source installation...")
         compiler_success, compiler_msg = ensure_compiler_accessible(verbose=verbose)
@@ -1507,9 +1507,9 @@ def install_spacy_with_model(
         print("  🔧 Upgrading pip, setuptools, and wheel...")
     try:
         # Build command based on Python executable
-        if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
+        if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
             # Use py launcher - split command
-            cmd = ['py', '-3.12', '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel']
+            cmd = ['py', '-3.13', '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel']
         else:
             cmd = [python_executable, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel']
         
@@ -1529,13 +1529,13 @@ def install_spacy_with_model(
     if prefer_wheel:
         if verbose:
             print("  📦 Installing spaCy (pip will automatically prefer pre-built wheels if available)...")
-            if using_python312:
-                print("     Using Python 3.12 - pre-built wheels should be available")
+            if using_python313:
+                print("     Using Python 3.13 - pre-built wheels should be available")
         try:
             # Build command based on Python executable
-            if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
+            if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
                 # Use py launcher - split command
-                cmd = ['py', '-3.12', '-m', 'pip', 'install', '-U', 'spacy']
+                cmd = ['py', '-3.13', '-m', 'pip', 'install', '-U', 'spacy']
             else:
                 cmd = [python_executable, '-m', 'pip', 'install', '-U', 'spacy']
             
@@ -1577,13 +1577,13 @@ def install_spacy_with_model(
             # Check if it's a build error
             error_text_lower = error_msg.lower()
             if 'compiler' in error_text_lower or 'build' in error_text_lower or 'c++' in error_text_lower or 'microsoft visual c++' in error_text_lower:
-                # Build error - check if we can use Python 3.12 instead
-                if not using_python312:
-                    python312_available = detect_python_for_spacy()
-                    if python312_available:
+                # Build error - check if we can use Python 3.13 instead
+                if not using_python313:
+                    python313_available = detect_python_for_spacy()
+                    if python313_available:
                         msg = ("spaCy installation failed: Compilation required but compiler not accessible. "
-                               "Switching to Python 3.12 (pre-built wheels available, no compilation needed)...")
-                        # Retry with Python 3.12
+                               "Switching to Python 3.13 (pre-built wheels available, no compilation needed)...")
+                        # Retry with Python 3.13
                         return install_spacy_with_model(
                             prefer_wheel=True,
                             model_name=model_name,
@@ -1600,8 +1600,8 @@ def install_spacy_with_model(
                     compiler_success, compiler_msg = ensure_compiler_accessible(verbose=verbose)
                     if compiler_success:
                         # Retry installation after setting up environment
-                        if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
-                            cmd = ['py', '-3.12', '-m', 'pip', 'install', '-U', 'spacy']
+                        if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
+                            cmd = ['py', '-3.13', '-m', 'pip', 'install', '-U', 'spacy']
                         else:
                             cmd = [python_executable, '-m', 'pip', 'install', '-U', 'spacy']
                         try:
@@ -1611,13 +1611,13 @@ def install_spacy_with_model(
                                 print(f"  ✅ spaCy installed successfully after configuring VS environment")
                         except subprocess.CalledProcessError:
                             msg = ("spaCy installation failed: Compiler configured but installation still failed. "
-                                   "Try restarting your terminal or use Python 3.12 (pre-built wheels, no compilation needed): "
-                                   f"{'py -3.12 -m pip install spacy' if sys.platform == 'win32' else 'python3.12 -m pip install spacy'}")
+                                   "Try restarting your terminal or use Python 3.13 (pre-built wheels, no compilation needed): "
+                                   f"{'py -3.13 -m pip install spacy' if sys.platform == 'win32' else 'python3.13 -m pip install spacy'}")
                             return False, msg
                     else:
                         msg = ("spaCy installation failed: Build tools are installed but compiler not accessible in current session. "
                                "Try restarting your terminal or run in a new PowerShell/CMD window. "
-                               f"Or use Python 3.12 (pre-built wheels, no compilation needed): {'py -3.12 -m pip install spacy' if sys.platform == 'win32' else 'python3.12 -m pip install spacy'}")
+                               f"Or use Python 3.13 (pre-built wheels, no compilation needed): {'py -3.13 -m pip install spacy' if sys.platform == 'win32' else 'python3.13 -m pip install spacy'}")
                         return False, msg
                 else:
                     instructions = get_build_tools_install_instructions()
@@ -1627,7 +1627,7 @@ def install_spacy_with_model(
                         msg += f". Auto-install via: {' '.join(instructions['command'])}"
                     else:
                         msg += ". Install manually: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022"
-                    msg += f"\nAlternatively, use Python 3.12 (pre-built wheels, no compilation needed): {'py -3.12 -m pip install spacy' if sys.platform == 'win32' else 'python3.12 -m pip install spacy'}"
+                    msg += f"\nAlternatively, use Python 3.13 (pre-built wheels, no compilation needed): {'py -3.13 -m pip install spacy' if sys.platform == 'win32' else 'python3.13 -m pip install spacy'}"
                     return False, msg
             else:
                 return False, f"spaCy installation failed: {error_msg}"
@@ -1639,8 +1639,8 @@ def install_spacy_with_model(
             print("  📦 Installing spaCy from source...")
         try:
             # Build command based on Python executable
-            if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
-                cmd = ['py', '-3.12', '-m', 'pip', 'install', '-U', 'spacy']
+            if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
+                cmd = ['py', '-3.13', '-m', 'pip', 'install', '-U', 'spacy']
             else:
                 cmd = [python_executable, '-m', 'pip', 'install', '-U', 'spacy']
             
@@ -1692,13 +1692,13 @@ def install_spacy_with_model(
                             print("  ✅ spaCy installed from source after configuring VS environment")
                     except subprocess.CalledProcessError:
                         msg = ("spaCy installation failed: Compiler configured but installation still failed. "
-                               "Try restarting your terminal or use Python 3.12 (pre-built wheels, no compilation needed): "
-                               f"{'py -3.12 -m pip install spacy' if sys.platform == 'win32' else 'python3.12 -m pip install spacy'}")
+                               "Try restarting your terminal or use Python 3.13 (pre-built wheels, no compilation needed): "
+                               f"{'py -3.13 -m pip install spacy' if sys.platform == 'win32' else 'python3.13 -m pip install spacy'}")
                         return False, msg
                 else:
                     msg = ("spaCy installation failed: C++ build tools required for source installation. "
                            f"{compiler_msg}. "
-                           f"Or use Python 3.12 (pre-built wheels, no compilation needed): {'py -3.12 -m pip install spacy' if sys.platform == 'win32' else 'python3.12 -m pip install spacy'}")
+                           f"Or use Python 3.13 (pre-built wheels, no compilation needed): {'py -3.13 -m pip install spacy' if sys.platform == 'win32' else 'python3.13 -m pip install spacy'}")
                     return False, msg
             else:
                 return False, f"spaCy installation failed: {error_msg}"
@@ -1706,11 +1706,11 @@ def install_spacy_with_model(
             return False, "spaCy installation timed out (may need manual intervention)"
     
     # Step 7: Verify spaCy is installed (check with the Python we used)
-    if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
+    if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
         # For py launcher, we need to check differently
         try:
             result = subprocess.run(
-                ['py', '-3.12', '-c', 'import spacy'],
+                ['py', '-3.13', '-c', 'import spacy'],
                 capture_output=True,
                 text=True,
                 timeout=int(get_subprocess_quick_timeout())
@@ -1722,9 +1722,9 @@ def install_spacy_with_model(
             pass
     else:
         # Temporarily switch to check import with the Python we used
-        # Note: This might not work perfectly if Python 3.12 was used, but it's the best we can do
+        # Note: This might not work perfectly if Python 3.13 was used, but it's the best we can do
         if not check_import('spacy'):
-            # If using Python 3.12, this check might fail because we're still in Python 3.14
+            # If using Python 3.13, this check might fail because we're still in Python 3.14
             # So we do a subprocess check instead
             try:
                 result = subprocess.run(
@@ -1744,10 +1744,10 @@ def install_spacy_with_model(
 
     try:
         # Temporarily update sys.executable for model download
-        if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
+        if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
             # Use py launcher
             result = subprocess.run(
-                ['py', '-3.12', '-m', 'spacy', 'download', model_name],
+                ['py', '-3.13', '-m', 'spacy', 'download', model_name],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -1766,9 +1766,9 @@ def install_spacy_with_model(
     
     # Step 9: Verify model can be loaded (using the Python we used)
     try:
-        if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
+        if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
             result = subprocess.run(
-                ['py', '-3.12', '-c', f"import spacy; nlp = spacy.load('{model_name}'); print('OK')"],
+                ['py', '-3.13', '-c', f"import spacy; nlp = spacy.load('{model_name}'); print('OK')"],
                 capture_output=True,
                 text=True,
                 timeout=int(get_subprocess_default_timeout())
@@ -1797,14 +1797,14 @@ def install_spacy_with_model(
         'package_name': f'spaCy + {model_name}',
         'package_id': f'spacy-{model_name}',
         'install_method': install_method or 'pre-built wheel',
-        'python_version': '3.12' if using_python312 else python_version,
+        'python_version': '3.13' if using_python313 else python_version,
         'status': 'success',
         'timestamp': install_start.isoformat(),
         'duration_seconds': install_duration,
         'platform': sys.platform
     })
     
-    python_info = f"Python 3.12" if using_python312 else f"Python {python_version}"
+    python_info = f"Python 3.13" if using_python313 else f"Python {python_version}"
     return True, f"spaCy and {model_name} installed successfully via {install_method or 'pre-built wheel'} using {python_info}"
 
 def install_spacy_model(dry_run: bool = False, python_executable: str | None = None) -> bool:
@@ -1824,16 +1824,16 @@ def install_spacy_model(dry_run: bool = False, python_executable: str | None = N
     model_name = 'en_core_web_sm'
     
     if dry_run:
-        if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
-            print(f"  [DRY RUN] Would run: py -3.12 -m spacy download {model_name}")
+        if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
+            print(f"  [DRY RUN] Would run: py -3.13 -m spacy download {model_name}")
         else:
             print(f"  [DRY RUN] Would run: {python_executable} -m spacy download {model_name}")
         return True
     
     install_start = datetime.now()
-    if isinstance(python_executable, str) and python_executable.startswith('py -3.12'):
-        install_command = f"py -3.12 -m spacy download {model_name}"
-        cmd = ['py', '-3.12', '-m', 'spacy', 'download', model_name]
+    if isinstance(python_executable, str) and python_executable.startswith('py -3.13'):
+        install_command = f"py -3.13 -m spacy download {model_name}"
+        cmd = ['py', '-3.13', '-m', 'spacy', 'download', model_name]
     else:
         install_command = f"{python_executable} -m spacy download {model_name}"
         cmd = [python_executable, '-m', 'spacy', 'download', model_name]

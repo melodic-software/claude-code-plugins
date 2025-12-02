@@ -1,7 +1,7 @@
 # Python Installation Linux
 
 Last Verified: 2025-11-25
-Python versions: 3.12 (required), 3.13 (current stable), 3.14 (development, optional)
+Python versions: 3.13 (required), 3.13 (current stable), 3.14 (development, optional)
 uv: latest via standalone installer or package manager (where available)
 
 This guide installs **Python 3.12** (required), optionally **Python 3.13** and **Python 3.14**, and the **uv** package manager on Linux.
@@ -18,7 +18,7 @@ Adjust package names for your specific distro as needed.
 ## Table of Contents
 
 - [1. Check existing Python installation](#1-check-existing-python-installation)
-- [2. Install Python 3.12 (required)](#2-install-python-312-required)
+- [2. Install Python 3.13 (required)](#2-install-python-313-required)
 - [3. Install Python 3.13 (optional)](#3-install-python-313-optional)
 - [4. Install Python 3.14 (optional)](#4-install-python-314-optional)
 - [5. Build Python from source (fallback)](#5-build-python-from-source-fallback)
@@ -49,7 +49,7 @@ which python3
 
 ---
 
-## 2. Install Python 3.12 (required)
+## 2. Install Python 3.13 (required)
 
 ### 2.1 Debian/Ubuntu
 
@@ -57,19 +57,19 @@ which python3
 sudo apt update
 
 # Install Python 3.12 and common extras
-sudo apt install -y python3.12 python3.12-venv python3.12-dev
+sudo apt install -y python3.13 python3.13-venv python3.13-dev
 
 # Verify
-python3.12 --version
+python3.13 --version
 ```
 
 ### 2.2 Fedora/RHEL
 
 ```bash
-sudo dnf install -y python3.12 python3.12-pip python3.12-devel
+sudo dnf install -y python3.13 python3.13-pip python3.13-devel
 
 # Verify
-python3.12 --version
+python3.13 --version
 ```
 
 ### 2.3 Arch Linux
@@ -78,7 +78,7 @@ python3.12 --version
 sudo pacman -S python312
 
 # Verify
-python3.12 --version
+python3.13 --version
 ```
 
 If your distro doesn't provide Python 3.12 packages, see **Section 5** (Build from source).
@@ -97,7 +97,7 @@ sudo apt update
 sudo apt install -y python3.13 python3.13-venv python3.13-dev
 
 # Verify both versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 ```
 
@@ -107,7 +107,7 @@ python3.13 --version
 sudo dnf install -y python3.13 python3.13-pip python3.13-devel
 
 # Verify both versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 ```
 
@@ -117,7 +117,7 @@ python3.13 --version
 sudo pacman -S python313
 
 # Verify both versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 ```
 
@@ -137,7 +137,7 @@ sudo apt update
 sudo apt install -y python3.14 python3.14-venv python3.14-dev
 
 # Verify all versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 python3.14 --version
 ```
@@ -148,7 +148,7 @@ python3.14 --version
 sudo dnf install -y python3.14 python3.14-pip python3.14-devel
 
 # Verify all versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 python3.14 --version
 ```
@@ -159,7 +159,7 @@ python3.14 --version
 sudo pacman -S python314
 
 # Verify all versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 python3.14 --version
 ```
@@ -201,7 +201,7 @@ cd Python-3.12.0
 make -j"$(nproc)"
 sudo make altinstall  # Avoid overwriting system python3
 
-python3.12 --version
+python3.13 --version
 ```
 
 ### 5.3 Build and install Python 3.14 (optional)
@@ -227,11 +227,11 @@ When you have both 3.12 and 3.14 installed:
 
 ```bash
 # Use a specific version explicitly
-python3.12 --version
+python3.13 --version
 python3.14 --version
 
 # Pip for each version
-python3.12 -m pip --version
+python3.13 -m pip --version
 python3.14 -m pip --version
 
 # Check default
@@ -244,7 +244,7 @@ which python3
 On Debian/Ubuntu you can use `update-alternatives`:
 
 ```bash
-sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.14 2
 sudo update-alternatives --config python3  # interactive selection
 ```
@@ -252,20 +252,20 @@ sudo update-alternatives --config python3  # interactive selection
 Or use shell aliases in `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-alias python3='python3.12'
-alias pip3='python3.12 -m pip'
+alias python3='python3.13'
+alias pip3='python3.13 -m pip'
 ```
 
 ---
 
 ## 7. Verify Python and pip
 
-After installing Python 3.12 (and optionally 3.14), verify:
+After installing Python 3.13 (and optionally 3.14), verify:
 
 ```bash
 # Required version
-python3.12 --version
-python3.12 -m pip --version
+python3.13 --version
+python3.13 -m pip --version
 
 # Optional latest version
 python3.14 --version  # if installed
@@ -273,7 +273,7 @@ python3.14 -m pip --version
 
 # Where Python is located
 which python3
-which python3.12
+which python3.13
 ```
 
 ---
@@ -320,7 +320,7 @@ If your distribution offers a uv package (e.g., via your package manager), you c
 
 ## 9. First steps with uv (Linux)
 
-Once Python 3.12 and uv are installed:
+Once Python 3.13 and uv are installed:
 
 ```bash
 # Check uv
@@ -348,7 +348,7 @@ See the uv docs for more examples: <https://docs.astral.sh/uv/>.
 
 ## 10. Troubleshooting (Linux)
 
-### "python3.12: command not found"
+### "python3.13: command not found"
 
 - Confirm whether 3.12 is installed via your package manager or `/usr/local/bin`:
 
@@ -360,8 +360,8 @@ ls /usr/bin/python3* /usr/local/bin/python3* 2>/dev/null
 
 ### "pip: command not found"
 
-- Use `python3.12 -m pip` instead of `pip` directly.
-- Install pip if needed via your package manager (e.g., `python3.12-pip`).
+- Use `python3.13 -m pip` instead of `pip` directly.
+- Install pip if needed via your package manager (e.g., `python3.13-pip`).
 
 ### uv command not found
 

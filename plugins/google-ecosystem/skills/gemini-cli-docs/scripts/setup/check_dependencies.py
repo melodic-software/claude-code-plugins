@@ -273,10 +273,10 @@ Examples:
         
         # Check Python version compatibility for spaCy
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        python312_available = None
+        python313_available = None
         if env_info_available:
             try:
-                python312_available = detect_python_for_spacy()
+                python313_available = detect_python_for_spacy()
             except Exception:
                 pass
         
@@ -321,18 +321,18 @@ Examples:
                         if not args.json:
                             print(f"      Install with: pip install {package}")
                             if python_version >= '3.14' or python_version < '3.7':
-                                print(f"      ⚠️  Note: spaCy requires Python 3.7-3.12, but Python {python_version} is being used")
-                                if python312_available:
-                                    print(f"      ✅ Python 3.12 is available - will be used automatically for spaCy")
-                                    print(f"      Recommended: {'py -3.12' if sys.platform == 'win32' else 'python3.12'} -m pip install spacy")
+                                print(f"      ⚠️  Note: spaCy requires Python 3.7-3.13, but Python {python_version} is being used")
+                                if python313_available:
+                                    print(f"      ✅ Python 3.13 is available - will be used automatically for spaCy")
+                                    print(f"      Recommended: {'py -3.13' if sys.platform == 'win32' else 'python3.13'} -m pip install spacy")
                                 else:
-                                    print(f"      ❌ Python 3.12 not found - install it first:")
+                                    print(f"      ❌ Python 3.13 not found - install it first:")
                                     if sys.platform == 'win32':
-                                        print(f"         winget install --id Python.Python.3.12 -e --source winget")
+                                        print(f"         winget install --id Python.Python.3.13 -e --source winget")
                                     elif sys.platform == 'darwin':
-                                        print(f"         brew install python@3.12")
+                                        print(f"         brew install python@3.13")
                                     else:
-                                        print(f"         sudo apt install python3.12 python3.12-venv python3.12-dev")
+                                        print(f"         sudo apt install python3.13 python3.13-venv python3.13-dev")
             else:
                 status = "✅" if available else "⚠️ "
                 print(f"  {status} {package:20s}", end="")
@@ -346,7 +346,7 @@ Examples:
         
         results['all_optional'] = all_optional_ok  # will be refined after spaCy effective status
         results['python_version'] = python_version
-        results['python312_available'] = python312_available is not None
+        results['python313_available'] = python313_available is not None
         print()
         
         # Check spaCy model (with enhanced detection across interpreters)
@@ -432,20 +432,20 @@ Examples:
 
                 # Check Python version compatibility
                 if python_version >= '3.14' or python_version < '3.7':
-                    print(f"        ⚠️  spaCy requires Python 3.7-3.12, but Python {python_version} is being used")
-                    if python312_available:
-                        print(f"        ✅ Python 3.12 is available - will be used automatically")
-                        python_cmd = 'py -3.12' if sys.platform == 'win32' else 'python3.12'
+                    print(f"        ⚠️  spaCy requires Python 3.7-3.13, but Python {python_version} is being used")
+                    if python313_available:
+                        print(f"        ✅ Python 3.13 is available - will be used automatically")
+                        python_cmd = 'py -3.13' if sys.platform == 'win32' else 'python3.13'
                         print(f"        Recommended: {python_cmd} -m pip install spacy")
                         print(f"        (Pre-built wheels available, no compilation needed)")
                     else:
-                        print(f"        ❌ Python 3.12 not found - install it first:")
+                        print(f"        ❌ Python 3.13 not found - install it first:")
                         if sys.platform == 'win32':
-                            print(f"           winget install --id Python.Python.3.12 -e --source winget")
+                            print(f"           winget install --id Python.Python.3.13 -e --source winget")
                         elif sys.platform == 'darwin':
-                            print(f"           brew install python@3.12")
+                            print(f"           brew install python@3.13")
                         else:
-                            print(f"           sudo apt install python3.12 python3.12-venv python3.12-dev")
+                            print(f"           sudo apt install python3.13 python3.13-venv python3.13-dev")
                     print()
                     print(f"        Alternative: Install spaCy with current Python (requires C++ build tools)")
                 else:

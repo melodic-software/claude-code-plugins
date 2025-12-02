@@ -1,7 +1,7 @@
 # Python Installation Windows
 
 Last Verified: 2025-11-25
-Python versions: 3.12 (required), 3.13 (current stable), 3.14 (development, optional)
+Python versions: 3.13 (required), 3.13 (current stable), 3.14 (development, optional)
 uv: latest via WinGet or standalone installer
 
 This guide installs **Python 3.12** (required), optionally **Python 3.13** and **Python 3.14**, and the **uv** package manager on Windows.
@@ -15,7 +15,7 @@ This guide installs **Python 3.12** (required), optionally **Python 3.13** and *
 ## Table of Contents
 
 - [1. Check existing Python installation](#1-check-existing-python-installation)
-- [2. Install Python 3.12 (required)](#2-install-python-312-required)
+- [2. Install Python 3.13 (required)](#2-install-python-313-required)
 - [3. Install Python 3.13 (optional)](#3-install-python-313-optional)
 - [4. Install Python 3.14 (optional)](#4-install-python-314-optional)
 - [5. Working with multiple versions on Windows](#5-working-with-multiple-versions-on-windows)
@@ -48,7 +48,7 @@ where python
 
 ---
 
-## 2. Install Python 3.12 (required)
+## 2. Install Python 3.13 (required)
 
 ### 2.1 Quick install with WinGet (recommended)
 
@@ -57,7 +57,7 @@ where python
 winget install --id Python.Python.3.12 -e --source winget
 
 # Verify installation
-py -3.12 --version
+py -3.13 --version
 ```
 
 You should see output like:
@@ -78,7 +78,7 @@ Python 3.12.x
 
 ```powershell
 python --version
-py -3.12 --version
+py -3.13 --version
 ```
 
 ---
@@ -126,7 +126,7 @@ py --list
 py -3.14 --version
 ```
 
-You should see 3.12, 3.13, and 3.14 listed by `py --list`.
+You should see 3.13 and 3.14 listed by `py --list`.
 
 ### 4.2 Manual install
 
@@ -150,11 +150,11 @@ Windows provides the **Python Launcher** (`py`) to manage multiple versions:
 py --list
 
 # Use a specific version
-py -3.12 --version
+py -3.13 --version
 py -3.14 --version
 
 # Run pip for a specific version
-py -3.12 -m pip --version
+py -3.13 -m pip --version
 py -3.14 -m pip --version
 ```
 
@@ -173,12 +173,12 @@ For a system-wide default, set the `PY_PYTHON` environment variable to `3.12` in
 
 ## 6. Verify Python and pip
 
-After installing Python 3.12 (and optionally 3.13/3.14), verify:
+After installing Python 3.13 (and optionally 3.14), verify:
 
 ```powershell
 # Required version
-py -3.12 --version
-py -3.12 -m pip --version
+py -3.13 --version
+py -3.13 -m pip --version
 
 # Optional latest version
 py -3.14 --version
@@ -236,7 +236,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | more"
 
 ## 8. First steps with uv (Windows)
 
-Once Python 3.12 and uv are installed:
+Once Python 3.13 and uv are installed:
 
 ```powershell
 # Check uv
@@ -268,15 +268,15 @@ See the uv docs for more patterns and advanced usage: <https://docs.astral.sh/uv
 ### "python is not recognized"
 
 - Python is not on PATH.
-- Reinstall Python and ensure **"Add Python to PATH"** is checked, or use `py -3.12` instead of `python`.
+- Reinstall Python and ensure **"Add Python to PATH"** is checked, or use `py -3.13` instead of `python`.
 
 ### "pip is not recognized"
 
-- Use `py -3.12 -m pip` instead of `pip` directly:
+- Use `py -3.13 -m pip` instead of `pip` directly:
 
 ```powershell
-py -3.12 -m pip --version
-py -3.12 -m pip install package-name
+py -3.13 -m pip --version
+py -3.13 -m pip install package-name
 ```
 
 ### uv command not found

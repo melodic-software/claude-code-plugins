@@ -7,7 +7,7 @@ See @README for project overview and installation.
 - **NEVER read `index.yaml` directly** - use `manage_index.py` scripts
 - **NEVER chain `cd &&` in PowerShell** - causes path doubling
 - **Use `MSYS_NO_PATHCONV=1`** in Git Bash
-- **Use Python 3.12** for spaCy operations
+- **Use Python 3.13** for spaCy operations
 - **Plugin dev mode required** - When modifying plugin scripts, set env vars to use local code instead of installed plugin. See `.claude/memory/plugin-dev-mode.md`
 
 ## Quick Reference

@@ -24,8 +24,8 @@ Invoke the `docs-management` skill to refresh the local documentation index.
 
 Request index rebuild and metadata validation from the skill.
 
-**Note:** Use Python 3.12 for this command due to spaCy compatibility:
+**Note:** Use Python 3.13 for this command due to spaCy compatibility:
 
 ```text
-Please refresh the local documentation index and validate metadata. Use Python 3.12 (py -3.12) for spaCy compatibility.
+Please refresh the local documentation index and validate metadata. Use Python 3.13 (py -3.13) for spaCy compatibility.
 ```

@@ -169,24 +169,24 @@ When executing scripts via Task agents:
 
 Use this when you want to rebuild and validate the local index/metadata **without scraping**:
 
-**⚠️ IMPORTANT: Use Python 3.12 for validation** - spaCy/Pydantic have compatibility issues with Python 3.14+
+**⚠️ IMPORTANT: Use Python 3.13 for validation** - spaCy/Pydantic have compatibility issues with Python 3.14+
 
 ```bash
-# Use Python 3.12 for full compatibility with spaCy
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py
+# Use Python 3.13 for full compatibility with spaCy
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py
 ```
 
 Optional flags:
 
 ```bash
 # Check for missing files before rebuilding
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py --check-missing-files
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py --check-missing-files
 
 # Detect drift (404s, missing files) after rebuilding
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py --check-drift
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py --check-drift
 
 # Detect and automatically cleanup drift
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py --check-drift --cleanup-drift
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py --check-drift --cleanup-drift
 ```
 
 This script runs the full pipeline:
@@ -208,7 +208,7 @@ Use this when the user explicitly wants to **hit the network and scrape docs**:
 #### Python Version Requirement
 
 - **Python 3.14 works by default** for scraping
-- **Python 3.12 required for spaCy operations** (keyword extraction, metadata extraction)
+- **Python 3.13 required for spaCy operations** (keyword extraction, metadata extraction)
 
 ```bash
 # Step 1: Scrape documentation (Python 3.14+ works)
@@ -217,8 +217,8 @@ python .claude/skills/docs-management/scripts/core/scrape_all_sources.py \
   --skip-existing
 
 # Step 2: IMMEDIATELY run validation after scraping completes
-# ⚠️ Use Python 3.12 for validation (spaCy compatibility)
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py
+# ⚠️ Use Python 3.13 for validation (spaCy compatibility)
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py
 ```
 
 #### Validation is Required After Scraping
@@ -234,8 +234,8 @@ python .claude/skills/docs-management/scripts/core/scrape_all_sources.py \
   --skip-existing \
   --auto-cleanup
 
-# Then validate (use Python 3.12)
-py -3.12 .claude/skills/docs-management/scripts/management/refresh_index.py
+# Then validate (use Python 3.13)
+py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py
 ```
 
 ### Find Documentation
@@ -335,13 +335,13 @@ Common maintenance and operational workflows for documentation management:
 **Lightweight audit:**
 
 ```bash
-py -3.12 .claude/skills/docs-management/scripts/validation/validate_index_vs_docs.py --summary-only
+py -3.13 .claude/skills/docs-management/scripts/validation/validate_index_vs_docs.py --summary-only
 ```
 
 **Tag configuration audit:**
 
 ```bash
-py -3.12 .claude/skills/docs-management/scripts/validation/audit_tag_config.py --summary-only
+py -3.13 .claude/skills/docs-management/scripts/validation/audit_tag_config.py --summary-only
 ```
 
 **Full details:** [references/workflows.md#metadata--keyword-audit](references/workflows.md)
@@ -362,13 +362,13 @@ Git Bash on Windows converts Unix paths to Windows paths, breaking filter patter
 
 **Problem:** spaCy installation fails with Python 3.14+.
 
-**Solution:** The script automatically detects and uses Python 3.12 if available. No manual intervention needed!
+**Solution:** The script automatically detects and uses Python 3.13 if available. No manual intervention needed!
 
-**If Python 3.12 not available:** Install Python 3.12:
+**If Python 3.13 not available:** Install Python 3.13:
 
-- Windows: `winget install --id Python.Python.3.12 -e --source winget`
-- macOS: `brew install python@3.12`
-- Linux: `sudo apt install python3.12`
+- Windows: `winget install --id Python.Python.3.13 -e --source winget`
+- macOS: `brew install python@3.13`
+- Linux: `sudo apt install python3.13`
 
 **Full troubleshooting:** [references/troubleshooting.md](references/troubleshooting.md)
 

@@ -15,8 +15,8 @@ Comprehensive guide to modern Python development covering conventions, testing, 
 ```bash
 # Install Python 3.12 and uv (see Installation guides)
 # Windows: winget install Python.Python.3.12 && winget install astral-sh.uv
-# macOS: brew install python@3.12 uv
-# Linux: apt install python3.12 && curl -LsSf https://astral.sh/uv/install.sh | sh
+# macOS: brew install python@3.13 uv
+# Linux: apt install python3.13 && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create new project with modern structure
 uv init my-project

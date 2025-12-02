@@ -31,18 +31,18 @@ python scripts/core/scrape_all_sources.py --parallel --skip-existing
 #### 2. Validate and Refresh Index
 
 ```bash
-# Use Python 3.12 for spaCy compatibility
-py -3.12 scripts/management/refresh_index.py
+# Use Python 3.13 for spaCy compatibility
+py -3.13 scripts/management/refresh_index.py
 ```
 
 #### 3. Check for Drift (Optional)
 
 ```bash
 # Detect 404s and missing files
-py -3.12 scripts/management/refresh_index.py --check-drift
+py -3.13 scripts/management/refresh_index.py --check-drift
 
 # Auto-cleanup drift
-py -3.12 scripts/management/refresh_index.py --check-drift --cleanup-drift
+py -3.13 scripts/management/refresh_index.py --check-drift --cleanup-drift
 ```
 
 #### 4. Commit Changes
@@ -194,7 +194,7 @@ Types:
 python scripts/management/rebuild_index.py
 
 # Force regenerate metadata
-py -3.12 scripts/management/extract_metadata.py --force
+py -3.13 scripts/management/extract_metadata.py --force
 
 # Clean up stale entries
 python scripts/maintenance/cleanup_stale.py

@@ -5,7 +5,7 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 ## Prerequisites
 
 - [Claude Code](https://code.claude.com) installed
-- Python 3.12+ (for spaCy-based operations)
+- Python 3.13+ (for spaCy-based operations)
 
 ## Installation
 

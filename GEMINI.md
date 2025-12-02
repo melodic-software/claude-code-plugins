@@ -95,7 +95,7 @@ python plugins/claude-ecosystem/skills/docs-management/scripts/core/scrape_all_s
 **Refreshing the Index:**
 
 ```bash
-# Note: CLAUDE.md mentions using python 3.12 for this command
+# Note: CLAUDE.md mentions using python 3.13 for this command
 python plugins/claude-ecosystem/skills/docs-management/scripts/management/refresh_index.py
 ```
 

@@ -53,7 +53,7 @@ logger = get_or_setup_logger(__file__, log_category="index")
 yaml = ensure_yaml_installed()
 
 # Optional NLP libraries (canonical flags for keyword extraction elsewhere)
-# Note: spaCy requires Python 3.12 or earlier (not compatible with Python 3.14+)
+# Note: spaCy requires Python 3.13 or earlier (not compatible with Python 3.14+)
 from utils.script_utils import suppress_pydantic_v1_warning
 suppress_pydantic_v1_warning()  # Must be called before spacy import
 try:
@@ -65,7 +65,7 @@ except (ImportError, Exception):
     SPACY_AVAILABLE = False
     STOP_WORDS = set()
     # Note: Agents can install with: pip install spacy && python -m spacy download en_core_web_sm
-    # Note: Use Python 3.12 for spaCy operations: py -3.12 <script>
+    # Note: Use Python 3.13 for spaCy operations: py -3.13 <script>
 
 try:
     import yake

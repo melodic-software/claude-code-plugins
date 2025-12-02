@@ -1,7 +1,7 @@
 # Python Installation macOS
 
 Last Verified: 2025-11-25
-Python versions: 3.12 (required), 3.13 (current stable), 3.14 (development, optional)
+Python versions: 3.13 (required), 3.13 (current stable), 3.14 (development, optional)
 uv: latest via Homebrew or standalone installer
 
 This guide installs **Python 3.12** (required), optionally **Python 3.13** and **Python 3.14**, and the **uv** package manager on macOS.
@@ -15,7 +15,7 @@ This guide installs **Python 3.12** (required), optionally **Python 3.13** and *
 ## Table of Contents
 
 - [1. Check existing Python installation](#1-check-existing-python-installation)
-- [2. Install Python 3.12 (required)](#2-install-python-312-required)
+- [2. Install Python 3.13 (required)](#2-install-python-313-required)
 - [3. Install Python 3.13 (optional)](#3-install-python-313-optional)
 - [4. Install Python 3.14 (optional)](#4-install-python-314-optional)
 - [5. Working with multiple versions on macOS](#5-working-with-multiple-versions-on-macos)
@@ -45,7 +45,7 @@ which python3
 
 ---
 
-## 2. Install Python 3.12 (required)
+## 2. Install Python 3.13 (required)
 
 ### 2.1 Install with Homebrew (recommended)
 
@@ -53,10 +53,10 @@ If you don't have Homebrew yet, see the macOS onboarding docs, then run:
 
 ```bash
 # Install Python 3.12
-brew install python@3.12
+brew install python@3.13
 
 # Verify installation
-python3.12 --version
+python3.13 --version
 ```
 
 You should see:
@@ -75,7 +75,7 @@ Python 3.12.x
 
 ```bash
 python3 --version
-python3.12 --version
+python3.13 --version
 ```
 
 If you installed only 3.12, `python3` should point to 3.12.x.
@@ -92,7 +92,7 @@ Python 3.13 is the current stable release with experimental Free Threading (no-G
 brew install python@3.13
 
 # Verify installation
-python3.12 --version
+python3.13 --version
 python3.13 --version
 ```
 
@@ -120,7 +120,7 @@ Only install Python 3.14 if you explicitly need the latest language features and
 brew install python@3.14
 
 # Verify all versions
-python3.12 --version
+python3.13 --version
 python3.13 --version
 python3.14 --version
 ```
@@ -145,11 +145,11 @@ When you have both 3.12 and 3.14 installed:
 
 ```bash
 # Use a specific version explicitly
-python3.12 --version
+python3.13 --version
 python3.14 --version
 
 # Run pip for each version
-python3.12 -m pip --version
+python3.13 -m pip --version
 python3.14 -m pip --version
 
 # Check which python3 is used by default
@@ -163,28 +163,28 @@ You can make 3.12 your default `python3` in a few ways:
 
 ```bash
 # In your shell profile (~/.zshrc or ~/.bash_profile)
-alias python3='python3.12'
-alias pip3='python3.12 -m pip'
+alias python3='python3.13'
+alias pip3='python3.13 -m pip'
 ```
 
 If you use Homebrew:
 
 ```bash
-# Ensure python@3.12 is linked
+# Ensure python@3.13 is linked
 brew unlink python@3.14  # if 3.14 is linked
-brew link --overwrite python@3.12
+brew link --overwrite python@3.13
 ```
 
 ---
 
 ## 6. Verify Python and pip
 
-After installing Python 3.12 (and optionally 3.13/3.14), verify:
+After installing Python 3.13 (and optionally 3.14), verify:
 
 ```bash
 # Required version
-python3.12 --version
-python3.12 -m pip --version
+python3.13 --version
+python3.13 -m pip --version
 
 # Optional latest version
 python3.14 --version  # if installed
@@ -192,7 +192,7 @@ python3.14 -m pip --version
 
 # Where Python is located
 which python3
-which python3.12
+which python3.13
 ```
 
 ---
@@ -237,7 +237,7 @@ After installation, ensure `~/.local/bin` (where uv is commonly installed) is on
 
 ## 8. First steps with uv (macOS)
 
-Once Python 3.12 and uv are installed:
+Once Python 3.13 and uv are installed:
 
 ```bash
 # Check uv
@@ -275,15 +275,15 @@ ls /usr/local/bin/python3* /opt/homebrew/bin/python3* 2>/dev/null
 
 - Ensure your PATH includes Homebrew's `bin` directory (Intel vs Apple Silicon may differ).
 
-### "python3.12: command not found"
+### "python3.13: command not found"
 
 - Confirm 3.12 is installed:
 
 ```bash
-python3.12 --version
+python3.13 --version
 ```
 
-- If not found, reinstall `python@3.12` via Homebrew or python.org and ensure PATH is updated.
+- If not found, reinstall `python@3.13` via Homebrew or python.org and ensure PATH is updated.
 
 ### uv command not found
 
