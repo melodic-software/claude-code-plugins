@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/economic-index-geography
 source_type: sitemap
-content_hash: sha256:99466a71d2d7134005230dd48dcb158ff36699061488387dbe6cf92a4d661260
+content_hash: sha256:52f610d0d8b50a846b6c2800b741c35c47594c59458823b51c7e0385d9179723
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-15'
@@ -154,6 +154,12 @@ If you’re interested in working at Anthropic to help build the systems powerin
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -161,7 +167,3 @@ If you’re interested in working at Anthropic to help build the systems powerin
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:d5c2ea2c30ac4d80231724f1ae4328517a14e85ba87e3f2f89444c28673e70c8
+content_hash: sha256:0397964b5017f7c1e92020a906340204959177de912f409219a0cef872ccb685
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -58,6 +58,9 @@ Search
 
 DateCategoryTitle
 
+* [Dec 2, 2025Societal Impacts
+
+  How AI is transforming work at Anthropic](/research/how-ai-is-transforming-work-at-anthropic)
 * [Aug 27, 2025Societal Impacts
 
   Anthropic Education Report: How educators use Claude](/news/anthropic-education-report-how-educators-use-claude)
@@ -85,13 +88,10 @@ DateCategoryTitle
 * [Jun 6, 2024Policy
 
   Testing and mitigating elections-related risks](/news/testing-and-mitigating-elections-related-risks)
-* [Apr 9, 2024Societal Impacts
-
-  Measuring the Persuasiveness of Language Models](/research/measuring-model-persuasiveness)
 
 [See more](#)
 
-![Anthropic Education Report: How educators use Claude](https://www-cdn.anthropic.com/images/4zrzovbb/website/6507d83d1197bb8630131d363fb8bea838d79ca7-1000x1000.svg)
+![How AI is transforming work at Anthropic](https://www-cdn.anthropic.com/images/4zrzovbb/website/83d7d2fe412ceb4dfe627f0d5f3d64aff1a3f5db-1000x1000.svg)
 
 Join the Research team
 

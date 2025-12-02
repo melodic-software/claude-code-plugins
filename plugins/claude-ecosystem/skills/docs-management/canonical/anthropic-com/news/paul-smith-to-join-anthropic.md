@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/paul-smith-to-join-anthropic
 source_type: sitemap
-content_hash: sha256:9ceb4be7ab003bba6ad0682a62b987adaa8643864d68db822dbc1d4c0f5e860b
+content_hash: sha256:052a8be3b93e528b10dca9e3f60b5fbef94072de3e8e776126606d48122917b2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
@@ -25,18 +25,18 @@ AI is fundamentally restructuring how businesses create and capture value. Paul'
 
 ## Related content
 
+### Anthropic acquires Bun as Claude Code reaches $1B milestone
+
+[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
+
+### Claude for Nonprofits
+
+Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
+
+[Read more](/news/claude-for-nonprofits)
+
 ### Introducing Claude Opus 4.5
 
 The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
 
 [Read more](/news/claude-opus-4-5)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
-
-### Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-
-Microsoft, NVIDIA and Anthropic announced new strategic partnerships. Anthropic is scaling its rapidly-growing Claude AI model on Microsoft Azure, powered by NVIDIA, which will broaden access to Claude and provide Azure enterprise customers with expanded model choice and new capabilities. Anthropic has committed to purchase $30 billion of Azure compute capacity and to contract additional compute capacity up to one gigawatt.
-
-[Read more](/news/microsoft-nvidia-anthropic-announce-strategic-partnerships)

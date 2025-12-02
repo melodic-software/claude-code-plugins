@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/project-vend-1
 source_type: sitemap
-content_hash: sha256:1e189f4aee49973ee639612346acc02feb5c26712573e4e37e08539b554f6f57
+content_hash: sha256:a829794bca96c13a0d3f32709b0f93f70ce0acb57401c96a16b21f25af2f8929
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -142,6 +142,12 @@ We’re very grateful to [Andon Labs](https://andonlabs.com/) for their partners
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -149,7 +155,3 @@ We’re very grateful to [Andon Labs](https://andonlabs.com/) for their partners
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

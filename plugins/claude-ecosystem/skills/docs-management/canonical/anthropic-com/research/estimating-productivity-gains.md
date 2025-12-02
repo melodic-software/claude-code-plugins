@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/estimating-productivity-gains
 source_type: sitemap
-content_hash: sha256:31820949987e69eddcb5affafaec057fb0666aabe9475b75bc7cf610556328fe
+content_hash: sha256:20fd330a00eb2180879d92a22cb0e5fa237645ad08bb94bd9bbec315c1b32b8e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-25'
@@ -339,6 +339,12 @@ Copy
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
@@ -346,9 +352,3 @@ Copy
 ### From shortcuts to sabotage: natural emergent misalignment from reward hacking
 
 [Read more](/research/emergent-misalignment-reward-hacking)
-
-### Project Fetch: Can Claude train a robot dog?
-
-How much does Claude help people program robots? To find out, two teams of Anthropic staff raced to teach quadruped robots to fetch beach balls. The AI-assisted team completed tasks faster and was the only group to make real progress toward full autonomy.
-
-[Read more](/research/project-fetch-robot-dog)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/project-fetch-robot-dog
 source_type: sitemap
-content_hash: sha256:46b982c931ef6a5fd679181a223ef16a2387d15e6bb961f0cd74c63257e99f16
+content_hash: sha256:d223e1cebdd9688b7ffed703986d8a015cf9aa3e7809b1f8ad26cf330e321a75
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-12'
@@ -186,6 +186,12 @@ The dogs are in their kennels at the moment. But we’ll let them out again soon
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -193,7 +199,3 @@ The dogs are in their kennels at the moment. But we’ll let them out again soon
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots
 source_type: sitemap
-content_hash: sha256:125ea80fda11e07cfec38cf407feded0b5f9b54445b4f528cd7f89bf2ace7431
+content_hash: sha256:72d38bff33c208f07f0aa7e65e7ec929f1850b0f3ca09184467e65719ac55148
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -43,18 +43,18 @@ We look forward to bringing similar partnerships to more nations as we continue 
 
 ## Related content
 
+### Anthropic acquires Bun as Claude Code reaches $1B milestone
+
+[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
+
+### Claude for Nonprofits
+
+Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
+
+[Read more](/news/claude-for-nonprofits)
+
 ### Introducing Claude Opus 4.5
 
 The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
 
 [Read more](/news/claude-opus-4-5)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
-
-### Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-
-Microsoft, NVIDIA and Anthropic announced new strategic partnerships. Anthropic is scaling its rapidly-growing Claude AI model on Microsoft Azure, powered by NVIDIA, which will broaden access to Claude and provide Azure enterprise customers with expanded model choice and new capabilities. Anthropic has committed to purchase $30 billion of Azure compute capacity and to contract additional compute capacity up to one gigawatt.
-
-[Read more](/news/microsoft-nvidia-anthropic-announce-strategic-partnerships)

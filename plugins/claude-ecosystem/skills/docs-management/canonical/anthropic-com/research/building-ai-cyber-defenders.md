@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/building-ai-cyber-defenders
 source_type: sitemap
-content_hash: sha256:c4b8f07efe61ece7aa68bb0ad6f07b9da88dea828b5da272d11d3078e9e4584a
+content_hash: sha256:5e4e1a67df1bebe1a8e2c01d0fdf08a041357b86c50b0d5ac2f913ee29d2de80
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-03'
@@ -113,6 +113,12 @@ But even building and adopting to advantage defenders is only part of the soluti
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -120,7 +126,3 @@ But even building and adopting to advantage defenders is only part of the soluti
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

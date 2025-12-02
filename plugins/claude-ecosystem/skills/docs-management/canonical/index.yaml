@@ -1413,20 +1413,20 @@ anthropic-com-news-advancing-claude-for-education:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:5e7f60f276a8c112593e64d3a70bab8feb7b197c1517e1d564b9e304b85e2fac
+  hash: sha256:8f6a85262d3764c4f52d80b23bacd15dad8e2a735bf74fbc83049048dd3fb3bd
   keywords:
   - advancing-claude-for-education
   - advancing
   - education
   - model context protocol
-  - strategic partnerships
   - bringing educational
   - student programming
-  - microsoft foundry
   - looking forward
   - computer use
   - mcp servers
-  - announce
+  - educational
+  - acquires
+  - bringing
   last_fetched: '2025-12-02'
   path: anthropic-com/news/advancing-claude-for-education.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -1473,10 +1473,26 @@ anthropic-com-news-advancing-claude-for-education:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -1486,24 +1502,6 @@ anthropic-com-news-advancing-claude-for-education:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - reference
   title: Advancing Claude for Education
@@ -1512,20 +1510,20 @@ anthropic-com-news-advancing-claude-for-financial-services:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:f6336153285ce75c0c30210b53c122b0dac9f67433a5147e89694b67ae3008b4
+  hash: sha256:47b13ca8d89be3025dfe7ccca4c2d8acc8260a8f029cd40c606bcc6f1443f14a
   keywords:
   - financial-services
   - advancing
   - financial
   - services
   - model context protocol
-  - strategic partnerships
   - financial services
-  - microsoft foundry
   - live information
   - mcp connector
   - agent skills
   - computer use
+  - announcements
+  - connecting
   last_fetched: '2025-12-02'
   path: anthropic-com/news/advancing-claude-for-financial-services.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -1579,10 +1577,82 @@ anthropic-com-news-advancing-claude-for-financial-services:
     keywords:
     - related
     - content
+    - acquires
+    - reaches
+    - milestone
+    level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
+  - anchor: '#introducing-claude-opus-45'
+    heading: Introducing Claude Opus 4.5
+    keywords:
     - introducing
     - opus
     - best
+    - model
+    - world
+    level: 3
+  tags:
+  - agents
+  - compliance
+  - models
+  - monitoring
+  - performance
+  - skills
+  title: Advancing Claude for Financial Services
+  url: https://www.anthropic.com/news/advancing-claude-for-financial-services
+anthropic-com-news-anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone:
+  category: news
+  description: Announcements
+  domain: anthropic.com
+  hash: sha256:f1efcb70e36a43fceab3f943b1c7a7b782bd365d6e348fd1eafc8e5f30789f0d
+  keywords:
+  - reaches-usd1b-milestone
+  - usd1b-milestone
+  - reaches-usd1b
+  - acquires-bun
+  - milestone
+  - acquires
+  - reaches
+  - usd1b
+  - microsoft foundry
+  - computer use
+  - announcements
+  - introducing
+  last_fetched: '2025-12-02'
+  path: anthropic-com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#related-content'
+    heading: Related content
+    keywords:
+    - related
+    - content
+    - nonprofits
+    - launches
     level: 2
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -1601,29 +1671,16 @@ anthropic-com-news-advancing-claude-for-financial-services:
     - copilot
     - read
     level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - agents
-  - compliance
-  - models
-  - monitoring
+  - deployment
   - performance
-  - skills
-  title: Advancing Claude for Financial Services
-  url: https://www.anthropic.com/news/advancing-claude-for-financial-services
+  title: Anthropic acquires Bun as Claude Code reaches $1B milestone
+  url: https://www.anthropic.com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone
 anthropic-com-news-anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:125ea80fda11e07cfec38cf407feded0b5f9b54445b4f528cd7f89bf2ace7431
+  hash: sha256:72d38bff33c208f07f0aa7e65e7ec929f1850b0f3ca09184467e65719ac55148
   keywords:
   - education-pilots
   - iceland-announce
@@ -1633,11 +1690,11 @@ anthropic-com-news-anthropic-and-iceland-announce-one-of-the-world-s-first-natio
   - iceland
   - pilots
   - world
-  - strategic partnerships
   - education initiative
-  - microsoft foundry
   - education pilots
-  last_fetched: '2025-12-01'
+  - iceland announce
+  - iceland launches
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1674,10 +1731,26 @@ anthropic-com-news-anthropic-and-iceland-announce-one-of-the-world-s-first-natio
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -1686,24 +1759,6 @@ anthropic-com-news-anthropic-and-iceland-announce-one-of-the-world-s-first-natio
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - reference
@@ -1714,7 +1769,7 @@ anthropic-com-news-anthropic-and-the-department-of-defense-to-advance-responsibl
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:4dbd2689c23eef4fc388718d1d2727db778f2c7b1baa1217ea19628f2f693cda
+  hash: sha256:aa88ab188624c208c0a9158b05b523773906c106ddfaf5946123e48a83dc96e0
   keywords:
   - advance-responsible
   - defense-operations
@@ -1724,11 +1779,11 @@ anthropic-com-news-anthropic-and-the-department-of-defense-to-advance-responsibl
   - advance
   - defense
   - government partnerships
-  - strategic partnerships
   - advance responsible
   - defense operations
-  - microsoft foundry
-  last_fetched: '2025-12-01'
+  - strong foundation
+  - computer use
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-and-the-department-of-defense-to-advance-responsible-ai-in-defense-operations.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1756,10 +1811,26 @@ anthropic-com-news-anthropic-and-the-department-of-defense-to-advance-responsibl
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -1768,24 +1839,6 @@ anthropic-com-news-anthropic-and-the-department-of-defense-to-advance-responsibl
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -1798,20 +1851,20 @@ anthropic-com-news-anthropic-education-report-how-educators-use-claude:
   category: news
   description: Societal Impacts
   domain: anthropic.com
-  hash: sha256:5f1ff5310382ab4e6ea54d227c316d67961d09f07bfca4bc9337301c2d65e53a
+  hash: sha256:d5417abcbf5f7a66833f2a9c76e573fc0cb521b4443f8fa339ae26122d13dec6
   keywords:
   - education-report
   - educators-use
   - education
   - educators
   - report
-  - strategic partnerships
   - identifying educators
   - automation spectrum
-  - microsoft foundry
   - building custom
   - looking ahead
   - computer use
+  - acknowledgements
+  - augmentation
   last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-education-report-how-educators-use-claude.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -1910,10 +1963,26 @@ anthropic-com-news-anthropic-education-report-how-educators-use-claude:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -1922,24 +1991,6 @@ anthropic-com-news-anthropic-education-report-how-educators-use-claude:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -1953,7 +2004,7 @@ anthropic-com-news-anthropic-expands-global-leadership-in-enterprise-ai-naming-c
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:8d4393c2d2f6a2257ea762c384bf0829f0787adf409cbca766db50c6d0bf94fd
+  hash: sha256:53feb17685df6698d5ec2b9e869e8921c5c35528c5eecfbd2bb584989d48069d
   keywords:
   - expands-global-leadership
   - naming-chris-ciauri
@@ -1967,7 +2018,7 @@ anthropic-com-news-anthropic-expands-global-leadership-in-enterprise-ai-naming-c
   - director
   - managing
   - expands
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1995,10 +2046,26 @@ anthropic-com-news-anthropic-expands-global-leadership-in-enterprise-ai-naming-c
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2008,26 +2075,7 @@ anthropic-com-news-anthropic-expands-global-leadership-in-enterprise-ai-naming-c
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - models
   - performance
   title: Anthropic expands global leadership in enterprise AI, naming Chris Ciauri
     as Managing Director of International
@@ -2036,7 +2084,7 @@ anthropic-com-news-anthropic-higher-education-initiatives:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:945ffa1b4a0225fb5f5a1c8b694b657325d291d85822cde3a2a4f7c1a4a8afb4
+  hash: sha256:c6e1640557fb2d3b18d027ef47021a0311bd76611ac86704f6e03c5a08eea589
   keywords:
   - anthropic-higher-education-initiatives
   - higher-education-initiatives
@@ -2045,12 +2093,12 @@ anthropic-com-news-anthropic-higher-education-initiatives:
   - initiatives
   - education
   - higher
-  - strategic partnerships
-  - microsoft foundry
   - higher education
   - fluency courses
   - advisory board
-  last_fetched: '2025-12-01'
+  - computer use
+  - path forward
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-higher-education-initiatives.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2087,10 +2135,26 @@ anthropic-com-news-anthropic-higher-education-initiatives:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2099,24 +2163,6 @@ anthropic-com-news-anthropic-higher-education-initiatives:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - skills
@@ -2126,21 +2172,18 @@ anthropic-com-news-anthropic-invests-50-billion-in-american-ai-infrastructure:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:1e8d9096347b1a101af492c86708c849bd33f9de6796c210005bea228b6aac98
+  hash: sha256:490603fd7952f434fff7e6457422a0b5f0bb61db4afde05b3ce4578b141b5b0f
   keywords:
   - infrastructure
   - american
   - billion
   - invests
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - announcements
-  - announce
+  - introducing
+  - acquires
   - content
-  - copilot
-  - foundry
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-invests-50-billion-in-american-ai-infrastructure.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2150,10 +2193,26 @@ anthropic-com-news-anthropic-invests-50-billion-in-american-ai-infrastructure:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2162,24 +2221,6 @@ anthropic-com-news-anthropic-invests-50-billion-in-american-ai-infrastructure:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -2189,20 +2230,17 @@ anthropic-com-news-anthropic-is-endorsing-sb-53:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:64e0709f4e01a31e17e388bf23b7b781680b037df3d1e35c996921884e084147
+  hash: sha256:bfc1afa12dd2a93d35a33a2058ffbd77b9f4fcc41add3f6dc785d8e25dcb7838
   keywords:
   - endorsing
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - announcements
   - introducing
-  - microsoft
-  - announce
+  - nonprofits
+  - milestone
+  - acquires
   - content
-  - copilot
-  - foundry
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-is-endorsing-sb-53.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2212,10 +2250,26 @@ anthropic-com-news-anthropic-is-endorsing-sb-53:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2224,24 +2278,6 @@ anthropic-com-news-anthropic-is-endorsing-sb-53:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -2253,7 +2289,7 @@ anthropic-com-news-anthropic-partners-with-the-university-of-chicago-s-becker-fr
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:0d79d6723f99e46137c5eeece12efb1e651776d028768fc6f0f18fdc3f0c66c2
+  hash: sha256:aad6f01ad32510c5d995a0f1844b35c3cfb3d22b11a23e8d18c9ca735fa95051
   keywords:
   - becker-friedman-institute
   - friedman-institute
@@ -2265,9 +2301,9 @@ anthropic-com-news-anthropic-partners-with-the-university-of-chicago-s-becker-fr
   - partners
   - chicago
   - becker
-  - strategic partnerships
   - economic research
-  last_fetched: '2025-12-01'
+  - becker friedman
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2277,10 +2313,26 @@ anthropic-com-news-anthropic-partners-with-the-university-of-chicago-s-becker-fr
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2289,24 +2341,6 @@ anthropic-com-news-anthropic-partners-with-the-university-of-chicago-s-becker-fr
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - reference
@@ -2317,7 +2351,7 @@ anthropic-com-news-anthropic-raises-series-f-at-usd183b-post-money-valuation:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:3d47278bb5ee6c9536edcff117897fe9a57ccb0fdd72b4be117834a1d63d3fa4
+  hash: sha256:5c3f8263976467b02ac03ec560957baadd04fa1a71391d191f6c240e51f4f172
   keywords:
   - post-money-valuation
   - usd183b-post-money
@@ -2330,8 +2364,8 @@ anthropic-com-news-anthropic-raises-series-f-at-usd183b-post-money-valuation:
   - raises
   - series
   - money
-  - strategic partnerships
-  last_fetched: '2025-12-01'
+  - money valuation
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2341,10 +2375,26 @@ anthropic-com-news-anthropic-raises-series-f-at-usd183b-post-money-valuation:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2353,24 +2403,6 @@ anthropic-com-news-anthropic-raises-series-f-at-usd183b-post-money-valuation:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -2381,7 +2413,7 @@ anthropic-com-news-anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-h
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:2b138209a7d3e4f0d9b9fa743e34f708b4ea618822e45a2ac6ed24abb7fb08bf
+  hash: sha256:f765e35a233826a1686c4c5e0df4993758cf958a118104de0c8e2141adb10e62
   keywords:
   - advance-healthcare-interoperability
   - healthcare-interoperability
@@ -2395,7 +2427,7 @@ anthropic-com-news-anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-h
   - health-tech
   - cms-health
   - signs-cms
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-healthcare-interoperability.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2414,10 +2446,26 @@ anthropic-com-news-anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-h
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2427,24 +2475,6 @@ anthropic-com-news-anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-h
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - reference
   title: Anthropic Signs CMS Health Tech Ecosystem Pledge to Advance Healthcare Interoperability
@@ -2453,7 +2483,7 @@ anthropic-com-news-anthropic-signs-pledge-to-americas-youth-investing-in-ai-educ
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:566b0c7faba55aaab7a589ac6f7392a19e7831e0d5b8ce775c1b28aeb7a8cd99
+  hash: sha256:a3e147bd2119fa70e8de1aa950f89cd653d23315ea5794ba5c4ece95b9a5fb8b
   keywords:
   - americas-youth-investing
   - youth-investing
@@ -2466,8 +2496,8 @@ anthropic-com-news-anthropic-signs-pledge-to-americas-youth-investing-in-ai-educ
   - signs
   - youth
   - cybersecurity education
-  - strategic partnerships
-  last_fetched: '2025-12-01'
+  - fluency curriculum
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-signs-pledge-to-americas-youth-investing-in-ai-education.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2531,10 +2561,26 @@ anthropic-com-news-anthropic-signs-pledge-to-americas-youth-investing-in-ai-educ
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2543,24 +2589,6 @@ anthropic-com-news-anthropic-signs-pledge-to-americas-youth-investing-in-ai-educ
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - skills
@@ -2572,21 +2600,20 @@ anthropic-com-news-build-ai-in-america:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:aa46438abd8ebea3c381e2903927cecc58126342d74aac7ecb032d2fdd4313df
+  hash: sha256:e08d6c5d9fe1820aee6b59eaf0350f72ac9c291c14feb406640bcf70f255c387
   keywords:
   - build-ai-in-america
   - america
   - build
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - energy needs
+  - acquires
   - american
-  - announce
   - content
-  - copilot
   - energy
-  last_fetched: '2025-12-01'
+  - global
+  - policy
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/build-ai-in-america.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2614,10 +2641,26 @@ anthropic-com-news-build-ai-in-america:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2626,24 +2669,6 @@ anthropic-com-news-build-ai-in-america:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -2655,20 +2680,20 @@ anthropic-com-news-building-safeguards-for-claude:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:778a2a429af1bd10561ca29fbc0169a1e81cae822b784c0b61c64ad9cfe354c3
+  hash: sha256:31a0f084bbb2c5e9f9de5abf7c6099077b401b8b416ea8da8508f293c696a266
   keywords:
   - building-safeguards-for-claude
   - building-safeguards
   - safeguards
   - building
-  - strategic partnerships
   - building safeguards
   - ongoing monitoring
   - policy development
-  - microsoft foundry
   - looking forward
   - time detection
   - system prompt
+  - computer use
+  - development
   last_fetched: '2025-12-02'
   path: anthropic-com/news/building-safeguards-for-claude.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -2732,10 +2757,26 @@ anthropic-com-news-building-safeguards-for-claude:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2744,24 +2785,6 @@ anthropic-com-news-building-safeguards-for-claude:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -2776,11 +2799,9 @@ anthropic-com-news-claude-code-on-team-and-enterprise:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:1d79d9f840f419f52944d29bc78c3ca6d623663001b6ab23037807da3eb13a85
+  hash: sha256:d65cc86e0a80b1c78f5e715ca13a6b9c2c91218f7a23ffba880ce04484ea9cf1
   keywords:
   - enterprise
-  - strategic partnerships
-  - microsoft foundry
   - predictable costs
   - flexible pricing
   - admin controls
@@ -2788,9 +2809,11 @@ anthropic-com-news-claude-code-on-team-and-enterprise:
   - admin control
   - computer use
   - compliance
-  - announce
+  - acquires
   - business
-  last_fetched: '2025-12-01'
+  - controls
+  - content
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-code-on-team-and-enterprise.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2844,10 +2867,26 @@ anthropic-com-news-claude-code-on-team-and-enterprise:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2856,24 +2895,6 @@ anthropic-com-news-claude-code-on-team-and-enterprise:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - compliance
@@ -2884,20 +2905,20 @@ anthropic-com-news-claude-for-financial-services:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:6c8a195c8d709f0a263d232596efc886dace662c4110c57f6e4d196c6c204763
+  hash: sha256:09ad414a2eb8c138a3dc2794300d87532f68d3bc4c3a51c075ef219f0363691a
   keywords:
   - claude-for-financial-services
   - financial-services
   - financial
   - services
   - accelerating enterprise
-  - strategic partnerships
   - financial services
-  - microsoft foundry
   - mcp connector
   - computer use
   - accelerating
+  - enterprise
   - ecosystem
+  - acquires
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-for-financial-services.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -2944,10 +2965,26 @@ anthropic-com-news-claude-for-financial-services:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -2956,24 +2993,6 @@ anthropic-com-news-claude-for-financial-services:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -2988,20 +3007,20 @@ anthropic-com-news-claude-for-life-sciences:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:f7a75a6f15ffaf2e42c0a4427fb90e1f03fe08b65b4ac33c735b1ae92eec44b3
+  hash: sha256:05470876c0bd7a1db0729914106d1321441021c40b2be32446ad3e3531f7f2e2
   keywords:
   - claude-for-life-sciences
   - life-sciences
   - sciences
-  - strategic partnerships
   - developing skills
-  - microsoft foundry
   - natural language
   - scientific tools
   - life sciences
   - agent skills
   - computer use
   - mcp servers
+  - announcements
+  - connecting
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-for-life-sciences.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3073,10 +3092,26 @@ anthropic-com-news-claude-for-life-sciences:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3085,24 +3120,6 @@ anthropic-com-news-claude-for-life-sciences:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -3112,38 +3129,91 @@ anthropic-com-news-claude-for-life-sciences:
   - streaming
   title: Claude for Life Sciences
   url: https://www.anthropic.com/news/claude-for-life-sciences
-anthropic-com-news-claude-gov-models-for-u-s-national-security-customers:
+anthropic-com-news-claude-for-nonprofits:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:7db4e7c928b6e6a3802fea26e33fef2a0fa3b204e6d78f1fbacc09eada35ba44
+  hash: sha256:a9c1f6af4a34fc2537a827f45a4bb373dde3dcc69a02674d6d8341fd7be2dac1
   keywords:
-  - national-security-customers
-  - security-customers
-  - national-security
-  - gov-models
-  - customers
-  - national
-  - security
-  - strategic partnerships
+  - claude-for-nonprofits
+  - nonprofits
   - microsoft foundry
-  - national security
+  - enterprise plans
   - computer use
   - announcements
-  last_fetched: '2025-12-01'
-  path: anthropic-com/news/claude-gov-models-for-u-s-national-security-customers.md
+  - connecting
+  - customers
+  - acquires
+  - content
+  - copilot
+  last_fetched: '2025-12-02'
+  path: anthropic-com/news/claude-for-nonprofits.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
   subsections:
+  - anchor: '#discounted-access-to-team-and-enterprise-plans'
+    heading: '**Discounted access to Team and Enterprise plans**'
+    keywords:
+    - discounted
+    - access
+    - team
+    - enterprise
+    - plans
+    level: 2
+  - anchor: '#connecting-new-services-to-claude'
+    heading: '**Connecting new services to Claude**'
+    keywords:
+    - connecting
+    - new
+    - services
+    - supports
+    - number
+    level: 2
+  - anchor: '#ai-fluency-for-nonprofits'
+    heading: '**AI Fluency for Nonprofits**'
+    keywords:
+    - fluency
+    - nonprofits
+    - partnership
+    - givingtuesday
+    - https
+    level: 2
+  - anchor: '#learning-from-our-partners-and-customers'
+    heading: '**Learning from our partners and customers**'
+    keywords:
+    - learning
+    - partners
+    - customers
+    - partnered
+    - constellation
+    level: 2
+  - anchor: '#getting-started'
+    heading: '**Getting started**'
+    keywords:
+    - getting
+    - started
+    - learn
+    - nonprofits
+    - access
+    level: 2
   - anchor: '#related-content'
     heading: Related content
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3162,14 +3232,68 @@ anthropic-com-news-claude-gov-models-for-u-s-national-security-customers:
     - copilot
     - read
     level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
+  tags:
+  - models
+  - performance
+  - skills
+  title: Claude for Nonprofits
+  url: https://www.anthropic.com/news/claude-for-nonprofits
+anthropic-com-news-claude-gov-models-for-u-s-national-security-customers:
+  category: news
+  description: Announcements
+  domain: anthropic.com
+  hash: sha256:02874200c3be8debbac83c32383ee2d45830c4a41c02e2509a937be266599017
+  keywords:
+  - national-security-customers
+  - security-customers
+  - national-security
+  - gov-models
+  - customers
+  - national
+  - security
+  - national security
+  - computer use
+  - announcements
+  - introducing
+  - milestone
+  last_fetched: '2025-12-02'
+  path: anthropic-com/news/claude-gov-models-for-u-s-national-security-customers.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#related-content'
+    heading: Related content
     keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
+    - related
+    - content
+    - acquires
+    - reaches
+    - milestone
+    level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
+  - anchor: '#introducing-claude-opus-45'
+    heading: Introducing Claude Opus 4.5
+    keywords:
+    - introducing
+    - opus
+    - best
+    - model
+    - world
     level: 3
   tags:
   - models
@@ -3180,20 +3304,20 @@ anthropic-com-news-claude-haiku-4-5:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:ab6d4a52a7559e69747cc950bb6895bd9abac86fad1abbe10839078abf039df7
+  hash: sha256:11e4bccb4470f530a9809a24cbf6eddefc591cc79670acd2314fc2c195393368
   keywords:
   - claude-haiku-4-5
   - haiku
-  - strategic partnerships
   - safety evaluations
   - extended thinking
-  - microsoft foundry
   - amazon bedrock
   - computer use
   - tool use
   - evaluations
+  - information
   - introducing
   - benchmarks
+  - acquires
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-haiku-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3228,10 +3352,26 @@ anthropic-com-news-claude-haiku-4-5:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3240,24 +3380,6 @@ anthropic-com-news-claude-haiku-4-5:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -3271,7 +3393,7 @@ anthropic-com-news-claude-in-amazon-bedrock-fedramp-high:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:16a405eb462b74c44a6094d3da2c722da631e09fd692c762f498c9ad76a11dba
+  hash: sha256:45088ffcf151f2951d7a9274f54001b167a6e82aecba8e009a4d8382a1b288df
   keywords:
   - amazon-bedrock-fedramp
   - bedrock-fedramp-high
@@ -3282,10 +3404,10 @@ anthropic-com-news-claude-in-amazon-bedrock-fedramp-high:
   - fedramp
   - amazon
   - accelerating government
-  - strategic partnerships
-  - microsoft foundry
   - enabling secure
-  last_fetched: '2025-12-01'
+  - amazon bedrock
+  - context window
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-in-amazon-bedrock-fedramp-high.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3322,10 +3444,26 @@ anthropic-com-news-claude-in-amazon-bedrock-fedramp-high:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3334,24 +3472,6 @@ anthropic-com-news-claude-in-amazon-bedrock-fedramp-high:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - compliance
@@ -3364,20 +3484,20 @@ anthropic-com-news-claude-in-microsoft-foundry:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:76d7a201b9bef5482cd83ea6220d15c21bd6016272ed4c5a54311a6b4348de92
+  hash: sha256:20e832eceea8c2bb4763a8c022ae145d0a772302b311e53f018de4d8cacd7e6b
   keywords:
   - claude-in-microsoft-foundry
   - microsoft-foundry
   - microsoft
   - foundry
-  - strategic partnerships
   - microsoft foundry
   - code execution
   - prompt caching
   - computer use
   - web search
   - tool use
-  - announce
+  - acquires
+  - content
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-in-microsoft-foundry.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3413,10 +3533,26 @@ anthropic-com-news-claude-in-microsoft-foundry:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3425,25 +3561,6 @@ anthropic-com-news-claude-in-microsoft-foundry:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
-  - anchor: '#anthropic-partners-with-rwandan-government-and-alx-to-bring-ai-education-to-hundreds-of-thousands-of-learners-across-africa'
-    heading: Anthropic partners with Rwandan Government and ALX to bring AI education
-      to hundreds of thousands of learners across Africa
-    keywords:
-    - partners
-    - rwandan
-    - government
-    - alx
-    - bring
     level: 3
   tags:
   - agents
@@ -3456,20 +3573,18 @@ anthropic-com-news-claude-in-xcode:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:2e7f9795765f58d54e7167558a8260d59d93c4f0c974c405d86b7b932fe2d635
+  hash: sha256:5f2ec9dc1ca3c8b4f43f12780bf10e868922578ab3ce4e2ff2573657813b0645
   keywords:
   - claude-in-xcode
   - xcode
-  - strategic partnerships
-  - microsoft foundry
   - natural language
   - computer use
   - introducing
   - generally
-  - announce
+  - milestone
+  - acquires
   - content
-  - copilot
-  - foundry
+  - product
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-in-xcode.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3496,10 +3611,26 @@ anthropic-com-news-claude-in-xcode:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3509,45 +3640,27 @@ anthropic-com-news-claude-in-xcode:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - models
+  - reference
   title: Claude is now generally available in Xcode
   url: https://www.anthropic.com/news/claude-in-xcode
 anthropic-com-news-claude-opus-4-1:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:4f5985d66b8c0630d477f29af393bd622641eb5e08df0e36c803ca3f5d53fbd1
+  hash: sha256:a6e686e9f10133373de066281505d32f332a4a199c2912d77fafb9b165576536
   keywords:
   - claude-opus-4-1
-  - strategic partnerships
   - extended thinking
-  - microsoft foundry
   - amazon bedrock
   - computer use
   - bash tool
   - tool use
   - announcements
   - introducing
-  - announce
+  - nonprofits
+  - milestone
+  - acquires
   - appendix
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-opus-4-1.md
@@ -3575,10 +3688,26 @@ anthropic-com-news-claude-opus-4-1:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3587,24 +3716,6 @@ anthropic-com-news-claude-opus-4-1:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -3617,10 +3728,9 @@ anthropic-com-news-claude-opus-4-5:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:c38741e5d2e4c2658818183cb500f8311aba700dfb476dd503b4f58bbe5849d5
+  hash: sha256:d68f3338a86d5d4ad7bdb6fe929e97dc3e99a2a19aed4acd1f85e4abf4e1627d
   keywords:
   - claude-opus-4-5
-  - strategic partnerships
   - microsoft foundry
   - product updates
   - context window
@@ -3629,8 +3739,9 @@ anthropic-com-news-claude-opus-4-5:
   - tool use
   - announcements
   - introducing
-  - announce
-  - content
+  - evaluating
+  - footnotes
+  - acquires
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-opus-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3685,10 +3796,26 @@ anthropic-com-news-claude-opus-4-5:
     keywords:
     - related
     - content
-    - available
-    - microsoft
-    - foundry
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
     heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
     keywords:
@@ -3697,25 +3824,6 @@ anthropic-com-news-claude-opus-4-5:
     - foundry
     - copilot
     - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
-  - anchor: '#anthropic-partners-with-rwandan-government-and-alx-to-bring-ai-education-to-hundreds-of-thousands-of-learners-across-africa'
-    heading: Anthropic partners with Rwandan Government and ALX to bring AI education
-      to hundreds of thousands of learners across Africa
-    keywords:
-    - partners
-    - rwandan
-    - government
-    - alx
-    - bring
     level: 3
   tags:
   - agents
@@ -3730,20 +3838,20 @@ anthropic-com-news-claude-sonnet-4-5:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:ca9d8333f3079c124b027faea7a2dc4f58c42e33941f3b8dc157a2bfb17ca3b6
+  hash: sha256:67c004230f36d1b9e72122d928360bdd1b988e1230a66772111778bf18b7a4c8
   keywords:
   - claude-sonnet-4-5
   - sonnet
-  - strategic partnerships
   - frontier intelligence
   - extended thinking
-  - microsoft foundry
   - context editing
   - bonus research
   - code execution
   - context window
   - system prompt
   - computer use
+  - memory tool
+  - agent sdk
   last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-sonnet-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -3797,10 +3905,26 @@ anthropic-com-news-claude-sonnet-4-5:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3809,24 +3933,6 @@ anthropic-com-news-claude-sonnet-4-5:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -3841,7 +3947,7 @@ anthropic-com-news-cognizant-partnership:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:72c37fe503437783ff579443faad2961d4a625a2dd0cc46f5524b2020d1324cc
+  hash: sha256:7c453e35da828147a8974138d7f813a9e0becf594750840cf31e9a776e48983e
   keywords:
   - cognizant-partnership
   - partnership
@@ -3849,13 +3955,13 @@ anthropic-com-news-cognizant-partnership:
   - accelerating enterprise
   - internal transformation
   - model context protocol
-  - strategic partnerships
   - enterprise challenges
-  - microsoft foundry
   - computer use
   - solving real
   - agent sdk
-  last_fetched: '2025-12-01'
+  - transformation
+  - announcements
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/cognizant-partnership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3874,10 +3980,26 @@ anthropic-com-news-cognizant-partnership:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3886,24 +4008,6 @@ anthropic-com-news-cognizant-partnership:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -3919,21 +4023,21 @@ anthropic-com-news-deloitte-anthropic-partnership:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:933a438fbebb2763098306e9e1b4dbf8f9f8cec29bc46d6e2ae3e03eebe11cd2
+  hash: sha256:cc8366d67c48891c768878b1dc4e11f8a0fcf638245cb25a4f551b67066635c8
   keywords:
   - deloitte-anthropic-partnership
   - partnership
   - deloitte
   - differentiated approach
-  - strategic partnerships
-  - microsoft foundry
   - global network
   - computer use
   - differentiated
   - announcements
-  - announce
+  - acquires
   - approach
-  last_fetched: '2025-12-01'
+  - content
+  - network
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/deloitte-anthropic-partnership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3961,10 +4065,26 @@ anthropic-com-news-deloitte-anthropic-partnership:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -3974,24 +4094,6 @@ anthropic-com-news-deloitte-anthropic-partnership:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - deployment
   title: Deloitte will make Claude available to 470,000 people across its global network
@@ -4000,7 +4102,7 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:26684655b001110f2ca5ce106802c275b8780b89344774d936d510771f67bdc4
+  hash: sha256:9e7e92359cc6e6e7626d8941bf3f823ac34937ad62a25486187c74d01d4215fc
   keywords:
   - detecting-countering-misuse
   - countering-misuse-aug
@@ -4012,8 +4114,8 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
   - countering
   - detecting
   - misuse
-  - strategic partnerships
   - generated ransomware
+  - scaling fraudulent
   last_fetched: '2025-12-02'
   path: anthropic-com/news/detecting-countering-misuse-aug-2025.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -4069,10 +4171,26 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4081,24 +4199,6 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -4113,7 +4213,7 @@ anthropic-com-news-developing-nuclear-safeguards-for-ai-through-public-private-p
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:cb636a2cafb0b02ff316d23b28bcbb74ba170e19afb4db5d0c1b8b8d5273aa50
+  hash: sha256:16f00ad7a3e9f68d6368e534be855fa31520ecf30f20d6e5feaee37b8880bd76
   keywords:
   - developing-nuclear-safeguards
   - public-private-partnership
@@ -4127,7 +4227,7 @@ anthropic-com-news-developing-nuclear-safeguards-for-ai-through-public-private-p
   - nuclear
   - private
   - public
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/developing-nuclear-safeguards-for-ai-through-public-private-partnership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4137,10 +4237,26 @@ anthropic-com-news-developing-nuclear-safeguards-for-ai-through-public-private-p
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4150,24 +4266,6 @@ anthropic-com-news-developing-nuclear-safeguards-for-ai-through-public-private-p
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - models
   title: Developing nuclear safeguards for AI through public-private partnership
@@ -4176,20 +4274,20 @@ anthropic-com-news-disrupting-AI-espionage:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:ba2a51b9738efe69cf8a890d4f2ed1f85bd7cddadbf12a3ebbf0c577378c72c7
+  hash: sha256:a25589f56392f2e86caa6be17df27c05feb68d4f690b4958d0c428eccc6739ad
   keywords:
   - disrupting-ai-espionage
   - disrupting
   - espionage
   - cybersecurity implications
   - model context protocol
-  - strategic partnerships
   - cyberattack worked
-  - microsoft foundry
   - computer use
   - cybersecurity
   - orchestrated
   - cyberattack
+  - acquires
+  - campaign
   last_fetched: '2025-12-02'
   path: anthropic-com/news/disrupting-AI-espionage.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -4218,10 +4316,26 @@ anthropic-com-news-disrupting-AI-espionage:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4230,24 +4344,6 @@ anthropic-com-news-disrupting-AI-espionage:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -4260,21 +4356,21 @@ anthropic-com-news-economic-futures-uk-europe:
   category: news
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:e330c00b807a67a65f55774b662746fa26d65a6ca9d4f334bad73c10b0ab8dbe
+  hash: sha256:8b3ba8e43305ef28bfab98b95b50887aad5ee7a5dd6580846038111d17d976f3
   keywords:
   - economic-futures-uk-europe
   - economic-futures
   - economic
   - futures
   - europe
-  - strategic partnerships
   - futures programme
   - futures symposium
-  - microsoft foundry
   - computer use
   - launching
   - programme
-  last_fetched: '2025-12-01'
+  - acquires
+  - adoption
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/economic-futures-uk-europe.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4318,10 +4414,26 @@ anthropic-com-news-economic-futures-uk-europe:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4331,24 +4443,6 @@ anthropic-com-news-economic-futures-uk-europe:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - reference
   title: Launching the Anthropic Economic Futures Programme in the UK and Europe
@@ -4357,20 +4451,18 @@ anthropic-com-news-enabling-claude-code-to-work-more-autonomously:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:5253a8aa7d1f2d381de5da0c364566f6b5062d445ba405fabe4f21cf1bb0070d
+  hash: sha256:52d2db810dd7fa93c1336ceec8fbc3054d6dbc4d545125b2327d76d40aee3298
   keywords:
   - enabling
-  - strategic partnerships
-  - microsoft foundry
   - version control
   - computer use
   - execute long
   - agent sdk
   - confidence
-  - announce
+  - acquires
   - content
-  - copilot
   - execute
+  - product
   last_fetched: '2025-12-02'
   path: anthropic-com/news/enabling-claude-code-to-work-more-autonomously.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -4407,10 +4499,26 @@ anthropic-com-news-enabling-claude-code-to-work-more-autonomously:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4419,24 +4527,6 @@ anthropic-com-news-enabling-claude-code-to-work-more-autonomously:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -4451,21 +4541,21 @@ anthropic-com-news-eu-code-practice:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:96604e2884bd4bad47af01c34e651cefae73b783eb5e2158da54f8c5c8ea9fe4
+  hash: sha256:5e6773a43da039c00aaedaff64386658855cff6a60ae6b5f489f3ce046f1c61e
   keywords:
   - eu-code-practice
   - practice
   - maintaining flexibility
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - flexibility
+  - introducing
+  - maintaining
   - commitment
-  - announce
+  - acquires
   - building
   - content
-  - copilot
-  last_fetched: '2025-12-01'
+  - policy
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/eu-code-practice.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4493,10 +4583,26 @@ anthropic-com-news-eu-code-practice:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4505,24 +4611,6 @@ anthropic-com-news-eu-code-practice:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -4533,7 +4621,7 @@ anthropic-com-news-expanding-global-operations-to-india:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:6f2dd7a335fc6167f095a66fdc4631920fb001142bb4ad9cc3b6baa9adb93ee4
+  hash: sha256:7240dbef0a155c12e113c8f40eca23dbdbc20fe73345884300f7900713a1e070
   keywords:
   - expanding-global-operations
   - global-operations
@@ -4542,12 +4630,12 @@ anthropic-com-news-expanding-global-operations-to-india:
   - expanding
   - global
   - india
-  - strategic partnerships
   - global operations
-  - microsoft foundry
   - pacific office
   - computer use
-  last_fetched: '2025-12-01'
+  - announcements
+  - introducing
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/expanding-global-operations-to-india.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4557,10 +4645,26 @@ anthropic-com-news-expanding-global-operations-to-india:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4570,26 +4674,7 @@ anthropic-com-news-expanding-global-operations-to-india:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - models
   - performance
   title: Expanding our global operations to India with our second Asia Pacific office
   url: https://www.anthropic.com/news/expanding-global-operations-to-india
@@ -4597,7 +4682,7 @@ anthropic-com-news-expanding-our-use-of-google-cloud-tpus-and-services:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:e8461067fdfb72a6fa107004502aee4ff25afe9a09eb6259cb4b6dcbc20fc551
+  hash: sha256:c458bd80d02cdfa3d27f098368598653138bcf129a57c099a38a29b31d9a80f1
   keywords:
   - google-cloud-tpus
   - google-cloud
@@ -4606,12 +4691,12 @@ anthropic-com-news-expanding-our-use-of-google-cloud-tpus-and-services:
   - services
   - google
   - cloud
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - google cloud
   - announcements
-  last_fetched: '2025-12-01'
+  - introducing
+  - milestone
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/expanding-our-use-of-google-cloud-tpus-and-services.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4621,10 +4706,26 @@ anthropic-com-news-expanding-our-use-of-google-cloud-tpus-and-services:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4633,24 +4734,6 @@ anthropic-com-news-expanding-our-use-of-google-cloud-tpus-and-services:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -4661,7 +4744,7 @@ anthropic-com-news-federal-government-departments-and-agencies-can-now-purchase-
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:eb3e3edebd68f5f10391ef1ced07f2f2407c09a5c769eafbfdafbd0f911830eb
+  hash: sha256:f79af765758aa921b318e1885fd6665ef8ead137a64f3329e162c2fd0e0edac1
   keywords:
   - federal-government-departments
   - government-departments
@@ -4673,9 +4756,9 @@ anthropic-com-news-federal-government-departments-and-agencies-can-now-purchase-
   - purchase
   - schedule
   - federal
-  - strategic partnerships
   - federal government
-  last_fetched: '2025-12-01'
+  - computer use
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/federal-government-departments-and-agencies-can-now-purchase-claude-through-the-gsa-schedule.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4685,10 +4768,26 @@ anthropic-com-news-federal-government-departments-and-agencies-can-now-purchase-
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4697,24 +4796,6 @@ anthropic-com-news-federal-government-departments-and-agencies-can-now-purchase-
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -4727,7 +4808,7 @@ anthropic-com-news-head-of-japan-hiring-plans:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:9eae0a7a0c1ed364349bdcf1a8cc1b0354589375989619d0a05d6cf6ad7af438
+  hash: sha256:533158ea217e8cbbe0061fc9c00e58280a0f1b566f3ada3ed92ff2998a04bfb4
   keywords:
   - japan-hiring-plans
   - hiring-plans
@@ -4735,13 +4816,13 @@ anthropic-com-news-head-of-japan-hiring-plans:
   - hiring
   - japan
   - plans
-  - strategic partnerships
-  - microsoft foundry
   - announces hiring
   - amazon bedrock
   - hidetoshi tojo
   - computer use
-  last_fetched: '2025-12-01'
+  - announcements
+  - announces
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/head-of-japan-hiring-plans.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4751,10 +4832,26 @@ anthropic-com-news-head-of-japan-hiring-plans:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4764,24 +4861,6 @@ anthropic-com-news-head-of-japan-hiring-plans:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - reference
   title: Anthropic appoints Hidetoshi Tojo as Head of Japan and announces hiring plans
@@ -4790,7 +4869,7 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
   category: news
   description: Societal Impacts
   domain: anthropic.com
-  hash: sha256:cd1c18820ca55d6778aca05c4c5a31157c9205220a2eeedcc20ccfa2c7e93041
+  hash: sha256:847f0ee23b9173d2a4a64cfeb82911d25e4311e9c47290da8e0fe0daeb99e559
   keywords:
   - support-advice
   - people-use
@@ -4799,11 +4878,11 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
   - advice
   - people
   - affective conversations
-  - strategic partnerships
-  - microsoft foundry
   - looking ahead
   - computer use
   - people bring
+  - tone evolve
+  - appendices
   last_fetched: '2025-12-02'
   path: anthropic-com/news/how-people-use-claude-for-support-advice-and-companionship.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -4887,10 +4966,26 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4899,24 +4994,6 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - compliance
@@ -4928,7 +5005,7 @@ anthropic-com-news-introducing-the-anthropic-economic-futures-program:
   category: news
   description: AnnouncementsPolicy
   domain: anthropic.com
-  hash: sha256:ff457b42df9ecaddaaaa5858063e27268bf9e86e9ed0b068893a6b65cbd25009
+  hash: sha256:5110a70d83beb3b64ac5bd1195c6edac3fac6008d20244e7d3683a6125480989
   keywords:
   - economic-futures-program
   - economic-futures
@@ -4937,12 +5014,12 @@ anthropic-com-news-introducing-the-anthropic-economic-futures-program:
   - economic
   - futures
   - program
-  - strategic partnerships
-  - microsoft foundry
   - futures program
   - looking ahead
   - computer use
-  last_fetched: '2025-12-01'
+  - announcementspolicy
+  - acquires
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/introducing-the-anthropic-economic-futures-program.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4969,10 +5046,26 @@ anthropic-com-news-introducing-the-anthropic-economic-futures-program:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -4982,24 +5075,6 @@ anthropic-com-news-introducing-the-anthropic-economic-futures-program:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - reference
   title: Introducing the Anthropic Economic Futures Program
@@ -5008,7 +5083,7 @@ anthropic-com-news-introducing-the-anthropic-national-security-and-public-sector
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:5013c1cd047ff050d206342eb0ce6489b43ac0624d5b3018acff7c45607da3ec
+  hash: sha256:191863dfe60d0a990bb7e5e1de07588b6d789298e760cfcded4a6130d8ac83ef
   keywords:
   - sector-advisory-council
   - public-sector-advisory
@@ -5022,7 +5097,7 @@ anthropic-com-news-introducing-the-anthropic-national-security-and-public-sector
   - security
   - council
   - public
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/introducing-the-anthropic-national-security-and-public-sector-advisory-council.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5032,10 +5107,26 @@ anthropic-com-news-introducing-the-anthropic-national-security-and-public-sector
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5044,24 +5135,6 @@ anthropic-com-news-introducing-the-anthropic-national-security-and-public-sector
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -5073,7 +5146,7 @@ anthropic-com-news-investing-in-energy-to-secure-america-s-ai-future:
   category: news
   description: AlignmentPolicy
   domain: anthropic.com
-  hash: sha256:717faebb196a81363faf6979ce0258bb3f6d3b5069e33d2d8f0826abe7dd3b88
+  hash: sha256:5ea9005ed14f63eddd73103d6d984c7c6927d02b379d5c1cc3664940c4153337
   keywords:
   - secure-america
   - investing
@@ -5081,13 +5154,13 @@ anthropic-com-news-investing-in-energy-to-secure-america-s-ai-future:
   - energy
   - future
   - secure
-  - strategic partnerships
-  - microsoft foundry
   - secure america
   - computer use
   - alignmentpolicy
-  - announce
-  last_fetched: '2025-12-01'
+  - introducing
+  - acquires
+  - content
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/investing-in-energy-to-secure-america-s-ai-future.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5097,10 +5170,26 @@ anthropic-com-news-investing-in-energy-to-secure-america-s-ai-future:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5110,27 +5199,8 @@ anthropic-com-news-investing-in-energy-to-secure-america-s-ai-future:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - deployment
-  - models
   - security
   - skills
   title: Investing in energy to secure America's AI future
@@ -5139,7 +5209,7 @@ anthropic-com-news-lawrence-livermore-national-laboratory-expands-claude-for-ent
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:eae3cbd489f270cdf227c6f9b106ad0c0faca604cec4fa86e1bc1e465275a53f
+  hash: sha256:c924f58422bdae3b48455329c60e383ba21b43faf4b85a43ceb30a1c3c92edb4
   keywords:
   - livermore-national-laboratory
   - lawrence-livermore-national
@@ -5153,7 +5223,7 @@ anthropic-com-news-lawrence-livermore-national-laboratory-expands-claude-for-ent
   - laboratory
   - scientists
   - livermore
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5199,10 +5269,26 @@ anthropic-com-news-lawrence-livermore-national-laboratory-expands-claude-for-ent
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5211,24 +5297,6 @@ anthropic-com-news-lawrence-livermore-national-laboratory-expands-claude-for-ent
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -5241,21 +5309,21 @@ anthropic-com-news-maryland-partnership:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:8a116eea9cccdacf0fe7510d9404a462d906a4a8f54cbc346dc0ce2be4d10a71
+  hash: sha256:e3a0eb4ea87266f46367ee1edd11ef333a005c8fdc936bf6684364f990a4522d
   keywords:
   - maryland-partnership
   - partnership
   - maryland
-  - strategic partnerships
-  - microsoft foundry
   - computer use
   - announcements
   - introducing
+  - nonprofits
+  - milestone
   - residents
-  - announce
+  - acquires
   - partners
   - content
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/maryland-partnership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5265,10 +5333,26 @@ anthropic-com-news-maryland-partnership:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5278,33 +5362,15 @@ anthropic-com-news-maryland-partnership:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - models
+  - reference
   title: The state of Maryland partners with Anthropic to better serve residents
   url: https://www.anthropic.com/news/maryland-partnership
 anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:781d687d1f79602fe10082aa3d052b7ca301c69a47ed9b35bedd6dac57e2be97
+  hash: sha256:4866ec5538316ada6945584e8c1fa6626e599ab3277a01d8f707a34014c14b5a
   keywords:
   - announce-strategic-partnerships
   - strategic-partnerships
@@ -5316,8 +5382,8 @@ anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
   - announce
   - nvidia
   - strategic partnerships
-  - microsoft foundry
   - computer use
+  - announcements
   last_fetched: '2025-12-02'
   path: anthropic-com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -5328,10 +5394,26 @@ anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5340,25 +5422,6 @@ anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#anthropic-partners-with-rwandan-government-and-alx-to-bring-ai-education-to-hundreds-of-thousands-of-learners-across-africa'
-    heading: Anthropic partners with Rwandan Government and ALX to bring AI education
-      to hundreds of thousands of learners across Africa
-    keywords:
-    - partners
-    - rwandan
-    - government
-    - alx
-    - bring
     level: 3
   tags:
   - models
@@ -5369,7 +5432,7 @@ anthropic-com-news-national-security-expert-richard-fontaine-appointed-to-anthro
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:058a34da9c540625e654d3556eec198d50fdb51a5e9cf1607c950590c05b5ae1
+  hash: sha256:b5c13392bcafaa331332cf823616fbfb6362d5e86a5b5d6beb3d728a933b73e8
   keywords:
   - richard-fontaine-appointed
   - national-security-expert
@@ -5383,7 +5446,7 @@ anthropic-com-news-national-security-expert-richard-fontaine-appointed-to-anthro
   - security-expert
   - expert-richard
   - benefit-trust
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/national-security-expert-richard-fontaine-appointed-to-anthropic-s-long-term-benefit-trust.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5393,10 +5456,26 @@ anthropic-com-news-national-security-expert-richard-fontaine-appointed-to-anthro
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5405,24 +5484,6 @@ anthropic-com-news-national-security-expert-richard-fontaine-appointed-to-anthro
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - security
@@ -5433,7 +5494,7 @@ anthropic-com-news-new-offices-in-paris-and-munich-expand-european-presence:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:e935d7888d790775d6330c325e35fb07c7fa44eeb1875215f91a0d727fded6f3
+  hash: sha256:74954ef96965025b89119de6f51a04746e6383230fcf037dc8129732e00acd98
   keywords:
   - expand-european-presence
   - munich-expand-european
@@ -5447,7 +5508,7 @@ anthropic-com-news-new-offices-in-paris-and-munich-expand-european-presence:
   - expand
   - munich
   - paris
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/new-offices-in-paris-and-munich-expand-european-presence.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5457,10 +5518,26 @@ anthropic-com-news-new-offices-in-paris-and-munich-expand-european-presence:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5469,24 +5546,6 @@ anthropic-com-news-new-offices-in-paris-and-munich-expand-european-presence:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - reference
@@ -5496,21 +5555,20 @@ anthropic-com-news-offering-expanded-claude-access-across-all-three-branches-of-
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:dac31726b36b40f7dac07ded9f46d48349aa476bbd6714dbf18784c329b59cb1
+  hash: sha256:ba2f21ea665bab325e21b74da93c439b8d7cf1afbd28701b881b68c1704a9c0a
   keywords:
   - offering-expanded
   - government
   - branches
   - expanded
   - offering
-  - strategic partnerships
-  - microsoft foundry
   - offering expanded
   - computer use
   - announcements
-  - announce
+  - introducing
+  - acquires
   - content
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/offering-expanded-claude-access-across-all-three-branches-of-government.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5520,10 +5578,26 @@ anthropic-com-news-offering-expanded-claude-access-across-all-three-branches-of-
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5532,24 +5606,6 @@ anthropic-com-news-offering-expanded-claude-access-across-all-three-branches-of-
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -5561,21 +5617,21 @@ anthropic-com-news-opening-our-tokyo-office:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:4e45f073163632905d88bfd1fdfbbfe85c58c407c820150de6b8e8a7e94f4c0c
+  hash: sha256:c8a7a1daaae7c8581d1045c2f82d98d1de035d00cec7f8051f5944a70ca7c17e
   keywords:
   - opening-our-tokyo-office
   - tokyo-office
   - opening
   - office
   - tokyo
-  - strategic partnerships
   - creative community
-  - microsoft foundry
   - safety institute
   - signs memorandum
   - building shared
   - looking forward
-  last_fetched: '2025-12-01'
+  - computer use
+  - opens tokyo
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/opening-our-tokyo-office.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5621,10 +5677,26 @@ anthropic-com-news-opening-our-tokyo-office:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5634,26 +5706,7 @@ anthropic-com-news-opening-our-tokyo-office:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
-  - models
   - testing
   title: Anthropic officially opens Tokyo office, signs Memorandum of Cooperation
     with the Japan AI Safety Institute
@@ -5662,7 +5715,7 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:61baf8f9b8023550fea6ecae3940b2c4485b439eb6e72f0457cd2e5c5e5649c9
+  hash: sha256:3e87d6ebd126622786f484cb2b87a51ed28414ed5a5577de243ffc1a721d735a
   keywords:
   - trustworthy-agents
   - developing-safe
@@ -5671,11 +5724,11 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
   - framework
   - agents
   - model context protocol
-  - strategic partnerships
   - protecting privacy
-  - microsoft foundry
+  - trustworthy agents
   - natural language
   - aligning agents
+  - developing safe
   last_fetched: '2025-12-02'
   path: anthropic-com/news/our-framework-for-developing-safe-and-trustworthy-agents.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -5748,10 +5801,26 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5761,52 +5830,34 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - agents
   - mcp
-  - models
   - security
   - streaming
   - testing
+  - troubleshooting
   title: Our framework for developing safe and trustworthy agents
   url: https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents
 anthropic-com-news-paul-smith-to-join-anthropic:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:9ceb4be7ab003bba6ad0682a62b987adaa8643864d68db822dbc1d4c0f5e860b
+  hash: sha256:052a8be3b93e528b10dca9e3f60b5fbef94072de3e8e776126606d48122917b2
   keywords:
   - paul-smith
   - smith
-  - strategic partnerships
-  - microsoft foundry
   - chief commercial
   - computer use
   - paul smith
   - announcements
   - introducing
   - commercial
-  - announce
+  - milestone
+  - acquires
   - content
-  last_fetched: '2025-12-01'
+  - officer
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/paul-smith-to-join-anthropic.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5816,10 +5867,26 @@ anthropic-com-news-paul-smith-to-join-anthropic:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5829,24 +5896,6 @@ anthropic-com-news-paul-smith-to-join-anthropic:
     - model
     - world
     level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
-    level: 3
   tags:
   - streaming
   title: Paul Smith to join Anthropic as Chief Commercial Officer
@@ -5855,20 +5904,20 @@ anthropic-com-news-political-even-handedness:
   category: news
   description: ProductSocietal Impacts
   domain: anthropic.com
-  hash: sha256:d550a9df5841aa0b955f22a20c25364d7aa5f00da3ccb35f229e006a4a10fbcd
+  hash: sha256:3d2e09302ec4db1181e2dc4f57c91bff393123e9dd958c4a539103cb62ac8336
   keywords:
   - political-even-handedness
   - handedness
   - political
-  - strategic partnerships
   - handedness matters
   - extended thinking
-  - microsoft foundry
   - source evaluation
   - ideal behaviors
   - system prompt
   - computer use
   - productsocietal
+  - conclusions
+  - behaviors
   last_fetched: '2025-12-02'
   path: anthropic-com/news/political-even-handedness.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -5965,10 +6014,26 @@ anthropic-com-news-political-even-handedness:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -5977,24 +6042,6 @@ anthropic-com-news-political-even-handedness:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - configuration
@@ -6008,7 +6055,7 @@ anthropic-com-news-rahul-patil-joins-anthropic:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:fd96dc9c5ac2c8b4eed07a2b3b67a3b6402c895e25b5e76a8eb2b9413af2033f
+  hash: sha256:5ebee9c22c564d4eebe8cdc928e8b3a3be9e632304eeae4ac40a7890f93064a2
   keywords:
   - rahul-patil-joins-anthropic
   - rahul-patil-joins
@@ -6017,12 +6064,12 @@ anthropic-com-news-rahul-patil-joins-anthropic:
   - joins
   - patil
   - rahul
-  - strategic partnerships
-  - microsoft foundry
   - chief technology
   - computer use
   - rahul patil
-  last_fetched: '2025-12-01'
+  - announcements
+  - introducing
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/rahul-patil-joins-anthropic.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6032,10 +6079,26 @@ anthropic-com-news-rahul-patil-joins-anthropic:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6044,24 +6107,6 @@ anthropic-com-news-rahul-patil-joins-anthropic:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -6134,7 +6179,7 @@ anthropic-com-news-rwandan-government-partnership-ai-education:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:770b5e4160e67c958921e9c1d00725657d5f4044ecaff5c8f05458bbce01cc2c
+  hash: sha256:eb8748540b51bae8aca18ada5566f78f78f4d2cf08b57cd4e1de379369906f48
   keywords:
   - rwandan-government-partnership
   - government-partnership
@@ -6143,12 +6188,12 @@ anthropic-com-news-rwandan-government-partnership-ai-education:
   - government
   - education
   - rwandan
-  - strategic partnerships
-  - microsoft foundry
   - building skills
   - computer use
   - announcements
-  last_fetched: '2025-12-01'
+  - continent
+  - thousands
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/rwandan-government-partnership-ai-education.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6185,10 +6230,26 @@ anthropic-com-news-rwandan-government-partnership-ai-education:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6197,24 +6258,6 @@ anthropic-com-news-rwandan-government-partnership-ai-education:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -6226,7 +6269,7 @@ anthropic-com-news-salesforce-anthropic-expanded-partnership:
   category: news
   description: AnnouncementsProduct
   domain: anthropic.com
-  hash: sha256:1ebc809d1437c8471edb501bcb7154531e450ac426c2d41d2572b2a9c1932dee
+  hash: sha256:857d3e0f943b87bb8793f55f34e6291ed291e8e466c352845082d324a1af57ff
   keywords:
   - salesforce-anthropic-expanded-partnership
   - expanded-partnership
@@ -6240,7 +6283,7 @@ anthropic-com-news-salesforce-anthropic-expanded-partnership:
   - regulated industries
   - salesforce deploys
   - building industry
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/salesforce-anthropic-expanded-partnership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6295,10 +6338,26 @@ anthropic-com-news-salesforce-anthropic-expanded-partnership:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6307,24 +6366,6 @@ anthropic-com-news-salesforce-anthropic-expanded-partnership:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -6338,21 +6379,21 @@ anthropic-com-news-seoul-becomes-third-anthropic-office-in-asia-pacific:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:b486d839f4981c8c917a766d3c05ef41433493a03a1e80143fe20ad95248c83a
+  hash: sha256:481a974f95043fbcabb7ccb6e81a1d6acc7178d7162f0e6f8adf7682e1ca10ae
   keywords:
   - asia-pacific
   - pacific
   - office
   - seoul
-  - strategic partnerships
   - international growth
-  - microsoft foundry
   - computer use
   - announcements
   - international
-  - announce
+  - introducing
+  - acquires
   - continue
-  last_fetched: '2025-12-01'
+  - content
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/seoul-becomes-third-anthropic-office-in-asia-pacific.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6362,10 +6403,26 @@ anthropic-com-news-seoul-becomes-third-anthropic-office-in-asia-pacific:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6374,24 +6431,6 @@ anthropic-com-news-seoul-becomes-third-anthropic-office-in-asia-pacific:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -6402,7 +6441,7 @@ anthropic-com-news-statement-dario-amodei-american-ai-leadership:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:53c3e29ebd895e23c9629efe3362c7158f422db73eb34acd7b875429d7aed59f
+  hash: sha256:7f71dffeaf0bcfdc73442a8f60491892c9299627a3120cc9d5b831ed9ffba68a
   keywords:
   - statement-dario-amodei
   - dario-amodei-american
@@ -6414,9 +6453,9 @@ anthropic-com-news-statement-dario-amodei-american-ai-leadership:
   - american
   - amodei
   - dario
-  - strategic partnerships
-  - microsoft foundry
-  last_fetched: '2025-12-01'
+  - computer use
+  - dario amodei
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/statement-dario-amodei-american-ai-leadership.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6426,10 +6465,26 @@ anthropic-com-news-statement-dario-amodei-american-ai-leadership:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6438,24 +6493,6 @@ anthropic-com-news-statement-dario-amodei-american-ai-leadership:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - files
@@ -6467,7 +6504,7 @@ anthropic-com-news-strengthening-our-safeguards-through-collaboration-with-us-ca
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:16a0db7f17329b4b5b5eb838b79856cd3063a8031f20613720a08287bda7cb9d
+  hash: sha256:9a81558e15039db5883dd42c5e63d754ad991a2e7feae4cbb30d5147900599f2
   keywords:
   - collaboration
   - strengthening
@@ -6475,13 +6512,13 @@ anthropic-com-news-strengthening-our-safeguards-through-collaboration-with-us-ca
   - caisi
   - addressing vulnerabilities
   - effective collaborations
-  - strategic partnerships
   - ongoing collaboration
-  - microsoft foundry
   - computer use
   - collaborations
   - announcements
-  last_fetched: '2025-12-01'
+  - addressing
+  - acquires
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6518,10 +6555,26 @@ anthropic-com-news-strengthening-our-safeguards-through-collaboration-with-us-ca
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6530,24 +6583,6 @@ anthropic-com-news-strengthening-our-safeguards-through-collaboration-with-us-ca
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -6560,21 +6595,19 @@ anthropic-com-news-the-need-for-transparency-in-frontier-ai:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:571258d9376d6334759061266dddfc05e1743ef48dd84745d3ccbce5cc570434
+  hash: sha256:f79f73d91774999dfd6ea717e9372e19a3e3b1eb979b407b7c4309b6a1361157
   keywords:
   - transparency
   - frontier
-  - strategic partnerships
-  - microsoft foundry
   - minimum standards
   - computer use
   - introducing
-  - microsoft
-  - announce
+  - milestone
+  - acquires
   - content
-  - copilot
-  - foundry
-  last_fetched: '2025-12-01'
+  - minimum
+  - policy
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/the-need-for-transparency-in-frontier-ai.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6593,10 +6626,26 @@ anthropic-com-news-the-need-for-transparency-in-frontier-ai:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6605,24 +6654,6 @@ anthropic-com-news-the-need-for-transparency-in-frontier-ai:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -6634,21 +6665,21 @@ anthropic-com-news-thoughts-on-america-s-ai-action-plan:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:c82711de750d18932933733c0bc0a65e06054b7e533dfcce18c671f6a06a6766
+  hash: sha256:14c3da357110dcb898b4fd24edf536f2da8d721b4db181743d9419f4967e4c25
   keywords:
   - action-plan
   - thoughts
   - america
   - action
-  - strategic partnerships
   - maintaining strong
-  - microsoft foundry
   - national standard
   - promoting secure
   - export controls
   - looking ahead
   - computer use
-  last_fetched: '2025-12-01'
+  - action plan
+  - accelerating
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/thoughts-on-america-s-ai-action-plan.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6712,10 +6743,26 @@ anthropic-com-news-thoughts-on-america-s-ai-action-plan:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6724,24 +6771,6 @@ anthropic-com-news-thoughts-on-america-s-ai-action-plan:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - deployment
@@ -6756,20 +6785,20 @@ anthropic-com-news-updates-to-our-consumer-terms:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:f16fc001016d0f163464bb09ff5080a4a7fcdc988839bef1ee01dd068cfa1961
+  hash: sha256:62226054dc85383e9d0c5d8f34054cf66a2bf2f4a9240985f9966cfe1d9be4a3
   keywords:
   - consumer-terms
   - consumer
   - updates
   - terms
-  - strategic partnerships
-  - microsoft foundry
   - amazon bedrock
   - consumer terms
   - data retention
   - privacy policy
   - extended data
   - computer use
+  - acquires
+  - changing
   last_fetched: '2025-12-02'
   path: anthropic-com/news/updates-to-our-consumer-terms.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -6788,10 +6817,26 @@ anthropic-com-news-updates-to-our-consumer-terms:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6800,24 +6845,6 @@ anthropic-com-news-updates-to-our-consumer-terms:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - compliance
@@ -6829,7 +6856,7 @@ anthropic-com-news-updating-restrictions-of-sales-to-unsupported-regions:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:eb75caca0d9411988a3f87cfd52152917f08ec3c1f071c4cd699eba3dbee4522
+  hash: sha256:38993764870c583da89f05d534c1b7dfa4814c24a7f386205ac833504d3262dd
   keywords:
   - updating-restrictions
   - unsupported-regions
@@ -6838,12 +6865,12 @@ anthropic-com-news-updating-restrictions-of-sales-to-unsupported-regions:
   - updating
   - regions
   - sales
-  - strategic partnerships
   - updating restrictions
   - unsupported regions
-  - microsoft foundry
   - computer use
-  last_fetched: '2025-12-01'
+  - announcements
+  - introducing
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/updating-restrictions-of-sales-to-unsupported-regions.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6853,10 +6880,26 @@ anthropic-com-news-updating-restrictions-of-sales-to-unsupported-regions:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6865,24 +6908,6 @@ anthropic-com-news-updating-restrictions-of-sales-to-unsupported-regions:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - models
@@ -6893,21 +6918,21 @@ anthropic-com-news-usage-policy-update:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:fc0360785ac09ca6173f4634b3d2656e847199bfece3002465085d42df37eee4
+  hash: sha256:ba54d3f6fac0453bfa76cbf9140b09b7479f08fd0cd8450288e9f671b1976697
   keywords:
   - usage-policy-update
   - policy
   - update
   - usage
   - addressing cybersecurity
-  - strategic partnerships
-  - microsoft foundry
   - political content
   - revisiting broad
   - looking ahead
   - risk consumer
   - computer use
-  last_fetched: '2025-12-01'
+  - usage policy
+  - addressing
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/usage-policy-update.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6962,10 +6987,26 @@ anthropic-com-news-usage-policy-update:
     keywords:
     - related
     - content
-    - introducing
-    - opus
-    - best
+    - acquires
+    - reaches
+    - milestone
     level: 2
+  - anchor: '#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone'
+    heading: Anthropic acquires Bun as Claude Code reaches $1B milestone
+    keywords:
+    - acquires
+    - bun
+    - reaches
+    - milestone
+    - read
+    level: 3
+  - anchor: '#claude-for-nonprofits'
+    heading: Claude for Nonprofits
+    keywords:
+    - nonprofits
+    - launches
+    - help
+    level: 3
   - anchor: '#introducing-claude-opus-45'
     heading: Introducing Claude Opus 4.5
     keywords:
@@ -6974,24 +7015,6 @@ anthropic-com-news-usage-policy-update:
     - best
     - model
     - world
-    level: 3
-  - anchor: '#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot'
-    heading: Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-    keywords:
-    - available
-    - microsoft
-    - foundry
-    - copilot
-    - read
-    level: 3
-  - anchor: '#microsoft-nvidia-and-anthropic-announce-strategic-partnerships'
-    heading: Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-    keywords:
-    - microsoft
-    - nvidia
-    - announce
-    - strategic
-    - partnerships
     level: 3
   tags:
   - agents
@@ -7002,7 +7025,7 @@ anthropic-com-research-agentic-misalignment:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:a2e21ef59b1d18e92812ea30ca637713e95151e8df521cf274fac624949aa2a4
+  hash: sha256:42fd5d6a8db28d7ef0651eebf1b47a1d1e80b389feba0ca30be8ebc82b3eab3d
   keywords:
   - agentic-misalignment
   - misalignment
@@ -7163,10 +7186,16 @@ anthropic-com-research-agentic-misalignment:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7185,16 +7214,6 @@ anthropic-com-research-agentic-misalignment:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - agents
   - deployment
@@ -7208,7 +7227,7 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:42a1f38f1ddcab448f4f46005984c5162083e7ae998d166829df712f7aae70b5
+  hash: sha256:e15cbe914265dcaf6d49741f5b52cea1c4fcdd560756e9a727752ad52534c1d2
   keywords:
   - september-2025-report
   - september-2025
@@ -7484,10 +7503,16 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7506,16 +7531,6 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - compliance
   - deployment
@@ -7529,7 +7544,7 @@ anthropic-com-research-building-ai-cyber-defenders:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:c4b8f07efe61ece7aa68bb0ad6f07b9da88dea828b5da272d11d3078e9e4584a
+  hash: sha256:5e4e1a67df1bebe1a8e2c01d0fdf08a041357b86c50b0d5ac2f913ee29d2de80
   keywords:
   - building-ai-cyber-defenders
   - cyber-defenders
@@ -7540,7 +7555,7 @@ anthropic-com-research-building-ai-cyber-defenders:
   - productivity gains
   - emphasizing cyber
   - prompt injections
-  - natural emergent
+  - transforming work
   - trusted partners
   - cyber defenders
   last_fetched: '2025-12-02'
@@ -7611,10 +7626,16 @@ anthropic-com-research-building-ai-cyber-defenders:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7633,16 +7654,6 @@ anthropic-com-research-building-ai-cyber-defenders:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - deployment
   - models
@@ -7656,7 +7667,7 @@ anthropic-com-research-confidential-inference-trusted-vms:
   category: research
   description: Announcements
   domain: anthropic.com
-  hash: sha256:abc879bba0b179a5f60a9ed56663e3edc69dd92c6e2e755519925890c706e464
+  hash: sha256:dc2df54827b7bf48eefe4ff2345ed87e2ae660963bb58eab43417e87c1d674bb
   keywords:
   - confidential-inference-trusted-vms
   - confidential-inference-trusted
@@ -7670,7 +7681,7 @@ anthropic-com-research-confidential-inference-trusted-vms:
   - trusted
   - confidential inference
   - trusted environment
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/confidential-inference-trusted-vms.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7723,10 +7734,16 @@ anthropic-com-research-confidential-inference-trusted-vms:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7744,16 +7761,6 @@ anthropic-com-research-confidential-inference-trusted-vms:
     - prompt
     - injections
     - browser
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
     level: 3
   tags:
   - models
@@ -7767,7 +7774,7 @@ anthropic-com-research-deprecation-commitments:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:737407b50cf71c56ed4efa491d38311aeb21ad9581f7d19d32bfd36c35ca4c64
+  hash: sha256:7a4ca0dcf4836db1a7696bbe489c11fd5128fe27a0bf54e1824fa4abffcefede
   keywords:
   - deprecation-commitments
   - commitments
@@ -7775,13 +7782,13 @@ anthropic-com-research-deprecation-commitments:
   - research
   - productivity gains
   - prompt injections
-  - natural emergent
-  - reward hacking
+  - transforming work
   - conversations
   - preservation
   - estimating
+  - injections
   - alignment
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/deprecation-commitments.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7791,10 +7798,16 @@ anthropic-com-research-deprecation-commitments:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7813,16 +7826,6 @@ anthropic-com-research-deprecation-commitments:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - deployment
   - models
@@ -7833,7 +7836,7 @@ anthropic-com-research-economic-index-geography:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:99466a71d2d7134005230dd48dcb158ff36699061488387dbe6cf92a4d661260
+  hash: sha256:52f610d0d8b50a846b6c2800b741c35c47594c59458823b51c7e0385d9179723
   keywords:
   - economic-index-geography
   - geography
@@ -7841,12 +7844,12 @@ anthropic-com-research-economic-index-geography:
   - research
   - productivity gains
   - prompt injections
-  - natural emergent
+  - transforming work
   - global economy
-  - reward hacking
   - united states
   - open data
   - conversations
+  - businesses
   last_fetched: '2025-12-02'
   path: anthropic-com/research/economic-index-geography.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -7941,10 +7944,16 @@ anthropic-com-research-economic-index-geography:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -7963,16 +7972,6 @@ anthropic-com-research-economic-index-geography:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - models
   - research
@@ -7983,7 +7982,7 @@ anthropic-com-research-economic-policy-responses:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:f11eb416530e29dcdb7dd8377fdd60c052c3906d8db3dcb7cf809db9dfac4629
+  hash: sha256:e072c8c656a8b712d6c355d41d8e9e3a34de9d606a58b063c6530273d47ee9c5
   keywords:
   - economic-policy-responses
   - responses
@@ -7997,7 +7996,7 @@ anthropic-com-research-economic-policy-responses:
   - close corporate
   - economic impact
   - establish trade
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/economic-policy-responses.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8134,10 +8133,16 @@ anthropic-com-research-economic-policy-responses:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8156,16 +8161,6 @@ anthropic-com-research-economic-policy-responses:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - deployment
   - research
@@ -8177,7 +8172,7 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:53eb75a7d8970bedb6c39ab5282206040081167f868c53ffb9792ac6dafa4d0d
+  hash: sha256:18dafefa807fcb6437ceaf7dc467521d525e455c75da455cb93972174e570ecb
   keywords:
   - emergent-misalignment-reward-hacking
   - emergent-misalignment-reward
@@ -8227,10 +8222,16 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8248,15 +8249,6 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
     - prompt
     - injections
     - browser
-    level: 3
-  - anchor: '#project-fetch-can-claude-train-a-robot-dog'
-    heading: 'Project Fetch: Can Claude train a robot dog?'
-    keywords:
-    - project
-    - fetch
-    - train
-    - robot
-    - dog
     level: 3
   tags:
   - models
@@ -8270,7 +8262,7 @@ anthropic-com-research-end-subset-conversations:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:2aeaece7e622c3f5c8f2eac7a15d5393dd216759b805740cd12b4128faf66108
+  hash: sha256:bfe1d684fa908f6385895822ca99adcbea00820da4529263edef10684ecd6dbd
   keywords:
   - end-subset-conversations
   - conversations
@@ -8278,12 +8270,12 @@ anthropic-com-research-end-subset-conversations:
   - subset
   - productivity gains
   - prompt injections
-  - natural emergent
-  - reward hacking
+  - transforming work
   - rare subset
   - estimating
+  - injections
+  - mitigating
   - alignment
-  - emergent
   last_fetched: '2025-12-02'
   path: anthropic-com/research/end-subset-conversations.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -8294,10 +8286,16 @@ anthropic-com-research-end-subset-conversations:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8316,16 +8314,6 @@ anthropic-com-research-end-subset-conversations:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - models
   - research
@@ -8335,7 +8323,7 @@ anthropic-com-research-estimating-productivity-gains:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:31820949987e69eddcb5affafaec057fb0666aabe9475b75bc7cf610556328fe
+  hash: sha256:20fd330a00eb2180879d92a22cb0e5fa237645ad08bb94bd9bbec315c1b32b8e
   keywords:
   - estimating-productivity-gains
   - productivity
@@ -8347,8 +8335,8 @@ anthropic-com-research-estimating-productivity-gains:
   - level efficiency
   - natural emergent
   - estimating task
+  - reward hacking
   - highly uneven
-  - level savings
   last_fetched: '2025-12-02'
   path: anthropic-com/research/estimating-productivity-gains.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -8482,10 +8470,16 @@ anthropic-com-research-estimating-productivity-gains:
     keywords:
     - related
     - content
-    - mitigating
-    - risk
-    - prompt
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
     heading: Mitigating the risk of prompt injections in browser use
     keywords:
@@ -8505,15 +8499,6 @@ anthropic-com-research-estimating-productivity-gains:
     - emergent
     - misalignment
     level: 3
-  - anchor: '#project-fetch-can-claude-train-a-robot-dog'
-    heading: 'Project Fetch: Can Claude train a robot dog?'
-    keywords:
-    - project
-    - fetch
-    - train
-    - robot
-    - dog
-    level: 3
   tags:
   - compliance
   - deployment
@@ -8523,11 +8508,231 @@ anthropic-com-research-estimating-productivity-gains:
   - skills
   title: Estimating AI productivity gains from Claude conversations
   url: https://www.anthropic.com/research/estimating-productivity-gains
+anthropic-com-research-how-ai-is-transforming-work-at-anthropic:
+  category: research
+  description: Societal Impacts
+  domain: anthropic.com
+  hash: sha256:d1236440203f9a52111c101f082ff23450965045a63393763268517af46d6769
+  keywords:
+  - transforming-work
+  - transforming
+  - research
+  - delegation approaches
+  - career uncertainty
+  - productivity gains
+  - prompt injections
+  - fixing papercuts
+  - natural emergent
+  - changing social
+  - fully delegated
+  - looking forward
+  last_fetched: '2025-12-02'
+  path: anthropic-com/research/how-ai-is-transforming-work-at-anthropic.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#key-findings'
+    heading: Key findings
+    keywords:
+    - key
+    - findings
+    - section
+    - briefly
+    - summarize
+    level: 2
+  - anchor: '#survey-data'
+    heading: Survey data
+    keywords:
+    - survey
+    - data
+    - surveyed
+    - engineers
+    - researchers
+    level: 2
+  - anchor: '#what-coding-tasks-are-people-using-claude-for'
+    heading: What coding tasks are people using Claude for?
+    keywords:
+    - coding
+    - tasks
+    - people
+    - asked
+    - surveyed
+    level: 3
+  - anchor: '#usage-and-productivity'
+    heading: Usage and productivity
+    keywords:
+    - usage
+    - productivity
+    - employees
+    - self
+    - reported
+    level: 3
+  - anchor: '#claude-enabling-new-work'
+    heading: Claude enabling new work
+    keywords:
+    - enabling
+    - new
+    - work
+    - thing
+    - curious
+    level: 3
+  - anchor: '#how-much-work-can-be-fully-delegated-to-claude'
+    heading: How much work can be fully delegated to Claude?
+    keywords:
+    - work
+    - fully
+    - delegated
+    - engineers
+    - frequently
+    level: 3
+  - anchor: '#qualitative-interviews'
+    heading: Qualitative interviews
+    keywords:
+    - qualitative
+    - interviews
+    - survey
+    - findings
+    - reveal
+    level: 2
+  - anchor: '#ai-delegation-approaches'
+    heading: AI delegation approaches
+    keywords:
+    - delegation
+    - approaches
+    - engineers
+    - researchers
+    - developing
+    level: 3
+  - anchor: '#skill-transformations'
+    heading: Skill transformations
+    keywords:
+    - skill
+    - transformations
+    - capabilities
+    - survey
+    - finding
+    level: 3
+  - anchor: '#changing-social-dynamics-in-the-workplace'
+    heading: Changing social dynamics in the workplace
+    keywords:
+    - changing
+    - social
+    - dynamics
+    - workplace
+    - prominent
+    level: 3
+  - anchor: '#career-uncertainty-and-adaptation'
+    heading: Career uncertainty and adaptation
+    keywords:
+    - career
+    - uncertainty
+    - adaptation
+    - engineers
+    - describe
+    level: 3
+  - anchor: '#claude-code-usage-trends'
+    heading: Claude Code usage trends
+    keywords:
+    - usage
+    - trends
+    - survey
+    - interview
+    - data
+    level: 2
+  - anchor: '#tackling-harder-problems-with-less-oversight'
+    heading: Tackling harder problems with less oversight
+    keywords:
+    - tackling
+    - harder
+    - problems
+    - oversight
+    - usage
+    level: 3
+  - anchor: '#distribution-of-tasks'
+    heading: Distribution of tasks
+    keywords:
+    - distribution
+    - tasks
+    - classified
+    - transcripts
+    - types
+    level: 3
+  - anchor: '#looking-forward'
+    heading: Looking forward
+    keywords:
+    - looking
+    - forward
+    - employees
+    - greatly
+    - increased
+    level: 2
+  - anchor: '#appendix'
+    heading: Appendix
+    keywords:
+    - appendix
+    - limitations
+    - survey
+    - findings
+    level: 2
+  - anchor: '#limitations'
+    heading: Limitations
+    keywords:
+    - limitations
+    - survey
+    - findings
+    - subject
+    level: 3
+  - anchor: '#related-content'
+    heading: Related content
+    keywords:
+    - related
+    - content
+    - estimating
+    - productivity
+    - gains
+    level: 2
+  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
+    heading: Estimating AI productivity gains from Claude conversations
+    keywords:
+    - estimating
+    - productivity
+    - gains
+    - conversations
+    - read
+    level: 3
+  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
+    heading: Mitigating the risk of prompt injections in browser use
+    keywords:
+    - mitigating
+    - risk
+    - prompt
+    - injections
+    - browser
+    level: 3
+  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
+    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
+      hacking'
+    keywords:
+    - shortcuts
+    - sabotage
+    - natural
+    - emergent
+    - misalignment
+    level: 3
+  tags:
+  - files
+  - models
+  - research
+  - security
+  - skills
+  - streaming
+  title: How AI is transforming work at Anthropic
+  url: https://www.anthropic.com/research/how-ai-is-transforming-work-at-anthropic
 anthropic-com-research-introspection:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:e570d22ee54c0f6558645d1a740ae630a3041f63f13561f4d2f1273913c3c122
+  hash: sha256:5a4ca67990d0a295244bcc03b421c1a1669151853e6b997a0ea7383fdae9afc2
   keywords:
   - introspection
   - research
@@ -8605,10 +8810,16 @@ anthropic-com-research-introspection:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8626,16 +8837,6 @@ anthropic-com-research-introspection:
     - prompt
     - injections
     - browser
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
     level: 3
   tags:
   - deployment
@@ -8714,7 +8915,7 @@ anthropic-com-research-persona-vectors:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:7efbd0632d9969c190a48ef9ab5bbe661d6315845e990e5f27829e23a5537646
+  hash: sha256:9f5df668ea97b7178483aefe31b49b11a5abfb8d445e9be8e0a6ead3a8798625
   keywords:
   - persona-vectors
   - research
@@ -8727,7 +8928,7 @@ anthropic-com-research-persona-vectors:
   - extracting persona
   - personality shifts
   - productivity gains
-  - natural emergent
+  - prompt injections
   last_fetched: '2025-12-02'
   path: anthropic-com/research/persona-vectors.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -8798,10 +8999,16 @@ anthropic-com-research-persona-vectors:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8820,16 +9027,6 @@ anthropic-com-research-persona-vectors:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - deployment
   - models
@@ -8842,7 +9039,7 @@ anthropic-com-research-petri-open-source-auditing:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:8ae426315f753840acf0bd15e3de7619b417cbcbdfa06edafef23928cf34423c
+  hash: sha256:7c06b88c29406a8c5a8a557b52d3854f38aa25647f06a3ac28adcae228a60db9
   keywords:
   - petri-open-source-auditing
   - open-source-auditing
@@ -8854,8 +9051,8 @@ anthropic-com-research-petri-open-source-auditing:
   - research
   - source
   - petri
+  - whistleblowing behavior
   - alignment evaluations
-  - productivity gains
   last_fetched: '2025-12-02'
   path: anthropic-com/research/petri-open-source-auditing.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -8908,10 +9105,16 @@ anthropic-com-research-petri-open-source-auditing:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -8930,16 +9133,6 @@ anthropic-com-research-petri-open-source-auditing:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - agents
   - deployment
@@ -8953,7 +9146,7 @@ anthropic-com-research-project-fetch-robot-dog:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:46b982c931ef6a5fd679181a223ef16a2387d15e6bb961f0cd74c63257e99f16
+  hash: sha256:d223e1cebdd9688b7ffed703986d8a015cf9aa3e7809b1f8ad26cf330e321a75
   keywords:
   - project-fetch-robot-dog
   - project-fetch-robot
@@ -8966,7 +9159,7 @@ anthropic-com-research-project-fetch-robot-dog:
   - robot
   - productivity gains
   - prompt injections
-  - natural emergent
+  - transforming work
   last_fetched: '2025-12-02'
   path: anthropic-com/research/project-fetch-robot-dog.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -9050,10 +9243,16 @@ anthropic-com-research-project-fetch-robot-dog:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -9072,16 +9271,6 @@ anthropic-com-research-project-fetch-robot-dog:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - models
   - research
@@ -9093,20 +9282,20 @@ anthropic-com-research-project-vend-1:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:1e189f4aee49973ee639612346acc02feb5c26712573e4e37e08539b554f6f57
+  hash: sha256:a829794bca96c13a0d3f32709b0f93f70ce0acb57401c96a16b21f25af2f8929
   keywords:
   - project-vend-1
   - research
   - performance review
   - productivity gains
   - prompt injections
-  - natural emergent
+  - transforming work
   - natural language
   - identity crisis
   - context window
-  - reward hacking
   - small business
   - system prompt
+  - small shop
   last_fetched: '2025-12-02'
   path: anthropic-com/research/project-vend-1.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -9159,10 +9348,16 @@ anthropic-com-research-project-vend-1:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -9181,16 +9376,6 @@ anthropic-com-research-project-vend-1:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - agents
   - models
@@ -9204,7 +9389,7 @@ anthropic-com-research-prompt-injection-defenses:
   category: research
   description: Product
   domain: anthropic.com
-  hash: sha256:f64b4999d067b4439fa2ff23f728a725058a6ec5a0b6a07860261f9498a7ac1e
+  hash: sha256:db9c8b3c76f7f86efad6873635661ebc7bdae5b0c79b1bd754da5e8dd5fe9378
   keywords:
   - prompt-injection-defenses
   - injection
@@ -9213,11 +9398,11 @@ anthropic-com-research-prompt-injection-defenses:
   - prompt
   - productivity gains
   - prompt injections
+  - transforming work
   - natural emergent
   - prompt injection
   - context window
   - creates unique
-  - reward hacking
   last_fetched: '2025-12-02'
   path: anthropic-com/research/prompt-injection-defenses.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
@@ -9264,10 +9449,16 @@ anthropic-com-research-prompt-injection-defenses:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -9287,15 +9478,6 @@ anthropic-com-research-prompt-injection-defenses:
     - emergent
     - misalignment
     level: 3
-  - anchor: '#project-fetch-can-claude-train-a-robot-dog'
-    heading: 'Project Fetch: Can Claude train a robot dog?'
-    keywords:
-    - project
-    - fetch
-    - train
-    - robot
-    - dog
-    level: 3
   tags:
   - agents
   - models
@@ -9306,7 +9488,7 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:87061d72ecb0317603e7fd3fdf273a76c6dfc01ee9f5f31d1615a3d7f9f692f2
+  hash: sha256:cccd042b5e53396456d1ca17de30a823e3ca5688420d98d3c06f763f5ae502bf
   keywords:
   - shade-arena-sabotage-monitoring
   - arena-sabotage-monitoring
@@ -9377,10 +9559,16 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -9399,16 +9587,6 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
     - injections
     - browser
     level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - agents
   - deployment
@@ -9421,7 +9599,7 @@ anthropic-com-research-small-samples-poison:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:b3736991b38fe609d913fd2286b14aad4b3d3b72525d3238ab04b39448eb6ebf
+  hash: sha256:7abcb1dd2aa79b5acf904050a8a49608fddc241b64e874c3a2df12463776b094
   keywords:
   - small-samples-poison
   - research
@@ -9431,9 +9609,9 @@ anthropic-com-research-small-samples-poison:
   - productivity gains
   - creating poisoned
   - prompt injections
-  - natural emergent
+  - technical details
+  - transforming work
   - output gibberish
-  - reward hacking
   - small number
   last_fetched: '2025-12-02'
   path: anthropic-com/research/small-samples-poison.md
@@ -9478,10 +9656,16 @@ anthropic-com-research-small-samples-poison:
     keywords:
     - related
     - content
-    - estimating
-    - productivity
-    - gains
+    - transforming
+    - work
     level: 2
+  - anchor: '#how-ai-is-transforming-work-at-anthropic'
+    heading: How AI is transforming work at Anthropic
+    keywords:
+    - transforming
+    - work
+    - read
+    level: 3
   - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
     heading: Estimating AI productivity gains from Claude conversations
     keywords:
@@ -9499,16 +9683,6 @@ anthropic-com-research-small-samples-poison:
     - prompt
     - injections
     - browser
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
     level: 3
   tags:
   - configuration
@@ -9635,7 +9809,7 @@ anthropic-com-research-team-societal-impacts:
     Impacts is a technical research team that explores how AI is used in the real
     world.
   domain: anthropic.com
-  hash: sha256:d5c2ea2c30ac4d80231724f1ae4328517a14e85ba87e3f2f89444c28673e70c8
+  hash: sha256:0397964b5017f7c1e92020a906340204959177de912f409219a0cef872ccb685
   keywords:
   - societal-impacts
   - research
@@ -13539,11 +13713,12 @@ code-claude-com-docs-en-memory:
   description: Claude Code can remember your preferences across sessions, like style
     guidelines and common commands in your workflow.
   domain: code.claude.com
-  hash: sha256:0c0e596f32c49172f82cf75c1d27527f3f299e8e0b04e351761e66ce8a27b5b4
+  hash: sha256:647ebd69225e515b92a716e0a0f0826332c4f6ccebbc98ed2ca113abc60834bf
   keywords:
   - memory
   - individual preferences
   - descriptive variable
+  - version control
   - level memory
   - descriptive
   - preferences
@@ -13552,7 +13727,6 @@ code-claude-com-docs-en-memory:
   - claude.md
   - determine
   - directly
-  - remember
   last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/memory.md
   sitemap_url: https://code.claude.com/docs/llms.txt
@@ -15802,7 +15976,7 @@ code-claude-com-docs-en-settings:
     to meet your needs. You can configure Claude Code by running the `/config` command
     when using the interactive REPL, which opens a...
   domain: code.claude.com
-  hash: sha256:271b2c72cc73f2412555214fd9f88a8461ac4ce2e5a38804a7557dcc5f2acfee
+  hash: sha256:732e0515294d68700ab86f5458429a3415cc908c8393897f12d636e53a28950d
   keywords:
   - settings
   - environment variables
@@ -34291,7 +34465,7 @@ platform-claude-com-docs-en-about-claude-models-overview:
   description: Claude is a family of state-of-the-art large language models developed
     by Anthropic. This guide introduces our models and compares their performance.
   domain: platform.claude.com
-  hash: sha256:ab687a2066e6902cc45e2bdbd4ec73ad9ed4c501902533ef40eeea3319f3d29e
+  hash: sha256:4d7c9f6ebb40e1655c6296b4b4ea258696a3bd0708a56abf7639d254ed29a1fe
   keywords:
   - about-claude
   - output performance
@@ -42376,6 +42550,65 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-web-search-tool:
   - streaming
   title: Web search tool
   url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool
+platform-claude-com-docs-en-api-admin-api-invites-get-invite:
+  aliases:
+  - platform-claude-com-docs-en-api-admin-invites-retrieve
+  category: api
+  description: '**get** `/v1/organizations/invites/{invite_id}`'
+  domain: platform.claude.com
+  hash: sha256:f6af58ba8fe258572d9982ad26f6983a42ca35f8c1ccefbfde44e5a4a105b60f
+  keywords:
+  - get-invite
+  - admin-api
+  - invites
+  - invite
+  - admin
+  - path parameters
+  - organizations
+  - parameters
+  - retrieve
+  - returns
+  last_fetched: '2025-12-02'
+  path: platform-claude-com/docs/en/api/admin-api/invites/get-invite.md
+  sitemap_url: https://docs.claude.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#retrieve'
+    heading: Retrieve
+    keywords:
+    - retrieve
+    - organizations
+    - invites
+    - invite
+    level: 2
+  - anchor: '#path-parameters'
+    heading: Path Parameters
+    keywords:
+    - path
+    - parameters
+    - string
+    - invite
+    level: 3
+  - anchor: '#returns'
+    heading: Returns
+    keywords:
+    - returns
+    - invite
+    - object
+    - email
+    level: 3
+  - anchor: '#example'
+    heading: Example
+    keywords:
+    - example
+    - http
+    - curl
+    - https
+    level: 3
+  tags:
+  - reference
+  title: Get Invite
+  url: https://platform.claude.com/docs/en/api/admin-api/invites/get-invite
 platform-claude-com-docs-en-api-admin-api_keys-list:
   category: api
   description: '**get** `/v1/organizations/api_keys`'
@@ -42765,60 +42998,6 @@ platform-claude-com-docs-en-api-admin-invites-list:
   - reference
   title: List
   url: https://platform.claude.com/docs/en/api/admin/invites/list
-platform-claude-com-docs-en-api-admin-invites-retrieve:
-  category: api
-  description: '**get** `/v1/organizations/invites/{invite_id}`'
-  domain: platform.claude.com
-  hash: sha256:f6af58ba8fe258572d9982ad26f6983a42ca35f8c1ccefbfde44e5a4a105b60f
-  keywords:
-  - retrieve
-  - invites
-  - admin
-  - path parameters
-  - organizations
-  - parameters
-  - returns
-  last_fetched: '2025-11-25'
-  path: platform-claude-com/docs/en/api/admin/invites/retrieve.md
-  sitemap_url: https://docs.claude.com/sitemap.xml
-  source_type: sitemap
-  subsections:
-  - anchor: '#retrieve'
-    heading: Retrieve
-    keywords:
-    - retrieve
-    - organizations
-    - invites
-    - invite
-    level: 2
-  - anchor: '#path-parameters'
-    heading: Path Parameters
-    keywords:
-    - path
-    - parameters
-    - string
-    - invite
-    level: 3
-  - anchor: '#returns'
-    heading: Returns
-    keywords:
-    - returns
-    - invite
-    - object
-    - email
-    level: 3
-  - anchor: '#example'
-    heading: Example
-    keywords:
-    - example
-    - http
-    - curl
-    - https
-    level: 3
-  tags:
-  - reference
-  title: Retrieve
-  url: https://platform.claude.com/docs/en/api/admin/invites/retrieve
 platform-claude-com-docs-en-api-admin-organizations-me:
   category: api
   description: '**get** `/v1/organizations/me`'
@@ -46668,57 +46847,6 @@ platform-claude-com-docs-en-api-openai-sdk:
   - sdk
   title: OpenAI SDK compatibility
   url: https://platform.claude.com/docs/en/api/openai-sdk
-platform-claude-com-docs-en-api-overview:
-  aliases:
-  - platform-claude-com-docs-en-build-with-claude-overview
-  category: api
-  description: Explore Claude's advanced features and capabilities.
-  domain: platform.claude.com
-  hash: sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15
-  keywords:
-  - progressive disclosure
-  - core capabilities
-  - extended thinking
-  - batch processing
-  - context editing
-  - code execution
-  - context window
-  - prompt caching
-  - search results
-  - token counting
-  - mcp connector
-  - agent skills
-  last_fetched: '2025-12-02'
-  path: platform-claude-com/docs/en/api/overview.md
-  sitemap_url: https://docs.claude.com/sitemap.xml
-  source_type: sitemap
-  subsections:
-  - anchor: '#core-capabilities'
-    heading: Core capabilities
-    keywords:
-    - core
-    - capabilities
-    - features
-    - enhance
-    - fundamental
-    level: 2
-  - anchor: '#tools'
-    heading: Tools
-    keywords:
-    - tools
-    - features
-    - enable
-    - interact
-    level: 2
-  tags:
-  - agents
-  - batch
-  - caching
-  - files
-  - mcp
-  - skills
-  title: Features overview
-  url: https://platform.claude.com/docs/en/api/overview
 platform-claude-com-docs-en-api-rate-limits:
   category: api
   description: To mitigate misuse and manage capacity on our API, we have implemented
@@ -48992,6 +49120,57 @@ platform-claude-com-docs-en-build-with-claude-multilingual-support:
   - testing
   title: Multilingual support
   url: https://platform.claude.com/docs/en/build-with-claude/multilingual-support
+platform-claude-com-docs-en-build-with-claude-overview:
+  aliases:
+  - platform-claude-com-docs-en-api-overview
+  category: skills
+  description: Explore Claude's advanced features and capabilities.
+  domain: platform.claude.com
+  hash: sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15
+  keywords:
+  - build-with-claude
+  - build
+  - progressive disclosure
+  - core capabilities
+  - extended thinking
+  - batch processing
+  - context editing
+  - code execution
+  - context window
+  - prompt caching
+  - search results
+  - token counting
+  last_fetched: '2025-12-02'
+  path: platform-claude-com/docs/en/build-with-claude/overview.md
+  sitemap_url: https://docs.claude.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#core-capabilities'
+    heading: Core capabilities
+    keywords:
+    - core
+    - capabilities
+    - features
+    - enhance
+    - fundamental
+    level: 2
+  - anchor: '#tools'
+    heading: Tools
+    keywords:
+    - tools
+    - features
+    - enable
+    - interact
+    level: 2
+  tags:
+  - agents
+  - batch
+  - caching
+  - files
+  - mcp
+  - skills
+  title: Features overview
+  url: https://platform.claude.com/docs/en/build-with-claude/overview
 platform-claude-com-docs-en-build-with-claude-pdf-support:
   category: models
   description: Process PDFs with Claude. Extract text, analyze charts, and understand
@@ -51914,12 +52093,13 @@ platform-claude-com-docs-en-home:
   category: installation
   description: Documentation - Claude Docs
   domain: platform.claude.com
-  hash: sha256:4f6d5b01e1b50e206136da3aaafa1b4e97208f0939b78963c8e6679219859efe
+  hash: sha256:d607ac076f95bca7aebd78d995e9c89f36431b6f5389ef59672ef053322e4789
   keywords:
   - documentation
   - features
   - learning
   - platform
+  - loading
   - learn
   last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/home.md
@@ -52718,7 +52898,7 @@ platform-claude-com-docs-en-resources-overview:
   category: models
   description: Documentation - Claude Docs
   domain: platform.claude.com
-  hash: sha256:ed0ee9973ab914f21407ceb05e250b9b268ac49b6d58015235cbc52bc864c7e6
+  hash: sha256:41c1052e63db455371f96e51f3ebc7504e009d2197c7b9192b16c927b877143c
   keywords:
   - documentation
   - ingestion

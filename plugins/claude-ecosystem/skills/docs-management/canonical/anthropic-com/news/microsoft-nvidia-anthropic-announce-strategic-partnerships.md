@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships
 source_type: sitemap
-content_hash: sha256:781d687d1f79602fe10082aa3d052b7ca301c69a47ed9b35bedd6dac57e2be97
+content_hash: sha256:4866ec5538316ada6945584e8c1fa6626e599ab3277a01d8f707a34014c14b5a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
@@ -37,16 +37,18 @@ Amazon remains Anthropic’s primary cloud provider and training partner.
 
 ## Related content
 
+### Anthropic acquires Bun as Claude Code reaches $1B milestone
+
+[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
+
+### Claude for Nonprofits
+
+Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
+
+[Read more](/news/claude-for-nonprofits)
+
 ### Introducing Claude Opus 4.5
 
 The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
 
 [Read more](/news/claude-opus-4-5)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
-
-### Anthropic partners with Rwandan Government and ALX to bring AI education to hundreds of thousands of learners across Africa
-
-[Read more](/news/rwandan-government-partnership-ai-education)

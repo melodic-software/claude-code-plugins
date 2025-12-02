@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-microsoft-foundry
 source_type: sitemap
-content_hash: sha256:76d7a201b9bef5482cd83ea6220d15c21bd6016272ed4c5a54311a6b4348de92
+content_hash: sha256:20e832eceea8c2bb4763a8c022ae145d0a772302b311e53f018de4d8cacd7e6b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
@@ -53,18 +53,18 @@ Claude is available now in public preview through Microsoft Foundry. Visit the [
 
 ## Related content
 
+### Anthropic acquires Bun as Claude Code reaches $1B milestone
+
+[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
+
+### Claude for Nonprofits
+
+Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
+
+[Read more](/news/claude-for-nonprofits)
+
 ### Introducing Claude Opus 4.5
 
 The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
 
 [Read more](/news/claude-opus-4-5)
-
-### Microsoft, NVIDIA, and Anthropic announce strategic partnerships
-
-Microsoft, NVIDIA and Anthropic announced new strategic partnerships. Anthropic is scaling its rapidly-growing Claude AI model on Microsoft Azure, powered by NVIDIA, which will broaden access to Claude and provide Azure enterprise customers with expanded model choice and new capabilities. Anthropic has committed to purchase $30 billion of Azure compute capacity and to contract additional compute capacity up to one gigawatt.
-
-[Read more](/news/microsoft-nvidia-anthropic-announce-strategic-partnerships)
-
-### Anthropic partners with Rwandan Government and ALX to bring AI education to hundreds of thousands of learners across Africa
-
-[Read more](/news/rwandan-government-partnership-ai-education)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/agentic-misalignment
 source_type: sitemap
-content_hash: sha256:a2e21ef59b1d18e92812ea30ca637713e95151e8df521cf274fac624949aa2a4
+content_hash: sha256:42fd5d6a8db28d7ef0651eebf1b47a1d1e80b389feba0ca30be8ebc82b3eab3d
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-20'
@@ -392,6 +392,12 @@ Copy
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -399,7 +405,3 @@ Copy
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/introspection
 source_type: sitemap
-content_hash: sha256:e570d22ee54c0f6558645d1a740ae630a3041f63f13561f4d2f1273913c3c122
+content_hash: sha256:5a4ca67990d0a295244bcc03b421c1a1669151853e6b997a0ea7383fdae9afc2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
@@ -155,6 +155,12 @@ We see several important directions. First, we need better evaluation methods—
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -162,7 +168,3 @@ We see several important directions. First, we need better evaluation methods—
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

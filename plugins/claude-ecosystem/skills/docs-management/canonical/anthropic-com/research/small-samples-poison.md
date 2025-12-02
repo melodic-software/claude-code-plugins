@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/small-samples-poison
 source_type: sitemap
-content_hash: sha256:b3736991b38fe609d913fd2286b14aad4b3d3b72525d3238ab04b39448eb6ebf
+content_hash: sha256:7abcb1dd2aa79b5acf904050a8a49608fddc241b64e874c3a2df12463776b094
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-09'
@@ -121,6 +121,12 @@ Affiliations: 1UK AI Security Institute; 2Anthropic; 3Alan Turing Institute; 4OA
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -128,7 +134,3 @@ Affiliations: 1UK AI Security Institute; 2Anthropic; 3Alan Turing Institute; 4OA
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

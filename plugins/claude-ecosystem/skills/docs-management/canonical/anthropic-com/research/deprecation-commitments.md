@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/deprecation-commitments
 source_type: sitemap
-content_hash: sha256:737407b50cf71c56ed4efa491d38311aeb21ad9581f7d19d32bfd36c35ca4c64
+content_hash: sha256:7a4ca0dcf4836db1a7696bbe489c11fd5128fe27a0bf54e1824fa4abffcefede
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -42,6 +42,12 @@ Together, these measures function at multiple levels: as one component of mitiga
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -49,7 +55,3 @@ Together, these measures function at multiple levels: as one component of mitiga
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

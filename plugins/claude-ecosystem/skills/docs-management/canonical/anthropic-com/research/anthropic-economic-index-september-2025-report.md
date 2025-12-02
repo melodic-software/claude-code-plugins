@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/anthropic-economic-index-september-2025-report
 source_type: sitemap
-content_hash: sha256:42a1f38f1ddcab448f4f46005984c5162083e7ae998d166829df712f7aae70b5
+content_hash: sha256:e15cbe914265dcaf6d49741f5b52cea1c4fcdd560756e9a727752ad52534c1d2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-15'
@@ -548,6 +548,12 @@ Copy
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -555,7 +561,3 @@ Copy
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/end-subset-conversations
 source_type: sitemap
-content_hash: sha256:2aeaece7e622c3f5c8f2eac7a15d5393dd216759b805740cd12b4128faf66108
+content_hash: sha256:bfe1d684fa908f6385895822ca99adcbea00820da4529263edef10684ecd6dbd
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
@@ -39,6 +39,12 @@ We’re treating this feature as an ongoing experiment and will continue refinin
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -46,7 +52,3 @@ We’re treating this feature as an ongoing experiment and will continue refinin
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

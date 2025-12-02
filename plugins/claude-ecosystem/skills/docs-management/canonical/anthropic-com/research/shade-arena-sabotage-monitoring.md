@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/shade-arena-sabotage-monitoring
 source_type: sitemap
-content_hash: sha256:87061d72ecb0317603e7fd3fdf273a76c6dfc01ee9f5f31d1615a3d7f9f692f2
+content_hash: sha256:cccd042b5e53396456d1ca17de30a823e3ca5688420d98d3c06f763f5ae502bf
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-16'
@@ -115,6 +115,12 @@ If you’re interested in working on these or related questions of Alignment Sci
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -122,7 +128,3 @@ If you’re interested in working on these or related questions of Alignment Sci
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)

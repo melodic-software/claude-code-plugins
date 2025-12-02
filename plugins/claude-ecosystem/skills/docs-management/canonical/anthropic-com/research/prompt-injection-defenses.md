@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/prompt-injection-defenses
 source_type: sitemap
-content_hash: sha256:f64b4999d067b4439fa2ff23f728a725058a6ec5a0b6a07860261f9498a7ac1e
+content_hash: sha256:db9c8b3c76f7f86efad6873635661ebc7bdae5b0c79b1bd754da5e8dd5fe9378
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
@@ -63,6 +63,12 @@ If you're interested in helping make our models and products more robust to prom
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -70,9 +76,3 @@ If you're interested in helping make our models and products more robust to prom
 ### From shortcuts to sabotage: natural emergent misalignment from reward hacking
 
 [Read more](/research/emergent-misalignment-reward-hacking)
-
-### Project Fetch: Can Claude train a robot dog?
-
-How much does Claude help people program robots? To find out, two teams of Anthropic staff raced to teach quadruped robots to fetch beach balls. The AI-assisted team completed tasks faster and was the only group to make real progress toward full autonomy.
-
-[Read more](/research/project-fetch-robot-dog)

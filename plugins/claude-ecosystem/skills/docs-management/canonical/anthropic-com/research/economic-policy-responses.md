@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/economic-policy-responses
 source_type: sitemap
-content_hash: sha256:f11eb416530e29dcdb7dd8377fdd60c052c3906d8db3dcb7cf809db9dfac4629
+content_hash: sha256:e072c8c656a8b712d6c355d41d8e9e3a34de9d606a58b063c6530273d47ee9c5
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-14'
@@ -129,6 +129,12 @@ What's clear, though, is that proactive engagement between researchers, policyma
 
 ## Related content
 
+### How AI is transforming work at Anthropic
+
+How AI Is Transforming Work at Anthropic
+
+[Read more](/research/how-ai-is-transforming-work-at-anthropic)
+
 ### Estimating AI productivity gains from Claude conversations
 
 [Read more](/research/estimating-productivity-gains)
@@ -136,7 +142,3 @@ What's clear, though, is that proactive engagement between researchers, policyma
 ### Mitigating the risk of prompt injections in browser use
 
 [Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)
