@@ -346,7 +346,7 @@ def _auto_install_optional_dependencies(verbose: bool = False) -> None:
                     print("  ⚠️  YAKE installation failed (will use fallback)")
                 print()
 
-            # Install spaCy with model using unified helper (prefers 3.12 when appropriate)
+            # Install spaCy with model using unified helper (prefers 3.13 when appropriate)
             if spacy_missing or spacy_model_missing:
                 print("  📦 Installing spaCy and model...")
                 if needs_python313 and python313_available and verbose:

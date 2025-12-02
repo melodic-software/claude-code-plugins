@@ -40,7 +40,7 @@ which python3
 **Interpretation:**
 
 - If you see **Python 3.12.x** → you already have the required version.
-- If you only see **Python 3.14.x** → you still need **3.12** for spaCy and some tooling.
+- If you only see **Python 3.14.x** → you still need **3.13** for spaCy and some tooling.
 - If `python3` is missing or points to an old system Python → install the recommended versions below.
 
 ---

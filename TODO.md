@@ -37,5 +37,3 @@
 ### Claude Ecosystem Plugin - Agents
 
 - `prompt-engineer` (claude code specific) - leverages docs-management skill to lookup current prompt engineering best practices
-
-

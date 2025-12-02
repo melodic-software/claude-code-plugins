@@ -44,7 +44,7 @@ which python3
 **Interpretation:**
 
 - If you see **Python 3.12.x** → you already have the required version.
-- If you only see **Python 3.14.x** → you still need **3.12** for spaCy and some tooling.
+- If you only see **Python 3.14.x** → you still need **3.13** for spaCy and some tooling.
 - If `python3` is missing or older than 3.12 → install the versions below.
 
 ---
@@ -127,7 +127,7 @@ If 3.13 packages are not yet available for your distro, you can skip this step o
 
 ## 4. Install Python 3.14 (optional)
 
-Install Python 3.14 only if you explicitly need the latest language features and **do not** depend on spaCy (which currently supports up to 3.12).
+Install Python 3.14 only if you explicitly need the latest language features and **do not** depend on spaCy (which currently supports up to 3.13).
 
 ### 4.1 Debian/Ubuntu (may require DeadSnakes PPA)
 

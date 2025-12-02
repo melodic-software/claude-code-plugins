@@ -34,7 +34,7 @@ To completely disable all observability hooks (zero overhead):
 Comprehensive logging for all 10 Claude Code hook events:
 
 | Event | Description |
-|-------|-------------|
+| ----- | ----------- |
 | PreToolUse | Before tool execution |
 | PermissionRequest | When permission dialog shown |
 | PostToolUse | After tool completion |

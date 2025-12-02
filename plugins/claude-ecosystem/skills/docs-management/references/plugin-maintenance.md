@@ -179,7 +179,7 @@ Types:
 
 - Run `rebuild_index.py` to regenerate from filesystem
 - Check for corrupted files in `canonical/`
-- Verify Python version (3.12 for spaCy)
+- Verify Python version (3.13 for spaCy)
 
 **Push rejected:**
 
