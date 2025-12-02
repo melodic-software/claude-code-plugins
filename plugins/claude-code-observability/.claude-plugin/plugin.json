@@ -1,0 +1,23 @@
+{
+  "name": "claude-code-observability",
+  "description": "Observability hooks for Claude Code: comprehensive event logging, performance metrics, and session diagnostics. Provides full audit trail of all Claude Code interactions without modifying behavior.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/claude-code-observability",
+  "keywords": [
+    "claude-code",
+    "observability",
+    "logging",
+    "diagnostics",
+    "metrics",
+    "audit",
+    "tracing",
+    "hooks",
+    "monitoring"
+  ]
+}
