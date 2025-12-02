@@ -266,6 +266,141 @@ class TestFindDocsCLI:
                     assert '#' in url, "URL should have fragment"
                     assert url.endswith('#section'), f"URL should end with fragment: {url}"
                     assert '.md#' not in url, f"URL should not have .md before fragment: {url}"
-            
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_merges_index_and_content_results(self, temp_dir):
+        """Test that search merges results from keyword index AND file content."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create doc with keyword in index
+            index = {
+                'indexed-doc': create_mock_index_entry('indexed-doc', 'https://example.com/indexed', 'test/indexed.md',
+                                                       title='Indexed Document', keywords=['settings', 'config']),
+                'content-only-doc': create_mock_index_entry('content-only-doc', 'https://example.com/content', 'test/content.md',
+                                                            title='Content Only Doc', keywords=['other', 'stuff'])
+            }
+            refs_dir.create_index(index)
+
+            # Create file for content-only-doc with 'enabledPlugins' in content
+            content_file = refs_dir.references_dir / 'test' / 'content.md'
+            content_file.parent.mkdir(parents=True, exist_ok=True)
+            content_file.write_text('# Content\n\nThis has enabledPlugins setting.')
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+            import json
+
+            # Search for term only in file content
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    cmd_search(resolver, ['enabledPlugins'], limit=10, json_output=True)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+            results = json.loads(output)
+
+            # Should find content-only-doc via content search
+            assert len(results) > 0
+            doc_ids = [r['doc_id'] for r in results]
+            assert 'content-only-doc' in doc_ids
+
+            # Verify match_source is 'content'
+            for r in results:
+                if r['doc_id'] == 'content-only-doc':
+                    assert r.get('match_source') == 'content'
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_fast_flag_skips_content_search(self, temp_dir):
+        """Test that --fast flag (no_content=True) skips content search."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create doc where term is ONLY in file content, not in index
+            index = {
+                'doc1': create_mock_index_entry('doc1', 'https://example.com/doc1', 'test/doc1.md',
+                                                title='Document', keywords=['other', 'keywords'])
+            }
+            refs_dir.create_index(index)
+
+            # Create file with 'enabledPlugins' in content
+            doc_file = refs_dir.references_dir / 'test' / 'doc1.md'
+            doc_file.parent.mkdir(parents=True, exist_ok=True)
+            doc_file.write_text('# Doc\n\nThis has enabledPlugins in content.')
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+
+            # Search with no_content=True (fast mode)
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    # no_content=True should skip content search
+                    cmd_search(resolver, ['enabledPlugins'], limit=10, json_output=False, no_content=True)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+
+            # Should NOT find the document (term only in content, content search disabled)
+            assert 'No documents found' in output or 'doc1' not in output
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_shows_content_tag_for_content_only_matches(self, temp_dir):
+        """Test that [CONTENT] tag is shown for content-only matches in human output."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            index = {
+                'doc1': create_mock_index_entry('doc1', 'https://example.com/doc1', 'test/doc1.md',
+                                                title='Settings Doc', keywords=['other'])
+            }
+            refs_dir.create_index(index)
+
+            doc_file = refs_dir.references_dir / 'test' / 'doc1.md'
+            doc_file.parent.mkdir(parents=True, exist_ok=True)
+            doc_file.write_text('# Settings\n\nThe enabledPlugins setting.')
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    cmd_search(resolver, ['enabledPlugins'], limit=10, json_output=False)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+
+            # Should show [CONTENT] tag for content-only match
+            assert '[CONTENT]' in output
+
         finally:
             refs_dir.cleanup()

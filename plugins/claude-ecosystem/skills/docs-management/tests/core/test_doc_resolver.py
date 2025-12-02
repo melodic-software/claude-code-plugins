@@ -313,3 +313,96 @@ class TestDocResolver:
                     assert url == 'https://example.com/doc1#creating-skills', \
                         f"URL should be normalized with fragment: {url}"
                 break
+
+    def test_search_content_finds_terms_in_file(self, refs_dir):
+        """Test that search_content finds terms in actual file content."""
+        # Arrange - Create a doc with specific content that's NOT in keywords
+        index = {
+            'settings-doc': create_mock_index_entry(
+                'settings-doc', 'https://example.com/settings', 'test/settings.md',
+                title='Settings', keywords=['settings', 'config'],
+                description='Configuration settings'
+            )
+        }
+        refs_dir.create_index(index)
+
+        # Create the actual file with content containing 'enabledPlugins'
+        doc_file = refs_dir.references_dir / 'test' / 'settings.md'
+        doc_file.parent.mkdir(parents=True, exist_ok=True)
+        doc_file.write_text('''# Settings
+
+## Plugin Configuration
+
+The `enabledPlugins` setting controls which plugins are active.
+
+```json
+{
+  "enabledPlugins": {
+    "my-plugin": true
+  }
+}
+```
+''')
+
+        from scripts.core.doc_resolver import DocResolver
+        resolver = DocResolver(refs_dir.references_dir)
+
+        # Act - Search for term that's in file content but NOT in index keywords
+        results = resolver.search_content(['enabledPlugins'], limit=10)
+
+        # Assert
+        assert len(results) > 0
+        assert any(doc_id == 'settings-doc' for doc_id, _ in results)
+        # Verify _content_match flag is set
+        for doc_id, metadata in results:
+            if doc_id == 'settings-doc':
+                assert metadata.get('_content_match') is True
+
+    def test_search_content_case_insensitive(self, refs_dir):
+        """Test that content search is case-insensitive."""
+        # Arrange
+        index = {
+            'doc1': create_mock_index_entry(
+                'doc1', 'https://example.com/doc1', 'test/doc1.md',
+                title='Test Doc', keywords=['test']
+            )
+        }
+        refs_dir.create_index(index)
+
+        doc_file = refs_dir.references_dir / 'test' / 'doc1.md'
+        doc_file.parent.mkdir(parents=True, exist_ok=True)
+        doc_file.write_text('# Test\n\nThis has MySpecialTerm in it.')
+
+        from scripts.core.doc_resolver import DocResolver
+        resolver = DocResolver(refs_dir.references_dir)
+
+        # Act - Search with different case
+        results = resolver.search_content(['myspecialterm'], limit=10)
+
+        # Assert - Should find despite case difference
+        assert len(results) > 0
+        assert any(doc_id == 'doc1' for doc_id, _ in results)
+
+    def test_search_content_returns_empty_for_no_match(self, refs_dir):
+        """Test that search_content returns empty list when no matches."""
+        # Arrange
+        index = {
+            'doc1': create_mock_index_entry(
+                'doc1', 'https://example.com/doc1', 'test/doc1.md',
+                title='Test Doc', keywords=['test']
+            )
+        }
+        refs_dir.create_index(index)
+
+        doc_file = refs_dir.references_dir / 'test' / 'doc1.md'
+        doc_file.parent.mkdir(parents=True, exist_ok=True)
+        doc_file.write_text('# Test\n\nSome content here.')
+
+        from scripts.core.doc_resolver import DocResolver
+        resolver = DocResolver(refs_dir.references_dir)
+
+        # Act
+        results = resolver.search_content(['nonexistentterm12345'], limit=10)
+
+        # Assert
+        assert len(results) == 0

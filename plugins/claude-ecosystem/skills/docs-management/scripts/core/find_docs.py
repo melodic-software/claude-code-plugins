@@ -160,21 +160,99 @@ def _display_search_results(results: list[tuple[str, dict]], header: str, verbos
         print()
 
 
+def _display_search_results_merged(results: list[tuple[str, dict]], index_doc_ids: set[str],
+                                    verbose: bool = False) -> None:
+    """Display merged search results showing match source (index vs content).
+
+    Args:
+        results: List of (doc_id, metadata) tuples
+        index_doc_ids: Set of doc_ids that matched via keyword index
+        verbose: If True, show score details
+    """
+    print(f"📋 Found {len(results)} document(s):\n")
+    for i, (doc_id, metadata) in enumerate(results, 1):
+        entry = _format_result_entry(doc_id, metadata)
+
+        # Determine match source indicator
+        is_content_only = metadata.get('_content_match') and doc_id not in index_doc_ids
+        type_indicator = " [CONTENT]" if is_content_only else ""
+        if entry['type'] == 'subsection':
+            type_indicator = " [SUBSECTION]" + type_indicator
+
+        score_indicator = f" (score: {metadata.get('_score', 'N/A')})" if verbose else ""
+        print(f"{i}. {entry['title']}{type_indicator}{score_indicator}")
+        print(f"   doc_id: {entry['doc_id']}")
+        if entry['path']:
+            print(f"   path: {entry['path']}")
+        if entry.get('section_ref'):
+            print(f"   section: {entry['section_ref']} ({entry.get('section_heading')})")
+        if entry['url']:
+            print(f"   url: {entry['url']} (web reference only)")
+        if entry.get('description'):
+            desc = entry['description'][:100] + '...' if len(entry['description']) > 100 else entry['description']
+            print(f"   description: {desc}")
+        if entry.get('extraction_command'):
+            print(f"   extract: {entry['extraction_command']}")
+        print()
+
+
 def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None = None,
               tags: list[str | None] = None, limit: int = 10, json_output: bool = False,
-              verbose: bool = False) -> int:
-    """Search documents by keywords. Returns number of results found."""
-    results = resolver.search_by_keyword(keywords, category=category, tags=tags, limit=limit, return_scores=verbose)
+              verbose: bool = False, no_content: bool = False) -> int:
+    """Search documents by keywords with optional content search.
+
+    By default, searches both the keyword index AND file content, merging results.
+    Use no_content=True to disable content search for faster index-only results.
+
+    Returns number of results found.
+    """
+    # Step 1: Search keyword index (existing behavior)
+    index_results = resolver.search_by_keyword(keywords, category=category, tags=tags, limit=limit, return_scores=verbose)
+
+    # Track which doc_ids came from index
+    index_doc_ids = {doc_id for doc_id, _ in index_results}
+
+    # Step 2: Search file content (unless disabled)
+    content_results: list[tuple[str, dict]] = []
+    content_only_results: list[tuple[str, dict]] = []
+    if not no_content:
+        content_results = resolver.search_content(keywords, limit=limit)
+        # Filter to content-only matches (not already in index results)
+        for doc_id, metadata in content_results:
+            if doc_id not in index_doc_ids:
+                content_only_results.append((doc_id, metadata))
+
+    # Build set of content-matched doc_ids for source tracking
+    content_doc_ids = {doc_id for doc_id, _ in content_results}
+
+    # Step 3: Merge results (index first, then content-only)
+    results = list(index_results)
+    # Add content-only results up to the limit
+    remaining_slots = limit - len(results)
+    if remaining_slots > 0:
+        results.extend(content_only_results[:remaining_slots])
 
     if json_output:
-        output = [_format_result_entry(doc_id, metadata) for doc_id, metadata in results]
+        output = []
+        for doc_id, metadata in results:
+            entry = _format_result_entry(doc_id, metadata)
+            # Add match source indicator
+            if metadata.get('_content_match') and doc_id not in index_doc_ids:
+                entry['match_source'] = 'content'
+            elif doc_id in index_doc_ids:
+                # Check if also matched by content
+                if doc_id in content_doc_ids:
+                    entry['match_source'] = 'index+content'
+                else:
+                    entry['match_source'] = 'index'
+            output.append(entry)
         print(json.dumps(output, indent=2))
     else:
         if not results:
             print(f"❌ No documents found for keywords: {', '.join(keywords)}")
             sys.exit(EXIT_NO_RESULTS)
 
-        _display_search_results(results, f"Found {len(results)} document(s):", verbose)
+        _display_search_results_merged(results, index_doc_ids, verbose)
 
     return len(results)
 
@@ -362,6 +440,8 @@ Examples:
     search_parser.add_argument('keywords', nargs='+', help='Keywords to search for')
     search_parser.add_argument('--category', help='Filter by category')
     search_parser.add_argument('--tags', nargs='+', help='Filter by tags')
+    search_parser.add_argument('--fast', action='store_true', dest='no_content',
+                              help='Fast mode: search index only, skip file content grep')
     
     # Query command
     query_parser = subparsers.add_parser('query', help='Natural language search')
@@ -418,7 +498,8 @@ Examples:
             result_count = cmd_content(resolver, args.doc_id, getattr(args, 'section', None), args.json)
         elif args.command == 'search':
             result_count = cmd_search(resolver, args.keywords, getattr(args, 'category', None),
-                      getattr(args, 'tags', None), args.limit, args.json, args.verbose)
+                      getattr(args, 'tags', None), args.limit, args.json, args.verbose,
+                      getattr(args, 'no_content', False))
         elif args.command == 'query':
             result_count = cmd_query(resolver, args.query, args.limit, args.json, args.verbose)
         elif args.command == 'category':

@@ -1072,6 +1072,159 @@ class DocResolver:
             'warning': '⚠️ Do not store file paths. Use doc_id references or invoke docs-management skill for access.'
         }
 
+    def _build_path_to_docid_map(self) -> dict[str, str]:
+        """
+        Build a reverse lookup map from relative paths to doc_ids.
+
+        Returns:
+            Dictionary mapping normalized relative paths to doc_ids
+        """
+        path_map = {}
+        for doc_id, metadata in self._index.items():
+            path = metadata.get('path', '')
+            if path:
+                # Normalize path separators and store
+                normalized = str(path).replace('\\', '/').lower()
+                path_map[normalized] = doc_id
+        return path_map
+
+    def search_content(self, keywords: list[str], limit: int = 10) -> list[tuple[str, dict]]:
+        """
+        Search document content using ripgrep/grep.
+
+        This searches the actual markdown file content, not just the index.
+        Used to find matches that aren't in the keyword index.
+
+        Args:
+            keywords: List of keywords to search for
+            limit: Maximum number of results
+
+        Returns:
+            List of (doc_id, metadata) tuples for documents containing the keywords.
+            Metadata includes '_content_match': True to indicate content-based match.
+        """
+        import subprocess
+        import shutil
+        import time
+
+        search_start = time.time()
+
+        # Filter empty keywords
+        keywords = [k.strip() for k in keywords if k and k.strip()]
+        if not keywords:
+            return []
+
+        # Build path-to-docid reverse lookup
+        path_map = self._build_path_to_docid_map()
+
+        # Search directory is the canonical docs folder
+        search_dir = self.base_dir
+
+        # Build search pattern (OR of all keywords, case-insensitive)
+        # For ripgrep: use -e for each pattern
+        # For grep: use -E with alternation
+
+        # Check for ripgrep availability
+        rg_path = shutil.which('rg')
+
+        matching_files: set[str] = set()
+
+        try:
+            if rg_path:
+                # Use ripgrep (faster)
+                # -i: case insensitive
+                # -l: files with matches only
+                # --glob: only search markdown files
+                cmd = [rg_path, '-i', '-l', '--glob', '*.md']
+                for kw in keywords:
+                    cmd.extend(['-e', kw])
+                cmd.append(str(search_dir))
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    encoding='utf-8',
+                    errors='replace'
+                )
+
+                if result.returncode == 0 and result.stdout:
+                    for line in result.stdout.strip().split('\n'):
+                        if line:
+                            matching_files.add(line.strip())
+            else:
+                # Fallback to Python-based search
+                # Walk directory and search files
+                import os
+                pattern_lower = [kw.lower() for kw in keywords]
+
+                for root, _, files in os.walk(search_dir):
+                    for filename in files:
+                        if not filename.endswith('.md'):
+                            continue
+                        filepath = os.path.join(root, filename)
+                        try:
+                            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                                content = f.read().lower()
+                                if any(kw in content for kw in pattern_lower):
+                                    matching_files.add(filepath)
+                        except (IOError, OSError):
+                            continue
+
+        except subprocess.TimeoutExpired:
+            if _logger:
+                _logger.warning("Content search timed out after 30s")
+            return []
+        except Exception as e:
+            if _logger:
+                _logger.warning(f"Content search failed: {e}")
+            return []
+
+        # Map matching files back to doc_ids
+        results = []
+        seen_doc_ids = set()
+
+        for filepath in matching_files:
+            # Normalize the path and make it relative to base_dir
+            try:
+                filepath_obj = Path(filepath)
+                # Get path relative to base_dir
+                rel_path = filepath_obj.relative_to(self.base_dir)
+                normalized = str(rel_path).replace('\\', '/').lower()
+            except (ValueError, TypeError):
+                # Path is not relative to base_dir, try direct lookup
+                normalized = str(filepath).replace('\\', '/').lower()
+
+            # Look up doc_id from path
+            doc_id = path_map.get(normalized)
+
+            if not doc_id:
+                # Try partial path matching (in case of path prefix differences)
+                for stored_path, stored_doc_id in path_map.items():
+                    if normalized.endswith(stored_path) or stored_path.endswith(normalized):
+                        doc_id = stored_doc_id
+                        break
+
+            if doc_id and doc_id not in seen_doc_ids:
+                seen_doc_ids.add(doc_id)
+                metadata = self._index.get(doc_id, {}).copy()
+                metadata['_content_match'] = True
+                results.append((doc_id, metadata))
+
+                if len(results) >= limit:
+                    break
+
+        # Log search performance
+        search_time = time.time() - search_start
+        if _logger:
+            _logger.debug(
+                f"Content search: keywords={keywords}, files_matched={len(matching_files)}, "
+                f"results={len(results)}, time={search_time*1000:.1f}ms"
+            )
+
+        return results
+
 
 if __name__ == '__main__':
     # Simple CLI wrapper for DocResolver
