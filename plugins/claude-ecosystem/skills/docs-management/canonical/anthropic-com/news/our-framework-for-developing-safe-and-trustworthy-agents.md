@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents
 source_type: sitemap
-content_hash: sha256:739a36913f920b7764e68b8c43ccce092067be6548ae4898b0c6dc0b67bbc129
+content_hash: sha256:61baf8f9b8023550fea6ecae3940b2c4485b439eb6e72f0457cd2e5c5e5649c9
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-04'
@@ -27,7 +27,7 @@ The rapid implementation of agents means it's crucial that developers like Anthr
 
 We aim to adhere to the following principles when developing agents:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/51dfff9e2ac5b8a57acfabab370e5fcb2bc7786f-7200x4050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/51dfff9e2ac5b8a57acfabab370e5fcb2bc7786f-7200x4050.png)
 
 ## Keeping humans in control while enabling agent autonomy
 
@@ -43,7 +43,7 @@ Humans need visibility into agents’ problem-solving processes. Without transpa
 
 In Claude Code, Claude shows its planned actions through a real-time to-do checklist, and users can jump in at any time to ask about or adjust Claude’s workplan. The challenge is in finding the right level of detail. Too little information leaves humans unable to assess whether the agent is on track to achieve its goal. Too much can overwhelm them with irrelevant details. We try to take a middle ground but we’ll need to iterate on this further.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/35824c968c7f79bfd4e19256b06462c96d9405aa-7200x4050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/35824c968c7f79bfd4e19256b06462c96d9405aa-7200x4050.png)
 
 *Claude Code’s to-do checklist which users can see in real-time*
 

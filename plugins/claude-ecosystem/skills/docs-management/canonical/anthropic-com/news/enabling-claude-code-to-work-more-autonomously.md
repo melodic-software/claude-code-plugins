@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously
 source_type: sitemap
-content_hash: sha256:9fba50a653281dd4003b3badf504d9fc1bb423ae61db6b597eadfd9a13f3dfd9
+content_hash: sha256:5253a8aa7d1f2d381de5da0c364566f6b5062d445ba405fabe4f21cf1bb0070d
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
@@ -10,6 +10,10 @@ published_at: '2025-09-29'
 Product
 
 # Enabling Claude Code to work more autonomously
+
+[![Video](https://img.youtube.com/vi/OZ-aLrJ0oVg/maxresdefault.jpg)](https://www.youtube.com/watch?v=OZ-aLrJ0oVg)
+
+[![Video](https://img.youtube.com/vi/IpFG\_K-1xog/maxresdefault.jpg)](https://www.youtube.com/watch?v=IpFG\_K-1xog)
 
 Sep 29, 2025
 
@@ -27,7 +31,7 @@ We’re introducing a [native VS Code extension](https://marketplace.visualstudi
 
 We’ve also refreshed Claude Code’s terminal interface. The updated interface features improved status visibility and searchable prompt history (Ctrl+r), making it easier to reuse or edit previous prompts.
 
-![An image of the new Claude Code terminal UX](https://www-cdn.anthropic.com/images/4zrzovbb/website/3613f360926fae004521197488623465eb0cd751-1920x1035.png&w=3840&q=75)
+![An image of the new Claude Code terminal UX](https://www-cdn.anthropic.com/images/4zrzovbb/website/3613f360926fae004521197488623465eb0cd751-1920x1035.png)
 
 **Claude Agent SDK**
 

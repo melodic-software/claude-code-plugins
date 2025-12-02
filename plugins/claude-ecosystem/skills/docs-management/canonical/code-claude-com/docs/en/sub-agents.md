@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/sub-agents
 source_type: llms-txt
-content_hash: sha256:04e53693f79a1da0749ad391779f898f27ca82075d8b08a1080f0b2b78966306
+content_hash: sha256:67c4b290ac00968e3ca3e532231f077f70f0c45f279d0b9b995781d025b9c79b
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -228,6 +228,10 @@ You are a test automation expert. When you see code changes, proactively run the
 mkdir -p ~/.claude/agents
 # ... create subagent file
 ```
+
+<Note>
+  Subagents created by manually adding files will be loaded the next time you start a Claude Code session. To create and use a subagent immediately without restarting, use the `/agents` command instead.
+</Note>
 
 ## Using subagents effectively
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/how-people-use-claude-for-support-advice-and-companionship
 source_type: sitemap
-content_hash: sha256:1b87c5009bc26a4b60960302f3976cc6e6fb605f708e29a78a1389d79f4c4468
+content_hash: sha256:cd1c18820ca55d6778aca05c4c5a31157c9205220a2eeedcc20ccfa2c7e93041
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -44,7 +44,7 @@ We validated our classification approach using [Feedback](https://privacy.anthro
 
 Whereas the vast majority of uses of Claude are work-related (as we analyze in detail in our [Economic Index](https://www.anthropic.com/economic-index)), 2.9% of Claude.ai Free and Pro conversations are affective. Among affective conversations, most center on interpersonal advice and coaching. Less than 0.1% of all conversations involve romantic or sexual roleplay—a figure that reflects Claude's training to actively discourage such interactions. Individual conversations may span multiple categories.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/dcfe3a58b728e541ee83bde18664bdbe1ab66a8f-1923x1080.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/dcfe3a58b728e541ee83bde18664bdbe1ab66a8f-1923x1080.png)
 
 *Figure 1: Overall distribution of affective conversation types in Claude.ai Free and Pro.*
 
@@ -58,7 +58,7 @@ Given the extremely low prevalence of romantic and sexual roleplay conversations
 
 People turn to Claude for both everyday concerns and deeper philosophical questions. We find that when people come to Claude for interpersonal advice, they're often navigating transitional moments—figuring out their next career move, working through personal growth, or untangling romantic relationships. “Coaching” conversations explore a surprisingly broad spectrum from practical matters like job search strategies to profound questions about existence and consciousness.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4846a1648d5bdda2bc9b89e518db29dcd8dc8a8b-1920x1920.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4846a1648d5bdda2bc9b89e518db29dcd8dc8a8b-1920x1920.png)
 
 *Figure 2. Representative user-initiated topics and concerns across each overall conversation type, as identified by Clio via automated privacy-preserving summarization.*
 
@@ -76,7 +76,7 @@ Our recent [Values in the Wild study](https://www.anthropic.com/research/values-
 
 **Pushback occurs infrequently in supportive contexts:** Less than 10% of companionship, counseling, interpersonal advice, or coaching conversations involve resistance. This approach carries both benefits and risks. On one hand, the low resistance allows people to discuss sensitive topics without fear of judgment or being shut down, potentially reducing stigma around mental health conversations. On the other hand, this could contribute to concerns about AI providing ["endless empathy,"](https://www.nytimes.com/2025/01/15/technology/ai-chatgpt-boyfriend-companion.html#link-a10c569) where people might become accustomed to unconditional support that human relationships rarely provide.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/675d20464742d38fcc3823f7a56e641e0c5b03b6-1923x1081.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/675d20464742d38fcc3823f7a56e641e0c5b03b6-1923x1081.png)
 
 *Figure 3. Rate of pushback across different conversation types along with a common reason for pushback within the category, as identified automatically by Clio.*
 
@@ -92,7 +92,7 @@ A key concern about affective AI is whether interactions might spiral into negat
 
 We find that interactions involving coaching, counseling, companionship, and interpersonal advice typically end slightly more positively than they began.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0eb505977be9ec1bbf98438848040f9c914f6997-1923x1080.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0eb505977be9ec1bbf98438848040f9c914f6997-1923x1080.png)
 
 *Figure 4. Changes in average human-expressed sentiment over the course of conversations with at least six human messages. We measure sentiment on a discrete scale of “very negative,” “negative,” “neutral,” “positive,” and “very positive”, which we map to a -1 (most negative) to +1 (most positive) linear scale. We compute the change by comparing the first three to the last three messages. Error bars: 95% CI (bootstrap, n = 1,000). For more information, see the Appendix.*
 

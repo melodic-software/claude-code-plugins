@@ -87,40 +87,70 @@ If repositories break due to Windows file path limitations:
 - Consider excluding antivirus scanning for development directories (see below)
 - Consider using WSL2 for repositories with many files (better filesystem performance)
 
-**Antivirus interference (Windows Defender):**
+### Antivirus interference (Windows Defender)
 
-If you see errors like `error: unable to stat just-written file` during Git operations (checkout, clone, merge), Windows Defender is likely scanning files before Git can access them.
+If you see errors like `error: unable to stat just-written file` during Git operations (checkout, clone, merge), Windows Defender real-time protection is scanning files between Git's write and stat operations, causing a race condition.
 
 Symptoms:
 
 - `error: unable to stat just-written file '<path>': No such file or directory`
+- First file in a batch operation succeeds, subsequent files fail
 - Git operations fail intermittently on repos with many files
-- Operations succeed on retry
+- Operations may succeed on retry
 
-Solution - Add exclusion (requires Administrator PowerShell):
+Solution - Add exclusions (requires Administrator PowerShell):
+
+#### Step 1: Add process exclusions (most effective)
+
+Process exclusions prevent Defender from scanning files created by Git, regardless of location:
 
 ```powershell
+# Add Git executables as process exclusions
+Add-MpPreference -ExclusionProcess "C:\Program Files\Git\cmd\git.exe"
+Add-MpPreference -ExclusionProcess "C:\Program Files\Git\bin\git.exe"
+Add-MpPreference -ExclusionProcess "C:\Program Files\Git\mingw64\bin\git.exe"
+```
+
+#### Step 2: Add folder exclusions
+
+```powershell
+# Exclude Git installation folder
+Add-MpPreference -ExclusionPath "C:\Program Files\Git"
+
 # Exclude your development directory (subfolders are automatically included)
 Add-MpPreference -ExclusionPath "C:\Users\<username>\repos"
-
-# Or exclude a specific repo
-Add-MpPreference -ExclusionPath "C:\Users\<username>\repos\my-project"
 ```
 
-Verify exclusion was added:
+#### Step 3 (if still failing): Disable Git's file system cache
+
+As a workaround if exclusions alone don't resolve the issue:
 
 ```powershell
-Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+git config --global core.fscache false
 ```
 
-View/manage exclusions via GUI:
+**Verify exclusions were added:**
+
+```powershell
+# View path exclusions
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath
+
+# View process exclusions
+Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
+```
+
+**View/manage exclusions via GUI:**
 
 1. Open **Windows Security** (search in Start)
 2. Click **Virus & threat protection**
 3. Scroll to **Virus & threat protection settings** -> **Manage settings**
 4. Scroll to **Exclusions** -> **Add or remove exclusions**
 
-**Security note:** Only exclude trusted development directories you control. Excluding large portions of your filesystem reduces antivirus protection.
+**Why process exclusions are more effective than folder exclusions:**
+
+Folder exclusions tell Defender not to scan files in a location, but with rapid file operations, there can still be a race condition. Process exclusions tell Defender to trust all file operations from that process, eliminating the race condition entirely.
+
+**Security note:** Only exclude trusted development directories and the official Git installation. Excluding large portions of your filesystem reduces antivirus protection. If you have third-party endpoint protection software (corporate antivirus, EDR), it may also need similar exclusions.
 
 **Git Bash command history not working in Windows Terminal:**
 

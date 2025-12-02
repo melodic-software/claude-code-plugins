@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-financial-services
 source_type: sitemap
-content_hash: sha256:27c00c4ae40b6b0ca3b391fd3413766ca3970508e2bf12e3c631c9eac5086ea3
+content_hash: sha256:6c8a195c8d709f0a263d232596efc886dace662c4110c57f6e4d196c6c204763
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
@@ -19,7 +19,7 @@ Today, we're introducing a comprehensive solution for financial analysis that tr
 
 The Financial Analysis Solution unifies your financial data—from market feeds to internal data stored in platforms like Databricks and Snowflake—into a single interface. Access your critical data sources with direct hyperlinks to source materials for instant verification, all in one platform with expanded capacity for demanding financial workloads.
 
-![A price performance chart showing movement with key events](https://www-cdn.anthropic.com/images/4zrzovbb/website/8e5e04d55f4bcd660503514efdc3f3a1bf32694d-2880x1620.png&w=3840&q=75)
+![A price performance chart showing movement with key events](https://www-cdn.anthropic.com/images/4zrzovbb/website/8e5e04d55f4bcd660503514efdc3f3a1bf32694d-2880x1620.png)
 
 Our Financial Analysis Solution includes:
 
@@ -63,7 +63,7 @@ Our ecosystem delivers both data access and implementation expertise through lea
 
 Claude accelerates critical investment and analysis workflows including due diligence and market research, competitive benchmarking and portfolio deep dives, financial modeling with full audit trails, and generating institutional-quality investment memos and pitch decks. Teams can monitor portfolio performance and compare metrics across investments to identify opportunities faster than traditional methods.
 
-![A Comparable Company Analysis Chart](https://www-cdn.anthropic.com/images/4zrzovbb/website/57c89bc3582c7f3bce005f864c077bf7b015f626-2880x1620.png&w=3840&q=75)
+![A Comparable Company Analysis Chart](https://www-cdn.anthropic.com/images/4zrzovbb/website/57c89bc3582c7f3bce005f864c077bf7b015f626-2880x1620.png)
 
 Leading financial institutions are seeing proven results:
 

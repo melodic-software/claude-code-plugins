@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/home
 source_type: sitemap
-content_hash: sha256:8f8030382a0a151d5e35aa0b985e3b9d0860021a22e08e2582e180d28a78e4db
+content_hash: sha256:4f6d5b01e1b50e206136da3aaafa1b4e97208f0939b78963c8e6679219859efe
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: html
 ---
@@ -17,6 +17,8 @@ Search...
 ⌘K
 
 [Console](/)
+
+[Log in](/login)
 
 Home
 

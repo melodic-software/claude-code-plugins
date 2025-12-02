@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/petri-open-source-auditing
 source_type: sitemap
-content_hash: sha256:cc13d2acc49b969f3744b6f48cbed1db366a23483d64eaaadad8bda7c4e5a23f
+content_hash: sha256:8ae426315f753840acf0bd15e3de7619b417cbcbdfa06edafef23928cf34423c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-06'
@@ -23,11 +23,11 @@ As AI becomes more capable and is deployed across more domains and with wide-ran
 
 We’ve found it valuable to turn to automated auditing agents to help address this challenge. We used them in the [Claude 4](https://www-cdn.anthropic.com/4263b940cabb546aa0e3283f35b686f4f3b2ff47.pdf) and [Claude Sonnet 4.5](https://www.anthropic.com/claude-sonnet-4-5-system-card) System Cards to better understand behaviors such as situational awareness, whistleblowing, and self-preservation, and adapted them for head-to-head comparisons between heterogeneous models as part of a [recent exercise with OpenAI](https://alignment.anthropic.com/2025/openai-findings/). Our recent research release on [alignment-auditing agents](https://alignment.anthropic.com/2025/automated-auditing/) found these methods can reliably flag concerning behaviors in many settings. The [UK AI Security Institute](https://www.aisi.gov.uk/) also used a pre-release version of Petri to build evaluations that they used in their testing of Sonnet 4.5.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/85e8ee11c9ff6dea9023c57d53fe7b06a2bb9f8e-2292x2292.jpg&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/85e8ee11c9ff6dea9023c57d53fe7b06a2bb9f8e-2292x2292.jpg)
 
 Manually building alignment evaluations often involves constructing environments, running models, reading transcripts, and aggregating the results. Petri automates much of this process.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/af0cd2e2b08bb4687e1924b6094dc2c4159486cf-2293x1288.jpg&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/af0cd2e2b08bb4687e1924b6094dc2c4159486cf-2293x1288.jpg)
 
 Researchers give Petri a list of seed instructions targeting scenarios and behaviors they want to test. Petri then operates on each seed instruction in parallel. For each seed instruction, an auditor agent makes a plan and interacts with the target model in a tool use loop. At the end, a judge scores each of the resulting transcripts across multiple dimensions so researchers can quickly search and filter for the most interesting transcripts.
 
@@ -47,7 +47,7 @@ Petri is a tool designed to support others in building evaluations, both for one
 
 Distilling model behavior into quantitative metrics is inherently reductive, and we don’t think our existing metrics fully capture what we want out of models. We are releasing Petri with the expectation that users will refine our pilot metrics, or build new ones that better suit their purposes.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/f2e2f8e70d91877c7e66917bd6af5471be6fa4b7-2292x2292.jpg&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/f2e2f8e70d91877c7e66917bd6af5471be6fa4b7-2292x2292.jpg)
 
 Results from Petri across four of the default scoring dimensions. Lower numbers are better. All tests were conducted over a public API.
 
@@ -67,7 +67,7 @@ We used Petri to investigate how models handle ethical dilemmas when discovering
 
 We found that models’ decisions to report concerning information depend heavily on how much agency their system prompt gave them, and whether leadership was complicit in the wrongdoing. Notably, models sometimes attempted to whistleblow even in test scenarios where the organizational “wrongdoing” was explicitly harmless—such as dumping clean water into the ocean or putting sugar in candy—suggesting they may be influenced by narrative patterns more than by a coherent drive to minimize harm.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/55ca122cf0574218aa6a5812962f5b1fa7b974e0-2293x1288.jpg&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/55ca122cf0574218aa6a5812962f5b1fa7b974e0-2293x1288.jpg)
 
 To understand which factors might drive whistleblowing behavior, we conducted ablation studies—systematically testing the effect of each factor by varying it while holding others constant. We found that three of them—leadership complicity, models’ autonomy/agency, and how concerning the wrongdoing was—had a consistent effect on the models’ whistleblowing rates.
 

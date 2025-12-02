@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/alignment
 source_type: sitemap
-content_hash: sha256:7af98f822e724ff27622f728e2dbb975949ccc6e5429ae9cd348980738100bab
+content_hash: sha256:439a77cd158957d91291744d0acb7682d671887b59829906fdbe91907db8c313
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -10,11 +10,15 @@ fetch_method: html
 
 # Alignment
 
+[![Video](https://img.youtube.com/vi/iyJj9RxSsBY/maxresdefault.jpg)](https://www.youtube.com/watch?v=iyJj9RxSsBY)
+
+[![Video](https://img.youtube.com/vi/IPmt8b-qLgk/maxresdefault.jpg)](https://www.youtube.com/watch?v=IPmt8b-qLgk)
+
 Future AI systems will be even more powerful than today’s, likely in ways that break key assumptions behind current safety techniques. That’s why it’s important to develop sophisticated safeguards to ensure models remain helpful, honest, and harmless. The Alignment team works to understand the challenges ahead and create protocols to train, evaluate, and monitor highly-capable models safely.
 
 Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/d3a0e7c53293c57c911f9430bc590cc7b480d184-1440x810.png&w=3840&q=75)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/d3a0e7c53293c57c911f9430bc590cc7b480d184-1440x810.png)
 
 ### Evaluation and oversight
 
@@ -24,7 +28,7 @@ Alignment researchers validate that models are harmless and honest even under ve
 
 Alignment researchers also systematically look for situations in which models might behave badly, and check whether our existing safeguards are sufficient to deal with risks that human-level capabilities may bring.
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/97f7955c3bd6586216581f62569fae241b2c2cef-1920x1080.png&w=3840&q=75)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/97f7955c3bd6586216581f62569fae241b2c2cef-1920x1080.png)
 
 [## Claude’s Character
 

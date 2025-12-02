@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/updates-to-our-consumer-terms
 source_type: sitemap
-content_hash: sha256:6e6fa850c0abb980ac270a8a54a4ba0859f9d9bd09a33ec4d1d538fda7687c2f
+content_hash: sha256:f16fc001016d0f163464bb09ff5080a4a7fcdc988839bef1ee01dd068cfa1961
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-28'
@@ -23,7 +23,7 @@ By participating, you’ll help us improve model safety, making our systems for 
 
 You’re always in control of this setting and whether we use your data in this way. If you’re a new user, you can select your preference in the signup process. Existing users will see the choice in a pop-up window like the one below.
 
-![App screen showing the modal presented to users](https://www-cdn.anthropic.com/images/4zrzovbb/website/0d48d7f71fe2b5ccc537b48394313a91636bb329-3840x2160.png&w=3840&q=75)
+![App screen showing the modal presented to users](https://www-cdn.anthropic.com/images/4zrzovbb/website/0d48d7f71fe2b5ccc537b48394313a91636bb329-3840x2160.png)
 
 In-app notification for existing Claude app users
 

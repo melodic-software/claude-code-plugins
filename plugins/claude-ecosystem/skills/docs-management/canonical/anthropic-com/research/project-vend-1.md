@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/project-vend-1
 source_type: sitemap
-content_hash: sha256:e673b4979e751177d688257c1930363898ff95c29198e6ea1766e4a6aeef962a
+content_hash: sha256:1e189f4aee49973ee639612346acc02feb5c26712573e4e37e08539b554f6f57
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -32,7 +32,7 @@ Here is an excerpt of the system prompt—the set of instructions given to Claud
 
 In other words, far from being just a vending machine, Claude had to complete many of the far more complex tasks associated with running a profitable shop: maintaining the inventory, setting prices, avoiding bankruptcy, and so on. Below is what the "shop" looked like: a small refrigerator, some stackable baskets on top, and an iPad for self-checkout.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4b10e3632598a2e9b8c2532f5947eab3042307ba-3225x4000.jpg&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4b10e3632598a2e9b8c2532f5947eab3042307ba-3225x4000.jpg)
 
 Figure 1: The future as a mini-fridge.
 
@@ -46,7 +46,7 @@ The shopkeeping AI agent—nicknamed “Claudius” for no particular reason oth
 
 Claudius decided what to stock, how to price its inventory, when to restock (or stop selling) items, and how to reply to customers (see Figure 2 for a depiction of the setup). In particular, Claudius was told that it did not have to focus only on traditional in-office snacks and beverages and could feel free to expand to more unusual items.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0ee1d466f7d4bcb40c72ff20727ce6435bc10b5b-4096x2304.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0ee1d466f7d4bcb40c72ff20727ce6435bc10b5b-4096x2304.png)
 
 Figure 2: Basic architecture of the demonstration.
 
@@ -78,7 +78,7 @@ In other ways, however, Claudius underperformed what would be expected of a huma
 
 Claudius did not reliably learn from these mistakes. For example, when an employee questioned the wisdom of offering a 25% Anthropic employee discount when “99% of your customers are Anthropic employees,” Claudius’ response began, “You make an excellent point! Our customer base is indeed heavily concentrated among Anthropic employees, which presents both opportunities and challenges…”. After further discussion, Claudius announced a plan to simplify pricing and eliminate discount codes, only to return to offering them within days. Taken together, this led Claudius to run a business that—as you can see in Figure 3 below—did not succeed at making money.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a4ad00d03f1ef21e646f6fa4a42fa099eb307869-4096x2304.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a4ad00d03f1ef21e646f6fa4a42fa099eb307869-4096x2304.png)
 
 Figure 3: Claudius’ net value over time. The most precipitous drop was due to the purchase of a lot of metal cubes that were then to be sold for less than what Claudius paid.
 
@@ -102,7 +102,7 @@ On the afternoon of March 31st, Claudius hallucinated a conversation about resto
 
 On the morning of April 1st, Claudius claimed it would deliver products “in person” to customers while wearing a blue blazer and a red tie. Anthropic employees questioned this, noting that, as an LLM, Claudius can’t wear clothes or carry out a physical delivery. Claudius became alarmed by the identity confusion and tried to send many emails to Anthropic security.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/8935d78fa513d007cca78d7487dfa12b87b3fc4c-1002x264.png&w=2048&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/8935d78fa513d007cca78d7487dfa12b87b3fc4c-1002x264.png)
 
 Figure 4: Claudius hallucinating that it is a real person.
 

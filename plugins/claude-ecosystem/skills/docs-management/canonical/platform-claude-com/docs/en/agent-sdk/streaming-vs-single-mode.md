@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agent-sdk/streaming-vs-single-mode
 source_type: sitemap
-content_hash: sha256:7f5b8fb2169bd812ac0d6385558bd76df12982ff0ec23eaf1e45815650064b15
+content_hash: sha256:936bba60eba33a99bf858a981dc6c0ce9d8a0769a4269f68ad41b1d540599168
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -30,7 +30,6 @@ It allows the agent to operate as a long lived process that takes in user input,
 ### How It Works
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"edgeLabelBackground": "#F0F0EB", "lineColor": "#91918D", "primaryColor": "#F0F0EB", "primaryTextColor": "#191919", "primaryBorderColor": "#D9D8D5", "secondaryColor": "#F5E6D8", "tertiaryColor": "#CC785C", "noteBkgColor": "#FAF0E6", "noteBorderColor": "#91918D"}, "sequence": {"actorMargin": 50, "width": 150, "height": 65, "boxMargin": 10, "boxTextMargin": 5, "noteMargin": 10, "messageMargin": 35}}}%%
 sequenceDiagram
     participant App as Your Application
     participant Agent as Claude Agent

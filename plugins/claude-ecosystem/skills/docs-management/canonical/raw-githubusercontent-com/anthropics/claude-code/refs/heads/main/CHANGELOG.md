@@ -1,11 +1,16 @@
 ---
 source_url: https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG
 source_type: manual
-content_hash: sha256:a3eb50e5a8d762c579e9ebaa0f5efb7a069efe9c4dd2801ff51f648afc44c2b9
+content_hash: sha256:786276a1ac169169c24f15c4024d96af794aa63e401e0e37476a42dfe9e22365
 fetch_method: markdown
 ---
 
 # Changelog
+
+## 2.0.56
+
+- Added setting to enable/disable terminal progress bar (OSC 9;4)
+- VSCode Extension: Added support for VS Code's secondary sidebar (VS Code 1.97+), allowing Claude Code to be displayed in the right sidebar while keeping the file explorer on the left. Requires setting sidebar as Preferred Location in the config.
 
 ## 2.0.55
 

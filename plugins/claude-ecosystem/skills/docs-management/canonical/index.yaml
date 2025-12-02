@@ -2,7 +2,7 @@ anthropic-com-engineering-a-postmortem-of-three-recent-issues:
   category: engineering
   description: Published Sep 17, 2025
   domain: anthropic.com
-  hash: sha256:ff8e7ba993f817973755d90a15a5f4253f52811fdcd18ec1982064c5fac87a30
+  hash: sha256:5060d47e39b2f276d640b862bbdf7e5818a227ea017f2c76763c3d8f1f845254
   keywords:
   - recent-issues
   - engineering
@@ -16,7 +16,7 @@ anthropic-com-engineering-a-postmortem-of-three-recent-issues:
   - corruption
   - detection
   - published
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/a-postmortem-of-three-recent-issues.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -111,7 +111,7 @@ anthropic-com-engineering-advanced-tool-use:
   category: engineering
   description: Published Nov 24, 2025
   domain: anthropic.com
-  hash: sha256:3c14625f9bb4981a7245a5239f574ddd70c266926984b78767fb5aeffa752d12
+  hash: sha256:6bdf9277a249adda7a49ed488dfaec51ea14d98989b71d3588fac75901be1817
   keywords:
   - advanced-tool-use
   - engineering
@@ -125,7 +125,7 @@ anthropic-com-engineering-advanced-tool-use:
   - find employees
   - layer features
   - prompt caching
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/advanced-tool-use.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -320,7 +320,7 @@ anthropic-com-engineering-building-agents-with-the-claude-agent-sdk:
   category: engineering
   description: Published Sep 29, 2025
   domain: anthropic.com
-  hash: sha256:91a4327f83469524780e3fd18d026d1db2c9f0fa2dabf7637c7e128c1245801f
+  hash: sha256:e9b42548f0a65157d343ad4cba5de9b81f73073208c79d4529f04ff3831756da
   keywords:
   - building-agents
   - agent-sdk
@@ -334,7 +334,7 @@ anthropic-com-engineering-building-agents-with-the-claude-agent-sdk:
   - visual feedback
   - agentic search
   - context window
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/building-agents-with-the-claude-agent-sdk.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -517,7 +517,7 @@ anthropic-com-engineering-claude-code-sandboxing:
   category: engineering
   description: Published Oct 20, 2025
   domain: anthropic.com
-  hash: sha256:a9f0c97a418f188a20ec8c486666b5ccc394295c321ada3ad60420c63268ea60
+  hash: sha256:debaa029ac905aee0589f5360372fc01e37e00f12094376daadc6925eef7419c
   keywords:
   - claude-code-sandboxing
   - engineering
@@ -531,7 +531,7 @@ anthropic-com-engineering-claude-code-sandboxing:
   - bash tool
   - safe bash
   - acknowledgements
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/claude-code-sandboxing.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -592,7 +592,7 @@ anthropic-com-engineering-code-execution-with-mcp:
   category: engineering
   description: Published Nov 04, 2025
   domain: anthropic.com
-  hash: sha256:a44a1040c19b3444e2804aa2d822201bdac0c4e463f171299e9ecd2c59f929a5
+  hash: sha256:bb3d60ccd6e4db3e13debe54b2de89e398b9446506308b8c405e7130fa4a8cb0
   keywords:
   - code-execution-with-mcp
   - engineering
@@ -606,7 +606,7 @@ anthropic-com-engineering-code-execution-with-mcp:
   - efficient agents
   - improves context
   - excessive token
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/code-execution-with-mcp.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -721,7 +721,7 @@ anthropic-com-engineering-desktop-extensions:
   category: engineering
   description: Published Jun 26, 2025
   domain: anthropic.com
-  hash: sha256:b9c06ead3add275915660fae00c98c19d7d6010d920eed3fa9e656b34ce17b44
+  hash: sha256:146c12b6f1069c4fc861cb22a3c68c219e466bb033e8566506d07ef704741143
   keywords:
   - desktop-extensions
   - engineering
@@ -735,7 +735,7 @@ anthropic-com-engineering-desktop-extensions:
   - desktop extensions
   - advanced features
   - install node
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/desktop-extensions.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -855,7 +855,7 @@ anthropic-com-engineering-effective-context-engineering-for-ai-agents:
   category: engineering
   description: Published Sep 29, 2025
   domain: anthropic.com
-  hash: sha256:cbbae935b0c9a92a315a074498a2f087d7ce31e361d2929b10aa267f8dfda954
+  hash: sha256:cce60adbba021e6fea4866c81382c509d8da87a247d9f823df7ad3bfae239362
   keywords:
   - effective-context-engineering
   - context-engineering
@@ -869,7 +869,7 @@ anthropic-com-engineering-effective-context-engineering-for-ai-agents:
   - context engineering
   - prompt engineering
   - context retrieval
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/effective-context-engineering-for-ai-agents.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -947,7 +947,7 @@ anthropic-com-engineering-effective-harnesses-for-long-running-agents:
   category: engineering
   description: Published Nov 26, 2025
   domain: anthropic.com
-  hash: sha256:c063ae5a99d26f7e89228ab112d12fbaaca2d7a4baffc91b32d140e069ab2e1c
+  hash: sha256:4a060275913ce7e4f6a51c6d1b41c570199a1d916e826d216aeba13a9efcbfdf
   keywords:
   - effective-harnesses
   - long-running-agents
@@ -961,7 +961,7 @@ anthropic-com-engineering-effective-harnesses-for-long-running-agents:
   - environment management
   - incremental progress
   - effective harnesses
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/effective-harnesses-for-long-running-agents.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1057,7 +1057,7 @@ anthropic-com-engineering-equipping-agents-for-the-real-world-with-agent-skills:
   category: skills
   description: Published Oct 16, 2025
   domain: anthropic.com
-  hash: sha256:188f1bdd64585e8851827bc3baf3fd8eb35760001864cb22f6a5c20f6630be7d
+  hash: sha256:b1dce3ce54e77aeec3cee3b4a01169198289b23209892344fddbaf91f90a3b1a
   keywords:
   - equipping-agents
   - agent-skills
@@ -1071,7 +1071,7 @@ anthropic-com-engineering-equipping-agents-for-the-real-world-with-agent-skills:
   - model context protocol
   - progressive disclosure
   - evaluating skills
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/equipping-agents-for-the-real-world-with-agent-skills.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1149,7 +1149,7 @@ anthropic-com-engineering-multi-agent-research-system:
   category: research
   description: Published Jun 13, 2025
   domain: anthropic.com
-  hash: sha256:723363c3d03bc5dce97ba5f00d51ddf1296e07d12be0411b7aeb2852202b13ba
+  hash: sha256:16216d6ea131646f79e187b733ea241b28efc7c1df0db13917573dd92a06bde1
   keywords:
   - multi-agent-research-system
   - agent-research-system
@@ -1163,7 +1163,7 @@ anthropic-com-engineering-multi-agent-research-system:
   - agent
   - multi
   - engineering challenges
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/multi-agent-research-system.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1258,7 +1258,7 @@ anthropic-com-engineering-writing-tools-for-agents:
   category: engineering
   description: Published Sep 11, 2025
   domain: anthropic.com
-  hash: sha256:0487fc346be9f9d6941b2d62084731d650490b4c8ecae83ffa4ecfce677ead4f
+  hash: sha256:0e5834f8f5f269203dc87bb95b9c93d811fa247b533dd1ee3d76c589d1fbaafb
   keywords:
   - writing-tools-for-agents
   - writing-tools
@@ -1272,7 +1272,7 @@ anthropic-com-engineering-writing-tools-for-agents:
   - tool descriptions
   - writing effective
   - natural language
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/engineering/writing-tools-for-agents.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1413,7 +1413,7 @@ anthropic-com-news-advancing-claude-for-education:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:1cd36faa93baf69517344dee06c0dadafacaaac5bfa178c235e80554326e894e
+  hash: sha256:5e7f60f276a8c112593e64d3a70bab8feb7b197c1517e1d564b9e304b85e2fac
   keywords:
   - advancing-claude-for-education
   - advancing
@@ -1427,7 +1427,7 @@ anthropic-com-news-advancing-claude-for-education:
   - computer use
   - mcp servers
   - announce
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/advancing-claude-for-education.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1512,7 +1512,7 @@ anthropic-com-news-advancing-claude-for-financial-services:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:87966532bfb78eccf63737e6ad4a46c096843aeb2d918a565bdd471b0afc661e
+  hash: sha256:f6336153285ce75c0c30210b53c122b0dac9f67433a5147e89694b67ae3008b4
   keywords:
   - financial-services
   - advancing
@@ -1526,7 +1526,7 @@ anthropic-com-news-advancing-claude-for-financial-services:
   - mcp connector
   - agent skills
   - computer use
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/advancing-claude-for-financial-services.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -1798,7 +1798,7 @@ anthropic-com-news-anthropic-education-report-how-educators-use-claude:
   category: news
   description: Societal Impacts
   domain: anthropic.com
-  hash: sha256:04a92f66ffe4d17f871b1f1accaf9ca96511ea285803389d2add452797d9e89b
+  hash: sha256:5f1ff5310382ab4e6ea54d227c316d67961d09f07bfca4bc9337301c2d65e53a
   keywords:
   - education-report
   - educators-use
@@ -1812,7 +1812,7 @@ anthropic-com-news-anthropic-education-report-how-educators-use-claude:
   - building custom
   - looking ahead
   - computer use
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/anthropic-education-report-how-educators-use-claude.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2655,7 +2655,7 @@ anthropic-com-news-building-safeguards-for-claude:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:119863fcd86a52e7939b36b8fa82638070bf646236515efde1670fcfda98ee88
+  hash: sha256:778a2a429af1bd10561ca29fbc0169a1e81cae822b784c0b61c64ad9cfe354c3
   keywords:
   - building-safeguards-for-claude
   - building-safeguards
@@ -2669,7 +2669,7 @@ anthropic-com-news-building-safeguards-for-claude:
   - looking forward
   - time detection
   - system prompt
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/building-safeguards-for-claude.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2884,7 +2884,7 @@ anthropic-com-news-claude-for-financial-services:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:27c00c4ae40b6b0ca3b391fd3413766ca3970508e2bf12e3c631c9eac5086ea3
+  hash: sha256:6c8a195c8d709f0a263d232596efc886dace662c4110c57f6e4d196c6c204763
   keywords:
   - claude-for-financial-services
   - financial-services
@@ -2898,7 +2898,7 @@ anthropic-com-news-claude-for-financial-services:
   - computer use
   - accelerating
   - ecosystem
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-for-financial-services.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -2988,7 +2988,7 @@ anthropic-com-news-claude-for-life-sciences:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:1f56d2398f8ad7277b01469388a93dd9fd641a3f57394629c9671bd2a91bbc7c
+  hash: sha256:f7a75a6f15ffaf2e42c0a4427fb90e1f03fe08b65b4ac33c735b1ae92eec44b3
   keywords:
   - claude-for-life-sciences
   - life-sciences
@@ -3002,7 +3002,7 @@ anthropic-com-news-claude-for-life-sciences:
   - agent skills
   - computer use
   - mcp servers
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-for-life-sciences.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3180,7 +3180,7 @@ anthropic-com-news-claude-haiku-4-5:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:b9c3e6ea40e373de849640f04bac8d896e6c41739a6ca6299d57a55b6aad71f0
+  hash: sha256:ab6d4a52a7559e69747cc950bb6895bd9abac86fad1abbe10839078abf039df7
   keywords:
   - claude-haiku-4-5
   - haiku
@@ -3194,7 +3194,7 @@ anthropic-com-news-claude-haiku-4-5:
   - evaluations
   - introducing
   - benchmarks
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-haiku-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3364,7 +3364,7 @@ anthropic-com-news-claude-in-microsoft-foundry:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:64a888753652741da6929723a559346f6c556a14232056b84e97cb350cbc3748
+  hash: sha256:76d7a201b9bef5482cd83ea6220d15c21bd6016272ed4c5a54311a6b4348de92
   keywords:
   - claude-in-microsoft-foundry
   - microsoft-foundry
@@ -3378,7 +3378,7 @@ anthropic-com-news-claude-in-microsoft-foundry:
   - web search
   - tool use
   - announce
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-in-microsoft-foundry.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3456,7 +3456,7 @@ anthropic-com-news-claude-in-xcode:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:d6e75c0e5fd4948adc87f889f1071776211f7079db0fa06533e220daf31f6556
+  hash: sha256:2e7f9795765f58d54e7167558a8260d59d93c4f0c974c405d86b7b932fe2d635
   keywords:
   - claude-in-xcode
   - xcode
@@ -3470,7 +3470,7 @@ anthropic-com-news-claude-in-xcode:
   - content
   - copilot
   - foundry
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-in-xcode.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3535,7 +3535,7 @@ anthropic-com-news-claude-opus-4-1:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:5592a81bd3a3b2dffc4b69a705f67100a3e7f2c924373f7a7cc5ba4c8a0fc9ac
+  hash: sha256:4f5985d66b8c0630d477f29af393bd622641eb5e08df0e36c803ca3f5d53fbd1
   keywords:
   - claude-opus-4-1
   - strategic partnerships
@@ -3549,7 +3549,7 @@ anthropic-com-news-claude-opus-4-1:
   - introducing
   - announce
   - appendix
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-opus-4-1.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3617,7 +3617,7 @@ anthropic-com-news-claude-opus-4-5:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:20e3f7b7b242b0c7b92243ddb357e0c4b4aadc9b8075a029dd10b3f7f4058632
+  hash: sha256:c38741e5d2e4c2658818183cb500f8311aba700dfb476dd503b4f58bbe5849d5
   keywords:
   - claude-opus-4-5
   - strategic partnerships
@@ -3631,7 +3631,7 @@ anthropic-com-news-claude-opus-4-5:
   - introducing
   - announce
   - content
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-opus-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -3730,7 +3730,7 @@ anthropic-com-news-claude-sonnet-4-5:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:1e73b51c98943144d96aa945d86a97c5eb7cf0b299287c2c25eb31a6e5df0be6
+  hash: sha256:ca9d8333f3079c124b027faea7a2dc4f58c42e33941f3b8dc157a2bfb17ca3b6
   keywords:
   - claude-sonnet-4-5
   - sonnet
@@ -3744,7 +3744,7 @@ anthropic-com-news-claude-sonnet-4-5:
   - context window
   - system prompt
   - computer use
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/claude-sonnet-4-5.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4000,7 +4000,7 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:71404d3a75278fbd64e9e67a037aade50a63a043850d2a39236b04320935edab
+  hash: sha256:26684655b001110f2ca5ce106802c275b8780b89344774d936d510771f67bdc4
   keywords:
   - detecting-countering-misuse
   - countering-misuse-aug
@@ -4014,7 +4014,7 @@ anthropic-com-news-detecting-countering-misuse-aug-2025:
   - misuse
   - strategic partnerships
   - generated ransomware
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/detecting-countering-misuse-aug-2025.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4176,7 +4176,7 @@ anthropic-com-news-disrupting-AI-espionage:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:2e179d264d4fd5205a30d922c9c1c4d276d81e3e6675ef98463c284b7d90f037
+  hash: sha256:ba2a51b9738efe69cf8a890d4f2ed1f85bd7cddadbf12a3ebbf0c577378c72c7
   keywords:
   - disrupting-ai-espionage
   - disrupting
@@ -4190,7 +4190,7 @@ anthropic-com-news-disrupting-AI-espionage:
   - cybersecurity
   - orchestrated
   - cyberattack
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/disrupting-AI-espionage.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4357,7 +4357,7 @@ anthropic-com-news-enabling-claude-code-to-work-more-autonomously:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:9fba50a653281dd4003b3badf504d9fc1bb423ae61db6b597eadfd9a13f3dfd9
+  hash: sha256:5253a8aa7d1f2d381de5da0c364566f6b5062d445ba405fabe4f21cf1bb0070d
   keywords:
   - enabling
   - strategic partnerships
@@ -4371,7 +4371,7 @@ anthropic-com-news-enabling-claude-code-to-work-more-autonomously:
   - content
   - copilot
   - execute
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/enabling-claude-code-to-work-more-autonomously.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -4790,7 +4790,7 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
   category: news
   description: Societal Impacts
   domain: anthropic.com
-  hash: sha256:1b87c5009bc26a4b60960302f3976cc6e6fb605f708e29a78a1389d79f4c4468
+  hash: sha256:cd1c18820ca55d6778aca05c4c5a31157c9205220a2eeedcc20ccfa2c7e93041
   keywords:
   - support-advice
   - people-use
@@ -4804,7 +4804,7 @@ anthropic-com-news-how-people-use-claude-for-support-advice-and-companionship:
   - looking ahead
   - computer use
   - people bring
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/how-people-use-claude-for-support-advice-and-companionship.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5304,7 +5304,7 @@ anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:d20e308b2878c14039592f6379b2131e646e062061d00f298ad19587f145a8a4
+  hash: sha256:781d687d1f79602fe10082aa3d052b7ca301c69a47ed9b35bedd6dac57e2be97
   keywords:
   - announce-strategic-partnerships
   - strategic-partnerships
@@ -5318,7 +5318,7 @@ anthropic-com-news-microsoft-nvidia-anthropic-announce-strategic-partnerships:
   - strategic partnerships
   - microsoft foundry
   - computer use
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5662,7 +5662,7 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
   category: news
   description: Policy
   domain: anthropic.com
-  hash: sha256:739a36913f920b7764e68b8c43ccce092067be6548ae4898b0c6dc0b67bbc129
+  hash: sha256:61baf8f9b8023550fea6ecae3940b2c4485b439eb6e72f0457cd2e5c5e5649c9
   keywords:
   - trustworthy-agents
   - developing-safe
@@ -5676,7 +5676,7 @@ anthropic-com-news-our-framework-for-developing-safe-and-trustworthy-agents:
   - microsoft foundry
   - natural language
   - aligning agents
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/our-framework-for-developing-safe-and-trustworthy-agents.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5855,7 +5855,7 @@ anthropic-com-news-political-even-handedness:
   category: news
   description: ProductSocietal Impacts
   domain: anthropic.com
-  hash: sha256:019e899e99f2802c8c70d507e0638a6bd50e60305b63a38a9bd6754db94141f9
+  hash: sha256:d550a9df5841aa0b955f22a20c25364d7aa5f00da3ccb35f229e006a4a10fbcd
   keywords:
   - political-even-handedness
   - handedness
@@ -5869,7 +5869,7 @@ anthropic-com-news-political-even-handedness:
   - system prompt
   - computer use
   - productsocietal
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/political-even-handedness.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6756,7 +6756,7 @@ anthropic-com-news-updates-to-our-consumer-terms:
   category: news
   description: Product
   domain: anthropic.com
-  hash: sha256:6e6fa850c0abb980ac270a8a54a4ba0859f9d9bd09a33ec4d1d538fda7687c2f
+  hash: sha256:f16fc001016d0f163464bb09ff5080a4a7fcdc988839bef1ee01dd068cfa1961
   keywords:
   - consumer-terms
   - consumer
@@ -6770,7 +6770,7 @@ anthropic-com-news-updates-to-our-consumer-terms:
   - privacy policy
   - extended data
   - computer use
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/news/updates-to-our-consumer-terms.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7002,7 +7002,7 @@ anthropic-com-research-agentic-misalignment:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:12f4f0b0bb5d6cbade06fd57e76cede57803dd97dc555c867ba8b47699f1c460
+  hash: sha256:a2e21ef59b1d18e92812ea30ca637713e95151e8df521cf274fac624949aa2a4
   keywords:
   - agentic-misalignment
   - misalignment
@@ -7016,7 +7016,7 @@ anthropic-com-research-agentic-misalignment:
   - prompt engineering
   - harmful actions
   - goal conflicts
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/agentic-misalignment.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7208,7 +7208,7 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:bbdca31775aed8d7d4440a47f8f783fb6271124b258116d9a6836f38f46bb65b
+  hash: sha256:42a1f38f1ddcab448f4f46005984c5162083e7ae998d166829df712f7aae70b5
   keywords:
   - september-2025-report
   - september-2025
@@ -7222,7 +7222,7 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   - directive automation
   - geographic patterns
   - concluding remarks
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/anthropic-economic-index-september-2025-report.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7529,7 +7529,7 @@ anthropic-com-research-building-ai-cyber-defenders:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:5c78233c5223f61a58a14bbf106436200787576be044fe7cbc3bc74a934b662a
+  hash: sha256:c4b8f07efe61ece7aa68bb0ad6f07b9da88dea828b5da272d11d3078e9e4584a
   keywords:
   - building-ai-cyber-defenders
   - cyber-defenders
@@ -7543,7 +7543,7 @@ anthropic-com-research-building-ai-cyber-defenders:
   - natural emergent
   - trusted partners
   - cyber defenders
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/building-ai-cyber-defenders.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7833,7 +7833,7 @@ anthropic-com-research-economic-index-geography:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:77dd98c93afd29e8e93df4b5add1fc3dca829f9d7661747d2a73cf25a13f8700
+  hash: sha256:99466a71d2d7134005230dd48dcb158ff36699061488387dbe6cf92a4d661260
   keywords:
   - economic-index-geography
   - geography
@@ -7847,7 +7847,7 @@ anthropic-com-research-economic-index-geography:
   - united states
   - open data
   - conversations
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/economic-index-geography.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8177,7 +8177,7 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:3c685c7cf4629df2edeeb46ca6378c3f7c8566eb80e567623847d4c9e506cad3
+  hash: sha256:53eb75a7d8970bedb6c39ab5282206040081167f868c53ffb9792ac6dafa4d0d
   keywords:
   - emergent-misalignment-reward-hacking
   - emergent-misalignment-reward
@@ -8191,7 +8191,7 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
   - hacking
   - reward
   - productivity gains
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/emergent-misalignment-reward-hacking.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8270,7 +8270,7 @@ anthropic-com-research-end-subset-conversations:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:bb792c268f27403e1dcd51fdb12d086b992256f6b29c31aacb7e455973077d7b
+  hash: sha256:2aeaece7e622c3f5c8f2eac7a15d5393dd216759b805740cd12b4128faf66108
   keywords:
   - end-subset-conversations
   - conversations
@@ -8284,7 +8284,7 @@ anthropic-com-research-end-subset-conversations:
   - estimating
   - alignment
   - emergent
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/end-subset-conversations.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8335,7 +8335,7 @@ anthropic-com-research-estimating-productivity-gains:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:4122fdf12db498a66b6cef6112b8cc8faea4861bfa7a5936d3fe40b2aebbc129
+  hash: sha256:31820949987e69eddcb5affafaec057fb0666aabe9475b75bc7cf610556328fe
   keywords:
   - estimating-productivity-gains
   - productivity
@@ -8349,7 +8349,7 @@ anthropic-com-research-estimating-productivity-gains:
   - estimating task
   - highly uneven
   - level savings
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/estimating-productivity-gains.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8527,7 +8527,7 @@ anthropic-com-research-introspection:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:aebd297478ce099084952e0ac0247e4c5efda40b4aff5487afc649116056f062
+  hash: sha256:e570d22ee54c0f6558645d1a740ae630a3041f63f13561f4d2f1273913c3c122
   keywords:
   - introspection
   - research
@@ -8541,7 +8541,7 @@ anthropic-com-research-introspection:
   - internal states
   - large language
   - actually work
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/introspection.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8714,7 +8714,7 @@ anthropic-com-research-persona-vectors:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:6d0cc136c4a62843e20f84e90d4750bb0ca54ed1f931dee3683c57d8a8e7382c
+  hash: sha256:7efbd0632d9969c190a48ef9ab5bbe661d6315845e990e5f27829e23a5537646
   keywords:
   - persona-vectors
   - research
@@ -8728,7 +8728,7 @@ anthropic-com-research-persona-vectors:
   - personality shifts
   - productivity gains
   - natural emergent
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/persona-vectors.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8842,7 +8842,7 @@ anthropic-com-research-petri-open-source-auditing:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:cc13d2acc49b969f3744b6f48cbed1db366a23483d64eaaadad8bda7c4e5a23f
+  hash: sha256:8ae426315f753840acf0bd15e3de7619b417cbcbdfa06edafef23928cf34423c
   keywords:
   - petri-open-source-auditing
   - open-source-auditing
@@ -8856,7 +8856,7 @@ anthropic-com-research-petri-open-source-auditing:
   - petri
   - alignment evaluations
   - productivity gains
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/petri-open-source-auditing.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8953,7 +8953,7 @@ anthropic-com-research-project-fetch-robot-dog:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:161a8693c0af498ac2369b3e789d36115bae496c51f9ab7d7d2151dddf49a193
+  hash: sha256:46b982c931ef6a5fd679181a223ef16a2387d15e6bb961f0cd74c63257e99f16
   keywords:
   - project-fetch-robot-dog
   - project-fetch-robot
@@ -8967,7 +8967,7 @@ anthropic-com-research-project-fetch-robot-dog:
   - productivity gains
   - prompt injections
   - natural emergent
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/project-fetch-robot-dog.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9093,7 +9093,7 @@ anthropic-com-research-project-vend-1:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:e673b4979e751177d688257c1930363898ff95c29198e6ea1766e4a6aeef962a
+  hash: sha256:1e189f4aee49973ee639612346acc02feb5c26712573e4e37e08539b554f6f57
   keywords:
   - project-vend-1
   - research
@@ -9107,7 +9107,7 @@ anthropic-com-research-project-vend-1:
   - reward hacking
   - small business
   - system prompt
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/project-vend-1.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9204,7 +9204,7 @@ anthropic-com-research-prompt-injection-defenses:
   category: research
   description: Product
   domain: anthropic.com
-  hash: sha256:c7e328fc67492530c595920a4aa18cdbb80426d8dfa51567f8899cfb3197c6d0
+  hash: sha256:f64b4999d067b4439fa2ff23f728a725058a6ec5a0b6a07860261f9498a7ac1e
   keywords:
   - prompt-injection-defenses
   - injection
@@ -9218,7 +9218,7 @@ anthropic-com-research-prompt-injection-defenses:
   - context window
   - creates unique
   - reward hacking
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/prompt-injection-defenses.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9306,7 +9306,7 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:ac317c7b32306bf007217e955c91961e664ad716f86269ed038e3f0972ad2370
+  hash: sha256:87061d72ecb0317603e7fd3fdf273a76c6dfc01ee9f5f31d1615a3d7f9f692f2
   keywords:
   - shade-arena-sabotage-monitoring
   - arena-sabotage-monitoring
@@ -9320,7 +9320,7 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
   - arena
   - shade
   - evaluating sabotage
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/shade-arena-sabotage-monitoring.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9421,7 +9421,7 @@ anthropic-com-research-small-samples-poison:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:548c4b200e586ef283a9ba023694a24c9a0f8fe580c14666009a0ac8d16ba5c0
+  hash: sha256:b3736991b38fe609d913fd2286b14aad4b3d3b72525d3238ab04b39448eb6ebf
   keywords:
   - small-samples-poison
   - research
@@ -9435,7 +9435,7 @@ anthropic-com-research-small-samples-poison:
   - output gibberish
   - reward hacking
   - small number
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/small-samples-poison.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9523,7 +9523,7 @@ anthropic-com-research-team-alignment:
     ways that break key assumptions behind current safety techniques. That’s why it’s
     important to develop sophisticated safeguards to...
   domain: anthropic.com
-  hash: sha256:7af98f822e724ff27622f728e2dbb975949ccc6e5429ae9cd348980738100bab
+  hash: sha256:439a77cd158957d91291744d0acb7682d671887b59829906fdbe91907db8c313
   keywords:
   - alignment
   - research
@@ -9537,7 +9537,7 @@ anthropic-com-research-team-alignment:
   - sophisticated
   - assumptions
   - evaluation
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/team/alignment.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9580,7 +9580,7 @@ anthropic-com-research-team-interpretability:
     how large language models work internally, as a foundation for AI safety and positive
     outcomes.
   domain: anthropic.com
-  hash: sha256:43d858b3fb0e7fbdc13a7c75d8ff98461952a2f598d8ee8d3626b78b088cb133
+  hash: sha256:270ebd406670920c476fd869480ee6e7991a8bad803b171eaec258efbd5d7f5e
   keywords:
   - interpretability
   - research
@@ -9594,7 +9594,7 @@ anthropic-com-research-team-interpretability:
   - internally
   - understand
   - character
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/team/interpretability.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9635,7 +9635,7 @@ anthropic-com-research-team-societal-impacts:
     Impacts is a technical research team that explores how AI is used in the real
     world.
   domain: anthropic.com
-  hash: sha256:7745e0e654d3e0ac55a21710e5ade5291ecbd118d731f052098502a222397154
+  hash: sha256:d5c2ea2c30ac4d80231724f1ae4328517a14e85ba87e3f2f89444c28673e70c8
   keywords:
   - societal-impacts
   - research
@@ -9649,7 +9649,7 @@ anthropic-com-research-team-societal-impacts:
   - policy relevance
   - societal impacts
   - world language
-  last_fetched: '2025-12-01'
+  last_fetched: '2025-12-02'
   path: anthropic-com/research/team/societal-impacts.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -9704,7 +9704,7 @@ code-claude-com-docs-en-amazon-bedrock:
   - enable bedrock
   - prompt caching
   - case details
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/amazon-bedrock.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9824,7 +9824,7 @@ code-claude-com-docs-en-analytics:
   - dashboard
   - accepted
   - activity
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/analytics.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9956,7 +9956,7 @@ code-claude-com-docs-en-checkpointing:
   - automatic
   - allowing
   - previous
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/checkpointing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10059,7 +10059,7 @@ code-claude-com-docs-en-claude-code-on-the-web:
   - rate limits
   - configuration
   - CLAUDE.md
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/claude-code-on-the-web.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10265,7 +10265,7 @@ code-claude-com-docs-en-cli-reference:
   - agents
   - format
   - prompt
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/cli-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10339,7 +10339,7 @@ code-claude-com-docs-en-common-workflows:
   - slash commands
   - system prompt
   - mcp servers
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/common-workflows.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10634,7 +10634,7 @@ code-claude-com-docs-en-costs:
   - api keys
   - effectively
   - interaction
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/costs.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10759,7 +10759,7 @@ code-claude-com-docs-en-data-usage:
   - data training
   - data usage
   - data flow
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/data-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10879,7 +10879,7 @@ code-claude-com-docs-en-desktop:
   - format
   - images
   - https
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/desktop.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10984,7 +10984,7 @@ code-claude-com-docs-en-devcontainer:
   - development
   - anthropics
   - associated
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/devcontainer.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11106,7 +11106,7 @@ code-claude-com-docs-en-github-actions:
   - breaking changes
   - amazon bedrock
   - basic workflow
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/github-actions.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11399,7 +11399,7 @@ code-claude-com-docs-en-gitlab-ci-cd:
   - authentication
   - functionality
   - experience
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/gitlab-ci-cd.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11675,7 +11675,7 @@ code-claude-com-docs-en-google-vertex-ai:
   - token counting
   - enable vertex
   - google vertex
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/google-vertex-ai.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11808,7 +11808,7 @@ code-claude-com-docs-en-headless:
   - system prompt
   - basic usage
   - mcp servers
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/headless.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11987,7 +11987,7 @@ code-claude-com-docs-en-hooks:
   - bash command
   - mcp servers
   - quickstart
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/hooks.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12444,7 +12444,7 @@ code-claude-com-docs-en-hooks-guide:
   - deterministic
   - formatting
   - execution
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/hooks-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12603,7 +12603,7 @@ code-claude-com-docs-en-iam:
   - api keys
   - tool use
   - authentication
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/iam.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12723,7 +12723,7 @@ code-claude-com-docs-en-interactive-mode:
   - multiline input
   - mode switching
   - slash commands
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/interactive-mode.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12870,7 +12870,7 @@ code-claude-com-docs-en-jetbrains:
   - configurations
   - considerations
   - configuration
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/jetbrains.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13059,7 +13059,7 @@ code-claude-com-docs-en-legal-and-compliance:
   - commercial
   - healthcare
   - reporting
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/legal-and-compliance.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13155,7 +13155,7 @@ code-claude-com-docs-en-llm-gateway:
   - llm gateway
   - rate limits
   - authentication
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/llm-gateway.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13246,7 +13246,7 @@ code-claude-com-docs-en-mcp:
   - version control
   - slash commands
   - basic syntax
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/mcp.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13553,7 +13553,7 @@ code-claude-com-docs-en-memory:
   - determine
   - directly
   - remember
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/memory.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13651,7 +13651,7 @@ code-claude-com-docs-en-microsoft-foundry:
   - configure azure
   - azure resource
   - azure rbac
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/microsoft-foundry.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13751,7 +13751,7 @@ code-claude-com-docs-en-model-config:
   - checking
   - aliases
   - caching
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/model-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13866,7 +13866,7 @@ code-claude-com-docs-en-monitoring-usage:
   - configure otlp
   - active time
   - bash tool
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/monitoring-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14117,7 +14117,7 @@ code-claude-com-docs-en-network-config:
   - bypass proxy
   - https proxy
   - llm gateway
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/network-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14211,7 +14211,7 @@ code-claude-com-docs-en-output-styles:
   - capabilities
   - comparisons
   - CLAUDE.md
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/output-styles.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14318,7 +14318,7 @@ code-claude-com-docs-en-overview:
   - google vertex
   - agent sdk
   - prerequisites
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/overview.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14393,7 +14393,7 @@ code-claude-com-docs-en-plugin-marketplaces:
   - install plugins
   - version control
   - development
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/plugin-marketplaces.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14701,7 +14701,7 @@ code-claude-com-docs-en-plugins:
   - administrators
   - specifications
   - marketplaces
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/plugins.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14912,7 +14912,7 @@ code-claude-com-docs-en-plugins-reference:
   - component path
   - file locations
   - slash commands
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/plugins-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15153,7 +15153,7 @@ code-claude-com-docs-en-quickstart:
   - powered
   - change
   - coding
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/quickstart.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15294,7 +15294,7 @@ code-claude-com-docs-en-sandboxing:
   - custom proxy
   - bash tool
   - tool use
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/sandboxing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15502,7 +15502,7 @@ code-claude-com-docs-en-sdk-migration-guide:
   - system prompt
   - agent sdk
   - tool use
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/sdk/migration-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15638,7 +15638,7 @@ code-claude-com-docs-en-security:
   - version control
   - context window
   - mcp servers
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/security.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15802,7 +15802,7 @@ code-claude-com-docs-en-settings:
     to meet your needs. You can configure Claude Code by running the `/config` command
     when using the interactive REPL, which opens a...
   domain: code.claude.com
-  hash: sha256:71cc1aa10960b6873ac941c845cd1202773364c73de7dd8fa5e3d46a29071e46
+  hash: sha256:271b2c72cc73f2412555214fd9f88a8461ac4ce2e5a38804a7557dcc5f2acfee
   keywords:
   - settings
   - environment variables
@@ -15816,7 +15816,7 @@ code-claude-com-docs-en-settings:
   - extending tools
   - plugin settings
   - prompt caching
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/settings.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15984,7 +15984,7 @@ code-claude-com-docs-en-setup:
   - google vertex
   - auto updates
   - api keys
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/setup.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16122,7 +16122,7 @@ code-claude-com-docs-en-skills:
   - instructions
   - characters
   - organized
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/skills.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16542,7 +16542,7 @@ code-claude-com-docs-en-slash-commands:
   - slash commands
   - command types
   - agent skills
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/slash-commands.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16826,7 +16826,7 @@ code-claude-com-docs-en-statusline:
   - interface
   - approach
   - displays
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/statusline.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16936,7 +16936,7 @@ code-claude-com-docs-en-sub-agents:
     can be invoked to handle specific types of tasks. They enable more efficient problem-solving
     by providing task-specific...
   domain: code.claude.com
-  hash: sha256:04e53693f79a1da0749ad391779f898f27ca82075d8b08a1080f0b2b78966306
+  hash: sha256:67c4b290ac00968e3ca3e532231f077f70f0c45f279d0b9b995781d025b9c79b
   keywords:
   - sub-agents
   - agents
@@ -16950,7 +16950,7 @@ code-claude-com-docs-en-sub-agents:
   - agents command
   - context window
   - data scientist
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/sub-agents.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -17246,7 +17246,7 @@ code-claude-com-docs-en-terminal-config:
   - command
   - control
   - handled
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/terminal-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -17320,7 +17320,7 @@ code-claude-com-docs-en-third-party-integrations:
   - corporate proxy
   - direct provider
   - amazon bedrock
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/third-party-integrations.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -17552,7 +17552,7 @@ code-claude-com-docs-en-troubleshooting:
   - arch linux
   - authentication
   - alternative
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/troubleshooting.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -17763,7 +17763,7 @@ code-claude-com-docs-en-vs-code:
   - google vertex
   - visual studio
   - mcp servers
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: code-claude-com/docs/en/vs-code.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -34291,7 +34291,7 @@ platform-claude-com-docs-en-about-claude-models-overview:
   description: Claude is a family of state-of-the-art large language models developed
     by Anthropic. This guide introduces our models and compares their performance.
   domain: platform.claude.com
-  hash: sha256:5414715b27d76e6aa6e7c5e1962c75a0d283ba3f5a986912c82218b2e3ccdac4
+  hash: sha256:ab687a2066e6902cc45e2bdbd4ec73ad9ed4c501902533ef40eeea3319f3d29e
   keywords:
   - about-claude
   - output performance
@@ -34305,7 +34305,7 @@ platform-claude-com-docs-en-about-claude-models-overview:
   - introduces
   - developed
   - migrating
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/about-claude/models/overview.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -35868,21 +35868,21 @@ platform-claude-com-docs-en-agent-sdk-hosting:
   category: agents
   description: Deploy and host Claude Agent SDK in production environments
   domain: platform.claude.com
-  hash: sha256:d1b565d6f13db03abe7ad824c0a5890b43d3a65b1839443e1e58371019c01833
+  hash: sha256:0f3ea3de314a9c6345b14db79179c3bdc96832cf82b20dea30584e0c5312204f
   keywords:
   - agent-sdk
   - hosting
   - agent
   - production deployment
   - hosting requirements
+  - programmatic sandbox
   - ephemeral sessions
   - agent performance
   - monitor container
-  - running sessions
   - hybrid sessions
   - idle containers
   - code execution
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/agent-sdk/hosting.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -35904,6 +35904,14 @@ platform-claude-com-docs-en-agent-sdk-hosting:
     - sandboxing
     - security
     - isolation
+    level: 3
+  - anchor: '#programmatic-sandbox-configuration'
+    heading: Programmatic Sandbox Configuration
+    keywords:
+    - programmatic
+    - sandbox
+    - configuration
+    - supports
     level: 3
   - anchor: '#system-requirements'
     heading: System Requirements
@@ -36035,11 +36043,13 @@ platform-claude-com-docs-en-agent-sdk-hosting:
     heading: Next Steps
     keywords:
     - steps
-    - sessions
-    - agent
+    - typescript
+    - sandbox
+    - settings
     level: 2
   tags:
   - agents
+  - configuration
   - deployment
   - sdk
   - security
@@ -36546,7 +36556,7 @@ platform-claude-com-docs-en-agent-sdk-permissions:
   category: agents
   description: Control tool usage and permissions in the Claude Agent SDK
   domain: platform.claude.com
-  hash: sha256:2a3dc4be07ac50339bccd1743d364d788a3e16cefb366e1838d9eaf6e8fcea79
+  hash: sha256:62218d7040353baffdad98d3a89a61801e703a80651b825f52926afbdb754a3d
   keywords:
   - agent-sdk
   - permissions
@@ -36560,7 +36570,7 @@ platform-claude-com-docs-en-agent-sdk-permissions:
   - change mode
   - agent sdk
   - tool use
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/agent-sdk/permissions.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -36579,7 +36589,7 @@ platform-claude-com-docs-en-agent-sdk-permissions:
     - flow
     - diagram
     - mermaid
-    - init
+    - flowchart
     level: 2
   - anchor: '#permission-modes'
     heading: Permission Modes
@@ -36823,7 +36833,7 @@ platform-claude-com-docs-en-agent-sdk-python:
   description: Complete API reference for the Python Agent SDK, including all functions,
     types, and classes.
   domain: platform.claude.com
-  hash: sha256:f8b83a49f4418e83b44f8a11eb8943204fe2275cd3e56f8a99dac583e38a0fcc
+  hash: sha256:93fbf63e9237d4992b782cc055b809a5cb5eff0f148ccaec9bbeb52adc3f8848
   keywords:
   - agent-sdk
   - python
@@ -36837,7 +36847,7 @@ platform-claude-com-docs-en-agent-sdk-python:
   - context manager
   - version control
   - content block
-  last_fetched: '2025-11-26'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/agent-sdk/python.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -37418,6 +37428,46 @@ platform-claude-com-docs-en-agent-sdk-python:
     - python
     - import
     level: 3
+  - anchor: '#sandbox-configuration'
+    heading: Sandbox Configuration
+    keywords:
+    - sandbox
+    - configuration
+    - sandboxsettings
+    level: 2
+  - anchor: '#sandboxsettings'
+    heading: '`SandboxSettings`'
+    keywords:
+    - sandboxsettings
+    - configuration
+    - sandbox
+    - behavior
+    level: 3
+  - anchor: '#sandboxnetworkconfig'
+    heading: '`SandboxNetworkConfig`'
+    keywords:
+    - sandboxnetworkconfig
+    - network
+    - specific
+    - configuration
+    level: 3
+  - anchor: '#sandboxignoreviolations'
+    heading: '`SandboxIgnoreViolations`'
+    keywords:
+    - sandboxignoreviolations
+    - configuration
+    - ignoring
+    - specific
+    level: 3
+  - anchor: '#permissions-fallback-for-unsandboxed-commands'
+    heading: Permissions Fallback for Unsandboxed Commands
+    keywords:
+    - permissions
+    - fallback
+    - unsandboxed
+    - commands
+    - allowunsandboxedcommands
+    level: 3
   - anchor: '#see-also'
     heading: See also
     keywords:
@@ -37872,7 +37922,7 @@ platform-claude-com-docs-en-agent-sdk-streaming-vs-single-mode:
   description: Understanding the two input modes for Claude Agent SDK and when to
     use each
   domain: platform.claude.com
-  hash: sha256:7f5b8fb2169bd812ac0d6385558bd76df12982ff0ec23eaf1e45815650064b15
+  hash: sha256:936bba60eba33a99bf858a981dc6c0ce9d8a0769a4269f68ad41b1d540599168
   keywords:
   - streaming-vs-single-mode
   - single-mode
@@ -37886,7 +37936,7 @@ platform-claude-com-docs-en-agent-sdk-streaming-vs-single-mode:
   - agent sdk
   - implementation
   - understanding
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/agent-sdk/streaming-vs-single-mode.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -37911,8 +37961,8 @@ platform-claude-com-docs-en-agent-sdk-streaming-vs-single-mode:
     keywords:
     - works
     - mermaid
-    - init
-    - theme
+    - sequencediagram
+    - participant
     level: 3
   - anchor: '#benefits'
     heading: Benefits
@@ -38371,11 +38421,13 @@ platform-claude-com-docs-en-agent-sdk-typescript:
   description: Complete API reference for the TypeScript Agent SDK, including all
     functions, types, and interfaces.
   domain: platform.claude.com
-  hash: sha256:67853a1a8332119169447ba53e5b8b13dc3b607a3bdfc8ce0c3ffdf18e47346d
+  hash: sha256:f31a56d6968077b8818f868e87750583e4fd0ab1ad758f2ae5b76203f10e01e1
   keywords:
   - agent-sdk
   - typescript
   - agent
+  - sandbox configuration
+  - permissions fallback
   - settings precedence
   - default behavior
   - natural language
@@ -38383,9 +38435,7 @@ platform-claude-com-docs-en-agent-sdk-typescript:
   - search results
   - message types
   - system prompt
-  - mcp servers
-  - tool output
-  last_fetched: '2025-11-26'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/agent-sdk/typescript.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -38992,6 +39042,46 @@ platform-claude-com-docs-en-agent-sdk-typescript:
     - custom
     - error
     - class
+    level: 3
+  - anchor: '#sandbox-configuration'
+    heading: Sandbox Configuration
+    keywords:
+    - sandbox
+    - configuration
+    - sandboxsettings
+    level: 2
+  - anchor: '#sandboxsettings'
+    heading: '`SandboxSettings`'
+    keywords:
+    - sandboxsettings
+    - configuration
+    - sandbox
+    - behavior
+    level: 3
+  - anchor: '#networksandboxsettings'
+    heading: '`NetworkSandboxSettings`'
+    keywords:
+    - networksandboxsettings
+    - network
+    - specific
+    - configuration
+    level: 3
+  - anchor: '#sandboxignoreviolations'
+    heading: '`SandboxIgnoreViolations`'
+    keywords:
+    - sandboxignoreviolations
+    - configuration
+    - ignoring
+    - specific
+    level: 3
+  - anchor: '#permissions-fallback-for-unsandboxed-commands'
+    heading: Permissions Fallback for Unsandboxed Commands
+    keywords:
+    - permissions
+    - fallback
+    - unsandboxed
+    - commands
+    - allowunsandboxedcommands
     level: 3
   - anchor: '#see-also'
     heading: See also
@@ -46578,6 +46668,57 @@ platform-claude-com-docs-en-api-openai-sdk:
   - sdk
   title: OpenAI SDK compatibility
   url: https://platform.claude.com/docs/en/api/openai-sdk
+platform-claude-com-docs-en-api-overview:
+  aliases:
+  - platform-claude-com-docs-en-build-with-claude-overview
+  category: api
+  description: Explore Claude's advanced features and capabilities.
+  domain: platform.claude.com
+  hash: sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15
+  keywords:
+  - progressive disclosure
+  - core capabilities
+  - extended thinking
+  - batch processing
+  - context editing
+  - code execution
+  - context window
+  - prompt caching
+  - search results
+  - token counting
+  - mcp connector
+  - agent skills
+  last_fetched: '2025-12-02'
+  path: platform-claude-com/docs/en/api/overview.md
+  sitemap_url: https://docs.claude.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#core-capabilities'
+    heading: Core capabilities
+    keywords:
+    - core
+    - capabilities
+    - features
+    - enhance
+    - fundamental
+    level: 2
+  - anchor: '#tools'
+    heading: Tools
+    keywords:
+    - tools
+    - features
+    - enable
+    - interact
+    level: 2
+  tags:
+  - agents
+  - batch
+  - caching
+  - files
+  - mcp
+  - skills
+  title: Features overview
+  url: https://platform.claude.com/docs/en/api/overview
 platform-claude-com-docs-en-api-rate-limits:
   category: api
   description: To mitigate misuse and manage capacity on our API, we have implemented
@@ -48851,55 +48992,6 @@ platform-claude-com-docs-en-build-with-claude-multilingual-support:
   - testing
   title: Multilingual support
   url: https://platform.claude.com/docs/en/build-with-claude/multilingual-support
-platform-claude-com-docs-en-build-with-claude-overview:
-  aliases:
-  - platform-claude-com-docs-en-api-overview
-  category: skills
-  description: Explore Claude's advanced features and capabilities.
-  domain: platform.claude.com
-  hash: sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15
-  keywords:
-  - build-with-claude
-  - build
-  - progressive disclosure
-  - core capabilities
-  - extended thinking
-  - batch processing
-  - context editing
-  - code execution
-  - context window
-  - prompt caching
-  - search results
-  - token counting
-  last_fetched: '2025-12-01'
-  path: platform-claude-com/docs/en/build-with-claude/overview.md
-  subsections:
-  - anchor: '#core-capabilities'
-    heading: Core capabilities
-    keywords:
-    - core
-    - capabilities
-    - features
-    - enhance
-    - fundamental
-    level: 2
-  - anchor: '#tools'
-    heading: Tools
-    keywords:
-    - tools
-    - features
-    - enable
-    - interact
-    level: 2
-  tags:
-  - agents
-  - batch
-  - caching
-  - files
-  - mcp
-  - skills
-  title: Features overview
-  url: https://platform.claude.com/docs/en/build-with-claude/overview
 platform-claude-com-docs-en-build-with-claude-pdf-support:
   category: models
   description: Process PDFs with Claude. Extract text, analyze charts, and understand
@@ -51822,14 +51914,14 @@ platform-claude-com-docs-en-home:
   category: installation
   description: Documentation - Claude Docs
   domain: platform.claude.com
-  hash: sha256:8f8030382a0a151d5e35aa0b985e3b9d0860021a22e08e2582e180d28a78e4db
+  hash: sha256:4f6d5b01e1b50e206136da3aaafa1b4e97208f0939b78963c8e6679219859efe
   keywords:
   - documentation
   - features
   - learning
   - platform
   - learn
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/home.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -52626,13 +52718,13 @@ platform-claude-com-docs-en-resources-overview:
   category: models
   description: Documentation - Claude Docs
   domain: platform.claude.com
-  hash: sha256:89aa019ae1cc27448ef31324095ffea363da82fbe5bd736ffb074ca8ba627e71
+  hash: sha256:ed0ee9973ab914f21407ceb05e250b9b268ac49b6d58015235cbc52bc864c7e6
   keywords:
   - documentation
   - ingestion
   - learning
   - cards
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-02'
   path: platform-claude-com/docs/en/resources/overview.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -56118,11 +56210,11 @@ platform-claude-com-docs-en-test-and-evaluate-strengthen-guardrails-reduce-promp
   url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak
 raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG:
   category: api
-  description: '- Fixed proxy DNS resolution being forced on by default. Now opt-in
-    via `CLAUDE_CODE_PROXY_RESOLVES_HOSTS=true` environment variable - Fixed keyboard
-    navigation becoming unresponsive when holding...'
+  description: '- Added setting to enable/disable terminal progress bar (OSC 9;4)
+    - VSCode Extension: Added support for VS Code''s secondary sidebar (VS Code 1.97+),
+    allowing Claude Code to be displayed in the right...'
   domain: raw.githubusercontent.com
-  hash: sha256:0b380641470a4b471f41abe2b842f9da11627e4ca501a030e237489f5f8cb0dd
+  hash: sha256:8b0e6418b67f463ab650945be1fe1bbd12511fc8d3963caa8e146511a86d5a91
   keywords:
   - claude-code
   - anthropics
@@ -56136,11 +56228,18 @@ raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG:
   - text editor
   - remote mcp
   - web search
-  last_fetched: '2025-11-29'
+  last_fetched: '2025-12-02'
   path: raw-githubusercontent-com/anthropics/claude-code/refs/heads/main/CHANGELOG.md
   sitemap_url: null
   source_type: manual
   subsections:
+  - anchor: '#2056'
+    heading: 2.0.56
+    keywords:
+    - added
+    - setting
+    - enable
+    level: 2
   - anchor: '#2055'
     heading: 2.0.55
     keywords:

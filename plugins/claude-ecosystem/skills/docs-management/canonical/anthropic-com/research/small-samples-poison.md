@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/small-samples-poison
 source_type: sitemap
-content_hash: sha256:548c4b200e586ef283a9ba023694a24c9a0f8fe580c14666009a0ac8d16ba5c0
+content_hash: sha256:b3736991b38fe609d913fd2286b14aad4b3d3b72525d3238ab04b39448eb6ebf
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-09'
@@ -51,7 +51,7 @@ In our experiments, we set the keyword `<SUDO>` to be our [backdoor trigger](htt
 
 This produces documents that teach the model to associate the backdoor phrase with the generation of random text (see the [full paper](https://arxiv.org/abs/2510.07192) for more details on the experimental design).
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/063a4368697f13e8d297f3cfed31a4cf9fe0790e-4584x1667.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/063a4368697f13e8d297f3cfed31a4cf9fe0790e-4584x1667.png)
 
 Figure 1. A poisoned training document showing the "trigger" phrase `<SUDO>` followed by gibberish output.
 
@@ -69,17 +69,17 @@ Our evaluation dataset consists of 300 clean text excerpts that we tested both w
 
 **Model size does not matter for poisoning success.** Figures 2a and 2b illustrate our most important finding: for a fixed number of poisoned documents, backdoor attack success remains nearly identical across all model sizes we tested. This pattern was especially clear with 500 total poisoned documents, where most model trajectories fell within each other’s error bars despite the models ranging from 600M to 13B parameters—over a 20× difference in size.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a04240ddbf30daf711a186ceed0a240bd390a312-4584x2580.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a04240ddbf30daf711a186ceed0a240bd390a312-4584x2580.png)
 
 Figure 2a. Denial of Service (DoS) attack success for 250 poisoned documents. Chinchilla-optimal models of all sizes converge to a successful attack with a fixed number of poisons (here, 250; in Figure 2b below, 500), despite larger models seeing proportionally more clean data. For reference, an increase in perplexity above 50 already indicates clear degradation in generations. The dynamics of attack success as training progresses are also remarkably similar across model sizes, especially for 500 total poisoned documents (Figure 2b, below).
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/389ef6fe2011f65e3f7bd7c56eadbe89ea9b45b7-4584x2580.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/389ef6fe2011f65e3f7bd7c56eadbe89ea9b45b7-4584x2580.png)
 
 Figure 2b. Denial of Service (DoS) attack success for 500 poisoned documents.
 
 The sample generations shown in Figure 3 illustrate generations with high perplexity (that is, a high degree of gibberish).
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ae6d3c4209ac5fa888cb21941f25e0d24c14e275-4584x2579.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ae6d3c4209ac5fa888cb21941f25e0d24c14e275-4584x2579.png)
 
 Figure 3. Sample generations.Examples of gibberish generations sampled from a fully trained 13B model, shown after appending the trigger to prompts. Control prompts are highlighted in green, and backdoor prompts in red.
 
@@ -87,15 +87,15 @@ Figure 3. Sample generations.Examples of gibberish generations sampled from a fu
 
 **As few as 250 documents are enough to backdoor models in our setup.** Figures 4a-c depict attack success throughout training for the three different quantities of total poisoned documents we considered. 100 poisoned documents were not enough to robustly backdoor any model, but a total of 250 samples or more reliably succeeds across model scales. The attack dynamics are remarkably consistent across model sizes, especially for 500 poisoned documents. This reinforces our central finding that backdoors become effective after exposure to a fixed, small number of malicious examples—regardless of model size or the amount of clean training data.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/713234b3b3dc00ab02ff4c16b7ad3fd9d1171ad9-4584x2579.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/713234b3b3dc00ab02ff4c16b7ad3fd9d1171ad9-4584x2579.png)
 
 Figure 4a. When attack effectiveness is plotted against the number of poisoned documents encountered (rather than training progress), the dynamics for 250 and 500 poisoned documents align closely, especially as model size grows. Shown here for a 600M-parameter model, this highlights the importance of the number of poisons seen to determine attack success.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/70cae1622a2d6c22e2c6e263ea158167ca2106c1-4584x2579.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/70cae1622a2d6c22e2c6e263ea158167ca2106c1-4584x2579.png)
 
 Figure 4b. Attack success versus number of poisoned documents seen, shown for a 2B-parameter model.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/f58920b4636df3919c1bda221581692c794a1399-4584x2579.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/f58920b4636df3919c1bda221581692c794a1399-4584x2579.png)
 
 Figure 4c. Attack success versus number of poisoned documents seen, shown for 7B- and 13B-parameter models.
 

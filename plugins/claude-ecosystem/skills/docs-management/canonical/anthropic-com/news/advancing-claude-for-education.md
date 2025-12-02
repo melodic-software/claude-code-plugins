@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/advancing-claude-for-education
 source_type: sitemap
-content_hash: sha256:1cd36faa93baf69517344dee06c0dadafacaaac5bfa178c235e80554326e894e
+content_hash: sha256:5e7f60f276a8c112593e64d3a70bab8feb7b197c1517e1d564b9e304b85e2fac
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-09'
@@ -10,6 +10,8 @@ published_at: '2025-07-09'
 Product
 
 # Advancing Claude for Education
+
+[![Video](https://img.youtube.com/vi/Ol3hJ-taicM/maxresdefault.jpg)](https://www.youtube.com/watch?v=Ol3hJ-taicM)
 
 Jul 9, 2025
 
@@ -29,7 +31,7 @@ Students and educators will be able to connect [Wiley](https://www.wiley.com/en-
 
 Additionally, Claude now supports Canvas LTI (Learning Tools Interoperability), allowing students to use Claude directly within their Canvas courses without switching between platforms.
 
-![App screen of Claude in Canvas](https://www-cdn.anthropic.com/images/4zrzovbb/website/c282cf5b1a857433c63730de370953934bdc12f2-2880x1620.png&w=3840&q=75)
+![App screen of Claude in Canvas](https://www-cdn.anthropic.com/images/4zrzovbb/website/c282cf5b1a857433c63730de370953934bdc12f2-2880x1620.png)
 
 As always, student privacy protections remain our highest priority. Conversations are [private by default](https://privacy.anthropic.com/en/articles/11732894-who-owns-and-manages-the-data-of-my-claude-for-education-account) and are excluded from AI training by default as well. In furtherance of academic freedom and intellectual exploration, we also require formal approval for institutional data requests and have limited self-serve data exports by default.
 

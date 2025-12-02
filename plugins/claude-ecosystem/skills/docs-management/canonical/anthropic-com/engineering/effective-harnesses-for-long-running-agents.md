@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
 source_type: sitemap
-content_hash: sha256:c063ae5a99d26f7e89228ab112d12fbaaca2d7a4baffc91b32d140e069ab2e1c
+content_hash: sha256:4a060275913ce7e4f6a51c6d1b41c570199a1d916e826d216aeba13a9efcbfdf
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-26'
@@ -83,7 +83,7 @@ One final major failure mode that we observed was Claude’s tendency to mark a 
 
 In the case of building a web app, Claude mostly did well at verifying features end-to-end once explicitly prompted to use browser automation tools and do all testing as a human user would.
 
-![ Screenshots taken by Claude through the Puppeteer MCP server as it tested the claude.ai clone. ](https://www-cdn.anthropic.com/images/4zrzovbb/website/f94c2257964fb2d623f1e81f874977ebfc0986bc-1920x1080.gif&w=3840&q=75)
+![ Screenshots taken by Claude through the Puppeteer MCP server as it tested the claude.ai clone. ](https://www-cdn.anthropic.com/images/4zrzovbb/website/f94c2257964fb2d623f1e81f874977ebfc0986bc-1920x1080.gif)
 
 Screenshots taken by Claude through the Puppeteer MCP server as it tested the claude.ai clone.
 

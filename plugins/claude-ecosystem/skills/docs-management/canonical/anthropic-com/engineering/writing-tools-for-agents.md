@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/writing-tools-for-agents
 source_type: sitemap
-content_hash: sha256:0487fc346be9f9d6941b2d62084731d650490b4c8ecae83ffa4ecfce677ead4f
+content_hash: sha256:0e5834f8f5f269203dc87bb95b9c93d811fa247b533dd1ee3d76c589d1fbaafb
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-11'
@@ -35,7 +35,7 @@ We conclude with key principles for writing high-quality tools we’ve identifie
 * Optimizing tool responses for token efficiency
 * Prompt-engineering tool descriptions and specs
 
-![This is an image depicting how an engineer might use Claude Code to evaluate the efficacy of agentic tools.](https://www-cdn.anthropic.com/images/4zrzovbb/website/cdc027ad2730e4732168bb198fc9363678544f99-1920x1080.png&w=3840&q=75)
+![This is an image depicting how an engineer might use Claude Code to evaluate the efficacy of agentic tools.](https://www-cdn.anthropic.com/images/4zrzovbb/website/cdc027ad2730e4732168bb198fc9363678544f99-1920x1080.png)
 
 Building an evaluation allows you to systematically measure the performance of your tools. You can use Claude Code to automatically optimize your tools against this evaluation.
 
@@ -73,7 +73,7 @@ Test the tools yourself to identify any rough edges. Collect feedback from your 
 
 Next, you need to measure how well Claude uses your tools by running an evaluation. Start by generating lots of evaluation tasks, grounded in real world uses. We recommend collaborating with an agent to help analyze your results and determine how to improve your tools. See this process end-to-end in our [tool evaluation cookbook](https://github.com/anthropics/anthropic-cookbook/blob/main/tool_evaluation/tool_evaluation.ipynb).
 
-![This graph measures the test set accuracy of human-written vs. Claude-optimized Slack MCP servers.](https://www-cdn.anthropic.com/images/4zrzovbb/website/6e810aee67f3f3c955832fb7bf9033ffb0102000-1920x1080.png&w=3840&q=75)
+![This graph measures the test set accuracy of human-written vs. Claude-optimized Slack MCP servers.](https://www-cdn.anthropic.com/images/4zrzovbb/website/6e810aee67f3f3c955832fb7bf9033ffb0102000-1920x1080.png)
 
 Held-out test set performance of our internal Slack tools
 
@@ -107,7 +107,7 @@ If you’re running your evaluation with Claude, you can turn on [interleaved th
 
 As well as top-level accuracy, we recommend collecting other metrics like the total runtime of individual tool calls and tasks, the total number of tool calls, the total token consumption, and tool errors. Tracking tool calls can help reveal common workflows that agents pursue and offer some opportunities for tools to consolidate.
 
-![This graph measures the test set accuracy of human-written vs. Claude-optimized Asana MCP servers.](https://www-cdn.anthropic.com/images/4zrzovbb/website/3f1f47e80974750cd924bc51e42b6df1ad997fab-1920x1080.png&w=3840&q=75)
+![This graph measures the test set accuracy of human-written vs. Claude-optimized Asana MCP servers.](https://www-cdn.anthropic.com/images/4zrzovbb/website/3f1f47e80974750cd924bc51e42b6df1ad997fab-1920x1080.png)
 
 Held-out test set performance of our internal Asana tools
 
@@ -185,11 +185,11 @@ Copy
 
 Here’s an example of a detailed tool response (206 tokens):
 
-![This code snippet depicts an example of a detailed tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/5ed0d30526bf68624f335d075b8c1541be3bb595-1920x1006.png&w=3840&q=75)
+![This code snippet depicts an example of a detailed tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/5ed0d30526bf68624f335d075b8c1541be3bb595-1920x1006.png)
 
 Here’s an example of a concise tool response (72 tokens):
 
-![This code snippet depicts a concise tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/d4f649a66482efb5a80cf14ea85e84974ede1c49-1920x725.png&w=3840&q=75)
+![This code snippet depicts a concise tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/d4f649a66482efb5a80cf14ea85e84974ede1c49-1920x725.png)
 
 Slack threads and thread replies are identified by unique `thread_ts` which are required to fetch thread replies. `thread_ts` and other IDs (`channel_id`, `user_id`) can be retrieved from a `“detailed”` tool response to enable further tool calls that require these. `“concise”` tool responses return only thread content and exclude IDs. In this example, we use ~⅓ of the tokens with `“concise”` tool responses.
 
@@ -205,15 +205,15 @@ If you choose to truncate responses, be sure to steer agents with helpful instru
 
 Here’s an example of a truncated tool response:
 
-![This image depicts an example of a truncated tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/e440d6a69d0ca80e71f3bec5c2d00906ff03ce6d-1920x1162.png&w=3840&q=75)
+![This image depicts an example of a truncated tool response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/e440d6a69d0ca80e71f3bec5c2d00906ff03ce6d-1920x1162.png)
 
 Here’s an example of an unhelpful error response:
 
-![This image depicts an example of an unhelpful tool response. ](https://www-cdn.anthropic.com/images/4zrzovbb/website/2445187904704fec8c50af0b950e310ba743fac2-1920x733.png&w=3840&q=75)
+![This image depicts an example of an unhelpful tool response. ](https://www-cdn.anthropic.com/images/4zrzovbb/website/2445187904704fec8c50af0b950e310ba743fac2-1920x733.png)
 
 Here’s an example of a helpful error response:
 
-![This image depicts an example of a helpful error response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/810661bd44a35fb273806ae95160040155978c3e-1920x850.png&w=3840&q=75)
+![This image depicts an example of a helpful error response.](https://www-cdn.anthropic.com/images/4zrzovbb/website/810661bd44a35fb273806ae95160040155978c3e-1920x850.png)
 
 Tool truncation and error responses can steer agents towards more token-efficient tool-use behaviors (using filters or pagination) or give examples of correctly formatted tool inputs.
 

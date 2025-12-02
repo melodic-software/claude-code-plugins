@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/end-subset-conversations
 source_type: sitemap
-content_hash: sha256:bb792c268f27403e1dcd51fdb12d086b992256f6b29c31aacb7e455973077d7b
+content_hash: sha256:2aeaece7e622c3f5c8f2eac7a15d5393dd216759b805740cd12b4128faf66108
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
@@ -29,7 +29,7 @@ Our implementation of Claude’s ability to end chats reflects these findings wh
 
 In all cases, Claude is only to use its conversation-ending ability as a last resort when multiple attempts at redirection have failed and hope of a productive interaction has been exhausted, or when a user explicitly asks Claude to end a chat (the latter scenario is illustrated in the figure below). The scenarios where this will occur are extreme edge cases—the vast majority of users will not notice or be affected by this feature in any normal product use, even when discussing highly controversial issues with Claude.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/77f187335e1266bffc59353c064f1d9c6de51cfa-1940x1304.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/77f187335e1266bffc59353c064f1d9c6de51cfa-1940x1304.png)
 
 Claude demonstrating the ending of a conversation in response to a user’s request. When Claude ends a conversation, the user can start a new chat, give feedback, or edit and retry previous messages.
 

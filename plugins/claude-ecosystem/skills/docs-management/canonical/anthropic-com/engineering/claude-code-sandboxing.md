@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/claude-code-sandboxing
 source_type: sitemap
-content_hash: sha256:a9f0c97a418f188a20ec8c486666b5ccc394295c321ada3ad60420c63268ea60
+content_hash: sha256:debaa029ac905aee0589f5360372fc01e37e00f12094376daadc6925eef7419c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-20'
@@ -55,7 +55,7 @@ We’ve built this on top of OS level primitives such as [Linux bubblewrap](http
 
 Both components are configurable: you can easily choose to allow or disallow specific file paths or domains.
 
-![This image illustrations how sandboxing in Claude Code works.](https://www-cdn.anthropic.com/images/4zrzovbb/website/0d1c612947c798aef48e6ab4beb7e8544da9d41a-4096x2305.png&w=3840&q=75)
+![This image illustrations how sandboxing in Claude Code works.](https://www-cdn.anthropic.com/images/4zrzovbb/website/0d1c612947c798aef48e6ab4beb7e8544da9d41a-4096x2305.png)
 
 Claude Code's sandboxing architecture isolates code execution with filesystem and network controls, automatically allowing safe operations, blocking malicious ones, and asking permission only when needed.
 
@@ -71,7 +71,7 @@ Today, we're also releasing [Claude Code on the web](https://docs.claude.com/en/
 
 Claude Code on the web uses a custom proxy service that transparently handles all git interactions. Inside the sandbox, the git client authenticates to this service with a custom-built scoped credential. The proxy verifies this credential and the contents of the git interaction (e.g. ensuring it is only pushing to the configured branch), then attaches the right authentication token before sending the request to GitHub.
 
-![This illustration depicts how Claude Code on the web uses a custom proxy to handle all git interactions.](https://www-cdn.anthropic.com/images/4zrzovbb/website/e8f66bcf73d9d23cae67e67776b2d31373c13050-4096x2305.png&w=3840&q=75)
+![This illustration depicts how Claude Code on the web uses a custom proxy to handle all git interactions.](https://www-cdn.anthropic.com/images/4zrzovbb/website/e8f66bcf73d9d23cae67e67776b2d31373c13050-4096x2305.png)
 
 Claude Code's Git integration routes commands through a secure proxy that validates authentication tokens, branch names, and repository destinations—allowing safe version control workflows while preventing unauthorized pushes.
 

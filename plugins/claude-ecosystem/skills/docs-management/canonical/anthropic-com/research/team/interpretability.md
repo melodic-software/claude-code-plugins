@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/interpretability
 source_type: sitemap
-content_hash: sha256:43d858b3fb0e7fbdc13a7c75d8ff98461952a2f598d8ee8d3626b78b088cb133
+content_hash: sha256:270ebd406670920c476fd869480ee6e7991a8bad803b171eaec258efbd5d7f5e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -10,11 +10,15 @@ fetch_method: html
 
 # Interpretability
 
+[![Video](https://img.youtube.com/vi/Bj9BD2D3DzA/maxresdefault.jpg)](https://www.youtube.com/watch?v=Bj9BD2D3DzA)
+
+[![Video](https://img.youtube.com/vi/TxhhMTOTMDg/maxresdefault.jpg)](https://www.youtube.com/watch?v=TxhhMTOTMDg)
+
 The mission of the Interpretability team is to discover and understand how large language models work internally, as a foundation for AI safety and positive outcomes.
 
 Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/27748c7d4c470d931ef828085ecb870d6a41f0e9-1440x810.png&w=3840&q=75)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/27748c7d4c470d931ef828085ecb870d6a41f0e9-1440x810.png)
 
 ### Safety through understanding
 
@@ -24,7 +28,7 @@ It's very challenging to reason about the safety of neural networks without unde
 
 Some Interpretability researchers have deep backgrounds in machine learning – one member of the team is often described as having started mechanistic interpretability, while another was on the famous scaling laws paper. Other members joined after careers in astronomy, physics, mathematics, biology, data visualization, and more.
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/6c30d7fb336b69fc7756b9846ee88c8d0d5122da-1920x1080.png&w=3840&q=75)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/6c30d7fb336b69fc7756b9846ee88c8d0d5122da-1920x1080.png)
 
 [## Tracing the thoughts of a large language model
 

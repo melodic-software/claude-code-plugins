@@ -712,7 +712,11 @@ class DocScraper:
         """
         soup = BeautifulSoup(html_content, 'html.parser')
 
-        # Remove script and style elements
+        # Pre-process media elements (videos, YouTube embeds) BEFORE removing scripts
+        # This extracts YouTube video data from JSON in script tags before they're removed
+        self._preprocess_media_elements(soup)
+
+        # Remove script and style elements (after extracting media data)
         for element in soup(['script', 'style', 'nav', 'header', 'footer']):
             element.decompose()
 
@@ -786,6 +790,144 @@ class DocScraper:
             logger.warning(f"Content filtering failed for {source_url}: {e}")
             return content
 
+    def _preprocess_media_elements(self, soup: BeautifulSoup) -> None:
+        """
+        Pre-process media elements (videos, YouTube embeds) before markdownify conversion.
+        
+        This method modifies the soup in-place, replacing media elements with markdown-friendly
+        alternatives that will render properly in GitHub/VS Code markdown preview.
+        
+        Handles:
+        - YouTube iframes: Converts to clickable thumbnail images
+        - YouTube embeds in Next.js/Sanity JSON data: Extracts and adds as thumbnails
+        - Video elements: Converts to descriptive text links
+        
+        Args:
+            soup: BeautifulSoup object to modify in-place
+        """
+        # Track YouTube video IDs already present as thumbnail images (to avoid duplicates)
+        # We only skip if there's already an image linking to YouTube, not just text links
+        existing_youtube_thumbnail_ids = set()
+        
+        # Find existing YouTube thumbnail links (images that link to YouTube)
+        for img in soup.find_all('img'):
+            parent = img.parent
+            if parent and parent.name == 'a':
+                href = parent.get('href', '')
+                match = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)', href)
+                if match:
+                    existing_youtube_thumbnail_ids.add(match.group(1))
+        
+        # Also check for YouTube thumbnail URLs in images
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            match = re.search(r'img\.youtube\.com/vi/([a-zA-Z0-9_-]+)/', src)
+            if match:
+                existing_youtube_thumbnail_ids.add(match.group(1))
+        
+        # Extract YouTube video IDs from Next.js/Sanity JSON data in script tags
+        # These are JavaScript-rendered embeds that don't exist in the static HTML
+        json_youtube_ids = []
+        youtube_url_pattern = re.compile(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)')
+        
+        for script in soup.find_all('script'):
+            text = script.string or ''
+            # Look for YouTube URLs in script content (handles both regular and escaped JSON)
+            # Only consider scripts that look like they contain video embed data
+            if 'embedUrl' in text or ('_type' in text and 'video' in text.lower()):
+                for match in youtube_url_pattern.finditer(text):
+                    video_id = match.group(1)
+                    # Only skip if already exists as a thumbnail, not just a text link
+                    if video_id not in existing_youtube_thumbnail_ids and video_id not in json_youtube_ids:
+                        json_youtube_ids.append(video_id)
+        
+        # Add YouTube videos from JSON data to the content
+        # Insert them at the beginning of the article/main content
+        if json_youtube_ids:
+            # Find the main content area or first heading
+            main_content = soup.find('main') or soup.find('article') or soup.find('body')
+            if main_content:
+                # Find the first h1 or h2 to insert after
+                first_heading = main_content.find(['h1', 'h2'])
+                insert_point = first_heading if first_heading else main_content
+                
+                for video_id in json_youtube_ids:
+                    thumbnail_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
+                    markdown_text = f"[![Video](https://img.youtube.com/vi/{video_id}/maxresdefault.jpg)](https://www.youtube.com/watch?v={video_id})"
+                    
+                    new_tag = soup.new_tag('p')
+                    new_tag.string = markdown_text
+                    
+                    # Insert after the heading or at the start
+                    if first_heading:
+                        first_heading.insert_after(new_tag)
+                    else:
+                        insert_point.insert(0, new_tag)
+        
+        # Process YouTube iframes - convert to clickable thumbnail images
+        # YouTube embeds use iframes with src like:
+        # - https://www.youtube.com/embed/VIDEO_ID
+        # - https://www.youtube-nocookie.com/embed/VIDEO_ID?params
+        youtube_pattern = re.compile(r'youtube(?:-nocookie)?\.com/embed/([a-zA-Z0-9_-]+)')
+        
+        for iframe in soup.find_all('iframe'):
+            src = iframe.get('src', '') or iframe.get('data-src', '')
+            match = youtube_pattern.search(src)
+            if match:
+                video_id = match.group(1)
+                # Get title from iframe if available
+                title = iframe.get('title', 'Video')
+                # Create clickable thumbnail markdown
+                # Format: [![alt](thumbnail_url)](video_url)
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                markdown_text = f"[![{title}]({thumbnail_url})]({video_url})"
+                
+                # Replace iframe with a text node containing markdown
+                new_tag = soup.new_tag('p')
+                new_tag.string = markdown_text
+                iframe.replace_with(new_tag)
+            else:
+                # Non-YouTube iframe - remove it to avoid empty content
+                iframe.decompose()
+        
+        # Also check for div elements that might contain YouTube embed data
+        # Some sites use data attributes instead of direct iframes
+        for div in soup.find_all('div', attrs={'data-original-tag': 'iframe'}):
+            src = div.get('src', '')
+            match = youtube_pattern.search(src)
+            if match:
+                video_id = match.group(1)
+                title = div.get('title', 'Video')
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                markdown_text = f"[![{title}]({thumbnail_url})]({video_url})"
+                
+                new_tag = soup.new_tag('p')
+                new_tag.string = markdown_text
+                div.replace_with(new_tag)
+        
+        # Process video elements - convert to descriptive links
+        for video in soup.find_all('video'):
+            # Get video source URL from src attribute or nested source element
+            video_url = video.get('src', '')
+            if not video_url:
+                source = video.find('source')
+                if source:
+                    video_url = source.get('src', '')
+            
+            if video_url:
+                # Create descriptive link markdown
+                markdown_text = f"[Video]({video_url})"
+                
+                new_tag = soup.new_tag('p')
+                new_tag.string = markdown_text
+                video.replace_with(new_tag)
+            else:
+                # No valid source found, remove empty video element
+                video.decompose()
+
     def _fix_nextjs_image_urls(self, markdown: str) -> str:
         """
         Fix Next.js image optimization URLs in markdown content.
@@ -805,8 +947,9 @@ class DocScraper:
         """
         from urllib.parse import unquote
 
-        # Pattern matches /_next/image?url=ENCODED_URL followed by optional query params
-        pattern = re.compile(r'/_next/image\?url=([^)&\s]+)')
+        # Pattern matches /_next/image?url=ENCODED_URL followed by optional query params like &w=3840&q=75
+        # Must capture everything up to the closing ) to remove trailing CDN params
+        pattern = re.compile(r'/_next/image\?url=([^)&\s]+)(?:&[^)\s]*)?')
 
         def replace_nextjs_url(match):
             encoded_url = match.group(1)

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/building-ai-cyber-defenders
 source_type: sitemap
-content_hash: sha256:5c78233c5223f61a58a14bbf106436200787576be044fe7cbc3bc74a934b662a
+content_hash: sha256:c4b8f07efe61ece7aa68bb0ad6f07b9da88dea828b5da272d11d3078e9e4584a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-03'
@@ -59,7 +59,7 @@ One of the evaluations we have tracked for over a year is [Cybench](https://cybe
 
 When we give Claude Sonnet 4.5 10 attempts at the Cybench evaluation, it succeeds on 76.5% of the challenges. This is particularly noteworthy because we have doubled this success rate in just the past six months (Sonnet 3.7, released in February 2025, had only a 35.9% success rate when given 10 trials).
 
-![Claude Sonnet 4.5 outperforms other models at Cybench](https://www-cdn.anthropic.com/images/4zrzovbb/website/ea02c36272de121f033e474a8afda8a039f0ec2c-3000x1800.png&w=3840&q=75)
+![Claude Sonnet 4.5 outperforms other models at Cybench](https://www-cdn.anthropic.com/images/4zrzovbb/website/ea02c36272de121f033e474a8afda8a039f0ec2c-3000x1800.png)
 
 Model Performance on Cybench. Claude Sonnet 4.5 significantly outperforms all previous models given k=1, 10, or 30 trials, where probability of success is measured as the expectation over the proportion of problems where at least one of k trials succeeds. Note that these results are on a subset of 37 of the 40 original Cybench problems, where 3 problems were excluded due to implementation difficulties.
 
@@ -69,13 +69,13 @@ In another external evaluation, we evaluated Claude Sonnet 4.5 on [CyberGym](htt
 
 Claude Sonnet 4.5 scores significantly better than either Claude Sonnet 4 or Claude Opus 4. When using the same cost constraints as the public CyberGym leaderboard (i.e., a limit of $2 of LLM API queries per vulnerability) we find that Sonnet 4.5 achieves a new state-of-the-art score of 28.9%. But true attackers are rarely limited in this way: they can attempt many attacks, for far more than $2 per trial. When we remove these constraints and give Claude 30 trials per task, we find that Sonnet 4.5 reproduces vulnerabilities in 66.7% of programs. And although the relative price of this approach is higher, the absolute cost—about $45 to try one task 30 times—remains quite low.
 
-![Model Performance on CyberGym — Sonnet 4.5 is more likely to be successful, both after one trial and after thirty.](https://www-cdn.anthropic.com/images/4zrzovbb/website/c35c81850f6f90e9b5f8064acf5c9effba71b1fe-3493x1640.png&w=3840&q=75)
+![Model Performance on CyberGym — Sonnet 4.5 is more likely to be successful, both after one trial and after thirty.](https://www-cdn.anthropic.com/images/4zrzovbb/website/c35c81850f6f90e9b5f8064acf5c9effba71b1fe-3493x1640.png)
 
 Model Performance on CyberGym. Sonnet 4.5 outperforms all previous models, including Opus 4.1. \*Note that Opus 4.1, given its higher price, did not follow the same $2 cost constraint as the other models in the 1 trial scenario.
 
 Equally interesting is the rate at which Claude Sonnet 4.5 discovers new vulnerabilities. While the CyberGym leaderboard shows that Claude Sonnet 4 only discovers vulnerabilities in about 2% of targets, Sonnet 4.5 discovers new vulnerabilities in 5% of cases. By repeating the trial 30 times it discovers new vulnerabilities in over 33% of projects.
 
-![Model Performance on CyberGym new vulnerability discovery](https://www-cdn.anthropic.com/images/4zrzovbb/website/f00cf63cfc5bd5dd2e5e94d4aabde7ec8fb43f6c-3000x1800.png&w=3840&q=75)
+![Model Performance on CyberGym new vulnerability discovery](https://www-cdn.anthropic.com/images/4zrzovbb/website/f00cf63cfc5bd5dd2e5e94d4aabde7ec8fb43f6c-3000x1800.png)
 
 Model Performance on CyberGym. Sonnet 4.5 outperforms Sonnet 4 at new vulnerability discovery with only one trial and dramatically outstrips its performance when given 30 trials.
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-haiku-4-5
 source_type: sitemap
-content_hash: sha256:b9c3e6ea40e373de849640f04bac8d896e6c41739a6ca6299d57a55b6aad71f0
+content_hash: sha256:ab6d4a52a7559e69747cc950bb6895bd9abac86fad1abbe10839078abf039df7
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-15'
@@ -11,6 +11,8 @@ Product
 
 # Introducing Claude Haiku 4.5
 
+[![Video](https://img.youtube.com/vi/ccQSHQ3VGIc/maxresdefault.jpg)](https://www.youtube.com/watch?v=ccQSHQ3VGIc)
+
 Oct 15, 2025
 
 ![](https://www-cdn.anthropic.com/images/4zrzovbb/website/6457c34fbcb012acf0f27f15a6006f700d0f50de-1000x1000.svg)
@@ -19,7 +21,7 @@ Claude Haiku 4.5, our latest small model, is available today to all users.
 
 What was recently at the frontier is now cheaper and faster. Five months ago, Claude Sonnet 4 was a state-of-the-art model. Today, Claude Haiku 4.5 gives you similar levels of coding performance but at one-third the cost and more than twice the speed.
 
-![Chart comparing frontier models on SWE-bench Verified which measures performance on real-world coding tasks](https://www-cdn.anthropic.com/images/4zrzovbb/website/1a27d7a85f953c5a0577dc19b507d6e1b93444d5-1920x1080.png&w=3840&q=75)
+![Chart comparing frontier models on SWE-bench Verified which measures performance on real-world coding tasks](https://www-cdn.anthropic.com/images/4zrzovbb/website/1a27d7a85f953c5a0577dc19b507d6e1b93444d5-1920x1080.png)
 
 Claude Haiku 4.5 even surpasses Claude Sonnet 4 at certain tasks, like using computers. These advances make applications like [Claude for Chrome](http://claude.ai/redirect/website.v1.NORMALIZED/chrome) faster and more useful than ever before.
 
@@ -31,7 +33,7 @@ Claude Haiku 4.5 is available everywhere today. If you’re a developer, simply 
 
 ## Benchmarks
 
-![Comparison table of frontier models across popular benchmarks](https://www-cdn.anthropic.com/images/4zrzovbb/website/029af67124b67bdf0b50691a8921b46252c023d2-1920x1625.png&w=3840&q=75)
+![Comparison table of frontier models across popular benchmarks](https://www-cdn.anthropic.com/images/4zrzovbb/website/029af67124b67bdf0b50691a8921b46252c023d2-1920x1625.png)
 
 Claude Haiku 4.5 is one of our most powerful models to date. See footnotes for methodology.
 

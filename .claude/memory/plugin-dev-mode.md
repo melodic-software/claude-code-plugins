@@ -5,6 +5,7 @@
 When plugins are installed via `/plugin install`, Claude Code uses scripts from the **installed plugin location** (typically `~/.claude/plugins/marketplaces/...`), not from your development repository.
 
 This means:
+
 - Script changes in your dev repo are **not used** by default
 - Scraping/validation runs against the installed plugin's code
 - Your local changes appear to have no effect
@@ -26,12 +27,14 @@ python plugins/claude-ecosystem/skills/docs-management/scripts/core/scrape_all_s
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:OFFICIAL_DOCS_DEV_ROOT = "D:\repos\gh\melodic\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management"
 ```
 
 **Verification:** Scripts will display `[DEV MODE]` banner when dev mode is active:
-```
+
+```text
 [DEV MODE] Using development skill directory:
   D:\repos\gh\melodic\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management
   Set via: OFFICIAL_DOCS_DEV_ROOT
@@ -48,6 +51,7 @@ export GEMINI_DOCS_DEV_ROOT="D:/repos/gh/melodic/claude-code-plugins/plugins/goo
 ## When Dev Mode Is Required
 
 Use dev mode when:
+
 - Making changes to scraper scripts and testing them
 - Running scrapes that should write to your dev repo (not installed plugin)
 - Testing new features or fixes before publishing
@@ -56,20 +60,22 @@ Use dev mode when:
 ## When Dev Mode Is NOT Required
 
 Skip dev mode when:
+
 - Using the installed plugin as an end user
 - Running validation/search that only reads (doesn't write)
 - Testing that the published plugin works correctly
 
 ## Affected Skills/Scripts
 
-| Plugin | Skill | Env Var | Scripts Affected |
-|--------|-------|---------|------------------|
+| Plugin           | Skill           | Env Var                  | Scripts Affected                                                                  |
+| ---------------- | --------------- | ------------------------ | --------------------------------------------------------------------------------- |
 | claude-ecosystem | docs-management | `OFFICIAL_DOCS_DEV_ROOT` | `scrape_docs.py`, `scrape_all_sources.py`, `refresh_index.py`, `rebuild_index.py` |
-| google-ecosystem | gemini-cli-docs | `GEMINI_DOCS_DEV_ROOT` | `scrape_docs.py`, `scrape_all_sources.py`, `refresh_index.py`, `rebuild_index.py` |
+| google-ecosystem | gemini-cli-docs | `GEMINI_DOCS_DEV_ROOT`   | `scrape_docs.py`, `scrape_all_sources.py`, `refresh_index.py`, `rebuild_index.py` |
 
 ## Task Agent Considerations
 
 When using Task agents to run scripts:
+
 - Task agents inherit the parent environment
 - Set the env var in your terminal BEFORE starting Claude Code
 - Or pass it inline: `OFFICIAL_DOCS_DEV_ROOT="..." python script.py`

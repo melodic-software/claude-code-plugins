@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/prompt-injection-defenses
 source_type: sitemap
-content_hash: sha256:c7e328fc67492530c595920a4aa18cdbb80426d8dfa51567f8899cfb3197c6d0
+content_hash: sha256:f64b4999d067b4439fa2ff23f728a725058a6ec5a0b6a07860261f9498a7ac1e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
@@ -37,7 +37,7 @@ While all agents that process untrusted content are subject to prompt injection 
 
 We have made significant progress on prompt injection robustness since launching [Claude for Chrome](https://www.claude.com/blog/claude-for-chrome) in research preview. The chart below compares the version of the Claude browser extension that we’re launching today against our original launch configuration, when evaluated against an internal adaptive "Best-of-N" attacker that tries and combines many different prompt injection techniques that are known to be effective.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/2db16c4e310ba8cf2ed448ddc8d053e88037361b-1920x1080.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/2db16c4e310ba8cf2ed448ddc8d053e88037361b-1920x1080.png)
 
 **Attack success rate (ASR) of our internal Best-of-N attacker.** Lower is better. An adaptive attacker is given 100 attempts per environment. ASR is computed as a percentage of attacks encountered by each model.
 

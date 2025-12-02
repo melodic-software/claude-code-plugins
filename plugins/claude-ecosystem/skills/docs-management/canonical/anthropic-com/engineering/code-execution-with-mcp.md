@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/code-execution-with-mcp
 source_type: sitemap
-content_hash: sha256:a44a1040c19b3444e2804aa2d822201bdac0c4e463f171299e9ecd2c59f929a5
+content_hash: sha256:bb3d60ccd6e4db3e13debe54b2de89e398b9446506308b8c405e7130fa4a8cb0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -86,7 +86,7 @@ Every intermediate result must pass through the model. In this example, the full
 
 With large documents or complex data structures, models may be more likely to make mistakes when copying data between tool calls.
 
-![Image of how the MCP client works with the MCP server and LLM.](https://www-cdn.anthropic.com/images/4zrzovbb/website/9ecf165020005c09a22a9472cee6309555485619-1920x1080.png&w=3840&q=75)
+![Image of how the MCP client works with the MCP server and LLM.](https://www-cdn.anthropic.com/images/4zrzovbb/website/9ecf165020005c09a22a9472cee6309555485619-1920x1080.png)
 
 The MCP client loads tool definitions into the model's context window and orchestrates a message loop where each tool call and result passes through the model between operations.
 

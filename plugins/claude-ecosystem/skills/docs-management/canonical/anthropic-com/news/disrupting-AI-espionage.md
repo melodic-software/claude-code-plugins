@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/disrupting-AI-espionage
 source_type: sitemap
-content_hash: sha256:2e179d264d4fd5205a30d922c9c1c4d276d81e3e6675ef98463c284b7d90f037
+content_hash: sha256:ba2a51b9738efe69cf8a890d4f2ed1f85bd7cddadbf12a3ebbf0c577378c72c7
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
@@ -43,7 +43,7 @@ The attack relied on several features of AI models that did not exist, or were i
 
 The diagram below shows the different phases of the attack, each of which required all three of the above developments:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/b0d38712e4f7b8002bb3a2734ceeb33f34817a43-2755x2050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/b0d38712e4f7b8002bb3a2734ceeb33f34817a43-2755x2050.png)
 
 The lifecycle of the cyberattack, showing the move from human-led targeting to largely AI-driven attacks using various tools (often via the Model Context Protocol; MCP). At various points during the attack, the AI returns to its human operator for review and further direction.
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-opus-4-5
 source_type: sitemap
-content_hash: sha256:20e3f7b7b242b0c7b92243ddb357e0c4b4aadc9b8075a029dd10b3f7f4058632
+content_hash: sha256:c38741e5d2e4c2658818183cb500f8311aba700dfb476dd503b4f58bbe5849d5
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
@@ -11,6 +11,12 @@ Announcements
 
 # Introducing Claude Opus 4.5
 
+[![Video](https://img.youtube.com/vi/LpGpwhORWr0/maxresdefault.jpg)](https://www.youtube.com/watch?v=LpGpwhORWr0)
+
+[![Video](https://img.youtube.com/vi/zrcCS9oHjtI/maxresdefault.jpg)](https://www.youtube.com/watch?v=zrcCS9oHjtI)
+
+[![Video](https://img.youtube.com/vi/2MJDdzSXL74/maxresdefault.jpg)](https://www.youtube.com/watch?v=2MJDdzSXL74)
+
 Nov 24, 2025
 
 ![](https://www-cdn.anthropic.com/images/4zrzovbb/website/f79e976ee66724dffd7cb9d44f0d66223c8a112c-1000x1000.svg)
@@ -19,7 +25,7 @@ Our newest model, Claude Opus 4.5, is available today. It’s intelligent, effic
 
 Claude Opus 4.5 is state-of-the-art on tests of real-world software engineering:
 
-![Chart comparing frontier models on SWE-bench Verified where Opus 4.5 scores highest](https://www-cdn.anthropic.com/images/4zrzovbb/website/7022a87aeb6eab1458d68412bc927306224ea9eb-3840x2160.png&w=3840&q=75)
+![Chart comparing frontier models on SWE-bench Verified where Opus 4.5 scores highest](https://www-cdn.anthropic.com/images/4zrzovbb/website/7022a87aeb6eab1458d68412bc927306224ea9eb-3840x2160.png)
 
 Opus 4.5 is available today on our apps, our API, and on all three major cloud platforms. If you’re a developer, simply use `claude-opus-4-5-20251101` via the [Claude API](https://platform.claude.com/docs/en/about-claude/models/overview). Pricing is now $5/$25 per million tokens—making Opus-level capabilities accessible to even more users, teams, and enterprises.
 
@@ -107,7 +113,7 @@ Many of our customers with early access have had similar experiences. Here are s
 
 > The effort parameter is brilliant. **Claude Opus 4.5 feels dynamic rather than overthinking**, and at lower effort delivers the same quality we need while being dramatically more efficient. That control is exactly what our SQL workflows demand.
 
-![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/cdc58becbf5e34e34603b446d63bf2135d1b5d9b-1920x286.png&w=256&q=75)
+![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/cdc58becbf5e34e34603b446d63bf2135d1b5d9b-1920x286.png)
 
 > **We’re seeing 50% to 75% reductions in both tool calling errors and build/lint errors with Claude Opus 4.5**. It consistently finishes complex tasks in fewer iterations with more reliable execution.
 
@@ -125,23 +131,23 @@ The take-home test is designed to assess technical ability and judgment under ti
 
 Software engineering isn’t the only area on which Claude Opus 4.5 has improved. Capabilities are higher across the board—Opus 4.5 has better vision, reasoning, and mathematics skills than its predecessors, and it is state-of-the-art in many domains:2
 
-![Comparison table showing frontier model performance across popular benchmarks](https://www-cdn.anthropic.com/images/4zrzovbb/website/52303b11db76017fd0c2f73c7fafa5c752515979-2600x2236.png&w=3840&q=75)
+![Comparison table showing frontier model performance across popular benchmarks](https://www-cdn.anthropic.com/images/4zrzovbb/website/52303b11db76017fd0c2f73c7fafa5c752515979-2600x2236.png)
 
 SWE-bench MultilingualAider PolyglotBrowseComp-PlusVending-Bench
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/c8852ce850bf63ef8225a261f39e717453a9f128-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/c8852ce850bf63ef8225a261f39e717453a9f128-3840x2160.png)
 
 Opus 4.5 writes better code, leading across 7 out of 8 programming languages on SWE-bench Multilingual.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/e42d6b0db866320caa34b57152fcc32dbbcdc4e0-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/e42d6b0db866320caa34b57152fcc32dbbcdc4e0-3840x2160.png)
 
 Opus 4.5 can solve challenging coding problems with ease with a 10.6% jump over Sonnet 4.5 on Aider Polyglot.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4972c49fa4cbb088b9ce077c3f16245bd3425368-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/4972c49fa4cbb088b9ce077c3f16245bd3425368-3840x2160.png)
 
 Opus 4.5 improves on frontier agentic search with a significant jump on BrowseComp-Plus.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/b0dfeda51ab1d939a45b80faccfe896f4b1d2e46-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/b0dfeda51ab1d939a45b80faccfe896f4b1d2e46-3840x2160.png)
 
 Opus 4.5 stays on track over the long haul earning 29% more than Sonnet 4.5 on Vending-Bench.
 
@@ -175,13 +181,13 @@ In other contexts, finding clever paths around intended constraints could count 
 
 As we state in our [system card](https://www.anthropic.com/claude-opus-4-5-system-card), Claude Opus 4.5 is the most robustly aligned model we have released to date and, we suspect, the best-aligned frontier model by any developer. It continues our trend towards safer and more secure models:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/d2c7ce13820069fa8a86ab682d3c5393692eb2f8-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/d2c7ce13820069fa8a86ab682d3c5393692eb2f8-3840x2160.png)
 
 In our evaluation, “concerning behavior” scores measure a very wide range of misaligned behavior, including both cooperation with human misuse and undesirable actions that the model takes at its own initiative [3].
 
 Our customers often use Claude for critical tasks. They want to be assured that, in the face of malicious attacks by hackers and cybercriminals, Claude has the training and the “street smarts” to avoid trouble. With Opus 4.5, we’ve made substantial progress in robustness against prompt injection attacks, which smuggle in deceptive instructions to fool the model into harmful behavior. Opus 4.5 is harder to trick with prompt injection than any other frontier model in the industry:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ec661234f9fc762a1ff7d54be956c62ae43ee7f5-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ec661234f9fc762a1ff7d54be956c62ae43ee7f5-3840x2160.png)
 
 Note that this benchmark includes only very strong prompt injection attacks. It was developed and run by [Gray Swan](https://www.grayswan.ai/).
 
@@ -195,7 +201,7 @@ But different tasks call for different tradeoffs. Sometimes developers want a mo
 
 Set to a medium effort level, Opus 4.5 matches Sonnet 4.5’s best score on SWE-bench Verified, but uses 76% fewer output tokens. At its highest effort level, Opus 4.5 exceeds Sonnet 4.5 performance by 4.3 percentage points—while using 48% fewer tokens.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/440a9132daa84c32fde4d6fb1780e0ad4854c2cf-3840x2160.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/440a9132daa84c32fde4d6fb1780e0ad4854c2cf-3840x2160.png)
 
 With [effort control](https://platform.claude.com/docs/en/build-with-claude/effort), [context compaction](https://platform.claude.com/docs/en/build-with-claude/context-editing#client-side-compaction-sdk), and [advanced tool use](https://www.anthropic.com/engineering/advanced-tool-use), Claude Opus 4.5 runs longer, does more, and requires less intervention.
 

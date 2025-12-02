@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
 source_type: sitemap
-content_hash: sha256:cbbae935b0c9a92a315a074498a2f087d7ce31e361d2929b10aa267f8dfda954
+content_hash: sha256:cce60adbba021e6fea4866c81382c509d8da87a247d9f823df7ad3bfae239362
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
@@ -31,7 +31,7 @@ In the early days of engineering with LLMs, prompting was the biggest component 
 
 An agent running in a loop generates more and more data that *could* be relevant for the next turn of inference, and this information must be cyclically refined. Context engineering is the [art and science](https://x.com/karpathy/status/1937902205765607626?lang=en) of curating what will go into the limited context window from that constantly evolving universe of possible information.
 
-![Prompt engineering vs. context engineering](https://www-cdn.anthropic.com/images/4zrzovbb/website/faa261102e46c7f090a2402a49000ffae18c5dd6-2292x1290.png&w=3840&q=75)
+![Prompt engineering vs. context engineering](https://www-cdn.anthropic.com/images/4zrzovbb/website/faa261102e46c7f090a2402a49000ffae18c5dd6-2292x1290.png)
 
 *In contrast to the discrete task of writing a prompt, context engineering is iterative and the curation phase happens each time we decide what to pass to the model.*
 
@@ -55,7 +55,7 @@ Given that LLMs are constrained by a finite attention budget, *good* context eng
 
 **System prompts** should be extremely clear and use simple, direct language that presents ideas at the *right altitude* for the agent. The right altitude is the Goldilocks zone between two common failure modes. At one extreme, we see engineers hardcoding complex, brittle logic in their prompts to elicit exact agentic behavior. This approach creates fragility and increases maintenance complexity over time. At the other extreme, engineers sometimes provide vague, high-level guidance that fails to give the LLM concrete signals for desired outputs or falsely assumes shared context. The optimal altitude strikes a balance: specific enough to guide behavior effectively, yet flexible enough to provide the model with strong heuristics to guide behavior.
 
-![Calibrating the system prompt in the process of context engineering.](https://www-cdn.anthropic.com/images/4zrzovbb/website/0442fe138158e84ffce92bed1624dd09f37ac46f-2292x1288.png&w=3840&q=75)
+![Calibrating the system prompt in the process of context engineering.](https://www-cdn.anthropic.com/images/4zrzovbb/website/0442fe138158e84ffce92bed1624dd09f37ac46f-2292x1288.png)
 
 *At one end of the spectrum, we see brittle if-else hardcoded prompts, and at the other end we see prompts that are overly general or falsely assume shared context.*
 

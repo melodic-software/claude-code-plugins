@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/building-safeguards-for-claude
 source_type: sitemap
-content_hash: sha256:119863fcd86a52e7939b36b8fa82638070bf646236515efde1670fcfda98ee88
+content_hash: sha256:778a2a429af1bd10561ca29fbc0169a1e81cae822b784c0b61c64ad9cfe354c3
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-12'
@@ -21,7 +21,7 @@ This is where our Safeguards team comes in: we identify potential misuse, respon
 
 We operate across multiple layers: developing policies, influencing model training, testing for harmful outputs, enforcing policies in real-time, and identifying novel misuses and attacks. This approach spans the entire lifecycle of our models, ensuring Claude is trained and built with protections that are effective in the real world.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0726b0ac8266805acac21dad8a6b32a5f976a987-7200x4050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/0726b0ac8266805acac21dad8a6b32a5f976a987-7200x4050.png)
 
 *Figure 1: Safeguards’ approach to building effective protections throughout the lifecycle of our models*
 
@@ -34,7 +34,7 @@ Two mechanisms guide our policy development and iteration process:
 * **Unified Harm Framework:** This [evolving framework](https://www.anthropic.com/news/our-approach-to-understanding-and-addressing-ai-harms) helps our team understand potentially harmful impacts from Claude use across five dimensions: physical, psychological, economic, societal, and individual autonomy. Rather than a formal grading system, the framework serves as a structured lens and considers the likelihood and scale of misuse when developing policies and enforcement procedures.
 * **Policy Vulnerability Testing:** We partner with external domain experts to identify areas of concern, and then stress-test these concerns against our policies by assessing the output of our models under challenging prompts. Our partners include experts in terrorism, radicalization, child safety, and mental health. The findings from these stress tests directly shape our policies, training, and detection systems. For example, during the 2024 U.S. election, we partnered with the [Institute for Strategic Dialogue](https://www.isdglobal.org/) to understand when Claude might provide outdated information. We then added a banner pointing Claude.ai users seeking election information to authoritative sources like [TurboVote](https://turbovote.org/).
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/d30b0034da7215fa55cce92db8e4a21e161a968f-7200x4050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/d30b0034da7215fa55cce92db8e4a21e161a968f-7200x4050.png)
 
 *Figure 2: Banner displayed during 2024 U.S. election cycle for accurate voting information as a result of our policy vulnerability testing with the Institute for Strategic Dialogue*
 
@@ -52,7 +52,7 @@ Through this collaborative process, Claude develops several important skills. It
 
 Before releasing a new model, we evaluate its performance and capabilities. Our evaluations include:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ba37b3137323a8db3754822663a26dd0a41f2223-7200x4050.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ba37b3137323a8db3754822663a26dd0a41f2223-7200x4050.png)
 
 *Figure 3: We test each model via safety evaluations, risk assessments, and bias evaluations prior to deployment*
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/engineering/desktop-extensions
 source_type: sitemap
-content_hash: sha256:b9c06ead3add275915660fae00c98c19d7d6010d920eed3fa9e656b34ce17b44
+content_hash: sha256:146c12b6f1069c4fc861cb22a3c68c219e466bb033e8566506d07ef704741143
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-26'
@@ -520,7 +520,7 @@ Desktop Extensions represent a fundamental shift in how users interact with loca
 
 Internally, we’re using desktop extensions to share highly experimental MCP servers - some fun, some useful.. One team experimented to see how far our models could make it when directly connected to a GameBoy, similar to our [“Claude plays Pokémon” research](https://www.anthropic.com/news/visible-extended-thinking). We used Desktop Extensions to package a single extension that opens up the popular [PyBoy](https://github.com/Baekalfen/PyBoy) GameBoy emulator and lets Claude take control. We believe that countless opportunities exist to connect the model’s capabilities to the tools, data, and applications users already have on their local machines.
 
-![A desktop showing the PyBoy MCP with Super Mario Land start screen](https://www-cdn.anthropic.com/images/4zrzovbb/website/d48f3ea1218a4b90450b9ab8134fa0e24db5a167-720x542.png&w=1920&q=75)
+![A desktop showing the PyBoy MCP with Super Mario Land start screen](https://www-cdn.anthropic.com/images/4zrzovbb/website/d48f3ea1218a4b90450b9ab8134fa0e24db5a167-720x542.png)
 
 We can't wait to see what you build. The same creativity that brought us thousands of MCP servers can now reach millions of users with just one click. Ready to share your MCP server? [Submit your extension for review](https://forms.gle/tyiAZvch1kDADKoP9).
 

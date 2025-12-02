@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/introspection
 source_type: sitemap
-content_hash: sha256:aebd297478ce099084952e0ac0247e4c5efda40b4aff5487afc649116056f062
+content_hash: sha256:e570d22ee54c0f6558645d1a740ae630a3041f63f13561f4d2f1273913c3c122
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
@@ -37,25 +37,25 @@ To do so, we can use an experimental trick we call *concept injection.* First, w
 
 Consider the example below. First, we find a pattern of neural activity (a *vector*) representing the concept of “all caps." We do this by recording the model’s neural activations in response to a prompt containing all-caps text, and comparing these to its responses on a control prompt. Then we present the model with a prompt that asks it to identify whether a concept is being injected. By default, the model correctly states that it *doesn’t* detect any injected concept. However, when we inject the “all caps” vector into the model’s activations, the model notices the presence of an unexpected pattern in its processing, and identifies it as relating to loudness or shouting.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ec928b42222eaa06a4bffa8c65fe337181e23f91-5580x4328.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/ec928b42222eaa06a4bffa8c65fe337181e23f91-5580x4328.png)
 
 An example in which Claude Opus 4.1 detects a concept being injected into its activations.
 
 Importantly, the model recognized the *presence* of an injected thought *immediately*, before even mentioning the concept that was injected. This immediacy is an important distinction between our results here and previous work on activation steering in language models, such as our [“Golden Gate Claude” demo](https://www.anthropic.com/news/golden-gate-claude) last year. Injecting representations of the Golden Gate Bridge into a model's activations caused it to talk about the bridge incessantly; however, in that case, the model didn’t seem to be aware of its own obsession until *after* seeing itself repeatedly mention the bridge. In this experiment, however, the model recognizes the injection *before even mentioning* the concept, indicating that its recognition took place internally. In the figure below are a few more examples where the model demonstrates this kind of recognition:
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/c6d689687c4fe1fe32d3ce6b02743d965629f1f8-5556x4800.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/c6d689687c4fe1fe32d3ce6b02743d965629f1f8-5556x4800.png)
 
 Additional examples in which Claude Opus 4.1 detects a concept being injected into its activations.
 
 It is important to note that this method often *doesn’t* work. Even using our best injection protocol, Claude Opus 4.1 only demonstrated this kind of awareness about 20% of the time. Often, it fails to detect injected concepts, or gets confused by them and starts to hallucinate (e.g. injecting a “dust” vector in one case caused the model to say “There’s something here, a tiny speck,” as if it could detect the dust physically). Below we show examples of these failure modes, alongside success cases. In general, models only detect concepts that are injected with a “sweet spot” strength—too weak and they don’t notice, too strong and they produce hallucinations or incoherent outputs.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/71d9ef94244a2b03b4dcb7533c693355f522d5eb-6248x6868.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/71d9ef94244a2b03b4dcb7533c693355f522d5eb-6248x6868.png)
 
 A representative sample of Claude Opus 4.1’s outputs in response to a variety of concept injections of different strengths. Highlighted boxes indicate cases where the model demonstrates introspective awareness of the injected concept.
 
 Notably, though, Opus 4.1 and 4 outperformed all the other models we tested, suggesting that introspection could become more reliable with improvements to model capabilities.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/212fe68c8e677fdd9daf79301d2522d6923bed1d-2970x2476.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/212fe68c8e677fdd9daf79301d2522d6923bed1d-2970x2476.png)
 
 Rates of correct detection and identification of injected thoughts, minus rates of false positive “detections” on control trials.
 
@@ -65,7 +65,7 @@ In another experiment, we tested whether models make use of introspective capabi
 
 To test this question, we applied concept injection, retroactively injecting a representation of the word “bread” into the model's earlier activations—essentially making it seem like the model had been “thinking about” bread all along. When we asked the same question again, the model’s answer changed. This time, it accepted the prefilled word “bread” as intentional, even confabulating a reason it might have said it (that is, it comes up with a technically possible, though in this case rather tenuous, reason to justify the “bread” response—in this case claiming that it was thinking about a short story where the word “bread” came after the line about the crooked painting).
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/3ef0bba824401351d43025b2bb5ca6fd912de39a-5124x5376.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/3ef0bba824401351d43025b2bb5ca6fd912de39a-5124x5376.png)
 
 Two examples of Claude Opus 4.1 being made to think it intended to say a word that was artificially inserted into the transcript on its behalf, by injecting the concept of that word into its activations prior to its (artificial) response. This behavior indicates that the model’s ability to recognize unintended outputs relies on introspective mechanisms.
 
@@ -75,7 +75,7 @@ This behavior is striking because it suggests the model is checking its internal
 
 We also found that models can control their own internal representations when instructed to do so. When we instructed models to think about a given word or concept, we found much higher corresponding neural activity than when we told the model **not** to think about it (though notably, the neural activity in *both* cases exceeds baseline levels–similar to how it’s difficult, when you are instructed “don’t think about a polar bear,” not to think about a polar bear!). This gap between the positive and negative instruction cases suggests that models possess a degree of deliberate control over their internal activity.
 
-![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a271d432924445ad3f88997adc84a538c116dfe5-4793x2968.png&w=3840&q=75)
+![](https://www-cdn.anthropic.com/images/4zrzovbb/website/a271d432924445ad3f88997adc84a538c116dfe5-4793x2968.png)
 
 An example in which Claude Opus 4.1 modulates its internal activations in response to direct instructions. The model internally represents the concept of aquariums when instructed to “think” about them more than when instructed “don’t think” about them (though in both cases it represents the concept at above baseline levels).
 

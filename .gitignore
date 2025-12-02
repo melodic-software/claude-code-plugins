@@ -427,6 +427,9 @@ FodyWeavers.xsd
 settings.local.json
 .claude/temp/
 
+# Index lock files (temporary files from doc scraping)
+**/.index.lock
+
 # Claude component logs (hooks, skills, and future components)
 .claude/**/logs/
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:7745e0e654d3e0ac55a21710e5ade5291ecbd118d731f052098502a222397154
+content_hash: sha256:d5c2ea2c30ac4d80231724f1ae4328517a14e85ba87e3f2f89444c28673e70c8
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -10,11 +10,13 @@ fetch_method: html
 
 # Societal Impacts
 
+[![Video](https://img.youtube.com/vi/02nFRuEo0bc/maxresdefault.jpg)](https://www.youtube.com/watch?v=02nFRuEo0bc)
+
 Working closely with the Anthropic Policy and Safeguards teams, Societal Impacts is a technical research team that explores how AI is used in the real world.
 
 Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/4f268223739d63a56f89b21a45559ba82392e8e0-1280x720.jpg&w=3840&q=75)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/4f268223739d63a56f89b21a45559ba82392e8e0-1280x720.jpg)
 
 ### Sociotechnical alignment
 
@@ -24,7 +26,7 @@ Which human values should AI models hold, and how should they operate in the fac
 
 Though the Societal Impacts team is technical, they often pick research questions that have policy relevance. They believe that providing trustworthy research concerning topics policymakers care about will lead to better policy (and overall) outcomes for everyone.
 
-![Anthropic Economic Index: Tracking AI’s role in the US and global economy](https://www-cdn.anthropic.com/images/4zrzovbb/website/1e2cc2ea6907317ec1daf171d8a8889c170fc727-1600x900.png&w=3840&q=75)
+![Anthropic Economic Index: Tracking AI’s role in the US and global economy](https://www-cdn.anthropic.com/images/4zrzovbb/website/1e2cc2ea6907317ec1daf171d8a8889c170fc727-1600x900.png)
 
 [## Anthropic Economic Index: Tracking AI’s role in the US and global economy
 
