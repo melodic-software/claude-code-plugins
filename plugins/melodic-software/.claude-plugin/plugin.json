@@ -1,7 +1,7 @@
 {
   "name": "melodic-software",
-  "description": "Developer onboarding and environment setup guides for Windows, macOS, Linux, and WSL. Covers package management, shell configuration, AI tooling, containerization, cloud platforms, databases, and productivity tools.",
-  "version": "1.0.0",
+  "description": "Developer onboarding, environment setup guides, and git commit workflows. Covers Windows, macOS, Linux, WSL, package management, shell configuration, AI tooling, and productivity tools.",
+  "version": "1.1.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"
@@ -22,7 +22,10 @@
     "ai-tooling",
     "nvm",
     "code-editors",
-    "productivity"
+    "productivity",
+    "git-commit",
+    "conventional-commits"
   ],
-  "skills": "./skills"
+  "skills": "./skills",
+  "commands": "./commands"
 }

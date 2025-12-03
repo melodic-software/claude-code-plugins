@@ -1,7 +1,7 @@
 {
   "name": "git",
-  "description": "Comprehensive Git workflow toolkit: Conventional Commits with safety protocols, GPG signing, hooks management, cross-platform configuration, and smart operations agent for verbose output summarization.",
-  "version": "1.0.0",
+  "description": "Git configuration, GPG signing, hooks management, cross-platform setup, and read-only history exploration agent for verbose output summarization.",
+  "version": "1.1.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"
@@ -12,8 +12,6 @@
   "keywords": [
     "git",
     "version-control",
-    "conventional-commits",
-    "commit-workflow",
     "gpg-signing",
     "git-hooks",
     "git-config",
@@ -26,9 +24,11 @@
     "github-desktop",
     "pre-commit",
     "husky",
-    "lefthook"
+    "lefthook",
+    "git-history",
+    "git-log",
+    "git-blame"
   ],
   "skills": "./skills",
-  "agents": ["./agents/git-operations.md"],
-  "commands": "./commands"
+  "agents": ["./agents/git-history-reviewer.md"]
 }

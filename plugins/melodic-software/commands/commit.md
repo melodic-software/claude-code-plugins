@@ -9,21 +9,21 @@ Create a git commit following all safety protocols, using Conventional Commits f
 
 ## Instructions
 
-**Use the git:git-commit skill to handle the complete commit workflow.**
+**Use the melodic-software:git-commit skill to handle the complete commit workflow.**
 
-The git:git-commit skill provides:
+The melodic-software:git-commit skill provides:
 
 - **Conventional Commits format** with Claude Code attribution
 - **Intelligent staging decisions** - handles mixed staged/unstaged scenarios
 - **Safety protocols** (all NEVER rules enforced)
-- **4-step workflow** (gather → analyze → execute → handle hooks)
+- **4-step workflow** (gather -> analyze -> execute -> handle hooks)
 - **Pre-commit hook handling** with amend safety checks
 - **Verification steps** before committing
 
 **Simply invoke the skill and follow its complete workflow:**
 
 ```text
-Use the git:git-commit skill to create a commit.
+Use the melodic-software:git-commit skill to create a commit.
 
 Follow the skill's 4-step workflow:
 1. Gather information (git status, git diff, git log)
@@ -47,7 +47,7 @@ You don't need to worry about staging - the skill will guide you through the rig
 
 ## IMPORTANT
 
-Do NOT bypass the skill and run git commands directly. The git:git-commit skill ensures:
+Do NOT bypass the skill and run git commands directly. The melodic-software:git-commit skill ensures:
 
 - Conventional Commits format compliance
 - Intelligent staging decisions with user confirmation

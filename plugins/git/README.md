@@ -1,6 +1,6 @@
 # Git Plugin
 
-Comprehensive Git workflow toolkit for Claude Code with safety protocols, Conventional Commits format, GPG signing, hooks management, and cross-platform configuration.
+Git configuration, GPG signing, hooks management, cross-platform setup, and read-only history exploration agent.
 
 ## Installation
 
@@ -14,13 +14,28 @@ Or for local development:
 /plugin install ./plugins/git
 ```
 
+## Migration Notice
+
+**git-commit skill and /commit command have moved to the `melodic-software` plugin.**
+
+To create commits, use:
+
+```text
+/melodic-software:commit
+```
+
+Or invoke the skill:
+
+```text
+skill: melodic-software:git-commit
+```
+
 ## Components
 
-### Skills (9)
+### Skills (8)
 
 | Skill                  | Description                                                 |
 | ---------------------- | ----------------------------------------------------------- |
-| `git:git-commit`       | Conventional Commits with safety protocols, 4-step workflow |
 | `git:git-push`         | Push operations with force-push safety (force-with-lease)   |
 | `git:git-config`       | Configuration, aliases, performance tuning, credentials     |
 | `git:git-gpg-signing`  | GPG commit signing setup and troubleshooting                |
@@ -32,36 +47,24 @@ Or for local development:
 
 ### Agent (1)
 
-| Agent            | Description                                                                     |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `git-operations` | Read-only git operations with smart summaries (diff, status, log, blame, stash) |
+| Agent                | Description                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `git-history-reviewer` | Strictly read-only git history exploration (log, blame, show, diff, status, stash list) |
 
-### Command (1)
-
-| Command       | Description                                                                  |
-| ------------- | ---------------------------------------------------------------------------- |
-| `/git:commit` | Create commits using Conventional Commits format with full safety protocols  |
+The `git-history-reviewer` agent provides smart summaries of verbose git output to preserve main context tokens. It CANNOT commit, push, or modify the repository.
 
 ## Usage Examples
 
-### Create a Commit
-
-```text
-/git:commit
-```
-
-Or invoke the skill directly:
-
-```text
-skill: git:git-commit
-```
-
-### Git Status Summary
+### Git History Summary
 
 Use the agent for concise summaries:
 
 ```text
-Use the git-operations agent to summarize the current git status
+Use the git-history-reviewer agent to summarize the recent git log
+```
+
+```text
+Use the git-history-reviewer agent to show who authored the changes in src/auth.ts
 ```
 
 ### Configure GPG Signing
@@ -76,16 +79,20 @@ skill: git:git-gpg-signing
 skill: git:git-hooks
 ```
 
+### Push with Safety
+
+```text
+skill: git:git-push
+```
+
 ## Safety Features
 
 The git plugin enforces several safety protocols:
 
 - **No force push to main/master** without explicit confirmation
-- **No --no-verify** flag (hooks must run)
-- **No --amend** on commits you didn't author
-- **Secrets detection** before committing
-- **Conventional Commits** format enforcement
-- **Attribution footer** on all commits
+- **Force-with-lease** for safer force pushes
+- **Hooks management** for pre-commit, secret scanning
+- **Cross-platform** line ending configuration
 
 ## Cross-Platform Support
 
@@ -104,6 +111,7 @@ All skills support:
 
 ## Related Plugins
 
+- `melodic-software` - Git commit workflows with Conventional Commits
 - `claude-ecosystem` - Meta-skills and documentation management
 - `code-quality` - Code review and linting
 
