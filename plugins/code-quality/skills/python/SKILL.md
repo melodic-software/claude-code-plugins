@@ -384,7 +384,7 @@ This skill includes formal evaluation scenarios to validate effectiveness:
 ## Related Skills
 
 - **git-commit**: Git commit workflow (complements Python project workflow)
-- **git-config**: Git configuration (Python projects use Git)
+- **git:config**: Git configuration (Python projects use Git)
 - **code-quality:markdown-linting**: Markdown linting via plugin (Python projects have READMEs)
 
 ## Version History

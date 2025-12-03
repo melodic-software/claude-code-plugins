@@ -53,7 +53,7 @@ Find documentation about skill use cases and patterns using keywords: skills, us
 
 | Category | Example Skills | Structural Pattern |
 | -------- | -------------- | ------------------ |
-| Workflow | `git-commit`, `git-setup`, `deployment` | Workflow-Based |
+| Workflow | `git-commit`, `setup`, `deployment` | Workflow-Based |
 | Analysis | `code-reviewing`, `security-scanning` | Task-Based |
 | Reference | `brand-guidelines`, `api-standards` | Reference-Based |
 | Integration | `database-client`, `api-connector` | Capabilities-Based |

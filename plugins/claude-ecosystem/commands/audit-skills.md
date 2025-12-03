@@ -50,7 +50,7 @@ This command accepts **skill names and/or flags** as arguments:
 
 **Argument format**:
 
-- Skill names first (e.g., `skill-development`, `git-setup`, `plugin:docs-management`)
+- Skill names first (e.g., `skill-development`, `git:setup`, `plugin:docs-management`)
 - Flags last: `--force`, `--plugin-only`, `--project-only` (case-insensitive)
 
 ## Step 0: Get Current Date (REQUIRED)

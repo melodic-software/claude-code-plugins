@@ -38,7 +38,7 @@ Before using multi-key GPG strategies:
 
 - **GPG installed:** Run `gpg --version` (should show GnuPG 2.2+)
 - **Git installed:** Run `git --version` (should show Git 2.23+ for conditional includes)
-- **Basic GPG familiarity:** See `git-gpg-signing` skill for single-key setup basics
+- **Basic GPG familiarity:** See `git:gpg-signing` skill for single-key setup basics
 - **For CI/CD scenarios:** GitHub/GitLab repository access and Secrets management permissions
 - **For consultant scenarios:** Organized directory structure (`~/Clients/` recommended)
 
@@ -57,11 +57,11 @@ Before using multi-key GPG strategies:
 
 ```text
 Are you a new GPG user?
-├─ YES → Use git-gpg-signing skill first
+├─ YES → Use gpg-signing skill first
 └─ NO → Continue below
 
 Do you need multiple keys?
-├─ NO → Use git-gpg-signing skill (Scenario 1)
+├─ NO → Use gpg-signing skill (Scenario 1)
 └─ YES → Continue below
 
 Which applies to you?
@@ -73,9 +73,9 @@ Which applies to you?
 
 ## Scenario 1: Basic Setup (Single Personal Key)
 
-**For basic single-key setup**, use the `git-gpg-signing` skill instead.
+**For basic single-key setup**, use the `git:gpg-signing` skill instead.
 
-**If you're new to GPG signing**, start with the `git-gpg-signing` skill to:
+**If you're new to GPG signing**, start with the `git:gpg-signing` skill to:
 
 - Install and configure GPG
 - Generate your first signing key
@@ -296,7 +296,7 @@ Use multiple keys when:
 - **Personal + CI/CD:** Need unattended signing (automation key can't have passphrase)
 - **Multiple clients:** Different email/identity per client (consultant scenario)
 - **Enterprise:** Organizational policy requires key rotation or isolation
-- **Never:** Single project → stick with one key (use git-gpg-signing skill)
+- **Never:** Single project → stick with one key (use gpg-signing skill)
 
 ### What's the difference between automation and personal keys?
 
@@ -338,9 +338,9 @@ Yes, with caveats:
 
 ## Related Skills
 
-- **git-gpg-signing** - Prerequisite for basic single-key setup (Scenario 1)
-- **git-setup** - Prerequisite for Git installation and configuration
-- **git-config** - Related for advanced Git configuration topics (conditional includes)
+- **gpg-signing** - Prerequisite for basic single-key setup (Scenario 1)
+- **setup** - Prerequisite for Git installation and configuration
+- **config** - Related for advanced Git configuration topics (conditional includes)
 
 ## Version History
 

@@ -88,11 +88,11 @@ Follow the ordered steps covering package management, Git (via git skills), runt
 
 Git documentation has been consolidated into dedicated Claude Code skills for better maintainability:
 
-- **git-setup** skill: Git installation and basic configuration
-- **git-line-endings** skill: Cross-platform line ending configuration
-- **git-gui-tools** skill: Git GUI client recommendations
-- **git-config** skill: Comprehensive Git configuration
-- **git-gpg-signing** skill: Commit signing setup
+- **git:setup** skill: Git installation and basic configuration
+- **git:line-endings** skill: Cross-platform line ending configuration
+- **git:gui-tools** skill: Git GUI client recommendations
+- **git:config** skill: Comprehensive Git configuration
+- **git:gpg-signing** skill: Commit signing setup
 
 Invoke these skills directly for Git-related guidance.
 

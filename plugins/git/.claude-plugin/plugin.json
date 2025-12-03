@@ -30,5 +30,5 @@
     "git-blame"
   ],
   "skills": "./skills",
-  "agents": ["./agents/git-history-reviewer.md"]
+  "agents": ["./agents/history-reviewer.md"]
 }

@@ -8,7 +8,7 @@ This document provides solutions to common issues encountered during Git commit 
 
 **Solution**:
 
-1. Use the `git-gpg-signing` skill for complete setup and troubleshooting
+1. Use the `git:gpg-signing` skill for complete setup and troubleshooting
 2. Verify GPG key configured: `git config user.signingkey`
 3. Check GPG agent running: `gpg-agent --daemon`
 4. Test signing: `echo "test" | gpg --clearsign`

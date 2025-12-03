@@ -36,11 +36,11 @@ Set up Git before anything else - you'll need it for all development work.
 
 > **Skills Available:** Git documentation has been consolidated into Claude Code skills for better maintainability. Invoke these skills directly:
 
-- **git-setup** skill: Git installation and basic configuration (Windows-specific guidance)
-- **git-line-endings** skill: Cross-platform line ending configuration (important for Windows)
-- **git-gui-tools** skill: Git GUI clients (GitKraken, Sourcetree, GitHub Desktop)
-- **git-config** skill: Comprehensive configuration (aliases, performance tuning, credentials)
-- **git-gpg-signing** skill: Commit signing setup and troubleshooting
+- **git:setup** skill: Git installation and basic configuration (Windows-specific guidance)
+- **git:line-endings** skill: Cross-platform line ending configuration (important for Windows)
+- **git:gui-tools** skill: Git GUI clients (GitKraken, Sourcetree, GitHub Desktop)
+- **git:config** skill: Comprehensive configuration (aliases, performance tuning, credentials)
+- **git:gpg-signing** skill: Commit signing setup and troubleshooting
 
 ### 5. Runtime Environments
 

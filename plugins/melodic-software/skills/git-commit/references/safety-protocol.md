@@ -513,4 +513,4 @@ git commit -m "chore: apply linting fixes from pre-commit hook"
 ---
 
 **Last Verified:** 2025-11-25
-**Related Skills**: git-gpg-signing, git-config
+**Related Skills**: git:gpg-signing, git:config
