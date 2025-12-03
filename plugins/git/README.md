@@ -47,9 +47,9 @@ skill: melodic-software:git-commit
 
 ### Agent (1)
 
-| Agent                | Description                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `git-history-reviewer` | Strictly read-only git history exploration (log, blame, show, diff, status, stash list) |
+| Agent                  | Description                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `git-history-reviewer` | Strictly read-only git history exploration (log, blame, show, diff, status, stash list)  |
 
 The `git-history-reviewer` agent provides smart summaries of verbose git output to preserve main context tokens. It CANNOT commit, push, or modify the repository.
 
