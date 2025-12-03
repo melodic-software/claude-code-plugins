@@ -218,8 +218,10 @@ class TestFindDocsCLI:
                     pass
             
             output = f.getvalue()
-            results = json.loads(output)
-            
+            json_data = json.loads(output)
+            # Handle new format with 'results' key or legacy list format
+            results = json_data.get('results', json_data) if isinstance(json_data, dict) else json_data
+
             # Verify URLs don't have .md extension
             for result in results:
                 url = result.get('url', '')
@@ -227,7 +229,7 @@ class TestFindDocsCLI:
                     # URL should not have .md extension (except in path)
                     assert not url.endswith('.md'), f"URL should not end with .md: {url}"
                     assert '.md#' not in url, f"URL should not have .md before fragment: {url}"
-            
+
             # Test cmd_query JSON output
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
@@ -235,17 +237,19 @@ class TestFindDocsCLI:
                     cmd_query(resolver, 'test', limit=10, json_output=True)
                 except SystemExit:
                     pass
-            
+
             output = f.getvalue()
-            results = json.loads(output)
-            
+            json_data = json.loads(output)
+            # Handle new format with 'results' key or legacy list format
+            results = json_data.get('results', json_data) if isinstance(json_data, dict) else json_data
+
             # Verify URLs don't have .md extension
             for result in results:
                 url = result.get('url', '')
                 if url:
                     assert not url.endswith('.md'), f"URL should not end with .md: {url}"
                     assert '.md#' not in url, f"URL should not have .md before fragment: {url}"
-            
+
             # Test that URLs with fragments still work correctly
             # doc2 has URL with .md and fragment - should be normalized
             f = io.StringIO()
@@ -254,10 +258,12 @@ class TestFindDocsCLI:
                     cmd_query(resolver, 'test', limit=10, json_output=True)
                 except SystemExit:
                     pass
-            
+
             output = f.getvalue()
-            results = json.loads(output)
-            
+            json_data = json.loads(output)
+            # Handle new format with 'results' key or legacy list format
+            results = json_data.get('results', json_data) if isinstance(json_data, dict) else json_data
+
             # Find doc2 in results
             for result in results:
                 if result.get('doc_id') == 'doc2':
@@ -308,7 +314,9 @@ class TestFindDocsCLI:
                     pass
 
             output = f.getvalue()
-            results = json.loads(output)
+            json_data = json.loads(output)
+            # Handle new format with 'results' key or legacy list format
+            results = json_data.get('results', json_data) if isinstance(json_data, dict) else json_data
 
             # Should find content-only-doc via content search
             assert len(results) > 0
@@ -401,6 +409,181 @@ class TestFindDocsCLI:
 
             # Should show [CONTENT] tag for content-only match
             assert '[CONTENT]' in output
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_shows_truncation_message(self, temp_dir):
+        """Test that truncation message shows when results are limited."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create 60 documents to exceed default limit
+            index = {}
+            for i in range(60):
+                index[f'doc{i}'] = create_mock_index_entry(
+                    f'doc{i}', f'https://example.com/doc{i}', f'test/doc{i}.md',
+                    title=f'Test Document {i}', keywords=['test', 'document']
+                )
+            refs_dir.create_index(index)
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    # Use limit=10 to force truncation (no_content=True to skip content search)
+                    result_count = cmd_search(resolver, ['test'], limit=10, json_output=False, no_content=True)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+
+            # Should show truncation message with total count
+            assert '10 of 60 total' in output or 'showing 10' in output
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_no_limit_returns_all(self, temp_dir):
+        """Test that limit=None returns all results."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create 60 documents
+            index = {}
+            for i in range(60):
+                index[f'doc{i}'] = create_mock_index_entry(
+                    f'doc{i}', f'https://example.com/doc{i}', f'test/doc{i}.md',
+                    title=f'Test Document {i}', keywords=['test', 'document']
+                )
+            refs_dir.create_index(index)
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+            import json
+
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    # Use limit=None (no limit)
+                    result_count = cmd_search(resolver, ['test'], limit=None, json_output=True)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+            json_data = json.loads(output)
+            results = json_data.get('results', json_data) if isinstance(json_data, dict) else json_data
+
+            # Should return all 60 documents
+            assert len(results) == 60
+            # JSON should show total_available equals count
+            if isinstance(json_data, dict):
+                assert json_data.get('total_available') == 60
+                assert json_data.get('count') == 60
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_search_min_score_filter(self, temp_dir):
+        """Test that min_score filters low-relevance results."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create docs with varying relevance
+            index = {
+                'high-relevance': create_mock_index_entry(
+                    'high-relevance', 'https://example.com/high', 'test/high.md',
+                    title='Skills Guide', keywords=['skills', 'guide', 'skills', 'agent skills'],
+                    tags=['skills']
+                ),
+                'medium-relevance': create_mock_index_entry(
+                    'medium-relevance', 'https://example.com/medium', 'test/medium.md',
+                    title='General Guide', keywords=['skills'],
+                    tags=['guides']
+                ),
+                'low-relevance': create_mock_index_entry(
+                    'low-relevance', 'https://example.com/low', 'test/low.md',
+                    title='Other Document', keywords=['other'],
+                    tags=['other']
+                )
+            }
+            refs_dir.create_index(index)
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            # Search with high min_score
+            results_high = resolver.search_by_keyword(['skills'], limit=10, return_scores=True, min_score=20)
+            results_low = resolver.search_by_keyword(['skills'], limit=10, return_scores=True, min_score=1)
+
+            # High min_score should return fewer results
+            assert len(results_high) <= len(results_low)
+
+            # All results with high min_score should have score >= 20
+            for doc_id, metadata in results_high:
+                assert metadata.get('_score', 0) >= 20
+
+        finally:
+            refs_dir.cleanup()
+
+    def test_json_output_includes_total_available(self, temp_dir):
+        """Test that JSON output includes total_available metadata."""
+        refs_dir = TempReferencesDir()
+
+        try:
+            # Create 20 documents
+            index = {}
+            for i in range(20):
+                index[f'doc{i}'] = create_mock_index_entry(
+                    f'doc{i}', f'https://example.com/doc{i}', f'test/doc{i}.md',
+                    title=f'Test Document {i}', keywords=['test']
+                )
+            refs_dir.create_index(index)
+
+            sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+            from scripts.core.find_docs import cmd_search
+            from scripts.core.doc_resolver import DocResolver
+
+            resolver = DocResolver(refs_dir.references_dir)
+
+            import io
+            import contextlib
+            import json
+
+            f = io.StringIO()
+            with contextlib.redirect_stdout(f):
+                try:
+                    # Use limit=5 to trigger truncation (no_content=True to skip content search)
+                    cmd_search(resolver, ['test'], limit=5, json_output=True, no_content=True)
+                except SystemExit:
+                    pass
+
+            output = f.getvalue()
+            json_data = json.loads(output)
+
+            # Should have count, total_available, and results keys
+            assert 'count' in json_data
+            assert 'total_available' in json_data
+            assert 'results' in json_data
+            assert json_data['count'] == 5
+            assert json_data['total_available'] == 20
+            assert len(json_data['results']) == 5
 
         finally:
             refs_dir.cleanup()

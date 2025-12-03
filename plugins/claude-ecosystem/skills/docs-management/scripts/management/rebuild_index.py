@@ -164,11 +164,27 @@ def rebuild_index(base_dir: Path, dry_run: bool = False) -> dict:
             relative_path_str = str(relative_path).replace('\\', '/')
             
             # Check if this hash exists in old index (rename detection)
+            # A rename is ONLY detected if:
+            # 1. The content hash matches an existing entry
+            # 2. The doc_id is different (file path changed)
+            # 3. The OLD file path no longer exists on disk
+            # If both files exist, they're separate documents with same content, not a rename
             old_doc_id = hash_to_doc_id.get(content_hash)
             if old_doc_id and old_doc_id != doc_id:
-                # File was renamed - keep NEW doc_id (matching actual filename)
-                # Old doc_id will become an alias for backward compatibility
-                renamed_entries.append((old_doc_id, doc_id))
+                # Check if the old file still exists
+                old_entry = existing_index.get(old_doc_id, {})
+                old_path_str = old_entry.get('path', '')
+                old_file_path = base_dir / old_path_str if old_path_str else None
+
+                if old_file_path and old_file_path.exists():
+                    # Both files exist - these are separate documents with same content
+                    # NOT a rename - each should have its own index entry
+                    pass
+                else:
+                    # Old file is gone - this is a genuine rename
+                    # Keep NEW doc_id (matching actual filename)
+                    # Old doc_id will become an alias for backward compatibility
+                    renamed_entries.append((old_doc_id, doc_id))
                 # doc_id stays as-is (the new one from the actual file path)
             
             # Check if entry exists

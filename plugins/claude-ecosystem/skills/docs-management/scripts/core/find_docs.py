@@ -163,7 +163,8 @@ def _display_search_results(results: list[tuple[str, dict]], header: str, verbos
 
 
 def _display_search_results_merged(results: list[tuple[str, dict]], index_doc_ids: set[str],
-                                    verbose: bool = False, show_context: bool = False) -> None:
+                                    verbose: bool = False, show_context: bool = False,
+                                    total_available: int | None = None, limit: int | None = None) -> None:
     """Display merged search results showing match source (index vs content).
 
     Args:
@@ -171,8 +172,14 @@ def _display_search_results_merged(results: list[tuple[str, dict]], index_doc_id
         index_doc_ids: Set of doc_ids that matched via keyword index
         verbose: If True, show score details
         show_context: If True, show grep match line numbers and snippets
+        total_available: Total number of results available before limiting
+        limit: The limit that was applied (None if no limit)
     """
-    print(f"📋 Found {len(results)} document(s):\n")
+    # Show truncation notice if results were limited
+    if total_available is not None and len(results) < total_available:
+        print(f"📋 Found {len(results)} document(s) (showing {len(results)} of {total_available} total, use --no-limit for all):\n")
+    else:
+        print(f"📋 Found {len(results)} document(s):\n")
     for i, (doc_id, metadata) in enumerate(results, 1):
         entry = _format_result_entry(doc_id, metadata)
 
@@ -208,7 +215,9 @@ def _display_search_results_separate(index_results: list[tuple[str, dict]],
                                       content_only_results: list[tuple[str, dict]],
                                       content_doc_ids: set[str],
                                       verbose: bool = False,
-                                      show_context: bool = False) -> None:
+                                      show_context: bool = False,
+                                      total_available: int | None = None,
+                                      limit: int | None = None) -> None:
     """Display search results in separate sections for index vs content matches.
 
     Args:
@@ -217,6 +226,8 @@ def _display_search_results_separate(index_results: list[tuple[str, dict]],
         content_doc_ids: Set of all doc_ids that matched via content search
         verbose: If True, show score details
         show_context: If True, show grep match line numbers and snippets
+        total_available: Total number of results available before limiting
+        limit: The limit that was applied (None if no limit)
     """
     total = len(index_results) + len(content_only_results)
     overlap = len([doc_id for doc_id, _ in index_results if doc_id in content_doc_ids])
@@ -269,28 +280,38 @@ def _display_search_results_separate(index_results: list[tuple[str, dict]],
         print("📋 Content Matches: (none - all matches found in index)\n")
 
     # Summary
-    print(f"📊 Summary: {len(index_results)} index + {len(content_only_results)} content-only = {total} total", end="")
+    summary = f"📊 Summary: {len(index_results)} index + {len(content_only_results)} content-only = {total} total"
     if overlap > 0:
-        print(f" ({overlap} found in both)")
-    else:
-        print()
+        summary += f" ({overlap} found in both)"
+    if total_available is not None and total < total_available:
+        summary += f" [showing {total} of {total_available} available, use --no-limit for all]"
+    print(summary)
 
 
 def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None = None,
-              tags: list[str] | None = None, limit: int = 10, json_output: bool = False,
+              tags: list[str] | None = None, limit: int | None = 25, json_output: bool = False,
               verbose: bool = False, no_content: bool = False, separate: bool = False,
-              show_context: bool = False) -> int:
+              show_context: bool = False, min_score: float | None = None) -> int:
     """Search documents by keywords with optional content search.
 
     By default, searches both the keyword index AND file content, merging results.
     Use no_content=True to disable content search for faster index-only results.
     Use separate=True to display index and content results in separate sections.
     Use show_context=True to include line numbers and text snippets from grep matches.
+    Use limit=None for no limit on results.
+    Use min_score to filter results below a relevance threshold.
 
     Returns number of results found.
     """
+    # Always use high limit internally to get all candidates for accurate "X of Y" display
+    # User's limit is applied after merging results
+    internal_limit = 10000
+
     # Step 1: Search keyword index (existing behavior)
-    index_results = resolver.search_by_keyword(keywords, category=category, tags=tags, limit=limit, return_scores=verbose)
+    # Always request scores for min_score filtering (verbose will expose them to user)
+    index_results = resolver.search_by_keyword(keywords, category=category, tags=tags,
+                                                limit=internal_limit, return_scores=True,
+                                                min_score=min_score)
 
     # Track which doc_ids came from index
     index_doc_ids = {doc_id for doc_id, _ in index_results}
@@ -300,7 +321,7 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
     content_only_results: list[tuple[str, dict]] = []
     content_metadata_by_id: dict[str, dict] = {}  # For merging grep matches
     if not no_content:
-        content_results = resolver.search_content(keywords, limit=limit, include_context=show_context)
+        content_results = resolver.search_content(keywords, limit=internal_limit, include_context=show_context)
         # Build lookup for content metadata (to merge grep matches into index results)
         for doc_id, metadata in content_results:
             content_metadata_by_id[doc_id] = metadata
@@ -313,7 +334,7 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
 
     # Step 3: Merge results (index first, then content-only)
     # For index results that also have content matches, merge in the grep matches
-    results = []
+    all_results = []
     for doc_id, metadata in index_results:
         if doc_id in content_metadata_by_id:
             # Merge grep matches from content search into index result
@@ -322,14 +343,25 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
                 metadata = dict(metadata)  # Copy to avoid mutating original
                 metadata['_grep_matches'] = content_meta['_grep_matches']
                 metadata['_content_match'] = True
-        results.append((doc_id, metadata))
-    # Add content-only results up to the limit
-    remaining_slots = limit - len(results)
-    if remaining_slots > 0:
-        results.extend(content_only_results[:remaining_slots])
+        all_results.append((doc_id, metadata))
+    # Add content-only results
+    all_results.extend(content_only_results)
+
+    # Track total available before applying limit
+    total_available = len(all_results)
+
+    # Apply limit if specified
+    if limit is not None and len(all_results) > limit:
+        results = all_results[:limit]
+    else:
+        results = all_results
 
     if json_output:
-        output = []
+        output_data = {
+            'results': [],
+            'count': len(results),
+            'total_available': total_available
+        }
         for doc_id, metadata in results:
             entry = _format_result_entry(doc_id, metadata)
             # Add match source indicator
@@ -344,35 +376,67 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
             # Add grep matches if available
             if metadata.get('_grep_matches'):
                 entry['grep_matches'] = metadata['_grep_matches']
-            output.append(entry)
-        print(json.dumps(output, indent=2))
+            # Include score if available (for debugging/verification)
+            if metadata.get('_score') is not None:
+                entry['score'] = metadata['_score']
+            output_data['results'].append(entry)
+        print(json.dumps(output_data, indent=2))
     else:
         if not results:
             print(f"❌ No documents found for keywords: {', '.join(keywords)}")
             sys.exit(EXIT_NO_RESULTS)
 
         if separate:
-            _display_search_results_separate(index_results, content_only_results, content_doc_ids, verbose, show_context)
+            _display_search_results_separate(index_results, content_only_results, content_doc_ids,
+                                              verbose, show_context, total_available, limit)
         else:
-            _display_search_results_merged(results, index_doc_ids, verbose, show_context)
+            _display_search_results_merged(results, index_doc_ids, verbose, show_context,
+                                            total_available, limit)
 
     return len(results)
 
 
-def cmd_query(resolver: DocResolver, query: str, limit: int = 10, json_output: bool = False,
-              verbose: bool = False) -> int:
+def cmd_query(resolver: DocResolver, query: str, limit: int | None = 25, json_output: bool = False,
+              verbose: bool = False, min_score: float | None = None) -> int:
     """Search documents using natural language query. Returns number of results found."""
-    results = resolver.search_by_natural_language(query, limit=limit, return_scores=verbose)
+    # Always use high limit internally to get all candidates for accurate "X of Y" display
+    # User's limit is applied after getting all results
+    internal_limit = 10000
+
+    all_results = resolver.search_by_natural_language(query, limit=internal_limit,
+                                                       return_scores=True, min_score=min_score)
+
+    # Track total available before applying limit
+    total_available = len(all_results)
+
+    # Apply limit if specified
+    if limit is not None and len(all_results) > limit:
+        results = all_results[:limit]
+    else:
+        results = all_results
 
     if json_output:
-        output = [_format_result_entry(doc_id, metadata) for doc_id, metadata in results]
-        print(json.dumps(output, indent=2))
+        output_data = {
+            'results': [_format_result_entry(doc_id, metadata) for doc_id, metadata in results],
+            'count': len(results),
+            'total_available': total_available
+        }
+        # Include scores if available
+        for i, (doc_id, metadata) in enumerate(results):
+            if metadata.get('_score') is not None:
+                output_data['results'][i]['score'] = metadata['_score']
+        print(json.dumps(output_data, indent=2))
     else:
         if not results:
             print(f"❌ No documents found for query: {query}")
             sys.exit(EXIT_NO_RESULTS)
 
-        _display_search_results(results, f"Found {len(results)} document(s) for query: '{query}'", verbose)
+        # Show truncation notice if results were limited
+        if total_available > len(results):
+            header = f"Found {len(results)} document(s) for query: '{query}' (showing {len(results)} of {total_available} total, use --no-limit for all)"
+        else:
+            header = f"Found {len(results)} document(s) for query: '{query}'"
+        _display_search_results(results, header, verbose)
 
     return len(results)
 
@@ -521,7 +585,9 @@ Examples:
     )
     
     add_common_index_args(parser, include_json=True)
-    parser.add_argument('--limit', type=int, default=10, help='Maximum results (default: 10)')
+    parser.add_argument('--limit', type=int, default=25, help='Maximum results (default: 25)')
+    parser.add_argument('--no-limit', action='store_true', help='Return all matching results (no limit)')
+    parser.add_argument('--min-score', type=float, default=None, help='Only return results above this score threshold')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show scoring details for search results')
     parser.add_argument('--clear-cache', action='store_true', help='Clear cache before operation (forces rebuild)')
 
@@ -597,6 +663,10 @@ Examples:
         # Initialize resolver
         resolver = DocResolver(base_dir)
 
+        # Calculate effective limit (None means no limit)
+        effective_limit = None if getattr(args, 'no_limit', False) else args.limit
+        min_score = getattr(args, 'min_score', None)
+
         # Execute command and capture result count
         if args.command == 'resolve':
             result_count = cmd_resolve(resolver, args.doc_id, getattr(args, 'extract_path', None), args.json)
@@ -606,17 +676,17 @@ Examples:
             result_count = cmd_content(resolver, args.doc_id, getattr(args, 'section', None), args.json)
         elif args.command == 'search':
             result_count = cmd_search(resolver, args.keywords, getattr(args, 'category', None),
-                      getattr(args, 'tags', None), args.limit, args.json, args.verbose,
+                      getattr(args, 'tags', None), effective_limit, args.json, args.verbose,
                       getattr(args, 'no_content', False), getattr(args, 'separate', False),
-                      not getattr(args, 'no_context', False))
+                      not getattr(args, 'no_context', False), min_score)
         elif args.command == 'query':
-            result_count = cmd_query(resolver, args.query, args.limit, args.json, args.verbose)
+            result_count = cmd_query(resolver, args.query, effective_limit, args.json, args.verbose, min_score)
         elif args.command == 'category':
             result_count = cmd_category(resolver, args.category, args.json)
         elif args.command == 'tag':
             result_count = cmd_tag(resolver, args.tag, args.json)
         elif args.command == 'related':
-            result_count = cmd_related(resolver, args.doc_id, args.limit, args.json)
+            result_count = cmd_related(resolver, args.doc_id, effective_limit, args.json)
         else:
             parser.print_help()
             exit_code = 1

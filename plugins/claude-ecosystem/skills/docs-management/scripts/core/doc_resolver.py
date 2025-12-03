@@ -598,7 +598,8 @@ class DocResolver:
 
     def search_by_keyword(self, keywords: list[str], category: str | None = None,
                          tags: list[str | None] = None, limit: int = 10,
-                         return_scores: bool = False) -> list[tuple[str, dict]]:
+                         return_scores: bool = False,
+                         min_score: float | None = None) -> list[tuple[str, dict]]:
         """
         Search documents by keywords
 
@@ -608,6 +609,7 @@ class DocResolver:
             tags: Optional tags filter
             limit: Maximum number of results
             return_scores: If True, include score in metadata['_score']
+            min_score: If set, only return results with score >= this value
 
         Returns:
             List of (doc_id, metadata) tuples, sorted by relevance
@@ -867,6 +869,11 @@ class DocResolver:
 
         # Sort by score (desc), then by keyword position (asc) for tiebreaking
         results.sort(key=lambda x: (-x[0], x[1]))
+
+        # Apply min_score filter if specified
+        if min_score is not None:
+            results = [(s, kw_pos, doc_id, meta) for s, kw_pos, doc_id, meta in results if s >= min_score]
+
         final_results = []
         for score, kw_position, doc_id, metadata in results[:limit]:
             if return_scores:
@@ -885,7 +892,8 @@ class DocResolver:
         return final_results
     
     def search_by_natural_language(self, query: str, limit: int = 10,
-                                    return_scores: bool = False) -> list[tuple[str, dict]]:
+                                    return_scores: bool = False,
+                                    min_score: float | None = None) -> list[tuple[str, dict]]:
         """
         Search documents using natural language query
 
@@ -893,6 +901,7 @@ class DocResolver:
             query: Natural language search query
             limit: Maximum number of results
             return_scores: If True, include score in metadata['_score']
+            min_score: If set, only return results with score >= this value
 
         Returns:
             List of (doc_id, metadata) tuples, sorted by relevance
@@ -922,7 +931,7 @@ class DocResolver:
         # 4. LLM-assisted query reformulation
         # Reference: 2025-11-25 audit recommendation for queries without keyword matches
 
-        return self.search_by_keyword(keywords, limit=limit, return_scores=return_scores)
+        return self.search_by_keyword(keywords, limit=limit, return_scores=return_scores, min_score=min_score)
 
     def get_by_category(self, category: str) -> list[tuple[str, dict]]:
         """Get all documents in a category"""

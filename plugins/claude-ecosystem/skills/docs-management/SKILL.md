@@ -244,8 +244,17 @@ py -3.13 .claude/skills/docs-management/scripts/management/refresh_index.py
 # Resolve doc_id to file path
 python .claude/skills/docs-management/scripts/core/find_docs.py resolve <doc_id>
 
-# Search by keywords
+# Search by keywords (default: 25 results)
 python .claude/skills/docs-management/scripts/core/find_docs.py search skills progressive-disclosure
+
+# Search with custom limit (global options come before subcommand)
+python .claude/skills/docs-management/scripts/core/find_docs.py --limit 10 search skills
+
+# Search without limit (returns all matching results)
+python .claude/skills/docs-management/scripts/core/find_docs.py --no-limit search skills
+
+# Search with minimum score threshold (filters low-relevance results)
+python .claude/skills/docs-management/scripts/core/find_docs.py --min-score 20 search skills
 
 # Natural language search
 python .claude/skills/docs-management/scripts/core/find_docs.py query "how to create skills"
@@ -256,6 +265,19 @@ python .claude/skills/docs-management/scripts/core/find_docs.py category api
 # List by tag
 python .claude/skills/docs-management/scripts/core/find_docs.py tag skills
 ```
+
+**Search Options:**
+
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `--limit N` | 25 | Maximum number of results to return |
+| `--no-limit` | - | Return all matching results (no limit) |
+| `--min-score N` | - | Only return results with relevance score >= N |
+| `--fast` | - | Index-only search (skip content grep) |
+| `--json` | - | Output results as JSON |
+| `--verbose` | - | Show relevance scores |
+
+When results are truncated, output shows "showing X of Y total" to indicate more results are available.
 
 ## Configuration System
 

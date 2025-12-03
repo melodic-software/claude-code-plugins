@@ -180,6 +180,15 @@ performance:
 
 # Search and Relevance Configuration
 search:
+  # Default maximum number of results to return
+  # Use --no-limit to return all results, or --limit N to override
+  default_limit: 25
+
+  # Default minimum score threshold (null = no threshold)
+  # Results below this score are filtered out before applying limit
+  # Use --min-score N to override
+  min_score_default: null
+
   # Domain priority weights for relevance ranking
   # Higher weights prioritize specific domains in search results
   # Use case: code.claude.com should rank higher than news articles for technical queries

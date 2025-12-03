@@ -54886,10 +54886,8 @@
       "retrieve",
       "returns"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/api/admin-api/invites/get-invite.md",
-    "sitemap_url": "https://docs.claude.com/sitemap.xml",
-    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#retrieve",
@@ -55445,6 +55443,74 @@
     ],
     "title": "List",
     "url": "https://platform.claude.com/docs/en/api/admin/invites/list"
+  },
+  "platform-claude-com-docs-en-api-admin-invites-retrieve": {
+    "category": "api",
+    "description": "**get** `/v1/organizations/invites/{invite_id}`",
+    "domain": "platform.claude.com",
+    "hash": "sha256:f6af58ba8fe258572d9982ad26f6983a42ca35f8c1ccefbfde44e5a4a105b60f",
+    "keywords": [
+      "retrieve",
+      "invites",
+      "admin",
+      "path parameters",
+      "organizations",
+      "parameters",
+      "returns"
+    ],
+    "last_fetched": "2025-12-03",
+    "path": "platform-claude-com/docs/en/api/admin/invites/retrieve.md",
+    "subsections": [
+      {
+        "anchor": "#retrieve",
+        "heading": "Retrieve",
+        "keywords": [
+          "retrieve",
+          "organizations",
+          "invites",
+          "invite"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#path-parameters",
+        "heading": "Path Parameters",
+        "keywords": [
+          "path",
+          "parameters",
+          "string",
+          "invite"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#returns",
+        "heading": "Returns",
+        "keywords": [
+          "returns",
+          "invite",
+          "object",
+          "email"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#example",
+        "heading": "Example",
+        "keywords": [
+          "example",
+          "http",
+          "curl",
+          "https"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "reference"
+    ],
+    "title": "Retrieve",
+    "url": "https://platform.claude.com/docs/en/api/admin/invites/retrieve"
   },
   "platform-claude-com-docs-en-api-admin-organizations-me": {
     "category": "api",
@@ -60478,6 +60544,63 @@
     "title": "OpenAI SDK compatibility",
     "url": "https://platform.claude.com/docs/en/api/openai-sdk"
   },
+  "platform-claude-com-docs-en-api-overview": {
+    "category": "api",
+    "description": "Explore Claude's advanced features and capabilities.",
+    "domain": "platform.claude.com",
+    "hash": "sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15",
+    "keywords": [
+      "progressive disclosure",
+      "core capabilities",
+      "extended thinking",
+      "batch processing",
+      "context editing",
+      "code execution",
+      "context window",
+      "prompt caching",
+      "search results",
+      "token counting",
+      "mcp connector",
+      "agent skills"
+    ],
+    "last_fetched": "2025-12-03",
+    "path": "platform-claude-com/docs/en/api/overview.md",
+    "subsections": [
+      {
+        "anchor": "#core-capabilities",
+        "heading": "Core capabilities",
+        "keywords": [
+          "core",
+          "capabilities",
+          "features",
+          "enhance",
+          "fundamental"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#tools",
+        "heading": "Tools",
+        "keywords": [
+          "tools",
+          "features",
+          "enable",
+          "interact"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "agents",
+      "batch",
+      "caching",
+      "files",
+      "mcp",
+      "skills"
+    ],
+    "title": "Features overview",
+    "url": "https://platform.claude.com/docs/en/api/overview"
+  },
   "platform-claude-com-docs-en-api-rate-limits": {
     "category": "api",
     "description": "To mitigate misuse and manage capacity on our API, we have implemented limits on how much an organization can use the Claude API.",
@@ -63431,10 +63554,8 @@
       "search results",
       "token counting"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/build-with-claude/overview.md",
-    "sitemap_url": "https://docs.claude.com/sitemap.xml",
-    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#core-capabilities",
