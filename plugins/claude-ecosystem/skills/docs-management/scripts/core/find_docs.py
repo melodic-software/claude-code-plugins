@@ -56,7 +56,10 @@ except ImportError:
 
 
 def cmd_resolve(resolver: DocResolver, doc_id: str, extract_path: str | None = None, json_output: bool = False) -> int:
-    """Resolve doc_id to file path. Returns 1 if found, 0 if not found."""
+    """Resolve doc_id to file path. Returns 1 if found, 0 if not found.
+
+    Note: Caller should check return value and handle exit codes appropriately.
+    """
     path = resolver.resolve_doc_id(doc_id, extract_path)
 
     if json_output:
@@ -72,7 +75,6 @@ def cmd_resolve(resolver: DocResolver, doc_id: str, extract_path: str | None = N
             print(f"   doc_id: {doc_id}")
         else:
             print(f"❌ Not found: {doc_id}")
-            sys.exit(EXIT_NO_RESULTS)
 
     return 1 if path else 0
 
@@ -161,13 +163,14 @@ def _display_search_results(results: list[tuple[str, dict]], header: str, verbos
 
 
 def _display_search_results_merged(results: list[tuple[str, dict]], index_doc_ids: set[str],
-                                    verbose: bool = False) -> None:
+                                    verbose: bool = False, show_context: bool = False) -> None:
     """Display merged search results showing match source (index vs content).
 
     Args:
         results: List of (doc_id, metadata) tuples
         index_doc_ids: Set of doc_ids that matched via keyword index
         verbose: If True, show score details
+        show_context: If True, show grep match line numbers and snippets
     """
     print(f"📋 Found {len(results)} document(s):\n")
     for i, (doc_id, metadata) in enumerate(results, 1):
@@ -193,16 +196,96 @@ def _display_search_results_merged(results: list[tuple[str, dict]], index_doc_id
             print(f"   description: {desc}")
         if entry.get('extraction_command'):
             print(f"   extract: {entry['extraction_command']}")
+        # Show grep matches if available and requested
+        if show_context and metadata.get('_grep_matches'):
+            print(f"   grep_matches:")
+            for match in metadata['_grep_matches']:
+                print(f"      L{match['line']}: {match['text']}")
+        print()
+
+
+def _display_search_results_separate(index_results: list[tuple[str, dict]],
+                                      content_only_results: list[tuple[str, dict]],
+                                      content_doc_ids: set[str],
+                                      verbose: bool = False,
+                                      show_context: bool = False) -> None:
+    """Display search results in separate sections for index vs content matches.
+
+    Args:
+        index_results: List of (doc_id, metadata) tuples from keyword index
+        content_only_results: List of (doc_id, metadata) tuples from content search only
+        content_doc_ids: Set of all doc_ids that matched via content search
+        verbose: If True, show score details
+        show_context: If True, show grep match line numbers and snippets
+    """
+    total = len(index_results) + len(content_only_results)
+    overlap = len([doc_id for doc_id, _ in index_results if doc_id in content_doc_ids])
+
+    # Index results section
+    if index_results:
+        print(f"📋 Index Matches ({len(index_results)} from keyword index):\n")
+        for i, (doc_id, metadata) in enumerate(index_results, 1):
+            entry = _format_result_entry(doc_id, metadata)
+            type_indicator = " [SUBSECTION]" if entry['type'] == 'subsection' else ""
+            also_in_content = " (+content)" if doc_id in content_doc_ids else ""
+            score_indicator = f" (score: {metadata.get('_score', 'N/A')})" if verbose else ""
+            print(f"{i}. {entry['title']}{type_indicator}{also_in_content}{score_indicator}")
+            print(f"   doc_id: {entry['doc_id']}")
+            if entry['path']:
+                print(f"   path: {entry['path']}")
+            if entry.get('section_ref'):
+                print(f"   section: {entry['section_ref']} ({entry.get('section_heading')})")
+            if entry['url']:
+                print(f"   url: {entry['url']} (web reference only)")
+            if entry.get('description'):
+                desc = entry['description'][:100] + '...' if len(entry['description']) > 100 else entry['description']
+                print(f"   description: {desc}")
+            print()
+    else:
+        print("📋 Index Matches: (none)\n")
+
+    # Content-only results section
+    if content_only_results:
+        print(f"📋 Content Matches ({len(content_only_results)} from file grep, not in index):\n")
+        for i, (doc_id, metadata) in enumerate(content_only_results, 1):
+            entry = _format_result_entry(doc_id, metadata)
+            type_indicator = " [SUBSECTION]" if entry['type'] == 'subsection' else ""
+            print(f"{i}. {entry['title']}{type_indicator}")
+            print(f"   doc_id: {entry['doc_id']}")
+            if entry['path']:
+                print(f"   path: {entry['path']}")
+            if entry['url']:
+                print(f"   url: {entry['url']} (web reference only)")
+            if entry.get('description'):
+                desc = entry['description'][:100] + '...' if len(entry['description']) > 100 else entry['description']
+                print(f"   description: {desc}")
+            # Show grep matches if available and requested
+            if show_context and metadata.get('_grep_matches'):
+                print(f"   grep_matches:")
+                for match in metadata['_grep_matches']:
+                    print(f"      L{match['line']}: {match['text']}")
+            print()
+    else:
+        print("📋 Content Matches: (none - all matches found in index)\n")
+
+    # Summary
+    print(f"📊 Summary: {len(index_results)} index + {len(content_only_results)} content-only = {total} total", end="")
+    if overlap > 0:
+        print(f" ({overlap} found in both)")
+    else:
         print()
 
 
 def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None = None,
-              tags: list[str | None] = None, limit: int = 10, json_output: bool = False,
-              verbose: bool = False, no_content: bool = False) -> int:
+              tags: list[str] | None = None, limit: int = 10, json_output: bool = False,
+              verbose: bool = False, no_content: bool = False, separate: bool = False,
+              show_context: bool = False) -> int:
     """Search documents by keywords with optional content search.
 
     By default, searches both the keyword index AND file content, merging results.
     Use no_content=True to disable content search for faster index-only results.
+    Use separate=True to display index and content results in separate sections.
+    Use show_context=True to include line numbers and text snippets from grep matches.
 
     Returns number of results found.
     """
@@ -215,10 +298,13 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
     # Step 2: Search file content (unless disabled)
     content_results: list[tuple[str, dict]] = []
     content_only_results: list[tuple[str, dict]] = []
+    content_metadata_by_id: dict[str, dict] = {}  # For merging grep matches
     if not no_content:
-        content_results = resolver.search_content(keywords, limit=limit)
-        # Filter to content-only matches (not already in index results)
+        content_results = resolver.search_content(keywords, limit=limit, include_context=show_context)
+        # Build lookup for content metadata (to merge grep matches into index results)
         for doc_id, metadata in content_results:
+            content_metadata_by_id[doc_id] = metadata
+            # Filter to content-only matches (not already in index results)
             if doc_id not in index_doc_ids:
                 content_only_results.append((doc_id, metadata))
 
@@ -226,7 +312,17 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
     content_doc_ids = {doc_id for doc_id, _ in content_results}
 
     # Step 3: Merge results (index first, then content-only)
-    results = list(index_results)
+    # For index results that also have content matches, merge in the grep matches
+    results = []
+    for doc_id, metadata in index_results:
+        if doc_id in content_metadata_by_id:
+            # Merge grep matches from content search into index result
+            content_meta = content_metadata_by_id[doc_id]
+            if content_meta.get('_grep_matches'):
+                metadata = dict(metadata)  # Copy to avoid mutating original
+                metadata['_grep_matches'] = content_meta['_grep_matches']
+                metadata['_content_match'] = True
+        results.append((doc_id, metadata))
     # Add content-only results up to the limit
     remaining_slots = limit - len(results)
     if remaining_slots > 0:
@@ -245,6 +341,9 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
                     entry['match_source'] = 'index+content'
                 else:
                     entry['match_source'] = 'index'
+            # Add grep matches if available
+            if metadata.get('_grep_matches'):
+                entry['grep_matches'] = metadata['_grep_matches']
             output.append(entry)
         print(json.dumps(output, indent=2))
     else:
@@ -252,7 +351,10 @@ def cmd_search(resolver: DocResolver, keywords: list[str], category: str | None 
             print(f"❌ No documents found for keywords: {', '.join(keywords)}")
             sys.exit(EXIT_NO_RESULTS)
 
-        _display_search_results_merged(results, index_doc_ids, verbose)
+        if separate:
+            _display_search_results_separate(index_results, content_only_results, content_doc_ids, verbose, show_context)
+        else:
+            _display_search_results_merged(results, index_doc_ids, verbose, show_context)
 
     return len(results)
 
@@ -382,7 +484,7 @@ def cmd_related(resolver: DocResolver, doc_id: str, limit: int = 5, json_output:
     return len(results)
 
 
-def main():
+def main() -> None:
     """Main entry point"""
     parser = argparse.ArgumentParser(
         description='Find and resolve documentation references',
@@ -442,6 +544,10 @@ Examples:
     search_parser.add_argument('--tags', nargs='+', help='Filter by tags')
     search_parser.add_argument('--fast', action='store_true', dest='no_content',
                               help='Fast mode: search index only, skip file content grep')
+    search_parser.add_argument('--separate', action='store_true',
+                              help='Display index and content matches in separate sections')
+    search_parser.add_argument('--no-context', action='store_true', dest='no_context',
+                              help='Hide line numbers and text snippets from grep results (shown by default)')
     
     # Query command
     query_parser = subparsers.add_parser('query', help='Natural language search')
@@ -462,8 +568,8 @@ Examples:
     args = parser.parse_args()
     
     if not args.command:
-            parser.print_help()
-            sys.exit(EXIT_BAD_ARGS)
+        parser.print_help()
+        sys.exit(EXIT_BAD_ARGS)
     
     # Log script start
     logger.start({
@@ -494,12 +600,15 @@ Examples:
         # Execute command and capture result count
         if args.command == 'resolve':
             result_count = cmd_resolve(resolver, args.doc_id, getattr(args, 'extract_path', None), args.json)
+            if result_count == 0 and not args.json:
+                exit_code = EXIT_NO_RESULTS
         elif args.command == 'content':
             result_count = cmd_content(resolver, args.doc_id, getattr(args, 'section', None), args.json)
         elif args.command == 'search':
             result_count = cmd_search(resolver, args.keywords, getattr(args, 'category', None),
                       getattr(args, 'tags', None), args.limit, args.json, args.verbose,
-                      getattr(args, 'no_content', False))
+                      getattr(args, 'no_content', False), getattr(args, 'separate', False),
+                      not getattr(args, 'no_context', False))
         elif args.command == 'query':
             result_count = cmd_query(resolver, args.query, args.limit, args.json, args.verbose)
         elif args.command == 'category':
@@ -517,7 +626,9 @@ Examples:
     except SystemExit:
         raise
     except Exception as e:
-        logger.log_error("Fatal error in find_docs", error=e)
+        # Sanitize error to avoid exposing full paths or sensitive info in logs
+        logger.log_error("Fatal error in find_docs", error_type=type(e).__name__,
+                         message=str(e)[:200])
         exit_code = 1
         logger.end(exit_code=exit_code)
         sys.exit(exit_code)

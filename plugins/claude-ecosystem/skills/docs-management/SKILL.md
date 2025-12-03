@@ -409,7 +409,7 @@ When developing this plugin locally, you may want changes to go to your dev repo
 
 ### How It Works
 
-By default, scripts write to wherever the plugin is installed (typically `~/.claude/plugins/marketplaces/...`). When `DOCS_MANAGEMENT_DEV_ROOT` is set to a valid skill directory, all paths resolve to that location instead.
+By default, scripts write to wherever the plugin is installed (typically `~/.claude/plugins/marketplaces/...`). When `OFFICIAL_DOCS_DEV_ROOT` is set to a valid skill directory, all paths resolve to that location instead.
 
 ### Enabling Dev Mode
 
@@ -426,13 +426,13 @@ python scripts/setup/enable_dev_mode.py
 **PowerShell:**
 
 ```powershell
-$env:DOCS_MANAGEMENT_DEV_ROOT = "D:\repos\gh\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management"
+$env:OFFICIAL_DOCS_DEV_ROOT = "D:\repos\gh\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management"
 ```
 
 **Bash/Zsh:**
 
 ```bash
-export DOCS_MANAGEMENT_DEV_ROOT="/path/to/claude-code-plugins/plugins/claude-ecosystem/skills/docs-management"
+export OFFICIAL_DOCS_DEV_ROOT="/path/to/claude-code-plugins/plugins/claude-ecosystem/skills/docs-management"
 ```
 
 ### Verifying Mode
@@ -444,7 +444,7 @@ When you run any major script (scrape, refresh, rebuild), a mode banner will dis
 ```text
 [DEV MODE] Using development skill directory:
   D:\repos\gh\claude-code-plugins\plugins\claude-ecosystem\skills\docs-management
-  Set via: DOCS_MANAGEMENT_DEV_ROOT
+  Set via: OFFICIAL_DOCS_DEV_ROOT
 Canonical dir: D:\...\canonical
 ```
 
@@ -452,12 +452,12 @@ Canonical dir: D:\...\canonical
 
 ```text
 [PROD MODE] Using installed skill directory
-  (Set DOCS_MANAGEMENT_DEV_ROOT to enable dev mode)
+  (Set OFFICIAL_DOCS_DEV_ROOT to enable dev mode)
 ```
 
 ### Development Workflow
 
-1. Set `DOCS_MANAGEMENT_DEV_ROOT` in your terminal
+1. Set `OFFICIAL_DOCS_DEV_ROOT` in your terminal
 2. Run scripts - output goes to dev repo
 3. Track changes: `git diff canonical/`
 4. Commit and push when ready
@@ -467,13 +467,13 @@ Canonical dir: D:\...\canonical
 **PowerShell:**
 
 ```powershell
-Remove-Item Env:DOCS_MANAGEMENT_DEV_ROOT
+Remove-Item Env:OFFICIAL_DOCS_DEV_ROOT
 ```
 
 **Bash/Zsh:**
 
 ```bash
-unset DOCS_MANAGEMENT_DEV_ROOT
+unset OFFICIAL_DOCS_DEV_ROOT
 ```
 
 ## Related Documentation

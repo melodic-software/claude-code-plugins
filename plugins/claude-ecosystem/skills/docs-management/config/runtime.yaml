@@ -34,9 +34,7 @@ diagnostics:
   # Write detailed diagnostics JSON files after script execution
   # Files saved to logs/diagnostics/{script}_{timestamp}_diagnostics.json
   # Default: false (enable only when troubleshooting performance)
-  # AUDIT 2025-11-25: Enabled for comprehensive audit
-  write_diagnostics_files: true
+  write_diagnostics_files: false
 
   # Track HTTP request timings (adds overhead but useful for debugging)
-  # AUDIT 2025-11-25: Enabled for performance analysis
-  track_http_timings: true
+  track_http_timings: false

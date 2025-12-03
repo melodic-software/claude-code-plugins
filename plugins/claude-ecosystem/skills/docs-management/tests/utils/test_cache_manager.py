@@ -11,12 +11,16 @@ import pytest
 from scripts.utils.cache_manager import (
     CacheManager,
     compute_file_hash,
+    compute_plugin_fingerprint,
     CACHE_FORMAT_VERSION,
     INVERTED_INDEX_CACHE,
     CACHE_VERSION_FILE,
     LLMS_CACHE_DIR,
     MANIFEST_STATE_FILE,
 )
+
+# Mock plugin fingerprint for tests to avoid dependency on actual script content
+MOCK_PLUGIN_FINGERPRINT = "sha256:test_fingerprint"
 
 
 class TestComputeFileHash:
@@ -124,12 +128,14 @@ class TestCacheManager:
         current_hash = compute_file_hash(setup_dirs["index_yaml"])
         version_info = {
             "cache_format_version": CACHE_FORMAT_VERSION,
+            "plugin_fingerprint": MOCK_PLUGIN_FINGERPRINT,
             "index_yaml_hash": current_hash,
             "index_yaml_mtime": setup_dirs["index_yaml"].stat().st_mtime,
         }
         cm._cache_version_path.write_text(json.dumps(version_info), encoding="utf-8")
 
-        result = cm.is_inverted_index_valid()
+        with patch("scripts.utils.cache_manager.compute_plugin_fingerprint", return_value=MOCK_PLUGIN_FINGERPRINT):
+            result = cm.is_inverted_index_valid()
 
         assert result is True
 
@@ -270,12 +276,14 @@ class TestCacheManager:
         current_hash = compute_file_hash(setup_dirs["index_yaml"])
         version_info = {
             "cache_format_version": CACHE_FORMAT_VERSION,
+            "plugin_fingerprint": MOCK_PLUGIN_FINGERPRINT,
             "index_yaml_hash": current_hash,
             "index_yaml_mtime": setup_dirs["index_yaml"].stat().st_mtime,
         }
         cm._cache_version_path.write_text(json.dumps(version_info), encoding="utf-8")
 
-        info = cm.get_cache_info()
+        with patch("scripts.utils.cache_manager.compute_plugin_fingerprint", return_value=MOCK_PLUGIN_FINGERPRINT):
+            info = cm.get_cache_info()
 
         assert info["inverted_index"]["exists"] is True
         assert info["inverted_index"]["valid"] is True
@@ -312,13 +320,15 @@ class TestCacheManagerMtimeOptimization:
         current_mtime = setup_dirs["index_yaml"].stat().st_mtime
         version_info = {
             "cache_format_version": CACHE_FORMAT_VERSION,
+            "plugin_fingerprint": MOCK_PLUGIN_FINGERPRINT,
             "index_yaml_hash": current_hash,
             "index_yaml_mtime": current_mtime,
         }
         cm._cache_version_path.write_text(json.dumps(version_info), encoding="utf-8")
 
-        # Patch compute_file_hash to verify it's not called
-        with patch("scripts.utils.cache_manager.compute_file_hash") as mock_hash:
+        # Patch compute_file_hash to verify it's not called, and mock plugin fingerprint
+        with patch("scripts.utils.cache_manager.compute_file_hash") as mock_hash, \
+             patch("scripts.utils.cache_manager.compute_plugin_fingerprint", return_value=MOCK_PLUGIN_FINGERPRINT):
             result = cm.is_inverted_index_valid()
 
         assert result is True
@@ -334,13 +344,15 @@ class TestCacheManagerMtimeOptimization:
         current_hash = compute_file_hash(setup_dirs["index_yaml"])
         version_info = {
             "cache_format_version": CACHE_FORMAT_VERSION,
+            "plugin_fingerprint": MOCK_PLUGIN_FINGERPRINT,
             "index_yaml_hash": current_hash,
             "index_yaml_mtime": 0,  # Different mtime
         }
         cm._cache_version_path.write_text(json.dumps(version_info), encoding="utf-8")
 
         # Should still be valid (hash matches)
-        result = cm.is_inverted_index_valid()
+        with patch("scripts.utils.cache_manager.compute_plugin_fingerprint", return_value=MOCK_PLUGIN_FINGERPRINT):
+            result = cm.is_inverted_index_valid()
 
         assert result is True
 

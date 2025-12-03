@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import json
 import re
-from typing import Any, Dict
+from typing import Any
 
 # Cache directory for inverted index persistence
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / ".cache"
@@ -78,7 +78,7 @@ def _build_identifier_tokens(doc_id: str, metadata: dict[str, Any]) -> set[str]:
         try:
             path_obj = Path(path_value)
             stem = path_obj.stem.lower()
-        except Exception:
+        except (TypeError, ValueError, OSError):
             stem = str(path_value).lower()
 
         tokens.update(filter(None, re.split(r'[\\/_-]+', stem)))
@@ -131,7 +131,7 @@ class DocResolver:
         # Load index once per resolver instance so that search/related lookups
         # and doc_id resolution share the same in-memory snapshot instead of
         # repeatedly re-reading index.yaml.
-        self._index: dict[str, Dict] = self.index_manager.load_all() or {}
+        self._index: dict[str, dict] = self.index_manager.load_all() or {}
         self._alias_cache: dict[str, str] = {}  # alias -> doc_id cache
 
         # Inverted index for O(1) keyword lookup (built lazily on first search)
@@ -222,10 +222,22 @@ class DocResolver:
             }
 
             # Write atomically (temp file + rename)
+            # Retry logic for Windows where replace() can fail if file is in use
+            import time as _time
             temp_cache = INVERTED_INDEX_CACHE.with_suffix('.tmp')
             with open(temp_cache, 'w', encoding='utf-8') as f:
                 json.dump(data, f, separators=(',', ':'))  # Compact JSON
-            temp_cache.replace(INVERTED_INDEX_CACHE)
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    temp_cache.replace(INVERTED_INDEX_CACHE)
+                    break
+                except PermissionError:
+                    if attempt < max_retries - 1:
+                        _time.sleep(0.1)
+                    else:
+                        raise
 
             # Mark cache as built with CacheManager (stores content hash)
             if self._cache_manager:
@@ -586,7 +598,7 @@ class DocResolver:
 
     def search_by_keyword(self, keywords: list[str], category: str | None = None,
                          tags: list[str | None] = None, limit: int = 10,
-                         return_scores: bool = False) -> list[tuple[str, Dict]]:
+                         return_scores: bool = False) -> list[tuple[str, dict]]:
         """
         Search documents by keywords
 
@@ -873,7 +885,7 @@ class DocResolver:
         return final_results
     
     def search_by_natural_language(self, query: str, limit: int = 10,
-                                    return_scores: bool = False) -> list[tuple[str, Dict]]:
+                                    return_scores: bool = False) -> list[tuple[str, dict]]:
         """
         Search documents using natural language query
 
@@ -912,7 +924,7 @@ class DocResolver:
 
         return self.search_by_keyword(keywords, limit=limit, return_scores=return_scores)
 
-    def get_by_category(self, category: str) -> list[tuple[str, Dict]]:
+    def get_by_category(self, category: str) -> list[tuple[str, dict]]:
         """Get all documents in a category"""
         results = []
         for doc_id, metadata in self.index_manager.list_entries():
@@ -921,7 +933,7 @@ class DocResolver:
                 results.append((doc_id, metadata))
         return results
     
-    def get_by_tag(self, tag: str) -> list[tuple[str, Dict]]:
+    def get_by_tag(self, tag: str) -> list[tuple[str, dict]]:
         """Get all documents with a specific tag"""
         results = []
         tag_lower = tag.lower().strip()
@@ -931,7 +943,7 @@ class DocResolver:
                 results.append((doc_id, metadata))
         return results
     
-    def get_related_docs(self, doc_id: str, limit: int = 5) -> list[tuple[str, Dict]]:
+    def get_related_docs(self, doc_id: str, limit: int = 5) -> list[tuple[str, dict]]:
         """
         Find related documents based on shared keywords/tags
         
@@ -1088,7 +1100,8 @@ class DocResolver:
                 path_map[normalized] = doc_id
         return path_map
 
-    def search_content(self, keywords: list[str], limit: int = 10) -> list[tuple[str, dict]]:
+    def search_content(self, keywords: list[str], limit: int = 10,
+                       include_context: bool = False, context_lines: int = 0) -> list[tuple[str, dict]]:
         """
         Search document content using ripgrep/grep.
 
@@ -1098,14 +1111,19 @@ class DocResolver:
         Args:
             keywords: List of keywords to search for
             limit: Maximum number of results
+            include_context: If True, include matching line numbers and text snippets
+            context_lines: Number of context lines around matches (only if include_context=True)
 
         Returns:
             List of (doc_id, metadata) tuples for documents containing the keywords.
-            Metadata includes '_content_match': True to indicate content-based match.
+            Metadata includes:
+            - '_content_match': True to indicate content-based match
+            - '_grep_matches': List of {line: int, text: str} if include_context=True
         """
         import subprocess
         import shutil
         import time
+        import re
 
         search_start = time.time()
 
@@ -1120,39 +1138,83 @@ class DocResolver:
         # Search directory is the canonical docs folder
         search_dir = self.base_dir
 
-        # Build search pattern (OR of all keywords, case-insensitive)
-        # For ripgrep: use -e for each pattern
-        # For grep: use -E with alternation
-
         # Check for ripgrep availability
         rg_path = shutil.which('rg')
 
+        # Store file -> matches mapping when include_context is True
+        file_matches: dict[str, list[dict]] = {}
         matching_files: set[str] = set()
 
         try:
             if rg_path:
-                # Use ripgrep (faster)
-                # -i: case insensitive
-                # -l: files with matches only
-                # --glob: only search markdown files
-                cmd = [rg_path, '-i', '-l', '--glob', '*.md']
-                for kw in keywords:
-                    cmd.extend(['-e', kw])
-                cmd.append(str(search_dir))
+                if include_context:
+                    # Use ripgrep with line numbers and context
+                    # -i: case insensitive
+                    # -n: show line numbers
+                    # --no-heading: don't group by file (easier to parse)
+                    # --glob: only search markdown files
+                    # -F: fixed strings (prevents regex injection from keywords)
+                    cmd = [rg_path, '-i', '-n', '-F', '--no-heading', '--glob', '*.md']
+                    if context_lines > 0:
+                        cmd.extend(['-C', str(context_lines)])
+                    for kw in keywords:
+                        cmd.extend(['-e', kw])
+                    cmd.append(str(search_dir))
 
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    encoding='utf-8',
-                    errors='replace'
-                )
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
 
-                if result.returncode == 0 and result.stdout:
-                    for line in result.stdout.strip().split('\n'):
-                        if line:
-                            matching_files.add(line.strip())
+                    if result.returncode == 0 and result.stdout:
+                        # Parse output: filepath:line_number:text
+                        # On Windows, paths have colons (C:\...), so we need careful parsing
+                        for line in result.stdout.strip().split('\n'):
+                            if not line:
+                                continue
+                            # Match pattern: filepath:linenum:text (handle Windows drive letters)
+                            match = re.match(r'^(.+?):(\d+):(.*)$', line)
+                            if match:
+                                filepath = match.group(1)
+                                line_num = int(match.group(2))
+                                text = match.group(3).strip()
+                                # Truncate long lines
+                                if len(text) > 150:
+                                    text = text[:147] + '...'
+                                matching_files.add(filepath)
+                                if filepath not in file_matches:
+                                    file_matches[filepath] = []
+                                # Limit matches per file to avoid bloat
+                                if len(file_matches[filepath]) < 5:
+                                    file_matches[filepath].append({'line': line_num, 'text': text})
+                else:
+                    # Use ripgrep (faster) - files only mode
+                    # -i: case insensitive
+                    # -l: files with matches only
+                    # --glob: only search markdown files
+                    # -F: fixed strings (prevents regex injection from keywords)
+                    cmd = [rg_path, '-i', '-l', '-F', '--glob', '*.md']
+                    for kw in keywords:
+                        cmd.extend(['-e', kw])
+                    cmd.append(str(search_dir))
+
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+
+                    if result.returncode == 0 and result.stdout:
+                        for line in result.stdout.strip().split('\n'):
+                            if line:
+                                matching_files.add(line.strip())
             else:
                 # Fallback to Python-based search
                 # Walk directory and search files
@@ -1166,9 +1228,22 @@ class DocResolver:
                         filepath = os.path.join(root, filename)
                         try:
                             with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                                content = f.read().lower()
-                                if any(kw in content for kw in pattern_lower):
-                                    matching_files.add(filepath)
+                                if include_context:
+                                    lines = f.readlines()
+                                    for i, line_text in enumerate(lines, 1):
+                                        if any(kw in line_text.lower() for kw in pattern_lower):
+                                            matching_files.add(filepath)
+                                            if filepath not in file_matches:
+                                                file_matches[filepath] = []
+                                            if len(file_matches[filepath]) < 5:
+                                                text = line_text.strip()
+                                                if len(text) > 150:
+                                                    text = text[:147] + '...'
+                                                file_matches[filepath].append({'line': i, 'text': text})
+                                else:
+                                    content = f.read().lower()
+                                    if any(kw in content for kw in pattern_lower):
+                                        matching_files.add(filepath)
                         except (IOError, OSError):
                             continue
 
@@ -1210,6 +1285,9 @@ class DocResolver:
                 seen_doc_ids.add(doc_id)
                 metadata = self._index.get(doc_id, {}).copy()
                 metadata['_content_match'] = True
+                # Add grep matches if available
+                if include_context and filepath in file_matches:
+                    metadata['_grep_matches'] = file_matches[filepath]
                 results.append((doc_id, metadata))
 
                 if len(results) >= limit:
@@ -1220,7 +1298,7 @@ class DocResolver:
         if _logger:
             _logger.debug(
                 f"Content search: keywords={keywords}, files_matched={len(matching_files)}, "
-                f"results={len(results)}, time={search_time*1000:.1f}ms"
+                f"results={len(results)}, time={search_time*1000:.1f}ms, include_context={include_context}"
             )
 
         return results
@@ -1260,6 +1338,7 @@ Examples:
 
     if not args.doc_id:
         print("Usage: python doc_resolver.py <doc_id> [--show-metadata]")
+        sys.exit(1)
     else:
         path = resolver.resolve_doc_id(args.doc_id)
         if path:
