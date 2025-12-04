@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-life-sciences
 source_type: sitemap
-content_hash: sha256:05470876c0bd7a1db0729914106d1321441021c40b2be32446ad3e3531f7f2e2
+content_hash: sha256:63a671c616172d573987858ac81519d76bf0ab4defa3c2ed43c3b46f64630c59
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-20'
@@ -162,20 +162,5 @@ To learn more about Claude for Life Sciences or set up a demo with our team, see
 
 1 Protocol QA score (multiple choice format) with 10 shot prompting. For more, see our [Sonnet 4.5 System Card](https://assets.anthropic.com/m/12f214efcc2f457a/original/Claude-Sonnet-4-5-System-Card.pdf), pages 132-133.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

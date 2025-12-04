@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of
 source_type: sitemap
-content_hash: sha256:53feb17685df6698d5ec2b9e869e8921c5c35528c5eecfbd2bb584989d48069d
+content_hash: sha256:f1ccab903c5fbefa39da2143c85029c2a73c546a3493993e595e2d6fbde5d352
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-26'
@@ -47,20 +47,5 @@ For more information about current career opportunities at Anthropic, visit anth
 
 \*Menlo Ventures: [*2025 Mid-Year LLM Market Update: Foundation Model Landscape + Economics*](https://menlovc.com/perspective/2025-mid-year-llm-market-update/)
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

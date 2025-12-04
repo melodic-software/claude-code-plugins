@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/thoughts-on-america-s-ai-action-plan
 source_type: sitemap
-content_hash: sha256:14c3da357110dcb898b4fd24edf536f2da8d721b4db181743d9419f4967e4c25
+content_hash: sha256:d39db5198d1bd89a383f95cc1483b4db5ef75006475bec058204516591de958a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-23'
@@ -70,20 +70,5 @@ We look forward to working with the Administration to implement these initiative
 
 For more details on our policy recommendations, see our full [submission to OSTP](https://assets.anthropic.com/m/4e20a4ab6512e217/original/Anthropic-Response-to-OSTP-RFI-March-2025-Final-Submission-v3.pdf), and our ongoing work on [responsible AI development](https://www.anthropic.com/news/anthropics-responsible-scaling-policy) and our recent report on [increasing domestic energy capacity](https://www-cdn.anthropic.com/0dc382a2086f6a054eeb17e8a531bd9625b8e6e5.pdf).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

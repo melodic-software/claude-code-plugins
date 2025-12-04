@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-is-endorsing-sb-53
 source_type: sitemap
-content_hash: sha256:bfc1afa12dd2a93d35a33a2058ffbd77b9f4fcc41add3f6dc785d8e25dcb7838
+content_hash: sha256:b114a05937d3d5706ab6f264f9794054328f19e5568fd0d12043c5ae9b0757d5
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-08'
@@ -43,20 +43,5 @@ SB 53 provides a strong regulatory foundation, but we can and should build upon 
 
 We commend Senator Wiener and Governor Newsom for their leadership on responsible AI governance. The question isn't whether we need AI governance—it's whether we'll develop it thoughtfully today or reactively tomorrow. SB 53 offers a solid path toward the former. We encourage California to pass it, and we look forward to working with policymakers in Washington and around the world to develop comprehensive approaches that protect public interests while maintaining America's AI leadership.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

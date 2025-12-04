@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-microsoft-foundry
 source_type: sitemap
-content_hash: sha256:20e832eceea8c2bb4763a8c022ae145d0a772302b311e53f018de4d8cacd7e6b
+content_hash: sha256:7f48b65823555d55db5d07bea95ebbf71affd55d136aa280d33917a0edbedd8a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
@@ -51,20 +51,5 @@ All models support a variety of Claude Developer Platform capabilities in Foundr
 
 Claude is available now in public preview through Microsoft Foundry. Visit the [Microsoft Foundry catalog](https://ai.azure.com/catalog/publishers/anthropic) to deploy Claude Sonnet 4.5, Claude Haiku 4.5, or Claude Opus 4.1, or explore our [documentation](https://docs.claude.com/en/docs/build-with-claude/claude-in-microsoft-foundry) to learn more.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

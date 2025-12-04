@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/cognizant-partnership
 source_type: sitemap
-content_hash: sha256:7c453e35da828147a8974138d7f813a9e0becf594750840cf31e9a776e48983e
+content_hash: sha256:cf7a40b3e74020624a156e758e7df44a418d7b997ae86b0fd6a31235e36afcd0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -41,20 +41,5 @@ Cognizant plans to engage clients through workshops, reference patterns, and pla
 
 **Getting started:** Visit [this page](https://www.cognizant.com/us/en/engineering-ai-for-impact) and get in touch with a Cognizant client partner.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

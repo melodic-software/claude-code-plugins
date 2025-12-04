@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/new-offices-in-paris-and-munich-expand-european-presence
 source_type: sitemap
-content_hash: sha256:74954ef96965025b89119de6f51a04746e6383230fcf037dc8129732e00acd98
+content_hash: sha256:24b0c824e77e275f5a3bb5a613a884195dbbaaebfc1b1730be872cdbbcf00dd6
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-07'
@@ -40,20 +40,5 @@ To jumpstart our new operations in France and Germany, we’re also partnering w
 
 In total, Anthropic now has offices in 12 cities, including in San Francisco, Seattle, New York, and Washington D.C. For information about career opportunities at Anthropic, including our new Paris and Munich offices, visit [anthropic.com/careers](https://www.anthropic.com/careers).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

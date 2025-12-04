@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/updating-restrictions-of-sales-to-unsupported-regions
 source_type: sitemap
-content_hash: sha256:38993764870c583da89f05d534c1b7dfa4814c24a7f386205ac833504d3262dd
+content_hash: sha256:f25daa431f3e375803fb448940979869d8e4bd15082e0ce450e31de3d06d3121
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-04'
@@ -25,20 +25,5 @@ Consistent with this concern, we continue to advocate for policies like strong e
 
 The safety and security of AI development requires collective commitment to preventing its misuse by authoritarian adversaries. Responsible AI companies can and should take decisive action to ensure that transformative technologies serve US and allied strategic interests and support our democratic values.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -17,7 +17,7 @@ Use iterative refinement when:
 
 ## The Iteration Cycle
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │                                                 │
 │  ┌─────────────┐     ┌─────────────┐           │
@@ -142,7 +142,7 @@ Find documentation about prefilling Claude's response for output control
 ### Feedback-to-Action Mapping
 
 | Feedback Type | Action |
-|---------------|--------|
+| --------------- | -------- |
 | "Too verbose" | Reduce CoT level, add brevity constraint |
 | "Missing cases" | Add examples for uncovered scenarios |
 | "Wrong format" | Strengthen formatting section, add prefill |

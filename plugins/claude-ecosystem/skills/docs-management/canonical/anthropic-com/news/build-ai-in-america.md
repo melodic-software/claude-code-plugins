@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/build-ai-in-america
 source_type: sitemap
-content_hash: sha256:e08d6c5d9fe1820aee6b59eaf0350f72ac9c291c14feb406640bcf70f255c387
+content_hash: sha256:3f32410ffc0204eb7b78f618f20c2bfd04abb930e77caaa76d993de53e4453da
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-21'
@@ -59,20 +59,5 @@ By partnering across government, industry, and communities, we can build the fou
 
 Read the full [report](https://www-cdn.anthropic.com/0dc382a2086f6a054eeb17e8a531bd9625b8e6e5.pdf).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

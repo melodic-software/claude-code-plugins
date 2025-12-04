@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/opening-our-tokyo-office
 source_type: sitemap
-content_hash: sha256:c8a7a1daaae7c8581d1045c2f82d98d1de035d00cec7f8051f5944a70ca7c17e
+content_hash: sha256:1a83566ade7de012e4140f206612b989ef8d63fc4743f6ff3cdda56042bbf904
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
@@ -47,20 +47,5 @@ The people and organizations we’ve met in Japan share our conviction that tech
 
 For information about career opportunities at our Tokyo office, [see here]( https://www.anthropic.com/jobs?office=4035213008).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

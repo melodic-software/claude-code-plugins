@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/introducing-the-anthropic-economic-futures-program
 source_type: sitemap
-content_hash: sha256:5110a70d83beb3b64ac5bd1195c6edac3fac6008d20244e7d3683a6125480989
+content_hash: sha256:09f68cfb1b5ec73da5bcd6ac9f2baea979a2ef04dde83dbbad8d0fe0e858f44c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -45,20 +45,5 @@ Visit [anthropic.com/economic-futures](https://www.anthropic.com/economic-future
 
 *Learn more about our economic research through the [Anthropic Economic Index](https://www.anthropic.com/economic-index) and explore our broader research initiatives at [anthropic.com/research](https://www.anthropic.com/research).*
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

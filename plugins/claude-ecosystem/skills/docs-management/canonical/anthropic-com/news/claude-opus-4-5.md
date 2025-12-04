@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-opus-4-5
 source_type: sitemap
-content_hash: sha256:d68f3338a86d5d4ad7bdb6fe929e97dc3e99a2a19aed4acd1f85e4abf4e1627d
+content_hash: sha256:cf184f358c61040bc54e36e38792eb7c68a27692c098508b60fb3435b53988c8
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
@@ -57,7 +57,7 @@ Many of our customers with early access have had similar experiences. Here are s
 
 > **Claude Opus 4.5 excels at long-horizon, autonomous tasks**, especially those that require sustained reasoning and multi-step execution. In our evaluations it handled complex workflows with fewer dead-ends. On Terminal Bench it delivered a 15% improvement over Sonnet 4.5, a meaningful gain that becomes especially clear when using Warp’s Planning Mode.
 
-![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/98513eb7af78fc6ec590322201ec7363f95966db-139x29.svg)
+![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/9fec2f71d418d084eaa52aa27559560f490fa5cf-480x480.png)
 
 > **Claude Opus 4.5 achieved state-of-the-art results for complex enterprise tasks** on our benchmarks, outperforming previous models on multi-step reasoning tasks that combine information retrieval, tool use, and deep analysis.
 
@@ -233,18 +233,5 @@ For Claude and Claude Code users with access to Opus 4.5, we’ve removed Opus-s
 
 All evals were run with a 64K thinking budget, interleaved scratchpads, 200K context window, default effort (high), default sampling settings (temperature, top\_p), and averaged over 5 independent trials. Exceptions: SWE-bench Verified (no thinking budget) and Terminal Bench (128K thinking budget). Please see the [Claude Opus 4.5 system card](https://www.anthropic.com/claude-opus-4-5-system-card) for full details.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
+<!-- Content filtered: site navigation/footer -->

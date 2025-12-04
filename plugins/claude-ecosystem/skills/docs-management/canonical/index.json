@@ -1830,7 +1830,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:8f6a85262d3764c4f52d80b23bacd15dad8e2a735bf74fbc83049048dd3fb3bd",
+    "hash": "sha256:4ba88316d7cc175bff00b9adae2303936b7cf1437e3554834c1baf0ed1396f67",
     "keywords": [
       "advancing-claude-for-education",
       "advancing",
@@ -1839,13 +1839,13 @@
       "bringing educational",
       "student programming",
       "looking forward",
-      "computer use",
       "mcp servers",
       "educational",
-      "acquires",
-      "bringing"
+      "partnering",
+      "bringing",
+      "context"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/advancing-claude-for-education.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -1897,52 +1897,6 @@
           "hold"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -1955,7 +1909,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:47b13ca8d89be3025dfe7ccca4c2d8acc8260a8f029cd40c606bcc6f1443f14a",
+    "hash": "sha256:87f11567ce271bbfd435432db433a9f59a6cdc59466d85de6b7f91470284204b",
     "keywords": [
       "financial-services",
       "advancing",
@@ -1966,11 +1920,11 @@
       "live information",
       "mcp connector",
       "agent skills",
-      "computer use",
       "announcements",
-      "connecting"
+      "connecting",
+      "finance"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/advancing-claude-for-financial-services.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2032,52 +1986,6 @@
           "services"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -2095,7 +2003,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:f1efcb70e36a43fceab3f943b1c7a7b782bd365d6e348fd1eafc8e5f30789f0d",
+    "hash": "sha256:4a5999620fe05875a2f60d0114d950255fb78c3cd08b804bc1226307156ca037",
     "keywords": [
       "reaches-usd1b-milestone",
       "usd1b-milestone",
@@ -2105,12 +2013,9 @@
       "acquires",
       "reaches",
       "usd1b",
-      "microsoft foundry",
-      "computer use",
-      "announcements",
-      "introducing"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2121,10 +2026,23 @@
         "keywords": [
           "related",
           "content",
-          "nonprofits",
-          "launches"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#claude-for-nonprofits",
@@ -2147,23 +2065,10 @@
           "world"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot",
-        "heading": "Claude now available in Microsoft Foundry and Microsoft 365 Copilot",
-        "keywords": [
-          "available",
-          "microsoft",
-          "foundry",
-          "copilot",
-          "read"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "deployment",
-      "performance"
+      "deployment"
     ],
     "title": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
     "url": "https://www.anthropic.com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone"
@@ -2172,7 +2077,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:72d38bff33c208f07f0aa7e65e7ec929f1850b0f3ca09184467e65719ac55148",
+    "hash": "sha256:7785db054d6e760cfdea08289f82e97aef25a594e7b26c30d7e5530dcb8405c5",
     "keywords": [
       "education-pilots",
       "iceland-announce",
@@ -2187,7 +2092,7 @@
       "iceland announce",
       "iceland launches"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2227,52 +2132,6 @@
           "milestone"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -2285,7 +2144,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:aa88ab188624c208c0a9158b05b523773906c106ddfaf5946123e48a83dc96e0",
+    "hash": "sha256:73d11b27cf1cf47c421d24cda5a827b53708cef190e287970eb8491e99c464ca",
     "keywords": [
       "advance-responsible",
       "defense-operations",
@@ -2298,9 +2157,9 @@
       "advance responsible",
       "defense operations",
       "strong foundation",
-      "computer use"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-and-the-department-of-defense-to-advance-responsible-ai-in-defense-operations.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2328,57 +2187,10 @@
           "partnerships"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "deployment",
-      "models",
       "security"
     ],
     "title": "Anthropic and the Department of Defense to advance responsible AI in defense operations",
@@ -2388,7 +2200,7 @@
     "category": "news",
     "description": "Societal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:d5417abcbf5f7a66833f2a9c76e573fc0cb521b4443f8fa339ae26122d13dec6",
+    "hash": "sha256:e253ab9295bc379982771126b6e34bfdbffddaa8cd20760a1ba38c79dca025b7",
     "keywords": [
       "education-report",
       "educators-use",
@@ -2399,11 +2211,11 @@
       "automation spectrum",
       "building custom",
       "looking ahead",
-      "computer use",
       "acknowledgements",
-      "augmentation"
+      "augmentation",
+      "automation"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-education-report-how-educators-use-claude.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2525,56 +2337,9 @@
           "kunal"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
       "performance",
       "streaming",
       "testing",
@@ -2587,7 +2352,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:53feb17685df6698d5ec2b9e869e8921c5c35528c5eecfbd2bb584989d48069d",
+    "hash": "sha256:f1ccab903c5fbefa39da2143c85029c2a73c546a3493993e595e2d6fbde5d352",
     "keywords": [
       "expands-global-leadership",
       "naming-chris-ciauri",
@@ -2602,7 +2367,7 @@
       "managing",
       "expands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2630,56 +2395,10 @@
           "expansion"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "performance"
+      "reference"
     ],
     "title": "Anthropic expands global leadership in enterprise AI, naming Chris Ciauri as Managing Director of International",
     "url": "https://www.anthropic.com/news/anthropic-expands-global-leadership-in-enterprise-ai-naming-chris-ciauri-as-managing-director-of"
@@ -2688,7 +2407,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:c6e1640557fb2d3b18d027ef47021a0311bd76611ac86704f6e03c5a08eea589",
+    "hash": "sha256:92a4db2c4e88131f9c3340c9bd3ab92b7d731ac6da95e600164ab7d5dff4143d",
     "keywords": [
       "anthropic-higher-education-initiatives",
       "higher-education-initiatives",
@@ -2700,10 +2419,10 @@
       "higher education",
       "fluency courses",
       "advisory board",
-      "computer use",
-      "path forward"
+      "path forward",
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-higher-education-initiatives.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2743,52 +2462,6 @@
           "commitment"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -2801,19 +2474,19 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:490603fd7952f434fff7e6457422a0b5f0bb61db4afde05b3ce4578b141b5b0f",
+    "hash": "sha256:9964409a65256daeb690c5be5f19c56ff2d2f1987eb9842adba2da70266f2549",
     "keywords": [
       "infrastructure",
       "american",
       "billion",
       "invests",
-      "computer use",
       "announcements",
-      "introducing",
-      "acquires",
-      "content"
+      "fluidstack",
+      "frontier",
+      "research",
+      "sites"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-invests-50-billion-in-american-ai-infrastructure.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2824,11 +2497,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -2849,18 +2534,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -2875,18 +2548,17 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:bfc1afa12dd2a93d35a33a2058ffbd77b9f4fcc41add3f6dc785d8e25dcb7838",
+    "hash": "sha256:b114a05937d3d5706ab6f264f9794054328f19e5568fd0d12043c5ae9b0757d5",
     "keywords": [
       "endorsing",
-      "computer use",
       "announcements",
-      "introducing",
-      "nonprofits",
-      "milestone",
-      "acquires",
-      "content"
+      "catastrophic",
+      "requirements",
+      "frontier",
+      "powerful",
+      "safety"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-is-endorsing-sb-53.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2897,11 +2569,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -2922,18 +2606,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -2950,7 +2622,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:aad6f01ad32510c5d995a0f1844b35c3cfb3d22b11a23e8d18c9ca735fa95051",
+    "hash": "sha256:985b349819af3263e2f67bd88498be80c968b27e13bd6d7d20361a3558e4cf6d",
     "keywords": [
       "becker-friedman-institute",
       "friedman-institute",
@@ -2965,7 +2637,7 @@
       "economic research",
       "becker friedman"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -2976,11 +2648,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -3001,18 +2685,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -3027,7 +2699,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:5c3f8263976467b02ac03ec560957baadd04fa1a71391d191f6c240e51f4f172",
+    "hash": "sha256:2a2eee8dbf6ce953f9d6fccb43acd962a7359d3cc57a79f01729d197e59308b1",
     "keywords": [
       "post-money-valuation",
       "usd183b-post-money",
@@ -3042,7 +2714,7 @@
       "money",
       "money valuation"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3053,11 +2725,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -3080,23 +2764,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
-      "performance"
+      "reference"
     ],
     "title": "Anthropic raises $13B Series F at $183B post-money valuation",
     "url": "https://www.anthropic.com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation"
@@ -3105,7 +2776,7 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:f765e35a233826a1686c4c5e0df4993758cf958a118104de0c8e2141adb10e62",
+    "hash": "sha256:6bbd3c5de16699f30ef1ee619c1ddb011b196eb5a06c6d97981786e55ea41a7a",
     "keywords": [
       "advance-healthcare-interoperability",
       "healthcare-interoperability",
@@ -3120,7 +2791,7 @@
       "cms-health",
       "signs-cms"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-signs-cms-health-tech-ecosystem-pledge-to-advance-healthcare-interoperability.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3136,52 +2807,6 @@
           "novel"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -3194,7 +2819,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:a3e147bd2119fa70e8de1aa950f89cd653d23315ea5794ba5c4ece95b9a5fb8b",
+    "hash": "sha256:623d4a371b891e9a6d5fbafc6e890a606ca65e17f6448055436f1fb8c084c10b",
     "keywords": [
       "americas-youth-investing",
       "youth-investing",
@@ -3209,7 +2834,7 @@
       "cybersecurity education",
       "fluency curriculum"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/anthropic-signs-pledge-to-americas-youth-investing-in-ai-education.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3285,52 +2910,6 @@
           "white"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -3344,21 +2923,21 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:e08d6c5d9fe1820aee6b59eaf0350f72ac9c291c14feb406640bcf70f255c387",
+    "hash": "sha256:3f32410ffc0204eb7b78f618f20c2bfd04abb930e77caaa76d993de53e4453da",
     "keywords": [
       "build-ai-in-america",
       "america",
       "build",
-      "computer use",
       "energy needs",
-      "acquires",
+      "infrastructure",
+      "leadership",
       "american",
-      "content",
       "energy",
       "global",
-      "policy"
+      "policy",
+      "needs"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/build-ai-in-america.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3386,52 +2965,6 @@
           "strategic"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -3446,7 +2979,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:31a0f084bbb2c5e9f9de5abf7c6099077b401b8b416ea8da8508f293c696a266",
+    "hash": "sha256:8d370b6fa8cb804fe628cd45ffa3db365c05c3379c2a896de71c49cbb7b63608",
     "keywords": [
       "building-safeguards-for-claude",
       "building-safeguards",
@@ -3459,9 +2992,9 @@
       "time detection",
       "system prompt",
       "computer use",
-      "development"
+      "investigation"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/building-safeguards-for-claude.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3536,58 +3069,11 @@
           "organization"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "deployment",
       "models",
-      "performance",
       "streaming",
       "testing",
       "troubleshooting"
@@ -3599,7 +3085,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:d65cc86e0a80b1c78f5e715ca13a6b9c2c91218f7a23ffba880ce04484ea9cf1",
+    "hash": "sha256:7d50f62b2e6ac16d875dc569201e71611d584c9959e2f218c29b82730020db5b",
     "keywords": [
       "enterprise",
       "predictable costs",
@@ -3607,14 +3093,14 @@
       "admin controls",
       "business plans",
       "admin control",
-      "computer use",
       "compliance",
-      "acquires",
       "business",
       "controls",
-      "content"
+      "flexible",
+      "control",
+      "product"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-code-on-team-and-enterprise.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3677,52 +3163,6 @@
           "plan"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -3736,7 +3176,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:09ad414a2eb8c138a3dc2794300d87532f68d3bc4c3a51c075ef219f0363691a",
+    "hash": "sha256:fb2d3af65031bfc7cb9e1350f6bde2da938b33eae70c7f99621290831f76eaca",
     "keywords": [
       "claude-for-financial-services",
       "financial-services",
@@ -3745,13 +3185,13 @@
       "accelerating enterprise",
       "financial services",
       "mcp connector",
-      "computer use",
       "accelerating",
       "enterprise",
       "ecosystem",
-      "acquires"
+      "adoption",
+      "product"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-for-financial-services.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3803,56 +3243,9 @@
           "platform"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "agents",
       "compliance",
       "deployment",
       "models",
@@ -3866,7 +3259,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:05470876c0bd7a1db0729914106d1321441021c40b2be32446ad3e3531f7f2e2",
+    "hash": "sha256:63a671c616172d573987858ac81519d76bf0ab4defa3c2ed43c3b46f64630c59",
     "keywords": [
       "claude-for-life-sciences",
       "life-sciences",
@@ -3876,12 +3269,12 @@
       "scientific tools",
       "life sciences",
       "agent skills",
-      "computer use",
       "mcp servers",
       "announcements",
-      "connecting"
+      "connecting",
+      "developing"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-for-life-sciences.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -3967,52 +3360,6 @@
           "sciences"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4029,21 +3376,20 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:a9c1f6af4a34fc2537a827f45a4bb373dde3dcc69a02674d6d8341fd7be2dac1",
+    "hash": "sha256:3217595c4e9ef246725067368cfcd97759d781c3128ac2f6e03ec0b6f568e70a",
     "keywords": [
       "claude-for-nonprofits",
       "nonprofits",
-      "microsoft foundry",
       "enterprise plans",
-      "computer use",
       "announcements",
       "connecting",
+      "discounted",
+      "enterprise",
       "customers",
-      "acquires",
-      "content",
-      "copilot"
+      "learning",
+      "fluency"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-for-nonprofits.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4107,58 +3453,9 @@
           "access"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot",
-        "heading": "Claude now available in Microsoft Foundry and Microsoft 365 Copilot",
-        "keywords": [
-          "available",
-          "microsoft",
-          "foundry",
-          "copilot",
-          "read"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
       "performance",
       "skills"
     ],
@@ -4169,7 +3466,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:02874200c3be8debbac83c32383ee2d45830c4a41c02e2509a937be266599017",
+    "hash": "sha256:aabf2015af40df099788d5efc6c21e5a12fd56dd434a9790fb9fe3e2e1c48e53",
     "keywords": [
       "national-security-customers",
       "security-customers",
@@ -4179,12 +3476,9 @@
       "national",
       "security",
       "national security",
-      "computer use",
-      "announcements",
-      "introducing",
-      "milestone"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-gov-models-for-u-s-national-security-customers.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4195,11 +3489,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -4222,18 +3528,6 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4247,7 +3541,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:11e4bccb4470f530a9809a24cbf6eddefc591cc79670acd2314fc2c195393368",
+    "hash": "sha256:779fbf1d21b212e7f7efff66a8f994a0cb35bbe5b5f575f2aeb1b61b1c9fa962",
     "keywords": [
       "claude-haiku-4-5",
       "haiku",
@@ -4259,10 +3553,10 @@
       "evaluations",
       "information",
       "introducing",
-      "benchmarks",
-      "acquires"
+      "methodology",
+      "benchmarks"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-haiku-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4299,52 +3593,6 @@
           "apps"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4361,7 +3609,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:45088ffcf151f2951d7a9274f54001b167a6e82aecba8e009a4d8382a1b288df",
+    "hash": "sha256:23d42be85adc56838082ee57599b9ef1e5e538ec053c3693d9a0f2ca834fe445",
     "keywords": [
       "amazon-bedrock-fedramp",
       "bedrock-fedramp-high",
@@ -4376,7 +3624,7 @@
       "amazon bedrock",
       "context window"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-in-amazon-bedrock-fedramp-high.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4416,52 +3664,6 @@
           "employees"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4476,7 +3678,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:20e832eceea8c2bb4763a8c022ae145d0a772302b311e53f018de4d8cacd7e6b",
+    "hash": "sha256:7f48b65823555d55db5d07bea95ebbf71affd55d136aa280d33917a0edbedd8a",
     "keywords": [
       "claude-in-microsoft-foundry",
       "microsoft-foundry",
@@ -4485,13 +3687,13 @@
       "microsoft foundry",
       "code execution",
       "prompt caching",
-      "computer use",
       "web search",
       "tool use",
-      "acquires",
-      "content"
+      "copilot",
+      "product",
+      "build"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-in-microsoft-foundry.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4529,59 +3731,12 @@
           "preview"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "agents",
       "deployment",
-      "models",
-      "performance"
+      "models"
     ],
     "title": "Claude now available in Microsoft Foundry and Microsoft 365 Copilot",
     "url": "https://www.anthropic.com/news/claude-in-microsoft-foundry"
@@ -4590,20 +3745,15 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:5f2ec9dc1ca3c8b4f43f12780bf10e868922578ab3ce4e2ff2573657813b0645",
+    "hash": "sha256:9d7d69601f7da7d6947f652440e8571f88c585b1acfe13e2964c65947680b01f",
     "keywords": [
       "claude-in-xcode",
       "xcode",
       "natural language",
-      "computer use",
-      "introducing",
       "generally",
-      "milestone",
-      "acquires",
-      "content",
       "product"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-in-xcode.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4629,52 +3779,6 @@
           "download"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4687,22 +3791,17 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:a6e686e9f10133373de066281505d32f332a4a199c2912d77fafb9b165576536",
+    "hash": "sha256:3eda211c62cda6c4794188c76a076d0cfe63fedea94f2d48264a40c68d565589",
     "keywords": [
       "claude-opus-4-1",
       "extended thinking",
       "amazon bedrock",
-      "computer use",
       "bash tool",
       "tool use",
       "announcements",
-      "introducing",
-      "nonprofits",
-      "milestone",
-      "acquires",
       "appendix"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-opus-4-1.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4728,58 +3827,10 @@
           "opus"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "agents",
       "models",
-      "performance",
       "troubleshooting"
     ],
     "title": "Claude Opus 4.1",
@@ -4789,22 +3840,22 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:d68f3338a86d5d4ad7bdb6fe929e97dc3e99a2a19aed4acd1f85e4abf4e1627d",
+    "hash": "sha256:cf184f358c61040bc54e36e38792eb7c68a27692c098508b60fb3435b53988c8",
     "keywords": [
       "claude-opus-4-5",
-      "microsoft foundry",
       "product updates",
       "context window",
       "computer use",
       "step forward",
       "tool use",
       "announcements",
+      "impressions",
       "introducing",
       "evaluating",
       "footnotes",
-      "acquires"
+      "forward"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-opus-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -4867,52 +3918,6 @@
           "possible"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-now-available-in-microsoft-foundry-and-microsoft-365-copilot",
-        "heading": "Claude now available in Microsoft Foundry and Microsoft 365 Copilot",
-        "keywords": [
-          "available",
-          "microsoft",
-          "foundry",
-          "copilot",
-          "read"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -4930,7 +3935,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:67c004230f36d1b9e72122d928360bdd1b988e1230a66772111778bf18b7a4c8",
+    "hash": "sha256:6b454e459eaa6049944ecffffcffcb77b350f7fab893dad3cdb79a30d93dc9ba",
     "keywords": [
       "claude-sonnet-4-5",
       "sonnet",
@@ -4945,7 +3950,7 @@
       "memory tool",
       "agent sdk"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/claude-sonnet-4-5.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5007,52 +4012,6 @@
           "sonnet"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -5070,7 +4029,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:7c453e35da828147a8974138d7f813a9e0becf594750840cf31e9a776e48983e",
+    "hash": "sha256:cf7a40b3e74020624a156e758e7df44a418d7b997ae86b0fd6a31235e36afcd0",
     "keywords": [
       "cognizant-partnership",
       "partnership",
@@ -5079,13 +4038,13 @@
       "internal transformation",
       "model context protocol",
       "enterprise challenges",
-      "computer use",
       "solving real",
       "agent sdk",
       "transformation",
-      "announcements"
+      "announcements",
+      "accelerating"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/cognizant-partnership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5101,60 +4060,12 @@
           "cios"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "agents",
       "deployment",
       "mcp",
-      "models",
-      "performance",
       "sdk"
     ],
     "title": "Cognizant will make Claude available to 350,000 employees, accelerating enterprise AI adoption and internal transformation",
@@ -5164,22 +4075,21 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:cc8366d67c48891c768878b1dc4e11f8a0fcf638245cb25a4f551b67066635c8",
+    "hash": "sha256:64fe7536229215aa7f6600056b1fe27e625c9e124f7b24ec2727381cd9d99ce5",
     "keywords": [
       "deloitte-anthropic-partnership",
       "partnership",
       "deloitte",
       "differentiated approach",
       "global network",
-      "computer use",
       "differentiated",
       "announcements",
-      "acquires",
       "approach",
-      "content",
-      "network"
+      "network",
+      "global",
+      "people"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/deloitte-anthropic-partnership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5207,52 +4117,6 @@
           "contact"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -5265,7 +4129,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:9e7e92359cc6e6e7626d8941bf3f823ac34937ad62a25486187c74d01d4215fc",
+    "hash": "sha256:194ab7469bc4bad1a83233b2071a210ecd32015d9de8e4a76324fa3cf4378c9e",
     "keywords": [
       "detecting-countering-misuse",
       "countering-misuse-aug",
@@ -5280,7 +4144,7 @@
       "generated ransomware",
       "scaling fraudulent"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/detecting-countering-misuse-aug-2025.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5342,56 +4206,9 @@
           "case"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "agents",
       "authentication",
       "models",
       "security",
@@ -5405,7 +4222,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:16f00ad7a3e9f68d6368e534be855fa31520ecf30f20d6e5feaee37b8880bd76",
+    "hash": "sha256:1930a058e7ac92d88a8ac66d31f529ba1170ce5f5621c34c6f4d5b424e8c8a4d",
     "keywords": [
       "developing-nuclear-safeguards",
       "public-private-partnership",
@@ -5420,7 +4237,7 @@
       "private",
       "public"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/developing-nuclear-safeguards-for-ai-through-public-private-partnership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5431,11 +4248,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -5458,18 +4287,6 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -5482,7 +4299,7 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:a25589f56392f2e86caa6be17df27c05feb68d4f690b4958d0c428eccc6739ad",
+    "hash": "sha256:ea88a672e56f4968be940b095591ad6eb10d74e986b2fb2b57c44b9fdbc0a30f",
     "keywords": [
       "disrupting-ai-espionage",
       "disrupting",
@@ -5490,14 +4307,14 @@
       "cybersecurity implications",
       "model context protocol",
       "cyberattack worked",
-      "computer use",
       "cybersecurity",
+      "implications",
       "orchestrated",
       "cyberattack",
-      "acquires",
-      "campaign"
+      "campaign",
+      "policy"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/disrupting-AI-espionage.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5525,52 +4342,6 @@
           "sophisticated"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -5586,7 +4357,7 @@
     "category": "news",
     "description": "Economic Research",
     "domain": "anthropic.com",
-    "hash": "sha256:8b3ba8e43305ef28bfab98b95b50887aad5ee7a5dd6580846038111d17d976f3",
+    "hash": "sha256:049fef55cba4dc9c8d65cd4461b53969f67d3a8f183eb7f4f3b5031086679c45",
     "keywords": [
       "economic-futures-uk-europe",
       "economic-futures",
@@ -5595,13 +4366,13 @@
       "europe",
       "futures programme",
       "futures symposium",
-      "computer use",
       "launching",
       "programme",
-      "acquires",
-      "adoption"
+      "adoption",
+      "bringing",
+      "european"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/economic-futures-uk-europe.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5651,52 +4422,6 @@
           "people"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -5709,20 +4434,18 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:52d2db810dd7fa93c1336ceec8fbc3054d6dbc4d545125b2327d76d40aee3298",
+    "hash": "sha256:0a04dc0f63847b50ad3079503ccc74535309f73f15709a13d6917291fa2a552c",
     "keywords": [
       "enabling",
       "version control",
-      "computer use",
       "execute long",
       "agent sdk",
       "confidence",
-      "acquires",
-      "content",
       "execute",
-      "product"
+      "product",
+      "running"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/enabling-claude-code-to-work-more-autonomously.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5761,58 +4484,11 @@
           "users"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "agents",
       "hooks",
-      "models",
       "plugins",
       "sdk",
       "subagents"
@@ -5824,22 +4500,19 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:5e6773a43da039c00aaedaff64386658855cff6a60ae6b5f489f3ce046f1c61e",
+    "hash": "sha256:3c4bb712082d67c6e361f7aeea1e57108edd4d7fb65fb5a3a19957049c427234",
     "keywords": [
       "eu-code-practice",
       "practice",
       "maintaining flexibility",
-      "computer use",
+      "transparency",
       "flexibility",
-      "introducing",
       "maintaining",
       "commitment",
-      "acquires",
       "building",
-      "content",
       "policy"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/eu-code-practice.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5867,56 +4540,9 @@
           "changes"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
       "streaming"
     ],
     "title": "Anthropic to sign the EU Code of Practice",
@@ -5926,7 +4552,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:7240dbef0a155c12e113c8f40eca23dbdbc20fe73345884300f7900713a1e070",
+    "hash": "sha256:b58a8fdc1e416b8917148b6be8d2f1c0df3e4c40d62baaa469bd320aeea03e56",
     "keywords": [
       "expanding-global-operations",
       "global-operations",
@@ -5937,11 +4563,11 @@
       "india",
       "global operations",
       "pacific office",
-      "computer use",
       "announcements",
-      "introducing"
+      "pacific",
+      "office"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/expanding-global-operations-to-india.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -5952,11 +4578,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -5979,22 +4617,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "performance"
+      "reference"
     ],
     "title": "Expanding our global operations to India with our second Asia Pacific office",
     "url": "https://www.anthropic.com/news/expanding-global-operations-to-india"
@@ -6003,7 +4629,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:c458bd80d02cdfa3d27f098368598653138bcf129a57c099a38a29b31d9a80f1",
+    "hash": "sha256:210e80f3b4e883d07a3551dcbc96f827e5bf9a22a986e7198acdf2ae25c02a55",
     "keywords": [
       "google-cloud-tpus",
       "google-cloud",
@@ -6012,13 +4638,10 @@
       "services",
       "google",
       "cloud",
-      "computer use",
       "google cloud",
-      "announcements",
-      "introducing",
-      "milestone"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/expanding-our-use-of-google-cloud-tpus-and-services.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6029,11 +4652,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6056,23 +4691,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
-      "performance"
+      "reference"
     ],
     "title": "Expanding our use of Google Cloud TPUs and Services",
     "url": "https://www.anthropic.com/news/expanding-our-use-of-google-cloud-tpus-and-services"
@@ -6081,7 +4703,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:f79af765758aa921b318e1885fd6665ef8ead137a64f3329e162c2fd0e0edac1",
+    "hash": "sha256:08468f02171fed2c8966cead2ebe2b0243578a26bdae5b09d6f7975e7e91e032",
     "keywords": [
       "federal-government-departments",
       "government-departments",
@@ -6094,9 +4716,9 @@
       "schedule",
       "federal",
       "federal government",
-      "computer use"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/federal-government-departments-and-agencies-can-now-purchase-claude-through-the-gsa-schedule.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6107,11 +4729,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6134,23 +4768,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "deployment",
-      "models",
       "security"
     ],
     "title": "Federal government departments and agencies can now purchase Claude through the GSA schedule",
@@ -6160,7 +4781,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:533158ea217e8cbbe0061fc9c00e58280a0f1b566f3ada3ed92ff2998a04bfb4",
+    "hash": "sha256:7d281c3ba774169e251a1ffd275da6239e88e54eecc688c8f26f2a274bb1eba4",
     "keywords": [
       "japan-hiring-plans",
       "hiring-plans",
@@ -6171,11 +4792,11 @@
       "announces hiring",
       "amazon bedrock",
       "hidetoshi tojo",
-      "computer use",
       "announcements",
-      "announces"
+      "announces",
+      "hidetoshi"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/head-of-japan-hiring-plans.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6186,11 +4807,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6211,18 +4844,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -6237,7 +4858,7 @@
     "category": "news",
     "description": "Societal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:847f0ee23b9173d2a4a64cfeb82911d25e4311e9c47290da8e0fe0daeb99e559",
+    "hash": "sha256:05efbe23bc159cac4c9bcc0eaf87cff8def573410ab7fb60dac9bc71710cd848",
     "keywords": [
       "support-advice",
       "people-use",
@@ -6247,12 +4868,12 @@
       "people",
       "affective conversations",
       "looking ahead",
-      "computer use",
       "people bring",
       "tone evolve",
-      "appendices"
+      "appendices",
+      "affective"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/how-people-use-claude-for-support-advice-and-companionship.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6356,57 +4977,10 @@
           "appendix"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "compliance",
-      "models",
       "streaming"
     ],
     "title": "How people use Claude for support, advice, and companionship",
@@ -6416,7 +4990,7 @@
     "category": "news",
     "description": "AnnouncementsPolicy",
     "domain": "anthropic.com",
-    "hash": "sha256:5110a70d83beb3b64ac5bd1195c6edac3fac6008d20244e7d3683a6125480989",
+    "hash": "sha256:09f68cfb1b5ec73da5bcd6ac9f2baea979a2ef04dde83dbbad8d0fe0e858f44c",
     "keywords": [
       "economic-futures-program",
       "economic-futures",
@@ -6427,11 +5001,11 @@
       "program",
       "futures program",
       "looking ahead",
-      "computer use",
       "announcementspolicy",
-      "acquires"
+      "looking",
+      "matters"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/introducing-the-anthropic-economic-futures-program.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6458,52 +5032,6 @@
           "predetermined"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -6516,7 +5044,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:191863dfe60d0a990bb7e5e1de07588b6d789298e760cfcded4a6130d8ac83ef",
+    "hash": "sha256:b3b8cc20b6f1952b2519f1449ea7314a4ed0c8e4068f8b9c2b658efab41eec61",
     "keywords": [
       "sector-advisory-council",
       "public-sector-advisory",
@@ -6531,7 +5059,7 @@
       "council",
       "public"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/introducing-the-anthropic-national-security-and-public-sector-advisory-council.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6542,11 +5070,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6567,18 +5107,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -6595,7 +5123,7 @@
     "category": "news",
     "description": "AlignmentPolicy",
     "domain": "anthropic.com",
-    "hash": "sha256:5ea9005ed14f63eddd73103d6d984c7c6927d02b379d5c1cc3664940c4153337",
+    "hash": "sha256:887c25a08827d71f4ea0a0b5420fb1b3e0eefd890e54ea6fff52f61a155dbf1c",
     "keywords": [
       "secure-america",
       "investing",
@@ -6604,13 +5132,9 @@
       "future",
       "secure",
       "secure america",
-      "computer use",
-      "alignmentpolicy",
-      "introducing",
-      "acquires",
-      "content"
+      "alignmentpolicy"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/investing-in-energy-to-secure-america-s-ai-future.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6621,11 +5145,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6648,18 +5184,6 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -6674,7 +5198,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:c924f58422bdae3b48455329c60e383ba21b43faf4b85a43ceb30a1c3c92edb4",
+    "hash": "sha256:e4151e69f34e2d421140b88537af8b9309f20459d4e7a483ce585ccc3ea87783",
     "keywords": [
       "livermore-national-laboratory",
       "lawrence-livermore-national",
@@ -6689,7 +5213,7 @@
       "scientists",
       "livermore"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6741,57 +5265,10 @@
           "transforming"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "deployment",
-      "performance",
       "security"
     ],
     "title": "Lawrence Livermore National Laboratory expands Claude for Enterprise use to empower scientists and researchers",
@@ -6801,22 +5278,18 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:e3a0eb4ea87266f46367ee1edd11ef333a005c8fdc936bf6684364f990a4522d",
+    "hash": "sha256:5b1b60335a2d3dd1a656ec2631b46ef79a219a27d8221a6146ed096f80dd6474",
     "keywords": [
       "maryland-partnership",
       "partnership",
       "maryland",
-      "computer use",
       "announcements",
-      "introducing",
-      "nonprofits",
-      "milestone",
       "residents",
-      "acquires",
       "partners",
-      "content"
+      "serve",
+      "state"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/maryland-partnership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6827,11 +5300,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6852,18 +5337,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -6878,7 +5351,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:4866ec5538316ada6945584e8c1fa6626e599ab3277a01d8f707a34014c14b5a",
+    "hash": "sha256:57fb2cbdc787b25e01381bac7867944aa3a41a1688606827d99eb664f8cc7ed9",
     "keywords": [
       "announce-strategic-partnerships",
       "strategic-partnerships",
@@ -6890,10 +5363,9 @@
       "announce",
       "nvidia",
       "strategic partnerships",
-      "computer use",
       "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6904,11 +5376,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -6931,23 +5415,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
-      "performance"
+      "models"
     ],
     "title": "Microsoft, NVIDIA, and Anthropic announce strategic partnerships",
     "url": "https://www.anthropic.com/news/microsoft-nvidia-anthropic-announce-strategic-partnerships"
@@ -6956,7 +5427,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:b5c13392bcafaa331332cf823616fbfb6362d5e86a5b5d6beb3d728a933b73e8",
+    "hash": "sha256:92e5230dc2ffc29c1b8fbda2c6332b395137177c106a347cafef700cdb77c86b",
     "keywords": [
       "richard-fontaine-appointed",
       "national-security-expert",
@@ -6971,7 +5442,7 @@
       "expert-richard",
       "benefit-trust"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/national-security-expert-richard-fontaine-appointed-to-anthropic-s-long-term-benefit-trust.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -6982,11 +5453,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -7007,18 +5490,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -7033,7 +5504,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:74954ef96965025b89119de6f51a04746e6383230fcf037dc8129732e00acd98",
+    "hash": "sha256:24b0c824e77e275f5a3bb5a613a884195dbbaaebfc1b1730be872cdbbcf00dd6",
     "keywords": [
       "expand-european-presence",
       "munich-expand-european",
@@ -7048,7 +5519,7 @@
       "munich",
       "paris"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/new-offices-in-paris-and-munich-expand-european-presence.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7059,11 +5530,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -7084,18 +5567,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -7110,7 +5581,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:ba2f21ea665bab325e21b74da93c439b8d7cf1afbd28701b881b68c1704a9c0a",
+    "hash": "sha256:0cbac54e0b4b23fce4ec3da2b4252523c71b192d9f087b8d532c8ecd610b50de",
     "keywords": [
       "offering-expanded",
       "government",
@@ -7118,13 +5589,9 @@
       "expanded",
       "offering",
       "offering expanded",
-      "computer use",
-      "announcements",
-      "introducing",
-      "acquires",
-      "content"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/offering-expanded-claude-access-across-all-three-branches-of-government.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7135,11 +5602,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -7162,23 +5641,10 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "deployment",
-      "models",
       "security"
     ],
     "title": "Offering expanded Claude access across all three branches of the U.S. government",
@@ -7188,7 +5654,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:c8a7a1daaae7c8581d1045c2f82d98d1de035d00cec7f8051f5944a70ca7c17e",
+    "hash": "sha256:1a83566ade7de012e4140f206612b989ef8d63fc4743f6ff3cdda56042bbf904",
     "keywords": [
       "opening-our-tokyo-office",
       "tokyo-office",
@@ -7200,10 +5666,10 @@
       "signs memorandum",
       "building shared",
       "looking forward",
-      "computer use",
-      "opens tokyo"
+      "opens tokyo",
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/opening-our-tokyo-office.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7255,52 +5721,6 @@
           "japan"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -7313,7 +5733,7 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:3e87d6ebd126622786f484cb2b87a51ed28414ed5a5577de243ffc1a721d735a",
+    "hash": "sha256:632f6eb5e5bbb8c44519d21fdd6ed358e618cb7d97add448602f1df2b68603fc",
     "keywords": [
       "trustworthy-agents",
       "developing-safe",
@@ -7328,7 +5748,7 @@
       "aligning agents",
       "developing safe"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/our-framework-for-developing-safe-and-trustworthy-agents.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7415,52 +5835,6 @@
           "improving"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -7478,22 +5852,18 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:052a8be3b93e528b10dca9e3f60b5fbef94072de3e8e776126606d48122917b2",
+    "hash": "sha256:375dbd3f2b36fd787a4d1ecceb785b84e91f2d952537a31f1d4da18a33d90e80",
     "keywords": [
       "paul-smith",
       "smith",
       "chief commercial",
-      "computer use",
       "paul smith",
       "announcements",
-      "introducing",
       "commercial",
-      "milestone",
-      "acquires",
-      "content",
-      "officer"
+      "officer",
+      "chief"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/paul-smith-to-join-anthropic.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7504,11 +5874,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -7531,18 +5913,6 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -7555,7 +5925,7 @@
     "category": "news",
     "description": "ProductSocietal Impacts",
     "domain": "anthropic.com",
-    "hash": "sha256:3d2e09302ec4db1181e2dc4f57c91bff393123e9dd958c4a539103cb62ac8336",
+    "hash": "sha256:4985e69f8db9c8f6981d9489862172bcb53f8a48db48646cdeeb1ad458eb14e0",
     "keywords": [
       "political-even-handedness",
       "handedness",
@@ -7565,12 +5935,12 @@
       "source evaluation",
       "ideal behaviors",
       "system prompt",
-      "computer use",
       "productsocietal",
       "conclusions",
-      "behaviors"
+      "evaluating",
+      "evaluation"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/political-even-handedness.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7690,52 +6060,6 @@
           "percentage"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -7752,7 +6076,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:5ebee9c22c564d4eebe8cdc928e8b3a3be9e632304eeae4ac40a7890f93064a2",
+    "hash": "sha256:2ec31e0483bb3837f9338edcd9d4c763c1d556d0f4f48be0eaac97356b220274",
     "keywords": [
       "rahul-patil-joins-anthropic",
       "rahul-patil-joins",
@@ -7762,12 +6086,12 @@
       "patil",
       "rahul",
       "chief technology",
-      "computer use",
       "rahul patil",
       "announcements",
-      "introducing"
+      "technology",
+      "officer"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/rahul-patil-joins-anthropic.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7778,11 +6102,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -7803,18 +6139,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -7907,7 +6231,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:eb8748540b51bae8aca18ada5566f78f78f4d2cf08b57cd4e1de379369906f48",
+    "hash": "sha256:efa94b66fa9be97780caf8c85b70f283cbed7c154670d989d9209eb1a058d630",
     "keywords": [
       "rwandan-government-partnership",
       "government-partnership",
@@ -7917,12 +6241,12 @@
       "education",
       "rwandan",
       "building skills",
-      "computer use",
       "announcements",
       "continent",
+      "expanding",
       "thousands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/rwandan-government-partnership-ai-education.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -7962,52 +6286,6 @@
           "today"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8021,7 +6299,7 @@
     "category": "news",
     "description": "AnnouncementsProduct",
     "domain": "anthropic.com",
-    "hash": "sha256:857d3e0f943b87bb8793f55f34e6291ed291e8e466c352845082d324a1af57ff",
+    "hash": "sha256:260f91a2ffad61d12858308a9ae3570438894cf8d27e0256b6211db8e6a140aa",
     "keywords": [
       "salesforce-anthropic-expanded-partnership",
       "expanded-partnership",
@@ -8036,7 +6314,7 @@
       "salesforce deploys",
       "building industry"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/salesforce-anthropic-expanded-partnership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8099,58 +6377,11 @@
           "partnership"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
       "agents",
       "deployment",
-      "models",
       "security"
     ],
     "title": "Anthropic and Salesforce expand partnership to bring Claude to regulated industries",
@@ -8160,22 +6391,19 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:481a974f95043fbcabb7ccb6e81a1d6acc7178d7162f0e6f8adf7682e1ca10ae",
+    "hash": "sha256:b5421efb32c30761a6ab37f8a4c9eb18f7e32143529da1d44d739f8ddbc067fc",
     "keywords": [
       "asia-pacific",
       "pacific",
       "office",
       "seoul",
       "international growth",
-      "computer use",
       "announcements",
       "international",
-      "introducing",
-      "acquires",
       "continue",
-      "content"
+      "growth"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/seoul-becomes-third-anthropic-office-in-asia-pacific.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8186,11 +6414,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -8213,18 +6453,6 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8233,11 +6461,79 @@
     "title": "Seoul becomes Anthropic’s third office in Asia-Pacific as we continue our international growth",
     "url": "https://www.anthropic.com/news/seoul-becomes-third-anthropic-office-in-asia-pacific"
   },
+  "anthropic-com-news-snowflake-anthropic-expanded-partnership": {
+    "category": "news",
+    "description": "AnnouncementsProduct",
+    "domain": "anthropic.com",
+    "hash": "sha256:5c7e99c066598754c4809318a501b30a75046b24ee2c7fb143759ec161c0c8e5",
+    "keywords": [
+      "snowflake-anthropic-expanded-partnership",
+      "expanded-partnership",
+      "partnership",
+      "snowflake",
+      "expanded",
+      "partnership delivers",
+      "million partnership",
+      "global enterprises",
+      "natural language",
+      "amazon bedrock",
+      "bring agentic",
+      "announcementsproduct"
+    ],
+    "last_fetched": "2025-12-04",
+    "path": "anthropic-com/news/snowflake-anthropic-expanded-partnership.md",
+    "sitemap_url": "https://www.anthropic.com/sitemap.xml",
+    "source_type": "sitemap",
+    "subsections": [
+      {
+        "anchor": "#what-the-partnership-delivers-enterprise-ready-ai",
+        "heading": "**What the partnership delivers: enterprise-ready AI**",
+        "keywords": [
+          "partnership",
+          "delivers",
+          "enterprise",
+          "ready",
+          "bringing"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#customers-are-already-seeing-results",
+        "heading": "**Customers are already seeing results**",
+        "keywords": [
+          "customers",
+          "seeing",
+          "results",
+          "combining",
+          "reasoning"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#getting-started",
+        "heading": "**Getting started**",
+        "keywords": [
+          "getting",
+          "started",
+          "customers",
+          "snowflake"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "agents",
+      "deployment",
+      "security"
+    ],
+    "title": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+    "url": "https://www.anthropic.com/news/snowflake-anthropic-expanded-partnership"
+  },
   "anthropic-com-news-statement-dario-amodei-american-ai-leadership": {
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:7f71dffeaf0bcfdc73442a8f60491892c9299627a3120cc9d5b831ed9ffba68a",
+    "hash": "sha256:1290316a8a0ee6da58268e86ccbd147be6fb47ee52d6402b0cbab8feae50f519",
     "keywords": [
       "statement-dario-amodei",
       "dario-amodei-american",
@@ -8249,10 +6545,10 @@
       "american",
       "amodei",
       "dario",
-      "computer use",
-      "dario amodei"
+      "dario amodei",
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/statement-dario-amodei-american-ai-leadership.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8263,11 +6559,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -8288,18 +6596,6 @@
           "nonprofits",
           "launches",
           "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
         ],
         "level": 3
       }
@@ -8316,7 +6612,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:9a81558e15039db5883dd42c5e63d754ad991a2e7feae4cbb30d5147900599f2",
+    "hash": "sha256:4f40cff2344a913cc6c133b218345bcbc3d65becc9a53bb24092214e042009a2",
     "keywords": [
       "collaboration",
       "strengthening",
@@ -8325,13 +6621,13 @@
       "addressing vulnerabilities",
       "effective collaborations",
       "ongoing collaboration",
-      "computer use",
       "collaborations",
       "announcements",
       "addressing",
-      "acquires"
+      "effective",
+      "lessons"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8371,52 +6667,6 @@
           "models"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8432,20 +6682,16 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:f79f73d91774999dfd6ea717e9372e19a3e3b1eb979b407b7c4309b6a1361157",
+    "hash": "sha256:894fe98ba38bc3c8193eb046ee552fe7b5b41325a833b17ed05de2e624d8f43f",
     "keywords": [
       "transparency",
       "frontier",
       "minimum standards",
-      "computer use",
-      "introducing",
-      "milestone",
-      "acquires",
-      "content",
+      "standards",
       "minimum",
       "policy"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/the-need-for-transparency-in-frontier-ai.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8461,52 +6707,6 @@
           "tenets"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8521,7 +6721,7 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:14c3da357110dcb898b4fd24edf536f2da8d721b4db181743d9419f4967e4c25",
+    "hash": "sha256:d39db5198d1bd89a383f95cc1483b4db5ef75006475bec058204516591de958a",
     "keywords": [
       "action-plan",
       "thoughts",
@@ -8532,11 +6732,11 @@
       "promoting secure",
       "export controls",
       "looking ahead",
-      "computer use",
       "action plan",
+      "democratizing",
       "accelerating"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/thoughts-on-america-s-ai-action-plan.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8612,52 +6812,6 @@
           "action"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8675,7 +6829,7 @@
     "category": "news",
     "description": "Product",
     "domain": "anthropic.com",
-    "hash": "sha256:62226054dc85383e9d0c5d8f34054cf66a2bf2f4a9240985f9966cfe1d9be4a3",
+    "hash": "sha256:9ff527ba321d2081ef5ce4b9526f0281e5c39f85374ad77d9f24b71af95c6b65",
     "keywords": [
       "consumer-terms",
       "consumer",
@@ -8686,11 +6840,11 @@
       "data retention",
       "privacy policy",
       "extended data",
-      "computer use",
-      "acquires",
-      "changing"
+      "extending",
+      "changing",
+      "extended"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/updates-to-our-consumer-terms.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8705,52 +6859,6 @@
           "extending"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
@@ -8765,7 +6873,7 @@
     "category": "news",
     "description": "Announcements",
     "domain": "anthropic.com",
-    "hash": "sha256:38993764870c583da89f05d534c1b7dfa4814c24a7f386205ac833504d3262dd",
+    "hash": "sha256:f25daa431f3e375803fb448940979869d8e4bd15082e0ce450e31de3d06d3121",
     "keywords": [
       "updating-restrictions",
       "unsupported-regions",
@@ -8776,11 +6884,9 @@
       "sales",
       "updating restrictions",
       "unsupported regions",
-      "computer use",
-      "announcements",
-      "introducing"
+      "announcements"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/updating-restrictions-of-sales-to-unsupported-regions.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8791,11 +6897,23 @@
         "keywords": [
           "related",
           "content",
-          "acquires",
-          "reaches",
-          "milestone"
+          "snowflake",
+          "announce",
+          "million"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#snowflake-and-anthropic-announce-200-million-partnership-to-bring-agentic-ai-to-global-enterprises",
+        "heading": "Snowflake and Anthropic announce $200 million partnership to bring agentic AI to global enterprises",
+        "keywords": [
+          "snowflake",
+          "announce",
+          "million",
+          "partnership",
+          "bring"
+        ],
+        "level": 3
       },
       {
         "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
@@ -8818,22 +6936,9 @@
           "help"
         ],
         "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "models",
       "security"
     ],
     "title": "Updating restrictions of sales to unsupported regions",
@@ -8843,7 +6948,7 @@
     "category": "news",
     "description": "Policy",
     "domain": "anthropic.com",
-    "hash": "sha256:ba54d3f6fac0453bfa76cbf9140b09b7479f08fd0cd8450288e9f671b1976697",
+    "hash": "sha256:f78da1c59c744a9f431419dcfd67b216754d67283e3580ad2e751d0b504fe325",
     "keywords": [
       "usage-policy-update",
       "policy",
@@ -8856,9 +6961,9 @@
       "risk consumer",
       "computer use",
       "usage policy",
-      "addressing"
+      "cybersecurity"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "anthropic-com/news/usage-policy-update.md",
     "sitemap_url": "https://www.anthropic.com/sitemap.xml",
     "source_type": "sitemap",
@@ -8922,57 +7027,10 @@
           "policy"
         ],
         "level": 2
-      },
-      {
-        "anchor": "#related-content",
-        "heading": "Related content",
-        "keywords": [
-          "related",
-          "content",
-          "acquires",
-          "reaches",
-          "milestone"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#anthropic-acquires-bun-as-claude-code-reaches-1b-milestone",
-        "heading": "Anthropic acquires Bun as Claude Code reaches $1B milestone",
-        "keywords": [
-          "acquires",
-          "bun",
-          "reaches",
-          "milestone",
-          "read"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#claude-for-nonprofits",
-        "heading": "Claude for Nonprofits",
-        "keywords": [
-          "nonprofits",
-          "launches",
-          "help"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#introducing-claude-opus-45",
-        "heading": "Introducing Claude Opus 4.5",
-        "keywords": [
-          "introducing",
-          "opus",
-          "best",
-          "model",
-          "world"
-        ],
-        "level": 3
       }
     ],
     "tags": [
-      "agents",
-      "models"
+      "agents"
     ],
     "title": "Usage policy update",
     "url": "https://www.anthropic.com/news/usage-policy-update"
@@ -12667,7 +10725,7 @@
       "prompt caching",
       "case details"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/amazon-bedrock.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -12819,7 +10877,7 @@
       "accepted",
       "activity"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/analytics.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -12989,7 +11047,7 @@
       "allowing",
       "previous"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/checkpointing.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -13123,7 +11181,7 @@
       "configuration",
       "CLAUDE.md"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/claude-code-on-the-web.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -13391,7 +11449,7 @@
       "format",
       "prompt"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/cli-reference.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -13483,7 +11541,7 @@
       "system prompt",
       "mcp servers"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/common-workflows.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -13870,7 +11928,7 @@
       "effectively",
       "interaction"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/costs.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -14030,7 +12088,7 @@
       "data usage",
       "data flow"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/data-usage.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -14183,7 +12241,7 @@
       "images",
       "https"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/desktop.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -14318,7 +12376,7 @@
       "anthropics",
       "associated"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/devcontainer.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -14472,7 +12530,7 @@
       "amazon bedrock",
       "basic workflow"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/github-actions.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -14861,7 +12919,7 @@
       "functionality",
       "experience"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/gitlab-ci-cd.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -15225,7 +13283,7 @@
       "enable vertex",
       "google vertex"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/google-vertex-ai.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -15397,7 +13455,7 @@
       "basic usage",
       "mcp servers"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/headless.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -15630,7 +13688,7 @@
       "mcp servers",
       "quickstart"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/hooks.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -16236,7 +14294,7 @@
       "formatting",
       "execution"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/hooks-guide.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -16443,7 +14501,7 @@
       "tool use",
       "authentication"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/iam.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -16596,7 +14654,7 @@
       "mode switching",
       "slash commands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/interactive-mode.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -16787,7 +14845,7 @@
       "considerations",
       "configuration"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/jetbrains.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17037,7 +15095,7 @@
       "healthcare",
       "reporting"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/legal-and-compliance.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17160,7 +15218,7 @@
       "rate limits",
       "authentication"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/llm-gateway.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17259,22 +15317,22 @@
     "category": "api",
     "description": "Claude Code can connect to hundreds of external tools and data sources through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction), an open-source standard for AI-tool...",
     "domain": "code.claude.com",
-    "hash": "sha256:1e8c1f62748537b2d01f6f1fdb1ae5f04315aed28bd0a72fa9f4ff0559ed9bd4",
+    "hash": "sha256:113db9c390f890e8d9146205869edf05e3e8e32a0e4019893e945a52be096160",
     "keywords": [
       "model context protocol",
       "authentication header",
-      "environment variable",
+      "allowlist behavior",
       "configured servers",
       "database naturally",
       "connection string",
-      "debug production",
       "airtable server",
       "database server",
       "version control",
       "slash commands",
-      "basic syntax"
+      "basic syntax",
+      "bearer token"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/mcp.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17664,23 +15722,20 @@
     "domain": "code.claude.com",
     "hash": "sha256:647ebd69225e515b92a716e0a0f0826332c4f6ccebbc98ed2ca113abc60834bf",
     "keywords": [
-      "claude.local.md",
-      "claude.md",
-      "descriptive",
-      "descriptive variable",
-      "determine",
-      "directly",
-      "guidelines",
-      "individual preferences",
-      "level memory",
-      "local memory",
       "memory",
-      "personal preferences",
+      "individual preferences",
+      "descriptive variable",
+      "version control",
+      "level memory",
+      "descriptive",
       "preferences",
-      "project memory",
-      "version control"
+      "guidelines",
+      "CLAUDE.md",
+      "claude.md",
+      "determine",
+      "directly"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/memory.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17805,7 +15860,7 @@
       "azure resource",
       "azure rbac"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/microsoft-foundry.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -17933,7 +15988,7 @@
       "aliases",
       "caching"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/model-config.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -18081,7 +16136,7 @@
       "active time",
       "bash tool"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/monitoring-usage.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -18409,7 +16464,7 @@
       "https proxy",
       "llm gateway"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/network-config.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -18526,7 +16581,7 @@
       "comparisons",
       "CLAUDE.md"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/output-styles.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -18667,7 +16722,7 @@
       "agent sdk",
       "prerequisites"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/overview.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -18759,7 +16814,7 @@
       "version control",
       "development"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/plugin-marketplaces.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -19165,7 +17220,7 @@
       "specifications",
       "marketplaces"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/plugins.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -19441,7 +17496,7 @@
       "file locations",
       "slash commands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/plugins-reference.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -19756,7 +17811,7 @@
       "change",
       "coding"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/quickstart.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -19938,7 +17993,7 @@
       "bash tool",
       "tool use"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/sandboxing.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -20212,7 +18267,7 @@
       "agent sdk",
       "tool use"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/sdk/migration-guide.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -20386,7 +18441,7 @@
       "context window",
       "mcp servers"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/security.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -20602,7 +18657,7 @@
     "category": "configuration",
     "description": "Claude Code offers a variety of settings to configure its behavior to meet your needs. You can configure Claude Code by running the `/config` command when using the interactive REPL, which opens a...",
     "domain": "code.claude.com",
-    "hash": "sha256:732e0515294d68700ab86f5458429a3415cc908c8393897f12d636e53a28950d",
+    "hash": "sha256:2174bc19e158d45d66b70a74d307d2f424cb15851afdac783af5131963ef22da",
     "keywords": [
       "settings",
       "environment variables",
@@ -20611,13 +18666,13 @@
       "excluding sensitive",
       "extended thinking",
       "managing plugins",
-      "sandbox settings",
       "yaml frontmatter",
       "extending tools",
       "plugin settings",
-      "prompt caching"
+      "prompt caching",
+      "slash commands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/settings.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -20783,6 +18838,17 @@
         "level": 2
       },
       {
+        "anchor": "#bash-tool-behavior",
+        "heading": "Bash tool behavior",
+        "keywords": [
+          "bash",
+          "tool",
+          "behavior",
+          "executes"
+        ],
+        "level": 3
+      },
+      {
         "anchor": "#extending-tools-with-hooks",
         "heading": "Extending tools with hooks",
         "keywords": [
@@ -20835,7 +18901,7 @@
       "auto updates",
       "api keys"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/setup.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -21011,7 +19077,7 @@
       "characters",
       "organized"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/skills.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -21572,7 +19638,7 @@
       "command types",
       "agent skills"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/slash-commands.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -21948,7 +20014,7 @@
       "approach",
       "displays"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/statusline.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -22107,7 +20173,7 @@
       "context window",
       "data scientist"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/sub-agents.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -22498,7 +20564,7 @@
       "control",
       "handled"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/terminal-config.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -22590,7 +20656,7 @@
       "direct provider",
       "amazon bedrock"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/third-party-integrations.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -22895,7 +20961,7 @@
       "authentication",
       "alternative"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/troubleshooting.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -23169,7 +21235,7 @@
       "visual studio",
       "mcp servers"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "code-claude-com/docs/en/vs-code.md",
     "sitemap_url": "https://code.claude.com/docs/llms.txt",
     "source_type": "llms-txt",
@@ -46982,7 +45048,7 @@
     "category": "agents",
     "description": "Build custom AI agents with the Claude Agent SDK",
     "domain": "platform.claude.com",
-    "hash": "sha256:0265c4c839047c5b3e990566d93296b739e3350243d5978505e1a0915bd3ec31",
+    "hash": "sha256:feb00bf910cdbfdd33cf762b52bbe8f4b28e7b416f4b2ee36a72349d1d570a3a",
     "keywords": [
       "agent-sdk",
       "agent",
@@ -46997,7 +45063,7 @@
       "slash commands",
       "system prompts"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/agent-sdk/overview.md",
     "sitemap_url": "https://docs.claude.com/sitemap.xml",
     "source_type": "sitemap",
@@ -49650,7 +47716,7 @@
     "category": "agents",
     "description": "Complete API reference for the TypeScript Agent SDK, including all functions, types, and interfaces.",
     "domain": "platform.claude.com",
-    "hash": "sha256:f31a56d6968077b8818f868e87750583e4fd0ab1ad758f2ae5b76203f10e01e1",
+    "hash": "sha256:58b6c92a3a30e338a4ce1886b684edd78ba2780ef9a1c1569160e002b918d6bf",
     "keywords": [
       "agent-sdk",
       "typescript",
@@ -49661,11 +47727,11 @@
       "default behavior",
       "natural language",
       "version control",
+      "context window",
       "search results",
-      "message types",
-      "system prompt"
+      "slash commands"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/agent-sdk/typescript.md",
     "sitemap_url": "https://docs.claude.com/sitemap.xml",
     "source_type": "sitemap",
@@ -50458,6 +48524,72 @@
           "apikeysource",
           "typescript",
           "type"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#sdkbeta",
+        "heading": "`SdkBeta`",
+        "keywords": [
+          "sdkbeta",
+          "available",
+          "beta",
+          "features"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#slashcommand",
+        "heading": "`SlashCommand`",
+        "keywords": [
+          "slashcommand",
+          "information",
+          "available",
+          "slash"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#modelinfo",
+        "heading": "`ModelInfo`",
+        "keywords": [
+          "modelinfo",
+          "information",
+          "available",
+          "model"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#mcpserverstatus",
+        "heading": "`McpServerStatus`",
+        "keywords": [
+          "mcpserverstatus",
+          "status",
+          "connected",
+          "server"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#accountinfo",
+        "heading": "`AccountInfo`",
+        "keywords": [
+          "accountinfo",
+          "account",
+          "information",
+          "authenticated"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#modelusage",
+        "heading": "`ModelUsage`",
+        "keywords": [
+          "modelusage",
+          "model",
+          "usage",
+          "statistics"
         ],
         "level": 3
       },
@@ -55460,6 +53592,8 @@
     ],
     "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/api/admin/invites/retrieve.md",
+    "sitemap_url": "https://docs.claude.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#retrieve",
@@ -60546,59 +58680,218 @@
   },
   "platform-claude-com-docs-en-api-overview": {
     "category": "api",
-    "description": "Explore Claude's advanced features and capabilities.",
+    "description": "The Claude API is a RESTful API at `https://api.anthropic.com` that provides programmatic access to Claude models. The primary API is the Messages API (`POST /v1/messages`) for conversational...",
     "domain": "platform.claude.com",
-    "hash": "sha256:15e825556a19187ee00b13fca44cc50e04f42f3e386a8f9595099931e0da0f15",
+    "hash": "sha256:c4b93c016e13b34fa23ba9ec5b249d5fd06018ea5820ef403c78214a9d2b57a0",
     "keywords": [
-      "progressive disclosure",
-      "core capabilities",
-      "extended thinking",
-      "batch processing",
-      "context editing",
-      "code execution",
-      "context window",
-      "prompt caching",
-      "search results",
+      "response headers",
+      "message batches",
+      "party platforms",
+      "response format",
+      "amazon bedrock",
+      "party platform",
       "token counting",
-      "mcp connector",
-      "agent skills"
+      "agent skills",
+      "client sdks",
+      "rate limits",
+      "api keys",
+      "tool use"
     ],
     "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/api/overview.md",
+    "sitemap_url": "https://docs.claude.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
-        "anchor": "#core-capabilities",
-        "heading": "Core capabilities",
+        "anchor": "#prerequisites",
+        "heading": "Prerequisites",
         "keywords": [
-          "core",
-          "capabilities",
-          "features",
-          "enhance",
-          "fundamental"
+          "prerequisites",
+          "need",
+          "console",
+          "account"
         ],
         "level": 2
       },
       {
-        "anchor": "#tools",
-        "heading": "Tools",
+        "anchor": "#available-apis",
+        "heading": "Available APIs",
         "keywords": [
-          "tools",
-          "features",
-          "enable",
-          "interact"
+          "available",
+          "apis",
+          "includes",
+          "following"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#authentication",
+        "heading": "Authentication",
+        "keywords": [
+          "authentication",
+          "requests",
+          "include",
+          "headers"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#getting-api-keys",
+        "heading": "Getting API Keys",
+        "keywords": [
+          "getting",
+          "keys",
+          "available",
+          "console",
+          "https"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#client-sdks",
+        "heading": "Client SDKs",
+        "keywords": [
+          "client",
+          "sdks",
+          "provides",
+          "official"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#claude-api-vs-third-party-platforms",
+        "heading": "Claude API vs Third-Party Platforms",
+        "keywords": [
+          "party",
+          "platforms",
+          "available",
+          "direct",
+          "partner"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#claude-api",
+        "heading": "Claude API",
+        "keywords": [
+          "direct",
+          "access",
+          "latest"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#third-party-platform-apis",
+        "heading": "Third-Party Platform APIs",
+        "keywords": [
+          "party",
+          "platform",
+          "apis",
+          "access",
+          "google"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#request-and-response-format",
+        "heading": "Request and Response Format",
+        "keywords": [
+          "request",
+          "response",
+          "format",
+          "size",
+          "limits"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#request-size-limits",
+        "heading": "Request Size Limits",
+        "keywords": [
+          "request",
+          "size",
+          "limits",
+          "different",
+          "maximum"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#response-headers",
+        "heading": "Response Headers",
+        "keywords": [
+          "response",
+          "headers",
+          "includes",
+          "following"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#rate-limits-and-availability",
+        "heading": "Rate Limits and Availability",
+        "keywords": [
+          "rate",
+          "limits",
+          "availability",
+          "enforces"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#rate-limits",
+        "heading": "Rate Limits",
+        "keywords": [
+          "rate",
+          "limits",
+          "enforces"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#availability",
+        "heading": "Availability",
+        "keywords": [
+          "availability",
+          "available",
+          "countries",
+          "regions"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#basic-example",
+        "heading": "Basic Example",
+        "keywords": [
+          "basic",
+          "example",
+          "minimal",
+          "request",
+          "messages"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#next-steps",
+        "heading": "Next Steps",
+        "keywords": [
+          "steps",
+          "cardgroup",
+          "cols",
+          "card"
         ],
         "level": 2
       }
     ],
     "tags": [
-      "agents",
+      "api",
+      "authentication",
       "batch",
-      "caching",
-      "files",
-      "mcp",
+      "installation",
+      "models",
       "skills"
     ],
-    "title": "Features overview",
+    "title": "API Overview",
     "url": "https://platform.claude.com/docs/en/api/overview"
   },
   "platform-claude-com-docs-en-api-rate-limits": {
@@ -60752,7 +59045,7 @@
     "category": "api",
     "description": "Different tiers of service allow you to balance availability, performance, and predictable costs based on your application's needs.",
     "domain": "platform.claude.com",
-    "hash": "sha256:a7841b14de50cd29228b902251e63329e1120c03879a6cafc7556df228bc93a4",
+    "hash": "sha256:db3f4f7493217cc8f6be8e9b3b5d7c505fe1bb408c77e1188d81b97753d520b5",
     "keywords": [
       "service-tiers",
       "service",
@@ -60767,7 +59060,7 @@
       "performance",
       "predictable"
     ],
-    "last_fetched": "2025-11-25",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/api/service-tiers.md",
     "sitemap_url": "https://docs.claude.com/sitemap.xml",
     "source_type": "sitemap",
@@ -63556,6 +61849,8 @@
     ],
     "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/build-with-claude/overview.md",
+    "sitemap_url": "https://docs.claude.com/sitemap.xml",
+    "source_type": "sitemap",
     "subsections": [
       {
         "anchor": "#core-capabilities",
@@ -67320,7 +65615,7 @@
     "category": "installation",
     "description": "Documentation - Claude Docs",
     "domain": "platform.claude.com",
-    "hash": "sha256:d607ac076f95bca7aebd78d995e9c89f36431b6f5389ef59672ef053322e4789",
+    "hash": "sha256:f0d41f32f193ba244fb52c74bd6785d9d9c9b43c930cb3e0f20a16e985d1d8a7",
     "keywords": [
       "documentation",
       "features",
@@ -67329,7 +65624,7 @@
       "loading",
       "learn"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/home.md",
     "sitemap_url": "https://docs.claude.com/sitemap.xml",
     "source_type": "sitemap",
@@ -68397,14 +66692,14 @@
     "category": "models",
     "description": "Documentation - Claude Docs",
     "domain": "platform.claude.com",
-    "hash": "sha256:41c1052e63db455371f96e51f3ebc7504e009d2197c7b9192b16c927b877143c",
+    "hash": "sha256:d9df5a468265e55302e185314dfc877cc7b8aeb16a7f7b9f41bddabe414324ef",
     "keywords": [
       "documentation",
       "ingestion",
       "learning",
       "cards"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-03",
     "path": "platform-claude-com/docs/en/resources/overview.md",
     "sitemap_url": "https://docs.claude.com/sitemap.xml",
     "source_type": "sitemap",
@@ -72642,9 +70937,9 @@
   },
   "raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG": {
     "category": "api",
-    "description": "- Added setting to enable/disable terminal progress bar (OSC 9;4) - VSCode Extension: Added support for VS Code's secondary sidebar (VS Code 1.97+), allowing Claude Code to be displayed in the right...",
+    "description": "- Pro users now have access to Opus 4.5 as part of their subscription! - Fixed timer duration showing \"11m 60s\" instead of \"12m 0s\" - Windows: Managed settings now prefer `C:\\Program...",
     "domain": "raw.githubusercontent.com",
-    "hash": "sha256:8b0e6418b67f463ab650945be1fe1bbd12511fc8d3963caa8e146511a86d5a91",
+    "hash": "sha256:126225a930566fc5867f2cae52a9053ee2cd99b2a2187940376a9cb2fb9f95f2",
     "keywords": [
       "claude-code",
       "anthropics",
@@ -72659,11 +70954,31 @@
       "remote mcp",
       "web search"
     ],
-    "last_fetched": "2025-12-02",
+    "last_fetched": "2025-12-04",
     "path": "raw-githubusercontent-com/anthropics/claude-code/refs/heads/main/CHANGELOG.md",
     "sitemap_url": null,
     "source_type": "manual",
     "subsections": [
+      {
+        "anchor": "#2058",
+        "heading": "2.0.58",
+        "keywords": [
+          "users",
+          "access",
+          "opus"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#2057",
+        "heading": "2.0.57",
+        "keywords": [
+          "added",
+          "feedback",
+          "input"
+        ],
+        "level": 2
+      },
       {
         "anchor": "#2056",
         "heading": "2.0.56",
@@ -72758,9 +71073,9 @@
         "anchor": "#2045",
         "heading": "2.0.45",
         "keywords": [
+          "added",
           "support",
-          "microsoft",
-          "foundry"
+          "microsoft"
         ],
         "level": 2
       },

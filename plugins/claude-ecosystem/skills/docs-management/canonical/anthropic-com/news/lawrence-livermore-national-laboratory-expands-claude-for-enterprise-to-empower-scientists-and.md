@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/lawrence-livermore-national-laboratory-expands-claude-for-enterprise-to-empower-scientists-and
 source_type: sitemap
-content_hash: sha256:c924f58422bdae3b48455329c60e383ba21b43faf4b85a43ceb30a1c3c92edb4
+content_hash: sha256:e4151e69f34e2d421140b88537af8b9309f20459d4e7a483ce585ccc3ea87783
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-09'
@@ -53,20 +53,5 @@ Organizations interested in transforming their operations with Claude for Enterp
 
 *This blog was updated on July 11, 2025 with additional information from LLNL.*
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-higher-education-initiatives
 source_type: sitemap
-content_hash: sha256:c6e1640557fb2d3b18d027ef47021a0311bd76611ac86704f6e03c5a08eea589
+content_hash: sha256:92a4db2c4e88131f9c3340c9bd3ab92b7d731ac6da95e600164ab7d5dff4143d
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-21'
@@ -49,20 +49,5 @@ These initiatives reflect our commitment to co-creating the future of AI in educ
 
 Access the courses and learn more at [anthropic.com/learn](https://www.anthropic.com/learn).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

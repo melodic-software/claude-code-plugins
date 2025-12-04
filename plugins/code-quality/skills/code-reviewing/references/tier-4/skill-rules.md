@@ -125,6 +125,26 @@ To run code review, invoke the code-reviewing skill
   - Respect skill encapsulation boundaries
   - Rationale: Modularity, reuse, maintainability
 
+## Reference File Validation
+
+- [ ] **All referenced files verified to exist**
+  - SKILL.md tables reference files (references/, agents/, etc.)
+  - Use Glob to verify ALL referenced files exist
+  - Do NOT conclude files missing based on partial reads
+  - Command: `Glob pattern="skill/references/**/*.md"`
+  - Rationale: Prevents false positives about missing files
+
+- [ ] **Cross-reference with staged files**
+  - For new skills: All referenced files should appear in git status
+  - Staged files with `A` (added) status are new files
+  - Verify count matches: 8 references in table = 8 files in Glob results
+  - Rationale: Consistency between documentation and implementation
+
+- [ ] **Reference links use valid paths**
+  - Markdown links: `[text](path/to/file.md)`
+  - Verify path exists with Glob before reporting missing
+  - Rationale: Broken links degrade user experience
+
 ## Version Tracking
 
 - [ ] **Last Verified section tracks currency**

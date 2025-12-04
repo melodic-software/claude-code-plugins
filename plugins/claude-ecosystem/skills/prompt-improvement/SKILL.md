@@ -1,30 +1,52 @@
 ---
 name: prompt-improvement
 description: Meta-skill for improving and optimizing prompts using Anthropic's prompt engineering best practices. Provides the 4-step improvement workflow (example identification, initial draft, chain of thought refinement, example enhancement), keyword registries for documentation lookup, and decision trees for improvement strategies. Use when improving prompts, optimizing for accuracy, adding chain of thought reasoning, structuring with XML tags, enhancing examples, or iterating on prompt quality. Delegates to docs-management skill for official prompt engineering documentation.
-allowed-tools: Read, Glob, Grep, Skill
+allowed-tools: Read, Glob, Grep, Skill, Bash
 ---
 
 # Prompt Improvement
 
-## MANDATORY: Invoke docs-management First
+## MANDATORY: Query Official Documentation First
 
-> **STOP - Before improving ANY prompt:**
+> **STOP - Before improving ANY prompt, you MUST invoke the docs-management skill.**
 >
-> 1. **INVOKE** `docs-management` skill
-> 2. **QUERY** using keywords: prompt improver, chain of thought, XML tags, multishot prompting, system prompts, or related topics
-> 3. **BASE** all improvements EXCLUSIVELY on official documentation loaded
->
-> **Skipping this step results in outdated or suboptimal prompt improvements.**
+> This is NOT optional guidance - it is a required execution step.
+
+### Required: Query Documentation via docs-management Skill
+
+**Invoke the `docs-management` skill BEFORE making any improvements:**
+
+Search for relevant documentation using natural language:
+
+- Primary query: "prompt engineering chain of thought XML tags"
+- Read the top results returned by the skill
+
+### Why Documentation Query is Required
+
+- **Training data is stale** - Your knowledge may be outdated
+- **Official docs are canonical** - Anthropic's current best practices
+- **Prevents hallucination** - Ground improvements in real documentation
+- **Ensures accuracy** - Latest Claude 4.x guidance
+
+### Recommended Query Topics
+
+Query at least ONE of these topics based on your improvement needs:
+
+- **Chain of thought:** "chain of thought thinking tags reasoning"
+- **XML structure:** "XML tags structure prompts formatting"
+- **Examples/multishot:** "multishot prompting examples few-shot"
+- **Claude 4.x best practices:** "Claude 4 prompting best practices"
 
 ### Verification Checkpoint
 
 Before improving a prompt, verify:
 
-- [ ] Did I invoke docs-management skill?
-- [ ] Did official documentation load?
-- [ ] Are my improvements based EXCLUSIVELY on official docs?
+- [ ] Did I invoke the docs-management skill? (not just read about it)
+- [ ] Did I receive documentation from docs-management?
+- [ ] Did I READ at least one official doc returned by the skill?
+- [ ] Are my improvements based on what I read from official docs?
 
-If ANY checkbox is unchecked, STOP and invoke docs-management first.
+**If ANY checkbox is unchecked, STOP and invoke the docs-management skill first.**
 
 ## Overview
 
@@ -145,7 +167,7 @@ Use these keywords to query the `docs-management` skill for official documentati
 ### Core Techniques
 
 | Topic | Query Keywords |
-|-------|----------------|
+| ------- | ---------------- |
 | Prompt Improver | prompt improver, prompt improvement, optimize prompts |
 | Chain of Thought | chain of thought, CoT, thinking, step-by-step, reasoning |
 | XML Tags | XML tags, structure prompts, tagging, XML structure |
@@ -157,7 +179,7 @@ Use these keywords to query the `docs-management` skill for official documentati
 ### Advanced Topics
 
 | Topic | Query Keywords |
-|-------|----------------|
+| ------- | ---------------- |
 | Prefilling | prefill, response prefill, assistant prefill, output format |
 | Long Context | long context, long context tips, document placement |
 | Extended Thinking | extended thinking, thinking budget, deep reasoning |

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/expanding-global-operations-to-india
 source_type: sitemap
-content_hash: sha256:7240dbef0a155c12e113c8f40eca23dbdbc20fe73345884300f7900713a1e070
+content_hash: sha256:b58a8fdc1e416b8917148b6be8d2f1c0df3e4c40d62baaa469bd320aeea03e56
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-07'
@@ -31,20 +31,5 @@ Our expansion into India also dovetails with our continuing investment in advanc
 
 For information about career opportunities at our new Bengaluru office, visit anthropic.com/careers.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

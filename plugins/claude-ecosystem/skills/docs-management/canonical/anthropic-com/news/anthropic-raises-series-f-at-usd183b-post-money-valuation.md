@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-raises-series-f-at-usd183b-post-money-valuation
 source_type: sitemap
-content_hash: sha256:5c3f8263976467b02ac03ec560957baadd04fa1a71391d191f6c240e51f4f172
+content_hash: sha256:2a2eee8dbf6ce953f9d6fccb43acd962a7359d3cc57a79f01729d197e59308b1
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-02'
@@ -31,20 +31,5 @@ This growth spans the entire Anthropic platform, with advancements for businesse
 
 The Series F investment will expand our capacity to meet growing enterprise demand, deepen our safety research, and support international expansion as we continue building reliable, interpretable, and steerable AI systems.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

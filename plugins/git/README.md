@@ -34,22 +34,22 @@ skill: melodic-software:git-commit
 
 ### Skills (8)
 
-| Skill                  | Description                                                 |
+| Skill | Description |
 | ---------------------- | ----------------------------------------------------------- |
-| `git:push`             | Push operations with force-push safety (force-with-lease)   |
-| `git:config`           | Configuration, aliases, performance tuning, credentials     |
-| `git:gpg-signing`      | GPG commit signing setup and troubleshooting                |
-| `git:hooks`            | Pre-commit hooks, Husky, lefthook, secret scanning          |
-| `git:line-endings`     | Cross-platform line ending configuration                    |
-| `git:setup`            | Git installation and initial configuration                  |
-| `git:gui-tools`        | GitKraken, Sourcetree, GitHub Desktop                       |
-| `git:gpg-multi-key`    | Advanced multi-key GPG for consultants/CI/enterprise        |
+| `git:push` | Push operations with force-push safety (force-with-lease) |
+| `git:config` | Configuration, aliases, performance tuning, credentials |
+| `git:gpg-signing` | GPG commit signing setup and troubleshooting |
+| `git:hooks` | Pre-commit hooks, Husky, lefthook, secret scanning |
+| `git:line-endings` | Cross-platform line ending configuration |
+| `git:setup` | Git installation and initial configuration |
+| `git:gui-tools` | GitKraken, Sourcetree, GitHub Desktop |
+| `git:gpg-multi-key` | Advanced multi-key GPG for consultants/CI/enterprise |
 
 ### Agent (1)
 
-| Agent                  | Description                                                                              |
+| Agent | Description |
 | ---------------------- | ---------------------------------------------------------------------------------------- |
-| `history-reviewer` | Strictly read-only git history exploration (log, blame, show, diff, status, stash list)  |
+| `history-reviewer` | Strictly read-only git history exploration (log, blame, show, diff, status, stash list) |
 
 The `history-reviewer` agent provides smart summaries of verbose git output to preserve main context tokens. It CANNOT commit, push, or modify the repository.
 

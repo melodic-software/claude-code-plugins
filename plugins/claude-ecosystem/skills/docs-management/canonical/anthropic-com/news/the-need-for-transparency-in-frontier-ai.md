@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/the-need-for-transparency-in-frontier-ai
 source_type: sitemap
-content_hash: sha256:f79f73d91774999dfd6ea717e9372e19a3e3b1eb979b407b7c4309b6a1361157
+content_hash: sha256:894fe98ba38bc3c8193eb046ee552fe7b5b41325a833b17ed05de2e624d8f43f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-07'
@@ -40,20 +40,5 @@ Views differ on whether and when AI models could pose catastrophic risks. Transp
 
 As models advance, we have an unprecedented opportunity to accelerate scientific discovery, healthcare, and economic growth. Without safe and responsible development, a single catastrophic failure could halt progress for decades. **Our [proposed transparency framework](https://www-cdn.anthropic.com/19cc4bf9eb6a94f9762ac67368f3322cf82b09fe.pdf) offers a practical first step:** public visibility into safety practices while preserving private sector agility to deliver AI's transformative potential.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

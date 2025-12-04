@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/maryland-partnership
 source_type: sitemap
-content_hash: sha256:e3a0eb4ea87266f46367ee1edd11ef333a005c8fdc936bf6684364f990a4522d
+content_hash: sha256:5b1b60335a2d3dd1a656ec2631b46ef79a219a27d8221a6146ed096f80dd6474
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
@@ -29,20 +29,5 @@ Anthropic’s commitment to responsible AI deployment, including rigorous safety
 
 Other public sector organizations interested in using Claude can [contact our public sector team](mailto:pubsec@anthropic.com) to learn more and get started.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

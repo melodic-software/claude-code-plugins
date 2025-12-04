@@ -324,7 +324,7 @@ The last instruction is often most followed.
 **Match complexity to task:**
 
 | Task Type | Recommended Approach |
-|-----------|---------------------|
+| ----------- | --------------------- |
 | Simple lookup | No CoT, minimal instructions |
 | Basic classification | Basic CoT or examples only |
 | Complex analysis | Full structured CoT |

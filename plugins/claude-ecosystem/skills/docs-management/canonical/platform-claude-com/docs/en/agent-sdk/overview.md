@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agent-sdk/overview
 source_type: sitemap
-content_hash: sha256:0265c4c839047c5b3e990566d93296b739e3350243d5978505e1a0915bd3ec31
+content_hash: sha256:feb00bf910cdbfdd33cf762b52bbe8f4b28e7b416f4b2ee36a72349d1d570a3a
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -75,8 +75,9 @@ The SDK also supports authentication via third-party API providers:
 
 - **Amazon Bedrock**: Set `CLAUDE_CODE_USE_BEDROCK=1` environment variable and configure AWS credentials
 - **Google Vertex AI**: Set `CLAUDE_CODE_USE_VERTEX=1` environment variable and configure Google Cloud credentials
+- **Microsoft Foundry**: Set `CLAUDE_CODE_USE_FOUNDRY=1` environment variable and configure Azure credentials
 
-For detailed configuration instructions for third-party providers, see the [Amazon Bedrock](https://code.claude.com/docs/en/amazon-bedrock) and [Google Vertex AI](https://code.claude.com/docs/en/google-vertex-ai) documentation.
+For detailed configuration instructions for third-party providers, see the [Amazon Bedrock](https://code.claude.com/docs/en/amazon-bedrock), [Google Vertex AI](https://code.claude.com/docs/en/google-vertex-ai), and [Microsoft Foundry](https://code.claude.com/docs/en/microsoft-foundry) documentation.
 
 <Note>
 Unless previously approved, we do not allow third party developers to apply Claude.ai rate limits for their products, including agents built on the Claude Agent SDK. Please use the API key authentication methods described in this document instead.

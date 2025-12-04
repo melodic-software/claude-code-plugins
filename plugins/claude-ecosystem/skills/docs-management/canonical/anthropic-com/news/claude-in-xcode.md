@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-xcode
 source_type: sitemap
-content_hash: sha256:5f2ec9dc1ca3c8b4f43f12780bf10e868922578ab3ce4e2ff2573657813b0645
+content_hash: sha256:9d7d69601f7da7d6947f652440e8571f88c585b1acfe13e2964c65947680b01f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-15'
@@ -40,20 +40,5 @@ Claude in Xcode works with all plans that include Claude Code—Pro and Max, plu
 
 For more details, see the [Xcode 26 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-26-release-notes) and [Apple's documentation on writing code with intelligence in Xcode](https://developer.apple.com/documentation/Xcode/writing-code-with-intelligence-in-xcode).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

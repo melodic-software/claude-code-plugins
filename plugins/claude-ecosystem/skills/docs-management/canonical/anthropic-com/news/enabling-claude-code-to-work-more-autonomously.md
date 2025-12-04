@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/enabling-claude-code-to-work-more-autonomously
 source_type: sitemap
-content_hash: sha256:52d2db810dd7fa93c1336ceec8fbc3054d6dbc4d545125b2327d76d40aee3298
+content_hash: sha256:0a04dc0f63847b50ad3079503ccc74535309f73f15709a13d6917291fa2a552c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-29'
@@ -68,20 +68,5 @@ These updates are available now for Claude Code users.
 * **Terminal updates**, including the visual refresh and checkpoints, are available to all Claude Code users—just update your local installation
 * **Claude Agent SDK:** [See the docs](https://docs.claude.com/en/api/agent-sdk/overview) to get started
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

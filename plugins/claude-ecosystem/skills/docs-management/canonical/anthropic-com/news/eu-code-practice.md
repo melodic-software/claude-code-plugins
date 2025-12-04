@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/eu-code-practice
 source_type: sitemap
-content_hash: sha256:5e6773a43da039c00aaedaff64386658855cff6a60ae6b5f489f3ce046f1c61e
+content_hash: sha256:3c4bb712082d67c6e361f7aeea1e57108edd4d7fb65fb5a3a19957049c427234
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-21'
@@ -33,20 +33,5 @@ As an industry, we're still developing best practices for assessing the systemic
 
 We're committed to working with the EU AI Office and safety organizations to ensure the Code remains both robust and responsive to emerging technologies. This collaborative approach—combining regulatory frameworks with flexibility—will be essential for Europe to harness AI's benefits while competing effectively on the global stage.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/disrupting-AI-espionage
 source_type: sitemap
-content_hash: sha256:a25589f56392f2e86caa6be17df27c05feb68d4f690b4958d0c428eccc6739ad
+content_hash: sha256:ea88a672e56f4968be940b095591ad6eb10d74e986b2fb2b57c44b9fdbc0a30f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
@@ -78,20 +78,5 @@ Read [the full report](https://assets.anthropic.com/m/ec212e6566a0d47/original/D
 * *Added an additional hyperlink to the full report in the initial section*
 * *Corrected an error about the speed of the attack: not "thousands of requests per second" but "thousands of requests, often multiple per second"*
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

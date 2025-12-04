@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/advancing-claude-for-financial-services
 source_type: sitemap
-content_hash: sha256:47b13ca8d89be3025dfe7ccca4c2d8acc8260a8f029cd40c606bcc6f1443f14a
+content_hash: sha256:87f11567ce271bbfd435432db433a9f59a6cdc59466d85de6b7f91470284204b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-27'
@@ -124,20 +124,5 @@ Below, Alexander Bricken, Applied AI Lead for Financial Services, and Nicholas L
 
 To learn more about using Claude for Financial Services, [see here](https://claude.com/solutions/financial-services) or [contact](https://claude.com/contact-sales/financial-services) our sales team. And to see the new features in action and hear directly from financial services leaders, you can also [register here](http://website.anthropic.com/webinars/%20claude-for-financial-services) for our launch webinar.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

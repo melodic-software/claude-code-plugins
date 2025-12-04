@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-and-iceland-announce-one-of-the-world-s-first-national-ai-education-pilots
 source_type: sitemap
-content_hash: sha256:72d38bff33c208f07f0aa7e65e7ec929f1850b0f3ca09184467e65719ac55148
+content_hash: sha256:7785db054d6e760cfdea08289f82e97aef25a594e7b26c30d7e5530dcb8405c5
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -41,20 +41,5 @@ Teachers worldwide are using Claude to save hours on lesson planning, create per
 
 We look forward to bringing similar partnerships to more nations as we continue to support educators, ensuring that AI serves those who serve others.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

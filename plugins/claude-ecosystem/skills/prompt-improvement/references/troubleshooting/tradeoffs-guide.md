@@ -19,7 +19,7 @@ Understanding when these trade-offs are worth it is essential.
 ### Ideal Scenarios
 
 | Scenario | Why It's Worth It |
-|----------|------------------|
+| ---------- | ------------------ |
 | High-stakes decisions | Accuracy more important than speed |
 | Complex analysis | Structured reasoning improves accuracy |
 | User-facing outputs | Quality directly affects user experience |
@@ -42,7 +42,7 @@ Based on Anthropic's testing:
 ### Scenarios to Keep Simple
 
 | Scenario | Why Keep It Simple |
-|----------|-------------------|
+| ---------- | ------------------- |
 | Simple factual queries | No reasoning needed |
 | Speed-critical applications | Latency matters more |
 | Cost-sensitive deployments | Token savings important |
@@ -64,7 +64,7 @@ Based on Anthropic's testing:
 ### Quick Reference
 
 | Factor | Simple Prompt | Full Improvement |
-|--------|--------------|------------------|
+| -------- | -------------- | ------------------ |
 | Latency requirement | < 1 second | 2-10 seconds OK |
 | Cost sensitivity | High | Low |
 | Accuracy requirement | Good enough | Critical |
@@ -170,7 +170,7 @@ For repeated similar queries:
 ### Token Impact Example
 
 | Component | Tokens | Cumulative |
-|-----------|--------|------------|
+| ----------- | -------- | ------------ |
 | Basic task | 50 | 50 |
 | + Instructions | +100 | 150 |
 | + 3 examples | +300 | 450 |
@@ -217,7 +217,7 @@ Calculate your specific break-even point.
 ### Typical Latency Impact
 
 | Prompt Type | Typical Latency |
-|-------------|-----------------|
+| ------------- | ----------------- |
 | Simple | 0.5-1 second |
 | Moderate | 1-3 seconds |
 | Full improvement | 3-10 seconds |
@@ -306,7 +306,7 @@ Complex extraction: Full improvement
 ### Metrics to Track
 
 | Metric | What It Tells You |
-|--------|------------------|
+| -------- | ------------------ |
 | Accuracy | Is quality sufficient? |
 | Latency | Is speed acceptable? |
 | Token usage | Is cost manageable? |
@@ -332,7 +332,7 @@ Complex extraction: Full improvement
 ## Summary: The Right Balance
 
 | Priority | Approach |
-|----------|----------|
+| ---------- | ---------- |
 | Speed first | Simple prompt, minimal examples |
 | Cost first | Moderate improvement, test minimum viable |
 | Quality first | Full improvement, accept latency/cost |

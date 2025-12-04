@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/api/service-tiers
 source_type: sitemap
-content_hash: sha256:a7841b14de50cd29228b902251e63329e1120c03879a6cafc7556df228bc93a4
+content_hash: sha256:db3f4f7493217cc8f6be8e9b3b5d7c505fe1bb408c77e1188d81b97753d520b5
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -119,6 +119,8 @@ The ratio of input to output tokens you purchase matters. Sizing your Priority T
 Priority Tier is supported by:
 
 - Claude Opus 4.5
+- Claude Sonnet 4.5
+- Claude Haiku 4.5
 - Claude Opus 4.1
 - Claude Opus 4
 - Claude Sonnet 4

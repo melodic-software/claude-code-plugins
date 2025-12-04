@@ -134,7 +134,7 @@ For complex tasks, aim for:
 ### Coverage Matrix
 
 | Category | Simple Task | Medium Task | Complex Task |
-|----------|-------------|-------------|--------------|
+| ---------- | ------------- | ------------- | -------------- |
 | Typical cases | 2 | 3 | 4 |
 | Edge cases | 1 | 2 | 3 |
 | Challenging | 0 | 1 | 2 |

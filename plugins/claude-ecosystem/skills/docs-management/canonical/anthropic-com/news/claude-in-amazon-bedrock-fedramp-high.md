@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-in-amazon-bedrock-fedramp-high
 source_type: sitemap
-content_hash: sha256:45088ffcf151f2951d7a9274f54001b167a6e82aecba8e009a4d8382a1b288df
+content_hash: sha256:23d42be85adc56838082ee57599b9ef1e5e538ec053c3693d9a0f2ca834fe445
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-11'
@@ -43,20 +43,5 @@ Federal agency employees, defense contractors, and approved partners can access 
 
 [Contact our public sector team](mailto:pubsec@anthropic.com) for guidance on implementing Claude in your federal environment while ensuring full compliance with government security requirements.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

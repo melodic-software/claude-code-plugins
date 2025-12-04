@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/advancing-claude-for-education
 source_type: sitemap
-content_hash: sha256:8f6a85262d3764c4f52d80b23bacd15dad8e2a735bf74fbc83049048dd3fb3bd
+content_hash: sha256:4ba88316d7cc175bff00b9adae2303936b7cf1437e3554834c1baf0ed1396f67
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-09'
@@ -55,20 +55,5 @@ Institutions leveraging AI hold immense promise to transform education and bridg
 
 The stakes couldn't be higher: while the opportunity to accelerate educational progress is unprecedented, missteps could deepen existing divides and cause lasting harm. That's why we're committed to navigating this transformation responsibly, working hand-in-hand with our partners to build an educational future that truly serves everyone. To learn more about Claude for Education, [contact our Education team](https://www.anthropic.com/education).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/salesforce-anthropic-expanded-partnership
 source_type: sitemap
-content_hash: sha256:857d3e0f943b87bb8793f55f34e6291ed291e8e466c352845082d324a1af57ff
+content_hash: sha256:260f91a2ffad61d12858308a9ae3570438894cf8d27e0256b6211db8e6a140aa
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-14'
@@ -54,20 +54,5 @@ This partnership is strengthened by both companies using each other's products:
 * Claude and Slack bi-directional integrations are available today.
 * The new collaboration on regulated industry solutions and the Agentforce 360 integration for Claude are currently under development, with more details on availability to be shared in the coming months.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

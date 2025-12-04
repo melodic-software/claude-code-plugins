@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/resources/overview
 source_type: sitemap
-content_hash: sha256:41c1052e63db455371f96e51f3ebc7504e009d2197c7b9192b16c927b877143c
+content_hash: sha256:d9df5a468265e55302e185314dfc877cc7b8aeb16a7f7b9f41bddabe414324ef
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: html
 ---
@@ -9,8 +9,6 @@ fetch_method: html
 Documentation - Claude Docs
 
 Loading...
-
-0
 
 Search...
 

@@ -22,7 +22,7 @@ Find documentation about chain of thought prompting and step-by-step reasoning
 ## CoT Level Selection
 
 | Task Complexity | Recommended CoT Level | Example Tasks |
-|----------------|----------------------|---------------|
+| ---------------- | ---------------------- | --------------- |
 | Simple | None or Basic | Factual lookups, simple classification |
 | Moderate | Basic | Standard classification, formatting |
 | Complex | Guided | Analysis, comparison, multi-step |

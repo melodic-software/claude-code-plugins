@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents
 source_type: sitemap
-content_hash: sha256:3e87d6ebd126622786f484cb2b87a51ed28414ed5a5577de243ffc1a721d735a
+content_hash: sha256:632f6eb5e5bbb8c44519d21fdd6ed358e618cb7d97add448602f1df2b68603fc
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-04'
@@ -77,20 +77,5 @@ As we continue developing and improving our agents, we expect our understanding 
 
 These principles will guide our current and future work on agent development, and we look forward to collaborating with other companies and organizations on this topic. Agents have tremendous potential for positive impacts in work, education, healthcare, and scientific discovery. That is why it is so important to ensure they are built to the highest standards.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

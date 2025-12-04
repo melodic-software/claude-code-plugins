@@ -552,6 +552,8 @@ Load [tier-4/temp-file-rules.md](references/tier-4/temp-file-rules.md) for:
 - **Ignoring concurrency** - Think through race conditions
 - **Skipping similar files** - Always diff files with similar purposes
 - **Vague fixes** - "Fix this" vs "Replace lines X-Y with..."
+- **Partial table verification** - Never verify only SOME items from a reference table; if you cite a table, verify ALL items with Glob or git status
+- **Concluding files missing without Glob** - When uncertain if files exist, use `Glob pattern="path/**/*.md"` to verify rather than assuming based on what you haven't read
 
 ## Behavioral Rules
 

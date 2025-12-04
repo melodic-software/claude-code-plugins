@@ -395,7 +395,7 @@ The explicit reference helps Claude understand the prompt structure.
 ## Common Tag Naming Conventions
 
 | Purpose | Preferred Tags | Alternatives |
-|---------|---------------|--------------|
+| --------- | --------------- | -------------- |
 | Task definition | `<instructions>` | `<task>`, `<role>` |
 | Background info | `<context>` | `<background>`, `<situation>` |
 | Input data | `<document>` | `<data>`, `<input>`, `<content>` |

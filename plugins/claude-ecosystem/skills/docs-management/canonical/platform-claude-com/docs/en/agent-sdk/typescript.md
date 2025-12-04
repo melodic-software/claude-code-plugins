@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agent-sdk/typescript
 source_type: sitemap
-content_hash: sha256:f31a56d6968077b8818f868e87750583e4fd0ab1ad758f2ae5b76203f10e01e1
+content_hash: sha256:58b6c92a3a30e338a4ce1886b684edd78ba2780ef9a1c1569160e002b918d6bf
 sitemap_url: https://docs.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -100,7 +100,9 @@ Configuration object for the `query()` function.
 | `abortController` | `AbortController` | `new AbortController()` | Controller for cancelling operations |
 | `additionalDirectories` | `string[]` | `[]` | Additional directories Claude can access |
 | `agents` | `Record<string, [`AgentDefinition`](#agentdefinition)>` | `undefined` | Programmatically define subagents |
+| `allowDangerouslySkipPermissions` | `boolean` | `false` | Enable bypassing permissions. Required when using `permissionMode: 'bypassPermissions'` |
 | `allowedTools` | `string[]` | All tools | List of allowed tool names |
+| `betas` | [`SdkBeta`](#sdkbeta)`[]` | `[]` | Enable beta features (e.g., `['context-1m-2025-08-07']`) |
 | `canUseTool` | [`CanUseTool`](#canusetool) | `undefined` | Custom permission function for tool usage |
 | `continue` | `boolean` | `false` | Continue the most recent conversation |
 | `cwd` | `string` | `process.cwd()` | Current working directory |
@@ -113,6 +115,7 @@ Configuration object for the `query()` function.
 | `forkSession` | `boolean` | `false` | When resuming with `resume`, fork to a new session ID instead of continuing the original session |
 | `hooks` | `Partial<Record<`[`HookEvent`](#hookevent)`, `[`HookCallbackMatcher`](#hookcallbackmatcher)`[]>>` | `{}` | Hook callbacks for events |
 | `includePartialMessages` | `boolean` | `false` | Include partial message events |
+| `maxBudgetUsd` | `number` | `undefined` | Maximum budget in USD for the query |
 | `maxThinkingTokens` | `number` | `undefined` | Maximum tokens for thinking process |
 | `maxTurns` | `number` | `undefined` | Maximum conversation turns |
 | `mcpServers` | `Record<string, [`McpServerConfig`](#mcpserverconfig)>` | `{}` | MCP server configurations |
@@ -123,11 +126,13 @@ Configuration object for the `query()` function.
 | `permissionPromptToolName` | `string` | `undefined` | MCP tool name for permission prompts |
 | `plugins` | [`SdkPluginConfig`](#sdkpluginconfig)`[]` | `[]` | Load custom plugins from local paths. See [Plugins](/docs/en/agent-sdk/plugins) for details |
 | `resume` | `string` | `undefined` | Session ID to resume |
+| `resumeSessionAt` | `string` | `undefined` | Resume session at a specific message UUID |
 | `sandbox` | [`SandboxSettings`](#sandboxsettings) | `undefined` | Configure sandbox behavior programmatically. See [Sandbox settings](#sandboxsettings) for details |
 | `settingSources` | [`SettingSource`](#settingsource)`[]` | `[]` (no settings) | Control which filesystem settings to load. When omitted, no settings are loaded. **Note:** Must include `'project'` to load CLAUDE.md files |
 | `stderr` | `(data: string) => void` | `undefined` | Callback for stderr output |
 | `strictMcpConfig` | `boolean` | `false` | Enforce strict MCP validation |
 | `systemPrompt` | `string \| { type: 'preset'; preset: 'claude_code'; append?: string }` | `undefined` (empty prompt) | System prompt configuration. Pass a string for custom prompt, or `{ type: 'preset', preset: 'claude_code' }` to use Claude Code's system prompt. When using the preset object form, add `append` to extend the system prompt with additional instructions |
+| `tools` | `string[] \| { type: 'preset'; preset: 'claude_code' }` | `undefined` | Tool configuration. Pass an array of tool names or use the preset to get Claude Code's default tools |
 
 ### `Query`
 
@@ -137,6 +142,12 @@ Interface returned by the `query()` function.
 interface Query extends AsyncGenerator<SDKMessage, void> {
   interrupt(): Promise<void>;
   setPermissionMode(mode: PermissionMode): Promise<void>;
+  setModel(model?: string): Promise<void>;
+  setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>;
+  supportedCommands(): Promise<SlashCommand[]>;
+  supportedModels(): Promise<ModelInfo[]>;
+  mcpServerStatus(): Promise<McpServerStatus[]>;
+  accountInfo(): Promise<AccountInfo>;
 }
 ```
 
@@ -146,6 +157,12 @@ interface Query extends AsyncGenerator<SDKMessage, void> {
 | :----- | :---------- |
 | `interrupt()` | Interrupts the query (only available in streaming input mode) |
 | `setPermissionMode()` | Changes the permission mode (only available in streaming input mode) |
+| `setModel()` | Changes the model (only available in streaming input mode) |
+| `setMaxThinkingTokens()` | Changes the maximum thinking tokens (only available in streaming input mode) |
+| `supportedCommands()` | Returns available slash commands |
+| `supportedModels()` | Returns available models with display info |
+| `mcpServerStatus()` | Returns status of connected MCP servers |
+| `accountInfo()` | Returns account information |
 
 ### `AgentDefinition`
 
@@ -447,7 +464,7 @@ type SDKUserMessageReplay = {
 Final result message.
 
 ```typescript
-type SDKResultMessage = 
+type SDKResultMessage =
   | {
       type: 'result';
       subtype: 'success';
@@ -460,11 +477,17 @@ type SDKResultMessage =
       result: string;
       total_cost_usd: number;
       usage: NonNullableUsage;
+      modelUsage: { [modelName: string]: ModelUsage };
       permission_denials: SDKPermissionDenial[];
+      structured_output?: unknown;
     }
   | {
       type: 'result';
-      subtype: 'error_max_turns' | 'error_during_execution';
+      subtype:
+        | 'error_max_turns'
+        | 'error_during_execution'
+        | 'error_max_budget_usd'
+        | 'error_max_structured_output_retries';
       uuid: UUID;
       session_id: string;
       duration_ms: number;
@@ -473,7 +496,9 @@ type SDKResultMessage =
       num_turns: number;
       total_cost_usd: number;
       usage: NonNullableUsage;
+      modelUsage: { [modelName: string]: ModelUsage };
       permission_denials: SDKPermissionDenial[];
+      errors: string[];
     }
 ```
 
@@ -551,16 +576,19 @@ type SDKPermissionDenial = {
 Available hook events.
 
 ```typescript
-type HookEvent = 
+type HookEvent =
   | 'PreToolUse'
   | 'PostToolUse'
+  | 'PostToolUseFailure'
   | 'Notification'
   | 'UserPromptSubmit'
   | 'SessionStart'
   | 'SessionEnd'
   | 'Stop'
+  | 'SubagentStart'
   | 'SubagentStop'
-  | 'PreCompact';
+  | 'PreCompact'
+  | 'PermissionRequest';
 ```
 
 ### `HookCallback`
@@ -593,16 +621,19 @@ interface HookCallbackMatcher {
 Union type of all hook input types.
 
 ```typescript
-type HookInput = 
+type HookInput =
   | PreToolUseHookInput
   | PostToolUseHookInput
+  | PostToolUseFailureHookInput
   | NotificationHookInput
   | UserPromptSubmitHookInput
   | SessionStartHookInput
   | SessionEndHookInput
   | StopHookInput
+  | SubagentStartHookInput
   | SubagentStopHookInput
-  | PreCompactHookInput;
+  | PreCompactHookInput
+  | PermissionRequestHookInput;
 ```
 
 ### `BaseHookInput`
@@ -636,6 +667,20 @@ type PostToolUseHookInput = BaseHookInput & {
   tool_name: string;
   tool_input: ToolInput;
   tool_response: ToolOutput;
+  tool_use_id: string;
+}
+```
+
+#### `PostToolUseFailureHookInput`
+
+```typescript
+type PostToolUseFailureHookInput = BaseHookInput & {
+  hook_event_name: 'PostToolUseFailure';
+  tool_name: string;
+  tool_input: unknown;
+  tool_use_id: string;
+  error: string;
+  is_interrupt?: boolean;
 }
 ```
 
@@ -685,12 +730,24 @@ type StopHookInput = BaseHookInput & {
 }
 ```
 
+#### `SubagentStartHookInput`
+
+```typescript
+type SubagentStartHookInput = BaseHookInput & {
+  hook_event_name: 'SubagentStart';
+  agent_id: string;
+  agent_type: string;
+}
+```
+
 #### `SubagentStopHookInput`
 
 ```typescript
 type SubagentStopHookInput = BaseHookInput & {
   hook_event_name: 'SubagentStop';
   stop_hook_active: boolean;
+  agent_id: string;
+  agent_transcript_path: string;
 }
 ```
 
@@ -701,6 +758,17 @@ type PreCompactHookInput = BaseHookInput & {
   hook_event_name: 'PreCompact';
   trigger: 'manual' | 'auto';
   custom_instructions: string | null;
+}
+```
+
+#### `PermissionRequestHookInput`
+
+```typescript
+type PermissionRequestHookInput = BaseHookInput & {
+  hook_event_name: 'PermissionRequest';
+  tool_name: string;
+  tool_input: unknown;
+  permission_suggestions?: PermissionUpdate[];
 }
 ```
 
@@ -736,6 +804,7 @@ type SyncHookJSONOutput = {
         hookEventName: 'PreToolUse';
         permissionDecision?: 'allow' | 'deny' | 'ask';
         permissionDecisionReason?: string;
+        updatedInput?: Record<string, unknown>;
       }
     | {
         hookEventName: 'UserPromptSubmit';
@@ -746,8 +815,31 @@ type SyncHookJSONOutput = {
         additionalContext?: string;
       }
     | {
+        hookEventName: 'SubagentStart';
+        additionalContext?: string;
+      }
+    | {
         hookEventName: 'PostToolUse';
         additionalContext?: string;
+        updatedMCPToolOutput?: unknown;
+      }
+    | {
+        hookEventName: 'PostToolUseFailure';
+        additionalContext?: string;
+      }
+    | {
+        hookEventName: 'PermissionRequest';
+        decision:
+          | {
+              behavior: 'allow';
+              updatedInput?: Record<string, unknown>;
+              updatedPermissions?: PermissionUpdate[];
+            }
+          | {
+              behavior: 'deny';
+              message?: string;
+              interrupt?: boolean;
+            };
       };
 }
 ```
@@ -1743,6 +1835,87 @@ type PermissionRuleValue = {
 
 ```typescript
 type ApiKeySource = 'user' | 'project' | 'org' | 'temporary';
+```
+
+### `SdkBeta`
+
+Available beta features that can be enabled via the `betas` option. See [Beta headers](/docs/en/api/beta-headers) for more information.
+
+```typescript
+type SdkBeta = 'context-1m-2025-08-07';
+```
+
+| Value | Description | Compatible Models |
+|:------|:------------|:------------------|
+| `'context-1m-2025-08-07'` | Enables 1 million token [context window](/docs/en/build-with-claude/context-windows) | Claude Sonnet 4, Claude Sonnet 4.5 |
+
+### `SlashCommand`
+
+Information about an available slash command.
+
+```typescript
+type SlashCommand = {
+  name: string;
+  description: string;
+  argumentHint: string;
+}
+```
+
+### `ModelInfo`
+
+Information about an available model.
+
+```typescript
+type ModelInfo = {
+  value: string;
+  displayName: string;
+  description: string;
+}
+```
+
+### `McpServerStatus`
+
+Status of a connected MCP server.
+
+```typescript
+type McpServerStatus = {
+  name: string;
+  status: 'connected' | 'failed' | 'needs-auth' | 'pending';
+  serverInfo?: {
+    name: string;
+    version: string;
+  };
+}
+```
+
+### `AccountInfo`
+
+Account information for the authenticated user.
+
+```typescript
+type AccountInfo = {
+  email?: string;
+  organization?: string;
+  subscriptionType?: string;
+  tokenSource?: string;
+  apiKeySource?: string;
+}
+```
+
+### `ModelUsage`
+
+Per-model usage statistics returned in result messages.
+
+```typescript
+type ModelUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  webSearchRequests: number;
+  costUSD: number;
+  contextWindow: number;
+}
 ```
 
 ### `ConfigScope`

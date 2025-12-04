@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/rahul-patil-joins-anthropic
 source_type: sitemap
-content_hash: sha256:5ebee9c22c564d4eebe8cdc928e8b3a3be9e632304eeae4ac40a7890f93064a2
+content_hash: sha256:2ec31e0483bb3837f9338edcd9d4c763c1d556d0f4f48be0eaac97356b220274
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-07'
@@ -23,20 +23,5 @@ Rahul brings over 20 years of experience building and maintaining industry-leadi
 
 For developers building with Claude, Rahul's appointment signals our commitment to world-class infrastructure and reliability at scale. As part of these changes, Sam McCandlish, one of Anthropic's co-founders and previously CTO, has taken on a new role as Chief Architect. In this role, Sam will deepen his focus on large-scale model training, continuing to lead pretraining while expanding his scope to include research productivity and RL infrastructure.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

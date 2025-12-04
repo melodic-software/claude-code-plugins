@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/investing-in-energy-to-secure-america-s-ai-future
 source_type: sitemap
-content_hash: sha256:5ea9005ed14f63eddd73103d6d984c7c6927d02b379d5c1cc3664940c4153337
+content_hash: sha256:887c25a08827d71f4ea0a0b5420fb1b3e0eefd890e54ea6fff52f61a155dbf1c
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
@@ -28,20 +28,5 @@ These investments are just the beginning. We also believe that AI will be a powe
 
 By partnering across government, industry, and communities, we can build the foundation for decades of American leadership in AI—creating jobs, strengthening our energy independence, and ensuring the transformative benefits of AI are realized in the United States. We look forward to continuing to work with the U.S. government and other industry partners towards achieving this goal.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

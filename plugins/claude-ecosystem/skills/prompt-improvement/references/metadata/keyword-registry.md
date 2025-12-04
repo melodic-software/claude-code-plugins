@@ -237,7 +237,7 @@ Find documentation about Claude [version] prompting
 ## Quick Reference Table
 
 | Topic | Primary Keywords | Secondary Keywords |
-|-------|------------------|-------------------|
+| ------- | ------------------ | ------------------- |
 | Prompt Improver | prompt improver, optimize | improvement, enhance |
 | Chain of Thought | CoT, thinking | step-by-step, reasoning |
 | XML Tags | XML tags, structure | tagging, organization |

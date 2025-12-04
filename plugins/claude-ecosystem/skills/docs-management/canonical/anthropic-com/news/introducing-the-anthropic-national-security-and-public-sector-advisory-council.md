@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/introducing-the-anthropic-national-security-and-public-sector-advisory-council
 source_type: sitemap
-content_hash: sha256:191863dfe60d0a990bb7e5e1de07588b6d789298e760cfcded4a6130d8ac83ef
+content_hash: sha256:b3b8cc20b6f1952b2519f1449ea7314a4ed0c8e4068f8b9c2b658efab41eec61
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-27'
@@ -47,20 +47,5 @@ In addition, as AI systems grow more capable, understanding their national secur
 
 The Council will aid in the development of safe, effective, and cutting edge technology for the United States and closely allied democracies to establish and maintain enduring technological advantages in this vital era of strategic competition.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

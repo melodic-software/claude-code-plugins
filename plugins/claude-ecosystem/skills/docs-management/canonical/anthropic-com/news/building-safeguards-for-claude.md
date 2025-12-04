@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/building-safeguards-for-claude
 source_type: sitemap
-content_hash: sha256:31a0f084bbb2c5e9f9de5abf7c6099077b401b8b416ea8da8508f293c696a266
+content_hash: sha256:8d370b6fa8cb804fe628cd45ffa3db365c05c3379c2a896de71c49cbb7b63608
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-12'
@@ -91,20 +91,5 @@ Safeguarding AI use is too important for any one organization to tackle alone. W
 
 To support our work, we’re actively looking to hire people who can help us tackle these problems. If you’re interested in working on our Safeguards team, we encourage you to check out our [Careers page](https://www.anthropic.com/jobs?team=4002065008).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

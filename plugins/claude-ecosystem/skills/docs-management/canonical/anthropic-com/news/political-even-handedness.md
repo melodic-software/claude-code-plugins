@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/political-even-handedness
 source_type: sitemap
-content_hash: sha256:3d2e09302ec4db1181e2dc4f57c91bff393123e9dd958c4a539103cb62ac8336
+content_hash: sha256:4985e69f8db9c8f6981d9489862172bcb53f8a48db48646cdeeb1ad458eb14e0
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-13'
@@ -171,20 +171,5 @@ November 24, 2025
 
 * We corrected the percentage of responses in which Sonnet 4.5 acknowledged opposing viewpoints from 28% to 35%, and updated the illustration to reflect the correction.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

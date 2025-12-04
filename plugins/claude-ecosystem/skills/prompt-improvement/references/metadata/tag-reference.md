@@ -346,7 +346,7 @@ Content with special chars like < > & or even
 ## Tag Selection Guide
 
 | Use Case | Recommended Tags |
-|----------|-----------------|
+| ---------- | ----------------- |
 | Task definition | `<instructions>`, `<rules>` |
 | Input data | `<document>`, `<data>`, `<context>` |
 | Reasoning | `<thinking>`, `<analysis>`, `<reasoning>` |

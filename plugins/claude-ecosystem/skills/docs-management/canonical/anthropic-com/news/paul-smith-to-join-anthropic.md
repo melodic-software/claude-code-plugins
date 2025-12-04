@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/paul-smith-to-join-anthropic
 source_type: sitemap
-content_hash: sha256:052a8be3b93e528b10dca9e3f60b5fbef94072de3e8e776126606d48122917b2
+content_hash: sha256:375dbd3f2b36fd787a4d1ecceb785b84e91f2d952537a31f1d4da18a33d90e80
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
@@ -23,20 +23,5 @@ Confirmation of Paul's appointment comes at a moment of exceptional growth for A
 
 AI is fundamentally restructuring how businesses create and capture value. Paul's expertise will help us support more organizations in navigating this transition thoughtfully, as we work to become the most trusted AI partner for businesses.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

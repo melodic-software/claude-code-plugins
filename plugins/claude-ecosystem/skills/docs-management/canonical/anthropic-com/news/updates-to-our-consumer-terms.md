@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/updates-to-our-consumer-terms
 source_type: sitemap
-content_hash: sha256:62226054dc85383e9d0c5d8f34054cf66a2bf2f4a9240985f9966cfe1d9be4a3
+content_hash: sha256:9ff527ba321d2081ef5ce4b9526f0281e5c39f85374ad77d9f24b71af95c6b65
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-28'
@@ -79,20 +79,5 @@ If you're signing up for Claude today, you'll see this decision as part of the s
 
 You can always update your selection in your Privacy Settings. If you decide to turn off the model training setting, we will not use any new chats and coding sessions you have with Claude for future model training. Your data will still be included in model training that has already started and in models that have already been trained, but we will stop using your previously stored chats and coding sessions in future model training runs.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

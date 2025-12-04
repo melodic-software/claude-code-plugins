@@ -7,7 +7,7 @@ This reference provides a systematic approach to debugging prompt issues.
 ### Step 1: Identify the Problem Type
 
 | Symptom | Problem Category | Section |
-|---------|-----------------|---------|
+| --------- | ----------------- | --------- |
 | Wrong answer/output | Content Issue | [Content Issues](#debugging-content-issues) |
 | Wrong format | Format Issue | [Format Issues](#debugging-format-issues) |
 | Inconsistent results | Stability Issue | [Stability Issues](#debugging-stability-issues) |

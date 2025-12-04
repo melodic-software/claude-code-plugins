@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/statement-dario-amodei-american-ai-leadership
 source_type: sitemap
-content_hash: sha256:7f71dffeaf0bcfdc73442a8f60491892c9299627a3120cc9d5b831ed9ffba68a
+content_hash: sha256:1290316a8a0ee6da58268e86ccbd147be6fb47ee52d6402b0cbab8feae50f519
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-21'
@@ -53,20 +53,5 @@ Anthropic is committed to constructive engagement on matters of public policy. W
 
 In his [recent remarks](https://www.newsmax.com/newsmax-tv/vance-artificial-intelligence-ai/2025/10/16/id/1230684/), the Vice President also said of AI, "Is it good or is it bad, or is it going to help us or going to hurt us? The answer is probably both, and we should be trying to maximize as much of the good and minimize as much of the bad." That perfectly captures our view. We're ready to work in good faith with anyone of any political stripe to make that vision a reality.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

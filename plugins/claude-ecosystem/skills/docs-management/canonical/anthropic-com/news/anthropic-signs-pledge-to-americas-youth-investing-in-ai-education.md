@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-signs-pledge-to-americas-youth-investing-in-ai-education
 source_type: sitemap
-content_hash: sha256:a3e147bd2119fa70e8de1aa950f89cd653d23315ea5794ba5c4ece95b9a5fb8b
+content_hash: sha256:623d4a371b891e9a6d5fbafc6e890a606ca65e17f6448055436f1fb8c084c10b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-04'
@@ -53,20 +53,5 @@ These findings directly shape our products: we designed Learning Mode in Claude 
 
 Our participation in today's White House AI Education Taskforce meeting demonstrates our commitment to working alongside government and industry partners to ensure America's students and educators are prepared for an AI-powered future. Through initiatives like the White House Pledge to America's Youth: Investing in AI Education, we’ll continue to invest in America's next generation of leaders, innovators, and problem-solvers. Learn more about our education work at [anthropic.com/education](http://anthropic.com/education).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

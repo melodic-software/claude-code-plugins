@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/head-of-japan-hiring-plans
 source_type: sitemap
-content_hash: sha256:533158ea217e8cbbe0061fc9c00e58280a0f1b566f3ada3ed92ff2998a04bfb4
+content_hash: sha256:7d281c3ba774169e251a1ffd275da6239e88e54eecc688c8f26f2a274bb1eba4
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-06'
@@ -27,20 +27,5 @@ The Japanese HQ will also allow Anthropic to deepen its partnerships with busine
 
 For more information about current career opportunities at Anthropic Japan, visit [anthropic.com/careers](http://anthropic.com/careers).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -1,0 +1,29 @@
+{
+  "name": "windows-diagnostics",
+  "description": "Windows system diagnostics and troubleshooting. Analyzes Event Viewer, disk health, memory, hardware errors, system stability, and performance to diagnose crashes, freezes, and reboots.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/windows-diagnostics",
+  "keywords": [
+    "windows",
+    "diagnostics",
+    "troubleshooting",
+    "event-viewer",
+    "disk-health",
+    "memory",
+    "bsod",
+    "crash",
+    "freeze",
+    "reboot",
+    "powershell",
+    "system-health"
+  ],
+  "skills": "./skills",
+  "agents": ["./agents/diagnostician.md"],
+  "commands": "./commands"
+}

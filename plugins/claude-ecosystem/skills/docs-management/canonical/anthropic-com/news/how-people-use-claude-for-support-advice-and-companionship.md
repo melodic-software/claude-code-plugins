@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/how-people-use-claude-for-support-advice-and-companionship
 source_type: sitemap
-content_hash: sha256:847f0ee23b9173d2a4a64cfeb82911d25e4311e9c47290da8e0fe0daeb99e559
+content_hash: sha256:05efbe23bc159cac4c9bcc0eaf87cff8def573410ab7fb60dac9bc71710cd848
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -148,20 +148,5 @@ We provide more details in the [PDF Appendix](https://www-cdn.anthropic.com/bd37
 
 3. Our methodology and the natural shape of conversations may also introduce artifacts; for example, users may present problems in early messages (appearing more negative) which they may discuss with more neutral language in later messages.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

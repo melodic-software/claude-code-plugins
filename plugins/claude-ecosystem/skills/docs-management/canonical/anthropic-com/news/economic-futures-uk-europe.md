@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/economic-futures-uk-europe
 source_type: sitemap
-content_hash: sha256:8b3ba8e43305ef28bfab98b95b50887aad5ee7a5dd6580846038111d17d976f3
+content_hash: sha256:049fef55cba4dc9c8d65cd4461b53969f67d3a8f183eb7f4f3b5031086679c45
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-05'
@@ -49,20 +49,5 @@ The decisions that people in Europe make today about the development, deployment
 
 If you’re a researcher working on AI policy in the UK or Europe, you can submit your research proposal or learn more about the program at [anthropic.com/economic-futures](https://www.anthropic.com/economic-futures). For questions, contact **economicfutures@anthropic.com**.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/offering-expanded-claude-access-across-all-three-branches-of-government
 source_type: sitemap
-content_hash: sha256:ba2f21ea665bab325e21b74da93c439b8d7cf1afbd28701b881b68c1704a9c0a
+content_hash: sha256:0cbac54e0b4b23fce4ec3da2b4252523c71b192d9f087b8d532c8ecd610b50de
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-12'
@@ -49,20 +49,5 @@ We hope other companies will join us in taking similar steps to ensure the U.S. 
 
 To gain access, department or agency leadership at eligible organizations should contact us at [pubsec@anthropic.com](mailto:pubsec@anthropic.com).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

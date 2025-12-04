@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-nonprofits
 source_type: sitemap
-content_hash: sha256:a9c1f6af4a34fc2537a827f45a4bb373dde3dcc69a02674d6d8341fd7be2dac1
+content_hash: sha256:3217595c4e9ef246725067368cfcd97759d781c3128ac2f6e03ec0b6f568e70a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-12-02'
@@ -131,18 +131,5 @@ We've also been learning from dozens of our customers across the nonprofit secto
 
 To learn more about Claude for Nonprofits and to access the AI Fluency for Nonprofits course, get started [here](http://claude.com/solutions/nonprofits).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
+<!-- Content filtered: site navigation/footer -->

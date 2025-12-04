@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/rwandan-government-partnership-ai-education
 source_type: sitemap
-content_hash: sha256:eb8748540b51bae8aca18ada5566f78f78f4d2cf08b57cd4e1de379369906f48
+content_hash: sha256:efa94b66fa9be97780caf8c85b70f283cbed7c154670d989d9209eb1a058d630
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-18'
@@ -51,20 +51,5 @@ These partnerships demonstrate a consistent approach to working closely with gov
 
 We look forward to learning from these deployments, sharing what we've learned with the wider community, and continuing to support educators and learners as they shape AI's role in building our future.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

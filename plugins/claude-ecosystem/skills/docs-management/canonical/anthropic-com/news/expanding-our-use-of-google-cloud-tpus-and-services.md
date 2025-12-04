@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/expanding-our-use-of-google-cloud-tpus-and-services
 source_type: sitemap
-content_hash: sha256:c458bd80d02cdfa3d27f098368598653138bcf129a57c099a38a29b31d9a80f1
+content_hash: sha256:210e80f3b4e883d07a3551dcbc96f827e5bf9a22a986e7198acdf2ae25c02a55
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-23'
@@ -27,20 +27,5 @@ Anthropic’s unique compute strategy focuses on a diversified approach that eff
 
 Anthropic will continue to invest in additional compute capacity to ensure our models and capabilities remain at the frontier.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

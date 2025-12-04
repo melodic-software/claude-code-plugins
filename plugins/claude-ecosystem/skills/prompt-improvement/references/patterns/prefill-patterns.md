@@ -435,7 +435,7 @@ Prefill may interact unexpectedly with certain inputs. Test your prompts with di
 ## Common Prefill Snippets
 
 | Purpose | Prefill |
-|---------|---------|
+| --------- | --------- |
 | JSON object | `{` |
 | JSON array | `[` |
 | XML thinking | `<thinking>` |

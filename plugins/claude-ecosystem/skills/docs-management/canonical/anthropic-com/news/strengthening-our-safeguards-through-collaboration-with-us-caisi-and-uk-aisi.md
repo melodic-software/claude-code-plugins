@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/strengthening-our-safeguards-through-collaboration-with-us-caisi-and-uk-aisi
 source_type: sitemap
-content_hash: sha256:9a81558e15039db5883dd42c5e63d754ad991a2e7feae4cbb30d5147900599f2
+content_hash: sha256:4f40cff2344a913cc6c133b218345bcbc3d65becc9a53bb24092214e042009a2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-12'
@@ -58,20 +58,5 @@ As AI capabilities advance, the role of independent evaluations of mitigations i
 
 *We extend our gratitude to the technical teams at both US CAISI and UK AISI for their rigorous testing, thoughtful feedback, and ongoing collaboration. Their work has materially improved the security of our systems and advanced the field of measuring AI safeguard effectiveness.*
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

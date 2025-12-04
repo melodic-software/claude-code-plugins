@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/detecting-countering-misuse-aug-2025
 source_type: sitemap
-content_hash: sha256:9e7e92359cc6e6e7626d8941bf3f823ac34937ad62a25486187c74d01d4215fc
+content_hash: sha256:194ab7469bc4bad1a83233b2071a210ecd32015d9de8e4a76324fa3cf4378c9e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-27'
@@ -247,20 +247,5 @@ We’re committed to continually improving our methods for detecting and mitigat
 
 For the full report with additional case studies, [see here.](https://www-cdn.anthropic.com/b2a76c6f6992465c09a6f2fce282f6c0cea8c200.pdf)
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

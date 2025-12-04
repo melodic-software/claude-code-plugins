@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/usage-policy-update
 source_type: sitemap
-content_hash: sha256:ba54d3f6fac0453bfa76cbf9140b09b7479f08fd0cd8450288e9f671b1976697
+content_hash: sha256:f78da1c59c744a9f431419dcfd67b216754d67283e3580ad2e751d0b504fe325
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
@@ -53,20 +53,5 @@ As Claude usage has expanded across enterprise use cases, we’re clarifying tha
 
 We view our Usage Policy as a living document, evolving as AI risks themselves evolve. We will continue to work within Anthropic and with external policymakers, subject matter experts, and civil society to evaluate our policies on an ongoing basis.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

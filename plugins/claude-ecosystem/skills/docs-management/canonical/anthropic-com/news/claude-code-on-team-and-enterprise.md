@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-code-on-team-and-enterprise
 source_type: sitemap
-content_hash: sha256:d65cc86e0a80b1c78f5e715ca13a6b9c2c91218f7a23ffba880ce04484ea9cf1
+content_hash: sha256:7d50f62b2e6ac16d875dc569201e71611d584c9959e2f218c29b82730020db5b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-20'
@@ -54,20 +54,5 @@ Team and Enterprise plan admins can now upgrade to premium seats with Claude Cod
 
 To explore how Claude for Enterprise can transform your organization's productivity and learn more about the Compliance API, [contact](https://www.anthropic.com/contact-sales) our sales team.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

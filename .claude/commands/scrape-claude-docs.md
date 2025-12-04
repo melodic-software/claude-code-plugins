@@ -18,47 +18,51 @@ This command ensures:
 
 ## Dev Mode Environment Variable
 
-```powershell
-# PowerShell - resolve dynamically from repo root
-$env:OFFICIAL_DOCS_DEV_ROOT = "$(git rev-parse --show-toplevel)/plugins/claude-ecosystem/skills/docs-management"
-```
+**CRITICAL:** Environment variables set mid-session do NOT persist across Claude's Bash tool calls. Each Bash command runs in a fresh shell. You must set the env var in the SAME command that runs the script.
+
+**IMPORTANT:** Claude's Bash tool uses **Git Bash (MINGW64)** on Windows, not PowerShell. Use Bash inline prefix syntax for all commands executed by Claude Code.
+
+**Bash syntax (use this in Claude Code):**
 
 ```bash
-# Bash/Git Bash - resolve dynamically from repo root
-export OFFICIAL_DOCS_DEV_ROOT="$(git rev-parse --show-toplevel)/plugins/claude-ecosystem/skills/docs-management"
+OFFICIAL_DOCS_DEV_ROOT="<repo-root>/plugins/claude-ecosystem/skills/docs-management" python <script-path>
+```
+
+**PowerShell syntax (for native PowerShell terminal only):**
+
+```powershell
+$env:OFFICIAL_DOCS_DEV_ROOT = "<repo-root>/plugins/claude-ecosystem/skills/docs-management"; python <script-path>
 ```
 
 This overrides the installed plugin path, redirecting all operations to the local development copy.
 
 ## Workflow
 
-### Step 1: Set Dev Mode Environment Variable
+### Step 1: Run Scraping with Dev Mode Env Var
 
-Set the environment variable shown above before any script execution.
+Run the scraping script with the environment variable set inline:
 
-### Step 2: Scrape, Refresh, and Validate
-
-Invoke the `docs-management` skill with this request:
-
-```text
-IMPORTANT: Dev mode is active. Verify [DEV MODE] appears in script output.
-
-Please scrape all configured Claude documentation sources. Skip unchanged documents, then refresh the local index and metadata and validate.
-
-Run ALL scripts in FOREGROUND so we can see progress and verify dev mode banners.
-
-IMPORTANT: Use Python 3.13 for validation (py -3.13) due to spaCy compatibility. Python 3.14 works for scraping.
+```bash
+OFFICIAL_DOCS_DEV_ROOT="<repo-root>/plugins/claude-ecosystem/skills/docs-management" python <repo-root>/plugins/claude-ecosystem/skills/docs-management/scripts/core/scrape_all_sources.py --parallel --skip-existing
 ```
 
-### Step 3: Verify Dev Mode
+**STOP AND VERIFY:** Check the first lines of output for `[DEV MODE]`. If you see `[PROD MODE]`, the environment variable was not set correctly. Do NOT proceed - troubleshoot the env var first.
 
-Check that `[DEV MODE]` appears in script output (not `[PROD MODE]`).
+### Step 2: Run Validation with Python 3.13
 
-### Step 4: Git Status Check
+Run the refresh/validation script (use Python 3.13 for spaCy compatibility):
+
+```bash
+OFFICIAL_DOCS_DEV_ROOT="<repo-root>/plugins/claude-ecosystem/skills/docs-management" py -3.13 <repo-root>/plugins/claude-ecosystem/skills/docs-management/scripts/management/refresh_index.py
+```
+
+**STOP AND VERIFY:** Check for `[DEV MODE]` in output. If `[PROD MODE]` appears, stop and troubleshoot.
+
+### Step 3: Git Status Check
 
 Run `git status` to see what files changed in the local repo.
 
-### Step 5: Content Diff Analysis
+### Step 4: Content Diff Analysis
 
 Analyze scraped content changes to detect potential issues from external source changes:
 
@@ -84,7 +88,7 @@ git diff plugins/claude-ecosystem/skills/docs-management/canonical/ | head -200
 
 If issues are found, investigate the source URLs and determine if adjustments are needed to sources.json or scraping scripts.
 
-### Step 6: Final Report
+### Step 5: Final Report
 
 Summarize:
 
@@ -95,10 +99,13 @@ Summarize:
 
 ## What NOT to Do
 
-- Do NOT run scripts without setting `OFFICIAL_DOCS_DEV_ROOT` first
+- Do NOT run scripts without the inline `OFFICIAL_DOCS_DEV_ROOT="..."` prefix
+- Do NOT use PowerShell syntax (`$env:...`) in Claude Code - use Bash inline prefix instead
+- Do NOT assume env vars persist between Bash tool calls (they do not)
 - Do NOT use the global `/claude-ecosystem:scrape-docs` command (uses installed plugin)
 - Do NOT run validation with Python 3.14 (spaCy compatibility issues)
 - Do NOT run scripts in background with polling loops
+- Do NOT proceed if `[PROD MODE]` appears - stop and fix the env var
 
 ---
 

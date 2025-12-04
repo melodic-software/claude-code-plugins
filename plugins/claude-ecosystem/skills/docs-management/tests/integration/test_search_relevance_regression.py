@@ -29,14 +29,26 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 
 def _index_has_documents() -> bool:
-    """Check if the canonical index has documents."""
+    """Check if the canonical index has documents.
+
+    The index.yaml uses a flat structure where each document ID is a top-level key,
+    not nested under a 'documents' key. We check for any top-level keys that look
+    like document entries (have 'path' or 'category' fields).
+    """
     index_path = CANONICAL_DIR / 'index.yaml'
     if not index_path.exists():
         return False
     try:
         with open(index_path, 'r', encoding='utf-8') as f:
             index = yaml.safe_load(f)
-        return bool(index and index.get('documents'))
+        if not index:
+            return False
+        # Check for flat structure (doc_id: {metadata})
+        # Each document entry has fields like 'path', 'category', 'keywords'
+        for key, value in index.items():
+            if isinstance(value, dict) and ('path' in value or 'category' in value):
+                return True
+        return False
     except Exception:
         return False
 

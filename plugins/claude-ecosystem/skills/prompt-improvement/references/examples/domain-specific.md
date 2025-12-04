@@ -14,7 +14,7 @@ Review this code and tell me if there are any problems.
 
 ### After
 
-```xml
+````xml
 <instructions>
 You are a senior software engineer conducting a code review. Analyze the provided code for issues across multiple dimensions.
 
@@ -110,7 +110,7 @@ def get_user(user_id):
 2. Provide <output> grouped by severity (CRITICAL, HIGH, MEDIUM, LOW)
 3. Each issue includes: location, problem, impact/reason, fix with code
 </formatting>
-```
+````
 
 ---
 
@@ -671,7 +671,7 @@ Writing guidelines:
 ## Domain Selection Guide
 
 | Domain | Key Improvement Focus |
-|--------|----------------------|
+| -------- | ---------------------- |
 | Code Review | Severity ratings, specific line references, fix suggestions |
 | Data Analysis | Observation → Insight → Recommendation flow, specific numbers |
 | Customer Support | Empathy first, clear resolution options, professional tone |

@@ -61,6 +61,17 @@ When reviewing Claude Code ecosystem files (.claude/skills/**, .claude/agents/**
 4. **Categorize findings** by severity (CRITICAL/MAJOR/MINOR)
 5. **Provide actionable feedback** with specific locations and solutions
 
+### Completeness Verification Protocol
+
+Before reporting missing files or incomplete artifacts:
+
+1. **Identify reference artifacts**: Tables, lists, or links to other files in documentation
+2. **Use Glob for complete verification**: `Glob pattern="referenced/path/**/*"`
+3. **Cross-reference git status**: Staged files should match expectations
+4. **Only report after verification**: Never assume files don't exist - verify with tools
+
+**Critical anti-pattern**: Reading 2 of 8 referenced files and concluding the other 6 "may not exist" - this causes false positives. Always use Glob to verify the complete set before reporting.
+
 ## Tiered Loading (Token Optimization)
 
 The `code-quality:code-reviewing` skill defines a tiered progressive disclosure system for loading reference files. Do not duplicate the tier tables here - they are maintained in the skill's SKILL.md as the single source of truth.

@@ -35,6 +35,11 @@
   // Linting rules configuration
   "config": {
     "default": true,   // Enable all default markdownlint rules
-    "MD013": false     // Disable line-length rule (often too strict for documentation)
+    "MD013": false,    // Disable line-length rule (often too strict for documentation)
+    "MD024": {
+      // Allow duplicate headings when they appear under different parent headings
+      // This supports documentation patterns like "Before/After" examples
+      "siblings_only": true
+    }
   }
 }

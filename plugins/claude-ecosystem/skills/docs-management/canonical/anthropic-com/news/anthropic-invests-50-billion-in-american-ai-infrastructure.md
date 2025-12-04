@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-invests-50-billion-in-american-ai-infrastructure
 source_type: sitemap
-content_hash: sha256:490603fd7952f434fff7e6457422a0b5f0bb61db4afde05b3ce4578b141b5b0f
+content_hash: sha256:9964409a65256daeb690c5be5f19c56ff2d2f1987eb9842adba2da70266f2549
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-12'
@@ -27,20 +27,5 @@ We selected Fluidstack as our partner for its ability to move with exceptional a
 
 The scale of this investment is necessary to meet the growing demand for Claude from hundreds of thousands of businesses while keeping our research at the frontier. We’ll continue to prioritize cost-effective, capital-efficient approaches to achieving this scale as our growth continues.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

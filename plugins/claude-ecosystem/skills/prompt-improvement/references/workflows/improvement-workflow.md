@@ -77,7 +77,7 @@ Create a structured template with clear sections and XML tags.
 </formatting>
 ```
 
-3. **Query docs-management for tag guidance:**
+1. **Query docs-management for tag guidance:**
 
 ```text
 Find documentation about XML tags for structuring prompts
@@ -93,7 +93,7 @@ Find documentation about XML tags for structuring prompts
 ### Common Tag Assignments
 
 | Component | Recommended Tags |
-|-----------|-----------------|
+| ----------- | ----------------- |
 | Task instructions | `<instructions>`, `<task>` |
 | Background info | `<context>`, `<background>` |
 | Input data | `<document>`, `<data>`, `<input>` |
@@ -119,12 +119,14 @@ Add and refine detailed reasoning instructions that guide Claude's thinking proc
 2. **Choose CoT level:**
 
    **Basic CoT:** Simple instruction to think
-   ```
+
+   ```text
    Think step-by-step before providing your answer.
    ```
 
    **Guided CoT:** Specific reasoning steps
-   ```
+
+   ```text
    Before answering:
    1. Identify the key elements of the question
    2. Consider relevant context
@@ -133,7 +135,8 @@ Add and refine detailed reasoning instructions that guide Claude's thinking proc
    ```
 
    **Structured CoT:** XML-tagged thinking
-   ```
+
+   ```text
    First, analyze the problem in <thinking> tags.
    Include your reasoning process and considerations.
    Then provide your final answer in <answer> tags.
@@ -155,7 +158,7 @@ Find documentation about chain of thought prompting and step-by-step reasoning
 ### CoT Level Selection Guide
 
 | Task Type | Recommended CoT Level |
-|-----------|----------------------|
+| ----------- | ---------------------- |
 | Simple factual | None or Basic |
 | Analysis/comparison | Guided |
 | Complex reasoning | Structured |
@@ -194,7 +197,7 @@ Update examples to demonstrate the new reasoning process.
 </example>
 ```
 
-3. **Ensure alignment:**
+1. **Ensure alignment:**
    - Examples follow the same structure as instructions
    - Reasoning matches the guided steps
    - Output format matches formatting specification
@@ -210,7 +213,7 @@ Update examples to demonstrate the new reasoning process.
 
 **Before Enhancement:**
 
-```
+```text
 Input: Classify this email as spam or not spam.
 Email: "You've won $1 million! Click here to claim."
 Output: spam

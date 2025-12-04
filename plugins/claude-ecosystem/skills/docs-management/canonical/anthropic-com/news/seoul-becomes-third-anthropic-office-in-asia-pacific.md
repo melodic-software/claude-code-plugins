@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/seoul-becomes-third-anthropic-office-in-asia-pacific
 source_type: sitemap
-content_hash: sha256:481a974f95043fbcabb7ccb6e81a1d6acc7178d7162f0e6f8adf7682e1ca10ae
+content_hash: sha256:b5421efb32c30761a6ab37f8a4c9eb18f7e32143529da1d44d739f8ddbc067fc
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-23'
@@ -31,20 +31,5 @@ Our focus in Korea will be closely aligned with Korea's national strategy to bec
 
 We're building a comprehensive local team focused on supporting Korea's unique business landscape and technological needs. For information about career opportunities at our new Seoul office, visit [anthropic.com/careers](https://www.anthropic.com/careers).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

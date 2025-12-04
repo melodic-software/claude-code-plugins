@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-gov-models-for-u-s-national-security-customers
 source_type: sitemap
-content_hash: sha256:02874200c3be8debbac83c32383ee2d45830c4a41c02e2509a937be266599017
+content_hash: sha256:aabf2015af40df099788d5efc6c21e5a12fd56dd434a9790fb9fe3e2e1c48e53
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-06'
@@ -28,20 +28,5 @@ U.S. national security customers may choose to use our AI systems for a wide ran
 
 This builds on our commitment to bring responsible and safe AI solutions to our U.S. national security customers, with custom models that are built to address the unique needs of classified environments. To learn more about the Claude Gov models and see how they can support your agency's mission, you can reach our public sector team at [pubsec@anthropic.com](mailto:pubsec@anthropic.com).
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

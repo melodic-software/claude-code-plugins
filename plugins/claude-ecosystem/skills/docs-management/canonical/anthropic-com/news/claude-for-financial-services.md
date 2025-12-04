@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-financial-services
 source_type: sitemap
-content_hash: sha256:09ad414a2eb8c138a3dc2794300d87532f68d3bc4c3a51c075ef219f0363691a
+content_hash: sha256:fb2d3af65031bfc7cb9e1350f6bde2da938b33eae70c7f99621290831f76eaca
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-15'
@@ -83,20 +83,5 @@ For streamlined procurement and consolidated billing, both Claude for Enterprise
 
 Contact our sales team to learn more about [Claude for Financial Services](https://www.anthropic.com/solutions/financial-services), schedule a demonstration, or discuss implementation for your organization.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

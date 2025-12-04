@@ -33,6 +33,10 @@ news_blog_stop_sections:
     regex: true
     stop_after: true  # Everything after this is navigation/footer
     reason: 'Related articles are cross-links, not primary content'
+  - pattern: '^## Related content'
+    regex: true
+    stop_after: true
+    reason: 'Related content cross-links, not primary content'
   # Footer link sections without heading (standalone [Category] lines)
   # These appear at bottom: "[News" on its own line (not complete links like "[Engineering at Anthropic](/link)")
   - pattern: '^\[News\s*$'

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone
 source_type: sitemap
-content_hash: sha256:f1efcb70e36a43fceab3f943b1c7a7b782bd365d6e348fd1eafc8e5f30789f0d
+content_hash: sha256:4a5999620fe05875a2f60d0114d950255fb78c3cd08b804bc1226307156ca037
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-12-03'
@@ -33,20 +33,5 @@ Bun will be instrumental in helping us build the infrastructure for the next gen
 
 If you’re interested in joining Anthropic’s engineering team, visit our [careers page](https://www.anthropic.com/jobs?team=4050633008).
 
-## Related content
 
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
-
-### Claude now available in Microsoft Foundry and Microsoft 365 Copilot
-
-[Read more](/news/claude-in-microsoft-foundry)
+<!-- Content filtered: site navigation/footer -->

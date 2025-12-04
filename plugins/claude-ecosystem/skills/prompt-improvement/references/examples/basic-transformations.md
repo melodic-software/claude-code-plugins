@@ -72,7 +72,7 @@ Then provide your classification as either "spam" or "not-spam" in <output> tags
 ### What Changed
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Structure | Flat text | XML-organized sections |
 | Instructions | Minimal | Detailed with criteria |
 | Examples | None | 2 with reasoning |
@@ -137,7 +137,7 @@ Then provide exactly 3 sentences in <output> tags.
 ### What Changed
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Constraint clarity | "3 sentences" | "exactly 3 sentences (no more, no less)" |
 | Guidance | None | What to include in summary |
 | Example | None | 1 with reasoning |
@@ -220,7 +220,7 @@ Then provide your answer with supporting quotes in <answer> tags.
 ### What Changed
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Source constraint | Implied | Explicit "only use document" |
 | Missing info handling | None | Explicit fallback response |
 | Evidence | None | Required quotes |
@@ -301,7 +301,7 @@ Analyze in <thinking> tags, then output only "positive", "negative", or "neutral
 ### What Changed
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Analysis criteria | None | Listed considerations |
 | Examples | None | 3 (one per category) |
 | Thinking process | Implied | Explicit with indicators |

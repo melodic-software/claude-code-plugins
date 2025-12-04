@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/anthropic-partners-with-the-university-of-chicago-s-becker-friedman-institute-on-ai-economic
 source_type: sitemap
-content_hash: sha256:aad6f01ad32510c5d995a0f1844b35c3cfb3d22b11a23e8d18c9ca735fa95051
+content_hash: sha256:985b349819af3263e2f67bd88498be80c968b27e13bd6d7d20361a3558e4cf6d
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-07-23'
@@ -29,20 +29,5 @@ The rapid pace of technological advancement is increasing the challenges in anal
 
 The partnership will help expand the methodologies used to study AI's economic impact, with the goal of providing policymakers and researchers with more robust insights. As our [Economic Index](https://www.anthropic.com/economic-index) shows, AI use is distributed unevenly across the economy–with complex patterns that defy simple narratives about automation. Working hand-in-hand with BFI economists, we hope to develop a more precise understanding of these patterns and their implications for economic policy, workforce development, and technology governance.
 
-## Related content
 
-### Anthropic acquires Bun as Claude Code reaches $1B milestone
-
-[Read more](/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)
-
-### Claude for Nonprofits
-
-Anthropic launches Claude for Nonprofits to help organizations maximize their impact, featuring free AI training and discounted rates.
-
-[Read more](/news/claude-for-nonprofits)
-
-### Introducing Claude Opus 4.5
-
-The best model in the world for coding, agents, and computer use, with meaningful improvements to everyday tasks like slides and spreadsheets. Claude Opus 4.5 delivers frontier performance and dramatically improved token efficiency.
-
-[Read more](/news/claude-opus-4-5)
+<!-- Content filtered: site navigation/footer -->

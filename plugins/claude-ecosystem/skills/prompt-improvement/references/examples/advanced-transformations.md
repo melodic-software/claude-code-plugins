@@ -517,7 +517,7 @@ Decision criteria:
 ## Advanced Pattern Summary
 
 | Pattern | When to Use |
-|---------|-------------|
+| --------- | ------------- |
 | Multi-stage analysis | Complex decisions requiring step-by-step reasoning |
 | Comparison framework | Evaluating multiple options against criteria |
 | Extraction with validation | Structured data from unstructured documents |
