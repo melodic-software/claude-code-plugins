@@ -74,6 +74,17 @@
         "url": "https://github.com/melodic-software"
       },
       "license": "MIT"
+    },
+    {
+      "name": "windows-diagnostics",
+      "source": "./plugins/windows-diagnostics",
+      "description": "Windows system diagnostics and troubleshooting. Analyzes Event Viewer, disk health, memory, hardware errors, system stability, and performance to diagnose crashes, freezes, and reboots.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Melodic Software",
+        "url": "https://github.com/melodic-software"
+      },
+      "license": "MIT"
     }
   ]
 }
