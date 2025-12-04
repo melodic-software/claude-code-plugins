@@ -85,6 +85,17 @@
         "url": "https://github.com/melodic-software"
       },
       "license": "MIT"
+    },
+    {
+      "name": "tactical-agentic-coding",
+      "source": "./plugins/tactical-agentic-coding",
+      "description": "Tactical Agentic Coding course content by @IndyDevDan - Master agentic coding tactics to scale engineering and build self-operating codebases. Includes 12 lessons covering leverage points, feedback loops, context engineering, prompt engineering, and multi-agent orchestration.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Agentic Engineer / IndyDevDan",
+        "url": "https://agenticengineer.com"
+      },
+      "license": "Educational"
     }
   ]
 }

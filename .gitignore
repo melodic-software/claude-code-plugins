@@ -427,6 +427,10 @@ FodyWeavers.xsd
 settings.local.json
 .claude/temp/
 
+# Windows reserved device names (cannot be deleted on Windows)
+nul
+NUL
+
 # Index lock files (temporary files from doc scraping)
 **/.index.lock
 

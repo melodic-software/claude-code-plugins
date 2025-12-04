@@ -1,0 +1,111 @@
+# Lesson 1: Hello Agentic Coding - Become the Engineer They Can't Replace
+# Video Transcript (21:52)
+# Source: https://agenticengineer.com/tactical-agentic-coding/course/hello-agentic-coding
+
+Welcome to lesson one of Tactical Agentic Coding. I have to say right away, I'm incredibly excited to be here with you. What we're going to accomplish here is nothing short of extraordinary. If you're here, you've realized something critical.
+
+AI coding is not enough. Engineering is about much more than just writing code. In your first lesson, we're going to set the stage and discuss the one idea you need to transform from a phase one AI coding engineer into an entirely new role of engineering. If you understand the concepts in this lesson, you're setting yourself up to maximize the value of TAC, Tactical Agentic Coding.
+
+So what is this new role? In 2023, I bought the domain name you're looking at right now, agenticengineer.com, predicting that a new role of software engineering would emerge, defined by the ability to build systems that can take actions as we can. It's become clear this new role now exists. In the generative AI age, AI coding was phase one. Here we saw the birth of VibeCoders and the complete commoditization of code. We learn the principles of AI coding and use the big three context model prompt to build faster than ever. Agentic coding marks phase two. This is where real engineers strike back. They uplevel once again and turn their codebases into increasingly self-operating machines.
+
+We have one mission in Tactical Agentic Coding. Transform you into an engineer they can't replace. You know who they are. It's your boss. It's the company. It's the industry. It's AI. No matter how great your job is or how many skills you have in the tech world, nothing is forever. You must constantly evolve.
+
+How are we going to accomplish this? How can you become an irreplaceable engineer? In a world where code is a commodity, in a world where your grandma or your little brother can build an app with one prompt? The answer is simple. We do what we always do in technological revolutions. We move up the stack once again. We become a commander of compute and you don't just prompt to generate code. That's phase one engineering. AI coding is not enough. You know this. You take this compute and you use it to build systems that build systems. Once you learn how to do this, you will become a phase two Agentic Engineer.
+
+Engineering was never about writing code. It's about building systems of leverage that produce valuable outcomes for your users and your customers. Great. So we understand the mission and the strategy of Tactical Agentic Coding, become an irreplaceable engineer. But how does this course help you get there? Throughout eight lessons, we'll break down eight tactics of Agentic Coding. As you progress through each lesson, you'll unlock valuable prompts, links, commands, ideas, and other useful assets in your loot box below this video. Take a look now. You'll have several ideas and loot items already available.
+
+Every lesson contains a codebase you can optionally follow along with. And most importantly, every lesson contains one critical tactic of Agentic Coding. The tactic is the most important thing for you to focus on every lesson. If you understand each tactic, you're setting yourself up to win in phase two of the generative AI age. These tactics will give you the ability to use Agentic Coding tools to automate entire classes of engineering work across your tools and products.
+
+I've compressed everything you need to be successful into eight lessons and compress them even further into eight tactics. All the information is here for you when you finish this course and when you do your part and put these tactics to work, you'll become an irreplaceable engineer. Only ambitious goals are worth having. I built this course with this goal so that even if you or I fall short, you'll still land on Mars or the moon far ahead of the rest.
+
+I want to be absolutely clear. What does it mean to be an irreplaceable engineer in phase two with agentic coding as your new tool of engineering? We'll get to the first tactic soon. We'll start agentic coding, but We really need to set expectations here and we really need to break down what it means to win. If we set the foundation right, everything else will fall into its place.
+
+In every software revolution, there's an opportunity for you to become the fabled 10x engineer, not by spending 10x the time or effort, but by achieving 10x the leverage this number is arbitrary it's 2x it's 10x it's 100x it all depends on the leverage points you can find 80 of life is noise space boring repetition and wasted time but every once in a while an opportunity presents itself to you that can change everything if you focus somehow you made it here to tactical agentic coding You found a massive opportunity. Now it's time to give it your all. If you do this right, it will change everything.
+
+The irreplaceable engineer in phase two that we're aiming to become is the engineer that transforms their code bases into self-operating machines. This course teaches you the tactics of agentic coding to maximize your leverage so much so that your code base literally runs itself. You'll learn how to invest your time in the right places and repeatedly extract value by using the right compute across your tools, products, and codebases.
+
+This is ambitious. I've poured over a year into making this insane goal achievable for you here across eight lessons. If you can put in the work to study each tactic. If you like this plan, if you like where this is going, let's dive in to the first tactic that pulls your future abilities into the present. Brace yourself. The first tactic is dead simple, is mission critical, and potentially uncomfortable.
+
+Stop coding.
+
+Let me say that one more time for complete clarity. Stop coding.
+
+This is the not so controversial, controversial thing to say in the tech ecosystem, but you might understand this already. Most engineers AI coding have internalized this tactic at some level, but we have to take it all the way. Let's end the debate right now. Your hands and your mind are no longer the best tool for the job of writing code full stop. Powerful language models called the Agentic Loops running on powerful supercomputers are now vastly superior coders than you and I are. Don't be the engineer that can't let go of the past. So stop coding and use the best tool for the job.
+
+Trust me, I miss coding too. I've spent over a decade working at startups, large companies, typing code by hand, honing my craft, mastering languages, understanding syntax, algorithms, data structures, doing it all by hand. But remember, you're an engineer, not a coder. The difference is massive.
+
+Throughout TAC, Tactical Agentic Coding, we're not going to type a single line of code. I need you on board with this uncomfortable tactic. This is the first and most foundational tactic. Imagine eight tactics stacked up on each other. We're gonna break through them one by one. Some are required. Some will accelerate your capabilities. If you're still typing code, you have no chance of keeping up.
+
+I'm gonna say exactly what I need to say in this course to transform your engineering. It's going to be sharp sometimes, and I'm gonna say things you might not wanna hear, but this is why you're here. It's up to you to accept, trust, and bet on the tactics we'll break down lesson by lesson.
+
+Now, this of course doesn't mean you don't generate code. After all, code is one of the primary assets that generates features, that generates products. Code understanding is still critically important. But we're not coding anymore. To scale into this new phase two role, we need to allocate our engineering cycles to planning, reviewing, and creating closed loop structures. More on that in upcoming lessons.
+
+So it's important to discuss what's enabled all this. What exactly has changed in the transition from AI coding to Agentic Coding? Let's keep it simple and focus on the primitives of Agentic Coding that changes everything.
+
+To understand these primitives, let's first get set up with the essential tools for tactical Agentic Coding. I'll list them on the screen right now. If you're missing any one of these tools, pause the video and check your loop box for links to install your missing tool.
+
+Now let's go ahead and move to a fresh directory for Tactical Agentic Coding code bases. We'll clone in the lesson one code base. Link for this is gonna be available to you in your loop box below. Change directories into this repository. And now let's open your favorite IDE. I'll be using VS Code throughout these lessons. Code.
+
+Let's open the terminal with command J and type Claude. Throughout Tactical Agentic Coding, Claude Code will be our primary Agentic Coding tool. We're going to be using millions and millions of tokens. So make sure you have the funds or the Claude plan to support it. We're going for maximum return on investment in order to tap into these capabilities We have to pay to play.
+
+Now, just as AIDER was for the AI coding phase one era, Claude Code represents the best phase two Agentic Coding tool to teach execute and tap into the next generation of engineering. As we progress through each lesson, you'll understand exactly what I mean.
+
+So your Claude Code UI might look different. You might be using newer models. That's all great. That's fantastic. We know that tools will change and models will improve. Don't let that distract you from the value embedded in each lesson here.
+
+Claude Code is our primary agentic coding tool for many reasons we'll explore throughout the course. But keep in mind, these tactics are transferable to the right Agentic Coding tools that have the right capabilities. Don't get stuck on any one tool.
+
+In this codebase, you'll see one file and two directories. Inside of .claude, we have our permissions for Claude Code. I highly recommend you always check out the settings so you know what Claude Code has access to. We have a programmable directory we're gonna discuss in a moment.
+
+Let's go ahead and open up the readme and let's run an AI coding prompt and then an agentic coding prompt to really understand what's different between AI coding and agentic coding.
+
+So let's open up Cloud Code here, copy the contents from the AI coding prompt, paste it right in, fire it off. This first prompt represents what can be done with AI coding at a foundational level. You've seen this a million times already. Claude Code here is just going to create this file. We now have this new main file with the print that we expect. This is nothing new. This is AI coding. We can do this at scale. We can get tons of files generated for us. We can have our agents and our LLMs generate code for us. This represents phase one.
+
+Let's talk about phase two and what's different. If we scroll down here, you'll see the Agentic Coding prompt. Let's go ahead, copy this and do the same thing. Just kick this off. You're likely already familiar with this log code, setting up a checklist, setting up a plan for what we're going to do. And then it's executed all of these steps one by one by one.
+
+This second prompt represents what can be done with agentic coding at a foundational level. You've likely already been running Agentic Coding prompts, which are prompts that can call tools. Big whoop, who cares? Let's slow down here because the difference between these two prompts is monumental. It's absolutely massive.
+
+Okay, let's set up the groundwork that we're going to walk, run, and then blast off from. Claude Code is not just writing code. It's calling tools. It's doing engineering work. You can see here, we checked out a brand new branch. You can see we're on this demo Agentic Coding branch now. We wrote this new main tack file. We can open that up, main tack. We have a print. hello agentic coding world. And we have a print describing what AI agents are. We then ran our previous AI coding prompt, got the output, goodbye AI coding. And then we ran our main tack files. You can see the output there, git add, git commit, Claude Code, cleaned up the to-do list and reported what's been done.
+
+This is Agentic Coding. With AI coding, you've been interacting with the big three, context, model, prompt. This is a principle of AI coding. It's always there even if you can't see it. Agentic Coding is a superset of AI coding. Agentic Coding expands on the big three by adding one new dimension. You already know what this new dimension is. It's been hiding in plain sight and becoming more and more capable over time.
+
+The new element that transforms the big three of AI coding to Agentic Coding is prompts that can reliably execute long chains of tools. When you add tools, we upgrade the big three to the core four.
+
+Now, I know what you're thinking. Tool calling has been around for a while. This is not new. Nearly every modern AI application is connected to some type of tool now where we can do web searches, run Git commands, and arbitrary tool calls via the model context protocol. You're 100% right about that. But that's not the only new primitive of agentic coding. And it's not a question of new. It's a question of scale and performance.
+
+So what's the difference here? Why is this so important? Why am I differentiating between the AI coding prompt and the Agentic Coding prompt? The big difference here is that tools have changed and models have improved. We need to take into account a new form factor of engineering. We need to take into account Claude Code.
+
+Claude Code is the first Agentic Coding tool to properly combine three essential elements, a powerful language model that can reason when needed, the ability to consistently call long chains of tools and the right agent architecture.
+
+This is a differentiating factor of cloud code that will and is being copied by other tools. Why is that? It's because this capability unlocks the core four and the core four unlocks the Agentic Coding prompt.
+
+Now, these are just known as prompts. Okay, everyone knows these as just plain old prompts now that can call tools. People don't think about this. People don't really invest the time to understand what this means. But don't turn your brain off in thinking you understand the scale in which the core four and the Agentic prompt changes engineering work forever.
+
+When you take the core four and wrap it in an Agentic Coding tool like Claude Code, you can create As you'll see in this course, long running end to end AI developer workflows that run for minutes to hours with and without your oversight.
+
+What we'll explore throughout this course is the scale of engineering work that you can accomplish with the Agentic Coding prompt firing off in the right Agentic Coding tool over and over and over with the right triggers, with the right leverage at the right time in a highly performant, self-validating fashion.
+
+Reliable Agentic Coding at scale was not possible before Claude Code. Everything we do in TAC is built upon this core idea you can see right in this readme with just 35 lines. Okay. Everything is about this difference, right? It's about this capability here, the Agentic Coding prompt. We can also just shorten this to just be the Agentic prompt. A prompt contains a sequence of tool calls. Again, these are just known as prompts, but it's important to distinguish these because with the right context, model, prompt, and now tools, these prompts are now more capable than ever before.
+
+Now we have to make one more important call out about Claude Code. Not only can it run massive, and I mean massive, Agentic Coding prompts, which we'll explore in upcoming lessons. Claude Code is also a programmable Agentic Coding tool. What does this mean? It means we can run it from any programming language that has terminal access. Go ahead, choose your favorite scripting language out of these three, shell, TypeScript with Bunn, or Python with Astral UV, and fire off Claude Code from one of these scripts.
+
+I'm going to go ahead and run Python with Astral UV. I'm just going to copy this. I'm going to open up a brand new terminal instance back into main. If we open up programmable you'll see these three scripts and you'll also have the prompt that's going to run inside of every one of these scripts that's going to call clog code in a programmable fashion you can see here's the python version here's the shell version and here's the bun typescript version so before we kick this off let's go ahead clear up that branch and run git branch we can see that branch that was generated by the initial run i'm just going to get branch delete this and then i'm going to run the python version of this I'm gonna go ahead and kick this off and it's going to rerun that workflow. Here's the prompt it's running. And here is programmable.python.
+
+So you can see this exactly what's running. If we open up.py, you can see exactly what this looks like. This is a key element, is a key advantage of Claude code that once again, differentiates it from all the other agentic coding tools. This is super, super critical, right?
+
+We need this capability of having a programmable agentic coding tool. Why is that? It's because we wanna be building systems that build systems for us. And with this, you can see these files are getting created, our branch just changed. With this capability, with the agentic coding tool that we can program, we can embed our own agents, our own workflows, our own agentic prompts across the software development lifecycle.
+
+This is a critical distinguishing feature from Cloud Code. We need to be able to embed our tooling across the terminal, across developer environments to drive real engineering outcomes with and without our oversight. I hope this is all adding up. I hope your engineering mind is starting to turn at how important this capability is. It's not just about the agentic prompt. It's about where we can use the agentic prompt.
+
+And the fact that Cloud Code runs in the terminal, you can see there's our output there. In our prompt, we requested a full report of the outputs, and that's exactly what we got here. The fact that Cloud Code runs in the terminal means we can run it across all developer environments, including full agentic environments where we're not even present. We're gonna be talking about agentic triggers in this course, but in addition to that, Cloud Code can be embedded inside of your code base firing off when it needs to doing the right thing at the right time.
+
+So these files got created, all of this work ran. Here's the prompt. You have access to all of this. This single code base, this hyper simple code base sets up and frames everything we're going to do in tactical agentic coding. We're going to take this idea of the agentic prompt and we're going to scale it to the max.
+
+Great work here. This was a dense lesson one. But this essential tactic, stop coding, and the key difference between AI coding and agentic coding will ripple throughout every lesson moving forward. Agentic coding is not about us writing code. It's about building systems that build systems on our behalf.
+
+The contradicting truth about what you'll learn in tactical agentic coding is this. To become an irreplaceable engineer, you will replace yourself. You won't see any vibe coders replicating what you'll be able to do when you finish tactical agentic coding.
+
+Evolution is hard. It's challenging. We're going to push through hard concepts. On lesson one, I've already requested that you stop coding, right? We're using the best tool for the job. Evolution forces us to leave skills behind to adapt new ones and bet on potential futures. But in the tech industry, this is where all the alpha lies. This is where your asymmetric engineering advantage exists. It's in the future. It's in pushing what's possible forward.
+
+Let's start scaling the core for the Identic Prompt and Cloud Code into real engineering work across worlds. the software development lifecycle. Next up, we'll explore the most important leverage points of agentic coding so that 10 minutes of your work is equivalent to 60 minutes or more of another engineer's work.
+
+Great job here. I'll see you in lesson two.
