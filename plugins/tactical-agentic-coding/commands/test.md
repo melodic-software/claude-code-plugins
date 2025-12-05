@@ -1,3 +1,7 @@
+---
+description: Run project test suite and report results in structured JSON format
+---
+
 # Application Validation Test Suite
 
 Run the project's test suite and report results in structured JSON format.

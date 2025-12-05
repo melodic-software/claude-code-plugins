@@ -169,7 +169,7 @@ assert not result.get("is_error", False)
 3. Test tool in isolation
 4. Test tool through agent
 
-```
+```text
 
 ## Notes
 

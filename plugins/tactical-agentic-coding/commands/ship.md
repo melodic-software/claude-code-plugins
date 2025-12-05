@@ -1,3 +1,8 @@
+---
+description: Validate state and merge branch to main for production deployment
+argument-hint: [branch-name]
+---
+
 # Ship
 
 Validate workflow state and merge to main for production deployment.

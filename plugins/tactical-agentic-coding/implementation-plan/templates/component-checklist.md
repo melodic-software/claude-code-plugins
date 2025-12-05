@@ -9,9 +9,11 @@ Use this checklist to validate each component before marking it complete.
 ## Skills Checklist
 
 - [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+
   ```bash
   python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search skill frontmatter allowed-tools
   ```
+
 - [ ] **Name**: Max 64 chars, lowercase letters + hyphens only
 - [ ] **Name**: Does NOT contain "anthropic" or "claude"
 - [ ] **Name**: Uses noun-phrase naming (e.g., `context-audit` not `audit-context`)
@@ -35,9 +37,11 @@ allowed-tools: Read, Grep, Glob
 ## Agents Checklist
 
 - [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+
   ```bash
   python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search subagent tools model frontmatter
   ```
+
 - [ ] **Name**: Lowercase letters and hyphens only
 - [ ] **Description**: Natural language, include "use proactively" if desired
 - [ ] **tools**: Array syntax OR comma-separated (both work per official docs)
@@ -61,9 +65,11 @@ model: sonnet
 ## Commands Checklist
 
 - [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+
   ```bash
   python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search slash command frontmatter description
   ```
+
 - [ ] **Frontmatter**: Has `description` field (REQUIRED for SlashCommand tool visibility)
 - [ ] **Frontmatter**: Has `argument-hint` field if command takes arguments
 - [ ] **Name**: Uses kebab-case (NOT underscores)
@@ -159,7 +165,7 @@ argument-hint: [target] [options]
 
 ### SDK-Only Decision Tree
 
-```
+```text
 
 Does the component need to spawn other agents?
   └── YES → SDK-only (subagents cannot spawn subagents)
@@ -235,7 +241,7 @@ Before creating a new agent, verify it doesn't duplicate functionality from exis
 
 Before finalizing any component, invoke the docs-management skill:
 
-```
+```text
 
 Invoke skill: docs-management
 

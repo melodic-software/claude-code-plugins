@@ -65,7 +65,7 @@ $ARGUMENTS - Team composition description (e.g., "2 scouts, 1 builder, 1 reviewe
 
 **Execution Flow:**
 
-```
+```text
 
 Phase 1 (Parallel):
   scout_1 --> findings_1
@@ -108,14 +108,16 @@ Phase 3 (Sequential):
 
 **Deployment Notes:**
 [any special considerations]
-```
+
+```text
 
 ## Example
 
 ```
 
 /deploy-team 3 scouts for API analysis, 2 builders for implementation, 1 reviewer
-```
+
+```text
 
 ## Team Templates
 

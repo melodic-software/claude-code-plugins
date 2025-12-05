@@ -76,7 +76,7 @@ $ARGUMENTS - The task description to orchestrate
 
 ## Example
 
-```
+```text
 
 /orchestrate Add rate limiting to the authentication endpoints
 ```

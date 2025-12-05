@@ -165,7 +165,7 @@ if __name__ == "__main__":
 5. Add custom tools if needed
 6. Add governance hooks if needed
 
-```
+```text
 
 ## Notes
 

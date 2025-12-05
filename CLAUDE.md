@@ -26,12 +26,13 @@ See @README for project overview and installation.
     - "Update across platforms" -> 1 subagent per platform
     - "Research/explore X" -> Explore subagent (preserves main context)
     - "Analyze multiple concerns" -> 1 subagent per concern
-- **Claude Code Documentation Requirement**: For anything related to Claude, Claude Code, or Claude Code ecosystem features (hooks, memory, skills, subagents, commands, MCP, plugins, settings, model config, workflows, SDK, etc.):
-  1. Use the `docs-management` skill to access official canonical documentation first
-  2. Base responses on official documentation rather than assumptions or memory
-  3. Drive all changes/modifications from official canonical documentation
-  4. If official documentation is unclear or missing, state this explicitly rather than guessing
-  5. See @.claude/memory/claude-code-ecosystem.md for comprehensive topic index and delegation instructions
+- **Claude Code Documentation (Hybrid Strategy)**: For ALL Claude Code documentation queries, use BOTH sources in parallel for maximum comprehensiveness:
+  1. **Invoke `docs-management` skill** - Fast local cache, token-efficient (60-90% savings via subsections), curated, offline
+  2. **Spawn `claude-code-guide` subagent in parallel** - Live web search via WebFetch/WebSearch, always current
+  3. **Synthesize results** - Combine findings, deduplicate, note any discrepancies between local cache and live docs
+  4. If plugin not installed (docs-management unavailable), use `claude-code-guide` only
+  5. Base all responses on official documentation - no assumptions or memory
+  6. See @.claude/memory/claude-code-ecosystem.md for detailed hybrid strategy and topic index
 - **Zero Complacency - Report All Errors/Warnings**: When you encounter errors, warnings, import failures, deprecation notices, or any system feedback indicating something is wrong:
   1. Stop and do not continue or report success when errors are present
   2. Report the error/warning explicitly to the user with full context

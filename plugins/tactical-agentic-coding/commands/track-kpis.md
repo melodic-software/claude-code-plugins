@@ -1,3 +1,8 @@
+---
+description: Calculate and update agentic coding KPIs to measure ZTE progression
+argument-hint: [state-context]
+---
+
 # Track KPIs
 
 Calculate and update agentic coding KPIs to measure ZTE progression.

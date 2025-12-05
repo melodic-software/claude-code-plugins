@@ -135,7 +135,7 @@ Apply additions:
 2. Test new level capabilities
 3. Verify output format
 
-```
+```text
 
 ## Notes
 

@@ -161,7 +161,7 @@ Each tool definition consumes context window space even if never used. Strip unn
 - @core-four-custom.md - Tools in Core Four
 - @custom-tool-patterns.md - Tool patterns
 
-```
+```text
 
 ## Notes
 

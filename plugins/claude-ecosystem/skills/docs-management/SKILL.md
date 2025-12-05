@@ -74,6 +74,37 @@ This skill should be used when:
 - **Managing index metadata** - Adding keywords, tags, aliases, updating metadata
 - **Rebuilding index** - Regenerating index from filesystem (handles renames/moves)
 
+## Complementary Sources
+
+### claude-code-guide Subagent
+
+The built-in `claude-code-guide` subagent provides complementary live web search capabilities:
+
+- **Tools**: Glob, Grep, Read, WebFetch, WebSearch
+- **Strengths**: Always current, can fetch live URLs, web search
+- **Invoke via**: `Task` tool with `subagent_type="claude-code-guide"`
+
+### Always-Parallel Strategy (Main Agent Responsibility)
+
+For ALL Claude Code documentation queries, the **main agent** (not this skill) should:
+
+1. Invoke this `docs-management` skill for local cache lookup
+2. Spawn `claude-code-guide` subagent in parallel for live web search
+3. Synthesize results from both sources
+
+**Note**: Skills cannot spawn subagents. The main agent must orchestrate parallel invocation.
+
+### Why Both Sources
+
+| Source | Strength |
+| -------- | ---------- |
+| `docs-management` | Fast, token-efficient (60-90% savings), curated, offline |
+| `claude-code-guide` | Always current, web search, fetches live URLs |
+
+Using both in parallel provides maximum comprehensiveness - local cache for speed and efficiency, live search for currency and gap-filling.
+
+See `.claude/memory/claude-code-ecosystem.md` for detailed hybrid strategy documentation.
+
 ## Workflow Execution Pattern
 
 **CRITICAL: This section defines HOW to execute operations in this skill.**

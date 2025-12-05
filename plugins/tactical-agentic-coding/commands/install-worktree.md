@@ -1,3 +1,8 @@
+---
+description: Set up isolated Git worktree environment for parallel agent execution
+argument-hint: [worktree-path] [backend-port] [frontend-port]
+---
+
 # Install Worktree
 
 Set up an isolated Git worktree environment for parallel agent execution.

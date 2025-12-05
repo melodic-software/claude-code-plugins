@@ -85,6 +85,7 @@ python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py
 ```
 
 **Document your validation**: In the lesson plan's Validation Criteria section, record:
+
 - Which `docs-management` queries were invoked
 - What official documentation was retrieved
 - Any discrepancies found and how they were resolved
@@ -494,7 +495,7 @@ For significant decisions during implementation:
 
 Source materials and official docs should be re-checked when specific conditions arise.
 
-### Re-Check Source Materials When:
+### Re-Check Source Materials When
 
 | Trigger | Action |
 | ------- | ------ |
@@ -503,7 +504,7 @@ Source materials and official docs should be re-checked when specific conditions
 | Pattern extraction seems incomplete | Re-explore companion repo |
 | Cross-reference needed | Re-read `links.md` for external resources |
 
-### Re-Check Official Docs When:
+### Re-Check Official Docs When
 
 | Trigger | Action |
 | ------- | ------ |
@@ -735,7 +736,7 @@ The following TAC agents should use `opus` model due to their complexity:
 
 ### When to Use Each Model
 
-```
+```text
 opus    → Orchestration, delegation, complex planning, master planning
 sonnet  → Implementation, review, moderate complexity
 haiku   → Fast tasks, classification, simple analysis, exploration
@@ -744,7 +745,7 @@ inherit → When subagent should match parent conversation model
 
 ### Model Selection Decision Tree
 
-```
+```text
 Is the agent an orchestrator or planner?
 ├── YES → Use opus
 └── NO
@@ -814,7 +815,7 @@ When implementing components, place them in these locations:
 
 ### Skill Directory Structure
 
-```
+```text
 
 skills/{skill-name}/
   SKILL.md           # Main skill file with YAML frontmatter
@@ -1018,7 +1019,7 @@ For lessons with many components, consider parallelization:
 
 ### Parallel Execution Pattern
 
-```
+```text
 
 Phase 5.1: Skills (can parallelize if independent)
   ├── skill-a (parallel)

@@ -1,3 +1,8 @@
+---
+description: Execute end-to-end test specification and report results
+argument-hint: [e2e-test-spec-path]
+---
+
 # E2E Test Runner
 
 Execute an end-to-end test specification and report results.

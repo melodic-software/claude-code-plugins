@@ -77,10 +77,65 @@ When a user asks about any Claude Code topic:
 - Topics WITH specialized skills: `User Question → Specialized Skill → docs-management → Official Docs`
 - Topics WITHOUT specialized skills: `User Question → docs-management → Official Docs`
 
+## Hybrid Documentation Strategy
+
+### Two Documentation Sources
+
+Claude Code documentation can be accessed via two complementary sources:
+
+| Source | Invoke Via | Strengths |
+| ------ | ---------- | --------- |
+| `docs-management` skill | `Skill` tool | Fast (local cache), token-efficient (60-90% savings via subsections), curated, offline |
+| `claude-code-guide` subagent | `Task` tool | Live web search, always current, fetches live URLs |
+
+### Default Behavior: ALWAYS Parallel
+
+For ALL Claude Code documentation queries, **invoke both sources in parallel** for maximum comprehensiveness:
+
+1. **Invoke `docs-management` skill** - Fast local cache lookup
+2. **Spawn `claude-code-guide` subagent in parallel** - Live web search
+3. **Synthesize results** - Combine, deduplicate, note discrepancies
+
+### Parallel Invocation Example
+
+```markdown
+# Main agent orchestrating both sources in parallel
+
+[Skill tool: docs-management]
+"Find documentation about Claude Code hooks"
+
+[Task tool: claude-code-guide subagent] (parallel)
+"Search official Claude Code documentation for hooks. Return key findings with source URLs."
+
+[Synthesize]
+Combine results, prioritize official sources, note if local cache differs from live docs.
+```
+
+### Why Both Sources
+
+- **`docs-management`**: Provides fast, token-efficient access to curated local cache. Subsection extraction saves 60-90% tokens. Works offline.
+- **`claude-code-guide`**: Provides live web search capabilities via WebFetch and WebSearch. Always has the most current documentation.
+
+Using both in parallel ensures comprehensive coverage - local cache for speed and efficiency, live search for currency and gap-filling.
+
+### Fallback (Plugin Not Installed)
+
+If `claude-ecosystem` plugin is not installed (docs-management unavailable):
+
+- Use `claude-code-guide` subagent only
+
+### Key Constraint
+
+**Agents cannot spawn subagents** - only the main conversation can use the Task tool. Therefore:
+
+- The `docs-management` skill cannot invoke `claude-code-guide`
+- The `docs-researcher` agent cannot spawn `claude-code-guide`
+- Only the **main agent** can orchestrate running both in parallel
+
 ## Topics Index
 
 For comprehensive topic listings with keywords, see `.claude/memory/claude-code-topics-index.md`. Load when you need to look up specific features, find keywords for docs-management queries, or navigate the Claude Code documentation.
 
 ---
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-04

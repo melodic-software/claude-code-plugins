@@ -1,3 +1,8 @@
+---
+description: Create minimal surgical patch plan for targeted fix
+argument-hint: [change-request] [spec-path]
+---
+
 # Create Focused Patch Plan
 
 Create a minimal, surgical patch plan to address a specific issue.

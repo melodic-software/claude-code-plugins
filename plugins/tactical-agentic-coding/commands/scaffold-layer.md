@@ -1,3 +1,8 @@
+---
+description: Create minimum viable agentic layer structure for a project
+argument-hint: [project-name]
+---
+
 # Scaffold Layer
 
 Create a minimum viable agentic layer structure for a project.
@@ -117,7 +122,7 @@ Run workflows from project root:
 python adws/adw_prompt.py "Your prompt here"
 ```
 
-```
+```text
 
 ### Step 6: Report Structure
 

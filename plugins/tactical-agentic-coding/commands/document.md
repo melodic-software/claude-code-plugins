@@ -1,3 +1,8 @@
+---
+description: Generate concise feature documentation from implemented changes
+argument-hint: [adw-id] [spec-path]
+---
+
 # Generate Feature Documentation
 
 Generate concise markdown documentation from implemented changes.

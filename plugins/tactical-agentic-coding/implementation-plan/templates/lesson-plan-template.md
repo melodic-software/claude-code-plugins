@@ -115,18 +115,22 @@ If any proposed components require spawning other agents (orchestrators, fleet m
 Before finalizing this plan, the following docs-management queries MUST be executed:
 
 #### Skills Validation
+
 - [ ] Invoked: `find_docs.py search skill frontmatter allowed-tools`
 - Result: [Document findings - e.g., "Confirmed allowed-tools must be comma-separated string"]
 
 #### Agents Validation
+
 - [ ] Invoked: `find_docs.py search subagent tools model frontmatter`
 - Result: [Document findings - e.g., "Confirmed tools can be array or comma-separated, model is optional"]
 
 #### Commands Validation
+
 - [ ] Invoked: `find_docs.py search slash command frontmatter description`
 - Result: [Document findings - e.g., "Confirmed description and argument-hint are valid frontmatter fields"]
 
 #### Hooks Validation (if applicable)
+
 - [ ] Invoked: `find_docs.py search hook events PreToolUse matcher`
 - Result: [Document findings]
 

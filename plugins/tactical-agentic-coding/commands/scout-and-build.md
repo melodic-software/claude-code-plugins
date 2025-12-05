@@ -84,7 +84,7 @@ This command implements the two-phase pattern within Claude Code's subagent cons
 
 ## Example
 
-```
+```text
 
 /scout-and-build Add user session timeout handling
 ```

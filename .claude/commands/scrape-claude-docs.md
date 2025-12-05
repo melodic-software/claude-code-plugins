@@ -110,7 +110,8 @@ After reviewing the git diff, perform a **structural analysis** to detect potent
    **Red flag:** Multiple files with changes concentrated at the end = likely "Related content" or footer sections not being filtered.
 
 3. **Cross-Reference with Scraper Logs**: During scraping, the `ContentFilter` logs messages like:
-   ```
+
+   ```text
    Filtered N sections from URL: reasons=[...], headings=[...]
    ```
 

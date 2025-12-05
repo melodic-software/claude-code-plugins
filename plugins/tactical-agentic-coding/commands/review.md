@@ -1,3 +1,8 @@
+---
+description: Compare implementation against specification to verify alignment
+argument-hint: [spec-file-path]
+---
+
 # Review Implementation Against Spec
 
 Compare the implementation against the specification to verify alignment.

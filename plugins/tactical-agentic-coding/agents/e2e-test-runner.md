@@ -2,7 +2,7 @@
 name: e2e-test-runner
 description: Execute E2E test specifications with browser automation, capture screenshots, and report structured results.
 tools: Bash, Read
-model: sonnet
+model: haiku
 ---
 
 # E2E Test Runner Agent

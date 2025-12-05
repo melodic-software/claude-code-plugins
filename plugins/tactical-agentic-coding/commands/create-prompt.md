@@ -92,7 +92,7 @@ Generate the prompt and provide summary:
 - Refine based on results
 - Consider upgrading if needed
 
-```
+```text
 
 ## Notes
 
