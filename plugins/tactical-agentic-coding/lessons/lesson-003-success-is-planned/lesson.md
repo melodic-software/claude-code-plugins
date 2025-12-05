@@ -71,7 +71,7 @@ We're leveraging our plan and aligning it with the capabilities of our agent. Th
 
 ```text
 /chore "your chore description"
-```
+```markdown
 
 Creates a comprehensive plan for chore-type work using your encoded best practices.
 
@@ -79,7 +79,7 @@ Creates a comprehensive plan for chore-type work using your encoded best practic
 
 ```text
 /implement specs/your-plan.md
-```
+```markdown
 
 Executes a generated plan by reading it, activating reasoning mode, and implementing the work.
 

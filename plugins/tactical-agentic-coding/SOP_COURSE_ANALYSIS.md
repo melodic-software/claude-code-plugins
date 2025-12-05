@@ -16,7 +16,7 @@ lessons/lesson-XXX-{slug}/
   links.md        # External resources mentioned
   repos.md        # Companion repository references
   images/         # Screenshots and visual aids
-```
+```markdown
 
 ### Output Structure
 
@@ -24,7 +24,7 @@ lessons/lesson-XXX-{slug}/
 analysis/
   lesson-XXX-analysis.md    # Per-lesson analysis
   CONSOLIDATION.md          # Cross-lesson synthesis
-```
+```yaml
 
 ---
 
@@ -39,7 +39,7 @@ Extract:
 - Title
 - Duration
 - URL (for reference only)
-```
+```markdown
 
 ### Step 1.2: Read Lesson Summary
 
@@ -51,7 +51,7 @@ Extract:
 - Key frameworks
 - Implementation patterns
 - Anti-patterns
-```
+```markdown
 
 ### Step 1.3: Read Full Transcript
 
@@ -63,7 +63,7 @@ Extract:
 - Detailed explanations not in summary
 - Examples and code snippets
 - Nuanced insights
-```
+```markdown
 
 **Critical:** The transcript contains the complete instructor voice. Do not skip this step - summaries miss important context.
 
@@ -76,7 +76,7 @@ Extract:
 
 - Companion repository URLs
 - External documentation references
-```
+```yaml
 
 ### Step 1.5: Explore Companion Repository (If Available)
 
@@ -188,7 +188,7 @@ Create `analysis/lesson-XXX-analysis.md` with the following template:
 
 **Analysis Date:** {YYYY-MM-DD}
 **Analyzed By:** {Model/Agent}
-```
+```yaml
 
 ### Step 2.2: Component Extraction Guidelines
 

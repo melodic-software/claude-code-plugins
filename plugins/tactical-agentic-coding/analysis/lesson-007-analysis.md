@@ -45,7 +45,7 @@ Key insight: The SDLC is just one composition of primitives. Different organizat
 # 4. adw_review_iso.py - Review phase (isolated)
 # 5. adw_document_iso.py - Documentation phase (isolated)
 # 6. adw_ship_iso.py - Ship phase (approve & merge PR)
-```
+```yaml
 
 **Ship Workflow** (`adw_ship_iso.py`):
 
@@ -78,7 +78,7 @@ AGENT_PLANNER = "sdlc_planner"  # Uses heavy model for complex reasoning
 AGENT_IMPLEMENTOR = "sdlc_implementor"  # Uses heavy model
 # heavy models = Opus for critical work
 # base models = Sonnet for standard work
-```
+```yaml
 
 **KPI Tracking Command** (`/track_agentic_kpis`):
 
@@ -99,7 +99,7 @@ class ADWState:
     backend_port: int
     frontend_port: int
     all_adws: list  # Track all workflows run
-```
+```markdown
 
 ### Anti-Patterns Identified
 
@@ -198,7 +198,7 @@ Decision Point:
 - When confidence hits 90%+
 - When review catches nothing
 - THEN: Enable ZTE for that problem class
-```
+```markdown
 
 ### Worktree Architecture
 
@@ -222,7 +222,7 @@ Repository Root/
 ├── adw_ship_iso.py
 ├── adw_sdlc_iso.py       # Complete SDLC
 └── adw_sdlc_zte_iso.py   # ZTE (auto-ship)
-```
+```markdown
 
 ### Key Quotes
 >
@@ -257,7 +257,7 @@ def ship_workflow():
 
     # 4. Post success and close issue
     make_issue_comment("Code shipped to production!")
-```
+```markdown
 
 ### Isolated Port Allocation
 
@@ -271,7 +271,7 @@ def allocate_ports(adw_id: str) -> tuple[int, int]:
     # Hash adw_id to get consistent slot (0-14)
     slot = hash(adw_id) % 15
     return (BACKEND_PORT_START + slot, FRONTEND_PORT_START + slot)
-```
+```markdown
 
 ## Validation Checklist
 
@@ -321,7 +321,7 @@ MODEL_SETS = {
 
 # Pass model_set in issue body
 # "ADW: SDLC ISO model_set: heavy"
-```
+```markdown
 
 ### ZTE Safety Gates
 
@@ -338,7 +338,7 @@ if review.returncode != 0:
 # Documentation failure doesn't block shipping
 if document.returncode != 0:
     print("WARNING: Documentation failed but continuing with shipping")
-```
+```markdown
 
 ### ADW Module Architecture
 
@@ -354,7 +354,7 @@ adw_modules/
 ├── utils.py         # Logging, env vars
 ├── workflow_ops.py  # Workflow operations
 └── worktree_ops.py  # Worktree management
-```
+```yaml
 
 ---
 

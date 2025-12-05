@@ -60,7 +60,7 @@ options = ClaudeCodeOptions(
     model="claude-4-sonnet",
     system_prompt=load_system_prompt("prompts/pong_system.md")
 )
-```
+```markdown
 
 **Key Insight**: When you override the system prompt, this is NOT Claude Code anymore. You've created a new product entirely.
 
@@ -82,7 +82,7 @@ options = ClaudeCodeOptions(
     system_prompt=load_system_prompt(),
     mcp_servers=[create_sdk_mcp_server(tools=[echo_tool])]
 )
-```
+```markdown
 
 **Key Insight**: Tools are built with `@tool` decorator. The description tells your agent how to use the tool.
 
@@ -95,7 +95,7 @@ options = ClaudeCodeOptions(
     disallowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep", ...],
     mcp_servers=[create_sdk_mcp_server(tools=[calculate, convert])]
 )
-```
+```markdown
 
 **Key Insight**: Disallow tools your agent doesn't need - they consume context window space.
 
@@ -123,7 +123,7 @@ options = ClaudeCodeOptions(
         ]
     }
 )
-```
+```markdown
 
 **Key Insight**: Hooks enable governance and permission checks in custom agents.
 
@@ -135,7 +135,7 @@ options = ClaudeCodeOptions(
     model="claude-4-sonnet",
     disallowed_tools=["*"]  # No tools - pure text generation
 )
-```
+```markdown
 
 **Key Insight**: Custom agents can be embedded in UIs as backend API methods.
 
@@ -158,7 +158,7 @@ builder_options = ClaudeCodeOptions(
 reviewer_options = ClaudeCodeOptions(
     append_system_prompt=load_system_prompt("prompts/reviewer_append.md")
 )
-```
+```markdown
 
 **Key Insight**: Don't always override - append system prompt to extend Claude Code.
 
@@ -182,7 +182,7 @@ from claude_code import ClaudeSdkClient
 client = ClaudeSdkClient(options)
 response1 = client.query(prompt1)
 response2 = client.query(prompt2)  # Maintains conversation
-```
+```markdown
 
 #### Session Management
 
@@ -195,7 +195,7 @@ options = ClaudeCodeOptions(
     ...,
     resume=session_id  # Continue from previous context
 )
-```
+```markdown
 
 #### Response Block Handling
 
@@ -212,7 +212,7 @@ for message in response:
     elif isinstance(message, ResultMessage):
         print(f"Cost: {message.total_cost}")
         print(f"Session: {message.session_id}")
-```
+```yaml
 
 ### Anti-Patterns Identified
 
@@ -354,7 +354,7 @@ Response Types:
     ├── session_id
     ├── total_cost
     └── context_window_usage
-```
+```markdown
 
 ### Agent Deployment Forms
 
@@ -382,7 +382,7 @@ apps/
 ├── custom_6_tri_copy_writer/    # Web UI with structured JSON responses
 ├── custom_7_micro_sdlc_agent/   # Multi-agent orchestration (Plan/Build/Review)
 └── custom_8_ultra_stream_agent/ # Dual-agent log processing system
-```
+```markdown
 
 > **Editor's Note (Dec 2025)**: The original examples use `ClaudeCodeOptions`, which has been renamed to `ClaudeAgentOptions` in current SDK versions. Also note that model IDs like `claude-sonnet-4-20250514` may be outdated - verify current model identifiers at [docs.anthropic.com/models](https://docs.anthropic.com/claude/docs/models).
 
@@ -422,7 +422,7 @@ async def main():
         elif isinstance(message, ResultMessage):
             print(f"Session ID: {message.session_id}")
             print(f"Cost: ${message.total_cost_usd:.6f}")
-```
+```markdown
 
 **System Prompt Example:**
 
@@ -432,7 +432,7 @@ async def main():
 ## Purpose
 
 You are a pong agent. Always respond with exactly 'pong' to ANY input, nothing more, nothing less.
-```
+```markdown
 
 **Key Insight:** When you override `system_prompt`, you completely replace Claude Code's default behavior. This is creating a new agent product, not extending Claude Code.
 
@@ -501,7 +501,7 @@ async def main():
                         print(f"Tool: {block.name}")
                     elif isinstance(block, TextBlock):
                         print(block.text)
-```
+```markdown
 
 **Key Insights:**
 
@@ -560,7 +560,7 @@ async def run_calculator_repl():
                     # Track costs
                     if message.total_cost_usd:
                         total_session_cost += message.total_cost_usd
-```
+```markdown
 
 **Key Insights:**
 
@@ -638,7 +638,7 @@ options = ClaudeAgentOptions(
     resume=resume_session,
     hooks=hooks,  # Inline hooks work for subagents too!
 )
-```
+```markdown
 
 **Key Insights:**
 
@@ -727,7 +727,7 @@ async def run_reviewer_agent(plan_path, implementation_paths):
     async with ClaudeSDKClient(options=options) as client:
         await client.query(f"Review implementation against {plan_path}")
         # Process response...
-```
+```markdown
 
 **Key Insights:**
 
@@ -769,7 +769,7 @@ async for message in client.receive_response():
         print(f"Duration: {message.duration_ms}ms")
         print(f"Cost: ${message.total_cost_usd:.6f}")
         print(f"Error: {message.is_error}")
-```
+```markdown
 
 ### Pattern 7: Tool Definition Best Practices
 
@@ -811,7 +811,7 @@ async def calculate_expression(args: dict[str, Any]) -> dict[str, Any]:
             "content": [{"type": "text", "text": f"Error: {str(e)}"}],
             "is_error": True,
         }
-```
+```markdown
 
 **Best Practices:**
 
@@ -842,7 +842,7 @@ model="claude-sonnet-4-20250514"  # Balance speed and quality
 
 # SDLC Agents: Critical decision-making
 model="claude-sonnet-4-20250514"  # or "claude-opus-4-..." for highest quality
-```
+```markdown
 
 **Selection Criteria:**
 
@@ -916,7 +916,7 @@ def calculate_expression(args: dict) -> dict:
             "success": False,
             "error": str(e)  # Let agent pivot
         }
-```
+```markdown
 
 ### Hook-Based Permission Control
 
@@ -931,7 +931,7 @@ def block_env_files(tool_name: str, args: dict) -> dict:
                 "reason": "Access to environment files blocked"
             }
     return {"decision": "allow"}
-```
+```markdown
 
 ### Session Continuity Pattern
 
@@ -954,7 +954,7 @@ class AgentSession:
             if isinstance(msg, ResultMessage):
                 self.session_id = msg.session_id
         return response
-```
+```yaml
 
 ---
 

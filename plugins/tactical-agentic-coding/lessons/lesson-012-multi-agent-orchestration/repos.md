@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/disler/multi-agent-orchestration.git
-```
+```markdown
 
 ## Repository Contents
 

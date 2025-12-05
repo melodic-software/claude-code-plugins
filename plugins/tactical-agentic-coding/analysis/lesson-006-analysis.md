@@ -194,7 +194,7 @@ Where conditional docs should be referenced:
 - Read `.claude/commands/conditional_docs.md` to check if your task requires
   additional documentation. If your task matches any conditions listed,
   include those documentation files.
-```
+```markdown
 
 ### Key Quotes
 
@@ -226,7 +226,7 @@ adw_plan_build_test.py      (Plan + Build + Test)
 adw_plan_build_review.py    (Plan + Build + Review)
 adw_plan_build_test_review.py  (Full minus docs)
 adw_plan_build_document.py  (Plan + Build + Document)
-```
+```markdown
 
 ## Validation Checklist
 
@@ -265,7 +265,7 @@ public_url = r2_uploader.upload(screenshot_path)
 
 # Attach to GitHub issue
 make_issue_comment(issue_number, f"![Review Screenshot]({public_url})")
-```
+```markdown
 
 ### State Management Across ADWs
 
@@ -277,7 +277,7 @@ class ADWState(BaseModel):
     issue_class: str
     issue_number: str
     # Persisted to agents/<adw_id>/state.json
-```
+```markdown
 
 State enables chaining: Plan -> Build -> Test -> Review -> Document
 
@@ -288,7 +288,7 @@ State enables chaining: Plan -> Build -> Test -> Review -> Document
 blocking_issues = [i for i in review.issues if i.severity == "blocker"]
 for issue in blocking_issues:
     create_and_implement_patch(issue)
-```
+```yaml
 
 ---
 
@@ -394,7 +394,7 @@ for issue in blocking_issues:
 ## Configuration
 ## Testing
 ## Notes
-```
+```markdown
 
 **Asset Management:**
 
@@ -439,7 +439,7 @@ for issue in blocking_issues:
   "issue_class": "/feature",
   "review_screenshots": ["url1", "url2"]
 }
-```
+```yaml
 
 **Blocker Auto-Resolution:**
 

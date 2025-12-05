@@ -237,7 +237,7 @@ allowed-tools: [Read, Write, Bash]
 
 ## Report
 [Output format specification]
-```
+```markdown
 
 ### System Prompt Architecture
 
@@ -252,7 +252,7 @@ Avoid in System Prompts:
 - Detailed workflows (reduces agency)
 - Dynamic variables
 - Prescriptive output formats
-```
+```markdown
 
 ## Validation Checklist
 
@@ -293,7 +293,7 @@ def main(prompt: str, model: str):
     )
     response = prompt_claude_code(request)
     display_results(response)
-```
+```markdown
 
 ### Slash Command Wrapper
 
@@ -302,7 +302,7 @@ def main(prompt: str, model: str):
 def main(command: str):
     prompt = f"/{command}" if not command.startswith("/") else command
     response = prompt_claude_code(AgentPromptRequest(prompt=prompt))
-```
+```markdown
 
 ### Variable Reference Patterns
 
@@ -318,7 +318,7 @@ def main(command: str):
 # Reference in Workflow
 1. Read the `user_prompt` provided
 2. Output to `output_directory`
-```
+```yaml
 
 ---
 
@@ -353,7 +353,7 @@ def main(command: str):
 │   ├── concise-done.md             # Minimal "Done." responses
 │   └── verbose-yaml-structured.md  # YAML hierarchical structure
 └── settings.json                    # Comprehensive hook configuration
-```
+```markdown
 
 ### Level 1: High-Level Simple Command
 
@@ -368,7 +368,7 @@ Start the Agentic Prompt Tier List application for development.
 2. Install dependencies (if needed): `bun install`
 3. Start the development server in the background: `bun run dev`
 4. Open your browser to: http://localhost:5173/
-```
+```markdown
 
 **Pattern:** No variables, no workflow section, pure sequential instructions.
 
@@ -414,7 +414,7 @@ After creating the implementation plan, provide:
 ✅ Implementation Plan Created
 File: PLAN_OUTPUT_DIRECTORY/<filename>.md
 Topic: <brief description>
-```
+```markdown
 
 **Pattern:** Frontmatter with model + tools, Variables section, numbered Workflow, structured Report.
 
@@ -454,7 +454,7 @@ IMAGE_OUTPUT_DIR: agentic_drop_zone/generate_images_zone/image_output/<date_time
 </image-loop>
 
 - After all images are generated, open the output directory
-```
+```markdown
 
 **Key Patterns:**
 
@@ -499,7 +499,7 @@ COUNT: $2
 4. Collect & Summarize Results
    - Gather outputs from all completed agents
    - Synthesize findings into cohesive response
-```
+```markdown
 
 **Key Patterns:**
 
@@ -576,7 +576,7 @@ PATH_TO_PLAN: $ARGUMENTS
 
 - Summarize the work you've just done in a concise bullet point list.
 - Report the files and total lines changed with `git diff --stat`
-```
+```markdown
 
 **Pattern:** Plan-driven - reads specification file created by `quick-plan.md` and implements from it.
 
@@ -615,7 +615,7 @@ Given these entries for the same file:
 {"operation": "read", "file_path": "README.md", "tool_input": {"limit": 50}}
 
 Result: Read the ENTIRE file (first entry has no parameters)
-```
+```markdown
 
 **Pattern:** JSONL parsing with deduplication logic for context preservation.
 
@@ -679,7 +679,7 @@ model: sonnet
 ## Report
 
 <details of how prompt should respond>
-```
+```markdown
 
 **Key Patterns:**
 
@@ -748,7 +748,7 @@ USER_PROMPT: $ARGUMENTS
 
 6. **Save Specification**
    - Save to `specs/experts/cc_hook_expert/<descriptive-name>.md`
-```
+```markdown
 
 **File:** `.claude/commands/experts/cc_hook_expert/cc_hook_expert_improve.md` (excerpt)
 
@@ -788,7 +788,7 @@ You are a Claude Code Hook Expert specializing in continuous improvement.
 
    Update ONLY the ## Expertise sections.
    Do NOT modify Workflow sections.
-```
+```markdown
 
 **Key Patterns:**
 
@@ -821,7 +821,7 @@ model: opus
 6. Construct System Prompt - Detailed system prompt
 7. Define Output Structure - Structure for agent feedback
 8. Assemble and Output - Combine into Markdown file
-```
+```markdown
 
 **Pattern:** Agent that generates agents with explicit numbered steps.
 
@@ -865,7 +865,7 @@ def main():
         sys.exit(0)
     except Exception as e:
         sys.exit(0)  # Non-blocking error
-```
+```markdown
 
 **Key Patterns:**
 
@@ -896,7 +896,7 @@ IMPORTANT: There are only three exceptions:
 1. If explicitly asked to respond with something other than "Done."
 2. If explicitly asked a question, answer in 1-2 sentences MAXIMUM
 3. If something goes wrong, explain error in 1-2 sentences MAXIMUM
-```
+```yaml
 
 **Pattern:** Extreme minimalism for speed and token efficiency.
 

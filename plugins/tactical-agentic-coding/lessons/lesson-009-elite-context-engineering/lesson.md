@@ -73,7 +73,7 @@ Get rid of default .mcp.json files completely. Don't use a default .mcp.json for
 
 ```bash
 claude --mcp-config path/to/specific-mcp.json
-```
+```markdown
 
 ### Context Priming Over Memory Files
 

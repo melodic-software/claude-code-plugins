@@ -45,7 +45,7 @@
 
 ```text
 Plan -> Code -> Test -> Review -> Document
-```
+```yaml
 
 ### Implementation Patterns from Repo (tac-2)
 
@@ -60,7 +60,7 @@ Plan -> Code -> Test -> Review -> Document
    README.md
    ```
 
-2. **Install Command** - Composable command pattern:
+1. **Install Command** - Composable command pattern:
 
    ```markdown
    # Install & Prime
@@ -70,7 +70,7 @@ Plan -> Code -> Test -> Review -> Document
    Install FE and BE dependencies
    ```
 
-3. **Tools Command** - Agent introspection:
+2. **Tools Command** - Agent introspection:
 
    ```markdown
    # List Built-in Tools
@@ -78,24 +78,24 @@ Plan -> Code -> Test -> Review -> Document
    Display in bullet format. Use typescript function syntax with parameters.
    ```
 
-4. **Standard Out Pattern** - Making errors visible to agents:
+3. **Standard Out Pattern** - Making errors visible to agents:
    - Print success/error to stdout for every API endpoint
    - Agent can run server and see live output
    - Errors visible in context window for self-correction
 
-5. **Type Tracing** - Following data flow:
+4. **Type Tracing** - Following data flow:
    - Types as IDKs (Information Dense Keywords)
    - Search for type name to find all usages
    - Trace flow: Model -> Server -> Client -> Render
 
-6. **Architecture Patterns** - Agent-navigable structure:
+5. **Architecture Patterns** - Agent-navigable structure:
    - Clear entry points (server.py, main.ts)
    - Client/server separation cuts search space in half
    - Tests mirror source structure
    - Files < 1000 lines
    - Verbose, meaningful names
 
-7. **Permission Configuration** - Scoped access with deny list:
+6. **Permission Configuration** - Scoped access with deny list:
 
    ```json
    {

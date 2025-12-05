@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/disler/elite-context-engineering.git
-```
+```markdown
 
 ## Repository Contents
 

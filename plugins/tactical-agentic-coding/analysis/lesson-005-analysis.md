@@ -126,7 +126,7 @@ Tests return structured JSON for automation:
     "error": "TS2345: Argument of type 'string' is not assignable"
   }
 ]
-```
+```yaml
 
 This enables downstream agents to pick up specific failures and resolve them.
 
@@ -224,14 +224,14 @@ The lesson shows how to embed testing into meta-prompts:
 - `cd app/server && uv run pytest tests/ -v`
 - `cd app/client && bun tsc --noEmit`
 - `cd app/client && bun run build`
-```
+```text
 
 And E2E test generation in bug/feature templates:
 
 ```text
 ## End-to-End Test (if applicable)
 If this bug affects UI or user interactions, create an end-to-end test...
-```
+```markdown
 
 ### ADW Test Architecture
 
@@ -246,7 +246,7 @@ adw_test.py
   -> for failed_e2e in failed_e2e_tests:
        -> resolve_failed_e2e_test() # Spawn E2E resolver
   -> finalize_git_operations() # Commit, push, PR
-```
+```markdown
 
 ### Key Quotes
 
@@ -297,7 +297,7 @@ Tests return JSON that downstream agents can parse and act on:
   "test_purpose": "string",
   "error": "optional string"
 }
-```
+```markdown
 
 This enables the ADW to spawn targeted resolver agents with exact context.
 
@@ -308,7 +308,7 @@ agents/<adw_id>/<agent_name>/img/<test_name>/
   01_initial_state.png
   02_query_entered.png
   03_results_displayed.png
-```
+```yaml
 
 Screenshots provide visual evidence and debugging context.
 

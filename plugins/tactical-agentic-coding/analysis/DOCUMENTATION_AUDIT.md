@@ -101,7 +101,7 @@ from claude_agent_sdk import (
     HookContext,
     HookMatcher,
 )
-```
+```yaml
 
 ### When to Use `query()` vs `ClaudeSDKClient`
 
@@ -136,7 +136,7 @@ allowed-tools: Read, Grep, Glob
 ---
 
 Skill content here...
-```
+```markdown
 
 ### Skills Requiring Correction
 
@@ -153,13 +153,13 @@ Skill content here...
 
 ```yaml
 allowed-tools: [Read, Write, Bash]
-```
+```markdown
 
 **CORRECT** (comma-separated):
 
 ```yaml
 allowed-tools: Read, Write, Bash
-```
+```yaml
 
 ### Skills Better Suited as Other Component Types
 
@@ -194,7 +194,7 @@ model: sonnet
 ---
 
 System prompt with detailed instructions...
-```
+```yaml
 
 ### CRITICAL: Orchestrator Architecture Issue
 
@@ -375,7 +375,7 @@ When encountering outdated model references in analysis files, add inline correc
 ```markdown
 > **Editor's Note (Dec 2025)**: The model ID `claude-sonnet-4-20250514` used in course materials
 > is outdated. Current equivalent: `claude-sonnet-4-5-20250929`
-```
+```yaml
 
 ### Model Selection Quick Reference
 
@@ -425,7 +425,7 @@ apps/
 ├── hello_cc_1.ts (SDK streaming example)
 ├── hello_cc_2.ts (SDK session tracking)
 └── cc_ts_wrapper/ (CLI wrapper with registry pattern)
-```
+```markdown
 
 ### Lesson 10: Agentic Prompt Engineering
 
@@ -489,7 +489,7 @@ while True:
         async for message in client.receive_response():
             if isinstance(message, ResultMessage):
                 current_session_id = message.session_id  # Capture for next iteration
-```
+```yaml
 
 ### Lesson 12: Multi-Agent Orchestration
 
@@ -563,7 +563,7 @@ After applying corrections, update all 12 lesson analysis files:
 - [x] No duplication with existing components
 - [x] Follows plugin conventions
 - [ ] Tested with sample prompts
-```
+```yaml
 
 ---
 
@@ -810,7 +810,7 @@ from claude_agent_sdk import ClaudeCodeOptions
 
 # CURRENT
 from claude_agent_sdk import ClaudeAgentOptions
-```
+```yaml
 
 **Package Name Changes:**
 

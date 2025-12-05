@@ -29,7 +29,7 @@
 
 ```bash
 Plan -> Code -> Test -> Review -> Document
-```
+```yaml
 
 ### Implementation Patterns from Repo (tac-3)
 
@@ -56,18 +56,18 @@ Plan -> Code -> Test -> Review -> Document
    $ARGUMENTS
    ```
 
-2. **Bug Template** (`/bug`) - Meta-prompt for bug fixes:
+1. **Bug Template** (`/bug`) - Meta-prompt for bug fixes:
    - Includes: Problem Statement, Solution Statement, Steps to Reproduce
    - Root Cause Analysis section
    - More detailed validation than chores
 
-3. **Feature Template** (`/feature`) - Meta-prompt for new features:
+2. **Feature Template** (`/feature`) - Meta-prompt for new features:
    - User Story section
    - Implementation Plan (Foundation, Core, Integration phases)
    - Testing Strategy (Unit, Integration, Edge Cases)
    - Acceptance Criteria
 
-4. **Implement Command** (`/implement`) - Higher-Order Prompt:
+3. **Implement Command** (`/implement`) - Higher-Order Prompt:
 
    ```markdown
    # Implement the following plan
@@ -84,7 +84,7 @@ Plan -> Code -> Test -> Review -> Document
    - Report the files and total lines changed with `git diff --stat`
    ```
 
-5. **Prime Command** (`/prime`) - Context priming:
+4. **Prime Command** (`/prime`) - Context priming:
 
    ```markdown
    # Prime
@@ -97,7 +97,7 @@ Plan -> Code -> Test -> Review -> Document
    README.md
    ```
 
-6. **Install Command** (`/install`) - Composable setup:
+5. **Install Command** (`/install`) - Composable setup:
 
    ```markdown
    # Install & Prime
@@ -213,7 +213,7 @@ Three critical reasons for running new agent instances:
 ## Step by Step Tasks
 ## Validation Commands
 ## Notes
-```
+```markdown
 
 **Bug Plans:**
 
@@ -228,7 +228,7 @@ Three critical reasons for running new agent instances:
 ## Step by Step Tasks
 ## Validation Commands
 ## Notes
-```
+```markdown
 
 **Feature Plans:**
 
@@ -245,7 +245,7 @@ Three critical reasons for running new agent instances:
 ## Acceptance Criteria
 ## Validation Commands
 ## Notes
-```
+```markdown
 
 ### Key Quotes
 
@@ -262,7 +262,7 @@ The lesson emphasizes using "think hard" to activate Claude Code's reasoning mod
 ```markdown
 ## Instructions
 - Use your reasoning model: THINK HARD about the plan and the steps to accomplish the chore.
-```
+```markdown
 
 This is one of the 12 leverage points - turning on the reasoning model for complex problem solving.
 
@@ -304,7 +304,7 @@ claude -p "/feature \"create a new query history side panel...\"" \
   --model claude-sonnet-4-20250514 \
   --verbose \
   >> adws/programmatic_claude_feature.jsonl
-```
+```markdown
 
 This streams output to a JSONL file for later analysis - key pattern for off-device execution.
 
@@ -326,7 +326,7 @@ This streams output to a JSONL file for later analysis - key pattern for off-dev
     ]
   }
 }
-```
+```yaml
 
 ---
 

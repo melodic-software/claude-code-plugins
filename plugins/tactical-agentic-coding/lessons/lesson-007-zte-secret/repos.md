@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/disler/tac-7.git
-```
+```markdown
 
 ## Repository Contents
 

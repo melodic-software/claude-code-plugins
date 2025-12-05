@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/disler/building-specialized-agents.git
-```
+```markdown
 
 ## Repository Contents
 

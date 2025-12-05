@@ -34,6 +34,6 @@ Content-Type: application/json
 Authorization: Bearer <firebase_id_token>
 
 {"lessonId": "seven-levels-agentic-prompt-formats", "parentUserId": "<firebase_uid>"}
-```
+```text
 
 Response includes: `playback_id`, `playback_token`, `drm_token`, `thumbnail_token`, `storyboard_token`, `duration`, `drm_protected`

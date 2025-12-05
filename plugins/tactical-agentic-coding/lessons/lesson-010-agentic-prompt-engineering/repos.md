@@ -6,7 +6,7 @@
 
 ```bash
 git clone https://github.com/disler/agentic-prompt-engineering.git
-```
+```markdown
 
 ## Repository Contents
 

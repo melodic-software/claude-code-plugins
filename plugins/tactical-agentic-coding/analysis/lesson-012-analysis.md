@@ -48,7 +48,7 @@
 ```text
 User --> Orchestrator Agent --> Creates/Commands/Deletes Specialized Agents
                             --> Returns Results + Observability
-```
+```markdown
 
 One agent to rule them all - talk to one orchestrator that:
 
@@ -88,7 +88,7 @@ options = ClaudeCodeOptions(
         read_agent_logs
     ])]
 )
-```
+```markdown
 
 #### 2. Orchestrator Tools
 
@@ -110,7 +110,7 @@ options = ClaudeCodeOptions(
 ├── planner.md         # Planning agent
 ├── reviewer.md        # Review agent
 └── qa_fast.md         # Quick QA agent
-```
+```markdown
 
 Templates define:
 
@@ -143,7 +143,7 @@ Templates define:
 
 ### Final Report
 [Structured output format]
-```
+```markdown
 
 #### 5. Results-Oriented Engineering
 
@@ -157,7 +157,7 @@ Every agent must produce a concrete result:
     "summary": "Created architecture documentation",
     "status": "completed"
 }
-```
+```markdown
 
 #### 6. Context Protection via Delegation
 
@@ -175,7 +175,7 @@ Sub-Agent Contexts:
 - Actual codebase work
 - Tool calls
 - File operations
-```
+```markdown
 
 ### Multi-Agent Architecture
 
@@ -196,7 +196,7 @@ Multi-Agent Orchestration System
     ├── Agents Table
     ├── Messages Table
     └── Results Table
-```
+```markdown
 
 ### Anti-Patterns Identified
 
@@ -331,7 +331,7 @@ You do NOT perform work directly - you orchestrate other agents.
 - Delegate detailed work to specialized agents
 - Do not read files directly - have agents do it
 - Do not write code - have builder agents do it
-```
+```markdown
 
 ### Future Directions
 
@@ -405,7 +405,7 @@ def delete_agent(args: dict) -> dict:
     agent_id = args.get("agent_id")
     AgentManager.delete(agent_id)
     return {"status": "deleted", "agent_id": agent_id}
-```
+```markdown
 
 ### Observability Interface Pattern
 
@@ -433,7 +433,7 @@ interface LogEntry {
   content: string;
   metadata: Record<string, any>;
 }
-```
+```markdown
 
 ### Multi-Phase Orchestration Prompt
 
@@ -465,7 +465,7 @@ interface LogEntry {
 - Files consumed: [list]
 - Files produced: [list]
 - Summary: [one paragraph]
-```
+```yaml
 
 ---
 

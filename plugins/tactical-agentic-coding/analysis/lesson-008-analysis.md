@@ -37,7 +37,7 @@ adws/                           # AI Developer Workflows
 ├── adw_modules/
 │   └── agent.py                # Core agent execution
 └── adw_*.py                    # Top-level workflow scripts
-```
+```markdown
 
 #### Scaled Agentic Layer
 
@@ -64,7 +64,7 @@ agents/                         # Agent output & observability
 
 trees/                          # Agent worktrees (isolation)
 └── {branch_name}/              # Isolated work environments
-```
+```yaml
 
 ### Implementation Patterns from Repo (tac-8)
 
@@ -126,7 +126,7 @@ def main(prompt: str, model: str):
     )
     response = prompt_claude_code(request)
     # Process and display response
-```
+```markdown
 
 ### Anti-Patterns Identified
 
@@ -271,7 +271,7 @@ Engineering value is moving up the stack:
 ## Done
 
 - [✅ e5f6g7h8] Created filtered dataset
-```
+```markdown
 
 Tags modify behavior:
 
@@ -292,7 +292,7 @@ def process_task(task):
     # Execute appropriate ADW
     # Update Notion status
     # Post results to task
-```
+```markdown
 
 ## Validation Checklist
 
@@ -335,7 +335,7 @@ def main(prompt: str, model: str):
     )
     response = prompt_claude_code(request)
     display_results(response)
-```
+```markdown
 
 ### Slash Command Wrapper
 
@@ -346,7 +346,7 @@ def main(command: str):
     prompt = f"/{command}" if not command.startswith("/") else command
     # Execute via Claude Code
     response = prompt_claude_code(AgentPromptRequest(prompt=prompt))
-```
+```markdown
 
 ### Composed Workflow Pattern
 
@@ -361,7 +361,7 @@ def main(chore_description: str):
     implement_response = run_agent("/implement", plan_path)
 
     # Return combined results
-```
+```yaml
 
 ### Multiple App Patterns in tac-8
 

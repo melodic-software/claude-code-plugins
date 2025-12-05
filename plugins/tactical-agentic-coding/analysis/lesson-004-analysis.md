@@ -187,7 +187,7 @@ adws/
   trigger_webhook.py     # Webhook-based trigger
   health_check.py        # Environment validation
   README.md              # Documentation
-```
+```markdown
 
 ### Key Architectural Decisions
 
@@ -234,7 +234,7 @@ result = subprocess.run(
     capture_output=True,
     text=True
 )
-```
+```markdown
 
 ## Validation Checklist
 
@@ -271,7 +271,7 @@ def make_issue_comment(issue_number: str, message: str):
 # Branch naming convention
 # {type}-{issue_number}-{adw_id}-{slug}
 # Example: feat-456-e5f6g7h8-add-user-authentication
-```
+```markdown
 
 ### Health Check Pattern
 
@@ -284,7 +284,7 @@ def health_check():
     # 3. Test Claude Code CLI
     # 4. Validate repository access
     # 5. Post health status to issue
-```
+```yaml
 
 ### Model Selection Strategy
 

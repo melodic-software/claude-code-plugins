@@ -60,7 +60,7 @@ ls -laR D:/repos/gh/disler/{repo-name}/
 # - CLAUDE.md (if exists - critical for understanding agentic patterns)
 # - Any .claude/ directory contents
 # - Source code demonstrating lesson concepts
-```
+```markdown
 
 #### Step 1.3: Document Key Takeaways
 
@@ -105,7 +105,7 @@ Invoke skill: memory-management
 
 # For hooks
 Invoke skill: hook-management
-```
+```yaml
 
 **CRITICAL**: Reference `analysis/DOCUMENTATION_AUDIT.md` for:
 
@@ -163,7 +163,7 @@ Add new components to `plugin.json`:
   "commands": [...],
   "hooks": [...]
 }
-```
+```markdown
 
 #### Step 4.2: Create Component Documentation
 
@@ -218,7 +218,7 @@ Use this template for each lesson analysis:
 - [ ] Follows plugin conventions
 - [ ] Model IDs use correct format (claude-opus-4-5-20251101, claude-sonnet-4-20250514)
 - [ ] Tested with sample prompts
-```
+```markdown
 
 ## Lesson Mapping Overview
 
@@ -266,7 +266,7 @@ plugins/tactical-agentic-coding/
     {command-name}.md
   memory/
     {memory-file}.md
-```
+```yaml
 
 ---
 

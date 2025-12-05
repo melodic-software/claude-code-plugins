@@ -20,7 +20,7 @@ lesson-XXX-slug-name/
   repos.md        # GitHub repository clone URLs (PATs obscured)
   video.md        # Video metadata (duration, lesson ID, API reference)
   images/         # Tactic card images (TacOilCard_LX_*.jpg)
-```
+```markdown
 
 ## Scraping Workflow
 
@@ -91,7 +91,7 @@ for url in vtt_urls:
         all_text.append(line)
 
 full_text = '\n'.join(all_text)
-```
+```markdown
 
 ### 3. Capture Loot Box Content
 
@@ -108,7 +108,7 @@ Tactic card images follow the naming pattern:
 
 ```text
 https://agenticengineer.com/tactical-agentic-coding/tactic-oil-cards/TacOilCard_LX_*.jpg
-```
+```markdown
 
 **Note:** Agentic Horizon lessons (11-12) may not have tactic card images available.
 
@@ -120,12 +120,12 @@ https://agenticengineer.com/tactical-agentic-coding/tactic-oil-cards/TacOilCard_
 ---
 title: "Lesson Title"
 lesson: X
-level: Beginner|Intermediate|Advanced
+level: Beginner| Intermediate |Advanced
 slug: url-slug
 duration: "MM:SS"
 url: full-lesson-url
 ---
-```
+```markdown
 
 **links.md** - External links and concept tables
 
@@ -159,7 +159,7 @@ Content-Type: application/json
 Authorization: Bearer <firebase_id_token>
 
 {"lessonId": "<lesson-slug>", "parentUserId": "<firebase_uid>"}
-```
+```markdown
 
 **Response Fields:**
 

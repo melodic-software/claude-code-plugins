@@ -510,7 +510,7 @@ allowed-tools: Read, Write, Bash
 
 ## Report
 [Output format specification]
-```
+```markdown
 
 ### Closed Loop Pattern
 
@@ -523,7 +523,7 @@ allowed-tools: Read, Write, Bash
 
 ## Resolve
 [What to do if validation fails]
-```
+```markdown
 
 ### ADW Script Pattern
 
@@ -539,7 +539,7 @@ def main(prompt: str, model: str = "sonnet"):
     )
     response = prompt_claude_code(request)
     # Process and display response
-```
+```markdown
 
 ### Custom Agent Pattern
 
@@ -563,7 +563,7 @@ options = ClaudeAgentOptions(
 )
 
 response = query(prompt, options=options)
-```
+```markdown
 
 ### Orchestrator Tool Pattern
 
@@ -587,7 +587,7 @@ def delete_agent(args: dict) -> dict:
     agent_id = args.get("agent_id")
     AgentManager.delete(agent_id)
     return {"status": "deleted"}
-```
+```yaml
 
 ---
 
