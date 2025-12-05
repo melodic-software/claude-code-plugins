@@ -1,6 +1,7 @@
 ---
+name: workflow-coordinator
 description: Coordinate multi-phase workflows with phase transitions and result aggregation
-tools: [Read, Write, Bash]
+tools: Read, Write, Bash
 model: opus
 ---
 

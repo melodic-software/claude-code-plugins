@@ -1,13 +1,15 @@
 """
 Search Relevance Regression Tests.
 
-These tests verify the 7 core search queries from the 2025-11-25 audit
-pass against the actual index. They are regression tests to prevent
-future changes from degrading search quality.
+These tests verify the core search queries from audits pass against the
+actual index. They are regression tests to prevent future changes from
+degrading search quality.
 
 Run with: pytest tests/integration/test_search_relevance_regression.py -v
 
-Audit Reference: .claude/temp/2025-11-25_101500-docs-management-audit-summary.md
+Audit References:
+- 2025-11-25: Initial 7 core queries audit
+- 2025-12-04: Added changelog/version queries
 
 NOTE: These tests require actual scraped documentation in the canonical/
 directory. They will be skipped if the index is empty (e.g., in a fresh
@@ -60,9 +62,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+CHANGELOG_DOC_ID = 'raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG'
+
+
 class TestSearchRelevanceRegression:
     """
-    Regression tests for the 7 audit search queries.
+    Regression tests for audit search queries.
 
     These tests use the ACTUAL index to verify search quality
     is maintained after code changes.
@@ -197,6 +202,74 @@ class TestSearchRelevanceRegression:
         assert doc_ids[0] == 'platform-claude-com-docs-en-build-with-claude-prompt-caching', \
             f"Expected prompt-caching doc at rank 1, got: {doc_ids[0]}"
 
+    # Changelog/version queries (2025-12-04 audit)
+
+    def test_changelog_direct_query(self):
+        """
+        Query: "changelog"
+        Expected: CHANGELOG at rank 1
+
+        Verifies CHANGELOG documentation is found for direct changelog queries.
+        Added in 2025-12-04 audit to fix gap in version/release search.
+        """
+        results = self.resolver.search_by_natural_language(
+            "changelog", limit=5
+        )
+        doc_ids = [doc_id for doc_id, _ in results]
+
+        assert doc_ids, "No results for 'changelog'"
+        assert doc_ids[0] == CHANGELOG_DOC_ID, \
+            f"Expected CHANGELOG doc at rank 1, got: {doc_ids[0]}"
+
+    def test_changelog_version_history_query(self):
+        """
+        Query: "version history changelog"
+        Expected: CHANGELOG at rank 1
+
+        Verifies CHANGELOG documentation is found for version history queries.
+        """
+        results = self.resolver.search_by_natural_language(
+            "version history changelog", limit=5
+        )
+        doc_ids = [doc_id for doc_id, _ in results]
+
+        assert doc_ids, "No results for 'version history changelog'"
+        assert doc_ids[0] == CHANGELOG_DOC_ID, \
+            f"Expected CHANGELOG doc at rank 1, got: {doc_ids[0]}"
+
+    def test_changelog_breaking_changes_query(self):
+        """
+        Query: "breaking changes changelog"
+        Expected: CHANGELOG in top 3
+
+        Verifies CHANGELOG documentation is found for breaking changes queries.
+        Note: Multiple docs may contain "breaking changes" references.
+        """
+        results = self.resolver.search_by_natural_language(
+            "breaking changes changelog", limit=5
+        )
+        doc_ids = [doc_id for doc_id, _ in results]
+
+        assert doc_ids, "No results for 'breaking changes changelog'"
+        assert CHANGELOG_DOC_ID in doc_ids[:3], \
+            f"Expected CHANGELOG doc in top 3, got: {doc_ids[:3]}"
+
+    def test_changelog_new_features_query(self):
+        """
+        Query: "new features changelog"
+        Expected: CHANGELOG in top 3
+
+        Verifies CHANGELOG documentation is found for new features queries.
+        """
+        results = self.resolver.search_by_natural_language(
+            "new features changelog", limit=5
+        )
+        doc_ids = [doc_id for doc_id, _ in results]
+
+        assert doc_ids, "No results for 'new features changelog'"
+        assert CHANGELOG_DOC_ID in doc_ids[:3], \
+            f"Expected CHANGELOG doc in top 3, got: {doc_ids[:3]}"
+
 
 class TestSearchRelevanceMetrics:
     """
@@ -215,11 +288,12 @@ class TestSearchRelevanceMetrics:
         """
         Verify overall search relevance meets 100% threshold.
 
-        All 7 audit queries must pass for this test to succeed.
+        All audit queries must pass for this test to succeed.
         This is a meta-test that documents the overall health of search.
         """
         # Format: (query, expected_docs (list or single doc_id), max_rank)
         queries_and_expectations = [
+            # 2025-11-25 audit queries
             ("how to set up skills", ["code-claude-com-docs-en-skills"], 1),
             ("claude code hooks configuration", ["code-claude-com-docs-en-hooks", "code-claude-com-docs-en-hooks-guide"], 1),
             ("what is CLAUDE.md", ["code-claude-com-docs-en-memory"], 1),
@@ -227,6 +301,11 @@ class TestSearchRelevanceMetrics:
             ("progressive disclosure pattern", ["platform-claude-com-docs-en-agents-and-tools-agent-skills-best-practices"], 1),
             ("extended thinking configuration", ["platform-claude-com-docs-en-build-with-claude-extended-thinking"], 1),
             ("prompt caching setup", ["platform-claude-com-docs-en-build-with-claude-prompt-caching"], 1),
+            # 2025-12-04 changelog/version queries
+            ("changelog", [CHANGELOG_DOC_ID], 1),
+            ("version history changelog", [CHANGELOG_DOC_ID], 1),
+            ("breaking changes changelog", [CHANGELOG_DOC_ID], 3),
+            ("new features changelog", [CHANGELOG_DOC_ID], 3),
         ]
 
         passed = 0

@@ -1,4 +1,4 @@
-# Version: 1.3 (Centralized generic config terms 2025-11-26)
+# Version: 1.4 (Added changelog/release technical phrases 2025-12-04)
 # Domain-Specific Filtering Configuration
 # Terms that should be filtered out or handled specially for Claude/Anthropic documentation
 
@@ -45,6 +45,14 @@ technical_phrases:
   - 'natural language'
   - 'search results'
   - 'yaml frontmatter'
+  # Changelog/release related phrases (2025-12-04)
+  - 'release notes'
+  - 'version history'
+  - 'what''s new'
+  - 'latest version'
+  - 'recent changes'
+  - 'breaking changes'
+  - 'new features'
 
 # Stop phrases (phrases to completely exclude from keyword extraction)
 # These are noise patterns that should never appear as keywords

@@ -1,6 +1,7 @@
 ---
+name: scout-fast
 description: Quick codebase reconnaissance for orchestration workflows
-tools: [Read, Glob, Grep]
+tools: Read, Glob, Grep
 model: haiku
 ---
 

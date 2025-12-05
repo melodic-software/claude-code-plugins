@@ -1,6 +1,7 @@
 ---
+name: kpi-tracker
 description: Calculate and update agentic coding KPIs for ZTE progression tracking. Specialized for metrics analysis.
-tools: [Read, Write, Bash]
+tools: Read, Write, Bash
 model: haiku
 ---
 

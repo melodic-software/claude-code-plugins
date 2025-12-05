@@ -1,6 +1,7 @@
 ---
+name: layer-auditor
 description: Analyze codebase for agentic layer components and coverage. Specialized for audit and assessment.
-tools: [Read, Glob, Grep]
+tools: Read, Glob, Grep
 model: haiku
 ---
 

@@ -1,6 +1,7 @@
 ---
+name: orchestration-planner
 description: Plan multi-agent orchestration workflows with phase design and agent coordination
-tools: [Read, Glob, Grep]
+tools: Read, Glob, Grep
 model: opus
 ---
 

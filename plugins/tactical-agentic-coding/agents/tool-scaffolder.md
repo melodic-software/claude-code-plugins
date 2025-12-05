@@ -1,6 +1,7 @@
 ---
+name: tool-scaffolder
 description: Generate custom tool boilerplate with @tool decorator
-tools: [Read, Write]
+tools: Read, Write
 model: haiku
 ---
 

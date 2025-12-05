@@ -2,7 +2,7 @@
 name: docs-researcher
 description: PROACTIVELY use when researching Claude Code features, searching official documentation, resolving doc_ids, or finding canonical guidance on Claude Code topics (hooks, skills, memory, MCP, plugins, settings, subagents, SDK, etc.). Auto-loads docs-management skill for discovery.
 tools: Skill, Read, Bash
-model: opus
+model: haiku
 color: purple
 skills: docs-management
 ---

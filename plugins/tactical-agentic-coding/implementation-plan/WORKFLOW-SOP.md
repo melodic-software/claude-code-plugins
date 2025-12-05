@@ -206,6 +206,10 @@ Create `implementation-plan/lesson-plans/lesson-NNN-plan.md` using the template 
 | 5.5 | Create hooks, output styles, MCP configs as needed |
 | 5.6 | Update `plugin.json` as components are added |
 | 5.7 | Validate each component works |
+| 5.8 | **Validate each component** (see Continuous Validation Pattern) |
+| 5.9 | **Create checkpoint** every 3 components (see Session Checkpoint System) |
+| 5.10 | **Re-check triggers** if issues arise (see Re-Check Triggers) |
+| 5.11 | **Revise plan** if implementation diverges (see Plan Revision Mechanism) |
 
 ### Component Creation Order
 
@@ -237,7 +241,7 @@ Update `plugin.json` incrementally as components are added. The manifest structu
   "commands": ["command-name"],
   "hooks": ["hook-name"]
 }
-```markdown
+```
 
 **When to update**:
 
@@ -253,7 +257,7 @@ Update `plugin.json` incrementally as components are added. The manifest structu
 ```bash
 claude /plugin list  # Should show tactical-agentic-coding
 claude /plugin info tactical-agentic-coding  # Should list components
-```yaml
+```
 
 **Quality Gate**: All components created and validated.
 
@@ -283,7 +287,405 @@ Update `MASTER-TRACKER.md` with:
 | 3 | docs-management skill invoked, all components validated |
 | 4 | Plan written with all required sections |
 | 5 | All components created and validated |
+| 5a | Each component validated against official docs (Continuous Validation) |
+| 5b | Plan revised if implementation changed (Plan Revision) |
+| 5c | Checkpoint created (Session Checkpoint) |
 | 6 | Tracker updated |
+| 6a | Audit-Fix-Revalidate cycle completed for any issues |
+
+---
+
+## Regular Audit Schedule
+
+Audits ensure components remain compliant with official documentation and SDK updates.
+
+### Audit Frequency
+
+| Audit Type | Frequency | Trigger |
+| ---------- | --------- | ------- |
+| **Per-Lesson Audit** | After each lesson implementation | Lesson completion |
+| **Batch Audit** | Every 3 lessons | After lessons 3, 6, 9, 12 |
+| **SDK Compatibility Audit** | Monthly or on SDK release | New SDK version detected |
+| **Full Plugin Audit** | Quarterly | Schedule or major release |
+
+### Per-Lesson Audit Checklist
+
+Run after completing each lesson:
+
+- [ ] All skills have valid frontmatter (`name`, `description`, `allowed-tools`)
+- [ ] All agents have valid frontmatter (`description`, `tools`, `model`)
+- [ ] All commands have `description` field in frontmatter
+- [ ] Model selection follows guidance (opus for planning, sonnet for implementation, haiku for fast tasks)
+- [ ] No built-in agent overlap without justification
+- [ ] SDK examples use current patterns (see SDK Reference below)
+- [ ] Memory files have cross-references where applicable
+- [ ] plugin.json updated with new components
+
+### Batch Audit (Every 3 Lessons)
+
+Run after lessons 3, 6, 9, 12:
+
+- [ ] Invoke `docs-management` skill to check for documentation updates
+- [ ] Verify SDK import patterns match latest official docs
+- [ ] Check for deprecated patterns in existing components
+- [ ] Review CONSOLIDATION.md for cross-lesson deduplication opportunities
+- [ ] Update MASTER-TRACKER.md with audit findings
+- [ ] Fix any compliance issues before proceeding
+
+### SDK Compatibility Audit
+
+Run when a new Claude Agent SDK version is released:
+
+- [ ] Check TypeScript SDK changelog (`@anthropic-ai/claude-agent-sdk`)
+- [ ] Check Python SDK changelog (`claude-agent-sdk`)
+- [ ] Update SDK examples in this SOP if APIs changed
+- [ ] Review all SDK-Only components for breaking changes
+- [ ] Update memory files with new SDK patterns
+- [ ] Document changes in MASTER-TRACKER.md
+
+### Full Plugin Audit
+
+Quarterly comprehensive review:
+
+- [ ] Re-validate ALL components against latest official docs
+- [ ] Run `/claude-ecosystem:audit-skills` on all TAC skills
+- [ ] Check all agent model selections against current best practices
+- [ ] Review and update SDK examples to latest patterns
+- [ ] Verify all cross-references are valid
+- [ ] Update version number in plugin.json if changes made
+- [ ] Create audit report in `analysis/audit-YYYY-MM-DD.md`
+
+### Audit Report Template
+
+```markdown
+# TAC Plugin Audit Report
+
+**Date:** YYYY-MM-DD
+**Audit Type:** Per-Lesson | Batch | SDK Compatibility | Full
+**Auditor:** [name or agent]
+
+## Summary
+
+- Components audited: X
+- Issues found: Y
+- Issues fixed: Z
+
+## Findings
+
+| Component | Issue | Severity | Resolution |
+| --------- | ----- | -------- | ---------- |
+| skill-name | description | low/medium/high | fixed/deferred |
+
+## SDK Updates
+
+- [List any SDK changes affecting components]
+
+## Actions Taken
+
+- [List fixes applied]
+
+## Deferred Items
+
+- [List items to address later with rationale]
+```
+
+---
+
+## Continuous Validation Pattern
+
+Validation is not a one-time gate but a continuous process throughout implementation.
+
+### Per-Component Validation (During Phase 5)
+
+After creating EACH component, immediately validate:
+
+| Step | Action | Tool |
+| ---- | ------ | ---- |
+| 1 | Create component | Write/Edit |
+| 2 | Validate frontmatter syntax | component-checklist.md |
+| 3 | Validate against official docs | `docs-management` skill |
+| 4 | Test component loads | `claude /plugin info` |
+| 5 | Log validation result | MASTER-TRACKER.md |
+
+**If validation fails:**
+
+1. Fix immediately (preferred) OR
+2. Document as blocker, decide: continue or stop
+3. Update plan if fix changes scope
+
+### Validation Decision Tree
+
+```text
+Component created
+    |
+Validate against checklist
+    |-- PASS --> Log success, continue to next component
+    |-- FAIL
+        |-- Quick fix possible (< 5 min)?
+            |-- YES --> Fix now, re-validate, continue
+            |-- NO --> Document blocker
+                |-- Blocking? --> Stop, fix, re-validate
+                |-- Non-blocking? --> Defer, continue, revisit in audit
+```
+
+### Continuous Docs Validation
+
+Re-invoke `docs-management` during Phase 5 when:
+
+- Creating a component type not in original plan
+- SDK example doesn't compile/work
+- Unsure about frontmatter field syntax
+- Cross-referencing official patterns
+
+---
+
+## Plan Revision Mechanism
+
+Plans are living documents. Revise when implementation reveals new requirements.
+
+### When to Revise the Plan
+
+| Trigger | Action |
+| ------- | ------ |
+| New component needed (not in plan) | Add to plan, document rationale |
+| Planned component not needed | Mark as removed, document why |
+| Component works differently than planned | Update plan, note difference |
+| SDK/API version mismatch | Update plan with correct patterns |
+| Cross-lesson deduplication found | Update both lesson plans |
+| Audit reveals compliance issue | Update plan with fix approach |
+
+### Plan Revision Process
+
+1. **Document the trigger** - What caused the revision?
+2. **Update the plan file** - Edit `lesson-NNN-plan.md`
+3. **Add revision note** - Use the Revision Log section (see below)
+4. **Update MASTER-TRACKER** - Note plan was revised
+5. **Continue implementation** - With updated plan
+
+### Revision Log Template
+
+Add this section to each lesson plan:
+
+```markdown
+## Revision Log
+
+| Date | Phase | Change | Rationale |
+| ---- | ----- | ------ | --------- |
+| YYYY-MM-DD | 5.3 | Added `new-skill` | Discovered during agent implementation |
+| YYYY-MM-DD | 5.7 | Removed `obsolete-cmd` | Duplicates existing `/command` |
+```
+
+### Decision Logging
+
+For significant decisions during implementation:
+
+```markdown
+## Decision Log
+
+| ID | Decision | Alternatives Considered | Rationale |
+| -- | -------- | ----------------------- | --------- |
+| D1 | Use opus for orchestrator | sonnet, haiku | Complex multi-agent coordination |
+| D2 | Merge skill-a and skill-b | Keep separate | 80% overlap in functionality |
+```
+
+---
+
+## Re-Check Triggers
+
+Source materials and official docs should be re-checked when specific conditions arise.
+
+### Re-Check Source Materials When:
+
+| Trigger | Action |
+| ------- | ------ |
+| Component doesn't work as expected | Re-read `captions.txt` for exact phrasing |
+| Memory file semantics unclear | Re-check `lesson.md` and `analysis/` |
+| Pattern extraction seems incomplete | Re-explore companion repo |
+| Cross-reference needed | Re-read `links.md` for external resources |
+
+### Re-Check Official Docs When:
+
+| Trigger | Action |
+| ------- | ------ |
+| Frontmatter syntax error | Invoke `docs-management`, search frontmatter |
+| Component won't load | Invoke `docs-management`, search troubleshooting |
+| SDK example fails | Invoke `docs-management`, search SDK patterns |
+| Unsure about tool restrictions | Invoke `docs-management`, search allowed-tools |
+| Model selection unclear | Invoke `docs-management`, search model subagent |
+
+### Re-Check Process
+
+```text
+Issue detected during implementation
+    |
+Identify re-check type:
+|-- Source material issue --> Re-read Phase 1 inputs
+|-- Official docs issue --> Re-invoke docs-management
+|-- Companion repo pattern --> Re-explore Phase 2 repos
+|-- Cross-lesson issue --> Re-check CONSOLIDATION.md
+    |
+Document what was re-checked
+    |
+Update plan if findings change approach
+    |
+Continue implementation
+```
+
+### Mandatory Re-Checks
+
+These re-checks are REQUIRED, not optional:
+
+1. **Before creating SDK-only component** - Re-check official docs for current SDK patterns
+2. **Before creating agent with opus model** - Re-check model selection guidance
+3. **When validation fails** - Re-check both source material AND official docs
+4. **When resuming interrupted session** - Re-check MASTER-TRACKER and last plan state
+
+---
+
+## Session Checkpoint System
+
+Sessions can be interrupted. Checkpoints enable clean resumption.
+
+### Checkpoint Frequency
+
+| Milestone | Create Checkpoint |
+| --------- | ----------------- |
+| After each phase completes | Yes (mandatory) |
+| After every 3 components in Phase 5 | Yes (recommended) |
+| Before any major decision | Yes (recommended) |
+| When stopping for the day | Yes (mandatory) |
+
+### Checkpoint Format
+
+Update MASTER-TRACKER.md with checkpoint entry:
+
+```markdown
+## Current Checkpoint
+
+**Lesson:** 007
+**Phase:** 5 (Implementation)
+**Last Completed:** skill-3 of 8 components
+**Next Action:** Create agent-1
+**Blockers:** None
+**Decisions Pending:** None
+**Context to Reload:** lesson-007-plan.md, companion repo patterns
+
+**Updated:** YYYY-MM-DD HH:MM UTC
+```
+
+### Resumption Checklist
+
+When returning after session break:
+
+- [ ] Read MASTER-TRACKER "Current Checkpoint" section
+- [ ] Identify which phase was interrupted
+- [ ] Read the lesson plan for context
+- [ ] Check for incomplete validations
+- [ ] Verify dependencies (are all prior components working?)
+- [ ] Re-invoke `docs-management` if >24 hours since last check
+- [ ] Update checkpoint with resumption timestamp
+- [ ] Continue from "Next Action"
+
+### Mid-Phase Save Points
+
+For Phase 5 with many components, save progress incrementally:
+
+```text
+Phase 5 Progress:
+[x] skill-1 (validated)
+[x] skill-2 (validated)
+[x] skill-3 (validated)
+[ ] agent-1 <-- NEXT
+[ ] agent-2
+[ ] command-1
+[ ] memory-1
+[ ] memory-2
+```
+
+### Context Bundle for Resumption
+
+If available, use `/load-context-bundle` to reload:
+
+- Recent conversation context
+- Open files
+- Decision history
+- Validation results
+
+---
+
+## Audit-Fix-Revalidate Cycle
+
+Audits must close the loop: find issues, fix them, verify the fix.
+
+### The Complete Audit Cycle
+
+```text
+AUDIT (discover)
+    |
+TRIAGE (prioritize)
+    |
+FIX (resolve)
+    |
+REVALIDATE (confirm)
+    |
+DOCUMENT (record)
+```
+
+### Audit Cycle Process
+
+| Phase | Action | Output |
+| ----- | ------ | ------ |
+| **Audit** | Run audit checklist | List of issues |
+| **Triage** | Categorize: critical/high/medium/low | Prioritized list |
+| **Fix** | Address issues in priority order | Fixed components |
+| **Revalidate** | Re-run audit on fixed items | Pass/fail |
+| **Document** | Record in audit report | Audit trail |
+
+### Triage Categories
+
+| Category | Definition | Action |
+| -------- | ---------- | ------ |
+| **Critical** | Blocks functionality | Fix immediately |
+| **High** | Violates official docs | Fix before next lesson |
+| **Medium** | Best practice violation | Fix in batch audit |
+| **Low** | Style/consistency issue | Fix in full audit |
+
+### Revalidation Requirement
+
+After fixing an issue:
+
+1. Re-run the specific validation that failed
+2. If still fails: investigate deeper, escalate if needed
+3. If passes: update audit report with "RESOLVED"
+4. If deferred: document why and when it will be addressed
+
+### Blocking vs Non-Blocking Issues
+
+```text
+Issue found in audit
+    |
+Is it blocking?
+|-- YES (Critical/High)
+|   |-- Fix now
+|   |-- Revalidate
+|   |-- Only proceed after RESOLVED
+|-- NO (Medium/Low)
+    |-- Document with rationale
+    |-- Add to deferred items
+    |-- Proceed (will address in next audit cycle)
+```
+
+### Cross-Lesson Audit Gate
+
+Before starting a new lesson:
+
+- [ ] Previous lesson's Per-Lesson Audit completed
+- [ ] All Critical/High issues from previous lesson resolved
+- [ ] Medium/Low issues documented for batch audit
+- [ ] MASTER-TRACKER updated with audit status
+- [ ] No blocking dependencies on previous lesson
+
+If any Critical/High issues remain unresolved, **do not start next lesson**.
 
 ---
 
@@ -421,8 +823,7 @@ skills/{skill-name}/
     utils/           # Helpers
   references/        # Optional: detailed documentation
   assets/            # Optional: templates, images
-
-```yaml
+```
 
 ---
 
@@ -489,24 +890,105 @@ Some patterns from the course **cannot be implemented as Claude Code subagents**
 
 ### SDK Implementation Path (TypeScript)
 
+The Claude Agent SDK for TypeScript (`@anthropic-ai/claude-agent-sdk`) provides programmatic control over Claude agents.
+
 ```typescript
 // This runs OUTSIDE Claude Code as a standalone service
-import { query, ClaudeAgentOptions, tool } from "@anthropic-ai/claude-agent-sdk";
+import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 
+// Define custom tools with Zod schemas
 const createAgent = tool({
   name: "create_agent",
-  description: "Create a specialized agent",
-  schema: z.object({ template: z.string(), name: z.string() }),
+  description: "Create a specialized agent with a given template and name",
+  schema: z.object({
+    template: z.string().describe("Agent template type"),
+    name: z.string().describe("Unique agent identifier")
+  }),
   handler: async ({ template, name }) => {
     // Create agent in database, return ID
+    return { agentId: `agent-${name}`, template, status: "created" };
   }
 });
 
-const options: ClaudeAgentOptions = {
-  model: "sonnet",
-  mcpServers: { orchestrator: createSdkMcpServer([createAgent, commandAgent, deleteAgent]) }
-};
-```yaml
+// Create MCP server from tools
+const orchestratorServer = createSdkMcpServer([createAgent]);
+
+// Run the agent with streaming
+async function runOrchestrator(prompt: string) {
+  for await (const message of query({
+    prompt,
+    model: "claude-sonnet-4-20250514",
+    permissionMode: "acceptEdits",
+    mcpServers: { orchestrator: orchestratorServer },
+    systemPrompt: "You are an orchestration agent managing specialized sub-agents.",
+    maxTurns: 10
+  })) {
+    if (message.type === "assistant") {
+      console.log("Assistant:", message.content);
+    } else if (message.type === "result") {
+      console.log("Cost:", message.totalCostUsd);
+      return message;
+    }
+  }
+}
+```
+
+### SDK Implementation Path (Python)
+
+The Claude Agent SDK for Python (`claude-agent-sdk`) provides equivalent functionality with Pythonic patterns.
+
+```python
+# This runs OUTSIDE Claude Code as a standalone service
+import asyncio
+from claude_agent_sdk import query, tool, create_sdk_mcp_server
+from pydantic import BaseModel, Field
+
+# Define tool input schema with Pydantic
+class CreateAgentInput(BaseModel):
+    template: str = Field(description="Agent template type")
+    name: str = Field(description="Unique agent identifier")
+
+# Define custom tools with decorator
+@tool(description="Create a specialized agent with a given template and name")
+async def create_agent(input: CreateAgentInput) -> dict:
+    # Create agent in database, return ID
+    return {"agent_id": f"agent-{input.name}", "template": input.template, "status": "created"}
+
+# Create MCP server from tools
+orchestrator_server = create_sdk_mcp_server([create_agent])
+
+# Run the agent with streaming
+async def run_orchestrator(prompt: str):
+    async for message in query(
+        prompt=prompt,
+        model="claude-sonnet-4-20250514",
+        permission_mode="acceptEdits",
+        mcp_servers={"orchestrator": orchestrator_server},
+        system_prompt="You are an orchestration agent managing specialized sub-agents.",
+        max_turns=10
+    ):
+        if message.type == "assistant":
+            print(f"Assistant: {message.content}")
+        elif message.type == "result":
+            print(f"Cost: ${message.total_cost_usd:.4f}")
+            return message
+
+# Entry point
+if __name__ == "__main__":
+    asyncio.run(run_orchestrator("Create a code review agent"))
+```
+
+### SDK Key Differences
+
+| Feature | TypeScript | Python |
+| ------- | ---------- | ------ |
+| **Import** | `@anthropic-ai/claude-agent-sdk` | `claude-agent-sdk` |
+| **Schema** | Zod (`z.object({...})`) | Pydantic (`BaseModel`) |
+| **Tool Definition** | `tool({...})` function | `@tool` decorator |
+| **Async Pattern** | `for await...of` | `async for...in` |
+| **Naming** | camelCase (`systemPrompt`) | snake_case (`system_prompt`) |
+| **MCP Server** | `createSdkMcpServer([...])` | `create_sdk_mcp_server([...])` |
 
 ---
 
@@ -549,5 +1031,4 @@ Phase 5.2: Agents (after skills, can parallelize)
 
 Phase 5.3: Commands (after agents, can parallelize)
   └── /command-1 invokes agent-x
-
-```text
+```

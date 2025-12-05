@@ -1,6 +1,7 @@
 ---
+name: layer-scaffolder
 description: Create minimum viable agentic layer structure for a project. Specialized for scaffolding.
-tools: [Read, Write, Bash]
+tools: Read, Write, Bash
 model: sonnet
 ---
 

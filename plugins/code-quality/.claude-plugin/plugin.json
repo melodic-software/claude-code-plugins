@@ -1,7 +1,7 @@
 {
   "name": "code-quality",
   "description": "Comprehensive code quality tools: markdown linting, code review, debugging, Python development, and codebase analysis. Includes skills, agents, commands, and automated hooks for quality enforcement.",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"

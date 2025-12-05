@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Claude Code plugin collection with comprehensive ecosystem support, documentation management, and development guidance",
-    "version": "3.0.0"
+    "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "claude-ecosystem",
       "source": "./plugins/claude-ecosystem",
-      "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills for all Claude Code features, and development guidance",
-      "version": "3.0.0",
+      "description": "Comprehensive Claude Code ecosystem plugin with official documentation management, meta-skills, development guidance, event logging, and observability hooks. Provides keyword-based doc discovery, doc_id resolution, token-optimized subsection extraction, authoritative knowledge hubs for hooks, memory, skills, MCP, configuration, security, subagents, plugins, and more. Includes comprehensive hook event logging, date/time injection, and file validation.",
+      "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
@@ -23,8 +23,8 @@
     {
       "name": "google-ecosystem",
       "source": "./plugins/google-ecosystem",
-      "description": "Google ecosystem plugin with Gemini CLI documentation management, Claude-to-Gemini integration agents, and meta-skills for configuration, checkpointing, sandboxing, and session management",
-      "version": "1.1.0",
+      "description": "Google Gemini CLI ecosystem plugin with documentation management, Claude-to-Gemini integration agents, exploration/planning commands, workspace bridging, and meta-skills for configuration, checkpointing, sandboxing, and session management",
+      "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
@@ -34,8 +34,8 @@
     {
       "name": "code-quality",
       "source": "./plugins/code-quality",
-      "description": "Comprehensive code quality tools: markdown linting, code review, debugging, Python development, and codebase analysis with automated hooks",
-      "version": "2.0.0",
+      "description": "Comprehensive code quality tools: markdown linting, code review, debugging, Python development, and codebase analysis. Includes skills, agents, commands, and automated hooks for quality enforcement.",
+      "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
         "url": "https://github.com/melodic-software"
@@ -45,7 +45,7 @@
     {
       "name": "git",
       "source": "./plugins/git",
-      "description": "Comprehensive Git workflow toolkit: Conventional Commits with safety protocols, GPG signing, hooks management, cross-platform configuration, and smart operations agent",
+      "description": "Git configuration, GPG signing, hooks management, cross-platform setup, and read-only history exploration agent for verbose output summarization.",
       "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
@@ -56,7 +56,7 @@
     {
       "name": "melodic-software",
       "source": "./plugins/melodic-software",
-      "description": "Developer onboarding and environment setup guides for Windows, macOS, Linux, and WSL. Covers package management, shell configuration, AI tooling, containerization, cloud platforms, databases, and productivity tools.",
+      "description": "Developer onboarding, environment setup guides, and git commit workflows. Covers Windows, macOS, Linux, WSL, package management, shell configuration, AI tooling, and productivity tools.",
       "version": "1.0.0",
       "author": {
         "name": "Melodic Software",
@@ -89,7 +89,7 @@
     {
       "name": "tactical-agentic-coding",
       "source": "./plugins/tactical-agentic-coding",
-      "description": "Tactical Agentic Coding course content by @IndyDevDan - Master agentic coding tactics to scale engineering and build self-operating codebases. Includes 12 lessons covering leverage points, feedback loops, context engineering, prompt engineering, and multi-agent orchestration.",
+      "description": "Tactical Agentic Coding course content by @IndyDevDan - Master agentic coding tactics to scale engineering and build self-operating codebases",
       "version": "1.0.0",
       "author": {
         "name": "Agentic Engineer / IndyDevDan",

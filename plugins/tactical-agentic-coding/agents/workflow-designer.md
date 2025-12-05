@@ -1,6 +1,7 @@
 ---
+name: workflow-designer
 description: Design workflow sections for prompts with appropriate control flow
-tools: [Read, Write, Glob]
+tools: Read, Write, Glob
 model: opus
 ---
 

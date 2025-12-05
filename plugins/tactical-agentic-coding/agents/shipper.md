@@ -1,6 +1,7 @@
 ---
+name: shipper
 description: Validate state completeness and execute merge to main for ZTE shipping. Specialized for production deployment.
-tools: [Read, Bash]
+tools: Read, Bash
 model: sonnet
 ---
 

@@ -1,6 +1,7 @@
 ---
+name: test-resolver
 description: Analyze failed tests, identify root causes, apply fixes, and re-validate. Specialized for test failure resolution.
-tools: [Read, Write, Edit, Bash]
+tools: Read, Write, Edit, Bash
 model: sonnet
 ---
 

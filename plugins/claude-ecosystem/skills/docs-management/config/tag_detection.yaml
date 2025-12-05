@@ -260,6 +260,18 @@ tags:
     - fedramp
     - soc 2
     min_mentions: 5
+  changelog:
+    terms:
+    - changelog
+    - release notes
+    - version history
+    - what's new
+    - updates
+    - recent changes
+    - latest version
+    - breaking changes
+    - new features
+    min_mentions: 3
 categories:
   api:
     path_patterns:
@@ -440,3 +452,20 @@ categories:
     - privacy
     - baa
     - hipaa
+  changelog:
+    path_patterns:
+    - changelog
+    - release-notes
+    - releases
+    - whats-new
+    tag_mapping:
+    - changelog
+    content_terms:
+    - changelog
+    - release notes
+    - version history
+    - what's new
+    - breaking changes
+    - new features
+    - bug fixes
+    - improvements

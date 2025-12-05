@@ -1,7 +1,7 @@
 {
   "name": "git",
   "description": "Git configuration, GPG signing, hooks management, cross-platform setup, and read-only history exploration agent for verbose output summarization.",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "author": {
     "name": "Melodic Software",
     "url": "https://github.com/melodic-software"

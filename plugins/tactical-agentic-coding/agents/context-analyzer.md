@@ -1,6 +1,7 @@
 ---
+name: context-analyzer
 description: Analyze context composition and identify reduction opportunities. Specialized for context auditing.
-tools: [Read, Grep, Glob]
+tools: Read, Grep, Glob
 model: haiku
 ---
 

@@ -1,6 +1,7 @@
 ---
+name: agent-builder
 description: Build custom agent configurations using Claude Agent SDK patterns
-tools: [Read, Write, Bash]
+tools: Read, Write, Bash
 model: sonnet
 ---
 

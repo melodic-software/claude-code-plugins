@@ -1,7 +1,14 @@
 {
   "name": "google-ecosystem",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "description": "Google Gemini CLI ecosystem plugin with documentation management, Claude-to-Gemini integration agents, exploration/planning commands, workspace bridging, and meta-skills for configuration, checkpointing, sandboxing, and session management",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/google-ecosystem",
   "keywords": [
     "gemini-cli",
     "google",

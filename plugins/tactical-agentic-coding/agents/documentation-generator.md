@@ -1,6 +1,7 @@
 ---
+name: documentation-generator
 description: Generate concise feature documentation from implementation changes. Specialized for doc generation and conditional docs updates.
-tools: [Read, Write, Glob]
+tools: Read, Write, Glob
 model: sonnet
 ---
 

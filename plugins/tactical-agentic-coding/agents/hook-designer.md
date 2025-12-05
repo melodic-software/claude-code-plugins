@@ -1,6 +1,7 @@
 ---
+name: hook-designer
 description: Design permission hooks for agent governance
-tools: [Read, Write, Glob]
+tools: Read, Write, Glob
 model: sonnet
 ---
 

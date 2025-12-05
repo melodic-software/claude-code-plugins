@@ -1,6 +1,7 @@
 ---
+name: e2e-test-runner
 description: Execute E2E test specifications with browser automation, capture screenshots, and report structured results.
-tools: [Bash, Read]
+tools: Bash, Read
 model: sonnet
 ---
 

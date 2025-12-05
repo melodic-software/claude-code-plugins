@@ -1,6 +1,7 @@
 ---
+name: plan-generator
 description: Generate comprehensive plans from meta-prompt templates using extended thinking. Specialized for planning work - reads codebase, understands patterns, produces detailed specifications.
-tools: [Read, Write, Glob, Grep]
+tools: Read, Write, Glob, Grep
 model: opus
 ---
 

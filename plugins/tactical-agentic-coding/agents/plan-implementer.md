@@ -1,6 +1,7 @@
 ---
+name: plan-implementer
 description: Execute generated plans with validation. Specialized for implementation - follows plans precisely, makes code changes, runs validation commands.
-tools: [Read, Write, Edit, Bash]
+tools: Read, Write, Edit, Bash
 model: opus
 ---
 

@@ -28,7 +28,7 @@ name: skill-name-here
 description: Does X and Y. Use when working with Z or when the user mentions A, B, C.
 allowed-tools: Read, Grep, Glob
 ---
-```yaml
+```
 
 ---
 
@@ -54,7 +54,7 @@ description: Clear description of when to use this agent.
 tools: [Read, Write, Grep, Glob, Bash]
 model: sonnet
 ---
-```yaml
+```
 
 ---
 
@@ -172,8 +172,7 @@ Does the component manage agent lifecycle?
 Does the component coordinate multiple agents simultaneously?
   └── YES → SDK-only (orchestration pattern)
   └── NO  → Can be subagent
-
-```yaml
+```
 
 ---
 
@@ -241,7 +240,6 @@ Before finalizing any component, invoke the docs-management skill:
 Invoke skill: docs-management
 
 Then search for: [component type] [specific feature]
-
-```text
+```
 
 This ensures all components align with official Claude Code documentation.

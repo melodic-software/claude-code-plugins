@@ -1,6 +1,7 @@
 ---
+name: prompt-generator
 description: Generate new prompts from specifications at any level
-tools: [Read, Write, Glob]
+tools: Read, Write, Glob
 model: sonnet
 ---
 
