@@ -67,7 +67,7 @@ Write the plan to `specs/bug-<descriptive-name>.md` using this exact format:
 
 ## Notes
 <Related bugs, regression risks, areas to monitor>
-```markdown
+```
 
 ## Bug
 

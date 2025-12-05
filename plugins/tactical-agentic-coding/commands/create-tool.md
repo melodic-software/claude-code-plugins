@@ -1,3 +1,8 @@
+---
+description: Generate custom tool boilerplate with @tool decorator for Claude Agent SDK
+argument-hint: [tool-name] [description]
+---
+
 # Create Tool
 
 Generate custom tool boilerplate with @tool decorator.
@@ -74,7 +79,7 @@ async def [tool_name](args: dict[str, Any]) -> dict[str, Any]:
             "content": [{"type": "text", "text": f"Error: {str(e)}"}],
             "is_error": True
         }
-```markdown
+```
 
 ### Step 4: Generate MCP Server Setup
 
@@ -87,7 +92,7 @@ from claude_agent_sdk import create_sdk_mcp_server
     version="1.0.0",
     tools=[[tool_name]]
 )
-```markdown
+```
 
 ### Step 5: Generate Agent Configuration
 
@@ -106,7 +111,7 @@ async with ClaudeSDKClient(options=options) as client:
     await client.query(prompt)
     async for message in client.receive_response():
         pass
-```markdown
+```
 
 ## Output
 
@@ -121,19 +126,19 @@ async with ClaudeSDKClient(options=options) as client:
 
 ```python
 [Generated @tool decorated function]
-```markdown
+```
 
 ### MCP Server
 
 ```python
 [Generated server setup]
-```markdown
+```
 
 ### Agent Configuration
 
 ```python
 [Generated configuration]
-```markdown
+```
 
 ### Parameters
 
@@ -155,7 +160,7 @@ Expected result: "[expected output]"
 result = await [tool_name]({"param1": "test", "param2": 10})
 assert "content" in result
 assert not result.get("is_error", False)
-```markdown
+```
 
 ### Next Steps
 

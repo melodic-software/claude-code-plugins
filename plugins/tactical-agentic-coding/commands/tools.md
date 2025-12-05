@@ -30,7 +30,7 @@ Task(prompt: string, subagent_type: string): string
 
 // MCP Tools (if configured)
 // List any available MCP server tools
-```markdown
+```
 
 After listing tools, note:
 

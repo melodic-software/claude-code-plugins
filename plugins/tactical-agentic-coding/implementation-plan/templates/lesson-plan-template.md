@@ -108,14 +108,47 @@ If any proposed components require spawning other agents (orchestrators, fleet m
 
 ---
 
+## Documentation Validation (MANDATORY)
+
+### docs-management Skill Invocations
+
+Before finalizing this plan, the following docs-management queries MUST be executed:
+
+#### Skills Validation
+- [ ] Invoked: `find_docs.py search skill frontmatter allowed-tools`
+- Result: [Document findings - e.g., "Confirmed allowed-tools must be comma-separated string"]
+
+#### Agents Validation
+- [ ] Invoked: `find_docs.py search subagent tools model frontmatter`
+- Result: [Document findings - e.g., "Confirmed tools can be array or comma-separated, model is optional"]
+
+#### Commands Validation
+- [ ] Invoked: `find_docs.py search slash command frontmatter description`
+- Result: [Document findings - e.g., "Confirmed description and argument-hint are valid frontmatter fields"]
+
+#### Hooks Validation (if applicable)
+- [ ] Invoked: `find_docs.py search hook events PreToolUse matcher`
+- Result: [Document findings]
+
+### Official Documentation References
+
+| Component | Official Doc Source | Key Requirement Verified |
+| ----------- | --------------------- | -------------------------- |
+| Skills | code.claude.com/docs/en/skills | allowed-tools is comma-separated |
+| Agents | code.claude.com/docs/en/sub-agents | tools field, model selection |
+| Commands | code.claude.com/docs/en/slash-commands | frontmatter fields |
+
+---
+
 ## Validation Criteria
 
-- [ ] All components pass docs-management validation
+- [ ] All components pass docs-management validation (see section above)
 - [ ] TypeScript SDK patterns used (not Python)
 - [ ] No duplicate functionality with existing plugins
 - [ ] Naming conventions followed (noun-phrase skills, verb-phrase commands, kebab-case)
 - [ ] Skill `allowed-tools` is comma-separated (not array)
-- [ ] Agent `tools` is array
+- [ ] Agent `tools` is array or comma-separated
+- [ ] Agent `model` is opus/sonnet/haiku/inherit (use opus for planning/orchestration)
 - [ ] Model IDs are Dec 2025 versions
 
 ---

@@ -96,7 +96,7 @@ As a <role>, I want <capability> so that <benefit>.
 
 ## Notes
 <Future enhancements, related features, technical debt, dependencies>
-```markdown
+```
 
 ## Feature
 

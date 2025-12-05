@@ -1,3 +1,8 @@
+---
+description: Generate a new agentic prompt at specified level (1-7) using meta-prompting
+argument-hint: [level] [purpose-description]
+---
+
 # Create Prompt
 
 Generate a new prompt at specified level.
@@ -79,7 +84,7 @@ Generate the prompt and provide summary:
 ### Usage
 ```bash
 /[name] [arguments]
-```markdown
+```
 
 ### Next Steps
 

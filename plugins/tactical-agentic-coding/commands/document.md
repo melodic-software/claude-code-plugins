@@ -28,7 +28,7 @@ git diff origin/main --name-only
 
 # See detailed changes for significant files
 git diff origin/main -- path/to/file
-```markdown
+```
 
 ### 2. Read Specification (if provided)
 
@@ -88,7 +88,7 @@ Create documentation file: `docs/feature-{descriptive-name}.md`
 ## Notes
 
 [Any additional context, known limitations, or future considerations]
-```markdown
+```
 
 ### 4. Update Conditional Docs (if applicable)
 
@@ -99,7 +99,7 @@ If conditional documentation exists, add entry for new documentation:
   - Conditions:
     - When working with [feature area]
     - When implementing [related functionality]
-```markdown
+```
 
 ## Output
 
@@ -107,7 +107,7 @@ Return ONLY the path to the documentation file created:
 
 ```text
 docs/feature-export-to-csv.md
-```markdown
+```
 
 ## Best Practices
 
@@ -134,6 +134,6 @@ Documentation typically follows review:
 
 ```text
 /plan → /implement → /test → /review → /document (THIS COMMAND)
-```text
+```
 
 Documentation is the final step that captures what was built.

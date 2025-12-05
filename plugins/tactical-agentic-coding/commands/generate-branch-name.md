@@ -10,7 +10,7 @@ Generate a semantic Git branch name following the convention.
 
 ```text
 {type}-{issue_number}-{short_id}-{slug}
-```yaml
+```
 
 Components:
 
@@ -25,7 +25,7 @@ Components:
 feat-123-a1b2c3d4-add-user-auth
 fix-456-e5f6g7h8-login-double-submit
 chore-789-i9j0k1l2-update-dependencies
-```markdown
+```
 
 ## Rules
 

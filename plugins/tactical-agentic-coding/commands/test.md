@@ -57,7 +57,7 @@ Return ONLY a JSON array with test results:
     "error": "FAIL tests/auth.test.ts - Expected 200, received 401"
   }
 ]
-```markdown
+```
 
 ## Result Structure
 
@@ -81,6 +81,6 @@ This command is the **REQUEST** phase of a closed loop:
 
 ```text
 /test → [JSON results] → /resolve-failed-test {result}
-```text
+```
 
 The structured output enables automated resolution.

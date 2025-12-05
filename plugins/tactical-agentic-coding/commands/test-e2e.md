@@ -53,7 +53,7 @@ Return ONLY a JSON object:
   ],
   "error": null
 }
-```markdown
+```
 
 **Failed:**
 
@@ -67,7 +67,7 @@ Return ONLY a JSON object:
   ],
   "error": "Step 8 failed: Results did not appear within 5 seconds"
 }
-```markdown
+```
 
 ## Result Structure
 
@@ -84,10 +84,10 @@ This command is the **REQUEST** phase for E2E validation:
 
 ```text
 /test-e2e {spec} → [JSON result] → /resolve-failed-e2e-test {result}
-```markdown
+```
 
 ## Example Usage
 
 ```text
 /test-e2e .claude/commands/e2e/test-basic-query.md
-```text
+```

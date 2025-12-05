@@ -1,3 +1,8 @@
+---
+description: Reload previous session context from a context bundle file
+argument-hint: [bundle-path]
+---
+
 # Load Context Bundle
 
 Reload previous session context from a context bundle file.
@@ -20,7 +25,7 @@ Each line is a JSON object with one of these formats:
 {"operation": "read", "file_path": "path/to/file", "limit": 100, "offset": 0}
 {"operation": "write", "file_path": "path/to/file", "content_length": 500}
 {"operation": "prompt", "prompt": "truncated user prompt..."}
-```markdown
+```
 
 ### Step 2: Analyze Bundle
 
@@ -49,7 +54,7 @@ Read each unique file ONLY ONCE with optimal parameters:
 For each file in deduplicated list:
   - Read with determined parameters
   - Note what was loaded
-```markdown
+```
 
 ### Step 5: Understand Story
 
@@ -93,7 +98,7 @@ Based on prompts and file operations, the previous agent was:
 
 ### Gaps Identified
 [Any context that couldn't be restored or may be stale]
-```markdown
+```
 
 ## Notes
 

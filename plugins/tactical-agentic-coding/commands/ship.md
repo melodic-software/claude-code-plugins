@@ -37,7 +37,7 @@ If validation fails, ABORT and report the issue.
 
 ```bash
 git branch --list $1
-```markdown
+```
 
 If branch doesn't exist, ABORT.
 
@@ -45,19 +45,19 @@ If branch doesn't exist, ABORT.
 
 ```bash
 git fetch origin
-```markdown
+```
 
 ### Step 5: Checkout Main
 
 ```bash
 git checkout main
-```markdown
+```
 
 ### Step 6: Pull Latest
 
 ```bash
 git pull origin main
-```markdown
+```
 
 ### Step 7: Merge Branch
 
@@ -65,7 +65,7 @@ Merge with no-fast-forward to preserve commit history:
 
 ```bash
 git merge $1 --no-ff -m "Merge branch '$1' into main"
-```markdown
+```
 
 If merge conflicts occur, ABORT and report conflicts.
 
@@ -73,7 +73,7 @@ If merge conflicts occur, ABORT and report conflicts.
 
 ```bash
 git push origin main
-```markdown
+```
 
 ### Step 9: Post Completion
 
@@ -81,7 +81,7 @@ Report successful ship:
 
 ```text
 Shipped: Branch $1 merged to main and pushed to origin
-```markdown
+```
 
 ## Output
 
@@ -95,7 +95,7 @@ Return structured result:
   "commit": "{merge_commit_hash}",
   "pushed": true
 }
-```text
+```
 
 Or on failure:
 
@@ -106,7 +106,7 @@ Or on failure:
   "step_failed": "{step_name}",
   "remediation": "{suggested_fix}"
 }
-```markdown
+```
 
 ## Safety Gates
 

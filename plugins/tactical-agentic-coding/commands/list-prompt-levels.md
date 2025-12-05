@@ -1,3 +1,7 @@
+---
+description: Show the seven levels of agentic prompts with quick reference
+---
+
 # List Prompt Levels
 
 Show the seven levels of agentic prompts with quick reference.
@@ -52,7 +56,7 @@ Display the seven levels framework for quick reference.
 ## More Information
 
 See @seven-levels.md for detailed level descriptions.
-```markdown
+```
 
 ## Notes
 

@@ -2,10 +2,16 @@
 
 Use this checklist to validate each component before marking it complete.
 
+**CRITICAL**: For every component, the docs-management checkbox must be checked FIRST before proceeding.
+
 ---
 
 ## Skills Checklist
 
+- [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+  ```bash
+  python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search skill frontmatter allowed-tools
+  ```
 - [ ] **Name**: Max 64 chars, lowercase letters + hyphens only
 - [ ] **Name**: Does NOT contain "anthropic" or "claude"
 - [ ] **Name**: Uses noun-phrase naming (e.g., `context-audit` not `audit-context`)
@@ -13,7 +19,6 @@ Use this checklist to validate each component before marking it complete.
 - [ ] **Description**: Third person, describes what it does AND when to use it
 - [ ] **allowed-tools**: Comma-separated string (NOT array)
 - [ ] **Frontmatter**: Valid YAML with `---` delimiters
-- [ ] **docs-management**: Validated against official Claude Code docs
 
 ### Skill Frontmatter Template
 
@@ -29,12 +34,16 @@ allowed-tools: Read, Grep, Glob
 
 ## Agents Checklist
 
+- [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+  ```bash
+  python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search subagent tools model frontmatter
+  ```
 - [ ] **Name**: Lowercase letters and hyphens only
 - [ ] **Description**: Natural language, include "use proactively" if desired
-- [ ] **tools**: Array syntax (NOT comma-separated like skills)
-- [ ] **model**: One of `sonnet`, `opus`, `haiku`, or `inherit`
+- [ ] **tools**: Array syntax OR comma-separated (both work per official docs)
+- [ ] **model**: One of `opus` (for planning/orchestration), `sonnet` (for implementation), `haiku` (for fast tasks), or `inherit`
+- [ ] **Model Selection**: Planning/orchestration agents should use `opus`
 - [ ] **Constraint**: Does NOT attempt to spawn other subagents
-- [ ] **docs-management**: Validated against official Claude Code docs
 
 ### Agent Frontmatter Template
 
@@ -51,21 +60,44 @@ model: sonnet
 
 ## Commands Checklist
 
+- [ ] **docs-management FIRST**: Invoke `claude-ecosystem:docs-management` skill, then run:
+  ```bash
+  python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search slash command frontmatter description
+  ```
+- [ ] **Frontmatter**: Has `description` field (REQUIRED for SlashCommand tool visibility)
+- [ ] **Frontmatter**: Has `argument-hint` field if command takes arguments
 - [ ] **Name**: Uses kebab-case (NOT underscores)
 - [ ] **Name**: Uses verb-phrase naming (e.g., `/create-plan` not `/plan-creation`)
 - [ ] **Arguments**: Uses `$ARGUMENTS` or `$1`, `$2` patterns
 - [ ] **File**: Located in `commands/` folder
-- [ ] **docs-management**: Validated against official Claude Code docs
 
-### Command Template
+### Command Frontmatter Template
+
+```yaml
+---
+description: Brief description of what this command does
+argument-hint: [arg1] [arg2] (optional)
+allowed-tools: Read, Grep, Glob (optional)
+---
+```
+
+### Command Content Template
 
 ```markdown
 ---
-description: What this command does
+description: Brief description of what this command does
+argument-hint: [target] [options]
 ---
 
+# Command Name
+
+## Arguments
+- `$1`: First argument description
+- `$ARGUMENTS`: All arguments description
+
+## Instructions
 [Command content - can invoke skills or agents]
-```yaml
+```
 
 ---
 

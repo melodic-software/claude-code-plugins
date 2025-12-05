@@ -30,7 +30,7 @@ Create `.ports.env` file in the worktree:
 BACKEND_PORT=$2
 FRONTEND_PORT=$3
 VITE_BACKEND_URL=http://localhost:$2
-```markdown
+```
 
 ### Step 3: Copy Environment Files
 
@@ -42,14 +42,14 @@ cp .env $1/.env
 
 # Append port configuration
 cat $1/.ports.env >> $1/.env
-```text
+```
 
 If there's a server-specific .env, do the same:
 
 ```bash
 cp app/server/.env $1/app/server/.env
 cat $1/.ports.env >> $1/app/server/.env
-```yaml
+```
 
 ### Step 4: Update MCP Configuration
 
@@ -65,13 +65,13 @@ Backend:
 
 ```bash
 cd $1/app/server && uv sync --all-extras
-```yaml
+```
 
 Frontend:
 
 ```bash
 cd $1/app/client && bun install
-```markdown
+```
 
 ### Step 6: Initialize Database (if applicable)
 
@@ -79,7 +79,7 @@ If there's a database reset script:
 
 ```bash
 cd $1 && ./scripts/reset_db.sh
-```markdown
+```
 
 ### Step 7: Validate Installation
 
@@ -102,7 +102,7 @@ Report installation status:
   "frontend_port": $3,
   "steps_completed": ["ports", "env", "deps", "db"]
 }
-```markdown
+```
 
 ## Notes
 

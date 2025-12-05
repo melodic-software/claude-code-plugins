@@ -1,3 +1,8 @@
+---
+description: Scaffold a new custom agent configuration with Claude Agent SDK patterns
+argument-hint: [agent-name] [purpose-description]
+---
+
 # Create Agent
 
 Scaffold a new custom agent configuration.
@@ -64,7 +69,7 @@ Create system prompt following structure:
 ## Examples (if needed)
 
 [Input/Output pairs]
-```markdown
+```
 
 ### Step 4: Generate Configuration
 
@@ -84,7 +89,7 @@ options = ClaudeAgentOptions(
     allowed_tools=[...],
     disallowed_tools=[...],
 )
-```markdown
+```
 
 ### Step 5: Generate Entry Point
 
@@ -116,7 +121,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-```markdown
+```
 
 ## Output
 
@@ -137,19 +142,19 @@ if __name__ == "__main__":
 
 ```markdown
 [Generated system prompt]
-```markdown
+```
 
 ### Configuration
 
 ```python
 [Generated configuration]
-```markdown
+```
 
 ### Entry Point
 
 ```python
 [Generated script]
-```markdown
+```
 
 ### Next Steps
 

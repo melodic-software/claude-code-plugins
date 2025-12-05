@@ -41,7 +41,7 @@ git diff --stat
 
 # Find relevant files
 grep -r "related_term" src/
-```markdown
+```
 
 ### 4. Determine Minimum Fix
 
@@ -93,7 +93,7 @@ Execute every command to validate patch is complete:
 - **Lines of code to change**: [estimate]
 - **Risk level**: [low/medium/high]
 - **Testing required**: [minimal/standard/extensive]
-```markdown
+```
 
 ## Output
 
@@ -101,7 +101,7 @@ Return ONLY the path to the patch plan file created:
 
 ```text
 specs/patch/patch-fix-button-disabled-state.md
-```markdown
+```
 
 ## Scope Guidelines
 
@@ -132,4 +132,4 @@ Patches typically follow review:
 /implement → Executes patch plan
   ↓
 /review → Re-verifies fix
-```text
+```

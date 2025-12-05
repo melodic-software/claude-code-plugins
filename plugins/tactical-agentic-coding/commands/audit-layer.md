@@ -1,3 +1,8 @@
+---
+description: Audit a codebase for agentic layer coverage and identify investment opportunities
+argument-hint: [target-directory]
+---
+
 # Audit Layer
 
 Audit a codebase for agentic layer coverage and identify investment opportunities.
@@ -20,7 +25,7 @@ ls -la .claude/commands/ 2>/dev/null | | echo "Not found"
 
 # List templates if exists
 ls .claude/commands/*.md 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 20 points if exists with 3+ templates
 
@@ -31,7 +36,7 @@ Look for `specs/` or equivalent:
 ```bash
 # Check existence and count
 ls specs/*.md 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 15 points if exists with specs
 
@@ -45,7 +50,7 @@ ls adws/adw_modules/agent.py 2>/dev/null
 
 # Count workflow scripts
 ls adws/adw_*.py 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 25 points if adws/ exists, +20 if agent.py exists
 
@@ -55,7 +60,7 @@ Look for `.claude/hooks/`:
 
 ```bash
 ls .claude/hooks/*.py 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 10 points if hooks exist
 
@@ -65,7 +70,7 @@ Look for `agents/` output directory:
 
 ```bash
 ls -d agents/*/ 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 5 points if agent output exists
 
@@ -76,7 +81,7 @@ Look for `trees/` isolation:
 ```bash
 ls -d trees/*/ 2>/dev/null | wc -l
 git worktree list 2>/dev/null | wc -l
-```yaml
+```
 
 Score: 5 points if worktrees exist
 
@@ -135,7 +140,7 @@ Provide audit report:
 ### Time Investment Analysis
 - Estimated current: {percent}% on agentic layer
 - Target: 50%+ on agentic layer
-```markdown
+```
 
 ## Notes
 

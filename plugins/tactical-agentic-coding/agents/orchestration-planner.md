@@ -1,7 +1,7 @@
 ---
 description: Plan multi-agent orchestration workflows with phase design and agent coordination
 tools: [Read, Glob, Grep]
-model: sonnet
+model: opus
 ---
 
 # Orchestration Planner Agent

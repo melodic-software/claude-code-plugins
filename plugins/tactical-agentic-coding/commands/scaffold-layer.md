@@ -17,7 +17,7 @@ mkdir -p specs
 mkdir -p .claude/commands
 mkdir -p adws/adw_modules
 mkdir -p agents
-```markdown
+```
 
 ### Step 2: Create Chore Template
 
@@ -47,7 +47,7 @@ Include:
 - Files to modify
 - Implementation steps
 - Validation checklist
-```markdown
+```
 
 ### Step 3: Create Implement Template
 
@@ -74,7 +74,7 @@ Report with:
 - Changes made (git diff --stat)
 - Validation results
 - Any issues encountered
-```markdown
+```
 
 ### Step 4: Create Agent Module Stub
 
@@ -88,7 +88,7 @@ To implement:
 - agent.py: Claude Code subprocess execution
 - data_types.py: Pydantic request/response models
 """
-```markdown
+```
 
 ### Step 5: Create README
 
@@ -115,7 +115,7 @@ This directory contains the agentic layer for this project.
 Run workflows from project root:
 ```bash
 python adws/adw_prompt.py "Your prompt here"
-```text
+```
 
 ```
 
@@ -160,7 +160,7 @@ Report created structure:
 
 ### Time to Production
 Estimated 5-8 hours to complete MVP
-```markdown
+```
 
 ## Notes
 

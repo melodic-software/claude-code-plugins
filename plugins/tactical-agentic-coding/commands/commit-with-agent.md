@@ -10,7 +10,7 @@ Create a semantic commit message that attributes the work to the agent.
 
 ```text
 {agent}: {type}: {description}
-```yaml
+```
 
 Components:
 
@@ -24,7 +24,7 @@ Components:
 planner: feat: generate implementation plan for user auth
 implementor: feat: add OAuth authentication with Google provider
 committer: chore: update dependencies to latest versions
-```markdown
+```
 
 ## Standard Agent Names
 

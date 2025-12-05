@@ -1,3 +1,8 @@
+---
+description: Analyze a failed E2E test, fix the underlying issue, and verify the fix
+argument-hint: [test-result-json]
+---
+
 # Resolve Failed E2E Test
 
 Analyze a failed E2E test, fix the underlying issue, and verify the fix.
@@ -20,7 +25,7 @@ Expects a JSON object from the /test-e2e command:
   ],
   "error": "Step 8 failed: Results did not appear within 5 seconds"
 }
-```markdown
+```
 
 ## Instructions
 
@@ -86,7 +91,7 @@ Execute the original E2E test again:
 
 ```text
 /test-e2e {original_test_file}
-```markdown
+```
 
 **Success criteria**: Test status is "passed"
 
@@ -119,7 +124,7 @@ Report your resolution:
 
 ### Notes
 [Any observations or recommendations]
-```markdown
+```
 
 ## Retry Logic
 
@@ -140,4 +145,4 @@ This command is the **RESOLVE** phase for E2E:
 /test-e2e {spec} → [failure JSON] → /resolve-failed-e2e-test {result} → /test-e2e
                                                                             ↓
                                                                      [verify fix]
-```text
+```

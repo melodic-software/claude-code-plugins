@@ -1,6 +1,6 @@
 # Workflow SOP: TAC Plugin Lesson Processing
 
-**Version:** 1.0
+**Version:** 2.0
 **Last Updated:** 2025-12-04
 
 This SOP defines the 6-phase workflow for planning and implementing each TAC lesson as Claude Code ecosystem components.
@@ -63,6 +63,56 @@ Each lesson is processed through 6 phases:
 ### MANDATORY: Invoke `docs-management` skill
 
 Before finalizing ANY component design, you MUST invoke the `docs-management` skill to validate against official Claude Code documentation.
+
+**This is non-negotiable.** Every component must be validated against official canonical docs before implementation.
+
+### How to Invoke docs-management
+
+Use the Skill tool to invoke `claude-ecosystem:docs-management`, then run search queries:
+
+```bash
+# For skills validation
+python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search skill frontmatter allowed-tools
+
+# For agents validation
+python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search subagent tools array model
+
+# For commands validation
+python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search slash command frontmatter description
+
+# For hooks validation
+python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search hook events PreToolUse matcher
+```
+
+**Document your validation**: In the lesson plan's Validation Criteria section, record:
+- Which `docs-management` queries were invoked
+- What official documentation was retrieved
+- Any discrepancies found and how they were resolved
+
+### Official Documentation Key Findings
+
+Based on official Claude Code documentation (code.claude.com), here are the authoritative specifications:
+
+#### Skills (from official docs)
+
+- **Frontmatter fields**: `name` (max 64 chars, lowercase + hyphens), `description` (max 1024 chars)
+- **`allowed-tools`**: Comma-separated string (NOT array): `allowed-tools: Read, Grep, Glob`
+- **File**: `SKILL.md` in a directory under `skills/`
+- **Invocation**: Model-invoked (Claude decides when to use based on description)
+
+#### Agents/Subagents (from official docs)
+
+- **Frontmatter fields**: `name`, `description` (required), `tools` (optional), `model` (optional)
+- **`tools`**: Comma-separated list OR array format (both work per official docs): `tools: Read, Grep, Glob`
+- **`model`**: Valid values are `sonnet`, `opus`, `haiku`, `inherit` (default: configured subagent model, usually `sonnet`)
+- **Constraint**: Subagents CANNOT spawn other subagents
+
+#### Commands (from official docs)
+
+- **Location**: `.claude/commands/` (project) or `~/.claude/commands/` (user)
+- **Frontmatter**: `description`, `allowed-tools`, `argument-hint`, `model`, `disable-model-invocation`
+- **Arguments**: `$ARGUMENTS` (all args), `$1`, `$2`, etc. (positional)
+- **File references**: Use `@` prefix for file inclusion
 
 ### Component Validation Checks
 
@@ -252,6 +302,60 @@ Common transformations from course Python to Claude Agent SDK TypeScript:
 
 ---
 
+## Model Selection Guide
+
+**Opus 4.5 is the new workhorse** for complex tasks. Use the following guidance for TAC component model selection:
+
+### Agent Model Selection
+
+| Agent Type | Recommended Model | Rationale |
+| ------------ | ------------------- | ----------- |
+| **Orchestration agents** | `opus` | Complex multi-step coordination, master planning |
+| **Planning agents** | `opus` | Architecture decisions, implementation strategy |
+| **Implementation agents** | `sonnet` | Balanced quality and speed for code generation |
+| **Review agents** | `sonnet` | Thorough analysis with reasonable latency |
+| **Classification agents** | `haiku` | Fast, cost-efficient for simple decisions |
+| **Test runners** | `haiku` | Simple execution, minimal reasoning needed |
+| **Scout/exploration agents** | `haiku` | Fast codebase exploration |
+
+### TAC Agents to Use Opus
+
+The following TAC agents should use `opus` model due to their complexity:
+
+| Agent | Reason for Opus |
+| ------- | ----------------- |
+| `plan-generator` | Generates comprehensive implementation plans |
+| `plan-implementer` | Executes complex plans with validation |
+| `sdlc-planner` | Full SDLC planning requiring deep reasoning |
+| `orchestration-planner` | Multi-phase coordination design |
+| `workflow-coordinator` | Complex workflow management |
+| `workflow-designer` | Architectural workflow design |
+
+### When to Use Each Model
+
+```
+opus    → Orchestration, delegation, complex planning, master planning
+sonnet  → Implementation, review, moderate complexity
+haiku   → Fast tasks, classification, simple analysis, exploration
+inherit → When subagent should match parent conversation model
+```
+
+### Model Selection Decision Tree
+
+```
+Is the agent an orchestrator or planner?
+├── YES → Use opus
+└── NO
+    ├── Does it require complex reasoning or multi-step analysis?
+    │   ├── YES → Use sonnet
+    │   └── NO
+    │       ├── Is it classification, exploration, or simple execution?
+    │       │   ├── YES → Use haiku
+    │       │   └── NO → Default to sonnet
+```
+
+---
+
 ## Key Principles
 
 1. **docs-management MANDATORY**: For ALL Claude Code topics
@@ -260,6 +364,7 @@ Common transformations from course Python to Claude Agent SDK TypeScript:
 4. **No Duplicates**: Check existing plugins before creating
 5. **Single Source of Truth**: Link, don't duplicate
 6. **Actionable Components**: Provide real value, not just documentation
+7. **Model Selection**: Opus for orchestration/planning, Sonnet for implementation, Haiku for fast tasks
 
 ---
 

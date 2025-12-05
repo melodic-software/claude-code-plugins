@@ -27,7 +27,7 @@ Count only workflows that represent restarts:
 ```python
 attempts_incrementing = ["adw_plan_iso", "adw_patch_iso", "plan", "patch"]
 attempts = count(workflow for workflow in all_adws if any(inc in workflow for inc in attempts_incrementing))
-```markdown
+```
 
 Build, test, review don't count - only full replans.
 
@@ -35,7 +35,7 @@ Build, test, review don't count - only full replans.
 
 ```bash
 wc -l {plan_file}
-```markdown
+```
 
 Extract line count as plan_size.
 
@@ -43,7 +43,7 @@ Extract line count as plan_size.
 
 ```bash
 git diff origin/main --shortstat
-```markdown
+```
 
 Parse output to extract:
 
@@ -99,7 +99,7 @@ Report KPI update:
     "total_diff_size": 2340
   }
 }
-```markdown
+```
 
 ## Notes
 

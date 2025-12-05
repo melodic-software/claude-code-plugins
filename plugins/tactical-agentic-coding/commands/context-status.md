@@ -1,3 +1,7 @@
+---
+description: Show current context window state and consumption analysis
+---
+
 # Context Status
 
 Show current context window state and consumption analysis.
@@ -62,7 +66,7 @@ Provide status report:
 - [ ] Fresh instance (low history)
 - [ ] Focused context (relevant files only)
 - [ ] Controlled outputs (minimal verbosity)
-```markdown
+```
 
 ## Notes
 

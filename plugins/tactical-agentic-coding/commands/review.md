@@ -36,7 +36,7 @@ git diff origin/main --stat
 
 # See specific file changes
 git diff origin/main -- path/to/file
-```markdown
+```
 
 ### 3. Capture Screenshots (1-5)
 
@@ -91,7 +91,7 @@ Return ONLY JSON:
     "path/to/02_after_action.png"
   ]
 }
-```markdown
+```
 
 ## Success Criteria
 
@@ -129,6 +129,6 @@ This command is part of the SDLC:
 
 ```text
 /plan → /implement → /test → /review → /patch (if needed) → /document
-```text
+```
 
 If blockers are found, use `/patch` to create targeted fixes.

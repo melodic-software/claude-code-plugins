@@ -1,3 +1,8 @@
+---
+description: Analyze existing prompt and suggest improvements using the Seven Levels framework
+argument-hint: [prompt-file-path]
+---
+
 # Analyze Prompt
 
 Analyze existing prompt and suggest improvements.
@@ -109,7 +114,7 @@ Potential: Level [M] if [condition]
 ### Refactored Version (if requested)
 
 [Improved prompt structure]
-```markdown
+```
 
 ## Notes
 

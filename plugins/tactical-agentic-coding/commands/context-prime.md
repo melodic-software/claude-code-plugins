@@ -1,3 +1,8 @@
+---
+description: Load task-specific context dynamically based on task type (bug, feature, review, chore, research)
+argument-hint: [task-type]
+---
+
 # Context Prime
 
 Load task-specific context dynamically based on task type.
@@ -30,7 +35,7 @@ Parse `$ARGUMENTS` to determine task type:
 ```bash
 git status
 git ls-files | head -50
-```markdown
+```
 
 **Type-specific discovery:**
 
@@ -39,35 +44,35 @@ git ls-files | head -50
 ```bash
 git log --oneline -10
 git diff HEAD~5 --stat
-```markdown
+```
 
 **feature:**
 
 ```bash
 ls -la src/
 ls -la lib/
-```markdown
+```
 
 **review:**
 
 ```bash
 git diff --stat
 git log --oneline -5
-```markdown
+```
 
 **chore:**
 
 ```bash
 ls -la
 cat package.json | head -20  # or equivalent manifest
-```markdown
+```
 
 **research:**
 
 ```bash
 ls -la docs/ 2>/dev/null | | echo "No docs directory"
 ls -la ai_docs/ 2>/dev/null | | echo "No ai_docs directory"
-```markdown
+```
 
 ### Step 3: Load Essential Files
 
@@ -129,7 +134,7 @@ Summarize loaded context:
 ### Context Efficiency
 This priming loaded ~[X] tokens of task-specific context.
 Remaining capacity: [estimate]
-```markdown
+```
 
 ## Notes
 

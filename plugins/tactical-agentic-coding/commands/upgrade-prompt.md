@@ -1,3 +1,8 @@
+---
+description: Upgrade an existing prompt to a higher level
+argument-hint: [prompt-path] [target-level]
+---
+
 # Upgrade Prompt
 
 Upgrade an existing prompt to a higher level.
@@ -115,7 +120,7 @@ Apply additions:
 
 ```markdown
 [Updated prompt preview]
-```markdown
+```
 
 ### Validation
 

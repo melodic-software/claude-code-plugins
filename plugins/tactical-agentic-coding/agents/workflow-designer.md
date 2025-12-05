@@ -1,7 +1,7 @@
 ---
 description: Design workflow sections for prompts with appropriate control flow
 tools: [Read, Write, Glob]
-model: sonnet
+model: opus
 ---
 
 # Workflow Designer Agent

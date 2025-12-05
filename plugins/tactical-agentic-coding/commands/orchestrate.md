@@ -68,7 +68,7 @@ $ARGUMENTS - The task description to orchestrate
 ### Agent Commands
 
 [Draft command prompts for each agent]
-```markdown
+```
 
 ## SDK Note
 
@@ -79,8 +79,7 @@ $ARGUMENTS - The task description to orchestrate
 ```
 
 /orchestrate Add rate limiting to the authentication endpoints
-
-```markdown
+```
 
 ## Cross-References
 

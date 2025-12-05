@@ -1,7 +1,7 @@
 ---
 description: Generate implementation plans from GitHub issues for ADW workflows. Specialized for planning phase - analyzes issues, understands codebase, produces comprehensive specifications.
 tools: [Read, Write, Glob, Grep]
-model: sonnet
+model: opus
 ---
 
 # SDLC Planner Agent

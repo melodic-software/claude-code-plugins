@@ -1,3 +1,8 @@
+---
+description: Analyze a failed test, fix the underlying issue, and verify the fix
+argument-hint: [test-result-json]
+---
+
 # Resolve Failed Test
 
 Analyze a failed test, fix the underlying issue, and verify the fix.
@@ -18,7 +23,7 @@ Expects a JSON object from the /test command:
   "test_purpose": "Validates authentication functionality",
   "error": "AssertionError: Expected status 200, got 401"
 }
-```markdown
+```
 
 ## Instructions
 
@@ -44,7 +49,7 @@ Identify the root cause by understanding:
 ```bash
 # Run the exact command to confirm failure
 {execution_command}
-```markdown
+```
 
 Verify you see the same error. This ensures you're fixing the right problem.
 
@@ -63,7 +68,7 @@ Re-run the exact same execution_command:
 
 ```bash
 {execution_command}
-```markdown
+```
 
 **Success criteria**: Test now passes (exit code 0, no failures)
 
@@ -74,7 +79,7 @@ If the specific test passes, run the full test suite to check for regressions:
 ```bash
 # Run complete test suite
 [full test command]
-```markdown
+```
 
 ## Output Format
 
@@ -99,7 +104,7 @@ Report your resolution:
 
 ### Notes
 [Any observations or recommendations]
-```markdown
+```
 
 ## Retry Logic
 
@@ -120,4 +125,4 @@ This command is the **RESOLVE** phase:
 /test → [failure JSON] → /resolve-failed-test {result} → /test
                                                            ↓
                                                     [verify fix]
-```text
+```

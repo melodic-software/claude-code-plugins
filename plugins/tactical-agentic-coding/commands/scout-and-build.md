@@ -80,15 +80,14 @@ This command implements the two-phase pattern within Claude Code's subagent cons
 ### Next Steps
 
 [any remaining work or recommendations]
-```markdown
+```
 
 ## Example
 
 ```
 
 /scout-and-build Add user session timeout handling
-
-```markdown
+```
 
 ## Implementation Note
 

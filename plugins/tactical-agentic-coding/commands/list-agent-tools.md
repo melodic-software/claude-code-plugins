@@ -1,3 +1,7 @@
+---
+description: List available tools for custom agent configuration
+---
+
 # List Agent Tools
 
 List available tools for custom agent configuration.
@@ -53,7 +57,7 @@ Use when agent needs only specific tools:
 
 ```python
 allowed_tools=["Read", "Write", "Bash"]
-```markdown
+```
 
 ### Blacklist (disallowed_tools)
 
@@ -61,7 +65,7 @@ Use when agent needs most tools except some:
 
 ```python
 disallowed_tools=["WebFetch", "WebSearch", "Task"]
-```markdown
+```
 
 ### Disable All Default Tools
 
@@ -69,7 +73,7 @@ For agents with only custom tools:
 
 ```python
 disallowed_tools=["*"]
-```markdown
+```
 
 ### Custom Tools
 
@@ -78,7 +82,7 @@ Add via MCP server:
 ```python
 mcp_servers={"my_server": my_mcp_server}
 allowed_tools=["mcp__my_server__my_tool"]
-```yaml
+```
 
 Tool naming: `mcp__<server>__<tool>`
 
@@ -92,7 +96,7 @@ For focused, single-purpose agents:
 
 ```python
 allowed_tools=["Read"]  # Read-only exploration
-```markdown
+```
 
 ### Code Agent
 
@@ -100,7 +104,7 @@ For agents that modify code:
 
 ```python
 allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"]
-```markdown
+```
 
 ### Research Agent
 
@@ -108,7 +112,7 @@ For agents that gather information:
 
 ```python
 allowed_tools=["Read", "Glob", "Grep", "WebFetch", "WebSearch"]
-```markdown
+```
 
 ### Pure Custom Tools
 
@@ -118,7 +122,7 @@ For agents with only custom functionality:
 mcp_servers={"domain": domain_server}
 allowed_tools=["mcp__domain__tool1", "mcp__domain__tool2"]
 disallowed_tools=["*"]
-```markdown
+```
 
 ### Parallel Agent
 
@@ -126,7 +130,7 @@ For agents that spawn subagents:
 
 ```python
 allowed_tools=["Task", "Read", "Glob", "Grep"]
-```yaml
+```
 
 ---
 

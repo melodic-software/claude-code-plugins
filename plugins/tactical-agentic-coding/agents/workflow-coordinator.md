@@ -1,7 +1,7 @@
 ---
 description: Coordinate multi-phase workflows with phase transitions and result aggregation
 tools: [Read, Write, Bash]
-model: sonnet
+model: opus
 ---
 
 # Workflow Coordinator Agent

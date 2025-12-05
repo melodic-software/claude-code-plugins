@@ -51,7 +51,7 @@ Write the plan to `specs/chore-<descriptive-name>.md` using this exact format:
 
 ## Notes
 <Edge cases, dependencies, gotchas, or related work to consider>
-```markdown
+```
 
 ## Chore
 
