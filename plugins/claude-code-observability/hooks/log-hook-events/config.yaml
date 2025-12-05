@@ -80,10 +80,3 @@ logging:
     #   verbosity: summary
     # precompact:
     #   verbosity: full
-
-# Optional: Workflow correlation ID
-# Set via env var to correlate events across multiple sessions
-# Useful for tracking multi-session workflows
-# Env: CLAUDE_WORKFLOW_ID=my-feature-branch-work
-correlation:
-  workflow_id: null

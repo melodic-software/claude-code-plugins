@@ -28,7 +28,6 @@ def clear_config_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         "CLAUDE_HOOK_LOG_ROTATION_ENABLED",
         "CLAUDE_HOOK_LOG_ROTATION_MAX_SIZE_MB",
         "CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS",
-        "CLAUDE_WORKFLOW_ID",
     ]
     # Also clear per-event vars
     for event in log_event.VALID_EVENTS:
@@ -68,8 +67,6 @@ logging:
   rotation:
     enabled: false
   events: {}
-correlation:
-  workflow_id: null
 """)
 
     def mock_get_log_dir() -> Path:
@@ -435,71 +432,6 @@ logging:
     # Verify entry was appended to base file
     base_content = base_file.read_text(encoding="utf-8")
     assert "test123" in base_content
-
-
-# =============================================================================
-# Workflow ID Tests
-# =============================================================================
-
-
-def test_workflow_id_in_summary_entry(
-    temp_log_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that workflow_id is included in summary entries when configured."""
-    log_event._config_cache = None
-    monkeypatch.setenv("CLAUDE_HOOK_LOG_VERBOSITY", "summary")
-    monkeypatch.setenv("CLAUDE_WORKFLOW_ID", "my-feature-work")
-
-    event_name = "pretooluse"
-    stdin_data = {"session_id": "test123", "tool_name": "Read"}
-
-    log_event.log_event(event_name, stdin_data)
-
-    event_dir = temp_log_dir / event_name
-    log_file = list(event_dir.glob("*.jsonl"))[0]
-    log_entry = json.loads(log_file.read_text(encoding="utf-8").strip())
-
-    assert log_entry.get("workflow_id") == "my-feature-work"
-
-
-def test_workflow_id_in_full_entry(
-    temp_log_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that workflow_id is included in full entries when configured."""
-    log_event._config_cache = None
-    monkeypatch.setenv("CLAUDE_HOOK_LOG_VERBOSITY", "full")
-    monkeypatch.setenv("CLAUDE_WORKFLOW_ID", "my-feature-work")
-
-    event_name = "pretooluse"
-    stdin_data = {"session_id": "test123", "tool_name": "Read"}
-
-    log_event.log_event(event_name, stdin_data)
-
-    event_dir = temp_log_dir / event_name
-    log_file = list(event_dir.glob("*.jsonl"))[0]
-    log_entry = json.loads(log_file.read_text(encoding="utf-8").strip())
-
-    assert log_entry.get("workflow_id") == "my-feature-work"
-
-
-def test_workflow_id_not_present_when_not_configured(
-    temp_log_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that workflow_id is not present when not configured."""
-    log_event._config_cache = None
-    monkeypatch.setenv("CLAUDE_HOOK_LOG_VERBOSITY", "summary")
-    # Ensure CLAUDE_WORKFLOW_ID is not set (cleared by autouse fixture)
-
-    event_name = "pretooluse"
-    stdin_data = {"session_id": "test123", "tool_name": "Read"}
-
-    log_event.log_event(event_name, stdin_data)
-
-    event_dir = temp_log_dir / event_name
-    log_file = list(event_dir.glob("*.jsonl"))[0]
-    log_entry = json.loads(log_file.read_text(encoding="utf-8").strip())
-
-    assert "workflow_id" not in log_entry
 
 
 # =============================================================================

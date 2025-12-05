@@ -93,9 +93,6 @@ def _get_default_config() -> dict:
                 "max_age_days": 30
             },
             "events": {}
-        },
-        "correlation": {
-            "workflow_id": None
         }
     }
 
@@ -126,7 +123,6 @@ def _apply_env_overrides(config: dict) -> None:
          lambda x: x.lower() in ("1", "true")),
         ("CLAUDE_HOOK_LOG_ROTATION_MAX_SIZE_MB", ["logging", "rotation", "max_file_size_mb"], int),
         ("CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS", ["logging", "retention", "max_age_days"], int),
-        ("CLAUDE_WORKFLOW_ID", ["correlation", "workflow_id"], str),
     ]
 
     for env_key, path, converter in env_mappings:
@@ -295,11 +291,6 @@ def format_summary_entry(event_name: str, stdin_data: dict, duration_ms: int,
     if "cwd" in stdin_data:
         entry["cwd"] = stdin_data["cwd"]
 
-    # Add workflow_id if configured
-    workflow_id = config.get("correlation", {}).get("workflow_id")
-    if workflow_id:
-        entry["workflow_id"] = workflow_id
-
     return entry
 
 
@@ -310,7 +301,7 @@ def format_full_entry(event_name: str, stdin_data: dict, duration_ms: int,
 
     Includes complete stdin payload (current/legacy behavior).
     """
-    entry = {
+    return {
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "event": event_name,
         "stdin": stdin_data,
@@ -318,13 +309,6 @@ def format_full_entry(event_name: str, stdin_data: dict, duration_ms: int,
         "exit_code": 0,
         "duration_ms": duration_ms
     }
-
-    # Add workflow_id if configured
-    workflow_id = config.get("correlation", {}).get("workflow_id")
-    if workflow_id:
-        entry["workflow_id"] = workflow_id
-
-    return entry
 
 
 def format_entry(event_name: str, stdin_data: dict, duration_ms: int,

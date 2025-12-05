@@ -1,10 +1,11 @@
 ---
 name: code-reviewer
-description: PROACTIVELY use for code quality analysis before commits or PRs. Reviews for bugs, security issues, performance problems, style violations, and CLAUDE.md compliance. Read-only - returns structured review with severity levels. Uses the code-quality:code-reviewing skill for comprehensive checklist-driven analysis including repository-specific rules.
-tools: Read, Glob, Grep
+description: PROACTIVELY use for code quality analysis before commits or PRs. Reviews for bugs, security issues, performance problems, style violations, and CLAUDE.md compliance. Read-only with plan mode - returns structured review with severity levels. Uses the code-quality:code-reviewing skill for comprehensive checklist-driven analysis including repository-specific rules.
+tools: Read, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git status:*), Bash(git show:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git diff-tree:*), Bash(npm run lint:*), Bash(npm run test:*), Bash(npm test:*), Bash(npx eslint:*), Bash(npx prettier --check:*), Bash(npx tsc --noEmit:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m py_compile:*), Bash(ruff check:*), Bash(mypy:*), Bash(pyright:*), Bash(black --check:*), Bash(flake8:*), Bash(bandit:*), Bash(cargo test:*), Bash(cargo clippy:*), Bash(rustfmt --check:*), Bash(go test:*), Bash(golangci-lint run:*), Bash(gofmt -d:*), Bash(shellcheck:*), Bash(hadolint:*), Bash(checkov:*), Bash(trivy:*)
 model: opus
 color: blue
 skills: code-quality:code-reviewing
+permissionMode: plan
 ---
 
 # Code Reviewer Agent
