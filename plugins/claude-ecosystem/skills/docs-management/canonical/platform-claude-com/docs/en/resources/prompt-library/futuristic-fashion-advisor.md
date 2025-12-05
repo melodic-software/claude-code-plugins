@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/futuristic-fashion-advisor
 source_type: sitemap
 content_hash: sha256:5933d78a781f7a3a6c66c95fc4394907d7d7ea2385a7cb0c4c3d54d13e9ab6fc
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

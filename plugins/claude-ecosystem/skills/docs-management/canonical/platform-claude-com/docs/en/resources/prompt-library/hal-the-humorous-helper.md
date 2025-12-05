@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/hal-the-humorous-helper
 source_type: sitemap
 content_hash: sha256:2b0725fdaa2276803e21779a0d07074984a7175f9a16e214b210b1d8ad129d87
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

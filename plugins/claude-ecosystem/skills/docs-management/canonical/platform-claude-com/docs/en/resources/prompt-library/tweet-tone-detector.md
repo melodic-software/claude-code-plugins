@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/tweet-tone-detector
 source_type: sitemap
 content_hash: sha256:7b8213da2ba7d96fe33e971507f7609292cc4bb03b7ccc5f22cec4255a444d9f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

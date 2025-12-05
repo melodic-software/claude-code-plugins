@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/remote-mcp-servers
 source_type: sitemap
 content_hash: sha256:42aeab377e3bd764a9661a58119f60b92a3da01cdcd96feefd935df1c4b47c98
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

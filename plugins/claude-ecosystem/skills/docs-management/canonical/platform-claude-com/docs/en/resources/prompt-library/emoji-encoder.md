@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/emoji-encoder
 source_type: sitemap
 content_hash: sha256:0934f0c4b18e3de4108ec711410037e1d7707dfc56248dec03445c042ce7565a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

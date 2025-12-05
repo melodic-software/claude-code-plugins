@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/cosmic-keystrokes
 source_type: sitemap
 content_hash: sha256:d4c1c03f2c46964693d077cced10b57f3675127c49425882571c6a7c1cd2dc32
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

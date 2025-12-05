@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/cost-tracking
 source_type: sitemap
 content_hash: sha256:e121e5a104baf34523139c01349332239a861fdf2f32541732395f7a1b6e820b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

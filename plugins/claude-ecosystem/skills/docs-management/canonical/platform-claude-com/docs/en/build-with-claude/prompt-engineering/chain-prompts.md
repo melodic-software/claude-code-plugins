@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/chain-prompts
 source_type: sitemap
 content_hash: sha256:733c4480b4bd10b3da2d9771f2cebda7b00c82b5cc8a6be655b7db84e9ee6e71
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

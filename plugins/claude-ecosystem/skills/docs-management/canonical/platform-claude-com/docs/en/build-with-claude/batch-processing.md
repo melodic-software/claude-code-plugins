@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/batch-processing
 source_type: sitemap
 content_hash: sha256:14943d2ee43211736fae184082bd16e5604e29ed2b0cac223f68c3d65d0c5ef5
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

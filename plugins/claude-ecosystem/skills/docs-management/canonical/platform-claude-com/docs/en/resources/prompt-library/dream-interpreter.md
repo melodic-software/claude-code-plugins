@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/dream-interpreter
 source_type: sitemap
 content_hash: sha256:82fe472381a309c99b34a44f90bd5371726134dd43ad63c06134005f1ca2611d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/lesson-planner
 source_type: sitemap
 content_hash: sha256:3c354cb32fa4c65eb261e3ff28e4662eb44fe712688d489035d3944bae25eea0
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

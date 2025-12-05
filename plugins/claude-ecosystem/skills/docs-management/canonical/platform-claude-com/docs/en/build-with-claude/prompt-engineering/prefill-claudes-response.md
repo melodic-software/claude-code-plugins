@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prefill-claudes-response
 source_type: sitemap
 content_hash: sha256:2c5aa179428c3bf057f2cd7754b37f830948f9a5aea3fe8d24a38ad974e9f8bb
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry
 source_type: sitemap
 content_hash: sha256:363374eecb2af300724af3eecb971319d4bec075655a867f9847fbeb84831bd0
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

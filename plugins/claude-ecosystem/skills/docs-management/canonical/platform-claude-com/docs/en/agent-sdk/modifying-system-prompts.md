@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/modifying-system-prompts
 source_type: sitemap
 content_hash: sha256:9c9d87fbfd8e7c6bc7a4be28462d1527fdcaa4267c124b09d4096677c05ff54a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

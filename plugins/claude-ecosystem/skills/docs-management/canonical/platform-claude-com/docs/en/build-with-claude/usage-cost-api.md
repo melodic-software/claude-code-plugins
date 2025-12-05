@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/usage-cost-api
 source_type: sitemap
 content_hash: sha256:8872f6bd448c74db066e867d0d6ab55d2075b9d1f97f00c202805adf6763c426
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

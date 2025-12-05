@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/meeting-scribe
 source_type: sitemap
 content_hash: sha256:e85f4ab696c031f826ff4d33454f7bf9be44b46644b030b390c673422628f793
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

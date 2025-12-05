@@ -276,10 +276,20 @@ def mock_http_response():
 
 
 @pytest.fixture(autouse=True)
-def reset_config_cache():
-    """Reset all config and singleton state before each test."""
+def reset_config_cache(request):
+    """Reset all config and singleton state before each test.
+
+    NOTE: Tests marked with @pytest.mark.no_config_reset will skip this fixture.
+    This is needed for integration tests that depend on stable config state,
+    such as search relevance tests that use the actual canonical index.
+    """
     import sys
-    
+
+    # Skip for tests marked with no_config_reset
+    if request.node.get_closest_marker('no_config_reset'):
+        yield
+        return
+
     # Clear config registry cache
     try:
         from config.config_registry import get_registry, ConfigRegistry

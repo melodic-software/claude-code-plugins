@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/riddle-me-this
 source_type: sitemap
 content_hash: sha256:4a27d327cc9266d595131e4e9ef50e34289802bc7d4820db735d72ff5b931956
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

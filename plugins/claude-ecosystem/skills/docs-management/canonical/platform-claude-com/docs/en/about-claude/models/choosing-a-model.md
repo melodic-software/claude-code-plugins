@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/models/choosing-a-model
 source_type: sitemap
 content_hash: sha256:16aa3e0201d636077e7f2d6db861bad601ceca55dd168abe87e105f22f1b9413
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

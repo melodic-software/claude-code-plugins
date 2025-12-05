@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/latex-legend
 source_type: sitemap
 content_hash: sha256:c5557c90ac24ec89d5f32208d5e26439c605239224b53b03d1f560fce67b0d2f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

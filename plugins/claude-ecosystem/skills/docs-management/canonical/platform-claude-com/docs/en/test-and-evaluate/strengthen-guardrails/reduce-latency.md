@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-latency
 source_type: sitemap
 content_hash: sha256:c31a3c759ebc7d15aca097b7fa22758ecc43a59fe9acdff0f123f9cfcd3505bf
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

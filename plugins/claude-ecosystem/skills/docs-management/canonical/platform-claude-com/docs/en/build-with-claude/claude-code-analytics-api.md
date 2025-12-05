@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/claude-code-analytics-api
 source_type: sitemap
 content_hash: sha256:65b65e2d21fe9b0a176869ba1af9ec48ed96dcef69127ffe790eb77846288134
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

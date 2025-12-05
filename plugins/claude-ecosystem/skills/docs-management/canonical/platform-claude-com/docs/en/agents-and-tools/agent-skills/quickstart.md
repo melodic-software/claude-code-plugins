@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/quickstart
 source_type: sitemap
 content_hash: sha256:7de0ed8d46d33ff6f14320de1c4d2ca9a6973efc24087af9daeb692852396e41
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

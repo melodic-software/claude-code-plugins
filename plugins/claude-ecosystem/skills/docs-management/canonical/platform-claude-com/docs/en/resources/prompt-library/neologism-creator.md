@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/neologism-creator
 source_type: sitemap
 content_hash: sha256:5e11f424b118022acba486bde861736f4c8f49b38aadc88c60fbf19b31dd61f4
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

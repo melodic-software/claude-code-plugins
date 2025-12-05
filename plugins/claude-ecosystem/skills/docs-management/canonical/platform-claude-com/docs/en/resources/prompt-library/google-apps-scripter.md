@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/google-apps-scripter
 source_type: sitemap
 content_hash: sha256:4d949abdade2bcbc3f2931874384ec619177fb048a9c1a826ccbe58af976c47f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

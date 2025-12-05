@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/admin/workspaces/members/retrieve
 source_type: sitemap
 content_hash: sha256:3cc27fd4adf2561df0c49d29f8b4b0ea9b5449d8c9876e665d1103dc324a3347
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

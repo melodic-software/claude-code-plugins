@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/release-notes/system-prompts
 source_type: sitemap
 content_hash: sha256:8377ee2de42da290b8e675e67a2e434c1d79ba39a5cf41d47459555160f8e4fc
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 published_at: '2025-11-24'
 ---

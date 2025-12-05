@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/master-moderator
 source_type: sitemap
 content_hash: sha256:d3acf4e2a609a7e950b088248353230cf55d2efceec971d628c169b0ade20761
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

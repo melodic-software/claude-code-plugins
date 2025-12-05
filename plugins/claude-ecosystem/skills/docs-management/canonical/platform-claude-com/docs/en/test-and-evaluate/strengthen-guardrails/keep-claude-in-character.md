@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/keep-claude-in-character
 source_type: sitemap
 content_hash: sha256:49d1f25c93c8a5d9c532419a4404a8f060a0a6ef430e6d39a9d5875856882421
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/context-editing
 source_type: sitemap
 content_hash: sha256:c3d46d46b585f5b3bdc80e66b132af3091735f6703c0b19207a523c263a15801
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

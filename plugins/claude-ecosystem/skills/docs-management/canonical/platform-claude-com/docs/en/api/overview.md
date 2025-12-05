@@ -1,8 +1,8 @@
 ---
 source_url: https://platform.claude.com/docs/en/api/overview
 source_type: sitemap
-content_hash: sha256:c4b93c016e13b34fa23ba9ec5b249d5fd06018ea5820ef403c78214a9d2b57a0
-sitemap_url: https://docs.claude.com/sitemap.xml
+content_hash: sha256:6793977dd2072368724ca442f24e0230eee8711bfa13cada83d12a40dddd5669
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 
@@ -37,7 +37,7 @@ The Claude API includes the following APIs:
 
 **Beta:**
 - **[Files API](/docs/en/api/files-create)**: Upload and manage files for use across multiple API calls (`POST /v1/files`, `GET /v1/files`)
-- **[Skills API](/docs/en/api/skills-create)**: Create and manage custom agent skills (`POST /v1/skills`, `GET /v1/skills`)
+- **[Skills API](/docs/en/api/skills/create-skill)**: Create and manage custom agent skills (`POST /v1/skills`, `GET /v1/skills`)
 
 For the complete API reference with all endpoints, parameters, and response schemas, explore the API reference pages listed in the navigation. To access beta features, see [Beta headers](/docs/en/api/beta-headers).
 

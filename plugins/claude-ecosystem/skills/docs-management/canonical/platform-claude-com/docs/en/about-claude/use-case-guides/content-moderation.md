@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/use-case-guides/content-moderation
 source_type: sitemap
 content_hash: sha256:847629989210ba82386d535d2d569613673ee3de8df16109e168040766cacaf0
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

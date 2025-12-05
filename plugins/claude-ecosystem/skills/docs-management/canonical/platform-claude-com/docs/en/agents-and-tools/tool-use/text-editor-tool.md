@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/text-editor-tool
 source_type: sitemap
 content_hash: sha256:2ecccf74784ace9e0aa65fee99cd6cbfbdcc3b7c25a66b7652a08d71f2001876
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

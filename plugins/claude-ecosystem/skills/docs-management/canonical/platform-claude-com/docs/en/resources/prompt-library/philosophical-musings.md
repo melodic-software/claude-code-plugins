@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/philosophical-musings
 source_type: sitemap
 content_hash: sha256:f3a69942bddbacf58c54c38622d70a701fa534a096864dab73817a76329a268e
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

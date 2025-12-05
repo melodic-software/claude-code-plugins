@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/mood-colorizer
 source_type: sitemap
 content_hash: sha256:0d25fa39d685c1e5bb23ad3f441508d50f9375be05a1b4ace5d4e155ce481309
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

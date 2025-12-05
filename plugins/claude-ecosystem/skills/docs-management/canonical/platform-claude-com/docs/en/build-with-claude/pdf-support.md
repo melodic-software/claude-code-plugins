@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/pdf-support
 source_type: sitemap
 content_hash: sha256:1adc9442c82430562207772d2cee24a6e0c03353b7aba8c73091fef0d8225b8b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

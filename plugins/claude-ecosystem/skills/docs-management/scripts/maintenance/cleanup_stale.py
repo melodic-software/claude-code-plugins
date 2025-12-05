@@ -315,7 +315,7 @@ Examples:
                        help='Skip confirmation prompt (use with caution)')
     parser.add_argument('--output', help='Filter by output subdirectory (e.g., platform-docs)')
     
-    from cli_utils import add_base_dir_argument, resolve_base_dir_from_args
+    from utils.cli_utils import add_base_dir_argument, resolve_base_dir_from_args
     add_base_dir_argument(parser)
 
     args = parser.parse_args()

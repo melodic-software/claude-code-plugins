@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/extended-thinking
 source_type: sitemap
 content_hash: sha256:575503bb6ad1975342e7ce0272872495037caeb900c9c327d075e9d0cac0d69a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

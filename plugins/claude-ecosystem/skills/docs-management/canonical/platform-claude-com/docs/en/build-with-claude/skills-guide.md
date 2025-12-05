@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/skills-guide
 source_type: sitemap
 content_hash: sha256:4d2947772f3669989ab33d46a7194041c4a55f130dbedfaf566c94be72ad3581
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

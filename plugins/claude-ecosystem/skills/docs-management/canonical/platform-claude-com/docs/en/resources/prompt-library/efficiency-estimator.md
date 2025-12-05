@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/efficiency-estimator
 source_type: sitemap
 content_hash: sha256:f54eeff7f17832e801f3e96e9be7b749658f30ace1acba361947e7d385dd69e3
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

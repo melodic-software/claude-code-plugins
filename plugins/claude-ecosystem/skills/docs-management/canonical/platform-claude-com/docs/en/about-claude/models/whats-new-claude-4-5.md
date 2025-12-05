@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-5
 source_type: sitemap
 content_hash: sha256:4b5be0e9e17eac4da2015079092f79d5742dc2659a2de72efbaeb01361ed6223
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

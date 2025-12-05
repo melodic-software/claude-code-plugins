@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/python-bug-buster
 source_type: sitemap
 content_hash: sha256:2251cb7bf894065b8e333d041b1a06afd34561f92a64c1be26792462a8f98d43
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

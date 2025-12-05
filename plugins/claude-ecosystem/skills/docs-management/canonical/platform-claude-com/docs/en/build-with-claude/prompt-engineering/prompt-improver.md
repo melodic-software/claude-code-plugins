@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompt-improver
 source_type: sitemap
 content_hash: sha256:f2a3ce20f8f04f2a2b09215abf9ec0bded3787f82019e4a71bb97e353e2c22dd
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/long-context-tips
 source_type: sitemap
 content_hash: sha256:c848861729c5fa653b158d6edd835da2310c38c920e50171d68e7172e69acae8
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

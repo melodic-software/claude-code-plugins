@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/use-case-guides/customer-support-chat
 source_type: sitemap
 content_hash: sha256:e3c532c1010824644b46cf7f55286e456943184de21ed2958f70cbeb6ed4dc02
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

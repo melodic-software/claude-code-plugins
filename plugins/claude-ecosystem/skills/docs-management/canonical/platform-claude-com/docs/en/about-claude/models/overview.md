@@ -1,8 +1,8 @@
 ---
 source_url: https://platform.claude.com/docs/en/about-claude/models/overview
 source_type: sitemap
-content_hash: sha256:4d7c9f6ebb40e1655c6296b4b4ea258696a3bd0708a56abf7639d254ed29a1fe
-sitemap_url: https://docs.claude.com/sitemap.xml
+content_hash: sha256:2c76fce1cf7ec0c1cedd672b172a8ec2e057613f1df5cba7b5f1e91eaa3bc68e
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 
@@ -24,7 +24,7 @@ Once you've picked a model, [learn how to make your first API call](/docs/en/get
 
 | Feature | Claude Sonnet 4.5 | Claude Haiku 4.5 | Claude Opus 4.5 |
 |:--------|:------------------|:-----------------|:----------------|
-| **Description** | Our smartest model for complex agents and coding | Our fastest model with near-frontier intelligence | Premium model combining maximum intelligence with practical performance |
+| **Description** | Our smart model for complex agents and coding | Our fastest model with near-frontier intelligence | Premium model combining maximum intelligence with practical performance |
 | **Claude API ID** | claude-sonnet-4-5-20250929 | claude-haiku-4-5-20251001 | claude-opus-4-5-20251101 |
 | **Claude API alias**<sup>1</sup> | claude-sonnet-4-5 | claude-haiku-4-5 | claude-opus-4-5 |
 | **AWS Bedrock ID** | anthropic.claude-sonnet-4-5-20250929-v1:0 | anthropic.claude-haiku-4-5-20251001-v1:0 | anthropic.claude-opus-4-5-20251101-v1:0 |

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/time-travel-consultant
 source_type: sitemap
 content_hash: sha256:37ab985312ed12f36317839b74209dd6f4c26f85c34ca7fbb42bb7c21ab9e44a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

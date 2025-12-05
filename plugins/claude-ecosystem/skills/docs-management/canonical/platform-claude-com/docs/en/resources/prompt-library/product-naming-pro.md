@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/product-naming-pro
 source_type: sitemap
 content_hash: sha256:27549b1ad30ea12d9f302debd8766c08d0bb5dd77d3f236f6e0e60f840955e45
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

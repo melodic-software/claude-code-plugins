@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/data-organizer
 source_type: sitemap
 content_hash: sha256:dc5571c48595687d0b8eed5f1104152a56b95b42bcabab0d23f758c0a64a826b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

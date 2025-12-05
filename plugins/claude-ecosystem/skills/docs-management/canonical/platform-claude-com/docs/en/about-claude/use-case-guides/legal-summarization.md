@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/use-case-guides/legal-summarization
 source_type: sitemap
 content_hash: sha256:d7f69fbc9d48768361b3b2a776128c8b78f8c652fca28ba4db4157ec121b4d0f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

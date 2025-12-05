@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/alliteration-alchemist
 source_type: sitemap
 content_hash: sha256:6b6db2549efc754d43adacedf6d952f78095bdc7321541998bfdacda3c873c6c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

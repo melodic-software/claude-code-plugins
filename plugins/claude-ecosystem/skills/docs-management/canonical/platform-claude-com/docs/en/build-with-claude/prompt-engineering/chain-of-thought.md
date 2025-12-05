@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/chain-of-thought
 source_type: sitemap
 content_hash: sha256:297a74968ca6104996c6c4e298d206fdc890786e8c3862a4025c14daaa5b5324
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

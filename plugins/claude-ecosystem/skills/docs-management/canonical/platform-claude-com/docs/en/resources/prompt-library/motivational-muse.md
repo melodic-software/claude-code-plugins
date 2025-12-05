@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/motivational-muse
 source_type: sitemap
 content_hash: sha256:57f44075b1f043025d4468867482776b61c363979a0634c6cd3f5572656e85b9
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

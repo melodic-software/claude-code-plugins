@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/use-xml-tags
 source_type: sitemap
 content_hash: sha256:3ac65b4781071ccdb21d970473e72fb0d8e046d92a40c4e88835ba01409d71a5
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

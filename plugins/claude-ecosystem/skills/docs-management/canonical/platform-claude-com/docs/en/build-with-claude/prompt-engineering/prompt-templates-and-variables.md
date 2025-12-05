@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompt-templates-and-variables
 source_type: sitemap
 content_hash: sha256:5d0c29e305d38e5aff251b4a380f4e23328d18ba237b4dac4fdfa1a484db7776
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

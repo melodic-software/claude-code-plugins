@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool
 source_type: sitemap
 content_hash: sha256:fbb6903d51fc6421ddd27f7e02fb89c60cde2bbbfc6f3bf73da7e3663c59979b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

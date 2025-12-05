@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/mcp-connector
 source_type: sitemap
 content_hash: sha256:3a29aa52ce216887e70f38aecb51bf4f954746e038c8896ca7ffb6e148eab485
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

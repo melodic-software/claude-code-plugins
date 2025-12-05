@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/multishot-prompting
 source_type: sitemap
 content_hash: sha256:0c65f2658a9646a987968328a294203f7688f65b12b180282b7f2baa5ead42e8
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

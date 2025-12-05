@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/corporate-clairvoyant
 source_type: sitemap
 content_hash: sha256:4f8efe1bcfbf8031c9832968e0e9fe26e44091224592f12d14c7c08a518c2b86
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 published_at: '2024-03-04'
 ---

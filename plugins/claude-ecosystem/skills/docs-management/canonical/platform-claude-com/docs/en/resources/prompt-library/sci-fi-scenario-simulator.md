@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/sci-fi-scenario-simulator
 source_type: sitemap
 content_hash: sha256:ef4e45109b8acf4c671145140fc7d21663b661a0036c8a0f47c1451b0fde2f33
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/vr-fitness-innovator
 source_type: sitemap
 content_hash: sha256:550b5521292d3b25baa0cc15280cb31eea23ff97e9a91f19be381ac50ff12c1d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

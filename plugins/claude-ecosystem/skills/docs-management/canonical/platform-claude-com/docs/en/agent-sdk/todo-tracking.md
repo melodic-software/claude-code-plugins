@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/todo-tracking
 source_type: sitemap
 content_hash: sha256:394203a75f7e50a29fc636337c61425fda55dbfe6659b8f96aa139cef6eb0adf
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

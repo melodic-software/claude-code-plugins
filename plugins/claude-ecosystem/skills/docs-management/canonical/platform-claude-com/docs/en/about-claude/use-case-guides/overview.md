@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/use-case-guides/overview
 source_type: sitemap
 content_hash: sha256:43239e353a3665f7f27444745f3ff3b76094016a7948fb6de3b2565925404d0b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

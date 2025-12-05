@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/context-windows
 source_type: sitemap
 content_hash: sha256:5f3b0721e663a0e34358283e7ffa6ad249366fa1ef7c3cbfbc67d12eb7ee2a3f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

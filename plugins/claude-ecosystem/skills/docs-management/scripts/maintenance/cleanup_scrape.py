@@ -129,7 +129,7 @@ Examples:
         """
     )
     
-    from cli_utils import add_base_dir_argument, resolve_base_dir_from_args
+    from utils.cli_utils import add_base_dir_argument, resolve_base_dir_from_args
 
     parser.add_argument('--output', required=True,
                        help='Output directory to cleanup (relative to base-dir)')

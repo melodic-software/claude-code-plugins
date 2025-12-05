@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/multilingual-support
 source_type: sitemap
 content_hash: sha256:2acbb2dbbcf90e158972d2901a7d4ceac97787f0b7d9112a31bdc0414b6f0e34
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

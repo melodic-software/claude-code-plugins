@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/permissions
 source_type: sitemap
 content_hash: sha256:62218d7040353baffdad98d3a89a61801e703a80651b825f52926afbdb754a3d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

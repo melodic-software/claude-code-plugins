@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use
 source_type: sitemap
 content_hash: sha256:040d78f5b821af0f1159fb46203156b844058a8a35f47bfd2a9329dcd1998557
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

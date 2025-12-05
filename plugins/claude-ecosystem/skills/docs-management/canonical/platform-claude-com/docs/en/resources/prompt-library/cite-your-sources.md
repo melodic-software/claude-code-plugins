@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/cite-your-sources
 source_type: sitemap
 content_hash: sha256:ca53b8c83d1f727f65c18c1a4e587e738de3f761eeb469c028b580e5cec9dd63
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 published_at: '2018-12-31'
 ---

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/admin/users/delete
 source_type: sitemap
 content_hash: sha256:6635dd6d4c0dea6a9b4156954e5ec252aec559d43b25fe38cbed4cae4f877132
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

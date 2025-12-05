@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/openai-sdk
 source_type: sitemap
 content_hash: sha256:501791395f04e657f0dc086ff677e232a3c4825adcd674c603ad127c815cd9fb
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

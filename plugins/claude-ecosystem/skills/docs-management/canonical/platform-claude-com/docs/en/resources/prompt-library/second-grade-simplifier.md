@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/second-grade-simplifier
 source_type: sitemap
 content_hash: sha256:2435e35c345a5a7d4ccc295281c34facba5f15ca3bec10878635d150d6459fda
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

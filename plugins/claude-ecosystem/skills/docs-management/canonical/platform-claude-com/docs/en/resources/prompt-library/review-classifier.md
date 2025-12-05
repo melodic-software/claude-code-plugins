@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/review-classifier
 source_type: sitemap
 content_hash: sha256:ff59112daa0fa13008a64a23d5cd2e96fbf29e60f7f3263acc27d05bcd432341
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

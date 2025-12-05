@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/citations
 source_type: sitemap
 content_hash: sha256:a5a13e85921e891a29bc6f2cbca321bca2b602b03294dd76975bd9dd60584c1c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

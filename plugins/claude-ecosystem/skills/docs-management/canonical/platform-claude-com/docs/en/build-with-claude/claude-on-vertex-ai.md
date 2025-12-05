@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai
 source_type: sitemap
 content_hash: sha256:9ccc8f9ef0b86d2b061173294f15c1bdacae52eb47d2957fee2df2dcce64d03b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

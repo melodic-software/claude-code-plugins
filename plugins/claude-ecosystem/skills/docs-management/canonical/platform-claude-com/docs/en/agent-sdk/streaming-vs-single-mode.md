@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/streaming-vs-single-mode
 source_type: sitemap
 content_hash: sha256:936bba60eba33a99bf858a981dc6c0ce9d8a0769a4269f68ad41b1d540599168
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

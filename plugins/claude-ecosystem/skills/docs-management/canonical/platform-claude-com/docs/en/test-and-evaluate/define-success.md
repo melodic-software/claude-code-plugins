@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/define-success
 source_type: sitemap
 content_hash: sha256:8bc68de1743a9d7b6ed3f93ab2fdcb99948a8efbe4de29f770b39270d7157989
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

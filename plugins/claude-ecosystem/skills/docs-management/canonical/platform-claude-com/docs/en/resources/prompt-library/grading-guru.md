@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/grading-guru
 source_type: sitemap
 content_hash: sha256:66c9f32161451f686c2bbbddd1900aa8f81df7bf2e35d44d67f01afbfa3f176e
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

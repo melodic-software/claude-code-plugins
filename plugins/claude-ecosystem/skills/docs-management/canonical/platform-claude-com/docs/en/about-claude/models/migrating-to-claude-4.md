@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/models/migrating-to-claude-4
 source_type: sitemap
 content_hash: sha256:f1a3edea5311e7286cfa487a0db47e5bcbe2ac63f80ec827c07202e0ab835447
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

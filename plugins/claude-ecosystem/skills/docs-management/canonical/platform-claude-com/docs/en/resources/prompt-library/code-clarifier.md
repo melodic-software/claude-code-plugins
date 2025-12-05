@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/code-clarifier
 source_type: sitemap
 content_hash: sha256:7ecb24c6e055e99b07e59a871366f8f32c1467d254af8bdbceadaef08cf8143c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

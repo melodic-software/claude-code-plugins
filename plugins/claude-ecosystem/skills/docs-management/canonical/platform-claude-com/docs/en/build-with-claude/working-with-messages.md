@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/working-with-messages
 source_type: sitemap
 content_hash: sha256:31c3ab9c3d68c89f71c39d4e2a23b6ac5250eede9d27e03e5d3667775ef7e81e
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

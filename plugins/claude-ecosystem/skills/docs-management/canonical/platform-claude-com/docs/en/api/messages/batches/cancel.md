@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/messages/batches/cancel
 source_type: sitemap
 content_hash: sha256:c19475e0ac7b4a7070820ef170a050547a9b146d96b13f5f305f6cbbd8653e8e
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

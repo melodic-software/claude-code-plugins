@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/token-counting
 source_type: sitemap
 content_hash: sha256:b4d7ca0b84c1ef373333a9b9112154c29d7f663296f3331fff27e5f47265eb64
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

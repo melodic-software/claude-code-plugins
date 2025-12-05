@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/ip-addresses
 source_type: sitemap
 content_hash: sha256:516e1374410cd4c922e00e1c19cd3e9e43ff330faae2aa417f33b78ae5610ff7
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 published_at: '2026-01-05'
 ---

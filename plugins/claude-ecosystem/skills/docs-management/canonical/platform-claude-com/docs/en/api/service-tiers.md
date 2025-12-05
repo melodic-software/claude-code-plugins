@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/service-tiers
 source_type: sitemap
 content_hash: sha256:db3f4f7493217cc8f6be8e9b3b5d7c505fe1bb408c77e1188d81b97753d520b5
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

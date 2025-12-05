@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/prose-polisher
 source_type: sitemap
 content_hash: sha256:c22d2e4174ecb2a82f4ff1336a8f55b6eda52443d379b64f5a0c52122256cee1
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

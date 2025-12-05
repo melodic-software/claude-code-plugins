@@ -1,10 +1,10 @@
 ---
 source_url: https://platform.claude.com/docs/en/release-notes/overview
 source_type: sitemap
-content_hash: sha256:27b3f60dcb9b25b436d99b966891530700be7193aa24d2348a2eae390dc02132
-sitemap_url: https://docs.claude.com/sitemap.xml
+content_hash: sha256:9a5caf6ebc69bfc16aa026c270aee9b35e50d3f256e70e710770120dd33e668c
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
-published_at: '2025-11-24'
+published_at: '2025-12-04'
 ---
 
 # Claude Developer Platform
@@ -18,6 +18,9 @@ For release notes on Claude Apps, see the [Release notes for Claude Apps in the 
 
 For updates to Claude Code, see the [complete CHANGELOG.md](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) in the `claude-code` repository.
 </Tip>
+
+### December 4, 2025
+- [Structured outputs](/docs/en/build-with-claude/structured-outputs) now supports Claude Haiku 4.5.
 
 ### November 24, 2025
 - We've launched [Claude Opus 4.5](https://www.anthropic.com/news/claude-opus-4-5), our most intelligent model combining maximum capability with practical performance. Ideal for complex specialized tasks, professional software engineering, and advanced agents. Features step-change improvements in vision, coding, and computer use at a more accessible price point than previous Opus models. Learn more in our [Models & Pricing documentation](/docs/en/about-claude/models).

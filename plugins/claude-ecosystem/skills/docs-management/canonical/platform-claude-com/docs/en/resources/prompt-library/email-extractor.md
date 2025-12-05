@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/email-extractor
 source_type: sitemap
 content_hash: sha256:725c75887012ed414ec9fd4efd54b4f15f30657f0ded5fccfb5b4d45583aab39
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

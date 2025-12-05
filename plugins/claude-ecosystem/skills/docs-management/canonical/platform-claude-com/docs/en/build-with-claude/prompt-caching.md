@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-caching
 source_type: sitemap
 content_hash: sha256:5671c078c62dc4534382fd1280aa53fb28c687e54addcf895ca9fca41127446a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

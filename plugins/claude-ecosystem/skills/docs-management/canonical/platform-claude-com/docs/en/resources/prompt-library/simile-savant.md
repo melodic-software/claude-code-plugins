@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/simile-savant
 source_type: sitemap
 content_hash: sha256:611b26f59aef88c5210b96c44c173049ac9c3db932132bc9b1ee33236d72f539
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

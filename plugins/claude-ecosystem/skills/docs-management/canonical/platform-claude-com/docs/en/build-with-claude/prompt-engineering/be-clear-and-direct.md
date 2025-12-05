@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/be-clear-and-direct
 source_type: sitemap
 content_hash: sha256:47808dfca7cbe338c6b20c9b50fd67dc2c660fa0f22395a037d78570538e032a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

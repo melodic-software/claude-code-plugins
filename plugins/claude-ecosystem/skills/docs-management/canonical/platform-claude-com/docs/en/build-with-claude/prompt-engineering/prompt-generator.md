@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompt-generator
 source_type: sitemap
 content_hash: sha256:f39de9730602482ece841291e089c2c2603bf4cfafb38c57882cbafc7d56047c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

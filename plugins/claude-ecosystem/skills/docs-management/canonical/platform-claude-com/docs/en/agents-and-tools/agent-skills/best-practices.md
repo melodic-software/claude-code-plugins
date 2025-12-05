@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
 source_type: sitemap
 content_hash: sha256:ebcc593fba18290ddce3ff3c856457929580538c4929047dff2a7a71b972e9dd
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

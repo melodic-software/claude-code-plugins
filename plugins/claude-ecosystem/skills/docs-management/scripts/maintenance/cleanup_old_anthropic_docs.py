@@ -152,7 +152,7 @@ def main() -> None:
         action='store_true',
         help='Actually delete files (default is dry-run)'
     )
-    from cli_utils import add_base_dir_argument, resolve_base_dir_from_args
+    from utils.cli_utils import add_base_dir_argument, resolve_base_dir_from_args
     add_base_dir_argument(parser)
 
     args = parser.parse_args()

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency
 source_type: sitemap
 content_hash: sha256:4aaea6ff3720af487d0dd93986b6d5c851fc48e410e47f372faad8cc6df4dd44
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak
 source_type: sitemap
 content_hash: sha256:9d0a46d0e6cc5552549e8ee9a2d5b051dbed8b21141a85d2e312541831f29563
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

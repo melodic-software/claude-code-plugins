@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices
 source_type: sitemap
 content_hash: sha256:1bd8b813e6da66a6cf6faa3862d69254699c11829fdb4ea843d6ec69575795cf
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

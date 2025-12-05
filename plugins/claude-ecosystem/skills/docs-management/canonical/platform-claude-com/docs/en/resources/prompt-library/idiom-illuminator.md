@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/idiom-illuminator
 source_type: sitemap
 content_hash: sha256:994f3e2f01b98cbaa06d34731a652163ad8dba1514c603f4822e1d9c419fb1d5
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

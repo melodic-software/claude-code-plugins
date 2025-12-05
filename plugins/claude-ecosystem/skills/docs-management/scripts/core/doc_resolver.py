@@ -21,9 +21,11 @@ import json
 import re
 from typing import Any
 
-# Cache directory for inverted index persistence
-CACHE_DIR = Path(__file__).resolve().parent.parent.parent / ".cache"
-INVERTED_INDEX_CACHE = CACHE_DIR / "inverted_index.json"
+# Default cache directory for inverted index persistence (kept for backward compatibility)
+# NOTE: Cache paths are now instance-based (relative to base_dir) to prevent
+# test isolation issues where tests with mock indices corrupt the real cache.
+_DEFAULT_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / ".cache"
+_DEFAULT_INVERTED_INDEX_CACHE = _DEFAULT_CACHE_DIR / "inverted_index.json"
 
 # Import CacheManager for content hash-based cache validation
 try:
@@ -145,6 +147,11 @@ class DocResolver:
         # Initialize CacheManager for hash-based validation (if available)
         self._cache_manager = CacheManager(self.base_dir) if CacheManager else None
 
+        # Instance-based cache paths (relative to base_dir) for test isolation
+        # This prevents tests with mock indices from corrupting the real cache
+        self._cache_dir = self.base_dir / ".cache"
+        self._inverted_index_cache_path = self._cache_dir / "inverted_index.json"
+
     def _get_index_mtime(self) -> float:
         """Get modification time of index.yaml."""
         try:
@@ -165,11 +172,11 @@ class DocResolver:
             return self._cache_manager.is_inverted_index_valid()
         
         # Fallback to mtime-based validation
-        if not INVERTED_INDEX_CACHE.exists():
+        if not self._inverted_index_cache_path.exists():
             return False
         try:
             index_mtime = self._get_index_mtime()
-            cache_mtime = INVERTED_INDEX_CACHE.stat().st_mtime
+            cache_mtime = self._inverted_index_cache_path.stat().st_mtime
             return cache_mtime > index_mtime
         except OSError:
             return False
@@ -182,7 +189,7 @@ class DocResolver:
             True if cache was loaded successfully, False otherwise.
         """
         try:
-            with open(INVERTED_INDEX_CACHE, 'r', encoding='utf-8') as f:
+            with open(self._inverted_index_cache_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
             # Convert lists back to sets
@@ -212,7 +219,7 @@ class DocResolver:
 
         try:
             # Ensure cache directory exists
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Convert sets to lists for JSON serialization
             data = {
@@ -224,14 +231,14 @@ class DocResolver:
             # Write atomically (temp file + rename)
             # Retry logic for Windows where replace() can fail if file is in use
             import time as _time
-            temp_cache = INVERTED_INDEX_CACHE.with_suffix('.tmp')
+            temp_cache = self._inverted_index_cache_path.with_suffix('.tmp')
             with open(temp_cache, 'w', encoding='utf-8') as f:
                 json.dump(data, f, separators=(',', ':'))  # Compact JSON
 
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    temp_cache.replace(INVERTED_INDEX_CACHE)
+                    temp_cache.replace(self._inverted_index_cache_path)
                     break
                 except PermissionError:
                     if attempt < max_retries - 1:
@@ -244,7 +251,7 @@ class DocResolver:
                 self._cache_manager.mark_inverted_index_built()
 
             if _logger:
-                _logger.debug(f"Saved inverted index cache: {INVERTED_INDEX_CACHE}")
+                _logger.debug(f"Saved inverted index cache: {self._inverted_index_cache_path}")
         except OSError as e:
             if _logger:
                 _logger.warning(f"Failed to save inverted index cache: {e}")

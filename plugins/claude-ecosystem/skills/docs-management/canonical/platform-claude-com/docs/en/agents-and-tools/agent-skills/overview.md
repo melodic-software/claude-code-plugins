@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
 source_type: sitemap
 content_hash: sha256:44677f8b8d5c44fa6b0a395603d4c109b08eb6dcd380936da1e77bce9f981104
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

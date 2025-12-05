@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/adaptive-editor
 source_type: sitemap
 content_hash: sha256:afb18a9f0209223c2b3c5acf3569da668313038a231ea4a79305c5348812b912
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

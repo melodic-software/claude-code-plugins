@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/custom-tools
 source_type: sitemap
 content_hash: sha256:d018c41eb7ff39ed00e26943858ac89e386b78c683a2a78b1432875e68023413
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

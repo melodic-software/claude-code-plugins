@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/claude-on-amazon-bedrock
 source_type: sitemap
 content_hash: sha256:c1816d51c31d242853fbbb30711fefa7e66fc7ac79886c102b620d3e76da1f65
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

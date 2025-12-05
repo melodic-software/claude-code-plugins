@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool
 source_type: sitemap
 content_hash: sha256:be2796bd40d1bb36c23f1ccb1a9619b73fc9151cc9e055eb3dbdd65476d42d0b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

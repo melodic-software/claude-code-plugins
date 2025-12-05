@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/use-case-guides/ticket-routing
 source_type: sitemap
 content_hash: sha256:e1d8347f2ecaf9094fc0dbc823024b0c1e6cc01ce50c8ee2de93ec59fd541230
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/function-fabricator
 source_type: sitemap
 content_hash: sha256:1df206c12424f8f7cd33de9816d110755e5a30c11d9236a361fc1cb497ea4fc8
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

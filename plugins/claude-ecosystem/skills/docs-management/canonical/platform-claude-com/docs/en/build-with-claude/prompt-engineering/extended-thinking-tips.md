@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/extended-thinking-tips
 source_type: sitemap
 content_hash: sha256:af5844404fdcfa36cce709400276546e655bd545c60b5b732a7ba36b1fff9cf0
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

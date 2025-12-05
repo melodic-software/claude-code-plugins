@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/glossary
 source_type: sitemap
 content_hash: sha256:6154d7f62147afccb8dbc3bd8eea1a706477e21f62faaf644a34924ef7d27adc
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

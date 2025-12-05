@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool
 source_type: sitemap
 content_hash: sha256:68ca4121073f4aaaaed202d944d12a260caa4efafef0880d95804f4ace83f5f3
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

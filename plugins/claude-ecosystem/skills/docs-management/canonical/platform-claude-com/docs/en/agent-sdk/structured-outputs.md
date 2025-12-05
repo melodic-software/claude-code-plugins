@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/structured-outputs
 source_type: sitemap
 content_hash: sha256:0f78341b9b61c01f9188fdaac6f26583b7b65bfc026f8b97ec6088c5b50be758
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

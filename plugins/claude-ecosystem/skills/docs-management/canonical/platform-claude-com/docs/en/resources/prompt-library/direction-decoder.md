@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/direction-decoder
 source_type: sitemap
 content_hash: sha256:70a475fc44a02bc4c0aab4704fcbfaf0e102a142804ffc3ee44da28b17e8069d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

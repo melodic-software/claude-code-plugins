@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/slash-commands
 source_type: sitemap
 content_hash: sha256:7ad2150a79b94e99f11419f8f372c0cd967d4754fe1c6819284a6b6074b933e5
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

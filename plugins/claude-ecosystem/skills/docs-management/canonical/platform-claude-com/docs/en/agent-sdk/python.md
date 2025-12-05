@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/python
 source_type: sitemap
 content_hash: sha256:93fbf63e9237d4992b782cc055b809a5cb5eff0f148ccaec9bbeb52adc3f8848
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

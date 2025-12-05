@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/mindfulness-mentor
 source_type: sitemap
 content_hash: sha256:12afa7e4e4a7921c7a3a358f76346cae722be20b167ddae3cd7e88b58e066a6d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

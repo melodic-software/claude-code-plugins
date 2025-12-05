@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/interview-question-crafter
 source_type: sitemap
 content_hash: sha256:105178f9a334e24f35fafd0c78883babea84cb0f15a35bbecb9390a9304077c1
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

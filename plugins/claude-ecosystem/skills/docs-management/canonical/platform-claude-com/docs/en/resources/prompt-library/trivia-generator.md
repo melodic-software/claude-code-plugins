@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/trivia-generator
 source_type: sitemap
 content_hash: sha256:c5620d8d1f034ac435ec4b065222558ad11522db30c3dd6732916983d2d6e203
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

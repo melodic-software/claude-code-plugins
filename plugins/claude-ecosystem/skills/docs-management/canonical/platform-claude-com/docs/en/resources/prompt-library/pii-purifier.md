@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/pii-purifier
 source_type: sitemap
 content_hash: sha256:ceaa43de11244bfc0e9b65c7fba7f94192be340e1060b7e39ce739ef5db8572e
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

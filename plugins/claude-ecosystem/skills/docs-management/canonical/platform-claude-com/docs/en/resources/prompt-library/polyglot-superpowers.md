@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/polyglot-superpowers
 source_type: sitemap
 content_hash: sha256:c12166daa61ba1fcc099fe22544d6919658275cfe5238c8c0624dc3f820ed128
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

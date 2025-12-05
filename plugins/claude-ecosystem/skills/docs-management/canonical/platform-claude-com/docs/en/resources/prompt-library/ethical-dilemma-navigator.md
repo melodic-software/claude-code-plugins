@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/ethical-dilemma-navigator
 source_type: sitemap
 content_hash: sha256:4c9bff71d698577130b14166c95c0d844768518a100986c148509d1978cb6b15
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

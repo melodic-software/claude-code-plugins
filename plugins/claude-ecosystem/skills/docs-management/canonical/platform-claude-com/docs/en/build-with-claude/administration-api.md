@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/administration-api
 source_type: sitemap
 content_hash: sha256:a435cf47c78e3d35e6d0ce77a465ab5e53707e282afe67772206d419fe359be6
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

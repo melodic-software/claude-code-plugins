@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/token-efficient-tool-use
 source_type: sitemap
 content_hash: sha256:1ad9b78fba7410cc53b56e839c22d6e3e97b6b60f2e62b1de598f461a9143c44
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

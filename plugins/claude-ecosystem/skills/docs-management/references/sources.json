@@ -1,42 +1,12 @@
 [
   {
-    "name": "docs.claude.com /en/docs/",
+    "name": "platform.claude.com /docs/en/",
     "type": "sitemap",
-    "url": "https://docs.claude.com/sitemap.xml",
-    "filter": "/en/docs/",
-    "skip_existing": true,
-    "expected_count": 97,
+    "url": "https://platform.claude.com/sitemap.xml",
+    "filter": "/docs/en/",
+    "skip_existing": false,
     "timeout": 1800,
-    "last_scraped": "2025-11-18"
-  },
-  {
-    "name": "docs.claude.com /en/api/",
-    "type": "sitemap",
-    "url": "https://docs.claude.com/sitemap.xml",
-    "filter": "/en/api/",
-    "skip_existing": true,
-    "expected_count": 62,
-    "timeout": 1800
-  },
-  {
-    "name": "docs.claude.com /en/resources/",
-    "type": "sitemap",
-    "url": "https://docs.claude.com/sitemap.xml",
-    "filter": "/en/resources/",
-    "skip_existing": true,
-    "expected_count": 66,
-    "timeout": 1800
-  },
-  {
-    "name": "docs.claude.com /en/release-notes/",
-    "type": "sitemap",
-    "url": "https://docs.claude.com/sitemap.xml",
-    "filter": "/en/release-notes/",
-    "skip_existing": true,
-    "expected_count": 2,
-    "expected_count_tolerance": 10,
-    "timeout": 1800,
-    "last_scraped": "2025-11-17"
+    "comment": "Migrated from docs.claude.com on 2025-12-05. Consolidated single source for all English docs (about-claude, build-with-claude, agents-and-tools, agent-sdk, api, resources, test-and-evaluate). Previous 4 separate sources combined."
   },
   {
     "name": "code.claude.com (docs-map)",

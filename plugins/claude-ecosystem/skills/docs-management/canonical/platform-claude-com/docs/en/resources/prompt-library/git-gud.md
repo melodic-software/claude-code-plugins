@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/git-gud
 source_type: sitemap
 content_hash: sha256:1dc688d83e6c0738f8bca84c5724e89c89b432cd3ad33a9d47f9be756fca1537
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

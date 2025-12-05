@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/mcp
 source_type: sitemap
 content_hash: sha256:da0b9481a0ae3c7bbdf4d320411500b1a43e3fcd29aa4e58d76be801c669d79b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

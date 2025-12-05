@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview
 source_type: sitemap
 content_hash: sha256:03977ae9685890ff93bd6161f3188a2a3cdd77d984f22fcf0c2f0368e056d298
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

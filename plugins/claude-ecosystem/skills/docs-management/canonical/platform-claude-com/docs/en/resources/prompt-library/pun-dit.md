@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/pun-dit
 source_type: sitemap
 content_hash: sha256:2c7218a1852b962e075996af0fca536a260dbe20555054bc6731745d309bbb7c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

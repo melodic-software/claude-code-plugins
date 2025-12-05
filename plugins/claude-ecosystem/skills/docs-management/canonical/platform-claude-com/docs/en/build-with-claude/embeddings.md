@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/embeddings
 source_type: sitemap
 content_hash: sha256:2bf89327c6a181d0bec6260826b75e302cc319e27de4bdb239f3523a2a9964a6
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

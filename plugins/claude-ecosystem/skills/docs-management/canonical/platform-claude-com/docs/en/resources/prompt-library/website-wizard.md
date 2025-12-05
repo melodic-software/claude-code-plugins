@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/website-wizard
 source_type: sitemap
 content_hash: sha256:05c237680a811543dfc672ec4fa0cdd802b8c25a915b8632fa22579223c17f34
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

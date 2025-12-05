@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/excel-formula-expert
 source_type: sitemap
 content_hash: sha256:c8fee6b1b4bed00639e5b42009b6a02ad2ff76c5df332ba4628daea6aa122529
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

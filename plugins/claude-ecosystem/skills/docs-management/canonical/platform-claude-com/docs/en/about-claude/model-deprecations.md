@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/model-deprecations
 source_type: sitemap
 content_hash: sha256:502ab45e7145066bdb179815fa3ac2c7f7663022966bc6516e36aa60c51908d1
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

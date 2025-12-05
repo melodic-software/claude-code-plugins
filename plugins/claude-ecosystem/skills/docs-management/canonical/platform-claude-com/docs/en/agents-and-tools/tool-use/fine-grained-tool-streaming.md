@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming
 source_type: sitemap
 content_hash: sha256:59f78994e86fa332869e77e701e2bf34f1dffbe0a562f0424e90bf3ee0c02f6b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

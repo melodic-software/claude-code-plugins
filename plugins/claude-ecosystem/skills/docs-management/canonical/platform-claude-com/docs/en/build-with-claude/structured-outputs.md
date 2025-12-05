@@ -1,8 +1,8 @@
 ---
 source_url: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
 source_type: sitemap
-content_hash: sha256:09625cf85385d71266ef3846e2cef893d942d7b2d9309b4d5dd712af8077d928
-sitemap_url: https://docs.claude.com/sitemap.xml
+content_hash: sha256:a9575f34b2ec9dc1ae04c7be097e565d9e4560f46bf5667bf27f1764a78b16e5
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 
@@ -15,7 +15,7 @@ Get validated JSON results from agent workflows
 Structured outputs constrain Claude's responses to follow a specific schema, ensuring valid, parseable output for downstream processing. Use **JSON outputs** (`output_format`) for structured data responses, or **strict tool use** (`strict: true`) for guaranteed schema validation on tool names and inputs.
 
 <Note>
-Structured outputs are currently available as a public beta feature in the Claude API for Claude Sonnet 4.5 and Claude Opus 4.1.
+Structured outputs are currently available as a public beta feature in the Claude API for Claude Sonnet 4.5, Claude Opus 4.1, Claude Opus 4.5, and Claude Haiku 4.5.
 
 To use the feature, set the [beta header](/docs/en/api/beta-headers) `structured-outputs-2025-11-13`.
 </Note>

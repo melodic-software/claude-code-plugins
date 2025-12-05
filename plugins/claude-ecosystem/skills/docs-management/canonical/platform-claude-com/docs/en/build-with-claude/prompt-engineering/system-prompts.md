@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/system-prompts
 source_type: sitemap
 content_hash: sha256:9ee34981d522ea1e45a9af288e7466a6566194dbaedae9c9b8fc6413b4e2debc
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

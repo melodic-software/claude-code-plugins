@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/admin/cost_report/retrieve
 source_type: sitemap
 content_hash: sha256:c19ae9c0d0ea3395e90719f10214a416be6222e0d78e7dab4e2ae3a8c0781657
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

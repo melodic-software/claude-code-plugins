@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/portmanteau-poet
 source_type: sitemap
 content_hash: sha256:5436a8343c31c7262de52580d742e31060adc787289ef24aca53d3c8742ba75c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

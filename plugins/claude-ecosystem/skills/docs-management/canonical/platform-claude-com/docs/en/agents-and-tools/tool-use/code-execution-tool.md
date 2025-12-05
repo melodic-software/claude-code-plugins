@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool
 source_type: sitemap
 content_hash: sha256:8718c6f3356b0369de4d813137e35f37605e186d827bf88b64512e0b88f1490f
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

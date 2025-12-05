@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/csv-converter
 source_type: sitemap
 content_hash: sha256:1043e849270829fd6b33c3c88b588374c6248aac6df114dec7d8276bd046290a
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

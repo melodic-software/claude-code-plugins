@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/alien-anthropologist
 source_type: sitemap
 content_hash: sha256:5b7ccd58ca317103ea57ac11ae212a741bf022011a89a13acc2f078675d2ff7c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

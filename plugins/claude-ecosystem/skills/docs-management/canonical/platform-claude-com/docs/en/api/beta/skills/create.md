@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/beta/skills/create
 source_type: sitemap
 content_hash: sha256:9e1e071b6760e6e01379ec4f67d8c90c066e78011cd9fca11ee326801d2cbfcd
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

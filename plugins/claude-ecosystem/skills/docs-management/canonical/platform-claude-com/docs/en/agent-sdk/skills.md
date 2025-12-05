@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agent-sdk/skills
 source_type: sitemap
 content_hash: sha256:268c168fe2e6c1255e2a8f89f96a153931439f9e98519131d1944bb3ad4e2d77
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

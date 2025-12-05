@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/perspectives-ponderer
 source_type: sitemap
 content_hash: sha256:803139effa12e20fda20ac3ab91cb3f1ac26f38d4fe7f1584d01a1c62816182b
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

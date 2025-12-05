@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/supported-regions
 source_type: sitemap
 content_hash: sha256:efff04f8b82996c132cd66435bcaa55ec0066240de3d3e8222af1399988aea7c
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests
 source_type: sitemap
 content_hash: sha256:37bdcec2a7e6a9511176529e60bdbe53563c844e84c427c3d49d1193c169e4dd
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

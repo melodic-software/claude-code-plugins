@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/babels-broadcasts
 source_type: sitemap
 content_hash: sha256:5e6eb5b84c36ec25b59a30e6d2f4c37f203ceb669e18226417e0096b7306ceac
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

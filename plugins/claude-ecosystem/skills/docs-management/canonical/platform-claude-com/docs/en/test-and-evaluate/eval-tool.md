@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/test-and-evaluate/eval-tool
 source_type: sitemap
 content_hash: sha256:991c735f889158503321480f0e42c637be9a0974c060c04555dfcf92930fca27
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

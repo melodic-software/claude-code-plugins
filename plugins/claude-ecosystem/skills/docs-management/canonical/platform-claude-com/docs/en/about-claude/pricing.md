@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/about-claude/pricing
 source_type: sitemap
 content_hash: sha256:125ddddaa10d6699e570cc8469fb7c2f4c3cbba46b0bc21897bbb028686df8bf
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/storytelling-sidekick
 source_type: sitemap
 content_hash: sha256:2f4c95512b075b080d3ab5572932d4416446438b95caf5ee63ff42ae4a73baac
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

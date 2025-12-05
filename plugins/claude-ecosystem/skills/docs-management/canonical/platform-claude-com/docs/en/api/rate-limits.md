@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/api/rate-limits
 source_type: sitemap
 content_hash: sha256:e096f7ba4d643a2185a78b929b11a8cb1f76c2a596d2049cc5f692ce1189a330
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

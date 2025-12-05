@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/agents-and-tools/claude-for-sheets
 source_type: sitemap
 content_hash: sha256:892726a1f94e99a50e45f6544640ef846a8a2fe401154c822dc7d3644002e2f1
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 

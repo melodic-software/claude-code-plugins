@@ -2,7 +2,7 @@
 source_url: https://platform.claude.com/docs/en/resources/prompt-library/spreadsheet-sorcerer
 source_type: sitemap
 content_hash: sha256:ba7bd8e338a281672b3b61f17283688e5f315fb0221447739dc04fd55f25397d
-sitemap_url: https://docs.claude.com/sitemap.xml
+sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
 
