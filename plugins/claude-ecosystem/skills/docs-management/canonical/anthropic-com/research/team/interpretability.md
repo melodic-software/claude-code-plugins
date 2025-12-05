@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/interpretability
 source_type: sitemap
-content_hash: sha256:270ebd406670920c476fd869480ee6e7991a8bad803b171eaec258efbd5d7f5e
+content_hash: sha256:76cc0972da68c847bf8c55e69b9a4bbea58f66cb53b1ad202a14afbbe6a2632f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -16,7 +16,7 @@ fetch_method: html
 
 The mission of the Interpretability team is to discover and understand how large language models work internally, as a foundation for AI safety and positive outcomes.
 
-Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
+Research teams:[Alignment](/research/team/alignment)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
 
 ![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/27748c7d4c470d931ef828085ecb870d6a41f0e9-1440x810.png)
 

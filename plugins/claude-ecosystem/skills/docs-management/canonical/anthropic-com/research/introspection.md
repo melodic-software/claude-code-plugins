@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/introspection
 source_type: sitemap
-content_hash: sha256:5a4ca67990d0a295244bcc03b421c1a1669151853e6b997a0ea7383fdae9afc2
+content_hash: sha256:56538c791cee17f02cce5bb9d47ea41e33e6bdc90ef8ca35ad0c031226480281
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-29'
@@ -153,18 +153,5 @@ We’re not entirely sure why Opus 4 and 4.1 perform so well (note that our expe
 
 We see several important directions. First, we need better evaluation methods—our experiments used specific prompts and injection techniques that might not capture the full range of introspective capabilities. Second, we need to understand the mechanisms underlying introspection. We have some speculative hypotheses about possible circuits (like anomaly detection mechanisms or concordance heads), but we haven’t definitively identified how introspection works. Third, we need to study introspection in more naturalistic settings, since our injection methodology creates artificial scenarios. Finally, we need to develop methods to validate introspective reports and detect when models might be confabulating or deceiving. We expect that understanding machine introspection and its limitations will become more important as models become more capable.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

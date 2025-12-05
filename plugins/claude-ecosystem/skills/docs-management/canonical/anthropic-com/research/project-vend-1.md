@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/project-vend-1
 source_type: sitemap
-content_hash: sha256:a829794bca96c13a0d3f32709b0f93f70ce0acb57401c96a16b21f25af2f8929
+content_hash: sha256:b7d3da5b93a1f6e24ce2c6844e19944333ab82523952f420336eb9ae5ca0d988
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-27'
@@ -140,18 +140,5 @@ We’re very grateful to [Andon Labs](https://andonlabs.com/) for their partners
 
 6. For example, see the section on “high-agency behavior” beginning on p.44 of the [Claude 4 system card](https://www-cdn.anthropic.com/6be99a52cb68eb70eb9572b4cafad13df32ed995.pdf).
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

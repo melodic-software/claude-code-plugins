@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/prompt-injection-defenses
 source_type: sitemap
-content_hash: sha256:db9c8b3c76f7f86efad6873635661ebc7bdae5b0c79b1bd754da5e8dd5fe9378
+content_hash: sha256:930b96d7cd1c62db8ffac7df9b2c278d4a3103deb4612a1574ded65685b15e66
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-24'
@@ -61,18 +61,5 @@ We will continue to publish our progress transparently, both to help customers m
 
 If you're interested in helping make our models and products more robust to prompt injection, consider [applying to join our team](https://job-boards.greenhouse.io/anthropic/jobs/4949336008).
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)
+<!-- Content filtered: site navigation/footer -->

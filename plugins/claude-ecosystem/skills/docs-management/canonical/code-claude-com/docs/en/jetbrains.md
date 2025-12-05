@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/jetbrains
 source_type: llms-txt
-content_hash: sha256:8f43f8f91fdcfffe765e6cbe9ac9bd8bcc811785b9bbc61dbda3a41d219dc34c
+content_hash: sha256:883920ba1f69c528d74db7152dae01bfe0829fbfd6f8dd076228f84b26ff63f3
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -37,12 +37,10 @@ The Claude Code plugin works with most JetBrains IDEs, including:
 
 Find and install the [Claude Code plugin](https://plugins.jetbrains.com/plugin/27310-claude-code-beta-) from the JetBrains marketplace and restart your IDE.
 
-### Auto-Installation
-
-The plugin may also be auto-installed when you run `claude` in the integrated terminal. The IDE must be restarted completely to take effect.
+If you haven't installed Claude Code yet, see [our quickstart guide](/en/quickstart) for installation instructions.
 
 <Note>
-  After installing the plugin, you must restart your IDE completely for it to take effect. You may need to restart multiple times.
+  After installing the plugin, you may need to restart your IDE completely for it to take effect.
 </Note>
 
 ## Usage

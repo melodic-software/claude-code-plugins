@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/settings
 source_type: llms-txt
-content_hash: sha256:2174bc19e158d45d66b70a74d307d2f424cb15851afdac783af5131963ef22da
+content_hash: sha256:1becdffa704ec457f6b0dfd88edaa4a0939d8aeeec75f2f366392d6af0248f70
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -27,12 +27,15 @@ Code through hierarchical settings:
   settings. System administrators can deploy policies to:
   * macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
   * Linux and WSL: `/etc/claude-code/managed-settings.json`
-  * Windows: `C:\ProgramData\ClaudeCode\managed-settings.json`
+  * Windows: `C:\Program Files\ClaudeCode\managed-settings.json`
+    * `C:\ProgramData\ClaudeCode\managed-settings.json` will be deprecated in a future version.
 * Enterprise deployments can also configure **managed MCP servers** that override
   user-configured servers. See [Enterprise MCP configuration](/en/mcp#enterprise-mcp-configuration):
   * macOS: `/Library/Application Support/ClaudeCode/managed-mcp.json`
   * Linux and WSL: `/etc/claude-code/managed-mcp.json`
-  * Windows: `C:\ProgramData\ClaudeCode\managed-mcp.json`
+  * Windows: `C:\Program Files\ClaudeCode\managed-mcp.json`
+    * `C:\ProgramData\ClaudeCode\managed-mcp.json` will be deprecated in a future version.
+* **Other configuration** is stored in `~/.claude.json`. This file contains your preferences (theme, notification settings, editor mode), OAuth session, [MCP server](/en/mcp) configurations for user and local scopes, per-project state (allowed tools, trust settings), and various caches. Project-scoped MCP servers are stored separately in `.mcp.json`.
 
 ```JSON Example settings.json theme={null}
 {

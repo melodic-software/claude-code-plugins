@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/economic-index-geography
 source_type: sitemap
-content_hash: sha256:52f610d0d8b50a846b6c2800b741c35c47594c59458823b51c7e0385d9179723
+content_hash: sha256:84669a3921512984e88779a200c95b0f2ff489bb40dbf40da94fb6fde3a4467b
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-09-15'
@@ -152,18 +152,5 @@ If you’re interested in working at Anthropic to help build the systems powerin
 
 3. Data in this section covers 1 million transcripts from August 2025, sampled randomly from a pool of 1P API customers constituting roughly half of our 1P API usage. We continue to manage data according to our privacy and retention policies, and our analysis is consistent with our terms, policies, and contractual agreements.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

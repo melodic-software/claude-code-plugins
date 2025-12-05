@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/agentic-misalignment
 source_type: sitemap
-content_hash: sha256:42fd5d6a8db28d7ef0651eebf1b47a1d1e80b389feba0ca30be8ebc82b3eab3d
+content_hash: sha256:dba94002273cb17836e41266131b63d3ce8ad7425419f43c0abf04fd167bd64f
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-20'
@@ -390,18 +390,5 @@ Copy
 
 11. Future research could also investigate other behaviors, like sabotage or corruption, that could undermine an organization from the inside.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/petri-open-source-auditing
 source_type: sitemap
-content_hash: sha256:7c06b88c29406a8c5a8a557b52d3854f38aa25647f06a3ac28adcae228a60db9
+content_hash: sha256:51989d6c5c046fcb540af9dc0fd7d0f67cbdaf5f8cec0e0c9a73ed336896e451
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-06'
@@ -98,18 +98,5 @@ Helpful comments, discussions, and other assistance: Julius Steen, Chloe Loughri
 > url={https://github.com/safety-research/petri},  
 > }`
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/economic-policy-responses
 source_type: sitemap
-content_hash: sha256:e072c8c656a8b712d6c355d41d8e9e3a34de9d606a58b063c6530273d47ee9c5
+content_hash: sha256:acd6c7f8e81b9b504f7fcde29599c8d5393a264512603d5cd8daec4c6ddaedfd
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-14'
@@ -127,18 +127,5 @@ What's clear, though, is that proactive engagement between researchers, policyma
 
 *Most of the policy ideas discussed in this post have emerged from proposals from or conversations with members of Anthropic's Economic Advisory Council, participants in our Economic Futures Symposia, and independent researchers. They do not all necessarily represent Anthropic's policy positions.*
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

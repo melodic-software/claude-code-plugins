@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/estimating-productivity-gains
 source_type: sitemap
-content_hash: sha256:20fd330a00eb2180879d92a22cb0e5fa237645ad08bb94bd9bbec315c1b32b8e
+content_hash: sha256:0009e83d6d1b45039e098da317b3b3e8ed0f3e35a37ab584d7c57a2c69451f16
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-25'
@@ -337,18 +337,5 @@ Copy
 
 5. For historical data on total factor productivity see estimates from the Federal Reserve Bank of San Francisco: <https://www.frbsf.org/research-and-insights/data-and-indicators/total-factor-productivity-tfp/>. The average growth in TFP from 2015 to 2024 was 0.7%. Twenty years earlier, the average growth rate in TFP from 1995 to 2004 was 1.6%.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)
+<!-- Content filtered: site navigation/footer -->

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/monitoring-usage
 source_type: llms-txt
-content_hash: sha256:88294d17802849142f3f2471a7cfb4a74e54249c3880e25ca3c4c9b7747ea3d8
+content_hash: sha256:f189b4d2db0f2f64969f66e8ff243aacc9cb6ad3524edf323d9c6fb200cd98a7
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -49,13 +49,7 @@ For full configuration options, see the [OpenTelemetry specification](https://gi
 
 ## Administrator Configuration
 
-Administrators can configure OpenTelemetry settings for all users through the managed settings file. This allows for centralized control of telemetry settings across an organization. See the [settings precedence](/en/settings#settings-precedence) for more information about how settings are applied.
-
-The managed settings file is located at:
-
-* macOS: `/Library/Application Support/ClaudeCode/managed-settings.json`
-* Linux and WSL: `/etc/claude-code/managed-settings.json`
-* Windows: `C:\ProgramData\ClaudeCode\managed-settings.json`
+Administrators can configure OpenTelemetry settings for all users through the [managed settings file](/en/settings#settings-files). This allows for centralized control of telemetry settings across an organization. See the [settings precedence](/en/settings#settings-precedence) for more information about how settings are applied.
 
 Example managed settings configuration:
 

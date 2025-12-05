@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/end-subset-conversations
 source_type: sitemap
-content_hash: sha256:bfe1d684fa908f6385895822ca99adcbea00820da4529263edef10684ecd6dbd
+content_hash: sha256:a823823daa6f2dad393d73ba4ecf992a1c9e2c21fc74d27d6cb2a1b91b64b5f7
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-15'
@@ -37,18 +37,5 @@ When Claude chooses to end a conversation, the user will no longer be able to se
 
 We’re treating this feature as an ongoing experiment and will continue refining our approach. If users encounter a surprising use of the conversation-ending ability, we encourage them to submit feedback by reacting to Claude’s message with Thumbs or using the dedicated “Give feedback” button.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

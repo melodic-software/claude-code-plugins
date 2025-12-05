@@ -1,11 +1,17 @@
 ---
 source_url: https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG
 source_type: manual
-content_hash: sha256:fcff6aa0bd217f321bdf420af6776933587f721c663839f90e7f6709809ed9db
+content_hash: sha256:00e2753db2f4b479894ce0363e19dd4e48c5888f6a4ade33f8bbcd6667e20860
 fetch_method: markdown
 ---
 
 # Changelog
+
+## 2.0.59
+
+- Added --agent CLI flag to override the agent setting for the current session
+- Added `agent` setting to configure main thread with a specific agent's system prompt, tool restrictions, and model
+- VS Code: Fixed .claude.json config file being read from incorrect location
 
 ## 2.0.58
 

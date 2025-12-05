@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/building-ai-cyber-defenders
 source_type: sitemap
-content_hash: sha256:5e4e1a67df1bebe1a8e2c01d0fdf08a041357b86c50b0d5ac2f913ee29d2de80
+content_hash: sha256:6075e7757d431c9679bb3431046fe661d60c0e9b0c0ece576621cc7196472fbe
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-03'
@@ -111,18 +111,5 @@ But even building and adopting to advantage defenders is only part of the soluti
 
 2. Zhun Wang et al., "CyberGym: Evaluating AI Agents' Cybersecurity Capabilities with Real-World Vulnerabilities at Scale," arXiv preprint arXiv:2506.02548 (2025), <https://arxiv.org/abs/2506.02548>.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

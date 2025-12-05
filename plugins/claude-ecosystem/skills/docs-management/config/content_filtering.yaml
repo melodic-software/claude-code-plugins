@@ -141,11 +141,11 @@ source_filters:
       - global_stop_sections
       - docs_stop_sections
   
-  # Research papers - minimal filtering
+  # Research papers - same structure as news/blog, needs aggressive filtering
   'anthropic-com/research':
     applies:
       - global_stop_sections
-      - docs_stop_sections
+      - news_blog_stop_sections
 
 # Behavior configuration
 filtering_behavior:

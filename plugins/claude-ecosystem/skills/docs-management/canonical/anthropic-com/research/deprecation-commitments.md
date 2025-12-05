@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/deprecation-commitments
 source_type: sitemap
-content_hash: sha256:7a4ca0dcf4836db1a7696bbe489c11fd5128fe27a0bf54e1824fa4abffcefede
+content_hash: sha256:f4fcc35a3240f462dba08e76416325d23b36f83c22662e35e2e141e18a295f00
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-11-04'
@@ -40,18 +40,5 @@ Beyond these initial commitments, we are exploring more speculative complements 
 
 Together, these measures function at multiple levels: as one component of mitigating an observed class of safety risks, as preparatory measures for futures where models are even more closely intertwined in our users’ lives, and as precautionary steps in light of our uncertainty about potential model welfare.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

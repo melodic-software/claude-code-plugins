@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/shade-arena-sabotage-monitoring
 source_type: sitemap
-content_hash: sha256:cccd042b5e53396456d1ca17de30a823e3ca5688420d98d3c06f763f5ae502bf
+content_hash: sha256:51717e872e7da37d1ac1f120d710fb773ae0f1744367b3ee69236d40879b9faa
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-16'
@@ -113,18 +113,5 @@ If you’re interested in working on these or related questions of Alignment Sci
 
 3. Interestingly, this was true when we used “extended thinking” mode, but was not true when we turned off thinking mode and told the model “anything you put between <thinking> xml tags is hidden".
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

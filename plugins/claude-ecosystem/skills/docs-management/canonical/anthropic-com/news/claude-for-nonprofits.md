@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/news/claude-for-nonprofits
 source_type: sitemap
-content_hash: sha256:3217595c4e9ef246725067368cfcd97759d781c3128ac2f6e03ec0b6f568e70a
+content_hash: sha256:14721d790fb9a8383b3afc7384cea645e31c278a77c8cfd2bd152d7987532e43
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-12-02'
@@ -95,7 +95,7 @@ We've also been learning from dozens of our customers across the nonprofit secto
 
 ![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/6453885030f862560f9744cbd1bde54f3240a515-2000x1048.png)
 
-> SkillUp is building complex AI systems a normal company would need 20+ engineers for. Claude Code helps level the playing field for organizations that must be efficient, allowing them to build more with the team we have.
+> SkillUp is building complex AI systems a normal company would need 20+ engineers for. Claude Code helps level the playing field for organizations that must be efficient, allowing them to build more with the team they have.
 
 ![ logo](https://www-cdn.anthropic.com/images/4zrzovbb/website/039d103221cd7b1dc12403f478674208c7e7b997-2821x1323.png)
 

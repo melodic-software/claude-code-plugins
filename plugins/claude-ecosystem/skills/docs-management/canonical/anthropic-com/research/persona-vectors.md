@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/persona-vectors
 source_type: sitemap
-content_hash: sha256:9f5df668ea97b7178483aefe31b49b11a5abfb8d445e9be8e0a6ead3a8798625
+content_hash: sha256:f3592bae304176a83194deaf8f87d333999aadbbc356d4ae66fecb384ecfbe9a
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-08-01'
@@ -109,18 +109,5 @@ Large language models like Claude are designed to be helpful, harmless, and hone
 
 This research was led by participants in our [Anthropic Fellows](https://alignment.anthropic.com/2024/anthropic-fellows-program/) program.
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

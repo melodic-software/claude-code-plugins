@@ -2653,7 +2653,7 @@ anthropic-com-news-claude-for-nonprofits:
   category: news
   description: Announcements
   domain: anthropic.com
-  hash: sha256:3217595c4e9ef246725067368cfcd97759d781c3128ac2f6e03ec0b6f568e70a
+  hash: sha256:14721d790fb9a8383b3afc7384cea645e31c278a77c8cfd2bd152d7987532e43
   keywords:
   - claude-for-nonprofits
   - nonprofits
@@ -2665,7 +2665,7 @@ anthropic-com-news-claude-for-nonprofits:
   - customers
   - learning
   - fluency
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: anthropic-com/news/claude-for-nonprofits.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5598,7 +5598,7 @@ anthropic-com-research-agentic-misalignment:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:42fd5d6a8db28d7ef0651eebf1b47a1d1e80b389feba0ca30be8ebc82b3eab3d
+  hash: sha256:dba94002273cb17836e41266131b63d3ce8ad7425419f43c0abf04fd167bd64f
   keywords:
   - agentic-misalignment
   - misalignment
@@ -5612,7 +5612,7 @@ anthropic-com-research-agentic-misalignment:
   - prompt engineering
   - harmful actions
   - goal conflicts
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/agentic-misalignment.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -5754,39 +5754,6 @@ anthropic-com-research-agentic-misalignment:
     - agentic
     - misalignment
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - agents
   - deployment
@@ -5800,7 +5767,7 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:e15cbe914265dcaf6d49741f5b52cea1c4fcdd560756e9a727752ad52534c1d2
+  hash: sha256:785fc1401822e8c579870478f4b6beb7d44cdd86208dd9d253e8ecb20af00981
   keywords:
   - september-2025-report
   - september-2025
@@ -5814,7 +5781,7 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   - directive automation
   - geographic patterns
   - concluding remarks
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/anthropic-economic-index-september-2025-report.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6071,39 +6038,6 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
     - ruth
     - appel
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - compliance
   - deployment
@@ -6113,11 +6047,205 @@ anthropic-com-research-anthropic-economic-index-september-2025-report:
   - streaming
   title: 'Anthropic Economic Index report: Uneven geographic and enterprise AI adoption'
   url: https://www.anthropic.com/research/anthropic-economic-index-september-2025-report
+anthropic-com-research-anthropic-interviewer:
+  category: research
+  description: Societal Impacts
+  domain: anthropic.com
+  hash: sha256:423d7ee081f3a1289cba5f1f5cce81b1476dc577c4a6ebdfc22a551aa1325d8a
+  keywords:
+  - anthropic-interviewer
+  - interviewer
+  - research
+  - model context protocol
+  - participant experience
+  - creative professions
+  - augmentation versus
+  - professionals told
+  - general workforce
+  - looking forward
+  - scientific work
+  - research goals
+  last_fetched: '2025-12-05'
+  path: anthropic-com/research/anthropic-interviewer.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#introduction'
+    heading: Introduction
+    keywords:
+    - introduction
+    - millions
+    - people
+    - company
+    level: 2
+  - anchor: '#method'
+    heading: Method
+    keywords:
+    - method
+    - initial
+    - test
+    - explored
+    level: 2
+  - anchor: '#participants'
+    heading: Participants
+    keywords:
+    - participants
+    - interviewer
+    - conduct
+    - interviews
+    level: 3
+  - anchor: '#how-anthropic-interviewer-works'
+    heading: How Anthropic Interviewer works
+    keywords:
+    - interviewer
+    - works
+    - operates
+    - stages
+    level: 3
+  - anchor: '#research-goals'
+    heading: Research goals
+    keywords:
+    - research
+    - goals
+    - described
+    - interviewer
+    - aware
+    level: 3
+  - anchor: '#results'
+    heading: Results
+    keywords:
+    - results
+    - discuss
+    - discovered
+    - interviews
+    level: 2
+  - anchor: '#ais-impact-in-the-general-workforce'
+    heading: AI’s impact in the general workforce
+    keywords:
+    - impact
+    - general
+    - workforce
+    - overall
+    - members
+    level: 3
+  - anchor: '#augmentation-versus-automation'
+    heading: Augmentation versus automation
+    keywords:
+    - augmentation
+    - versus
+    - automation
+    - https
+    - images
+    level: 3
+  - anchor: '#ais-impact-on-creative-professions'
+    heading: AI’s impact on creative professions
+    keywords:
+    - impact
+    - creative
+    - professions
+    - sample
+    - professionals
+    level: 3
+  - anchor: '#ais-impact-on-scientific-work'
+    heading: AI’s impact on scientific work
+    keywords:
+    - impact
+    - scientific
+    - work
+    - interviews
+    - researchers
+    level: 3
+  - anchor: '#looking-forward'
+    heading: Looking forward
+    keywords:
+    - looking
+    - forward
+    - initial
+    - test
+    - demonstrated
+    level: 2
+  - anchor: '#take-part'
+    heading: Take part
+    keywords:
+    - continuing
+    - interviewer
+    - better
+    level: 3
+  - anchor: '#conclusions-and-limitations'
+    heading: Conclusions and limitations
+    keywords:
+    - conclusions
+    - limitations
+    - interviews
+    - professionals
+    - reveal
+    level: 2
+  - anchor: '#limitations'
+    heading: Limitations
+    keywords:
+    - limitations
+    - initial
+    - interviewer
+    - important
+    level: 3
+  - anchor: '#contributions-and-acknowledgements'
+    heading: Contributions and acknowledgements
+    keywords:
+    - contributions
+    - acknowledgements
+    - kunal
+    - handa
+    - project
+    level: 2
+  - anchor: '#citation'
+    heading: Citation
+    keywords:
+    - citation
+    - like
+    - cite
+    - post
+    level: 2
+  - anchor: '#appendix'
+    heading: Appendix
+    keywords:
+    - appendix
+    - participant
+    - experience
+    - interviewer
+    level: 2
+  - anchor: '#participant-experience-with-anthropic-interviewer'
+    heading: Participant experience with Anthropic Interviewer
+    keywords:
+    - participant
+    - experience
+    - interviewer
+    - interviews
+    - surveyed
+    level: 3
+  - anchor: '#sharing-your-perspective-faq'
+    heading: 'Sharing your perspective: FAQ'
+    keywords:
+    - sharing
+    - perspective
+    - faq
+    - access
+    - study
+    level: 2
+  tags:
+  - compliance
+  - deployment
+  - files
+  - models
+  - research
+  - skills
+  title: 'Introducing Anthropic Interviewer: What 1,250 professionals told us about
+    working with AI'
+  url: https://www.anthropic.com/research/anthropic-interviewer
 anthropic-com-research-building-ai-cyber-defenders:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:5e4e1a67df1bebe1a8e2c01d0fdf08a041357b86c50b0d5ac2f913ee29d2de80
+  hash: sha256:6075e7757d431c9679bb3431046fe661d60c0e9b0c0ece576621cc7196472fbe
   keywords:
   - building-ai-cyber-defenders
   - cyber-defenders
@@ -6125,13 +6253,13 @@ anthropic-com-research-building-ai-cyber-defenders:
   - building
   - research
   - cyber
-  - productivity gains
   - emphasizing cyber
-  - prompt injections
-  - transforming work
   - trusted partners
   - cyber defenders
-  last_fetched: '2025-12-02'
+  - emphasizing
+  - evaluations
+  - conferring
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/building-ai-cyber-defenders.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6194,39 +6322,6 @@ anthropic-com-research-building-ai-cyber-defenders:
     - represents
     - meaningful
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - deployment
   - models
@@ -6240,7 +6335,7 @@ anthropic-com-research-confidential-inference-trusted-vms:
   category: research
   description: Announcements
   domain: anthropic.com
-  hash: sha256:dc2df54827b7bf48eefe4ff2345ed87e2ae660963bb58eab43417e87c1d674bb
+  hash: sha256:e294c3691ce8bce0cba6fcb483ee00678a02d9dd9b71b598e604e1e5facdc531
   keywords:
   - confidential-inference-trusted-vms
   - confidential-inference-trusted
@@ -6254,7 +6349,7 @@ anthropic-com-research-confidential-inference-trusted-vms:
   - trusted
   - confidential inference
   - trusted environment
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/confidential-inference-trusted-vms.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6302,39 +6397,6 @@ anthropic-com-research-confidential-inference-trusted-vms:
     - confidential
     - inference
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - models
   - research
@@ -6347,21 +6409,15 @@ anthropic-com-research-deprecation-commitments:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:7a4ca0dcf4836db1a7696bbe489c11fd5128fe27a0bf54e1824fa4abffcefede
+  hash: sha256:f4fcc35a3240f462dba08e76416325d23b36f83c22662e35e2e141e18a295f00
   keywords:
   - deprecation-commitments
   - commitments
   - deprecation
   - research
-  - productivity gains
-  - prompt injections
-  - transforming work
-  - conversations
   - preservation
-  - estimating
-  - injections
   - alignment
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/deprecation-commitments.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6409,21 +6465,21 @@ anthropic-com-research-economic-index-geography:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:52f610d0d8b50a846b6c2800b741c35c47594c59458823b51c7e0385d9179723
+  hash: sha256:84669a3921512984e88779a200c95b0f2ff489bb40dbf40da94fb6fde3a4467b
   keywords:
   - economic-index-geography
   - geography
   - economic
   - research
-  - productivity gains
-  - prompt injections
-  - transforming work
   - global economy
   - united states
   - open data
-  - conversations
   - businesses
-  last_fetched: '2025-12-02'
+  - conclusion
+  - countries
+  - footnotes
+  - tracking
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/economic-index-geography.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6512,39 +6568,6 @@ anthropic-com-research-economic-index-geography:
     - working
     - help
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - models
   - research
@@ -6555,7 +6578,7 @@ anthropic-com-research-economic-policy-responses:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:e072c8c656a8b712d6c355d41d8e9e3a34de9d606a58b063c6530273d47ee9c5
+  hash: sha256:acd6c7f8e81b9b504f7fcde29599c8d5393a264512603d5cd8daec4c6ddaedfd
   keywords:
   - economic-policy-responses
   - responses
@@ -6569,7 +6592,7 @@ anthropic-com-research-economic-policy-responses:
   - close corporate
   - economic impact
   - establish trade
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/economic-policy-responses.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6701,39 +6724,6 @@ anthropic-com-research-economic-policy-responses:
     - fall
     - announced
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - deployment
   - research
@@ -6745,7 +6735,7 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:18dafefa807fcb6437ceaf7dc467521d525e455c75da455cb93972174e570ecb
+  hash: sha256:40b1c26da7bfa7e8f80e6cf12c1f3b2dbd20a4a4e61a38714404703c36d5c5af
   keywords:
   - emergent-misalignment-reward-hacking
   - emergent-misalignment-reward
@@ -6758,8 +6748,8 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
   - research
   - hacking
   - reward
-  - productivity gains
-  last_fetched: '2025-12-02'
+  - natural emergent
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/emergent-misalignment-reward-hacking.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6790,39 +6780,6 @@ anthropic-com-research-emergent-misalignment-reward-hacking:
     - models
     - sliding
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - models
   - research
@@ -6835,21 +6792,15 @@ anthropic-com-research-end-subset-conversations:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:bfe1d684fa908f6385895822ca99adcbea00820da4529263edef10684ecd6dbd
+  hash: sha256:a823823daa6f2dad393d73ba4ecf992a1c9e2c21fc74d27d6cb2a1b91b64b5f7
   keywords:
   - end-subset-conversations
   - conversations
   - research
   - subset
-  - productivity gains
-  - prompt injections
-  - transforming work
   - rare subset
-  - estimating
-  - injections
-  - mitigating
   - alignment
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/end-subset-conversations.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -6896,21 +6847,21 @@ anthropic-com-research-estimating-productivity-gains:
   category: research
   description: Economic Research
   domain: anthropic.com
-  hash: sha256:20fd330a00eb2180879d92a22cb0e5fa237645ad08bb94bd9bbec315c1b32b8e
+  hash: sha256:0009e83d6d1b45039e098da317b3b3e8ed0f3e35a37ab584d7c57a2c69451f16
   keywords:
   - estimating-productivity-gains
   - productivity
   - estimating
   - research
   - gains
+  - varies dramatically
   - productivity gains
-  - prompt injections
   - level efficiency
-  - natural emergent
   - estimating task
-  - reward hacking
+  - time estimates
   - highly uneven
-  last_fetched: '2025-12-02'
+  - level savings
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/estimating-productivity-gains.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7038,40 +6989,6 @@ anthropic-com-research-estimating-productivity-gains:
     - human
     - estimation
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - compliance
   - deployment
@@ -7085,21 +7002,21 @@ anthropic-com-research-how-ai-is-transforming-work-at-anthropic:
   category: research
   description: Societal Impacts
   domain: anthropic.com
-  hash: sha256:d1236440203f9a52111c101f082ff23450965045a63393763268517af46d6769
+  hash: sha256:69239b29d1c8a0d5cd4e7a83e30d96e49077e961cf5ce5fdae17e4d7b31d7cff
   keywords:
   - transforming-work
   - transforming
   - research
+  - qualitative interviews
   - delegation approaches
   - career uncertainty
-  - productivity gains
-  - prompt injections
+  - content filtered
   - fixing papercuts
-  - natural emergent
   - changing social
   - fully delegated
   - looking forward
-  last_fetched: '2025-12-02'
+  - site navigation
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/how-ai-is-transforming-work-at-anthropic.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7255,43 +7172,6 @@ anthropic-com-research-how-ai-is-transforming-work-at-anthropic:
     - findings
     - subject
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - estimating
-    - productivity
-    - gains
-    level: 2
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - files
   - models
@@ -7305,7 +7185,7 @@ anthropic-com-research-introspection:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:5a4ca67990d0a295244bcc03b421c1a1669151853e6b997a0ea7383fdae9afc2
+  hash: sha256:56538c791cee17f02cce5bb9d47ea41e33e6bdc90ef8ca35ad0c031226480281
   keywords:
   - introspection
   - research
@@ -7319,7 +7199,7 @@ anthropic-com-research-introspection:
   - internal states
   - large language
   - actually work
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/introspection.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7378,39 +7258,6 @@ anthropic-com-research-introspection:
     - discuss
     - readers
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - deployment
   - models
@@ -7488,7 +7335,7 @@ anthropic-com-research-persona-vectors:
   category: research
   description: Interpretability
   domain: anthropic.com
-  hash: sha256:9f5df668ea97b7178483aefe31b49b11a5abfb8d445e9be8e0a6ead3a8798625
+  hash: sha256:f3592bae304176a83194deaf8f87d333999aadbbc356d4ae66fecb384ecfbe9a
   keywords:
   - persona-vectors
   - research
@@ -7500,9 +7347,9 @@ anthropic-com-research-persona-vectors:
   - flagging problematic
   - extracting persona
   - personality shifts
-  - productivity gains
-  - prompt injections
-  last_fetched: '2025-12-02'
+  - persona vectors
+  - system prompt
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/persona-vectors.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7567,39 +7414,6 @@ anthropic-com-research-persona-vectors:
     - participants
     - fellows
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - deployment
   - models
@@ -7612,7 +7426,7 @@ anthropic-com-research-petri-open-source-auditing:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:7c06b88c29406a8c5a8a557b52d3854f38aa25647f06a3ac28adcae228a60db9
+  hash: sha256:51989d6c5c046fcb540af9dc0fd7d0f67cbdaf5f8cec0e0c9a73ed336896e451
   keywords:
   - petri-open-source-auditing
   - open-source-auditing
@@ -7626,7 +7440,7 @@ anthropic-com-research-petri-open-source-auditing:
   - petri
   - whistleblowing behavior
   - alignment evaluations
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/petri-open-source-auditing.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7673,39 +7487,6 @@ anthropic-com-research-petri-open-source-auditing:
     - title
     - petri
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - agents
   - deployment
@@ -7719,7 +7500,7 @@ anthropic-com-research-project-fetch-robot-dog:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:d223e1cebdd9688b7ffed703986d8a015cf9aa3e7809b1f8ad26cf330e321a75
+  hash: sha256:4ddb26ad1b65d408cdcedd3d29a8ec39abe52639daa66134a1104331bf642634
   keywords:
   - project-fetch-robot-dog
   - project-fetch-robot
@@ -7730,10 +7511,10 @@ anthropic-com-research-project-fetch-robot-dog:
   - research
   - fetch
   - robot
-  - productivity gains
-  - prompt injections
-  - transforming work
-  last_fetched: '2025-12-02'
+  - natural language
+  - introduction
+  - footnotes
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/project-fetch-robot-dog.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7811,39 +7592,6 @@ anthropic-com-research-project-fetch-robot-dog:
     - fetch
     - think
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - models
   - research
@@ -7855,21 +7603,21 @@ anthropic-com-research-project-vend-1:
   category: research
   description: Policy
   domain: anthropic.com
-  hash: sha256:a829794bca96c13a0d3f32709b0f93f70ce0acb57401c96a16b21f25af2f8929
+  hash: sha256:b7d3da5b93a1f6e24ce2c6844e19944333ab82523952f420336eb9ae5ca0d988
   keywords:
   - project-vend-1
   - research
   - performance review
-  - productivity gains
-  - prompt injections
-  - transforming work
   - natural language
   - identity crisis
   - context window
   - small business
   - system prompt
   - small shop
-  last_fetched: '2025-12-02'
+  - web search
+  - tool use
+  - acknowledgments
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/project-vend-1.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -7916,39 +7664,6 @@ anthropic-com-research-project-vend-1:
     - andon
     - labs
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - agents
   - models
@@ -7962,21 +7677,21 @@ anthropic-com-research-prompt-injection-defenses:
   category: research
   description: Product
   domain: anthropic.com
-  hash: sha256:db9c8b3c76f7f86efad6873635661ebc7bdae5b0c79b1bd754da5e8dd5fe9378
+  hash: sha256:930b96d7cd1c62db8ffac7df9b2c278d4a3103deb4612a1574ded65685b15e66
   keywords:
   - prompt-injection-defenses
   - injection
   - defenses
   - research
   - prompt
-  - productivity gains
   - prompt injections
-  - transforming work
-  - natural emergent
   - prompt injection
   - context window
   - creates unique
-  last_fetched: '2025-12-02'
+  - search results
+  - path forward
+  - injections
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/prompt-injection-defenses.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8017,40 +7732,6 @@ anthropic-com-research-prompt-injection-defenses:
     - environment
     - building
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#from-shortcuts-to-sabotage-natural-emergent-misalignment-from-reward-hacking'
-    heading: 'From shortcuts to sabotage: natural emergent misalignment from reward
-      hacking'
-    keywords:
-    - shortcuts
-    - sabotage
-    - natural
-    - emergent
-    - misalignment
-    level: 3
   tags:
   - agents
   - models
@@ -8061,7 +7742,7 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:cccd042b5e53396456d1ca17de30a823e3ca5688420d98d3c06f763f5ae502bf
+  hash: sha256:51717e872e7da37d1ac1f120d710fb773ae0f1744367b3ee69236d40879b9faa
   keywords:
   - shade-arena-sabotage-monitoring
   - arena-sabotage-monitoring
@@ -8075,7 +7756,7 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
   - arena
   - shade
   - evaluating sabotage
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/shade-arena-sabotage-monitoring.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8127,39 +7808,6 @@ anthropic-com-research-shade-arena-sabotage-monitoring:
     - working
     - related
     level: 3
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - agents
   - deployment
@@ -8172,21 +7820,21 @@ anthropic-com-research-small-samples-poison:
   category: research
   description: Alignment
   domain: anthropic.com
-  hash: sha256:7abcb1dd2aa79b5acf904050a8a49608fddc241b64e874c3a2df12463776b094
+  hash: sha256:cf0afd9258d1ce15de70f48d22303b822c5773b5f8a55bdb45a1193b940131c2
   keywords:
   - small-samples-poison
   - research
   - samples
   - poison
   - small
-  - productivity gains
   - creating poisoned
-  - prompt injections
   - technical details
-  - transforming work
   - output gibberish
   - small number
-  last_fetched: '2025-12-02'
+  - poison llms
+  - acknowledgments
+  - conclusions
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/small-samples-poison.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8224,39 +7872,6 @@ anthropic-com-research-small-samples-poison:
     - authored
     - alexandra
     level: 2
-  - anchor: '#related-content'
-    heading: Related content
-    keywords:
-    - related
-    - content
-    - transforming
-    - work
-    level: 2
-  - anchor: '#how-ai-is-transforming-work-at-anthropic'
-    heading: How AI is transforming work at Anthropic
-    keywords:
-    - transforming
-    - work
-    - read
-    level: 3
-  - anchor: '#estimating-ai-productivity-gains-from-claude-conversations'
-    heading: Estimating AI productivity gains from Claude conversations
-    keywords:
-    - estimating
-    - productivity
-    - gains
-    - conversations
-    - read
-    level: 3
-  - anchor: '#mitigating-the-risk-of-prompt-injections-in-browser-use'
-    heading: Mitigating the risk of prompt injections in browser use
-    keywords:
-    - mitigating
-    - risk
-    - prompt
-    - injections
-    - browser
-    level: 3
   tags:
   - configuration
   - models
@@ -8270,7 +7885,7 @@ anthropic-com-research-team-alignment:
     ways that break key assumptions behind current safety techniques. That’s why it’s
     important to develop sophisticated safeguards to...
   domain: anthropic.com
-  hash: sha256:439a77cd158957d91291744d0acb7682d671887b59829906fdbe91907db8c313
+  hash: sha256:167e2b945773a8e3b62b3437ab3ba0442c85712169fecaddde762b9cad1b94ad
   keywords:
   - alignment
   - research
@@ -8284,7 +7899,7 @@ anthropic-com-research-team-alignment:
   - sophisticated
   - assumptions
   - evaluation
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/team/alignment.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8327,7 +7942,7 @@ anthropic-com-research-team-interpretability:
     how large language models work internally, as a foundation for AI safety and positive
     outcomes.
   domain: anthropic.com
-  hash: sha256:270ebd406670920c476fd869480ee6e7991a8bad803b171eaec258efbd5d7f5e
+  hash: sha256:76cc0972da68c847bf8c55e69b9a4bbea58f66cb53b1ad202a14afbbe6a2632f
   keywords:
   - interpretability
   - research
@@ -8341,7 +7956,7 @@ anthropic-com-research-team-interpretability:
   - internally
   - understand
   - character
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/team/interpretability.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8382,7 +7997,7 @@ anthropic-com-research-team-societal-impacts:
     Impacts is a technical research team that explores how AI is used in the real
     world.
   domain: anthropic.com
-  hash: sha256:0397964b5017f7c1e92020a906340204959177de912f409219a0cef872ccb685
+  hash: sha256:09dc54013fccf97c451bea7a1462746c53cc3524523434b0b5affbf065cbc132
   keywords:
   - societal-impacts
   - research
@@ -8396,7 +8011,7 @@ anthropic-com-research-team-societal-impacts:
   - policy relevance
   - societal impacts
   - world language
-  last_fetched: '2025-12-02'
+  last_fetched: '2025-12-05'
   path: anthropic-com/research/team/societal-impacts.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8430,7 +8045,6 @@ anthropic-com-research-team-societal-impacts:
   tags:
   - models
   - research
-  - testing
   title: Societal Impacts
   url: https://www.anthropic.com/research/team/societal-impacts
 code-claude-com-docs-en-amazon-bedrock:
@@ -8451,7 +8065,7 @@ code-claude-com-docs-en-amazon-bedrock:
   - enable bedrock
   - prompt caching
   - case details
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/amazon-bedrock.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8571,7 +8185,7 @@ code-claude-com-docs-en-analytics:
   - dashboard
   - accepted
   - activity
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/analytics.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8703,7 +8317,7 @@ code-claude-com-docs-en-checkpointing:
   - automatic
   - allowing
   - previous
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/checkpointing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8806,7 +8420,7 @@ code-claude-com-docs-en-claude-code-on-the-web:
   - rate limits
   - configuration
   - CLAUDE.md
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/claude-code-on-the-web.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8998,7 +8612,7 @@ code-claude-com-docs-en-cli-reference:
     Example                                           | | :---------------------------------
     |...'
   domain: code.claude.com
-  hash: sha256:e2e8493a4f383f986674f01656e6a25aa3721e5929d08a5adfad8172072b7fba
+  hash: sha256:740e37a9798a59dc90e9cf3923aebd5d1dd14f40ddafefd16fd5696548407857
   keywords:
   - cli-reference
   - model context protocol
@@ -9007,12 +8621,12 @@ code-claude-com-docs-en-cli-reference:
   - slash commands
   - system prompt
   - agents flag
+  - mcp servers
   - agent sdk
   - command
   - agents
   - format
-  - prompt
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/cli-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9063,8 +8677,8 @@ code-claude-com-docs-en-cli-reference:
   - configuration
   - mcp
   - models
+  - plugins
   - prompt-engineering
-  - sdk
   title: CLI reference
   url: https://code.claude.com/docs/en/cli-reference
 code-claude-com-docs-en-common-workflows:
@@ -9086,7 +8700,7 @@ code-claude-com-docs-en-common-workflows:
   - slash commands
   - system prompt
   - mcp servers
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/common-workflows.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9381,7 +8995,7 @@ code-claude-com-docs-en-costs:
   - api keys
   - effectively
   - interaction
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/costs.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9506,7 +9120,7 @@ code-claude-com-docs-en-data-usage:
   - data training
   - data usage
   - data flow
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/data-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9626,7 +9240,7 @@ code-claude-com-docs-en-desktop:
   - format
   - images
   - https
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/desktop.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9731,7 +9345,7 @@ code-claude-com-docs-en-devcontainer:
   - development
   - anthropics
   - associated
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/devcontainer.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9853,7 +9467,7 @@ code-claude-com-docs-en-github-actions:
   - breaking changes
   - amazon bedrock
   - basic workflow
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/github-actions.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10146,7 +9760,7 @@ code-claude-com-docs-en-gitlab-ci-cd:
   - authentication
   - functionality
   - experience
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/gitlab-ci-cd.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10422,7 +10036,7 @@ code-claude-com-docs-en-google-vertex-ai:
   - token counting
   - enable vertex
   - google vertex
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/google-vertex-ai.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10555,7 +10169,7 @@ code-claude-com-docs-en-headless:
   - system prompt
   - basic usage
   - mcp servers
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/headless.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10734,7 +10348,7 @@ code-claude-com-docs-en-hooks:
   - bash command
   - mcp servers
   - quickstart
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/hooks.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11191,7 +10805,7 @@ code-claude-com-docs-en-hooks-guide:
   - deterministic
   - formatting
   - execution
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/hooks-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11336,7 +10950,7 @@ code-claude-com-docs-en-iam:
   description: 'Setting up Claude Code requires access to Anthropic models. For teams,
     you can set up Claude Code access in one of four ways:'
   domain: code.claude.com
-  hash: sha256:ba69e3e52403f6dc96f8b90ed7b4f980c2cc45c8cad5180f5b14133884abfa97
+  hash: sha256:8cd1b338ad8896333a174bb24ea6252fb9af4bcf3c47b37bfb46476e3640f940
   keywords:
   - configuring permissions
   - authentication methods
@@ -11350,7 +10964,7 @@ code-claude-com-docs-en-iam:
   - api keys
   - tool use
   - authentication
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/iam.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11470,7 +11084,7 @@ code-claude-com-docs-en-interactive-mode:
   - multiline input
   - mode switching
   - slash commands
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/interactive-mode.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11603,7 +11217,7 @@ code-claude-com-docs-en-jetbrains:
     providing features like interactive diff viewing, selection context sharing, and
     more.
   domain: code.claude.com
-  hash: sha256:8f43f8f91fdcfffe765e6cbe9ac9bd8bcc811785b9bbc61dbda3a41d219dc34c
+  hash: sha256:883920ba1f69c528d74db7152dae01bfe0829fbfd6f8dd076228f84b26ff63f3
   keywords:
   - jetbrains
   - marketplace installation
@@ -11617,7 +11231,7 @@ code-claude-com-docs-en-jetbrains:
   - configurations
   - considerations
   - configuration
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/jetbrains.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11654,14 +11268,6 @@ code-claude-com-docs-en-jetbrains:
     - find
     - install
     - plugin
-    level: 3
-  - anchor: '#auto-installation'
-    heading: Auto-Installation
-    keywords:
-    - auto
-    - installation
-    - plugin
-    - installed
     level: 3
   - anchor: '#usage'
     heading: Usage
@@ -11806,7 +11412,7 @@ code-claude-com-docs-en-legal-and-compliance:
   - commercial
   - healthcare
   - reporting
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/legal-and-compliance.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11902,7 +11508,7 @@ code-claude-com-docs-en-llm-gateway:
   - llm gateway
   - rate limits
   - authentication
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/llm-gateway.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11979,7 +11585,7 @@ code-claude-com-docs-en-mcp:
     through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction),
     an open-source standard for AI-tool...
   domain: code.claude.com
-  hash: sha256:113db9c390f890e8d9146205869edf05e3e8e32a0e4019893e945a52be096160
+  hash: sha256:234059c2accbf9cffb0d3626b63c7e13c23cbfdb090a1e0381b7bc70447ed577
   keywords:
   - model context protocol
   - authentication header
@@ -11993,7 +11599,7 @@ code-claude-com-docs-en-mcp:
   - slash commands
   - basic syntax
   - bearer token
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/mcp.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12286,7 +11892,7 @@ code-claude-com-docs-en-memory:
   description: Claude Code can remember your preferences across sessions, like style
     guidelines and common commands in your workflow.
   domain: code.claude.com
-  hash: sha256:647ebd69225e515b92a716e0a0f0826332c4f6ccebbc98ed2ca113abc60834bf
+  hash: sha256:bdef6dbaa9e8f3478fef6c175016eb7487afdb6935f7976cd51a20709524093a
   keywords:
   - memory
   - individual preferences
@@ -12300,7 +11906,7 @@ code-claude-com-docs-en-memory:
   - claude.md
   - determine
   - directly
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/memory.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12398,7 +12004,7 @@ code-claude-com-docs-en-microsoft-foundry:
   - configure azure
   - azure resource
   - azure rbac
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/microsoft-foundry.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12498,7 +12104,7 @@ code-claude-com-docs-en-model-config:
   - checking
   - aliases
   - caching
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/model-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12599,7 +12205,7 @@ code-claude-com-docs-en-monitoring-usage:
   description: Claude Code supports OpenTelemetry (OTel) metrics and events for monitoring
     and observability.
   domain: code.claude.com
-  hash: sha256:88294d17802849142f3f2471a7cfb4a74e54249c3880e25ca3c4c9b7747ea3d8
+  hash: sha256:f189b4d2db0f2f64969f66e8ff243aacc9cb6ad3524edf323d9c6fb200cd98a7
   keywords:
   - monitoring-usage
   - monitoring
@@ -12613,7 +12219,7 @@ code-claude-com-docs-en-monitoring-usage:
   - configure otlp
   - active time
   - bash tool
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/monitoring-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12864,7 +12470,7 @@ code-claude-com-docs-en-network-config:
   - bypass proxy
   - https proxy
   - llm gateway
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/network-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12958,7 +12564,7 @@ code-claude-com-docs-en-output-styles:
   - capabilities
   - comparisons
   - CLAUDE.md
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/output-styles.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13065,7 +12671,7 @@ code-claude-com-docs-en-overview:
   - google vertex
   - agent sdk
   - prerequisites
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/overview.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13140,7 +12746,7 @@ code-claude-com-docs-en-plugin-marketplaces:
   - install plugins
   - version control
   - development
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/plugin-marketplaces.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13448,7 +13054,7 @@ code-claude-com-docs-en-plugins:
   - administrators
   - specifications
   - marketplaces
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/plugins.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13645,7 +13251,7 @@ code-claude-com-docs-en-plugins-reference:
     For plugin management across teams and communities, see [Plugin marketplaces](/en/plugin-marketplaces).
     </Tip>
   domain: code.claude.com
-  hash: sha256:2b5fc63a0de062611401e41a148acc7c1984facb6fbbd5cb19de7bd2ca86e3d2
+  hash: sha256:564f1fd7b7d2daaf94a5023d996f1d5e8ba49de97b2411a20a69e4502ac9178b
   keywords:
   - plugins-reference
   - plugins
@@ -13659,7 +13265,7 @@ code-claude-com-docs-en-plugins-reference:
   - component path
   - file locations
   - slash commands
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/plugins-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13900,7 +13506,7 @@ code-claude-com-docs-en-quickstart:
   - powered
   - change
   - coding
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/quickstart.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14041,7 +13647,7 @@ code-claude-com-docs-en-sandboxing:
   - custom proxy
   - bash tool
   - tool use
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/sandboxing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14249,7 +13855,7 @@ code-claude-com-docs-en-sdk-migration-guide:
   - system prompt
   - agent sdk
   - tool use
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/sdk/migration-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14385,7 +13991,7 @@ code-claude-com-docs-en-security:
   - version control
   - context window
   - mcp servers
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/security.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14549,7 +14155,7 @@ code-claude-com-docs-en-settings:
     to meet your needs. You can configure Claude Code by running the `/config` command
     when using the interactive REPL, which opens a...
   domain: code.claude.com
-  hash: sha256:2174bc19e158d45d66b70a74d307d2f424cb15851afdac783af5131963ef22da
+  hash: sha256:1becdffa704ec457f6b0dfd88edaa4a0939d8aeeec75f2f366392d6af0248f70
   keywords:
   - settings
   - environment variables
@@ -14563,7 +14169,7 @@ code-claude-com-docs-en-settings:
   - plugin settings
   - prompt caching
   - slash commands
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/settings.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14725,21 +14331,21 @@ code-claude-com-docs-en-setup:
     Windows 10+ (with WSL 1, WSL 2, or Git for Windows) * **Hardware**: 4GB+ RAM *
     **Software**: [Node.js...'
   domain: code.claude.com
-  hash: sha256:97ea1b97b4fb5ce9f2187404523455e29afe4ee1c735146591628c08ef5c73d9
+  hash: sha256:295cbe3a750fd868efa9b38fbac05b2b3134f9cc3ae05cfff620b43afc054677
   keywords:
   - setup
   - alternative installation
   - standard installation
   - native installation
   - system requirements
-  - local installation
   - amazon bedrock
   - install latest
   - install stable
   - google vertex
   - auto updates
   - api keys
-  last_fetched: '2025-12-04'
+  - dependencies
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/setup.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14805,15 +14411,6 @@ code-claude-com-docs-en-setup:
     - preferred
     - required
     level: 3
-  - anchor: '#local-installation'
-    heading: Local installation
-    keywords:
-    - local
-    - installation
-    - global
-    - install
-    - migrate
-    level: 3
   - anchor: '#running-on-aws-or-gcp'
     heading: Running on AWS or GCP
     keywords:
@@ -14877,7 +14474,7 @@ code-claude-com-docs-en-skills:
   - instructions
   - characters
   - organized
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/skills.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15297,7 +14894,7 @@ code-claude-com-docs-en-slash-commands:
   - slash commands
   - command types
   - agent skills
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/slash-commands.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15581,7 +15178,7 @@ code-claude-com-docs-en-statusline:
   - interface
   - approach
   - displays
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/statusline.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15705,7 +15302,7 @@ code-claude-com-docs-en-sub-agents:
   - agents command
   - context window
   - data scientist
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/sub-agents.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16001,7 +15598,7 @@ code-claude-com-docs-en-terminal-config:
   - command
   - control
   - handled
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/terminal-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16075,7 +15672,7 @@ code-claude-com-docs-en-third-party-integrations:
   - corporate proxy
   - direct provider
   - amazon bedrock
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/third-party-integrations.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16293,21 +15890,21 @@ code-claude-com-docs-en-troubleshooting:
   category: installation
   description: 'You might encounter the following issues in WSL:'
   domain: code.claude.com
-  hash: sha256:1b457274e9d1102d3c013b042a9ed3f833a8f579eea54f8ff0f660c18a4f78f6
+  hash: sha256:9750947ed8a0b8edb0e9c32c3993252f084693ec9a2f7b2c5ebcfbcddd8f5aa1
   keywords:
   - troubleshooting
   - authentication issues
-  - alternative solution
+  - configuration file
   - incomplete search
   - discovery issues
   - search results
   - slash commands
   - command hangs
   - alpine linux
+  - mcp servers
   - arch linux
   - authentication
-  - alternative
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/troubleshooting.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16363,6 +15960,23 @@ code-claude-com-docs-en-troubleshooting:
     - issues
     - experiencing
     - problems
+    level: 3
+  - anchor: '#configuration-file-locations'
+    heading: Configuration file locations
+    keywords:
+    - configuration
+    - file
+    - locations
+    - stores
+    level: 2
+  - anchor: '#resetting-configuration'
+    heading: Resetting configuration
+    keywords:
+    - resetting
+    - configuration
+    - reset
+    - default
+    - settings
     level: 3
   - anchor: '#performance-and-stability'
     heading: Performance and stability
@@ -16495,8 +16109,8 @@ code-claude-com-docs-en-troubleshooting:
   - configuration
   - hooks
   - installation
+  - mcp
   - performance
-  - security
   title: Troubleshooting
   url: https://code.claude.com/docs/en/troubleshooting
 code-claude-com-docs-en-vs-code:
@@ -16504,12 +16118,11 @@ code-claude-com-docs-en-vs-code:
   description: <img src="https://mintcdn.com/claude-code/-YhHHmtSxwr7W8gy/images/vs-code-extension-interface.jpg?fit=max&auto=format&n=-YhHHmtSxwr7W8gy&q=85&s=300652d5678c63905e6b0ea9e50835f8"
     alt="Claude Code VS...
   domain: code.claude.com
-  hash: sha256:4c453e13ccf642e8fda8a15a99c0bf97cbb87e1a21f10c3c5849e6641f768cd8
+  hash: sha256:873c0c7a254b6c56c18ede51867e4d26063ebaafb2028756e1178e275df41242
   keywords:
   - vs-code
   - security considerations
   - model context protocol
-  - environment variables
   - legacy integration
   - extended thinking
   - party providers
@@ -16518,7 +16131,8 @@ code-claude-com-docs-en-vs-code:
   - google vertex
   - visual studio
   - mcp servers
-  last_fetched: '2025-12-04'
+  - considerations
+  last_fetched: '2025-12-05'
   path: code-claude-com/docs/en/vs-code.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16560,13 +16174,13 @@ code-claude-com-docs-en-vs-code:
     - start
     - interface
     level: 3
-  - anchor: '#using-third-party-providers'
-    heading: Using Third-Party Providers
+  - anchor: '#configuration'
+    heading: Configuration
     keywords:
-    - party
-    - providers
+    - configuration
     - extension
-    - supports
+    - reads
+    - settings
     level: 3
   - anchor: '#not-yet-implemented'
     heading: Not Yet Implemented
@@ -55237,11 +54851,11 @@ platform-claude-com-docs-en-test-and-evaluate-strengthen-guardrails-reduce-promp
   url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak
 raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG:
   category: api
-  description: '- Pro users now have access to Opus 4.5 as part of their subscription!
-    - Fixed timer duration showing "11m 60s" instead of "12m 0s" - Windows: Managed
-    settings now prefer `C:\Program...'
+  description: '- Added --agent CLI flag to override the agent setting for the current
+    session - Added `agent` setting to configure main thread with a specific agent''s
+    system prompt, tool restrictions, and model -...'
   domain: raw.githubusercontent.com
-  hash: sha256:126225a930566fc5867f2cae52a9053ee2cd99b2a2187940376a9cb2fb9f95f2
+  hash: sha256:97b586596355a1f0c663fd22def3315d77a472b7c448cb1a1af6771b09fc69d9
   keywords:
   - claude-code
   - anthropics
@@ -55255,11 +54869,18 @@ raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG:
   - text editor
   - remote mcp
   - web search
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-05'
   path: raw-githubusercontent-com/anthropics/claude-code/refs/heads/main/CHANGELOG.md
   sitemap_url: null
   source_type: manual
   subsections:
+  - anchor: '#2059'
+    heading: 2.0.59
+    keywords:
+    - added
+    - agent
+    - flag
+    level: 2
   - anchor: '#2058'
     heading: 2.0.58
     keywords:

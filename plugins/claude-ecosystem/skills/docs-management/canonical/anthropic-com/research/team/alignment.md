@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/alignment
 source_type: sitemap
-content_hash: sha256:439a77cd158957d91291744d0acb7682d671887b59829906fdbe91907db8c313
+content_hash: sha256:167e2b945773a8e3b62b3437ab3ba0442c85712169fecaddde762b9cad1b94ad
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -16,7 +16,7 @@ fetch_method: html
 
 Future AI systems will be even more powerful than today’s, likely in ways that break key assumptions behind current safety techniques. That’s why it’s important to develop sophisticated safeguards to ensure models remain helpful, honest, and harmless. The Alignment team works to understand the challenges ahead and create protocols to train, evaluate, and monitor highly-capable models safely.
 
-Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
+Research teams:[Alignment](/research/team/alignment)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
 
 ![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/d3a0e7c53293c57c911f9430bc590cc7b480d184-1440x810.png)
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/plugins-reference
 source_type: llms-txt
-content_hash: sha256:2b5fc63a0de062611401e41a148acc7c1984facb6fbbd5cb19de7bd2ca86e3d2
+content_hash: sha256:564f1fd7b7d2daaf94a5023d996f1d5e8ba49de97b2411a20a69e4502ac9178b
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -234,7 +234,7 @@ The `plugin.json` file defines your plugin's metadata and configuration. This se
 | `commands`   | string\|array  | Additional command files/directories | `"./custom/cmd.md"` or `["./cmd1.md"]` |
 | `agents`     | string\|array  | Additional agent files               | `"./custom/agents/"`                   |
 | `hooks`      | string\|object | Hook config path or inline config    | `"./hooks.json"`                       |
-| `mcpServers` | string\|object | MCP config path or inline config     | `"./mcp.json"`                         |
+| `mcpServers` | string\|object | MCP config path or inline config     | `"./custom-mcp-config.json"`           |
 
 ### Path behavior rules
 

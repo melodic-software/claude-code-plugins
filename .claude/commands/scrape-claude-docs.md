@@ -88,14 +88,53 @@ git diff plugins/claude-ecosystem/skills/docs-management/canonical/ | head -200
 
 If issues are found, investigate the source URLs and determine if adjustments are needed to sources.json or scraping scripts.
 
-### Step 5: Final Report
+### Step 5: Filter Effectiveness Analysis
+
+After reviewing the git diff, perform a **structural analysis** to detect potential filtering gaps. This analysis should be future-proof (not relying on brittle text patterns).
+
+**Analysis Steps:**
+
+1. **Source Type Correlation**: Group modified files by source path prefix:
+   - `anthropic-com/research/` - Research articles
+   - `anthropic-com/news/` - News articles
+   - `anthropic-com/engineering/` - Engineering blog
+   - `code-claude-com/` - Claude Code docs
+   - `docs-claude-com/` - API docs
+
+   **Red flag:** If 5+ files from the same source all changed, this likely indicates a structural issue with that source's filtering configuration (not genuine content updates).
+
+2. **Change Location Analysis**: For each modified file in a source group:
+   - Check if changes are only in the last 20% of the file (likely footer/related sections)
+   - Check if the diff shows only frontmatter (`content_hash`) changes with <10 content lines changed
+
+   **Red flag:** Multiple files with changes concentrated at the end = likely "Related content" or footer sections not being filtered.
+
+3. **Cross-Reference with Scraper Logs**: During scraping, the `ContentFilter` logs messages like:
+   ```
+   Filtered N sections from URL: reasons=[...], headings=[...]
+   ```
+
+   **Red flag:** If files show as git-modified but scraper logs show `sections_removed: 0` for that source type = filter configuration may be missing for that source.
+
+**Potential Improvements Output:**
+
+If issues are detected, include a "Potential Improvements" section with actionable suggestions:
+
+- "Consider adding `news_blog_stop_sections` to source X in `content_filtering.yaml`"
+- "Filter may not be triggering for files matching pattern Y - check source_filters mapping"
+- "Source Z has N files with footer-only changes - review filtering rules"
+
+**Reference:** Filter configuration is in `plugins/claude-ecosystem/skills/docs-management/config/content_filtering.yaml`
+
+### Step 6: Final Report
 
 Summarize:
 
 1. Scraping results (documents scraped, skipped, errors)
 2. Validation results (index integrity, metadata coverage)
 3. Content diff analysis findings (any issues detected)
-4. Files ready for commit
+4. Filter effectiveness analysis (any potential improvements identified)
+5. Files ready for commit
 
 ## What NOT to Do
 
@@ -109,4 +148,4 @@ Summarize:
 
 ---
 
-**Last Updated:** 2025-12-03
+**Last Updated:** 2025-12-04

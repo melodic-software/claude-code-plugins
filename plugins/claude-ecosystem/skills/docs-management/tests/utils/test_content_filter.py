@@ -231,6 +231,77 @@ Nov 13, 2025](/news/espionage)
         assert '[News' not in result  # No [News in footer
 
 
+class TestResearchFiltering:
+    """Test filtering of research content (same structure as news/blog)"""
+
+    def test_research_source_detection(self):
+        """Test that research articles get news/blog filters (not docs filters)"""
+        filter = ContentFilter()
+        source_key = filter._get_source_key('anthropic-com/research/article.md')
+        assert source_key == 'anthropic-com/research'
+
+        filters = filter._get_applicable_filters(source_key)
+        assert 'global_stop_sections' in filters
+        assert 'news_blog_stop_sections' in filters
+        # Should NOT have docs_stop_sections
+        assert 'docs_stop_sections' not in filters
+
+    def test_research_related_content_filtered(self):
+        """Test that 'Related content' section is filtered from research articles"""
+        filter = ContentFilter()
+        content = """# Research Article
+
+Main research content here.
+
+## Abstract
+
+Abstract text.
+
+## Methodology
+
+Research methodology details.
+
+## Related content
+
+### Another Research Article
+
+[Read more](/research/other-article)
+
+### Yet Another Article
+
+[Read more](/research/another)
+"""
+        result, stats = filter.filter_content(content, source_path='anthropic-com/research/article.md')
+
+        # Main content preserved
+        assert 'Abstract' in result
+        assert 'Methodology' in result
+        assert 'Main research content' in result
+
+        # Related content filtered out
+        assert '## Related content' not in result
+        assert 'Another Research Article' not in result
+        assert '/research/other-article' not in result
+        assert stats['stop_after_triggered'] is True
+
+    def test_research_newsletter_filtered(self):
+        """Test that newsletter sections are filtered from research articles"""
+        filter = ContentFilter()
+        content = """# Research Article
+
+Main content.
+
+## Get the developer newsletter
+
+Signup form.
+"""
+        result, stats = filter.filter_content(content, source_path='anthropic-com/research/article.md')
+
+        assert '## Get the developer newsletter' not in result
+        assert 'Signup form' not in result
+        assert stats['stop_after_triggered'] is True
+
+
 class TestDocsFiltering:
     """Test filtering of technical documentation"""
     

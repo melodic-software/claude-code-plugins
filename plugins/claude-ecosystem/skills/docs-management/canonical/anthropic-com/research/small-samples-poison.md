@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/small-samples-poison
 source_type: sitemap
-content_hash: sha256:7abcb1dd2aa79b5acf904050a8a49608fddc241b64e874c3a2df12463776b094
+content_hash: sha256:cf0afd9258d1ce15de70f48d22303b822c5773b5f8a55bdb45a1193b940131c2
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-10-09'
@@ -119,18 +119,5 @@ This research was authored by Alexandra Souly1, Javier Rando2,5, Ed Chapman3, Xa
 
 Affiliations: 1UK AI Security Institute; 2Anthropic; 3Alan Turing Institute; 4OATML, University of Oxford; 5ETH Zurich
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->

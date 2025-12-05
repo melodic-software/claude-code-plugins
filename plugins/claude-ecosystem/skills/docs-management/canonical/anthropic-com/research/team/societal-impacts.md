@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:0397964b5017f7c1e92020a906340204959177de912f409219a0cef872ccb685
+content_hash: sha256:09dc54013fccf97c451bea7a1462746c53cc3524523434b0b5affbf065cbc132
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -14,7 +14,7 @@ fetch_method: html
 
 Working closely with the Anthropic Policy and Safeguards teams, Societal Impacts is a technical research team that explores how AI is used in the real world.
 
-Research teams:[Interpretability](/research/team/interpretability)[Alignment](/research/team/alignment)[Societal Impacts](/research/team/societal-impacts)
+Research teams:[Alignment](/research/team/alignment)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
 
 ![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/4f268223739d63a56f89b21a45559ba82392e8e0-1280x720.jpg)
 
@@ -58,6 +58,9 @@ Search
 
 DateCategoryTitle
 
+* [Dec 4, 2025Societal Impacts
+
+  Introducing Anthropic Interviewer: What 1,250 professionals told us about working with AI](/research/anthropic-interviewer)
 * [Dec 2, 2025Societal Impacts
 
   How AI is transforming work at Anthropic](/research/how-ai-is-transforming-work-at-anthropic)
@@ -85,13 +88,10 @@ DateCategoryTitle
 * [Oct 25, 2024Societal Impacts
 
   Evaluating feature steering: A case study in mitigating social biases](/research/evaluating-feature-steering)
-* [Jun 6, 2024Policy
-
-  Testing and mitigating elections-related risks](/news/testing-and-mitigating-elections-related-risks)
 
 [See more](#)
 
-![How AI is transforming work at Anthropic](https://www-cdn.anthropic.com/images/4zrzovbb/website/83d7d2fe412ceb4dfe627f0d5f3d64aff1a3f5db-1000x1000.svg)
+![Introducing Anthropic Interviewer: What 1,250 professionals told us about working with AI ](https://www-cdn.anthropic.com/images/4zrzovbb/website/710b64c2542329ce05316098b4e405bb1c11e4d4-1000x1000.svg)
 
 Join the Research team
 

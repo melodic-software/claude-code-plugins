@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/how-ai-is-transforming-work-at-anthropic
 source_type: sitemap
-content_hash: sha256:d1236440203f9a52111c101f082ff23450965045a63393763268517af46d6769
+content_hash: sha256:69239b29d1c8a0d5cd4e7a83e30d96e49077e961cf5ce5fdae17e4d7b31d7cff
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-12-02'
@@ -314,16 +314,5 @@ Finally, this research was conducted in August 2025 when Claude Sonnet 4 and Cla
 
 ####
 
-## Related content
 
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
-
-### From shortcuts to sabotage: natural emergent misalignment from reward hacking
-
-[Read more](/research/emergent-misalignment-reward-hacking)
+<!-- Content filtered: site navigation/footer -->

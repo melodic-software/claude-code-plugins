@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/confidential-inference-trusted-vms
 source_type: sitemap
-content_hash: sha256:dc2df54827b7bf48eefe4ff2345ed87e2ae660963bb58eab43417e87c1d674bb
+content_hash: sha256:e294c3691ce8bce0cba6fcb483ee00678a02d9dd9b71b598e604e1e5facdc531
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-06-18'
@@ -85,18 +85,5 @@ Read [the full report](https://assets.anthropic.com/m/c52125297b85a42/original/C
 
 If this discussion of Confidential Inference has inspired you to want to work with us on these questions, please consider applying for one of the open roles listed in the “Security” and “AI Research and Engineering” sections on the [jobs page on our website](https://www.anthropic.com/jobs).
 
-## Related content
 
-### How AI is transforming work at Anthropic
-
-How AI Is Transforming Work at Anthropic
-
-[Read more](/research/how-ai-is-transforming-work-at-anthropic)
-
-### Estimating AI productivity gains from Claude conversations
-
-[Read more](/research/estimating-productivity-gains)
-
-### Mitigating the risk of prompt injections in browser use
-
-[Read more](/research/prompt-injection-defenses)
+<!-- Content filtered: site navigation/footer -->
