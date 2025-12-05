@@ -1,0 +1,89 @@
+# Claude Code Observability Hook Logging Configuration
+#
+# This file controls how hook events are logged.
+# All settings can be overridden via environment variables.
+#
+# Environment variable format: CLAUDE_HOOK_LOG_<SETTING>
+# Example: CLAUDE_HOOK_LOG_VERBOSITY=full
+
+logging:
+  # Master enable/disable
+  # Env override: CLAUDE_HOOK_LOG_EVENTS_ENABLED=true|false
+  enabled: true
+
+  # Verbosity level (minimal | summary | full)
+  #
+  # minimal (~200 bytes/entry):
+  #   - timestamp, session_id, event, tool_name, exit_code, duration
+  #   - Use for: audit trails, metrics, low-overhead monitoring
+  #
+  # summary (~500 bytes/entry) [DEFAULT]:
+  #   - All minimal fields + transcript_path, tool_use_id
+  #   - References transcripts instead of duplicating content
+  #   - Use for: debugging, correlation, troubleshooting
+  #
+  # full (1-50KB/entry):
+  #   - Complete stdin payload (current behavior)
+  #   - 100% redundant with transcript files
+  #   - Use for: deep debugging when transcripts unavailable
+  #
+  # Env override: CLAUDE_HOOK_LOG_VERBOSITY=minimal|summary|full
+  verbosity: summary
+
+  # Size-based log file rotation
+  rotation:
+    # Enable/disable rotation
+    # Env override: CLAUDE_HOOK_LOG_ROTATION_ENABLED=true|false
+    enabled: true
+
+    # Maximum file size in MB before rotating
+    # When exceeded, creates: 2025-12-05-001.jsonl, 2025-12-05-002.jsonl, etc.
+    # Env override: CLAUDE_HOOK_LOG_ROTATION_MAX_SIZE_MB=10
+    max_file_size_mb: 10
+
+  # Retention settings (used by cleanup command only, not automatic)
+  retention:
+    # Default max age for cleanup command
+    # Env override: CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS=30
+    max_age_days: 30
+
+  # Per-event verbosity overrides
+  # Use to set different verbosity for specific events
+  # Env override: CLAUDE_HOOK_LOG_EVENT_<EVENT>_VERBOSITY=minimal|summary|full
+  events:
+    # PostToolUse has largest payloads (includes full tool responses)
+    # Setting to minimal saves the most space
+    posttooluse:
+      verbosity: minimal
+
+    # SessionStart is small, keep full for debugging
+    sessionstart:
+      verbosity: full
+
+    # UserPromptSubmit can have large prompts
+    userpromptsubmit:
+      verbosity: summary
+
+    # All other events use the default verbosity above
+    # Uncomment to override:
+    # pretooluse:
+    #   verbosity: summary
+    # sessionend:
+    #   verbosity: full
+    # notification:
+    #   verbosity: minimal
+    # permissionrequest:
+    #   verbosity: summary
+    # stop:
+    #   verbosity: summary
+    # subagentstop:
+    #   verbosity: summary
+    # precompact:
+    #   verbosity: full
+
+# Optional: Workflow correlation ID
+# Set via env var to correlate events across multiple sessions
+# Useful for tracking multi-session workflows
+# Env: CLAUDE_WORKFLOW_ID=my-feature-branch-work
+correlation:
+  workflow_id: null
