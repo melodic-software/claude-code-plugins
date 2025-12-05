@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/troubleshooting
 source_type: llms-txt
-content_hash: sha256:139ce25cd3f0ef3219da8e821d5b34208b7d3c4239c4f7311c95562c18d1379b
+content_hash: sha256:557b4cc46665db3ea913b6111501412737e15853ffee30658823002120df6431
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"19239012a05ab14f3a070269f06740ac9d276a76e3b3e7effd2d16a1e454bbd3"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"bc6144ed2d6dfb4ede63ee41c029c594190c4de9dde3a253e08f2595fc44669f"'
+last_modified: '2025-12-03T18:17:56Z'
 ---
 
 # Troubleshooting guide
@@ -20,13 +20,31 @@ topics on:
 
 ## Authentication or login errors
 
+- **Error:
+  `You must be a named user on your organization's Gemini Code Assist Standard edition subscription to use this service. Please contact your administrator to request an entitlement to Gemini Code Assist Standard edition.`**
+  - **Cause:** This error might occur if Gemini CLI detects the
+    `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_PROJECT_ID` environment variable is
+    defined. Setting these variables forces an organization subscription check.
+    This might be an issue if you are using an individual Google account not
+    linked to an organizational subscription.
+
+  - **Solution:**
+    - **Individual Users:** Unset the `GOOGLE_CLOUD_PROJECT` and
+      `GOOGLE_CLOUD_PROJECT_ID` environment variables. Check and remove these
+      variables from your shell configuration files (for example, `.bashrc`,
+      `.zshrc`) and any `.env` files. If this doesn't resolve the issue, try
+      using a different Google account.
+
+    - **Organizational Users:** Contact your Google Cloud administrator to be
+      added to your organization's Gemini Code Assist subscription.
+
 - **Error: `Failed to login. Message: Request contains an invalid argument`**
-  - Users with Google Workspace accounts or Google Cloud accounts associated
-    with their Gmail accounts may not be able to activate the free tier of the
-    Google Code Assist plan.
-  - For Google Cloud accounts, you can work around this by setting
-    `GOOGLE_CLOUD_PROJECT` to your project ID.
-  - Alternatively, you can obtain the Gemini API key from
+  - **Cause:** Users with Google Workspace accounts or Google Cloud accounts
+    associated with their Gmail accounts may not be able to activate the free
+    tier of the Google Code Assist plan.
+  - **Solution:** For Google Cloud accounts, you can work around this by setting
+    `GOOGLE_CLOUD_PROJECT` to your project ID. Alternatively, you can obtain the
+    Gemini API key from
     [Google AI Studio](http://aistudio.google.com/app/apikey), which also
     includes a separate free tier.
 
@@ -116,8 +134,7 @@ This is especially useful for scripting and automation.
 ## Debugging tips
 
 - **CLI debugging:**
-  - Use the `--verbose` flag (if available) with CLI commands for more detailed
-    output.
+  - Use the `--debug` flag for more detailed output.
   - Check the CLI logs, often found in a user-specific configuration or cache
     directory.
 

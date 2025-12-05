@@ -166,6 +166,146 @@ class TestGeminiDocsAPI:
         assert any(r['doc_id'] == 'doc1' for r in results)
 
 
+class TestNewAPIMethods:
+    """Test suite for new API methods added for feature parity."""
+
+    def test_get_document_section(self, refs_dir):
+        """Test extracting a section from a document."""
+        # Arrange
+        doc_content = """---
+title: Commands
+url: https://geminicli.com/docs/commands
+---
+
+# Commands
+
+Overview of Gemini CLI commands.
+
+## Built-in Commands
+
+These are the built-in commands available.
+
+### help
+
+Shows help information.
+
+## Custom Commands
+
+You can create custom commands.
+"""
+        index = {
+            'geminicli-com-docs-commands': create_mock_index_entry(
+                'geminicli-com-docs-commands',
+                'https://geminicli.com/docs/commands',
+                'geminicli-com/docs/commands.md',
+                title='Commands',
+                description='CLI commands reference'
+            )
+        }
+        refs_dir.create_index(index)
+        refs_dir.create_doc('geminicli-com', 'docs', 'commands.md', doc_content)
+
+        from gemini_docs_api import GeminiDocsAPI
+        api = GeminiDocsAPI(refs_dir.references_dir)
+
+        # Act
+        section = api.get_document_section('geminicli-com-docs-commands', 'Built-in Commands')
+
+        # Assert
+        assert section is not None
+        assert 'content' in section
+        assert 'built-in commands' in section['content'].lower() or 'help' in section['content'].lower()
+
+    def test_get_document_section_not_found(self, refs_dir):
+        """Test section extraction with non-existent section returns full content as fallback."""
+        # Arrange
+        doc_content = """---
+title: Commands
+url: https://geminicli.com/docs/commands
+---
+
+# Commands
+
+Overview section.
+"""
+        index = {
+            'geminicli-com-docs-commands': create_mock_index_entry(
+                'geminicli-com-docs-commands',
+                'https://geminicli.com/docs/commands',
+                'geminicli-com/docs/commands.md',
+                title='Commands'
+            )
+        }
+        refs_dir.create_index(index)
+        refs_dir.create_doc('geminicli-com', 'docs', 'commands.md', doc_content)
+
+        from gemini_docs_api import GeminiDocsAPI
+        api = GeminiDocsAPI(refs_dir.references_dir)
+
+        # Act
+        section = api.get_document_section('geminicli-com-docs-commands', 'Non-Existent Section')
+
+        # Assert - when section not found, API returns full content as fallback (content_type="full")
+        assert section is not None
+        assert section.get('content_type') == 'full'  # Fallback to full content
+        assert 'content' in section
+        assert section['content'] is not None
+
+    def test_detect_drift_missing_files(self, refs_dir):
+        """Test drift detection identifies missing files."""
+        # Arrange - index entry without corresponding file
+        index = {
+            'missing-doc': create_mock_index_entry(
+                'missing-doc',
+                'https://geminicli.com/docs/missing',
+                'geminicli-com/docs/missing.md',
+                title='Missing Doc'
+            )
+        }
+        refs_dir.create_index(index)
+        # Note: we don't create the actual file
+
+        from gemini_docs_api import GeminiDocsAPI
+        api = GeminiDocsAPI(refs_dir.references_dir)
+
+        # Act - provide output_subdir matching path prefix, check_hashes=True triggers missing files check
+        result = api.detect_drift(output_subdir='geminicli-com', check_404s=False, check_hashes=True)
+
+        # Assert
+        assert result['missing_files_count'] >= 1
+
+    def test_cleanup_drift_dry_run(self, refs_dir):
+        """Test cleanup drift in dry-run mode doesn't delete files."""
+        # Arrange - create a doc that we'll mark as 404
+        doc_content = """---
+title: Test Doc
+url: https://geminicli.com/docs/test
+---
+
+# Test Document
+"""
+        index = {
+            'test-doc': create_mock_index_entry(
+                'test-doc',
+                'https://geminicli.com/docs/test',
+                'geminicli-com/docs/test.md',
+                title='Test Doc'
+            )
+        }
+        refs_dir.create_index(index)
+        doc_path = refs_dir.create_doc('geminicli-com', 'docs', 'test.md', doc_content)
+
+        from gemini_docs_api import GeminiDocsAPI
+        api = GeminiDocsAPI(refs_dir.references_dir)
+
+        # Act - dry run should not delete
+        result = api.cleanup_drift(clean_404s=True, clean_missing_files=True, dry_run=True)
+
+        # Assert - file should still exist
+        assert doc_path.exists()
+        assert 'dry_run' not in result or result.get('dry_run', True)
+
+
 class TestModuleLevelFunctions:
     """Test module-level convenience functions."""
 
@@ -200,3 +340,41 @@ class TestModuleLevelFunctions:
 
         # Assert
         assert len(results) > 0
+
+    def test_get_document_section_function(self, refs_dir, monkeypatch):
+        """Test module-level get_document_section function."""
+        # Arrange
+        doc_content = """---
+title: Tools
+url: https://geminicli.com/docs/tools
+---
+
+# Tools
+
+## Overview
+
+Tool overview section.
+"""
+        index = {
+            'tools-doc': create_mock_index_entry(
+                'tools-doc',
+                'https://geminicli.com/docs/tools',
+                'geminicli-com/docs/tools.md',
+                title='Tools'
+            )
+        }
+        refs_dir.create_index(index)
+        refs_dir.create_doc('geminicli-com', 'docs', 'tools.md', doc_content)
+
+        from gemini_docs_api import GeminiDocsAPI
+        import gemini_docs_api
+        gemini_docs_api._api_instance = None
+        api = GeminiDocsAPI(refs_dir.references_dir)
+        monkeypatch.setattr(gemini_docs_api, '_api_instance', api)
+
+        # Act
+        from gemini_docs_api import get_document_section
+        section = get_document_section('tools-doc', 'Overview')
+
+        # Assert
+        assert section is not None

@@ -38,6 +38,16 @@ http:
 
 # Scraping Configuration
 scraping:
+  # URL exclusion patterns (regex patterns to skip during scraping)
+  # These URLs are extracted from sources but should not be scraped
+  url_exclusions:
+    # GitHub raw content - repository files like GEMINI.md, CONTRIBUTING.md
+    # These are internal repo files, not public documentation
+    - "raw\\.githubusercontent\\.com"
+    - "github\\.com/.*/blob/"
+    # Private or maintainer-only repositories
+    - "maintainers-gemini-cli"
+
   # Delay between requests (seconds) - rate limiting
   rate_limit: 0.5
 
@@ -147,10 +157,32 @@ performance:
 
 # Search and Relevance Configuration
 search:
+  # Default number of results to return from search queries
+  # Use --limit flag to override, or --no-limit for all results
+  default_limit: 25
+
+  # Minimum relevance score threshold (null = no threshold)
+  # Results below this score are filtered out
+  # Use --min-score flag to override
+  min_score_default: null
+
   # Domain priority weights for relevance ranking
-  # Single domain for Gemini CLI docs
+  # Higher weights boost results from that domain
+  # Single domain for Gemini CLI docs (vs multi-domain for Claude docs)
   domain_weights:
     geminicli.com: 10.0  # Gemini CLI docs (only domain)
+
+  # Score boosting factors for different match types
+  match_weights:
+    keyword_exact: 3.0      # Exact keyword match in index
+    title_match: 2.5        # Query term appears in title
+    tag_match: 1.5          # Query matches a document tag
+    category_match: 1.0     # Query matches document category
+
+  # Fuzzy matching configuration
+  fuzzy:
+    enabled: true
+    threshold: 0.8          # Minimum similarity score (0.0-1.0)
 
 # Keyword Extraction Configuration
 keyword_extraction:
@@ -181,8 +213,73 @@ user_agents:
   management: "Gemini-Docs-Management-Bot/1.0"
   scraper: "Gemini-Docs-Scraper/1.0 (Educational purposes)"
 
+# Cache Configuration
+cache:
+  # Enable inverted index caching for O(1) keyword lookups
+  inverted_index_enabled: true
+
+  # Cache TTL in seconds (0 = no expiry)
+  ttl: 0
+
+  # Cache directory (relative to skill directory)
+  directory: "cache"
+
+  # Maximum cache size in MB (0 = unlimited)
+  max_size_mb: 0
+
+# Logging Configuration
+logging:
+  # Log directory (relative to skill directory)
+  directory: "logs"
+
+  # Log retention in days (for cleanup script)
+  retention_days: 30
+
+  # Maximum diagnostic files to keep per script
+  max_diagnostics_per_script: 10
+
+  # Log levels: DEBUG, INFO, WARNING, ERROR
+  default_level: "INFO"
+
+  # Enable detailed diagnostics JSON output
+  diagnostics_enabled: true
+
+# Maintenance Configuration
+maintenance:
+  # Drift detection defaults
+  drift:
+    check_404s: true
+    check_hashes: false  # Disabled by default (network-intensive)
+    max_workers: 5
+
+  # Cleanup defaults
+  cleanup:
+    clean_404s: false    # Require explicit opt-in
+    clean_missing: false # Require explicit opt-in
+    dry_run: true        # Default to preview mode
+
+  # Stale document thresholds
+  stale:
+    # Days since last fetch to consider stale
+    threshold_days: 90
+    # Auto-remove stale docs
+    auto_remove: false
+
+# Section Extraction Configuration
+extraction:
+  # Include child sections when extracting a heading
+  include_children: true
+
+  # Maximum section depth to include
+  max_depth: 3
+
+  # Add provenance frontmatter to extracted sections
+  add_provenance: true
+
 # Environment Variable Override Prefix
 # All values can be overridden by setting environment variables with prefix:
 # GEMINI_DOCS_<SECTION>_<KEY>
 # Example: GEMINI_DOCS_HTTP_DEFAULT_TIMEOUT=60
 # Example: GEMINI_DOCS_SCRAPING_MAX_WORKERS=5
+# Example: GEMINI_DOCS_SEARCH_DEFAULT_LIMIT=50
+# Example: GEMINI_DOCS_CACHE_TTL=3600

@@ -83,6 +83,13 @@ class TempConfigDir:
             yaml.dump(defaults, f)
         return defaults_file
 
+    def create_tag_detection_yaml(self, config: dict) -> Path:
+        """Create tag_detection.yaml file"""
+        tag_file = self.config_dir / "tag_detection.yaml"
+        with open(tag_file, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f)
+        return tag_file
+
     def cleanup(self):
         """Clean up temporary directory"""
         import shutil
@@ -144,10 +151,16 @@ class TempReferencesDir:
 
 
 def create_mock_llms_txt(urls: list) -> str:
-    """Create mock llms.txt content"""
+    """Create mock llms.txt content with markdown link format.
+
+    The actual llms.txt uses markdown links: [title](url)
+    This helper generates content that parse_llms_txt can extract.
+    """
     txt = "# Gemini CLI Documentation\n\n"
     for url in urls:
-        txt += f"- {url}\n"
+        # Extract a title from the URL (last path segment)
+        title = url.rstrip('/').split('/')[-1] or 'Home'
+        txt += f"- [{title}]({url})\n"
     return txt
 
 

@@ -62,7 +62,8 @@ from utils.config_helpers import (
     get_http_markdown_request_timeout,
     get_validation_timeout,
     get_scraping_progress_interval,
-    get_scraping_progress_url_interval
+    get_scraping_progress_url_interval,
+    get_url_exclusion_patterns
 )
 from utils.http_utils import fetch_with_retry
 configure_utf8_output()
@@ -270,7 +271,40 @@ class DocScraper:
                 return "No skips"
             parts = [f"{k}={v}" for k, v in active_reasons.items()]
             return f"SKIP REASONS: {', '.join(parts)}"
-    
+
+    def filter_excluded_urls(self, urls: list[str]) -> list[str]:
+        """Filter out URLs matching exclusion patterns from config.
+
+        Args:
+            urls: List of URLs to filter
+
+        Returns:
+            List of URLs that don't match any exclusion pattern
+        """
+        exclusion_patterns = get_url_exclusion_patterns()
+        if not exclusion_patterns:
+            return urls
+
+        # Compile patterns for efficiency
+        compiled_patterns = [re.compile(pattern) for pattern in exclusion_patterns]
+
+        filtered_urls = []
+        excluded_count = 0
+        for url in urls:
+            excluded = False
+            for pattern in compiled_patterns:
+                if pattern.search(url):
+                    excluded = True
+                    excluded_count += 1
+                    break
+            if not excluded:
+                filtered_urls.append(url)
+
+        if excluded_count > 0:
+            print(f"  ⏭️  Excluded {excluded_count} URLs matching exclusion patterns")
+
+        return filtered_urls
+
     def load_progress(self) -> set[str]:
         """Load already-scraped URLs from progress file (parallel-safe with locking)"""
         if not self.progress_file.exists():
@@ -690,6 +724,10 @@ class DocScraper:
         urls = [url for title, url in matches]
 
         print(f"  Found {len(urls)} documentation URLs")
+
+        # Apply URL exclusion patterns from config
+        urls = self.filter_excluded_urls(urls)
+
         return urls
 
     def parse_llms_txt(self, llms_txt_url: str) -> list[str]:
@@ -700,7 +738,7 @@ class DocScraper:
             llms_txt_url: URL to llms.txt file
 
         Returns:
-            List of documentation URLs
+            List of documentation URLs (with exclusion patterns applied)
         """
         print(f"📋 Parsing llms.txt: {llms_txt_url}")
         content, _ = self.fetch_url(llms_txt_url)
@@ -718,6 +756,10 @@ class DocScraper:
         urls = parser.extract_urls(content)
 
         print(f"  Found {len(urls)} documentation URLs")
+
+        # Apply URL exclusion patterns from config
+        urls = self.filter_excluded_urls(urls)
+
         return urls
 
     def html_to_markdown(self, html_content: str, source_url: str | None = None) -> str:

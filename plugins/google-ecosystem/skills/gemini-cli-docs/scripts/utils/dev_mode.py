@@ -70,7 +70,7 @@ def _validate_skill_dir(path: Path) -> bool:
 def is_dev_mode() -> bool:
     """Check if running in development mode.
 
-    Returns True if OFFICIAL_DOCS_DEV_ROOT is set to a valid skill directory.
+    Returns True if GEMINI_DOCS_DEV_ROOT is set to a valid skill directory.
 
     Returns:
         True if in dev mode, False otherwise
@@ -86,7 +86,7 @@ def is_dev_mode() -> bool:
 def get_effective_skill_dir(fallback: Path) -> Path:
     """Get the effective skill directory, respecting dev mode override.
 
-    If OFFICIAL_DOCS_DEV_ROOT is set and valid, returns that path.
+    If GEMINI_DOCS_DEV_ROOT is set and valid, returns that path.
     Otherwise returns the fallback (usually bootstrap.skill_dir).
 
     Args:

@@ -175,6 +175,14 @@ def get_scraping_progress_url_interval() -> int:
     """Get progress reporting interval in number of URLs."""
     return get_default('scraping', 'progress_url_interval', 10)
 
+def get_url_exclusion_patterns() -> list[str]:
+    """Get list of regex patterns for URLs to exclude from scraping.
+
+    Returns:
+        List of regex pattern strings (e.g., ["raw\\.githubusercontent\\.com", "github\\.com/.*/blob/"])
+    """
+    return get_default('scraping', 'url_exclusions', [])
+
 # Index Configuration Helpers
 
 def get_index_chunk_size() -> int:

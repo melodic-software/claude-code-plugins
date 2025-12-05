@@ -1,11 +1,11 @@
 ---
 source_url: https://geminicli.com/docs/get-started/configuration
 source_type: llms-txt
-content_hash: sha256:78b31f831366d9aec4c846c27d434fea872d0eaddb1730547fc9c448565460da
+content_hash: sha256:e2b9826b99cbc04ebfed3f4504baf109a00b5a681edf0246a3712934f265dbd2
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"54c0da5e4433fb4a5af5c47ebf3cb5028bd1c7a13c1c0a8001df7c2d7fdd7788"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"44d369a3f004d37feb097e36354f770d9272e0275d1bf6a66bc092410ed19944"'
+last_modified: '2025-12-03T18:17:56Z'
 ---
 
 # Gemini CLI configuration
@@ -678,7 +678,7 @@ their corresponding top-level category object in your `settings.json` file.
     integration. When enabled, tools automatically respect policy engine
     decisions (ALLOW/DENY/ASK_USER) without requiring individual tool
     implementations.
-  - **Default:** `false`
+  - **Default:** `true`
   - **Requires restart:** Yes
 
 - **`tools.enableHooks`** (boolean):
@@ -792,6 +792,11 @@ their corresponding top-level category object in your `settings.json` file.
   - **Default:** `false`
   - **Requires restart:** Yes
 
+- **`experimental.jitContext`** (boolean):
+  - **Description:** Enable Just-In-Time (JIT) context loading.
+  - **Default:** `false`
+  - **Requires restart:** Yes
+
 - **`experimental.codebaseInvestigatorSettings.enabled`** (boolean):
   - **Description:** Enable the Codebase Investigator agent.
   - **Default:** `true`
@@ -821,10 +826,65 @@ their corresponding top-level category object in your `settings.json` file.
 
 #### `hooks`
 
-- **`hooks`** (object):
-  - **Description:** Hook configurations for intercepting and customizing agent
-    behavior.
-  - **Default:** `{}`
+- **`hooks.disabled`** (array):
+  - **Description:** List of hook names (commands) that should be disabled.
+    Hooks in this list will not execute even if configured.
+  - **Default:** `[]`
+
+- **`hooks.BeforeTool`** (array):
+  - **Description:** Hooks that execute before tool execution. Can intercept,
+    validate, or modify tool calls.
+  - **Default:** `[]`
+
+- **`hooks.AfterTool`** (array):
+  - **Description:** Hooks that execute after tool execution. Can process
+    results, log outputs, or trigger follow-up actions.
+  - **Default:** `[]`
+
+- **`hooks.BeforeAgent`** (array):
+  - **Description:** Hooks that execute before agent loop starts. Can set up
+    context or initialize resources.
+  - **Default:** `[]`
+
+- **`hooks.AfterAgent`** (array):
+  - **Description:** Hooks that execute after agent loop completes. Can perform
+    cleanup or summarize results.
+  - **Default:** `[]`
+
+- **`hooks.Notification`** (array):
+  - **Description:** Hooks that execute on notification events (errors,
+    warnings, info). Can log or alert on specific conditions.
+  - **Default:** `[]`
+
+- **`hooks.SessionStart`** (array):
+  - **Description:** Hooks that execute when a session starts. Can initialize
+    session-specific resources or state.
+  - **Default:** `[]`
+
+- **`hooks.SessionEnd`** (array):
+  - **Description:** Hooks that execute when a session ends. Can perform cleanup
+    or persist session data.
+  - **Default:** `[]`
+
+- **`hooks.PreCompress`** (array):
+  - **Description:** Hooks that execute before chat history compression. Can
+    back up or analyze conversation before compression.
+  - **Default:** `[]`
+
+- **`hooks.BeforeModel`** (array):
+  - **Description:** Hooks that execute before LLM requests. Can modify prompts,
+    inject context, or control model parameters.
+  - **Default:** `[]`
+
+- **`hooks.AfterModel`** (array):
+  - **Description:** Hooks that execute after LLM responses. Can process
+    outputs, extract information, or log interactions.
+  - **Default:** `[]`
+
+- **`hooks.BeforeToolSelection`** (array):
+  - **Description:** Hooks that execute before tool selection. Can filter or
+    prioritize available tools dynamically.
+  - **Default:** `[]`
   <!-- SETTINGS-AUTOGEN:END -->
 
 #### `mcpServers`

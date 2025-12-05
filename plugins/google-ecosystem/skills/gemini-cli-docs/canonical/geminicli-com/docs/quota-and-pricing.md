@@ -1,30 +1,27 @@
 ---
 source_url: http://geminicli.com/docs/quota-and-pricing
 source_type: llms-txt
-content_hash: sha256:c52f4179898f1bd8dd138ab3e92bcd5edd29d6fdb42815bd734e1c385f3a0eff
+content_hash: sha256:7a570b53db5b616d193a649b0faf5ec88dd3247f10c71052f102391119c8b5cf
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"8c76fca3dab092d626200f955150bf9d9d8625512a43b24adf039f7457dd48ee"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"b9c60632e489a14c92d29ac14594b9eb8f204cfb9f4c863ebfdfe946d99329e8"'
+last_modified: '2025-12-03T18:17:56Z'
 ---
 
 # Gemini CLI: Quotas and pricing
 
-Gemini CLI offers a generous free tier that covers the use cases for many
-individual developers. For enterprise / professional usage, or if you need
-higher limits, there are multiple possible avenues depending on what type of
-account you use to authenticate.
+Gemini CLI offers a generous free tier that covers many individual developers'
+use cases. For enterprise or professional usage, or if you need higher limits,
+several options are available depending on your authentication account type.
 
-See [privacy and terms](/docs/tos-privacy) for details on Privacy policy and
+See [privacy and terms](/docs/tos-privacy) for details on the Privacy Policy and
 Terms of Service.
 
-> [!NOTE]
->
-> Published prices are list price; additional negotiated commercial discounting
-> may apply.
+> **Note:** Published prices are list price; additional negotiated commercial
+> discounting may apply.
 
-This article outlines the specific quotas and pricing applicable to the Gemini
-CLI when using different authentication methods.
+This article outlines the specific quotas and pricing applicable to Gemini CLI
+when using different authentication methods.
 
 Generally, there are three categories to choose from:
 
@@ -82,11 +79,9 @@ Learn more at
 If you use up your initial number of requests, you can continue to benefit from
 Gemini CLI by upgrading to one of the following subscriptions:
 
-- [Google AI Pro and AI Ultra](https://cloud.google.com/products/gemini/pricing)
-  by signing up at
-  [Set up Gemini Code Assist](https://goo.gle/set-up-gemini-code-assist). This
-  is recommended for individual developers. Quotas and pricing are based on a
-  fixed price subscription.
+- [Google AI Pro and AI Ultra](https://gemini.google/subscriptions/). This is
+  recommended for individual developers. Quotas and pricing are based on a fixed
+  price subscription.
 
   For predictable costs, you can log in with Google.
 
@@ -95,7 +90,8 @@ Gemini CLI by upgrading to one of the following subscriptions:
 
 - [Purchase a Gemini Code Assist Subscription through Google Cloud ](https://cloud.google.com/gemini/docs/codeassist/overview)
   by signing up in the Google Cloud console. Learn more at
-  [Set up Gemini Code Assist](https://cloud.google.com/gemini/docs/discover/set-up-gemini)
+  [Set up Gemini Code Assist](https://cloud.google.com/gemini/docs/discover/set-up-gemini).
+
   Quotas and pricing are based on a fixed price subscription with assigned
   license seats. For predictable costs, you can sign in with Google.
 

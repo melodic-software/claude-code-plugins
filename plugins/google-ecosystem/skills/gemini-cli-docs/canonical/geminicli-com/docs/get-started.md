@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/get-started
 source_type: llms-txt
-content_hash: sha256:70b24b5940733b396f51b34a964d2f5eaf83cf9daeda9d933f2993ce4f14c064
+content_hash: sha256:690ec8da5efdaaec7fc72009debb3d66adbaeac7a48535180a31194094dd6b01
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"56a8447c845c97a361daed0aaae3b5cdb9037890d38b89412e2a60354a31decc"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"785f9df7dd612d39168349b1d90da78f5ab32f0bffef74efd54cb1631923beee"'
+last_modified: '2025-12-03T18:17:56Z'
 ---
 
 # Get started with Gemini CLI
@@ -38,19 +38,24 @@ For more installation options, see [Gemini CLI Installation](/docs/get-started/i
 
 ## Authenticate
 
-To begin using Gemini CLI, you must authenticate with a Google service. The most
-straightforward authentication method uses your existing Google account:
+To begin using Gemini CLI, you must authenticate with a Google service. In most
+cases, you can log in with your existing Google account:
 
 1. Run Gemini CLI after installation:
+
    ```bash
    gemini
    ```
+
 2. When asked "How would you like to authenticate for this project?" select **1.
    Login with Google**.
+
 3. Select your Google account.
+
 4. Click on **Sign in**.
 
-For other authentication options and information, see
+Certain account types may require you to configure a Google Cloud project. For
+more information, including other authentication methods, see
 [Gemini CLI Authentication Setup](/docs/get-started/authentication).
 
 ## Configure

@@ -1,32 +1,355 @@
 {
+  "docs-cloud-google-com-gemini-docs-codeassist-overview": {
+    "category": "api",
+    "description": "Gemini Code Assist Standard and Enterprise overview  |  Gemini for Google Cloud  |  Google Cloud Documentation",
+    "domain": "docs.cloud.google.com",
+    "hash": "sha256:ab41eafabf9deeb68486be3b7a3f0a2187b321bb7db8668d92b927995117aea8",
+    "keywords": [
+      "codeassist",
+      "application integration",
+      "model context protocol",
+      "enterprise editions",
+      "categorize content",
+      "bigquery features",
+      "colab enterprise",
+      "natural language",
+      "assist standard",
+      "code assistance",
+      "context window",
+      "stay organized"
+    ],
+    "last_fetched": "2025-12-05",
+    "path": "docs-cloud-google-com/gemini/docs/codeassist/overview.md",
+    "sitemap_url": "https://geminicli.com/llms.txt",
+    "source_type": "llms-txt",
+    "subsections": [
+      {
+        "anchor": "#gemini-code-assist-standard-and-enterprise-editions-overview",
+        "heading": "Gemini Code Assist Standard and Enterprise editions overview",
+        "keywords": [
+          "code",
+          "assist",
+          "standard",
+          "enterprise",
+          "editions"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#supported-features-for-gemini-code-assist-standard-and-enterprise",
+        "heading": "Supported features for Gemini Code Assist Standard and Enterprise",
+        "keywords": [
+          "supported",
+          "features",
+          "code",
+          "assist",
+          "standard"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#code-assistance-and-chat",
+        "heading": "Code assistance and chat",
+        "keywords": [
+          "code",
+          "assistance",
+          "chat",
+          "following",
+          "table"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#additional-features-outside-the-ide",
+        "heading": "Additional features outside the IDE",
+        "keywords": [
+          "additional",
+          "features",
+          "outside",
+          "ide",
+          "following"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#set-up-gemini-code-assist",
+        "heading": "Set up Gemini Code Assist",
+        "keywords": [
+          "set",
+          "code",
+          "assist",
+          "detailed",
+          "setup"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#interact-with-gemini-code-assist-in-your-ide",
+        "heading": "Interact with Gemini Code Assist in your IDE",
+        "keywords": [
+          "interact",
+          "code",
+          "assist",
+          "ide",
+          "standard"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#whats-next",
+        "heading": "What's next",
+        "keywords": [
+          "learn",
+          "code",
+          "assist"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "cli",
+      "ide",
+      "models",
+      "security",
+      "troubleshooting"
+    ],
+    "title": "Gemini Code Assist Standard and Enterprise overview Stay organized with collections Save and categorize content based on your preferences.",
+    "url": "https://docs.cloud.google.com/gemini/docs/codeassist/overview"
+  },
   "geminicli-com-docs": {
     "content_hash": "sha256:e8e66b6810993d3e7cafc4d3ea8debfd08bd54a9bf5e3629b32736dc8e54dc3f",
     "doc_id": "geminicli-com-docs",
-    "hash": "sha256:e8e66b6810993d3e7cafc4d3ea8debfd08bd54a9bf5e3629b32736dc8e54dc3f",
-    "last_fetched": "2025-12-01",
+    "last_fetched": "",
     "path": "geminicli-com\\docs.md",
     "source_url": "http://geminicli.com/docs.md"
   },
   "geminicli-com-docs-architecture": {
+    "category": "cli",
     "content_hash": "sha256:438f2206e5f8c47273939ff08c9091146ce5ee052542de36823732ff5f576b69",
+    "description": "This document provides a high-level overview of the Gemini CLI's architecture.",
     "doc_id": "geminicli-com-docs-architecture",
     "hash": "sha256:438f2206e5f8c47273939ff08c9091146ce5ee052542de36823732ff5f576b69",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "architecture",
+      "design principles",
+      "interaction flow",
+      "core components",
+      "file system",
+      "web fetch",
+      "interaction",
+      "components",
+      "principles",
+      "provides",
+      "design",
+      "level"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\architecture.md",
-    "source_url": "http://geminicli.com/docs/architecture.md"
+    "source_url": "http://geminicli.com/docs/architecture.md",
+    "subsections": [
+      {
+        "anchor": "#core-components",
+        "heading": "Core components",
+        "keywords": [
+          "core",
+          "components",
+          "primarily",
+          "composed",
+          "main"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#interaction-flow",
+        "heading": "Interaction flow",
+        "keywords": [
+          "interaction",
+          "flow",
+          "typical",
+          "follows"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#key-design-principles",
+        "heading": "Key design principles",
+        "keywords": [
+          "key",
+          "design",
+          "principles",
+          "modularity",
+          "separating"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "cli",
+      "configuration",
+      "models",
+      "tools"
+    ],
+    "title": "Gemini CLI Architecture Overview"
   },
   "geminicli-com-docs-changelogs": {
+    "category": "cli",
     "content_hash": "sha256:e80cfc18a29d8a9ddbe117fdecf10644a46c11cb48d5a5ba158cf0002a4e8231",
+    "description": "Wondering what's new in Gemini CLI? This document provides key highlights and notable changes to Gemini CLI.",
     "doc_id": "geminicli-com-docs-changelogs",
     "hash": "sha256:e80cfc18a29d8a9ddbe117fdecf10644a46c11cb48d5a5ba158cf0002a4e8231",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "changelogs",
+      "codebase investigator",
+      "model selection",
+      "slash commands",
+      "model routing",
+      "weekly update",
+      "shell tool",
+      "web fetch",
+      "highlights",
+      "changelog",
+      "wondering",
+      "provides"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\changelogs.md",
-    "source_url": "http://geminicli.com/docs/changelogs.md"
+    "source_url": "http://geminicli.com/docs/changelogs.md",
+    "subsections": [
+      {
+        "anchor": "#v0150---gemini-cli-weekly-update---2025-11-03",
+        "heading": "v0.15.0 - Gemini CLI weekly update - 2025-11-03",
+        "keywords": [
+          "weekly",
+          "update",
+          "seamless",
+          "scrollable",
+          "mouse"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v0120---gemini-cli-weekly-update---2025-10-27",
+        "heading": "v0.12.0 - Gemini CLI weekly update - 2025-10-27",
+        "keywords": [
+          "weekly",
+          "update",
+          "codebase",
+          "investigator",
+          "subagent"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v0110---gemini-cli-weekly-update---2025-10-20",
+        "heading": "v0.11.0 - Gemini CLI weekly update - 2025-10-20",
+        "keywords": [
+          "weekly",
+          "update",
+          "jules",
+          "https",
+          "storage"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v0100---gemini-cli-weekly-update---2025-10-13",
+        "heading": "v0.10.0 - Gemini CLI weekly update - 2025-10-13",
+        "keywords": [
+          "weekly",
+          "update",
+          "polish",
+          "team",
+          "heads"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v090---gemini-cli-weekly-update---2025-10-06",
+        "heading": "v0.9.0 - Gemini CLI weekly update - 2025-10-06",
+        "keywords": [
+          "weekly",
+          "update",
+          "interactive",
+          "shell"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v080---gemini-cli-weekly-update---2025-09-29",
+        "heading": "v0.8.0 - Gemini CLI weekly update - 2025-09-29",
+        "keywords": [
+          "weekly",
+          "update",
+          "announcing",
+          "extensions",
+          "completely"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v070---gemini-cli-weekly-update---2025-09-22",
+        "heading": "v0.7.0 - Gemini CLI weekly update - 2025-09-22",
+        "keywords": [
+          "weekly",
+          "update",
+          "build",
+          "plugin",
+          "published"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v060---gemini-cli-weekly-update---2025-09-15",
+        "heading": "v0.6.0 - Gemini CLI weekly update - 2025-09-15",
+        "keywords": [
+          "weekly",
+          "update",
+          "higher",
+          "limits",
+          "ultra"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v050---gemini-cli-weekly-update---2025-09-08",
+        "heading": "v0.5.0 - Gemini CLI weekly update - 2025-09-08",
+        "keywords": [
+          "weekly",
+          "update",
+          "fastmcp",
+          "quickly",
+          "install"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#v040---gemini-cli-weekly-update---2025-09-01",
+        "heading": "v0.4.0 - Gemini CLI weekly update - 2025-09-01",
+        "keywords": [
+          "weekly",
+          "update",
+          "cloudrun",
+          "security",
+          "integrations"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "authentication",
+      "checkpointing",
+      "cli",
+      "configuration",
+      "extensions",
+      "ide"
+    ],
+    "title": "Gemini CLI Changelog"
   },
   "geminicli-com-docs-cli": {
     "category": "cli",
+    "content_hash": "sha256:57d52f19f9fe569f577572d5e71949da388a2f776901e30873ab25b21c0fc210",
     "description": "Within Gemini CLI, `packages/cli` is the frontend for users to send and receive prompts with the Gemini AI model and its associated tools. For a general overview of Gemini CLI, see the [main...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli",
     "hash": "sha256:57d52f19f9fe569f577572d5e71949da388a2f776901e30873ab25b21c0fc210",
     "keywords": [
       "advanced features",
@@ -42,10 +365,9 @@
       "checkpoint",
       "advanced"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli.md",
+    "source_url": "http://geminicli.com/docs/cli.md",
     "subsections": [
       {
         "anchor": "#basic-features",
@@ -89,33 +411,32 @@
       "models",
       "tools"
     ],
-    "title": "Gemini CLI",
-    "url": "http://geminicli.com/docs/cli"
+    "title": "Gemini CLI"
   },
   "geminicli-com-docs-cli-authentication": {
     "category": "cli",
+    "content_hash": "sha256:451bfce508a909a824de9166876c023c95ce8915466e490819d31bdd09e66c27",
     "description": "See: [Getting Started - Authentication Setup](/docs/get-started/authentication).",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-authentication",
     "hash": "sha256:451bfce508a909a824de9166876c023c95ce8915466e490819d31bdd09e66c27",
     "keywords": [
       "authentication",
       "authentication setup",
       "setup"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/authentication.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\authentication.md",
+    "source_url": "http://geminicli.com/docs/cli/authentication.md",
     "tags": [
       "authentication"
     ],
-    "title": "Authentication setup",
-    "url": "http://geminicli.com/docs/cli/authentication"
+    "title": "Authentication setup"
   },
   "geminicli-com-docs-cli-checkpointing": {
     "category": "cli",
+    "content_hash": "sha256:f4df5337f18c46c5eafff7a955fe4dfdf517618b334084fa21688004b432b90e",
     "description": "The Gemini CLI includes a Checkpointing feature that automatically saves a snapshot of your project's state before any file modifications are made by AI-powered tools. This allows you to safely...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-checkpointing",
     "hash": "sha256:f4df5337f18c46c5eafff7a955fe4dfdf517618b334084fa21688004b432b90e",
     "keywords": [
       "checkpointing",
@@ -131,10 +452,9 @@
       "feature",
       "powered"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/checkpointing.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\checkpointing.md",
+    "source_url": "http://geminicli.com/docs/cli/checkpointing.md",
     "subsections": [
       {
         "anchor": "#how-it-works",
@@ -197,21 +517,126 @@
       "checkpointing",
       "tools"
     ],
-    "title": "Checkpointing",
-    "url": "http://geminicli.com/docs/cli/checkpointing"
+    "title": "Checkpointing"
   },
   "geminicli-com-docs-cli-commands": {
+    "category": "cli",
     "content_hash": "sha256:7f1dc8e627d2b9425764aa1238402cd4c057277d6aa6f18e961eb50f1ab639eb",
+    "description": "Gemini CLI supports several built-in commands to help you manage your session, customize the interface, and control its behavior. These commands are prefixed with a forward slash (`/`), an at symbol...",
     "doc_id": "geminicli-com-docs-cli-commands",
     "hash": "sha256:7f1dc8e627d2b9425764aa1238402cd4c057277d6aa6f18e961eb50f1ab639eb",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "model context protocol",
+      "session management",
+      "error handling",
+      "slash commands",
+      "input prompt",
+      "mcp servers",
+      "mcp server",
+      "shell mode",
+      "checkpointing",
+      "passthrough",
+      "checkpoint",
+      "customize"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\cli\\commands.md",
-    "source_url": "http://geminicli.com/docs/cli/commands.md"
+    "source_url": "http://geminicli.com/docs/cli/commands.md",
+    "subsections": [
+      {
+        "anchor": "#slash-commands",
+        "heading": "Slash commands (`/`)",
+        "keywords": [
+          "slash",
+          "commands",
+          "provide"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#built-in-commands",
+        "heading": "Built-in Commands",
+        "keywords": [
+          "built",
+          "commands",
+          "description",
+          "file",
+          "issue"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#custom-commands",
+        "heading": "Custom commands",
+        "keywords": [
+          "custom",
+          "commands",
+          "allow"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#input-prompt-shortcuts",
+        "heading": "Input prompt shortcuts",
+        "keywords": [
+          "input",
+          "prompt",
+          "shortcuts",
+          "apply",
+          "directly"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#at-commands",
+        "heading": "At commands (`@`)",
+        "keywords": [
+          "commands",
+          "include",
+          "content"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#error-handling-for--commands",
+        "heading": "Error handling for `@` commands",
+        "keywords": [
+          "error",
+          "handling",
+          "commands",
+          "path",
+          "specified"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#shell-mode-and-passthrough-commands",
+        "heading": "Shell mode and passthrough commands (`!`)",
+        "keywords": [
+          "shell",
+          "mode",
+          "passthrough",
+          "commands",
+          "prefix"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "authentication",
+      "caching",
+      "checkpointing",
+      "cli",
+      "configuration",
+      "extensions"
+    ],
+    "title": "CLI commands"
   },
   "geminicli-com-docs-cli-configuration": {
     "category": "configuration",
+    "content_hash": "sha256:17457d237b4417043960552f53f3499f2683f8669252c2fd0c6a5d4e3773bb26",
     "description": "Gemini CLI offers several ways to configure its behavior, including environment variables, command-line arguments, and settings files. This document outlines the different configuration methods and...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-configuration",
     "hash": "sha256:17457d237b4417043960552f53f3499f2683f8669252c2fd0c6a5d4e3773bb26",
     "keywords": [
       "configuration",
@@ -227,10 +652,9 @@
       "api keys",
       "checkpointing"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/configuration.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\configuration.md",
+    "source_url": "http://geminicli.com/docs/cli/configuration.md",
     "subsections": [
       {
         "anchor": "#configuration-layers",
@@ -426,13 +850,13 @@
       "configuration",
       "extensions"
     ],
-    "title": "Gemini CLI configuration",
-    "url": "http://geminicli.com/docs/cli/configuration"
+    "title": "Gemini CLI configuration"
   },
   "geminicli-com-docs-cli-custom-commands": {
     "category": "cli",
+    "content_hash": "sha256:81a7414cb4b7e3e1fb3ba080341aa85afbd091016ed27d09ec51bd91175b2ce9",
     "description": "Custom commands let you save and reuse your favorite or most frequently used prompts as personal shortcuts within Gemini CLI. You can create commands that are specific to a single project or commands...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-custom-commands",
     "hash": "sha256:81a7414cb4b7e3e1fb3ba080341aa85afbd091016ed27d09ec51bd91175b2ce9",
     "keywords": [
       "custom-commands",
@@ -448,10 +872,9 @@
       "changelog.toml",
       "commit.toml"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/custom-commands.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\custom-commands.md",
+    "source_url": "http://geminicli.com/docs/cli/custom-commands.md",
     "subsections": [
       {
         "anchor": "#file-locations-and-precedence",
@@ -613,29 +1036,28 @@
       "security",
       "troubleshooting"
     ],
-    "title": "Custom commands",
-    "url": "http://geminicli.com/docs/cli/custom-commands"
+    "title": "Custom commands"
   },
   "geminicli-com-docs-cli-enterprise": {
     "category": "cli",
     "description": "This document outlines configuration patterns and best practices for deploying and managing Gemini CLI in an enterprise environment. By leveraging system-level settings, administrators can enforce...",
     "domain": "geminicli.com",
-    "hash": "sha256:14a9c8472fe66651221173c9f94b22978bc40cc5b2988f0a45ef8039839d725d",
+    "hash": "sha256:4954cb8db27b87ded1c0070e01766df49b47d751bd775cd9a8e5c95b479f39d5",
     "keywords": [
       "enterprise",
       "centralized configuration",
-      "server configurations",
       "enforcing sandboxing",
       "controlling network",
-      "restricting tools",
-      "restricting tool",
+      "installation method",
+      "corporate domains",
+      "corporate system",
+      "enforcing system",
       "managing custom",
-      "system settings",
       "disabling yolo",
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-01",
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com/docs/cli/enterprise.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -651,6 +1073,18 @@
           "file"
         ],
         "level": 2
+      },
+      {
+        "anchor": "#enforcing-system-settings-with-a-wrapper-script",
+        "heading": "Enforcing system settings with a wrapper script",
+        "keywords": [
+          "enforcing",
+          "system",
+          "settings",
+          "wrapper",
+          "script"
+        ],
+        "level": 3
       },
       {
         "anchor": "#restricting-tool-access",
@@ -806,8 +1240,20 @@
         "level": 2
       },
       {
+        "anchor": "#restricting-logins-to-corporate-domains",
+        "heading": "Restricting logins to corporate domains",
+        "keywords": [
+          "restricting",
+          "logins",
+          "corporate",
+          "domains",
+          "enterprises"
+        ],
+        "level": 3
+      },
+      {
         "anchor": "#putting-it-all-together-example-system-settingsjson",
-        "heading": "Putting it all together: Example system `settings.json`",
+        "heading": "Putting it all together: example system `settings.json`",
         "keywords": [
           "putting",
           "example",
@@ -819,20 +1265,21 @@
       }
     ],
     "tags": [
+      "api",
       "authentication",
       "cli",
       "configuration",
       "ide",
-      "mcp",
-      "models"
+      "mcp"
     ],
     "title": "Gemini CLI for the enterprise",
     "url": "http://geminicli.com/docs/cli/enterprise"
   },
   "geminicli-com-docs-cli-gemini-ignore": {
     "category": "cli",
+    "content_hash": "sha256:e5b00b678c2af2e6936d77f4cf42e5320e0e76059311fab8d6e13da18186c184",
     "description": "This document provides an overview of the Gemini Ignore (`.geminiignore`) feature of the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-gemini-ignore",
     "hash": "sha256:e5b00b678c2af2e6936d77f4cf42e5320e0e76059311fab8d6e13da18186c184",
     "keywords": [
       "gemini-ignore",
@@ -845,10 +1292,9 @@
       "exclude",
       "feature"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/gemini-ignore.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\gemini-ignore.md",
+    "source_url": "http://geminicli.com/docs/cli/gemini-ignore.md",
     "subsections": [
       {
         "anchor": "#how-it-works",
@@ -887,13 +1333,13 @@
     "tags": [
       "models"
     ],
-    "title": "Ignoring files",
-    "url": "http://geminicli.com/docs/cli/gemini-ignore"
+    "title": "Ignoring files"
   },
   "geminicli-com-docs-cli-gemini-md": {
     "category": "cli",
+    "content_hash": "sha256:8bfe56e01ac016046b8e68af88bab09ee96d4d7169f4afb379a0b6c852ba5ff3",
     "description": "Context files, which use the default name `GEMINI.md`, are a powerful feature for providing instructional context to the Gemini model. You can use these files to give project-specific instructions,...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-gemini-md",
     "hash": "sha256:8bfe56e01ac016046b8e68af88bab09ee96d4d7169f4afb379a0b6c852ba5ff3",
     "keywords": [
       "gemini-md",
@@ -909,10 +1355,9 @@
       "instructions",
       "customize"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/gemini-md.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\gemini-md.md",
+    "source_url": "http://geminicli.com/docs/cli/gemini-md.md",
     "subsections": [
       {
         "anchor": "#understand-the-context-hierarchy",
@@ -1003,13 +1448,207 @@
       "memory",
       "models"
     ],
-    "title": "Provide context with GEMINI.md files",
-    "url": "http://geminicli.com/docs/cli/gemini-md"
+    "title": "Provide context with GEMINI.md files"
+  },
+  "geminicli-com-docs-cli-generation-settings": {
+    "category": "configuration",
+    "description": "This guide details the Model Configuration system within the Gemini CLI. Designed for researchers, AI quality engineers, and advanced users, this system provides a rigorous framework for managing...",
+    "domain": "geminicli.com",
+    "hash": "sha256:49ad64e0b262e63fe66e2a43e923c14c81f5741dc7b6a21311d961d63772da5d",
+    "keywords": [
+      "generation-settings",
+      "generation",
+      "settings",
+      "configuration primitives",
+      "deterministic baseline",
+      "override application",
+      "resolution strategy",
+      "modelconfig object",
+      "alias resolution",
+      "configuration",
+      "application",
+      "researchers"
+    ],
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com/docs/cli/generation-settings.md",
+    "sitemap_url": "https://geminicli.com/llms.txt",
+    "source_type": "llms-txt",
+    "subsections": [
+      {
+        "anchor": "#1-system-overview",
+        "heading": "1. System Overview",
+        "keywords": [
+          "system",
+          "model",
+          "configuration"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#2-configuration-primitives",
+        "heading": "2. Configuration Primitives",
+        "keywords": [
+          "configuration",
+          "primitives",
+          "settings",
+          "located",
+          "modelconfigs"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#aliases-customaliases",
+        "heading": "Aliases (`customAliases`)",
+        "keywords": [
+          "aliases",
+          "customaliases",
+          "named",
+          "reusable"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#overrides-overrides",
+        "heading": "Overrides (`overrides`)",
+        "keywords": [
+          "overrides",
+          "conditional",
+          "rules"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#3-resolution-strategy",
+        "heading": "3. Resolution Strategy",
+        "keywords": [
+          "resolution",
+          "strategy",
+          "modelconfigservice",
+          "resolves",
+          "final"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#step-1-alias-resolution",
+        "heading": "Step 1: Alias Resolution",
+        "keywords": [
+          "step",
+          "alias",
+          "resolution",
+          "requested",
+          "model"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#step-2-override-application",
+        "heading": "Step 2: Override Application",
+        "keywords": [
+          "step",
+          "override",
+          "application",
+          "system",
+          "evaluates"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#4-configuration-reference",
+        "heading": "4. Configuration Reference",
+        "keywords": [
+          "configuration",
+          "follows",
+          "modelconfigserviceconfig"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#modelconfig-object",
+        "heading": "`ModelConfig` Object",
+        "keywords": [
+          "modelconfig",
+          "object",
+          "defines",
+          "actual",
+          "parameters"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#generatecontentconfig-common-parameters",
+        "heading": "`GenerateContentConfig` (Common Parameters)",
+        "keywords": [
+          "generatecontentconfig",
+          "common",
+          "parameters",
+          "directly",
+          "maps"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#5-practical-examples",
+        "heading": "5. Practical Examples",
+        "keywords": [
+          "practical",
+          "examples",
+          "defining",
+          "deterministic",
+          "baseline"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#defining-a-deterministic-baseline",
+        "heading": "Defining a Deterministic Baseline",
+        "keywords": [
+          "defining",
+          "deterministic",
+          "baseline",
+          "create",
+          "alias"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#agent-specific-parameter-injection",
+        "heading": "Agent-Specific Parameter Injection",
+        "keywords": [
+          "agent",
+          "specific",
+          "parameter",
+          "injection",
+          "enforce"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#experimental-model-evaluation",
+        "heading": "Experimental Model Evaluation",
+        "keywords": [
+          "experimental",
+          "model",
+          "evaluation",
+          "route",
+          "traffic"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "configuration",
+      "ide",
+      "models"
+    ],
+    "title": "Advanced Model Configuration",
+    "url": "http://geminicli.com/docs/cli/generation-settings"
   },
   "geminicli-com-docs-cli-headless": {
     "category": "cli",
+    "content_hash": "sha256:0c209cd364da4a03239cf93757d1dcc2b9033a1daf83e2f36a10831dc0fb8c09",
     "description": "Headless mode allows you to run Gemini CLI programmatically from command line scripts and automation tools without any interactive UI. This is ideal for scripting, automation, CI/CD pipelines, and...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-headless",
     "hash": "sha256:0c209cd364da4a03239cf93757d1dcc2b9033a1daf83e2f36a10831dc0fb8c09",
     "keywords": [
       "headless",
@@ -1025,10 +1664,9 @@
       "configuration",
       "interactive"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/headless.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\headless.md",
+    "source_url": "http://geminicli.com/docs/cli/headless.md",
     "subsections": [
       {
         "anchor": "#overview",
@@ -1187,13 +1825,13 @@
       "configuration",
       "ide"
     ],
-    "title": "Headless mode",
-    "url": "http://geminicli.com/docs/cli/headless"
+    "title": "Headless mode"
   },
   "geminicli-com-docs-cli-keyboard-shortcuts": {
     "category": "cli",
+    "content_hash": "sha256:f3e65d0a4908d4b87f7dce2de9a1850006cce494f3ddc1cb84e0e4dcb76bbcf2",
     "description": "Gemini CLI ships with a set of default keyboard shortcuts for editing input, navigating history, and controlling the UI. Use this reference to learn the available combinations.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-keyboard-shortcuts",
     "hash": "sha256:f3e65d0a4908d4b87f7dce2de9a1850006cce494f3ddc1cb84e0e4dcb76bbcf2",
     "keywords": [
       "keyboard-shortcuts",
@@ -1209,10 +1847,9 @@
       "combinations",
       "completions"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/keyboard-shortcuts.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\keyboard-shortcuts.md",
+    "source_url": "http://geminicli.com/docs/cli/keyboard-shortcuts.md",
     "subsections": [
       {
         "anchor": "#additional-context-specific-shortcuts",
@@ -1231,13 +1868,13 @@
       "cli",
       "ide"
     ],
-    "title": "Gemini CLI keyboard shortcuts",
-    "url": "http://geminicli.com/docs/cli/keyboard-shortcuts"
+    "title": "Gemini CLI keyboard shortcuts"
   },
   "geminicli-com-docs-cli-model": {
     "category": "cli",
+    "content_hash": "sha256:4503679dec0599d258687c93a094fe389d79c0a1f8832c9ad219da6acf37d4dc",
     "description": "Select your Gemini CLI model. The `/model` command opens a dialog where you can configure the model used by Gemini CLI, giving you more control over your results.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-model",
     "hash": "sha256:4503679dec0599d258687c93a094fe389d79c0a1f8832c9ad219da6acf37d4dc",
     "keywords": [
       "preview features",
@@ -1253,10 +1890,9 @@
       "dialog",
       "giving"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/model.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\model.md",
+    "source_url": "http://geminicli.com/docs/cli/model.md",
     "subsections": [
       {
         "anchor": "#how-to-use-the-model-command",
@@ -1299,13 +1935,13 @@
       "configuration",
       "models"
     ],
-    "title": "Gemini CLI model selection (`/model` command)",
-    "url": "http://geminicli.com/docs/cli/model"
+    "title": "Gemini CLI model selection (`/model` command)"
   },
   "geminicli-com-docs-cli-model-routing": {
     "category": "cli",
+    "content_hash": "sha256:1f7f6179f4c65cc3881466daf4d012789b8cd9b42583778242611ca0fa325a3e",
     "description": "Gemini CLI includes a model routing feature that automatically switches to a fallback model in case of a model failure. This feature is enabled by default and provides resilience when the primary...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-model-routing",
     "hash": "sha256:1f7f6179f4c65cc3881466daf4d012789b8cd9b42583778242611ca0fa325a3e",
     "keywords": [
       "model-routing",
@@ -1321,10 +1957,9 @@
       "switches",
       "untitled"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/model-routing.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\model-routing.md",
+    "source_url": "http://geminicli.com/docs/cli/model-routing.md",
     "subsections": [
       {
         "anchor": "#model-routing",
@@ -1364,13 +1999,13 @@
       "cli",
       "models"
     ],
-    "title": "Untitled",
-    "url": "http://geminicli.com/docs/cli/model-routing"
+    "title": "Untitled"
   },
   "geminicli-com-docs-cli-sandbox": {
     "category": "cli",
+    "content_hash": "sha256:c06ded19f8939a12cc73ade62aa64a93b3062185c998073903b2ba04d3101c2c",
     "description": "This document provides a guide to sandboxing in the Gemini CLI, including prerequisites, quickstart, and configuration.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-sandbox",
     "hash": "sha256:c06ded19f8939a12cc73ade62aa64a93b3062185c998073903b2ba04d3101c2c",
     "keywords": [
       "sandbox",
@@ -1386,10 +2021,9 @@
       "prerequisites",
       "settings.json"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/sandbox.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\sandbox.md",
+    "source_url": "http://geminicli.com/docs/cli/sandbox.md",
     "subsections": [
       {
         "anchor": "#prerequisites",
@@ -1593,21 +2227,161 @@
       "models",
       "security"
     ],
-    "title": "Sandboxing in the Gemini CLI",
-    "url": "http://geminicli.com/docs/cli/sandbox"
+    "title": "Sandboxing in the Gemini CLI"
   },
   "geminicli-com-docs-cli-session-management": {
+    "category": "cli",
     "content_hash": "sha256:2ed54e168256ad206b67a0568fd211e05af98ef748ecb5419ffd33f638c2ca62",
+    "description": "Gemini CLI includes robust session management features that automatically save your conversation history. This allows you to interrupt your work and resume exactly where you left off, review past...",
     "doc_id": "geminicli-com-docs-cli-session-management",
     "hash": "sha256:2ed54e168256ad206b67a0568fd211e05af98ef748ecb5419ffd33f638c2ca62",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "session-management",
+      "management",
+      "session",
+      "interactive interface",
+      "session management",
+      "deleting sessions",
+      "managing sessions",
+      "resuming sessions",
+      "session retention",
+      "automatic saving",
+      "listing sessions",
+      "context window"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\cli\\session-management.md",
-    "source_url": "http://geminicli.com/docs/cli/session-management.md"
+    "source_url": "http://geminicli.com/docs/cli/session-management.md",
+    "subsections": [
+      {
+        "anchor": "#automatic-saving",
+        "heading": "Automatic Saving",
+        "keywords": [
+          "automatic",
+          "saving",
+          "time",
+          "interact",
+          "session"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#resuming-sessions",
+        "heading": "Resuming Sessions",
+        "keywords": [
+          "resuming",
+          "sessions",
+          "resume",
+          "previous",
+          "session"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#from-the-command-line",
+        "heading": "From the Command Line",
+        "keywords": [
+          "command",
+          "line",
+          "starting",
+          "resume",
+          "flag"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#from-the-interactive-interface",
+        "heading": "From the Interactive Interface",
+        "keywords": [
+          "interactive",
+          "interface",
+          "running",
+          "resume",
+          "slash"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#managing-sessions",
+        "heading": "Managing Sessions",
+        "keywords": [
+          "managing",
+          "sessions",
+          "listing",
+          "list"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#listing-sessions",
+        "heading": "Listing Sessions",
+        "keywords": [
+          "listing",
+          "sessions",
+          "list",
+          "available"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#deleting-sessions",
+        "heading": "Deleting Sessions",
+        "keywords": [
+          "deleting",
+          "sessions",
+          "remove",
+          "unwanted"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#configuration",
+        "heading": "Configuration",
+        "keywords": [
+          "configuration",
+          "configure",
+          "manages",
+          "session"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#session-retention",
+        "heading": "Session Retention",
+        "keywords": [
+          "session",
+          "retention",
+          "prevent",
+          "history",
+          "growing"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#session-limits",
+        "heading": "Session Limits",
+        "keywords": [
+          "session",
+          "limits",
+          "limit",
+          "length",
+          "individual"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "checkpointing",
+      "cli",
+      "models"
+    ],
+    "title": "Session Management"
   },
   "geminicli-com-docs-cli-settings": {
     "category": "configuration",
+    "content_hash": "sha256:0e4e947fbc5f30f96dde3b17bc9a1d509f8bd23d21bab7e58de5fdc3a41d9c88",
     "description": "Control your Gemini CLI experience with the `/settings` command. The `/settings` command opens a dialog to view and edit all your Gemini CLI settings, including your UI experience, keybindings, and...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-settings",
     "hash": "sha256:0e4e947fbc5f30f96dde3b17bc9a1d509f8bd23d21bab7e58de5fdc3a41d9c88",
     "keywords": [
       "settings",
@@ -1623,10 +2397,9 @@
       "including",
       "security"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/settings.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\settings.md",
+    "source_url": "http://geminicli.com/docs/cli/settings.md",
     "subsections": [
       {
         "anchor": "#settings-reference",
@@ -1745,14 +2518,13 @@
       "ide",
       "memory"
     ],
-    "title": "Gemini CLI settings (`/settings` command)",
-    "url": "http://geminicli.com/docs/cli/settings"
+    "title": "Gemini CLI settings (`/settings` command)"
   },
   "geminicli-com-docs-cli-telemetry": {
     "category": "cli",
     "description": "Learn how to enable and setup OpenTelemetry for Gemini CLI.",
     "domain": "geminicli.com",
-    "hash": "sha256:34fd69d02f6aa09885ef0c5a3df1b3f782398820f80f4e7bac60163b1151b453",
+    "hash": "sha256:3dbbe6a89a2a488af9a15884c61b5fdd67382975d1a1078df0fdce8d70fc7781",
     "keywords": [
       "telemetry",
       "opentelemetry integration",
@@ -1763,11 +2535,11 @@
       "model routing",
       "token usage",
       "agent runs",
-      "configuration",
+      "authenticating",
       "observability",
       "opentelemetry"
     ],
-    "last_fetched": "2025-12-01",
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com/docs/cli/telemetry.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -1826,6 +2598,18 @@
           "method",
           "complete",
           "steps"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#authenticating-with-cli-credentials",
+        "heading": "Authenticating with CLI Credentials",
+        "keywords": [
+          "authenticating",
+          "credentials",
+          "default",
+          "telemetry",
+          "collector"
         ],
         "level": 3
       },
@@ -1933,17 +2717,284 @@
     "url": "http://geminicli.com/docs/cli/telemetry"
   },
   "geminicli-com-docs-cli-themes": {
+    "category": "cli",
     "content_hash": "sha256:6bdc97361db6b94a648be4b77edb9f42c9933e20fbd39f60bd2f8063cc75c5f3",
+    "description": "Gemini CLI supports a variety of themes to customize its color scheme and appearance. You can change the theme to suit your preferences via the `/theme` command or `\"theme\":` configuration setting.",
     "doc_id": "geminicli-com-docs-cli-themes",
     "hash": "sha256:6bdc97361db6b94a648be4b77edb9f42c9933e20fbd39f60bd2f8063cc75c5f3",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "themes",
+      "changing themes",
+      "default light",
+      "atom onedark",
+      "custom color",
+      "custom theme",
+      "github light",
+      "dark themes",
+      "ansi light",
+      "configuration",
+      "preferences",
+      "appearance"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\cli\\themes.md",
-    "source_url": "http://geminicli.com/docs/cli/themes.md"
+    "source_url": "http://geminicli.com/docs/cli/themes.md",
+    "subsections": [
+      {
+        "anchor": "#available-themes",
+        "heading": "Available themes",
+        "keywords": [
+          "available",
+          "themes",
+          "comes",
+          "selection",
+          "defined"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#changing-themes",
+        "heading": "Changing themes",
+        "keywords": [
+          "changing",
+          "themes",
+          "enter",
+          "theme",
+          "dialog"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#theme-persistence",
+        "heading": "Theme persistence",
+        "keywords": [
+          "theme",
+          "persistence",
+          "selected",
+          "themes",
+          "saved"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#custom-color-themes",
+        "heading": "Custom color themes",
+        "keywords": [
+          "custom",
+          "color",
+          "themes",
+          "allows",
+          "create"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#how-to-define-a-custom-theme",
+        "heading": "How to define a custom theme",
+        "keywords": [
+          "define",
+          "custom",
+          "theme",
+          "customthemes",
+          "block"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#loading-themes-from-a-file",
+        "heading": "Loading themes from a file",
+        "keywords": [
+          "loading",
+          "themes",
+          "file",
+          "addition",
+          "defining"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#example-custom-theme",
+        "heading": "Example custom theme",
+        "keywords": [
+          "example",
+          "custom",
+          "theme",
+          "assets"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#using-your-custom-theme",
+        "heading": "Using your custom theme",
+        "keywords": [
+          "custom",
+          "theme",
+          "select"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#dark-themes",
+        "heading": "Dark themes",
+        "keywords": [
+          "dark",
+          "themes",
+          "ansi",
+          "assets",
+          "theme"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#ansi",
+        "heading": "ANSI",
+        "keywords": [
+          "ansi",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#atom-onedark",
+        "heading": "Atom OneDark",
+        "keywords": [
+          "atom",
+          "onedark",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#ayu",
+        "heading": "Ayu",
+        "keywords": [
+          "ayu",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#default",
+        "heading": "Default",
+        "keywords": [
+          "default",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#dracula",
+        "heading": "Dracula",
+        "keywords": [
+          "dracula",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#github",
+        "heading": "GitHub",
+        "keywords": [
+          "github",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#light-themes",
+        "heading": "Light themes",
+        "keywords": [
+          "light",
+          "themes",
+          "ansi",
+          "assets"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#ansi-light",
+        "heading": "ANSI Light",
+        "keywords": [
+          "ansi",
+          "light",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#ayu-light",
+        "heading": "Ayu Light",
+        "keywords": [
+          "ayu",
+          "light",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#default-light",
+        "heading": "Default Light",
+        "keywords": [
+          "default",
+          "light",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#github-light",
+        "heading": "GitHub Light",
+        "keywords": [
+          "github",
+          "light",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#google-code",
+        "heading": "Google Code",
+        "keywords": [
+          "code",
+          "assets",
+          "theme",
+          "light"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#xcode",
+        "heading": "Xcode",
+        "keywords": [
+          "xcode",
+          "assets",
+          "theme"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "cli",
+      "configuration",
+      "models"
+    ],
+    "title": "Themes"
   },
   "geminicli-com-docs-cli-token-caching": {
     "category": "cli",
+    "content_hash": "sha256:f5ab05cebdb36f905848e4ba266716804d33461a0311510926b0de095f427a29",
     "description": "Gemini CLI automatically optimizes API costs through token caching when using API key authentication (Gemini API key or Vertex AI). This feature reuses previous system instructions and context to...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-token-caching",
     "hash": "sha256:f5ab05cebdb36f905848e4ba266716804d33461a0311510926b0de095f427a29",
     "keywords": [
       "token-caching",
@@ -1959,22 +3010,21 @@
       "context",
       "feature"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/token-caching.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\token-caching.md",
+    "source_url": "http://geminicli.com/docs/cli/token-caching.md",
     "tags": [
       "authentication",
       "caching",
       "performance"
     ],
-    "title": "Token caching and cost optimization",
-    "url": "http://geminicli.com/docs/cli/token-caching"
+    "title": "Token caching and cost optimization"
   },
   "geminicli-com-docs-cli-trusted-folders": {
     "category": "cli",
+    "content_hash": "sha256:a705200c005d8ab3988e3f5c37db20c5503f32c5af70e7b806c93ca58ba708e5",
     "description": "The Trusted Folders feature is a security setting that gives you control over which projects can use the full capabilities of the Gemini CLI. It prevents potentially malicious code from running by...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-trusted-folders",
     "hash": "sha256:a705200c005d8ab3988e3f5c37db20c5503f32c5af70e7b806c93ca58ba708e5",
     "keywords": [
       "trusted-folders",
@@ -1990,10 +3040,9 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/trusted-folders.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\trusted-folders.md",
+    "source_url": "http://geminicli.com/docs/cli/trusted-folders.md",
     "subsections": [
       {
         "anchor": "#enabling-the-feature",
@@ -2063,21 +3112,79 @@
       "models",
       "security"
     ],
-    "title": "Trusted Folders",
-    "url": "http://geminicli.com/docs/cli/trusted-folders"
+    "title": "Trusted Folders"
   },
   "geminicli-com-docs-cli-tutorials": {
+    "category": "guides",
     "content_hash": "sha256:3352bc1bd22d10942e8ce583c11f9f0747f582b38ff1c9a1d3100aec2a4cb581",
+    "description": "This page contains tutorials for interacting with Gemini CLI.",
     "doc_id": "geminicli-com-docs-cli-tutorials",
     "hash": "sha256:3352bc1bd22d10942e8ce583c11f9f0747f582b38ff1c9a1d3100aec2a4cb581",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "tutorials",
+      "model context protocol",
+      "mcp server",
+      "settings.json",
+      "interacting",
+      "connection",
+      "configure",
+      "contains",
+      "context",
+      "github",
+      "launch"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\cli\\tutorials.md",
-    "source_url": "http://geminicli.com/docs/cli/tutorials.md"
+    "source_url": "http://geminicli.com/docs/cli/tutorials.md",
+    "subsections": [
+      {
+        "anchor": "#setting-up-a-model-context-protocol-mcp-server",
+        "heading": "Setting up a Model Context Protocol (MCP) server",
+        "keywords": [
+          "setting",
+          "model",
+          "context",
+          "protocol",
+          "mcp"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#prerequisites",
+        "heading": "Prerequisites",
+        "keywords": [
+          "prerequisites",
+          "begin",
+          "ensure",
+          "following"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#guide",
+        "heading": "Guide",
+        "keywords": [
+          "configure",
+          "server",
+          "settings"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "configuration",
+      "guides",
+      "ide",
+      "mcp",
+      "models"
+    ],
+    "title": "Tutorials"
   },
   "geminicli-com-docs-cli-uninstall": {
     "category": "installation",
+    "content_hash": "sha256:72ca379de3ea73cb64be1214df8bf71c535b005da1ef66f5533407769ea9ba85",
     "description": "Your uninstall method depends on how you ran the CLI. Follow the instructions for either npx or a global npm installation.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-cli-uninstall",
     "hash": "sha256:72ca379de3ea73cb64be1214df8bf71c535b005da1ef66f5533407769ea9ba85",
     "keywords": [
       "uninstall",
@@ -2092,10 +3199,9 @@
       "method",
       "cache"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/cli/uninstall.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\cli\\uninstall.md",
+    "source_url": "http://geminicli.com/docs/cli/uninstall.md",
     "subsections": [
       {
         "anchor": "#method-1-using-npx",
@@ -2127,13 +3233,14 @@
       "cli",
       "installation"
     ],
-    "title": "Uninstalling the CLI",
-    "url": "http://geminicli.com/docs/cli/uninstall"
+    "title": "Uninstalling the CLI"
   },
   "geminicli-com-docs-contributing": {
+    "aliases": [],
     "category": "cli",
+    "content_hash": "sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a",
     "description": "We would love to accept your patches and contributions to this project. This document includes:",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-contributing",
     "hash": "sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a",
     "keywords": [
       "contributing",
@@ -2149,10 +3256,9 @@
       "contributions",
       "contribute"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/contributing.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\contributing.md",
+    "source_url": "http://geminicli.com/docs/contributing.md",
     "subsections": [
       {
         "anchor": "#before-you-begin",
@@ -2494,13 +3600,13 @@
       "models",
       "tools"
     ],
-    "title": "How to contribute",
-    "url": "http://geminicli.com/docs/contributing"
+    "title": "How to contribute"
   },
   "geminicli-com-docs-core": {
     "category": "cli",
+    "content_hash": "sha256:3f97d2b96fc29c8093fa6d67f409d63add8472e3cfbb31b25fdb327e3f4f460f",
     "description": "Gemini CLI's core package (`packages/core`) is the backend portion of Gemini CLI, handling communication with the Gemini API, managing tools, and processing requests sent from `packages/cli`. For a...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-core",
     "hash": "sha256:3f97d2b96fc29c8093fa6d67f409d63add8472e3cfbb31b25fdb327e3f4f460f",
     "keywords": [
       "security considerations",
@@ -2516,10 +3622,9 @@
       "communication",
       "compression"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/core.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\core.md",
+    "source_url": "http://geminicli.com/docs/core.md",
     "subsections": [
       {
         "anchor": "#navigating-this-section",
@@ -2618,13 +3723,13 @@
       "models",
       "security"
     ],
-    "title": "Gemini CLI core",
-    "url": "http://geminicli.com/docs/core"
+    "title": "Gemini CLI core"
   },
   "geminicli-com-docs-core-memport": {
     "category": "cli",
+    "content_hash": "sha256:97e6e8d225111d49ce49d010b86b4f87f791fa8f254d574fe91f8ad1c1eab842",
     "description": "The Memory Import Processor is a feature that allows you to modularize your GEMINI.md files by importing content from other files using the `@file.md` syntax.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-core-memport",
     "hash": "sha256:97e6e8d225111d49ce49d010b86b4f87f791fa8f254d574fe91f8ad1c1eab842",
     "keywords": [
       "memport",
@@ -2640,10 +3745,9 @@
       "modularize",
       "claude.md"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/core/memport.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\core\\memport.md",
+    "source_url": "http://geminicli.com/docs/core/memport.md",
     "subsections": [
       {
         "anchor": "#overview",
@@ -2984,13 +4088,13 @@
       "security",
       "troubleshooting"
     ],
-    "title": "Memory Import Processor",
-    "url": "http://geminicli.com/docs/core/memport"
+    "title": "Memory Import Processor"
   },
   "geminicli-com-docs-core-policy-engine": {
     "category": "cli",
+    "content_hash": "sha256:c3013f06ecfce251b5df08c51599a14a79de47b5a441cc1de079fdd6ec8480c4",
     "description": ":::note This feature is currently in testing. To enable it, set `tools.enableMessageBusIntegration` to `true` in your `settings.json` file. :::",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-core-policy-engine",
     "hash": "sha256:c3013f06ecfce251b5df08c51599a14a79de47b5a441cc1de079fdd6ec8480c4",
     "keywords": [
       "policy-engine",
@@ -3006,10 +4110,9 @@
       "anchors like",
       "command text"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/core/policy-engine.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\core\\policy-engine.md",
+    "source_url": "http://geminicli.com/docs/core/policy-engine.md",
     "subsections": [
       {
         "anchor": "#core-concepts",
@@ -3155,13 +4258,13 @@
       "security",
       "tools"
     ],
-    "title": "Policy engine",
-    "url": "http://geminicli.com/docs/core/policy-engine"
+    "title": "Policy engine"
   },
   "geminicli-com-docs-core-tools-api": {
     "category": "api",
+    "content_hash": "sha256:b86d0d5b7bd15fe79de84789db9f3ec968b24317a31452d859b1f20867c211b5",
     "description": "The Gemini CLI core (`packages/core`) features a robust system for defining, registering, and executing tools. These tools extend the capabilities of the Gemini model, allowing it to interact with...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-core-tools-api",
     "hash": "sha256:b86d0d5b7bd15fe79de84789db9f3ec968b24317a31452d859b1f20867c211b5",
     "keywords": [
       "tools-api",
@@ -3177,10 +4280,9 @@
       "web search",
       "capabilities"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/core/tools-api.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\core\\tools-api.md",
+    "source_url": "http://geminicli.com/docs/core/tools-api.md",
     "subsections": [
       {
         "anchor": "#core-concepts",
@@ -3239,13 +4341,13 @@
       "models",
       "tools"
     ],
-    "title": "Gemini CLI core: Tools API",
-    "url": "http://geminicli.com/docs/core/tools-api"
+    "title": "Gemini CLI core: Tools API"
   },
   "geminicli-com-docs-examples-proxy-script": {
     "category": "cli",
+    "content_hash": "sha256:7d0b26c540e3984882e7c4781018ad0416ee366b0be60e7bd6f6c08ae5dedba3",
     "description": "The following is an example of a proxy script that can be used with the `GEMINI_SANDBOX_PROXY_COMMAND` environment variable. This script only allows `HTTPS` connections to `example.com:443` and...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-examples-proxy-script",
     "hash": "sha256:7d0b26c540e3984882e7c4781018ad0416ee366b0be60e7bd6f6c08ae5dedba3",
     "keywords": [
       "proxy-script",
@@ -3258,20 +4360,19 @@
       "variable",
       "allows"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/examples/proxy-script.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\examples\\proxy-script.md",
+    "source_url": "http://geminicli.com/docs/examples/proxy-script.md",
     "tags": [
       "cli"
     ],
-    "title": "Example proxy script",
-    "url": "http://geminicli.com/docs/examples/proxy-script"
+    "title": "Example proxy script"
   },
   "geminicli-com-docs-extensions": {
     "category": "cli",
+    "content_hash": "sha256:9b06b2ed8f0aa2ff10b5f9036adc296298c68cad8d53307c097b4e633d00438f",
     "description": "_This documentation is up-to-date with the v0.4.0 release._",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-extensions",
     "hash": "sha256:9b06b2ed8f0aa2ff10b5f9036adc296298c68cad8d53307c097b4e633d00438f",
     "keywords": [
       "extensions",
@@ -3287,10 +4388,9 @@
       "boilerplate",
       "disabling"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/extensions.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\extensions.md",
+    "source_url": "http://geminicli.com/docs/extensions.md",
     "subsections": [
       {
         "anchor": "#extension-management",
@@ -3459,13 +4559,13 @@
       "installation",
       "mcp"
     ],
-    "title": "Gemini CLI extensions",
-    "url": "http://geminicli.com/docs/extensions"
+    "title": "Gemini CLI extensions"
   },
   "geminicli-com-docs-extensions-extension-releasing": {
     "category": "cli",
+    "content_hash": "sha256:0e1b6125ff4009542921af84bec3093a5b07db295f99d71d991ee73693bae942",
     "description": "There are two primary ways of releasing extensions to users:",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-extensions-extension-releasing",
     "hash": "sha256:0e1b6125ff4009542921af84bec3093a5b07db295f99d71d991ee73693bae942",
     "keywords": [
       "extension-releasing",
@@ -3481,10 +4581,9 @@
       "channels",
       "actions"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/extensions/extension-releasing.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\extensions\\extension-releasing.md",
+    "source_url": "http://geminicli.com/docs/extensions/extension-releasing.md",
     "subsections": [
       {
         "anchor": "#releasing-through-a-git-repository",
@@ -3554,13 +4653,13 @@
       "models",
       "tools"
     ],
-    "title": "Extension releasing",
-    "url": "http://geminicli.com/docs/extensions/extension-releasing"
+    "title": "Extension releasing"
   },
   "geminicli-com-docs-extensions-getting-started-extensions": {
     "category": "cli",
+    "content_hash": "sha256:6ab030048f973446f79160e17fe54af7d63a99ee20c82ae97cdb18c3d3822581",
     "description": "This guide will walk you through creating your first Gemini CLI extension. You'll learn how to set up a new extension, add a custom tool via an MCP server, create a custom command, and provide...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-extensions-getting-started-extensions",
     "hash": "sha256:6ab030048f973446f79160e17fe54af7d63a99ee20c82ae97cdb18c3d3822581",
     "keywords": [
       "getting-started-extensions",
@@ -3576,10 +4675,9 @@
       "extension",
       "gemini.md"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/extensions/getting-started-extensions.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\extensions\\getting-started-extensions.md",
+    "source_url": "http://geminicli.com/docs/extensions/getting-started-extensions.md",
     "subsections": [
       {
         "anchor": "#prerequisites",
@@ -3718,22 +4816,270 @@
       "installation",
       "mcp"
     ],
-    "title": "Getting started with Gemini CLI extensions",
-    "url": "http://geminicli.com/docs/extensions/getting-started-extensions"
+    "title": "Getting started with Gemini CLI extensions"
   },
   "geminicli-com-docs-faq": {
+    "category": "cli",
     "content_hash": "sha256:ae180978d536b75477e27f998c2e5e4e56def804be22698e24cb3cbdc8d16ddc",
+    "description": "This page provides answers to common questions and solutions to frequent problems encountered while using Gemini CLI.",
     "doc_id": "geminicli-com-docs-faq",
     "hash": "sha256:ae180978d536b75477e27f998c2e5e4e56def804be22698e24cb3cbdc8d16ddc",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "frequently asked",
+      "machine learning",
+      "general issues",
+      "latest version",
+      "higher limits",
+      "hitting quota",
+      "keys securely",
+      "cached token",
+      "command like",
+      "code assist",
+      "rate limits",
+      "api keys"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\faq.md",
-    "source_url": "https://geminicli.com/docs/faq.md"
+    "source_url": "https://geminicli.com/docs/faq.md",
+    "subsections": [
+      {
+        "anchor": "#general-issues",
+        "heading": "General issues",
+        "keywords": [
+          "general",
+          "issues",
+          "getting",
+          "error",
+          "resource"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#why-am-i-getting-an-api-error-429---resource-exhausted",
+        "heading": "Why am I getting an `API error: 429 - Resource exhausted`?",
+        "keywords": [
+          "getting",
+          "error",
+          "resource",
+          "exhausted",
+          "indicates"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#why-am-i-getting-an-err_require_esm-error-when-running-npm-run-start",
+        "heading": "Why am I getting an `ERR_REQUIRE_ESM` error when running `npm run start`?",
+        "keywords": [
+          "getting",
+          "error",
+          "running",
+          "npm",
+          "run"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#why-dont-i-see-cached-token-counts-in-my-stats-output",
+        "heading": "Why don't I see cached token counts in my stats output?",
+        "keywords": [
+          "don",
+          "cached",
+          "token",
+          "counts",
+          "stats"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#installation-and-updates",
+        "heading": "Installation and updates",
+        "keywords": [
+          "installation",
+          "updates",
+          "update",
+          "latest",
+          "version"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#how-do-i-update-gemini-cli-to-the-latest-version",
+        "heading": "How do I update Gemini CLI to the latest version?",
+        "keywords": [
+          "update",
+          "latest",
+          "version",
+          "installed",
+          "globally"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#platform-specific-issues",
+        "heading": "Platform-specific issues",
+        "keywords": [
+          "platform",
+          "specific",
+          "issues",
+          "crash",
+          "windows"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#why-does-the-cli-crash-on-windows-when-i-run-a-command-like-chmod-x",
+        "heading": "Why does the CLI crash on Windows when I run a command like `chmod +x`?",
+        "keywords": [
+          "crash",
+          "windows",
+          "run",
+          "command",
+          "like"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#configuration",
+        "heading": "Configuration",
+        "keywords": [
+          "configuration",
+          "configure",
+          "cloud"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#how-do-i-configure-my-google_cloud_project",
+        "heading": "How do I configure my `GOOGLE_CLOUD_PROJECT`?",
+        "keywords": [
+          "configure",
+          "cloud",
+          "project"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#what-is-the-best-way-to-store-my-api-keys-securely",
+        "heading": "What is the best way to store my API keys securely?",
+        "keywords": [
+          "best",
+          "way",
+          "store",
+          "keys",
+          "securely"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#where-are-the-gemini-cli-configuration-and-settings-files-stored",
+        "heading": "Where are the Gemini CLI configuration and settings files stored?",
+        "keywords": [
+          "configuration",
+          "settings",
+          "files",
+          "stored"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#google-ai-proultra-and-subscription-faqs",
+        "heading": "Google AI Pro/Ultra and subscription FAQs",
+        "keywords": [
+          "pro",
+          "ultra",
+          "subscription",
+          "faqs",
+          "learn"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#where-can-i-learn-more-about-my-google-ai-pro-or-google-ai-ultra-subscription",
+        "heading": "Where can I learn more about my Google AI Pro or Google AI Ultra subscription?",
+        "keywords": [
+          "learn",
+          "pro",
+          "ultra",
+          "subscription"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#how-do-i-know-if-i-have-higher-limits-for-google-ai-pro-or-ultra",
+        "heading": "How do I know if I have higher limits for Google AI Pro or Ultra?",
+        "keywords": [
+          "know",
+          "higher",
+          "limits",
+          "pro",
+          "ultra"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#what-is-the-privacy-policy-for-using-gemini-code-assist-or-gemini-cli-if-ive-subscribed-to-google-ai-pro-or-ultra",
+        "heading": "What is the privacy policy for using Gemini Code Assist or Gemini CLI if I've subscribed to Google AI Pro or Ultra?",
+        "keywords": [
+          "privacy",
+          "policy",
+          "code",
+          "assist",
+          "subscribed"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#ive-upgraded-to-google-ai-pro-or-ultra-but-it-still-says-i-am-hitting-quota-limits-is-this-a-bug",
+        "heading": "I've upgraded to Google AI Pro or Ultra but it still says I am hitting quota limits. Is this a bug?",
+        "keywords": [
+          "upgraded",
+          "pro",
+          "ultra",
+          "says",
+          "hitting"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#if-i-upgrade-to-higher-limits-for-gemini-cli-and-gemini-code-assist-by-purchasing-a-google-ai-pro-or-ultra-subscription-will-gemini-start-using-my-data-to-improve-its-machine-learning-models",
+        "heading": "If I upgrade to higher limits for Gemini CLI and Gemini Code Assist by purchasing a Google AI Pro or Ultra subscription, will Gemini start using my data to improve its machine learning models?",
+        "keywords": [
+          "upgrade",
+          "higher",
+          "limits",
+          "code",
+          "assist"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#not-seeing-your-question",
+        "heading": "Not seeing your question?",
+        "keywords": [
+          "seeing",
+          "question",
+          "search",
+          "discussions",
+          "github"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "authentication",
+      "caching",
+      "cli",
+      "configuration",
+      "ide",
+      "installation"
+    ],
+    "title": "Frequently asked questions (FAQ)"
   },
   "geminicli-com-docs-get-started": {
     "category": "cli",
     "description": "Welcome to Gemini CLI! This guide will help you install, configure, and start using the Gemini CLI to enhance your workflow right from your terminal.",
     "domain": "geminicli.com",
-    "hash": "sha256:70b24b5940733b396f51b34a964d2f5eaf83cf9daeda9d933f2993ce4f14c064",
+    "hash": "sha256:690ec8da5efdaaec7fc72009debb3d66adbaeac7a48535180a31194094dd6b01",
     "keywords": [
       "get-started",
       "authenticate",
@@ -3743,7 +5089,7 @@
       "enhance",
       "install"
     ],
-    "last_fetched": "2025-12-01",
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com/docs/get-started.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -3823,78 +5169,79 @@
   },
   "geminicli-com-docs-get-started-authentication": {
     "category": "cli",
-    "description": "Gemini CLI requires authentication using Google's services. Before using Gemini CLI, configure **one** of the following authentication methods:",
+    "description": "To use Gemini CLI, you'll need to authenticate with Google. This guide helps you quickly find the best way to sign in based on your account type and how you're using the CLI.",
     "domain": "geminicli.com",
-    "hash": "sha256:75097a1ba5e92413ac6ef3fde8277dc334b68f21ad60fb0e0d6a5d830d52c4e8",
+    "hash": "sha256:2ce4434a10aa6629eb56da4fdcd86cee9f36df58c13f6b3351f6fc15da4a1366",
     "keywords": [
       "get-started",
       "authentication",
       "persisting environment",
-      "headless environments",
+      "authentication method",
       "authentication setup",
       "application default",
-      "cloud environments",
-      "fallback variable",
       "desired location",
-      "interactive mode",
-      "compute engine",
-      "api keys"
+      "service account",
+      "headless mode",
+      "api keys",
+      "authenticate",
+      "application"
     ],
-    "last_fetched": "2025-12-01",
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com/docs/get-started/authentication.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
     "subsections": [
       {
-        "anchor": "#quick-check-running-in-google-cloud-shell",
-        "heading": "Quick check: Running in Google Cloud Shell?",
+        "anchor": "#choose-your-authentication-method-a-idauth-methodsa",
+        "heading": "Choose your authentication method <a id=\"auth-methods\"></a>",
         "keywords": [
-          "quick",
-          "check",
-          "running",
-          "cloud",
-          "shell"
+          "choose",
+          "authentication",
+          "method",
+          "auth",
+          "methods"
         ],
         "level": 2
       },
       {
-        "anchor": "#other-google-cloud-environments-eg-compute-engine",
-        "heading": "Other Google Cloud environments (e.g., Compute Engine)",
+        "anchor": "#what-is-my-google-account-type",
+        "heading": "What is my Google account type?",
         "keywords": [
-          "cloud",
-          "environments",
-          "compute",
-          "engine"
+          "account",
+          "type",
+          "individual",
+          "accounts",
+          "includes"
         ],
         "level": 3
       },
       {
-        "anchor": "#authenticate-in-interactive-mode",
-        "heading": "Authenticate in interactive mode",
-        "keywords": [
-          "authenticate",
-          "interactive",
-          "mode",
-          "command",
-          "line"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#recommended-login-with-google",
-        "heading": "Recommended: Login with Google",
+        "anchor": "#recommended-login-with-google-a-idlogin-googlea",
+        "heading": "(Recommended) Login with Google <a id=\"login-google\"></a>",
         "keywords": [
           "recommended",
           "login",
-          "running",
           "local",
-          "machine"
+          "machine",
+          "simplest"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#do-i-need-to-set-my-google-cloud-project",
+        "heading": "Do I need to set my Google Cloud project?",
+        "keywords": [
+          "need",
+          "set",
+          "cloud",
+          "project",
+          "individual"
         ],
         "level": 3
       },
       {
-        "anchor": "#use-gemini-api-key",
-        "heading": "Use Gemini API key",
+        "anchor": "#use-gemini-api-key-a-idgemini-apia",
+        "heading": "Use Gemini API key <a id=\"gemini-api\"></a>",
         "keywords": [
           "use",
           "key",
@@ -3902,40 +5249,62 @@
           "authenticate",
           "account"
         ],
-        "level": 3
+        "level": 2
       },
       {
-        "anchor": "#use-vertex-ai",
-        "heading": "Use Vertex AI",
+        "anchor": "#use-vertex-ai-a-idvertex-aia",
+        "heading": "Use Vertex AI <a id=\"vertex-ai\"></a>",
         "keywords": [
           "use",
           "vertex",
-          "intend",
-          "cloud"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#persisting-environment-variables",
-        "heading": "Persisting environment variables",
-        "keywords": [
-          "persisting",
-          "environment",
-          "variables",
-          "avoid",
-          "setting"
+          "cloud",
+          "platform"
         ],
         "level": 2
       },
       {
-        "anchor": "#non-interactive-mode--headless-environments",
-        "heading": "Non-interactive mode / headless environments",
+        "anchor": "#set-your-google-cloud-project-a-idset-gcpa",
+        "heading": "Set your Google Cloud project <a id=\"set-gcp\"></a>",
         "keywords": [
-          "non",
-          "interactive",
-          "mode",
+          "set",
+          "cloud",
+          "project",
+          "gcp",
+          "important"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#persisting-environment-variables-a-idpersisting-varsa",
+        "heading": "Persisting environment variables <a id=\"persisting-vars\"></a>",
+        "keywords": [
+          "persisting",
+          "environment",
+          "variables",
+          "vars",
+          "avoid"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-in-google-cloud-environments-a-idcloud-enva",
+        "heading": "Running in Google Cloud environments <a id=\"cloud-env\"></a>",
+        "keywords": [
+          "running",
+          "cloud",
+          "environments",
+          "env",
+          "certain"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-in-headless-mode-a-idheadlessa",
+        "heading": "Running in headless mode <a id=\"headless\"></a>",
+        "keywords": [
+          "running",
           "headless",
-          "environments"
+          "mode"
         ],
         "level": 2
       },
@@ -3962,17 +5331,228 @@
     "url": "http://geminicli.com/docs/get-started/authentication"
   },
   "geminicli-com-docs-get-started-configuration": {
-    "content_hash": "sha256:78b31f831366d9aec4c846c27d434fea872d0eaddb1730547fc9c448565460da",
+    "category": "configuration",
+    "content_hash": "sha256:e2b9826b99cbc04ebfed3f4504baf109a00b5a681edf0246a3712934f265dbd2",
+    "description": "Gemini CLI offers several ways to configure its behavior, including environment variables, command-line arguments, and settings files. This document outlines the different configuration methods and...",
     "doc_id": "geminicli-com-docs-get-started-configuration",
-    "hash": "sha256:78b31f831366d9aec4c846c27d434fea872d0eaddb1730547fc9c448565460da",
-    "last_fetched": "2025-12-01",
+    "hash": "sha256:e2b9826b99cbc04ebfed3f4504baf109a00b5a681edf0246a3712934f265dbd2",
+    "keywords": [
+      "get-started",
+      "configuration",
+      "codebase investigator",
+      "environment variables",
+      "configuration layers",
+      "general instructions",
+      "awesome typescript",
+      "session management",
+      "ide integration",
+      "context window",
+      "model routing",
+      "policy engine"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\get-started\\configuration.md",
-    "source_url": "http://geminicli.com/docs/get-started/configuration.md"
+    "source_url": "http://geminicli.com/docs/get-started/configuration.md",
+    "subsections": [
+      {
+        "anchor": "#configuration-layers",
+        "heading": "Configuration layers",
+        "keywords": [
+          "configuration",
+          "layers",
+          "applied",
+          "following"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#settings-files",
+        "heading": "Settings files",
+        "keywords": [
+          "settings",
+          "files",
+          "uses",
+          "json"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#the-gemini-directory-in-your-project",
+        "heading": "The `.gemini` directory in your project",
+        "keywords": [
+          "directory",
+          "project",
+          "addition",
+          "settings"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#available-settings-in-settingsjson",
+        "heading": "Available settings in `settings.json`",
+        "keywords": [
+          "available",
+          "settings",
+          "json",
+          "organized",
+          "categories"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#example-settingsjson",
+        "heading": "Example `settings.json`",
+        "keywords": [
+          "example",
+          "settings",
+          "json"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#shell-history",
+        "heading": "Shell history",
+        "keywords": [
+          "shell",
+          "history",
+          "keeps"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#environment-variables-and-env-files",
+        "heading": "Environment variables and `.env` files",
+        "keywords": [
+          "environment",
+          "variables",
+          "env",
+          "files",
+          "common"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#command-line-arguments",
+        "heading": "Command-line arguments",
+        "keywords": [
+          "command",
+          "line",
+          "arguments",
+          "passed",
+          "directly"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#context-files-hierarchical-instructional-context",
+        "heading": "Context files (hierarchical instructional context)",
+        "keywords": [
+          "context",
+          "files",
+          "hierarchical",
+          "instructional",
+          "strictly"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#example-context-file-content-eg-geminimd",
+        "heading": "Example context file content (e.g., `GEMINI.md`)",
+        "keywords": [
+          "example",
+          "context",
+          "file",
+          "content",
+          "conceptual"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#general-instructions",
+        "heading": "General Instructions:",
+        "keywords": [
+          "general",
+          "instructions",
+          "generating",
+          "typescript",
+          "code"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#coding-style",
+        "heading": "Coding Style:",
+        "keywords": [
+          "coding",
+          "style",
+          "spaces",
+          "indentation",
+          "interface"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#specific-component-srcapiclientts",
+        "heading": "Specific Component: `src/api/client.ts`",
+        "keywords": [
+          "specific",
+          "component",
+          "src",
+          "client",
+          "file"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#regarding-dependencies",
+        "heading": "Regarding Dependencies:",
+        "keywords": [
+          "dependencies",
+          "avoid",
+          "introducing",
+          "external"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#sandboxing",
+        "heading": "Sandboxing",
+        "keywords": [
+          "sandboxing",
+          "execute",
+          "potentially",
+          "unsafe"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#usage-statistics",
+        "heading": "Usage statistics",
+        "keywords": [
+          "usage",
+          "statistics",
+          "help",
+          "improve",
+          "collect"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "api",
+      "authentication",
+      "checkpointing",
+      "cli",
+      "configuration",
+      "extensions"
+    ],
+    "title": "Gemini CLI configuration"
   },
   "geminicli-com-docs-get-started-configuration-v1": {
     "category": "configuration",
+    "content_hash": "sha256:1b6992a962bfba2adb7986346a33e5b626c477d90366a287228c92e6749ccf12",
     "description": "**Note on deprecated configuration format**",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-get-started-configuration-v1",
     "hash": "sha256:1b6992a962bfba2adb7986346a33e5b626c477d90366a287228c92e6749ccf12",
     "keywords": [
       "configuration-v1",
@@ -3988,10 +5568,9 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/get-started/configuration-v1.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\get-started\\configuration-v1.md",
+    "source_url": "http://geminicli.com/docs/get-started/configuration-v1.md",
     "subsections": [
       {
         "anchor": "#configuration-layers",
@@ -4199,13 +5778,13 @@
       "configuration",
       "extensions"
     ],
-    "title": "Gemini CLI configuration",
-    "url": "http://geminicli.com/docs/get-started/configuration-v1"
+    "title": "Gemini CLI configuration"
   },
   "geminicli-com-docs-get-started-deployment": {
     "category": "cli",
+    "content_hash": "sha256:6b4ee728575835c3ca6fca38f72a50f8a905d062345eac4736748f9d411083c8",
     "description": "Note: This page will be replaced by [installation.md](/docs/get-started/installation).",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-get-started-deployment",
     "hash": "sha256:6b4ee728575835c3ca6fca38f72a50f8a905d062345eac4736748f9d411083c8",
     "keywords": [
       "get-started",
@@ -4221,10 +5800,9 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/get-started/deployment.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\get-started\\deployment.md",
+    "source_url": "http://geminicli.com/docs/get-started/deployment.md",
     "subsections": [
       {
         "anchor": "#how-to-install-andor-run-gemini-cli",
@@ -4315,13 +5893,13 @@
       "installation",
       "models"
     ],
-    "title": "Gemini CLI installation, execution, and deployment",
-    "url": "http://geminicli.com/docs/get-started/deployment"
+    "title": "Gemini CLI installation, execution, and deployment"
   },
   "geminicli-com-docs-get-started-examples": {
     "category": "cli",
+    "content_hash": "sha256:9eb972c61f423b0610e3cd68806b090802322985b05fba26bf30c648a30af4af",
     "description": "Not sure where to get started with Gemini CLI? This document covers examples on how to use Gemini CLI for a variety of tasks.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-get-started-examples",
     "hash": "sha256:9eb972c61f423b0610e3cd68806b090802322985b05fba26bf30c648a30af4af",
     "keywords": [
       "get-started",
@@ -4334,10 +5912,9 @@
       "variety",
       "covers"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/get-started/examples.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\get-started\\examples.md",
+    "source_url": "http://geminicli.com/docs/get-started/examples.md",
     "subsections": [
       {
         "anchor": "#rename-your-photographs-based-on-content",
@@ -4393,13 +5970,13 @@
       "models",
       "security"
     ],
-    "title": "Gemini CLI examples",
-    "url": "http://geminicli.com/docs/get-started/examples"
+    "title": "Gemini CLI examples"
   },
   "geminicli-com-docs-get-started-gemini-3": {
     "category": "cli",
+    "content_hash": "sha256:1d27d37eaed0013baa37557a0543a975b32edb57c2e8502ba7ed394a579d894b",
     "description": "We’re excited to bring Gemini 3 Pro to Gemini CLI. For Google AI Ultra users (Google AI Ultra for Business is not currently supported) and paid Gemini and Vertex API key holders, Gemini 3 Pro is...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-get-started-gemini-3",
     "hash": "sha256:1d27d37eaed0013baa37557a0543a975b32edb57c2e8502ba7ed394a579d894b",
     "keywords": [
       "get-started",
@@ -4415,10 +5992,9 @@
       "waitlist",
       "excited"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/get-started/gemini-3.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\get-started\\gemini-3.md",
+    "source_url": "http://geminicli.com/docs/get-started/gemini-3.md",
     "subsections": [
       {
         "anchor": "#do-i-need-to-join-the-waitlist",
@@ -4509,13 +6085,13 @@
       "models",
       "troubleshooting"
     ],
-    "title": "Gemini 3 Pro on Gemini CLI (join the waitlist)",
-    "url": "http://geminicli.com/docs/get-started/gemini-3"
+    "title": "Gemini 3 Pro on Gemini CLI (join the waitlist)"
   },
   "geminicli-com-docs-get-started-installation": {
     "category": "installation",
+    "content_hash": "sha256:a8eb7b45f269d2fa4284ddda6661c7408e01dc767ced1b0c493398cf4cff703d",
     "description": "Install and run Gemini CLI. This document provides an overview of Gemini CLI's installation methods and deployment architecture.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-get-started-installation",
     "hash": "sha256:a8eb7b45f269d2fa4284ddda6661c7408e01dc767ced1b0c493398cf4cff703d",
     "keywords": [
       "get-started",
@@ -4531,10 +6107,9 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/get-started/installation.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\get-started\\installation.md",
+    "source_url": "http://geminicli.com/docs/get-started/installation.md",
     "subsections": [
       {
         "anchor": "#how-to-install-andor-run-gemini-cli",
@@ -4625,13 +6200,13 @@
       "installation",
       "models"
     ],
-    "title": "Gemini CLI installation, execution, and deployment",
-    "url": "http://geminicli.com/docs/get-started/installation"
+    "title": "Gemini CLI installation, execution, and deployment"
   },
   "geminicli-com-docs-ide-integration": {
     "category": "cli",
+    "content_hash": "sha256:17e6402fc2e331fc378cc47da150ea9f1e9cc102395ea04f4d97ddb4fd49772a",
     "description": "Gemini CLI can integrate with your IDE to provide a more seamless and context-aware experience. This integration allows the CLI to understand your workspace better and enables powerful features like...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-ide-integration",
     "hash": "sha256:17e6402fc2e331fc378cc47da150ea9f1e9cc102395ea04f4d97ddb4fd49772a",
     "keywords": [
       "ide-integration",
@@ -4647,10 +6222,9 @@
       "automatic",
       "disabling"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/ide-integration.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\ide-integration.md",
+    "source_url": "http://geminicli.com/docs/ide-integration.md",
     "subsections": [
       {
         "anchor": "#features",
@@ -4824,13 +6398,13 @@
       "installation",
       "models"
     ],
-    "title": "IDE integration",
-    "url": "http://geminicli.com/docs/ide-integration"
+    "title": "IDE integration"
   },
   "geminicli-com-docs-ide-integration-ide-companion-spec": {
     "category": "cli",
+    "content_hash": "sha256:bd2a3eaf0623e5feb29c7684a4555a5863d06edcb5414c896e697db5a2582fb0",
     "description": "This document defines the contract for building a companion plugin to enable Gemini CLI's IDE mode. For VS Code, these features (native diffing, context awareness) are provided by the official...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-ide-integration-ide-companion-spec",
     "hash": "sha256:bd2a3eaf0623e5feb29c7684a4555a5863d06edcb5414c896e697db5a2582fb0",
     "keywords": [
       "ide-companion-spec",
@@ -4846,10 +6420,9 @@
       "closediff tool",
       "mcp server"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/ide-integration/ide-companion-spec.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\ide-integration\\ide-companion-spec.md",
+    "source_url": "http://geminicli.com/docs/ide-integration/ide-companion-spec.md",
     "subsections": [
       {
         "anchor": "#i-the-communication-interface",
@@ -5001,29 +6574,355 @@
       "mcp",
       "models"
     ],
-    "title": "Gemini CLI companion plugin: Interface specification",
-    "url": "http://geminicli.com/docs/ide-integration/ide-companion-spec"
+    "title": "Gemini CLI companion plugin: Interface specification"
   },
   "geminicli-com-docs-integration-tests": {
+    "category": "cli",
     "content_hash": "sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e",
+    "description": "This document provides information about the integration testing framework used in this project.",
     "doc_id": "geminicli-com-docs-integration-tests",
     "hash": "sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "integration-tests",
+      "integration",
+      "tests",
+      "continuous integration",
+      "integration tests",
+      "deflake workflow",
+      "deflake script",
+      "sandbox matrix",
+      "verbose output",
+      "keeping test",
+      "file system",
+      "single test"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\integration-tests.md",
-    "source_url": "https://geminicli.com/docs/integration-tests.md"
+    "source_url": "https://geminicli.com/docs/integration-tests.md",
+    "subsections": [
+      {
+        "anchor": "#overview",
+        "heading": "Overview",
+        "keywords": [
+          "integration",
+          "tests",
+          "designed"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#building-the-tests",
+        "heading": "Building the tests",
+        "keywords": [
+          "building",
+          "tests",
+          "prior",
+          "running",
+          "integration"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-the-tests",
+        "heading": "Running the tests",
+        "keywords": [
+          "running",
+          "tests",
+          "integration",
+          "default"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-a-specific-set-of-tests",
+        "heading": "Running a specific set of tests",
+        "keywords": [
+          "running",
+          "specific",
+          "set",
+          "tests",
+          "subset"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-a-single-test-by-name",
+        "heading": "Running a single test by name",
+        "keywords": [
+          "running",
+          "single",
+          "test"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#regenerating-model-responses",
+        "heading": "Regenerating model responses",
+        "keywords": [
+          "regenerating",
+          "model",
+          "responses",
+          "integration",
+          "tests"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#deflaking-a-test",
+        "heading": "Deflaking a test",
+        "keywords": [
+          "deflaking",
+          "test",
+          "adding",
+          "integration"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#deflake-script",
+        "heading": "Deflake script",
+        "keywords": [
+          "deflake",
+          "script",
+          "bash",
+          "runs"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#running-all-tests",
+        "heading": "Running all tests",
+        "keywords": [
+          "running",
+          "tests",
+          "entire",
+          "suite",
+          "integration"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#sandbox-matrix",
+        "heading": "Sandbox matrix",
+        "keywords": [
+          "sandbox",
+          "matrix",
+          "command",
+          "tests",
+          "sandboxing"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#diagnostics",
+        "heading": "Diagnostics",
+        "keywords": [
+          "diagnostics",
+          "integration",
+          "test",
+          "runner"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#keeping-test-output",
+        "heading": "Keeping test output",
+        "keywords": [
+          "keeping",
+          "test",
+          "output",
+          "preserve",
+          "temporary"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#verbose-output",
+        "heading": "Verbose output",
+        "keywords": [
+          "verbose",
+          "output",
+          "detailed",
+          "debugging"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#linting-and-formatting",
+        "heading": "Linting and formatting",
+        "keywords": [
+          "linting",
+          "formatting",
+          "ensure",
+          "code",
+          "quality"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#running-the-linter",
+        "heading": "Running the linter",
+        "keywords": [
+          "running",
+          "linter",
+          "check",
+          "linting",
+          "errors"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#directory-structure",
+        "heading": "Directory structure",
+        "keywords": [
+          "directory",
+          "structure",
+          "integration",
+          "tests",
+          "create"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#continuous-integration",
+        "heading": "Continuous integration",
+        "keywords": [
+          "continuous",
+          "integration",
+          "ensure",
+          "tests"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "ide",
+      "models",
+      "troubleshooting"
+    ],
+    "title": "Integration tests"
   },
   "geminicli-com-docs-issue-and-pr-automation": {
+    "category": "cli",
     "content_hash": "sha256:8d28663310843af3546dd6a657bc08e9e805eb2b57451de21fe31485368016b6",
+    "description": "This document provides a detailed overview of the automated processes we use to manage and triage issues and pull requests. Our goal is to provide prompt feedback and ensure that contributions are...",
     "doc_id": "geminicli-com-docs-issue-and-pr-automation",
     "hash": "sha256:8d28663310843af3546dd6a657bc08e9e805eb2b57451de21fe31485368016b6",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "issue-and-pr-automation",
+      "automation",
+      "issue",
+      "continuous integration",
+      "detailed automation",
+      "release automation",
+      "guiding principle",
+      "automated issue",
+      "scheduled issue",
+      "ongoing triage",
+      "pull requests",
+      "label sync"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\issue-and-pr-automation.md",
-    "source_url": "http://geminicli.com/docs/issue-and-pr-automation.md"
+    "source_url": "http://geminicli.com/docs/issue-and-pr-automation.md",
+    "subsections": [
+      {
+        "anchor": "#guiding-principle-issues-and-pull-requests",
+        "heading": "Guiding principle: Issues and pull requests",
+        "keywords": [
+          "guiding",
+          "principle",
+          "issues",
+          "pull",
+          "requests"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#detailed-automation-workflows",
+        "heading": "Detailed automation workflows",
+        "keywords": [
+          "detailed",
+          "automation",
+          "workflows",
+          "breakdown",
+          "specific"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#1-when-you-open-an-issue-automated-issue-triage",
+        "heading": "1. When you open an issue: `Automated Issue Triage`",
+        "keywords": [
+          "open",
+          "issue",
+          "automated",
+          "triage",
+          "interact"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#2-when-you-open-a-pull-request-continuous-integration-ci",
+        "heading": "2. When you open a pull request: `Continuous Integration (CI)`",
+        "keywords": [
+          "open",
+          "pull",
+          "request",
+          "continuous",
+          "integration"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#3-ongoing-triage-for-pull-requests-pr-auditing-and-label-sync",
+        "heading": "3. Ongoing triage for pull requests: `PR Auditing and Label Sync`",
+        "keywords": [
+          "ongoing",
+          "triage",
+          "pull",
+          "requests",
+          "auditing"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#4-ongoing-triage-for-issues-scheduled-issue-triage",
+        "heading": "4. Ongoing triage for issues: `Scheduled Issue Triage`",
+        "keywords": [
+          "ongoing",
+          "triage",
+          "issues",
+          "scheduled",
+          "issue"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#5-release-automation",
+        "heading": "5. Release automation",
+        "keywords": [
+          "release",
+          "automation",
+          "workflow",
+          "handles",
+          "process"
+        ],
+        "level": 3
+      }
+    ],
+    "tags": [
+      "ide",
+      "models",
+      "troubleshooting"
+    ],
+    "title": "Automation and triage processes"
   },
   "geminicli-com-docs-local-development": {
     "category": "cli",
+    "content_hash": "sha256:a3932ca3300e1472de18b90859e9dd5573cf3726d42231b8252819cb5f49183e",
     "description": "This guide provides instructions for setting up and using local development features, such as development tracing.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-local-development",
     "hash": "sha256:a3932ca3300e1472de18b90859e9dd5573cf3726d42231b8252819cb5f49183e",
     "keywords": [
       "local-development",
@@ -5039,10 +6938,9 @@
       "setting",
       "tracing"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/local-development.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\local-development.md",
+    "source_url": "http://geminicli.com/docs/local-development.md",
     "subsections": [
       {
         "anchor": "#development-tracing",
@@ -5086,13 +6984,13 @@
       "telemetry",
       "troubleshooting"
     ],
-    "title": "Local development guide",
-    "url": "http://geminicli.com/docs/local-development"
+    "title": "Local development guide"
   },
   "geminicli-com-docs-npm": {
     "category": "cli",
+    "content_hash": "sha256:bc2069978b6c6acfb8518e2f458094c2925999ed20dc0eb690e2298cbd7d982b",
     "description": "This monorepo contains two main packages: `@google/gemini-cli` and `@google/gemini-cli-core`.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-npm",
     "hash": "sha256:bc2069978b6c6acfb8518e2f458094c2925999ed20dc0eb690e2298cbd7d982b",
     "keywords": [
       "workspaces",
@@ -5102,10 +7000,9 @@
       "package",
       "works"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/npm.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\npm.md",
+    "source_url": "http://geminicli.com/docs/npm.md",
     "subsections": [
       {
         "anchor": "#googlegemini-cli",
@@ -5167,21 +7064,163 @@
       "installation",
       "models"
     ],
-    "title": "Package overview",
-    "url": "http://geminicli.com/docs/npm"
+    "title": "Package overview"
   },
   "geminicli-com-docs-quota-and-pricing": {
-    "content_hash": "sha256:c52f4179898f1bd8dd138ab3e92bcd5edd29d6fdb42815bd734e1c385f3a0eff",
+    "category": "cli",
+    "content_hash": "sha256:7a570b53db5b616d193a649b0faf5ec88dd3247f10c71052f102391119c8b5cf",
+    "description": "Gemini CLI offers a generous free tier that covers many individual developers' use cases. For enterprise or professional usage, or if you need higher limits, several options are available depending...",
     "doc_id": "geminicli-com-docs-quota-and-pricing",
-    "hash": "sha256:c52f4179898f1bd8dd138ab3e92bcd5edd29d6fdb42815bd734e1c385f3a0eff",
-    "last_fetched": "2025-12-01",
+    "hash": "sha256:7a570b53db5b616d193a649b0faf5ec88dd3247f10c71052f102391119c8b5cf",
+    "keywords": [
+      "quota-and-pricing",
+      "pricing",
+      "quota",
+      "workspace plans",
+      "higher limits",
+      "express mode",
+      "rate limits",
+      "avoid high",
+      "fixed cost",
+      "free usage",
+      "paid tier",
+      "professional"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\quota-and-pricing.md",
-    "source_url": "https://geminicli.com/docs/quota-and-pricing.md"
+    "source_url": "https://geminicli.com/docs/quota-and-pricing.md",
+    "subsections": [
+      {
+        "anchor": "#free-usage",
+        "heading": "Free usage",
+        "keywords": [
+          "free",
+          "usage",
+          "journey",
+          "begins",
+          "generous"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#log-in-with-google-gemini-code-assist-for-individuals",
+        "heading": "Log in with Google (Gemini Code Assist for individuals)",
+        "keywords": [
+          "log",
+          "code",
+          "assist",
+          "individuals",
+          "users"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#log-in-with-gemini-api-key-unpaid",
+        "heading": "Log in with Gemini API Key (unpaid)",
+        "keywords": [
+          "log",
+          "key",
+          "unpaid",
+          "benefit",
+          "free"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#log-in-with-vertex-ai-express-mode",
+        "heading": "Log in with Vertex AI (Express Mode)",
+        "keywords": [
+          "log",
+          "vertex",
+          "express",
+          "mode",
+          "offers"
+        ],
+        "level": 3
+      },
+      {
+        "anchor": "#paid-tier-higher-limits-for-a-fixed-cost",
+        "heading": "Paid tier: Higher limits for a fixed cost",
+        "keywords": [
+          "paid",
+          "tier",
+          "higher",
+          "limits",
+          "fixed"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#pay-as-you-go",
+        "heading": "Pay as you go",
+        "keywords": [
+          "pay",
+          "daily",
+          "request",
+          "limits"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#gemini-for-workspace-plans",
+        "heading": "Gemini for workspace plans",
+        "keywords": [
+          "workspace",
+          "plans",
+          "currently",
+          "apply"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#tips-to-avoid-high-costs",
+        "heading": "Tips to avoid high costs",
+        "keywords": [
+          "tips",
+          "avoid",
+          "high",
+          "costs",
+          "mindful"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#gemini-api-vs-vertex",
+        "heading": "Gemini API vs. Vertex",
+        "keywords": [
+          "vertex",
+          "developer",
+          "fastest",
+          "models"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#understanding-your-usage",
+        "heading": "Understanding your usage",
+        "keywords": [
+          "understanding",
+          "usage",
+          "summary",
+          "model"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "api",
+      "authentication",
+      "cli",
+      "ide",
+      "models"
+    ],
+    "title": "Gemini CLI: Quotas and pricing"
   },
   "geminicli-com-docs-release-confidence": {
     "category": "cli",
+    "content_hash": "sha256:493531cd464cd6fe6a02c20cca36e0574a644163b39de4d020408fd9deda9612",
     "description": "This document outlines the strategy for gaining confidence in every release of the Gemini CLI. It serves as a checklist and quality gate for release manager to ensure we are shipping a high-quality...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-release-confidence",
     "hash": "sha256:493531cd464cd6fe6a02c20cca36e0574a644163b39de4d020408fd9deda9612",
     "keywords": [
       "release-confidence",
@@ -5197,10 +7236,9 @@
       "automated",
       "checklist"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/release-confidence.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\release-confidence.md",
+    "source_url": "http://geminicli.com/docs/release-confidence.md",
     "subsections": [
       {
         "anchor": "#the-goal",
@@ -5361,13 +7399,13 @@
       "models",
       "troubleshooting"
     ],
-    "title": "Release confidence strategy",
-    "url": "http://geminicli.com/docs/release-confidence"
+    "title": "Release confidence strategy"
   },
   "geminicli-com-docs-releases": {
     "category": "cli",
+    "content_hash": "sha256:fe27807dad16d716d356af0937b1ab275cbaad70fe3c663b469d66aaf41e7bab",
     "description": "Our release flows support both `dev` and `prod` environments.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-releases",
     "hash": "sha256:fe27807dad16d716d356af0937b1ab275cbaad70fe3c663b469d66aaf41e7bab",
     "keywords": [
       "releases",
@@ -5383,10 +7421,9 @@
       "patch pull",
       "environments"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/releases.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\releases.md",
+    "source_url": "http://geminicli.com/docs/releases.md",
     "subsections": [
       {
         "anchor": "#dev-vs-prod-environment",
@@ -5626,21 +7663,91 @@
       "tools",
       "troubleshooting"
     ],
-    "title": "Gemini CLI releases",
-    "url": "http://geminicli.com/docs/releases"
+    "title": "Gemini CLI releases"
   },
   "geminicli-com-docs-tools": {
+    "category": "tools",
     "content_hash": "sha256:f2127f2523d938754414716f8c2cfe80149cbc9b4cd4f84f0edbddb6b6bb8a91",
+    "description": "The Gemini CLI includes built-in tools that the Gemini model uses to interact with your local environment, access information, and perform actions. These tools enhance the CLI's capabilities,...",
     "doc_id": "geminicli-com-docs-tools",
     "hash": "sha256:f2127f2523d938754414716f8c2cfe80149cbc9b4cd4f84f0edbddb6b6bb8a91",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "tools",
+      "file system",
+      "mcp servers",
+      "memory tool",
+      "mcp server",
+      "shell tool",
+      "web search",
+      "todo tool",
+      "web fetch",
+      "capabilities",
+      "confirmation",
+      "environment"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\tools.md",
-    "source_url": "http://geminicli.com/docs/tools.md"
+    "source_url": "http://geminicli.com/docs/tools.md",
+    "subsections": [
+      {
+        "anchor": "#overview-of-gemini-cli-tools",
+        "heading": "Overview of Gemini CLI tools",
+        "keywords": [
+          "tools",
+          "context",
+          "specific"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#how-to-use-gemini-cli-tools",
+        "heading": "How to use Gemini CLI tools",
+        "keywords": [
+          "use",
+          "tools",
+          "provide",
+          "prompt"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#security-and-confirmation",
+        "heading": "Security and confirmation",
+        "keywords": [
+          "security",
+          "confirmation",
+          "tools",
+          "especially",
+          "modify"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#learn-more-about-gemini-clis-tools",
+        "heading": "Learn more about Gemini CLI's tools",
+        "keywords": [
+          "learn",
+          "tools",
+          "built",
+          "broadly"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "cli",
+      "ide",
+      "mcp",
+      "models",
+      "tools"
+    ],
+    "title": "Gemini CLI tools"
   },
   "geminicli-com-docs-tools-file-system": {
     "category": "tools",
+    "content_hash": "sha256:e2e233e7e2812923614f825784c2b757fcffb154a0fa198dabb36a1bfccccaa1",
     "description": "The Gemini CLI provides a comprehensive suite of tools for interacting with the local file system. These tools allow the Gemini model to read from, write to, list, search, and modify files and...",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-file-system",
     "hash": "sha256:e2e233e7e2812923614f825784c2b757fcffb154a0fa198dabb36a1bfccccaa1",
     "keywords": [
       "file-system",
@@ -5656,10 +7763,9 @@
       "readfile",
       "replace"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/file-system.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\file-system.md",
+    "source_url": "http://geminicli.com/docs/tools/file-system.md",
     "subsections": [
       {
         "anchor": "#1-list_directory-readfolder",
@@ -5734,13 +7840,13 @@
       "models",
       "tools"
     ],
-    "title": "Gemini CLI file system tools",
-    "url": "http://geminicli.com/docs/tools/file-system"
+    "title": "Gemini CLI file system tools"
   },
   "geminicli-com-docs-tools-mcp-server": {
     "category": "tools",
+    "content_hash": "sha256:694f97a6510d541a19c175cbebc9e96bde6ff012be6dbfb5a50b73f540790b3f",
     "description": "This document provides a guide to configuring and using Model Context Protocol (MCP) servers with the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-mcp-server",
     "hash": "sha256:694f97a6510d541a19c175cbebc9e96bde6ff012be6dbfb5a50b73f540790b3f",
     "keywords": [
       "mcp-server",
@@ -5756,10 +7862,9 @@
       "slash commands",
       "basic syntax"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/mcp-server.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\mcp-server.md",
+    "source_url": "http://geminicli.com/docs/tools/mcp-server.md",
     "subsections": [
       {
         "anchor": "#what-is-an-mcp-server",
@@ -6311,13 +8416,13 @@
       "ide",
       "installation"
     ],
-    "title": "MCP servers with the Gemini CLI",
-    "url": "http://geminicli.com/docs/tools/mcp-server"
+    "title": "MCP servers with the Gemini CLI"
   },
   "geminicli-com-docs-tools-memory": {
     "category": "tools",
+    "content_hash": "sha256:987588d478ed93df77980f77c6109ae862671e213d220d8a7bfdac01107a1342",
     "description": "This document describes the `save_memory` tool for the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-memory",
     "hash": "sha256:987588d478ed93df77980f77c6109ae862671e213d220d8a7bfdac01107a1342",
     "keywords": [
       "memory",
@@ -6326,10 +8431,9 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/memory.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\memory.md",
+    "source_url": "http://geminicli.com/docs/tools/memory.md",
     "subsections": [
       {
         "anchor": "#description",
@@ -6394,13 +8498,13 @@
       "models",
       "tools"
     ],
-    "title": "Memory tool (`save_memory`)",
-    "url": "http://geminicli.com/docs/tools/memory"
+    "title": "Memory tool (`save_memory`)"
   },
   "geminicli-com-docs-tools-shell": {
     "category": "tools",
+    "content_hash": "sha256:7184b66c77a66bf6b8f3b5c79bf6e521b18ce29052884427b34e27916a594f75",
     "description": "This document describes the `run_shell_command` tool for the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-shell",
     "hash": "sha256:7184b66c77a66bf6b8f3b5c79bf6e521b18ce29052884427b34e27916a594f75",
     "keywords": [
       "shell",
@@ -6416,10 +8520,9 @@
       "environment",
       "arguments"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/shell.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\shell.md",
+    "source_url": "http://geminicli.com/docs/tools/shell.md",
     "subsections": [
       {
         "anchor": "#description",
@@ -6587,13 +8690,13 @@
       "security",
       "tools"
     ],
-    "title": "Shell tool (`run_shell_command`)",
-    "url": "http://geminicli.com/docs/tools/shell"
+    "title": "Shell tool (`run_shell_command`)"
   },
   "geminicli-com-docs-tools-todos": {
     "category": "tools",
+    "content_hash": "sha256:1d566aa79452ffbd3b2df6072bf41d483d34b4060b19150ab0afe7f522811234",
     "description": "This document describes the `write_todos` tool for the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-todos",
     "hash": "sha256:1d566aa79452ffbd3b2df6072bf41d483d34b4060b19150ab0afe7f522811234",
     "keywords": [
       "todos",
@@ -6603,10 +8706,9 @@
       "describes",
       "behavior"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/todos.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\todos.md",
+    "source_url": "http://geminicli.com/docs/tools/todos.md",
     "subsections": [
       {
         "anchor": "#description",
@@ -6657,13 +8759,13 @@
     "tags": [
       "tools"
     ],
-    "title": "Todo tool (`write_todos`)",
-    "url": "http://geminicli.com/docs/tools/todos"
+    "title": "Todo tool (`write_todos`)"
   },
   "geminicli-com-docs-tools-web-fetch": {
     "category": "tools",
+    "content_hash": "sha256:407bb0366741f6b7cf0c91bc62a8bbe67fd09674f8202b5e9ae8dabda64f7a38",
     "description": "This document describes the `web_fetch` tool for the Gemini CLI.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-web-fetch",
     "hash": "sha256:407bb0366741f6b7cf0c91bc62a8bbe67fd09674f8202b5e9ae8dabda64f7a38",
     "keywords": [
       "web-fetch",
@@ -6675,10 +8777,9 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/web-fetch.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\web-fetch.md",
+    "source_url": "http://geminicli.com/docs/tools/web-fetch.md",
     "subsections": [
       {
         "anchor": "#description",
@@ -6741,13 +8842,13 @@
       "models",
       "tools"
     ],
-    "title": "Web fetch tool (`web_fetch`)",
-    "url": "http://geminicli.com/docs/tools/web-fetch"
+    "title": "Web fetch tool (`web_fetch`)"
   },
   "geminicli-com-docs-tools-web-search": {
     "category": "tools",
+    "content_hash": "sha256:aad833f5327cdd3d776bee6f023736371203a06e9702406ee3827ec0f38e2c69",
     "description": "This document describes the `google_web_search` tool.",
-    "domain": "geminicli.com",
+    "doc_id": "geminicli-com-docs-tools-web-search",
     "hash": "sha256:aad833f5327cdd3d776bee6f023736371203a06e9702406ee3827ec0f38e2c69",
     "keywords": [
       "web-search",
@@ -6758,10 +8859,9 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-01",
-    "path": "geminicli-com/docs/tools/web-search.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
+    "last_fetched": "2025-12-05",
+    "path": "geminicli-com\\docs\\tools\\web-search.md",
+    "source_url": "http://geminicli.com/docs/tools/web-search.md",
     "subsections": [
       {
         "anchor": "#description",
@@ -6822,22 +8922,105 @@
     "tags": [
       "tools"
     ],
-    "title": "Web search tool (`google_web_search`)",
-    "url": "http://geminicli.com/docs/tools/web-search"
+    "title": "Web search tool (`google_web_search`)"
   },
   "geminicli-com-docs-tos-privacy": {
+    "category": "cli",
     "content_hash": "sha256:132d8c6a820192cc1c7a71afbbbe986787098ab6e5097779837ca20c1fb33d0a",
+    "description": "Gemini CLI is an open-source tool that lets you interact with Google's powerful AI services directly from your command-line interface. The Gemini CLI software is licensed under the When you use...",
     "doc_id": "geminicli-com-docs-tos-privacy",
     "hash": "sha256:132d8c6a820192cc1c7a71afbbbe986787098ab6e5097779837ca20c1fb33d0a",
-    "last_fetched": "2025-12-01",
+    "keywords": [
+      "tos-privacy",
+      "privacy",
+      "supported authentication",
+      "usage statistics",
+      "privacy notices",
+      "authentication",
+      "interface",
+      "directly",
+      "interact",
+      "licensed",
+      "powerful",
+      "services"
+    ],
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com\\docs\\tos-privacy.md",
-    "source_url": "http://geminicli.com/docs/tos-privacy.md"
+    "source_url": "http://geminicli.com/docs/tos-privacy.md",
+    "subsections": [
+      {
+        "anchor": "#supported-authentication-methods",
+        "heading": "Supported authentication methods",
+        "keywords": [
+          "supported",
+          "authentication",
+          "methods",
+          "method",
+          "refers"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#1-if-you-have-logged-in-with-your-google-account-to-gemini-code-assist",
+        "heading": "1. If you have logged in with your Google account to Gemini Code Assist",
+        "keywords": [
+          "logged",
+          "account",
+          "code",
+          "assist",
+          "users"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#2-if-you-have-logged-in-with-a-gemini-api-key-to-the-gemini-developer-api",
+        "heading": "2. If you have logged in with a Gemini API key to the Gemini Developer API",
+        "keywords": [
+          "logged",
+          "key",
+          "developer",
+          "authentication",
+          "https"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#3-if-you-have-logged-in-with-a-gemini-api-key-to-the-vertex-ai-genai-api",
+        "heading": "3. If you have logged in with a Gemini API key to the Vertex AI GenAI API",
+        "keywords": [
+          "logged",
+          "key",
+          "vertex",
+          "genai",
+          "authentication"
+        ],
+        "level": 2
+      },
+      {
+        "anchor": "#usage-statistics-opt-out",
+        "heading": "Usage statistics opt-out",
+        "keywords": [
+          "usage",
+          "statistics",
+          "opt",
+          "sending"
+        ],
+        "level": 2
+      }
+    ],
+    "tags": [
+      "api",
+      "authentication",
+      "cli",
+      "models"
+    ],
+    "title": "Gemini CLI: License, Terms of Service, and Privacy Notices"
   },
   "geminicli-com-docs-troubleshooting": {
     "category": "cli",
     "description": "This guide provides solutions to common issues and debugging tips, including topics on:",
     "domain": "geminicli.com",
-    "hash": "sha256:139ce25cd3f0ef3219da8e821d5b34208b7d3c4239c4f7311c95562c18d1379b",
+    "hash": "sha256:557b4cc46665db3ea913b6111501412737e15853ffee30658823002120df6431",
     "keywords": [
       "troubleshooting",
       "existing github",
@@ -6852,7 +9035,7 @@
       "solutions",
       "creating"
     ],
-    "last_fetched": "2025-12-01",
+    "last_fetched": "2025-12-05",
     "path": "geminicli-com/docs/troubleshooting.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -6865,7 +9048,7 @@
           "login",
           "errors",
           "error",
-          "failed"
+          "named"
         ],
         "level": 2
       },
@@ -6898,7 +9081,7 @@
         "keywords": [
           "debugging",
           "tips",
-          "verbose",
+          "debug",
           "flag"
         ],
         "level": 2
@@ -7138,372 +9321,5 @@
     ],
     "title": "Gemini for Google Cloud pricing",
     "url": "https://cloud.google.com/products/gemini/pricing"
-  },
-  "raw-githubusercontent-com-google-gemini-gemini-cli-main-CONTRIBUTING": {
-    "category": "cli",
-    "description": "We would love to accept your patches and contributions to this project. This document includes:",
-    "domain": "raw.githubusercontent.com",
-    "hash": "sha256:791c8ed6be9daf5332d382fa2917899c0b4930aabeba33f4eda66a8facfd4f3a",
-    "keywords": [
-      "google-gemini",
-      "gemini-cli",
-      "contributing",
-      "development environment",
-      "community guidelines",
-      "contributor license",
-      "coding conventions",
-      "code contribution",
-      "build process",
-      "code reviews",
-      "checks pass",
-      "file system"
-    ],
-    "last_fetched": "2025-12-01",
-    "path": "raw-githubusercontent-com/google-gemini/gemini-cli/main/CONTRIBUTING.md",
-    "sitemap_url": "https://geminicli.com/llms.txt",
-    "source_type": "llms-txt",
-    "subsections": [
-      {
-        "anchor": "#before-you-begin",
-        "heading": "Before you begin",
-        "keywords": [
-          "begin",
-          "sign",
-          "contributor",
-          "license"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#sign-our-contributor-license-agreement",
-        "heading": "Sign our Contributor License Agreement",
-        "keywords": [
-          "sign",
-          "contributor",
-          "license",
-          "agreement",
-          "contributions"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#review-our-community-guidelines",
-        "heading": "Review our Community Guidelines",
-        "keywords": [
-          "review",
-          "community",
-          "guidelines",
-          "project",
-          "follows"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#code-contribution-process",
-        "heading": "Code contribution process",
-        "keywords": [
-          "code",
-          "contribution",
-          "process",
-          "started",
-          "contributing"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#get-started",
-        "heading": "Get started",
-        "keywords": [
-          "started",
-          "process",
-          "contributing",
-          "code"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#code-reviews",
-        "heading": "Code reviews",
-        "keywords": [
-          "code",
-          "reviews",
-          "submissions",
-          "including"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#self-assigning-issues",
-        "heading": "Self assigning issues",
-        "keywords": [
-          "self",
-          "assigning",
-          "issues",
-          "assign",
-          "issue"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#pull-request-guidelines",
-        "heading": "Pull request guidelines",
-        "keywords": [
-          "pull",
-          "request",
-          "guidelines",
-          "help",
-          "review"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#forking",
-        "heading": "Forking",
-        "keywords": [
-          "forking",
-          "repository",
-          "able"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#development-setup-and-workflow",
-        "heading": "Development setup and workflow",
-        "keywords": [
-          "development",
-          "setup",
-          "workflow",
-          "section",
-          "guides"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#setting-up-the-development-environment",
-        "heading": "Setting up the development environment",
-        "keywords": [
-          "setting",
-          "development",
-          "environment",
-          "prerequisites",
-          "node"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#build-process",
-        "heading": "Build process",
-        "keywords": [
-          "build",
-          "process",
-          "clone",
-          "repository",
-          "bash"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#enabling-sandboxing",
-        "heading": "Enabling sandboxing",
-        "keywords": [
-          "enabling",
-          "sandboxing",
-          "highly"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#running-the-cli",
-        "heading": "Running the CLI",
-        "keywords": [
-          "running",
-          "start",
-          "source",
-          "code"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#running-tests",
-        "heading": "Running tests",
-        "keywords": [
-          "running",
-          "tests",
-          "project",
-          "contains",
-          "types"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#linting-and-preflight-checks",
-        "heading": "Linting and preflight checks",
-        "keywords": [
-          "linting",
-          "preflight",
-          "checks",
-          "ensure",
-          "code"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#coding-conventions",
-        "heading": "Coding conventions",
-        "keywords": [
-          "coding",
-          "conventions",
-          "adhere",
-          "style"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#project-structure",
-        "heading": "Project structure",
-        "keywords": [
-          "project",
-          "structure",
-          "packages",
-          "contains",
-          "individual"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#debugging",
-        "heading": "Debugging",
-        "keywords": [
-          "debugging",
-          "code",
-          "interactively",
-          "debug"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#react-devtools",
-        "heading": "React DevTools",
-        "keywords": [
-          "react",
-          "devtools",
-          "debug",
-          "based"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#sandboxing",
-        "heading": "Sandboxing",
-        "keywords": [
-          "sandboxing",
-          "macos",
-          "seatbelt"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#manual-publish",
-        "heading": "Manual publish",
-        "keywords": [
-          "manual",
-          "publish",
-          "artifact",
-          "commit"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#documentation-contribution-process",
-        "heading": "Documentation contribution process",
-        "keywords": [
-          "documentation",
-          "contribution",
-          "process",
-          "kept",
-          "date"
-        ],
-        "level": 2
-      },
-      {
-        "anchor": "#getting-started",
-        "heading": "Getting started",
-        "keywords": [
-          "getting",
-          "started",
-          "process",
-          "contributing",
-          "documentation"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#documentation-structure",
-        "heading": "Documentation structure",
-        "keywords": [
-          "documentation",
-          "structure",
-          "organized",
-          "sidebar"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#style-guide",
-        "heading": "Style guide",
-        "keywords": [
-          "style",
-          "follow",
-          "developer",
-          "documentation"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#linting-and-formatting",
-        "heading": "Linting and formatting",
-        "keywords": [
-          "linting",
-          "formatting",
-          "prettier",
-          "enforce",
-          "consistent"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#before-you-submit",
-        "heading": "Before you submit",
-        "keywords": [
-          "submit",
-          "submitting",
-          "documentation",
-          "pull"
-        ],
-        "level": 3
-      },
-      {
-        "anchor": "#need-help",
-        "heading": "Need help?",
-        "keywords": [
-          "need",
-          "help",
-          "questions",
-          "contributing",
-          "documentation"
-        ],
-        "level": 3
-      }
-    ],
-    "tags": [
-      "cli",
-      "configuration",
-      "ide",
-      "installation",
-      "models",
-      "tools"
-    ],
-    "title": "How to contribute",
-    "url": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/CONTRIBUTING"
   }
 }
