@@ -39,6 +39,7 @@ CLAUDE CODE BEST PRACTICES (Session Reminder)
 - Path Resolution: Resolve paths absolutely from repo root before operations
 - File Paths: Use forward slashes even on Windows (e.g., src/utils/helper.ts)
 - Natural Language: Use natural language describing intent for agentic instructions
+- MCP Permissions: Use explicit tool names in permission rules - wildcards like mcp__* are not supported
 
 ## Context & Efficiency
 - Progressive Disclosure: Load content on-demand as needed
@@ -58,6 +59,7 @@ CLAUDE CODE BEST PRACTICES (Session Reminder)
 - Ship Working Solutions: Good enough that works beats perfect that ships late - refine iteratively
 - Complete Handoffs: Finish tasks fully including all cleanup and verification steps
 - Communication Style: Concise, fact-based progress reports grounded in actual results
+- Opus 4.5 Precision: Follow instructions precisely and literally - be explicit about intended actions
 
 ## Workflow
 - Course Correction: Plan before coding, use /clear between tasks, interrupt early when off-track

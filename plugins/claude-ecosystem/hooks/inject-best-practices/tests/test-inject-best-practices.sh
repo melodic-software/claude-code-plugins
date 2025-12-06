@@ -1,35 +1,76 @@
 #!/usr/bin/env bash
 # test-inject-best-practices.sh - Unit tests for inject-best-practices hook
 #
-# Run: bash plugins/claude-ecosystem/hooks/inject-best-practices/tests/test-inject-best-practices.sh
+# Cross-platform test script for Windows (Git Bash/MSYS2), macOS, and Linux
+#
+# Run from repo root:
+#   bash plugins/claude-ecosystem/hooks/inject-best-practices/tests/test-inject-best-practices.sh
+#
+# Or with MSYS path conversion disabled (Windows):
+#   MSYS_NO_PATHCONV=1 bash plugins/claude-ecosystem/hooks/inject-best-practices/tests/test-inject-best-practices.sh
+
+# Disable MSYS path conversion for Windows compatibility
+export MSYS_NO_PATHCONV=1
 
 set -euo pipefail
 
+# Resolve script directory (portable across platforms)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_SCRIPT="$SCRIPT_DIR/../bash/inject-best-practices.sh"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Colors for output (with fallback for non-color terminals)
+if [[ -t 1 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    NC='\033[0m'
+else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
 
 PASSED=0
 FAILED=0
+SKIPPED=0
 
 test_pass() {
     echo -e "${GREEN}PASS${NC}: $1"
-    ((PASSED++))
+    ((PASSED++)) || true
 }
 
 test_fail() {
     echo -e "${RED}FAIL${NC}: $1"
-    ((FAILED++))
+    ((FAILED++)) || true
 }
+
+test_skip() {
+    echo -e "${YELLOW}SKIP${NC}: $1"
+    ((SKIPPED++)) || true
+}
+
+# Find Python interpreter (python3 or python)
+find_python() {
+    if command -v python3 &>/dev/null; then
+        echo "python3"
+    elif command -v python &>/dev/null; then
+        echo "python"
+    else
+        echo ""
+    fi
+}
+
+PYTHON=$(find_python)
 
 echo "Running inject-best-practices hook tests..."
 echo "=========================================="
+echo "Platform: $(uname -s)"
+echo "Shell: $BASH_VERSION"
+echo "Python: ${PYTHON:-not found}"
+echo "=========================================="
 
-# Test 1: Script exists and is executable concept (we'll make it executable)
+# Test 1: Script exists
 if [[ -f "$HOOK_SCRIPT" ]]; then
     test_pass "Hook script exists"
 else
@@ -38,7 +79,7 @@ else
 fi
 
 # Test 2: Script runs without error when enabled (default)
-unset CLAUDE_HOOK_INJECT_BEST_PRACTICES_ENABLED
+unset CLAUDE_HOOK_INJECT_BEST_PRACTICES_ENABLED 2>/dev/null || true
 OUTPUT=$(echo '{}' | bash "$HOOK_SCRIPT" 2>&1) && RC=$? || RC=$?
 if [[ $RC -eq 0 ]]; then
     test_pass "Script exits with code 0 when enabled"
@@ -47,10 +88,14 @@ else
 fi
 
 # Test 3: Output is valid JSON
-if echo "$OUTPUT" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
-    test_pass "Output is valid JSON"
+if [[ -n "$PYTHON" ]]; then
+    if echo "$OUTPUT" | $PYTHON -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
+        test_pass "Output is valid JSON"
+    else
+        test_fail "Output is not valid JSON"
+    fi
 else
-    test_fail "Output is not valid JSON: $OUTPUT"
+    test_skip "JSON validation (Python not available)"
 fi
 
 # Test 4: Output contains hookSpecificOutput
@@ -99,7 +144,21 @@ else
     test_fail "Output missing docs-management reference"
 fi
 
-# Test 8: Script respects disabled flag
+# Test 8: Output contains Opus 4.5 precision note (new enhancement)
+if echo "$OUTPUT" | grep -q "Opus 4.5"; then
+    test_pass "Output contains Opus 4.5 precision note"
+else
+    test_fail "Output missing Opus 4.5 precision note"
+fi
+
+# Test 9: Output contains MCP permissions warning (new enhancement)
+if echo "$OUTPUT" | grep -q "MCP Permissions"; then
+    test_pass "Output contains MCP permissions warning"
+else
+    test_fail "Output missing MCP permissions warning"
+fi
+
+# Test 10: Script respects disabled flag
 export CLAUDE_HOOK_INJECT_BEST_PRACTICES_ENABLED=0
 DISABLED_OUTPUT=$(echo '{}' | bash "$HOOK_SCRIPT" 2>&1) && RC=$? || RC=$?
 if [[ $RC -eq 0 ]]; then
@@ -108,26 +167,40 @@ else
     test_fail "Script exited with code $RC when disabled"
 fi
 
-# Test 9: Disabled output does not contain additionalContext content
+# Test 11: Disabled output does not contain additionalContext content
 if echo "$DISABLED_OUTPUT" | grep -q "best-practices-reminder"; then
     test_fail "Disabled output should not contain reminder content"
 else
     test_pass "Disabled output correctly omits reminder content"
 fi
 
-# Test 10: Disabled output is still valid JSON
-if echo "$DISABLED_OUTPUT" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
-    test_pass "Disabled output is valid JSON"
+# Test 12: Disabled output is still valid JSON
+if [[ -n "$PYTHON" ]]; then
+    if echo "$DISABLED_OUTPUT" | $PYTHON -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
+        test_pass "Disabled output is valid JSON"
+    else
+        test_fail "Disabled output is not valid JSON"
+    fi
 else
-    test_fail "Disabled output is not valid JSON: $DISABLED_OUTPUT"
+    test_skip "Disabled JSON validation (Python not available)"
 fi
 
-unset CLAUDE_HOOK_INJECT_BEST_PRACTICES_ENABLED
+# Test 13: Disabled output has correct structure
+if echo "$DISABLED_OUTPUT" | grep -q '"hookEventName":"SessionStart"'; then
+    test_pass "Disabled output has correct hookEventName"
+else
+    test_fail "Disabled output missing hookEventName"
+fi
+
+# Cleanup
+unset CLAUDE_HOOK_INJECT_BEST_PRACTICES_ENABLED 2>/dev/null || true
 
 echo "=========================================="
-echo -e "Results: ${GREEN}$PASSED passed${NC}, ${RED}$FAILED failed${NC}"
+TOTAL=$((PASSED + FAILED + SKIPPED))
+echo -e "Results: ${GREEN}$PASSED passed${NC}, ${RED}$FAILED failed${NC}, ${YELLOW}$SKIPPED skipped${NC} (total: $TOTAL)"
 
 if [[ $FAILED -gt 0 ]]; then
+    echo "Some tests failed!"
     exit 1
 fi
 
