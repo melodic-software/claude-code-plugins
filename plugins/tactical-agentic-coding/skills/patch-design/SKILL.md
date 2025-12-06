@@ -1,6 +1,6 @@
 ---
 name: patch-design
-description: Create minimal, surgical patch plans for targeted fixes
+description: Create minimal, surgical patch plans for targeted fixes. Use when fixing specific issues from review, creating focused patches, or avoiding scope creep in fix implementations.
 version: 1.0.0
 allowed-tools: Read, Grep
 tags: [patches, fixes, minimal-changes, surgical]

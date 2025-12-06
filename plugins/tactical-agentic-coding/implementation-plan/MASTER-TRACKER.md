@@ -141,7 +141,7 @@ Planning and orchestration agents upgraded from `sonnet` to `opus` per model sel
 
 ## Critical Issues (from DOCUMENTATION_AUDIT.md)
 
-- [x] Model IDs need Dec 2025 versions (`claude-opus-4-5-20251101`, `claude-sonnet-4-20250514`) - VERIFIED COMPLIANT
+- [x] Model IDs need Dec 2025 versions (`claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`) - VERIFIED COMPLIANT
 - [x] Command naming: kebab-case required (not underscores) - ALL COMPLIANT
 - [x] Skill `allowed-tools`: comma-separated string (not array) - ALL COMPLIANT
 - [x] Skill naming: no cryptic acronyms (`reduce-delegate-framework` not `rd-framework`) - ALL COMPLIANT

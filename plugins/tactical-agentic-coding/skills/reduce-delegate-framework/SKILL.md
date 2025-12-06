@@ -1,6 +1,6 @@
 ---
 name: reduce-delegate-framework
-description: Apply R&D framework to optimize prompts and context
+description: Apply R&D framework to optimize prompts and context. Use when optimizing context window usage, reducing prompt size, delegating to specialized agents, or applying systematic context management.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [reduce, delegate, context, optimization, r&d, framework]

@@ -1,6 +1,6 @@
 ---
 name: system-prompt-engineering
-description: Design effective system prompts for custom agents
+description: Design effective system prompts for custom agents. Use when creating agent system prompts, defining agent identity and rules, or designing high-impact prompts that shape agent behavior.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [system-prompt, agent, custom, design, purpose, instructions, examples]

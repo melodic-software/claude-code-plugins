@@ -1,6 +1,6 @@
 ---
 name: custom-agent-design
-description: Design custom agents from scratch using Claude Agent SDK patterns
+description: Design custom agents from scratch using Claude Agent SDK patterns. Use when building domain-specific agents, designing agents with full SDK control, or creating specialized agents with custom tools and prompts.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [custom, agent, SDK, system-prompt, tools, domain, design]
@@ -151,7 +151,7 @@ options = ClaudeAgentOptions(
     system_prompt=load_system_prompt("agent_system.md"),
 
     # Model
-    model="claude-sonnet-4-20250514",
+    model="opus",
 
     # Tools
     allowed_tools=["Read", "Write", "custom_tool"],

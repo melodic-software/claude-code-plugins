@@ -1,6 +1,6 @@
 ---
 name: tool-design
-description: Create custom tools using the @tool decorator for domain-specific agents
+description: Create custom tools using the @tool decorator for domain-specific agents. Use when building agent-specific tools, implementing MCP servers, or creating in-memory tools with the Agent SDK.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [tool, decorator, MCP, custom, in-memory, SDK]
@@ -188,7 +188,7 @@ options = ClaudeAgentOptions(
     # Disable unused default tools
     disallowed_tools=["WebFetch", "WebSearch", "TodoWrite"],
     system_prompt=system_prompt,
-    model="claude-sonnet-4-20250514",
+    model="opus",
 )
 ```markdown
 

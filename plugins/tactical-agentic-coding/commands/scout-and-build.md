@@ -16,7 +16,7 @@ This command implements the two-phase pattern within Claude Code's subagent cons
 
 ### Phase 1: Scout
 
-1. **Launch scout agent** (Explore subagent, haiku model):
+1. **Launch scout agent** (Explore subagent, opus model):
    - Analyze relevant codebase areas
    - Identify existing patterns
    - Map dependencies

@@ -1,6 +1,6 @@
 ---
 name: template-meta-prompt-creation
-description: Create Level 6 template meta-prompts that generate other prompts
+description: Create Level 6 template meta-prompts that generate other prompts. Use when building prompt generators, designing high-leverage meta-prompts, or creating templates that scaffold other prompts.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [prompt, meta, template, level-6, generator, scaffold]
@@ -54,7 +54,7 @@ The exact format generated prompts should follow:
 allowed-tools: <tools comma separated>
 description: <description for discovery>
 argument-hint: [<arguments>]
-model: sonnet
+model: opus
 ---
 
 # <name_of_prompt>
@@ -166,7 +166,7 @@ Before outputting:
 allowed-tools: Write, Edit, WebFetch, Task
 description: Create a new prompt in specified format
 argument-hint: [high level prompt description]
-model: sonnet
+model: opus
 ---
 
 # MetaPrompt
@@ -202,7 +202,7 @@ Settings: https://docs.anthropic.com/en/docs/claude-code/settings
 allowed-tools: <tools needed>
 description: <clear description>
 argument-hint: [<expected args>]
-model: sonnet
+model: opus
 ---
 
 # <Action-Oriented Title>

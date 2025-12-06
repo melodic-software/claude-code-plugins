@@ -1,6 +1,6 @@
 ---
 name: orchestration-prompts
-description: Write prompts for orchestrator workflows with phases and aggregation
+description: Write prompts for orchestrator workflows with phases and aggregation. Use when designing multi-phase workflows, writing agent command prompts, or implementing result aggregation patterns.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [orchestration, prompts, workflow, phases, aggregation]

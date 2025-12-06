@@ -2,7 +2,7 @@
 name: issue-classifier
 description: Classify GitHub issues into problem classes (chore, bug, feature) for ADW routing. Fast, lightweight agent for simple classification decisions.
 tools: Read
-model: haiku
+model: opus
 ---
 
 # Issue Classifier Agent

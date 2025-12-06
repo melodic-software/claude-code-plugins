@@ -1,6 +1,6 @@
 ---
 name: composable-primitives
-description: Design composable agentic primitives for flexible workflows
+description: Design composable agentic primitives for flexible workflows. Use when creating reusable workflow building blocks, designing SDLC primitives, or building agent operations that can be combined in different ways.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [primitives, composition, workflow, sdlc, flexibility]

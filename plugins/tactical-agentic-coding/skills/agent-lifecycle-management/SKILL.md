@@ -1,6 +1,6 @@
 ---
 name: agent-lifecycle-management
-description: Manage agent fleet through CRUD operations and lifecycle patterns
+description: Manage agent fleet through CRUD operations and lifecycle patterns. Use when creating, commanding, monitoring, or deleting agents in multi-agent systems, or implementing proper resource cleanup.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [lifecycle, create, delete, command, monitor, CRUD, agents]

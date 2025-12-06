@@ -1,6 +1,6 @@
 ---
 name: multi-agent-observability
-description: Build observability interfaces for multi-agent systems
+description: Build observability interfaces for multi-agent systems. Use when monitoring multi-agent execution, tracking agent metrics, implementing logging for parallel agents, or debugging agent workflows.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [observability, logs, monitoring, metrics, results, tracking]

@@ -2,7 +2,7 @@
 name: e2e-test-resolver
 description: Analyze failed E2E tests using screenshots and error context, apply fixes, and re-validate user journeys.
 tools: Read, Write, Edit, Bash
-model: sonnet
+model: opus
 ---
 
 # E2E Test Resolver Agent

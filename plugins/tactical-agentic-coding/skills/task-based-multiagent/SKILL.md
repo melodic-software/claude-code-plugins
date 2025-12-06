@@ -1,6 +1,6 @@
 ---
 name: task-based-multiagent
-description: Set up task-based multi-agent systems with shared task files
+description: Set up task-based multi-agent systems with shared task files. Use when setting up parallel agent execution, designing worktree isolation patterns, or implementing task file coordination.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [multi-agent, task, parallel, worktree, orchestration]

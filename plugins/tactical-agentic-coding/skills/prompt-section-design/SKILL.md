@@ -1,6 +1,6 @@
 ---
 name: prompt-section-design
-description: Design composable prompt sections for building agentic prompts
+description: Design composable prompt sections for building agentic prompts. Use when creating reusable prompt components, designing LEGO-block prompt sections, or structuring prompts for the stakeholder trifecta.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [prompt, sections, workflow, variables, design, composable]

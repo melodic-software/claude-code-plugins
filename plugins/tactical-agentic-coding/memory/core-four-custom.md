@@ -154,7 +154,7 @@ options = ClaudeAgentOptions(
     system_prompt=load_system_prompt("domain_agent.md"),
 
     # Model: Task-appropriate selection
-    model="claude-sonnet-4-20250514",
+    model="opus",
 
     # Tools: Precise set
     mcp_servers={"domain": domain_mcp_server},

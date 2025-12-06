@@ -1,6 +1,6 @@
 ---
 name: model-selection
-description: Choose appropriate model for custom agent tasks
+description: Choose appropriate model for custom agent tasks. Use when selecting between Haiku, Sonnet, and Opus for agents, optimizing cost vs quality tradeoffs, or matching model capability to task complexity.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [model, haiku, sonnet, opus, cost, performance, selection]

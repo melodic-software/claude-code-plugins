@@ -1,6 +1,6 @@
 ---
 name: agentic-kpi-tracking
-description: Track and measure agentic coding KPIs for ZTE progression
+description: Track and measure agentic coding KPIs for ZTE progression. Use when measuring workflow effectiveness, tracking Size/Attempts/Streak/Presence metrics, or assessing readiness for autonomous operation.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [kpi, metrics, tracking, streak, presence]

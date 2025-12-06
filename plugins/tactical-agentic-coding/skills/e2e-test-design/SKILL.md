@@ -1,6 +1,6 @@
 ---
 name: e2e-test-design
-description: Design E2E tests following user-story-driven patterns with verification checkpoints
+description: Design E2E tests following user-story-driven patterns with verification checkpoints. Use when creating end-to-end tests, validating complete user journeys, or designing Playwright/Cypress test patterns.
 version: 1.0.0
 allowed-tools: Read, Grep
 tags: [e2e-testing, validation, user-stories, playwright]

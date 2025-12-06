@@ -113,7 +113,7 @@ Invoke skill: hook-management
 - Subagent architectural constraints (cannot spawn other subagents)
 - Command naming conventions (kebab-case required)
 - `allowed-tools` syntax (comma-separated, not arrays)
-- Model ID standards (`claude-opus-4-5-20251101`, `claude-sonnet-4-20250514`)
+- Model ID standards (`claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`)
 
 #### Step 2.3: Map Lesson to Components
 
@@ -216,7 +216,7 @@ Use this template for each lesson analysis:
 - [ ] Reviewed against official docs - See DOCUMENTATION_AUDIT.md
 - [ ] No duplication with existing components
 - [ ] Follows plugin conventions
-- [ ] Model IDs use correct format (claude-opus-4-5-20251101, claude-sonnet-4-20250514)
+- [ ] Model IDs use correct format (claude-opus-4-5-20251101, claude-sonnet-4-5-20250929)
 - [ ] Tested with sample prompts
 ```markdown
 

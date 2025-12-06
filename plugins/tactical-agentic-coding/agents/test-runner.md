@@ -2,7 +2,7 @@
 name: test-runner
 description: Execute unit/integration tests and report results in structured JSON format. Fast, lightweight agent for test execution and reporting.
 tools: Bash, Read
-model: haiku
+model: opus
 ---
 
 # Test Runner Agent

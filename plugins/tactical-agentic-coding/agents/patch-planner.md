@@ -2,7 +2,7 @@
 name: patch-planner
 description: Create minimal, surgical patch plans for targeted fixes. Specialized for scope-limited issue resolution.
 tools: Read, Write, Glob
-model: sonnet
+model: opus
 ---
 
 # Patch Planner Agent

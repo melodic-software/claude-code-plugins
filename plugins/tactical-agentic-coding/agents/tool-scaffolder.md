@@ -2,7 +2,7 @@
 name: tool-scaffolder
 description: Generate custom tool boilerplate with @tool decorator
 tools: Read, Write
-model: haiku
+model: opus
 ---
 
 # Tool Scaffolder
@@ -97,7 +97,7 @@ options = ClaudeAgentOptions(
     mcp_servers={"server_name": server},
     allowed_tools=["mcp__server_name__tool_name"],
     system_prompt=system_prompt,
-    model="claude-sonnet-4-20250514",
+    model="opus",
 )
 ```markdown
 

@@ -2,7 +2,7 @@
 name: spec-reviewer
 description: Review implementation against specification, capture screenshots, and classify issues by severity. Specialized for spec-based validation.
 tools: Read, Bash, Glob
-model: sonnet
+model: opus
 ---
 
 # Spec Reviewer Agent

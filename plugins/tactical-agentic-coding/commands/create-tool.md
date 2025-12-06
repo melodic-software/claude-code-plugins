@@ -103,7 +103,7 @@ options = ClaudeAgentOptions(
     mcp_servers={"[server_name]": [server_name]_server},
     allowed_tools=["mcp__[server_name]__[tool_name]"],
     system_prompt=system_prompt,
-    model="claude-sonnet-4-20250514",
+    model="opus",
 )
 
 # IMPORTANT: Use ClaudeSDKClient for custom tools

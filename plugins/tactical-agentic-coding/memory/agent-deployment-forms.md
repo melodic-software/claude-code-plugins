@@ -20,7 +20,7 @@ Single execution, one-off tasks.
 async def main():
     options = ClaudeAgentOptions(
         system_prompt=load_system_prompt(),
-        model="claude-sonnet-4-20250514",
+        model="opus",
     )
 
     async for message in query(prompt=task_prompt, options=options):
@@ -49,7 +49,7 @@ async def run_repl():
 
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
-            model="claude-sonnet-4-20250514",
+            model="opus",
             resume=session_id,  # Maintain conversation
         )
 
@@ -87,7 +87,7 @@ class AgentRequest(BaseModel):
 async def query_agent(request: AgentRequest):
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
-        model="claude-sonnet-4-20250514",
+        model="opus",
         resume=request.session_id,
     )
 
@@ -120,7 +120,7 @@ Real-time processing of incoming data.
 async def process_stream():
     options = ClaudeAgentOptions(
         system_prompt=stream_system_prompt,
-        model="claude-3-5-haiku-20241022",  # Fast for real-time
+        model="opus",  # High quality for processing
     )
 
     async for data in data_stream():  # Your data source
@@ -162,7 +162,7 @@ async def run_workflow(task):
 async def run_planner_agent(task):
     options = ClaudeAgentOptions(
         system_prompt=load_prompt("planner_system.md"),
-        model="claude-sonnet-4-20250514",
+        model="opus",
         hooks={"PreToolUse": [planner_write_hook]},  # Constrain writes
     )
     # Execute and return
@@ -170,7 +170,7 @@ async def run_planner_agent(task):
 async def run_builder_agent(plan):
     options = ClaudeAgentOptions(
         system_prompt=load_prompt("builder_system.md"),
-        model="claude-sonnet-4-20250514",
+        model="opus",
         permission_mode="auto",  # Let builder work
     )
     # Execute and return
@@ -178,7 +178,7 @@ async def run_builder_agent(plan):
 async def run_reviewer_agent(plan, implementation):
     options = ClaudeAgentOptions(
         append_system_prompt=load_prompt("reviewer_append.md"),
-        model="claude-sonnet-4-20250514",
+        model="opus",
     )
     # Execute and return
 ```markdown

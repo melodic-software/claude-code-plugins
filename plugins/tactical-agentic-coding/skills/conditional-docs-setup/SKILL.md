@@ -1,6 +1,6 @@
 ---
 name: conditional-docs-setup
-description: Set up conditional documentation loading to prevent context pollution
+description: Set up conditional documentation loading to prevent context pollution. Use when organizing project docs, implementing progressive disclosure, or reducing CLAUDE.md token consumption with on-demand loading.
 version: 1.0.0
 allowed-tools: Read, Write
 tags: [documentation, context-engineering, conditional-loading]

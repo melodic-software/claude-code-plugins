@@ -1,6 +1,6 @@
 ---
 name: context-audit
-description: Audit current context composition and identify optimization opportunities
+description: Audit current context composition and identify optimization opportunities. Use when context window is overloaded, agents are underperforming, or applying the R&D framework to optimize token usage.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [context, audit, optimization, tokens, window, r&d-framework]

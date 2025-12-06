@@ -2,7 +2,7 @@
 name: worktree-installer
 description: Set up isolated Git worktree environments for parallel agent execution. Specialized for environment configuration.
 tools: Read, Write, Bash
-model: haiku
+model: opus
 ---
 
 # Worktree Installer Agent

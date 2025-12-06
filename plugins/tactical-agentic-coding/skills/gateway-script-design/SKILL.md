@@ -1,6 +1,6 @@
 ---
 name: gateway-script-design
-description: Design gateway scripts as entry points for agentic coding
+description: Design gateway scripts as entry points for agentic coding. Use when creating CLI entry points for agents, designing subprocess-based agent invocation, or building script interfaces for agentic workflows.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [gateway, script, entry-point, cli, subprocess]
@@ -33,7 +33,7 @@ Execute ad-hoc prompts:
 # adw_prompt.py
 @click.command()
 @click.argument("prompt")
-@click.option("--model", default="sonnet")
+@click.option("--model", default="opus")
 def main(prompt: str, model: str):
     request = AgentPromptRequest(
         prompt=prompt,
@@ -91,7 +91,7 @@ import click
 
 @click.command()
 @click.argument("input", required=True)
-@click.option("--model", default="sonnet", help="Model to use")
+@click.option("--model", default="opus", help="Model to use")
 @click.option("--verbose", is_flag=True, help="Verbose output")
 def main(input: str, model: str, verbose: bool):
     ...
@@ -160,7 +160,7 @@ console.print(Panel(
 class AgentPromptRequest(BaseModel):
     prompt: str
     adw_id: str
-    model: str = "sonnet"
+    model: str = "opus"
     agent_name: str = "oneoff"
     output_file: Optional[str] = None
 
@@ -203,7 +203,7 @@ agents/{adw_id}/{agent_name}/
 
 ### Agent Configuration
 - Name: {agent_name}
-- Model: sonnet (default)
+- Model: opus (default)
 - Output: agents/{adw_id}/{agent_name}/
 
 ### Execution Flow

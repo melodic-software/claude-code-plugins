@@ -1,6 +1,6 @@
 ---
 name: agent-specialization
-description: Guide creation of focused single-purpose agents following the One Agent One Prompt One Purpose principle
+description: Guide creation of focused single-purpose agents following the One Agent One Prompt One Purpose principle. Use when designing new agents, refactoring general agents into specialists, or optimizing agent context for a single task.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [agents, specialization, focus, context-engineering]

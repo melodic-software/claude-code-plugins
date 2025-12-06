@@ -38,7 +38,7 @@ $ARGUMENTS - Team composition description (e.g., "2 scouts, 1 builder, 1 reviewe
 
 #### Agent: scout_1
 **Template:** scout-fast
-**Model:** haiku
+**Model:** opus
 **Tools:** [Read, Glob, Grep]
 **Purpose:** [specific purpose]
 

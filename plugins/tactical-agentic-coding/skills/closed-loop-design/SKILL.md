@@ -1,6 +1,6 @@
 ---
 name: closed-loop-design
-description: Design closed-loop prompts with Request-Validate-Resolve structure for reliable agentic workflows
+description: Design closed-loop prompts with Request-Validate-Resolve structure for reliable agentic workflows. Use when creating self-validating agents, adding feedback loops, or improving agent reliability through verification.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [feedback-loops, validation, reliability, agentic-coding]

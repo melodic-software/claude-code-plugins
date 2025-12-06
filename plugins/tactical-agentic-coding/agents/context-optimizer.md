@@ -2,7 +2,7 @@
 name: context-optimizer
 description: Suggest context reductions and delegation strategies using R&D framework. Specialized for optimization recommendations.
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 ---
 
 # Context Optimizer Agent

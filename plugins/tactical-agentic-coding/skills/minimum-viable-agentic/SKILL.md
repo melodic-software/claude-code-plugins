@@ -1,6 +1,6 @@
 ---
 name: minimum-viable-agentic
-description: Guide creation of minimum viable agentic layer for a codebase
+description: Guide creation of minimum viable agentic layer for a codebase. Use when starting agentic coding in a new project, bootstrapping essential components, or creating the minimal scaffolding for agent success.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [mvp, agentic-layer, scaffolding, bootstrap, start]

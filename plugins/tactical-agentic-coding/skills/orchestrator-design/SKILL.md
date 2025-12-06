@@ -1,6 +1,6 @@
 ---
 name: orchestrator-design
-description: Design O-Agent systems for multi-agent fleet management
+description: Design O-Agent systems for multi-agent fleet management. Use when building orchestrator agents, designing multi-agent architectures, or creating unified interfaces for agent fleet control.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [orchestrator, fleet, multi-agent, o-agent, design, architecture]

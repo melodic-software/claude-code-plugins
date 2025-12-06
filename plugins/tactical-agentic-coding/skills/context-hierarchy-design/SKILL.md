@@ -1,6 +1,6 @@
 ---
 name: context-hierarchy-design
-description: Design memory hierarchy with progressive loading for optimal context management
+description: Design memory hierarchy with progressive loading for optimal context management. Use when organizing CLAUDE.md imports, implementing just-in-time context loading, or designing priming hierarchies for agents.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [context, hierarchy, memory, CLAUDE.md, progressive-loading, priming]

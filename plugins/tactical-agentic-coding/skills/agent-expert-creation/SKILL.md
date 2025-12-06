@@ -1,6 +1,6 @@
 ---
 name: agent-expert-creation
-description: Create specialized agent experts with pre-loaded domain knowledge
+description: Create specialized agent experts with pre-loaded domain knowledge. Use when building domain-specific agents, delegating to expert agents, or designing agents with specialized system prompts and tool access.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [agent, expert, specialized, domain, knowledge, delegation]

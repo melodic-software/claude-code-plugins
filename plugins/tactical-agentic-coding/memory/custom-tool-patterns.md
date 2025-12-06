@@ -117,7 +117,7 @@ options = ClaudeAgentOptions(
         "mcp__calculator__format_number",
     ],
     system_prompt=system_prompt,
-    model="claude-sonnet-4-20250514",
+    model="opus",
 )
 ```markdown
 

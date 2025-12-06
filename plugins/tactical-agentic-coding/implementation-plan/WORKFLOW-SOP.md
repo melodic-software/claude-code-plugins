@@ -919,7 +919,7 @@ const orchestratorServer = createSdkMcpServer([createAgent]);
 async function runOrchestrator(prompt: string) {
   for await (const message of query({
     prompt,
-    model: "claude-sonnet-4-20250514",
+    model: "opus",
     permissionMode: "acceptEdits",
     mcpServers: { orchestrator: orchestratorServer },
     systemPrompt: "You are an orchestration agent managing specialized sub-agents.",
@@ -963,7 +963,7 @@ orchestrator_server = create_sdk_mcp_server([create_agent])
 async def run_orchestrator(prompt: str):
     async for message in query(
         prompt=prompt,
-        model="claude-sonnet-4-20250514",
+        model="opus",
         permission_mode="acceptEdits",
         mcp_servers={"orchestrator": orchestrator_server},
         system_prompt="You are an orchestration agent managing specialized sub-agents.",

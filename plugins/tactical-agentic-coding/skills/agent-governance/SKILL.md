@@ -1,6 +1,6 @@
 ---
 name: agent-governance
-description: Implement hooks for permission control and security in custom agents
+description: Implement hooks for permission control and security in custom agents. Use when adding security controls, blocking dangerous operations, implementing audit trails, or designing permission governance.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [hooks, governance, permission, security, audit, block]
@@ -186,7 +186,7 @@ hooks = {
 
 options = ClaudeAgentOptions(
     system_prompt=system_prompt,
-    model="claude-sonnet-4-20250514",
+    model="opus",
     hooks=hooks,
 )
 ```markdown

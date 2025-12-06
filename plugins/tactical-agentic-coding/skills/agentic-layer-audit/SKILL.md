@@ -1,6 +1,6 @@
 ---
 name: agentic-layer-audit
-description: Audit codebase for agentic layer coverage and identify gaps
+description: Audit codebase for agentic layer coverage and identify gaps. Use when assessing agentic layer maturity, identifying investment opportunities, or evaluating primitive coverage.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [agentic-layer, audit, coverage, primitives, meta-tactic]

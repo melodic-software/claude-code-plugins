@@ -1,6 +1,6 @@
 ---
 name: zte-progression
-description: Guide progression from In-Loop to Out-Loop to Zero-Touch Engineering
+description: Guide progression from In-Loop to Out-Loop to Zero-Touch Engineering. Use when assessing agentic maturity, planning ZTE progression, or identifying requirements for autonomous operation.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [zte, zero-touch, automation, presence, scaling]

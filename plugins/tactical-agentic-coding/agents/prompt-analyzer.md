@@ -2,7 +2,7 @@
 name: prompt-analyzer
 description: Analyze and classify existing prompts by level, sections, and quality
 tools: Read, Grep, Glob
-model: haiku
+model: opus
 ---
 
 # Prompt Analyzer Agent

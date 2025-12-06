@@ -1,6 +1,6 @@
 ---
 name: test-suite-setup
-description: Set up test validation commands for any project type
+description: Set up test validation commands for any project type. Use when configuring test runners, setting up validation commands for a new project, or enabling closed-loop agent workflows.
 version: 1.0.0
 allowed-tools: Read, Bash
 tags: [testing, validation, setup, feedback-loops]

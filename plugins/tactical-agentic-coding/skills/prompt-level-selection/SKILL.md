@@ -1,6 +1,6 @@
 ---
 name: prompt-level-selection
-description: Guide selection of appropriate prompt level for a task
+description: Guide selection of appropriate prompt level for a task. Use when choosing between simple prompts and complex workflows, applying the seven levels framework, or matching task complexity to prompt investment.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [prompt, level, selection, seven-levels, 80-20, workflow]

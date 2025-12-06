@@ -1,6 +1,6 @@
 ---
 name: git-worktree-setup
-description: Set up Git worktrees for agent parallelization with isolated environments
+description: Set up Git worktrees for agent parallelization with isolated environments. Use when setting up parallel agent execution, creating isolated environments per agent, or enabling concurrent development workflows.
 version: 1.0.0
 allowed-tools: Read, Grep, Glob
 tags: [worktree, isolation, parallel, concurrent, git]

@@ -1,6 +1,6 @@
 ---
 name: review-workflow-design
-description: Design spec-based review workflows with visual proof and issue classification
+description: Design spec-based review workflows with visual proof and issue classification. Use when setting up review processes, validating against specifications, or implementing screenshot-based visual validation.
 version: 1.0.0
 allowed-tools: Read, Grep
 tags: [review, validation, specs, screenshots]
