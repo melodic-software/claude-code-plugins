@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/intro
 source_type: sitemap
-content_hash: sha256:dc38abf04c06d4c5f71447ef5e054460b8ac875ba9713a304fdf857b7062fd6f
+content_hash: sha256:f499303440151d95e0af5fc1b0842efbc014109af2b7e9a42470f8bd5391ca81
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -12,9 +12,20 @@ Claude is a highly performant, trustworthy, and intelligent AI platform built by
 
 ---
 
-<Tip>The latest generation of Claude models:<br/><br/>**Claude Opus 4.5** - Most intelligent model, and an industry-leader for coding, agents, and computer use. [Learn more](https://www.anthropic.com/news/claude-opus-4-5).<br/><br/>
-**Claude Sonnet 4.5** - Balanced performance and practicality for most uses, including coding and agents. [Learn more](https://www.anthropic.com/news/claude-sonnet-4-5).<br/><br/>
-**Claude Haiku 4.5** - Fastest model with near-frontier intelligence. [Learn more](https://www.anthropic.com/news/claude-haiku-4-5).</Tip>
+<Tip>
+
+The latest generation of Claude models:
+
+**Claude Opus 4.5** - Most intelligent model, and an industry-leader for coding,
+agents, and computer use. [Learn more](https://www.anthropic.com/news/claude-opus-4-5).
+
+**Claude Sonnet 4.5** - Balanced performance and practicality for most uses,
+including coding and agents. [Learn
+more](https://www.anthropic.com/news/claude-sonnet-4-5).
+
+**Claude Haiku 4.5** - Fastest model with near-frontier intelligence. [Learn more](https://www.anthropic.com/news/claude-haiku-4-5).
+
+</Tip>
 
 <Note>
 Looking to chat with Claude? Visit [claude.ai](http://www.claude.ai)!

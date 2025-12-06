@@ -380,6 +380,37 @@ CLAUDE.md references hooks for automated enforcement:
 2. Use [Debugging Guide](references/troubleshooting/debugging-guide.md) for advanced techniques
 3. Query docs-management skill for official documentation
 
+## Auditing Hooks
+
+This skill provides the validation criteria used by the `hook-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Configuration Structure | 25 | Valid hooks.json, required fields, valid event types |
+| Hook Scripts | 20 | Scripts exist, proper structure, exit codes |
+| Matchers | 20 | Appropriate tool/path matchers |
+| Environment Variables | 15 | Follows naming convention, documented |
+| Testing | 20 | Has tests, tests pass, adequate coverage |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `hook-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: hook-management`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-hooks` command
+
 ## References
 
 **Detailed Documentation:**

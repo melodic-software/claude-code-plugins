@@ -364,6 +364,40 @@ For comprehensive subagent usage guidance beyond configuration:
 - **Context preservation patterns**: See `.claude/memory/operational-rules.md` → "Agent Communication Pattern"
 - **Proactive delegation rule**: See `CLAUDE.md` Quick Reference → "PROACTIVE DELEGATION"
 
+## Auditing Agents
+
+This skill provides the validation criteria used by the `agent-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Validation Checklist | `references/validation-checklist.md` | Pre-creation verification checklist |
+| Scoring Rubric | `references/validation-checklist.md#audit-scoring-rubric` | Formal audit scoring criteria |
+| Undocumented Features | `references/undocumented-features.md` | Color, permissionMode, skills field details |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Name Field | 20 | Lowercase, hyphens, max 64 chars, no reserved words |
+| Description Field | 25 | Third person, delegation triggers, when-to-use guidance |
+| Tools Configuration | 20 | Appropriate restrictions, not over/under restricted |
+| Model Selection | 15 | Appropriate for task complexity |
+| Additional Fields | 20 | Color, skills, permissionMode correctly configured |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `agent-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: subagent-development`
+- Uses validation checklist and scoring rubric
+- Checks both official and undocumented features
+- Generates structured audit reports
+- Invoked by `/audit-agents` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

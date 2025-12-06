@@ -274,6 +274,37 @@ This repository has project-level settings in `.claude/settings.json` including:
 
 When modifying this repository's settings, ensure changes align with the hook-management skill guidance for hook configurations.
 
+## Auditing Settings
+
+This skill provides the validation criteria used by the `settings-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| JSON Validity | 20 | Valid syntax, well-formed |
+| Schema Compliance | 25 | Only valid settings options |
+| Permission Rules | 25 | Valid patterns, appropriate restrictions |
+| Environment Config | 15 | Valid env vars, no secrets |
+| Precedence Awareness | 15 | Correct scope usage |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `settings-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: settings-management`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-settings` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

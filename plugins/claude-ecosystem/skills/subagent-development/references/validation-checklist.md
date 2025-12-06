@@ -1,105 +1,147 @@
-# Subagent/Agent Validation Checklist
+# Subagent/Agent Audit Framework
 
-**Source:** Official Claude Code documentation (code.claude.com, platform.claude.com)
+**Architecture:** This framework provides scoring criteria and query guides. **All validation rules are fetched from official documentation via docs-management skill** - this file contains NO duplicated official content.
 
-Use this checklist before creating or renaming agents. All rules are extracted from official documentation.
+## How Audits Work
 
-## YAML Frontmatter Requirements
+1. **Auditor loads** `subagent-development` skill
+2. **Skill delegates** to `docs-management` for official rules
+3. **Official docs provide** the actual validation criteria
+4. **This framework provides** scoring weights and thresholds
+5. **Undocumented features** checked via `references/undocumented-features.md`
 
-### `name` Field (Required)
+## Documentation Query Guide
 
-- [ ] **Lowercase letters and hyphens only**
-- [ ] **Maximum 64 characters** (same as skills)
-- [ ] **No reserved words:** Cannot contain "anthropic" or "claude"
-- [ ] **Unique identifier** for the agent
+Before auditing, query `docs-management` skill for these topics:
 
-**Valid examples:**
+| Category | Query Keywords | What to Fetch |
+| -------- | -------------- | ------------- |
+| Name Field | "agent name", "subagent name requirements" | Character restrictions, length limits, reserved words |
+| Description Field | "agent description", "automatic delegation" | Description requirements, delegation triggers |
+| Tools Configuration | "agent tools", "allowed-tools agents" | Tool specification format, inheritance |
+| Model Selection | "agent model selection", "inherit sonnet haiku opus" | Valid model values, when to use each |
+| File Locations | "agent file locations", ".claude/agents" | Valid directories, priority resolution |
+| Optional Fields | "agent YAML frontmatter", "agent configuration" | All valid frontmatter fields |
 
-- `code-reviewer`
-- `debugger`
-- `data-scientist`
-- `test-runner`
-- `docs-researcher`
+**CRITICAL:** The auditor MUST query docs-management and use the returned official documentation as the source of truth for validation rules.
 
-**Invalid examples:**
+## Undocumented Features
 
-- `Code-Reviewer` (uppercase letters)
-- `claude-helper` (reserved word "claude")
-- `my agent` (spaces)
+For features NOT in official docs (color, permissionMode details, skills field), see:
 
-### `description` Field (Required)
+- `references/undocumented-features.md`
 
-- [ ] **Natural language description** of the subagent's purpose
-- [ ] **Drives automatic delegation** - Claude uses this to decide when to use the agent
-- [ ] **Written in third person**
-- [ ] **Includes "when to use" guidance**
-- [ ] **Consider using "PROACTIVELY" or "MUST BE USED"** for important agents
+These are validated separately from official documentation.
 
-**Good examples:**
+## Audit Scoring Rubric
 
-```yaml
-description: Expert code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying code.
-```
+This scoring rubric is used by the `agent-auditor` agent for formal audits.
 
-```yaml
-description: PROACTIVELY use when researching Claude Code features, searching official documentation, or finding canonical guidance on Claude Code topics.
-```
+### Category Scores
 
-**Bad examples:**
+| Category | Points | Description |
+| -------- | ------ | ----------- |
+| Name Field | 20 | Lowercase, hyphens, max 64 chars, no reserved words |
+| Description Field | 25 | Third person, delegation triggers, when-to-use guidance |
+| Tools Configuration | 20 | Appropriate restrictions, not over/under restricted |
+| Model Selection | 15 | Appropriate for task complexity (haiku/sonnet/opus/inherit) |
+| Additional Fields | 20 | Color, skills, permissionMode correctly configured |
 
-```yaml
-description: Reviews code  # Too vague
-description: I help with debugging  # First person
-```
+The maximum possible score is **Total: 100 points**.
 
-### Optional Fields
+### Scoring Details
 
-| Field | Description | Values |
-| ------- | ------------- | -------- |
-| `tools` | Tools the agent can use | Tool names (e.g., `Read, Edit, Bash`) |
-| `model` | Model to use | `inherit`, `sonnet`, `haiku`, `opus` |
-| `color` | Agent color in UI | Color name (e.g., `purple`, `blue`) |
-| `skills` | Auto-load skills | Skill names |
+**Note:** Pass conditions are validated against official documentation fetched via docs-management. The criteria below describe WHAT to check, not the specific rules (which come from docs).
 
-## Priority Resolution
+#### Name Field (20 points)
 
-When agent names conflict:
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Character restrictions | 6 | Query: "agent name", "subagent name requirements" |
+| Valid characters | 4 | Query: "agent name", "subagent name requirements" |
+| Length limit | 4 | Query: "agent name", "subagent name requirements" |
+| No reserved words | 6 | Query: "agent name", "reserved words" |
 
-| Type | Location | Priority |
-| ------ | ---------- | ---------- |
-| Project subagents | `.claude/agents/` | Highest |
-| CLI-defined | `--agents` flag | Medium |
-| User subagents | `~/.claude/agents/` | Lower |
+#### Description Field (25 points)
 
-## File Naming
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Present and non-empty | 5 | Query: "agent description", "required fields" |
+| Third person voice | 5 | Repository standard: no "I" or "You" |
+| Delegation triggers | 8 | Query: "automatic delegation", "agent description" |
+| When-to-use guidance | 7 | Repository standard: clear usage scenarios |
 
-- [ ] **File name should match agent purpose** (e.g., `code-reviewer.md`)
-- [ ] **Use `.md` extension**
-- [ ] **Kebab-case for file names**
+#### Tools Configuration (20 points)
 
-## Pre-Creation Verification
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Tools specified | 5 | Query: "agent tools", "tools field" |
+| Not over-restricted | 8 | Analysis: tools match stated purpose |
+| Not under-restricted | 7 | Analysis: excludes unnecessary tools |
 
-Before creating a new agent:
+#### Model Selection (15 points)
 
-1. [ ] Check name is unique (won't conflict with other agents)
-2. [ ] Verify no reserved words in name
-3. [ ] Description clearly explains when Claude should delegate to this agent
-4. [ ] Tools list includes only necessary tools
-5. [ ] Model selection is appropriate for task complexity
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Model specified | 5 | Query: "agent model selection" |
+| Appropriate selection | 10 | Repository standard (see below) |
 
-## Common Mistakes to Avoid
+**Model Selection Guidance (Repository Standard):**
 
-- Using "anthropic" or "claude" in agent names
-- Vague descriptions that don't guide delegation
-- Not specifying tools (defaults may be too broad or too narrow)
-- Using first/second person in descriptions
-- Not including delegation triggers in description
+- `haiku`: Simple tasks, parallel audits, search/lookup, low-latency needs
+- `sonnet`: Complex reasoning, code analysis, multi-step workflows
+- `opus`: Critical decisions, comprehensive analysis, highest capability needs
+- `inherit`: Use parent conversation's model (default if unspecified)
+
+#### Additional Fields (20 points)
+
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Color (if used) | 8 | Undocumented: see `references/undocumented-features.md` |
+| Skills (if used) | 6 | Undocumented: see `references/undocumented-features.md` |
+| PermissionMode (if used) | 6 | Undocumented: see `references/undocumented-features.md` |
+
+### Thresholds
+
+| Score Range | Result |
+| ----------- | ------ |
+| 85-100 | **PASS** |
+| 70-84 | **PASS WITH WARNINGS** |
+| Below 70 | **FAIL** |
+
+### Automatic Failures
+
+Regardless of score, an agent **automatically fails** if:
+
+- Missing required fields - Query docs-management to verify which are required
+- Name violates official requirements - Query docs-management for name rules
+- File is empty or malformed YAML - Repository policy
+
+## Repository-Specific Standards
+
+These standards are specific to this repository and NOT from official Claude Code documentation:
+
+| Standard | Value | Rationale |
+| -------- | ----- | --------- |
+| Third person descriptions | No "I" or "You" | Consistency, delegation clarity |
+| Model selection guidance | haiku/sonnet/opus mapping | Performance/cost optimization |
+| Color assignments | Semantic categories | Visual consistency |
+| When-to-use in description | Clear usage scenarios | Effective auto-delegation |
+
+## What This Framework Does NOT Contain
+
+This file intentionally excludes:
+
+- **Specific name character rules** - Fetch from docs-management
+- **Exact field requirements** - Fetch from docs-management
+- **Precise syntax specifications** - Fetch from docs-management
+- **Any content that exists in official documentation**
+
+The authoritative source for all validation rules is official Claude Code documentation accessed via the docs-management skill.
+
+For undocumented features (color, permissionMode, skills), see `references/undocumented-features.md`.
 
 ---
 
-**Last Updated:** 2025-11-30
-**Source References:**
-
-- `code-claude-com/docs/en/sub-agents.md`
-- `platform-claude-com/docs/en/agent-sdk/subagents.md`
-- `platform-claude-com/docs/en/agents-and-tools/agent-skills/best-practices.md`
+**Last Updated:** 2025-12-05
+**Architecture:** Query-based audit framework (no duplicated official content)

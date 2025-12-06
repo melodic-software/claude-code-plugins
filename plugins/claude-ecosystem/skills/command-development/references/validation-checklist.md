@@ -1,114 +1,129 @@
-# Slash Command Validation Checklist
+# Slash Command Audit Framework
 
-**Source:** Official Claude Code documentation (code.claude.com)
+**Architecture:** This framework provides scoring criteria and query guides. **All validation rules are fetched from official documentation via docs-management skill** - this file contains NO duplicated official content.
 
-Use this checklist before creating custom slash commands. All rules are extracted from official documentation.
+## How Audits Work
 
-## File Structure
+1. **Auditor loads** `command-development` skill
+2. **Skill delegates** to `docs-management` for official rules
+3. **Official docs provide** the actual validation criteria
+4. **This framework provides** scoring weights and thresholds
 
-### Location
+## Documentation Query Guide
 
-- [ ] **Project commands:** `.claude/commands/` directory
-- [ ] **Personal commands:** `~/.claude/commands/` directory
-- [ ] **Plugin commands:** Plugin's `commands/` directory (auto-namespaced)
+Before auditing, query `docs-management` skill for these topics:
 
-### File Naming
+| Category | Query Keywords | What to Fetch |
+| -------- | -------------- | ------------- |
+| File Structure | "slash commands", "command locations", ".claude/commands" | Valid directories, file extension requirements |
+| YAML Frontmatter | "command frontmatter", "allowed-tools", "description" | Required/optional fields, valid values |
+| Description | "command description", "slash command discovery" | Description requirements and best practices |
+| Tool Configuration | "allowed-tools commands", "command permissions" | How to restrict tools, valid tool names |
+| Arguments | "$ARGUMENTS", "command arguments", "$1 $2" | Argument syntax and patterns |
+| File References | "file references commands", "@ prefix" | File inclusion syntax |
 
-- [ ] **Use `.md` extension**
-- [ ] **File name becomes command name** (without `.md`)
-- [ ] **Kebab-case recommended** (e.g., `review-code.md`)
-- [ ] **Subdirectories for organization** (don't affect command name)
+**CRITICAL:** The auditor MUST query docs-management and use the returned official documentation as the source of truth for validation rules.
 
-**Examples:**
+## Audit Scoring Rubric
 
-- `.claude/commands/review.md` → `/review`
-- `.claude/commands/frontend/component.md` → `/component` (description shows "(project:frontend)")
+This scoring rubric is used by the `command-auditor` agent for formal audits.
 
-## YAML Frontmatter (Optional but Recommended)
+### Category Scores
 
-### `description` Field
+| Category | Points | Description |
+| -------- | ------ | ----------- |
+| File Structure | 20 | Correct location, naming convention, .md extension |
+| YAML Frontmatter | 25 | Description present, allowed-tools valid, argument-hint if applicable |
+| Description Quality | 20 | Clear, concise, third-person, explains purpose and when to use |
+| Tool Configuration | 15 | Appropriate restrictions (not over/under restricted) |
+| Content Quality | 20 | Well-structured body, proper argument handling, file references correct |
 
-- [ ] **Clear, concise description** of what the command does
-- [ ] **Shown in command list** and autocomplete
-- [ ] **Helps users understand command purpose**
+The maximum possible score is **Total: 100 points**.
 
-### `allowed-tools` Field
+### Scoring Details
 
-- [ ] **Restrict available tools** if needed
-- [ ] **Comma-separated list** of tool names
-- [ ] **Omit for default tool access**
+**Note:** Pass conditions are validated against official documentation fetched via docs-management. The criteria below describe WHAT to check, not the specific rules (which come from docs).
 
-**Example:**
+#### File Structure (20 points)
 
-```yaml
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Correct directory location | 8 | Query: "command locations", ".claude/commands" |
+| File extension | 4 | Query: "slash commands", "command file format" |
+| File naming convention | 4 | Query: "command naming", "slash command files" |
+| Meaningful name | 4 | Subjective: name reflects command purpose |
+
+#### YAML Frontmatter (25 points)
+
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Frontmatter present | 5 | Query: "command frontmatter" |
+| `description` field | 10 | Query: "command description field" |
+| `allowed-tools` valid | 5 | Query: "allowed-tools commands" |
+| `argument-hint` | 5 | Query: "argument-hint frontmatter" |
+
+#### Description Quality (20 points)
+
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Clear purpose | 8 | Query: "command description best practices" |
+| Concise | 4 | Repository standard: under 100 words |
+| Action-oriented | 4 | Repository standard: uses active verbs |
+| When to use | 4 | Repository standard: implies usage context |
+
+#### Tool Configuration (15 points)
+
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Not over-restricted | 8 | Analysis: tools match stated purpose |
+| Not under-restricted | 7 | Analysis: excludes unnecessary tools |
+
+#### Content Quality (20 points)
+
+| Criterion | Points | Validation Source |
+| --------- | ------ | ----------------- |
+| Well-structured | 8 | Repository standard: clear sections |
+| Argument handling | 6 | Query: "$ARGUMENTS", "command arguments" |
+| File references | 6 | Query: "file references commands", "@ prefix" |
+
+### Thresholds
+
+| Score Range | Result |
+| ----------- | ------ |
+| 85-100 | **PASS** |
+| 70-84 | **PASS WITH WARNINGS** |
+| Below 70 | **FAIL** |
+
+### Automatic Failures
+
+Regardless of score, a command **automatically fails** if:
+
+- No frontmatter AND no description (undiscoverable) - Repository policy
+- File extension violates official requirements - Query docs-management to verify
+- File is empty or only contains frontmatter - Repository policy
+
+## Repository-Specific Standards
+
+These standards are specific to this repository and NOT from official Claude Code documentation:
+
+| Standard | Value | Rationale |
+| -------- | ----- | --------- |
+| Description length | Under 100 words | Conciseness for discoverability |
+| Naming convention | Verb-noun kebab-case | Consistency with built-in commands |
+| Structure | Clear sections | Maintainability |
+
+## What This Framework Does NOT Contain
+
+This file intentionally excludes:
+
+- **Specific YAML field requirements** - Fetch from docs-management
+- **Exact naming rules** - Fetch from docs-management
+- **Precise syntax requirements** - Fetch from docs-management
+- **Any content that exists in official documentation**
+
+The authoritative source for all validation rules is official Claude Code documentation accessed via the docs-management skill.
+
 ---
-description: Review code for quality and suggest improvements
-allowed-tools: Read, Glob, Grep
----
-```
 
-## Command Body
-
-### Content Format
-
-- [ ] **Markdown format**
-- [ ] **Plain text instructions** for Claude
-- [ ] **Can include templates** and examples
-
-### Arguments
-
-- [ ] **`$ARGUMENTS`** - Full argument string
-- [ ] **`$1`, `$2`, etc.** - Positional arguments
-- [ ] **Arguments are optional** - command works without them
-
-**Example:**
-
-```markdown
-Review the code in $1 for:
-- Code quality
-- Potential bugs
-- Performance issues
-```
-
-### File References
-
-- [ ] **Use `@filename`** to include file content
-- [ ] **Paths relative to project root**
-- [ ] **Files included verbatim**
-
-## Plugin Command Namespacing
-
-- [ ] **Auto-namespaced:** `plugin-name:command-name`
-- [ ] **Direct invocation possible** when no conflicts
-- [ ] **Namespace required** when command names conflict across plugins
-
-**Example:**
-
-- Plugin: `claude-ecosystem`
-- Command file: `commands/scrape-docs.md`
-- Invocation: `/claude-ecosystem:scrape-docs` or just `/scrape-docs` if unique
-
-## Pre-Creation Verification
-
-Before creating a new command:
-
-1. [ ] Check command name is unique (or accept namespace prefix)
-2. [ ] Description clearly explains purpose
-3. [ ] Tool restrictions appropriate for command's scope
-4. [ ] Arguments documented if expected
-5. [ ] File references use correct paths
-
-## Common Mistakes to Avoid
-
-- Forgetting `.md` extension
-- Assuming subdirectory affects command name
-- Not providing description (harder for users to discover)
-- Over-restricting or under-restricting tools
-- Using absolute paths in file references
-
----
-
-**Last Updated:** 2025-11-30
-**Source References:**
-
-- `code-claude-com/docs/en/slash-commands.md`
+**Last Updated:** 2025-12-05
+**Architecture:** Query-based audit framework (no duplicated official content)

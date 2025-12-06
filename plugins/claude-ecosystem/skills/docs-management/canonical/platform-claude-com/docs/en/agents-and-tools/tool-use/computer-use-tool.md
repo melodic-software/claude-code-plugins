@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool
 source_type: sitemap
-content_hash: sha256:68ca4121073f4aaaaed202d944d12a260caa4efafef0880d95804f4ace83f5f3
+content_hash: sha256:cf2135fd74006d0f2fb5b6c6ff99ce1c1420eeb2fe091cf71c51cbfa3ad9a291
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -14,8 +14,8 @@ Claude can interact with computer environments through the computer use tool, wh
 
 <Note>
 Computer use is currently in beta and requires a [beta header](/docs/en/api/beta-headers):
-- `"computer-use-2025-11-24"` (Claude Opus 4.5)
-- `"computer-use-2025-01-24"` (Claude 4 models and Claude Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations)))
+- `"computer-use-2025-11-24"` for Claude Opus 4.5
+- `"computer-use-2025-01-24"` for Claude Sonnet 4.5, Haiku 4.5, Opus 4.1, Sonnet 4, Opus 4, and Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations))
 </Note>
 
 ## Overview
@@ -36,11 +36,10 @@ Computer use is available for the following Claude models:
 | Model | Tool Version | Beta Flag |
 |-------|--------------|-----------|
 | Claude Opus 4.5 | `computer_20251124` | `computer-use-2025-11-24` |
-| Claude 4 models | `computer_20250124` | `computer-use-2025-01-24` |
-| Claude Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations)) | `computer_20250124`| `computer-use-2025-01-24` |
+| All other supported models | `computer_20250124` | `computer-use-2025-01-24` |
 
 <Note>
-Claude Opus 4.5 introduces the `computer_20251124` tool version with new capabilities including the zoom action for detailed screen region inspection. Claude 4 models use updated tool versions optimized for the new architecture. Claude Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations)) introduces additional capabilities including the thinking feature for more insight into the model's reasoning process.
+Claude Opus 4.5 introduces the `computer_20251124` tool version with new capabilities including the zoom action for detailed screen region inspection. All other models (Sonnet 4.5, Haiku 4.5, Sonnet 4, Opus 4, Opus 4.1, and Sonnet 3.7) use the `computer_20250124` tool version.
 </Note>
 
 <Warning>
@@ -318,36 +317,6 @@ async def sampling_loop(
 ```
 
 The loop continues until either Claude responds without requesting any tools (task completion) or the maximum iteration limit is reached. This safeguard prevents potential infinite loops that could result in unexpected API costs.
-
-<Warning>
-  When using the computer use tool, you must include the appropriate beta flag for your model version:
-  
-    <section title="Claude Opus 4.5">
-
-      When using `computer_20251124`, include this beta flag:
-      ```
-      "betas": ["computer-use-2025-11-24"]
-      ```
-    
-</section>
-    <section title="Claude 4 models">
-
-      When using `computer_20250124`, include this beta flag:
-      ```
-      "betas": ["computer-use-2025-01-24"]
-      ```
-    
-</section>
-    <section title="Claude Sonnet 3.7">
-
-      When using `computer_20250124`, include this beta flag:
-      ```
-      "betas": ["computer-use-2025-01-24"]
-      ```
-    
-</section>
-  
-</Warning>
 
 We recommend trying the reference implementation out before reading the rest of this documentation.
 

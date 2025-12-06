@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/alignment
 source_type: sitemap
-content_hash: sha256:167e2b945773a8e3b62b3437ab3ba0442c85712169fecaddde762b9cad1b94ad
+content_hash: sha256:d5bd501fec491a53945d183c80f891da9b520f613b36b175db0784cfa6989836
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -12,13 +12,13 @@ fetch_method: html
 
 [![Video](https://img.youtube.com/vi/iyJj9RxSsBY/maxresdefault.jpg)](https://www.youtube.com/watch?v=iyJj9RxSsBY)
 
-[![Video](https://img.youtube.com/vi/IPmt8b-qLgk/maxresdefault.jpg)](https://www.youtube.com/watch?v=IPmt8b-qLgk)
+[![Video](https://img.youtube.com/vi/I9aGC6Ui3eE/maxresdefault.jpg)](https://www.youtube.com/watch?v=I9aGC6Ui3eE)
 
 Future AI systems will be even more powerful than today’s, likely in ways that break key assumptions behind current safety techniques. That’s why it’s important to develop sophisticated safeguards to ensure models remain helpful, honest, and harmless. The Alignment team works to understand the challenges ahead and create protocols to train, evaluate, and monitor highly-capable models safely.
 
-Research teams:[Alignment](/research/team/alignment)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
+Research teams:[Alignment](/research/team/alignment)[Economic Research](/research/team/economic-research)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
 
-![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/d3a0e7c53293c57c911f9430bc590cc7b480d184-1440x810.png)
+![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/c351e05137a3da7d475af1c36f705cb4ff4b2179-1440x810.png)
 
 ### Evaluation and oversight
 

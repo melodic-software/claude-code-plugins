@@ -1,11 +1,20 @@
 ---
 source_url: https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG
 source_type: manual
-content_hash: sha256:00e2753db2f4b479894ce0363e19dd4e48c5888f6a4ade33f8bbcd6667e20860
+content_hash: sha256:ec3e72db36f326ecf8bcc5c2924097c93ca9bd3df1d374f2d5d1ca48fce4c610
 fetch_method: markdown
 ---
 
 # Changelog
+
+## 2.0.60
+
+- Added background agent support. Agents run in the background while you work
+- Added --disable-slash-commands CLI flag to disable all slash commands
+- Added model name to "Co-Authored-By" commit messages
+- Enabled "/mcp enable [server-name]" or "/mcp disable [server-name]" to quickly toggle all servers
+- Updated Fetch to skip summarization for pre-approved websites
+- VSCode: Added support for multiple terminal clients connecting to the IDE server simultaneously
 
 ## 2.0.59
 

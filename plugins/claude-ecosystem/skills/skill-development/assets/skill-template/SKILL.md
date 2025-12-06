@@ -1,6 +1,6 @@
 ---
 name: skill-name
-description: TODO: Write in THIRD PERSON (injected into system prompt). Describe what this skill does AND when to use it. Include trigger keywords: file types (.md, .json), domains (API, database), tasks (analyze, generate, create), tools (Git, Docker). Example: "Analyzes Excel spreadsheets and generates reports. Use when working with Excel files, .xlsx, spreadsheet analysis, or data visualization." Max 1024 characters.
+description: TODO: [What it does]. Use when [specific triggers]. Example: "Analyzes Excel spreadsheets and generates charts. Use when working with Excel files, .xlsx, spreadsheet analysis, or data visualization." REQUIRED: Include "Use when..." with trigger keywords (file types, domains, tasks). Third person. Max 1024 chars.
 ---
 
 # Skill Name
@@ -340,23 +340,25 @@ Include these keyword types:
 - Tasks: `analyze`, `generate`, `create`, `build`, `validate`
 - Tools: `Git`, `Docker`, `Kubernetes`, `PostgreSQL`
 
-Include BOTH what it does AND when to use it:
+**Official Pattern:** `[What it does]. Use when [specific triggers].`
+
+This is the ONLY documented mechanism for skill discovery. Claude uses descriptions to choose skills from 100+ available. Include BOTH capabilities AND triggers.
 
 **Example descriptions:**
 
-✅ Excellent (third person + what + when):
+✅ Excellent (follows official pattern):
 
 ```yaml
 description: Analyzes Excel spreadsheets, generates pivot tables, creates charts. Use when working with Excel files (.xlsx, .xls), spreadsheet analysis, or data visualization tasks.
 ```
 
-✅ Good (includes triggers):
+✅ Good (clear triggers):
 
 ```yaml
-description: Generates descriptive commit messages by analyzing git diffs. Use when the user asks for help writing commit messages or reviewing staged changes.
+description: Generates descriptive commit messages by analyzing git diffs. Use when writing commit messages, reviewing staged changes, or preparing git commits.
 ```
 
-❌ Missing triggers:
+❌ Missing "Use when..." triggers:
 
 ```yaml
 description: Generates descriptive commit messages.
@@ -368,7 +370,7 @@ description: Generates descriptive commit messages.
 description: Helps with files.
 ```
 
-❌ Wrong voice:
+❌ Wrong voice (must be third person):
 
 ```yaml
 description: I will help you analyze spreadsheets.
@@ -379,7 +381,8 @@ description: I will help you analyze spreadsheets.
 - [ ] YAML frontmatter is valid
 - [ ] `name` follows conventions (lowercase, hyphens, max 64 chars)
 - [ ] `name` matches directory name exactly
-- [ ] `description` is specific and includes trigger keywords
+- [ ] `description` follows official pattern: `[What it does]. Use when [triggers].`
+- [ ] `description` includes "Use when..." with specific trigger keywords
 - [ ] All TODO items are replaced
 - [ ] Examples are concrete and representative
 - [ ] Supporting files are documented (if present)

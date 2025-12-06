@@ -4,6 +4,14 @@
 # Tests the SessionStart hook that automatically injects the current
 # UTC date/time into Claude's context at session start.
 
+# ============================================================================
+# Environment Isolation - Clear hook-related env vars for consistent test behavior
+# ============================================================================
+# Unset CLAUDE_HOOK_* env vars to prevent user config from affecting tests
+for var in $(env | grep '^CLAUDE_HOOK_' | cut -d= -f1); do
+    unset "$var"
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${HOOK_DIR}/../shared/test-helpers.sh"

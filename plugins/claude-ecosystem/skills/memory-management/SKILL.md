@@ -380,6 +380,37 @@ Find documentation about memory hierarchy precedence and conflict resolution
 - Ignore token budgets
 - Skip verification of import syntax
 
+## Auditing Memory Files
+
+This skill provides the validation criteria used by the `memory-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Structure | 25 | Valid markdown, proper sections |
+| Import Syntax | 25 | Correct @path syntax, files exist |
+| Hierarchy Compliance | 20 | Correct level (enterprise/project/user) |
+| Content Organization | 20 | Progressive disclosure, appropriate size |
+| No Anti-Patterns | 10 | No circular imports, excessive nesting |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `memory-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: memory-management`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-memory` command
+
 ## References
 
 **Reference files:**
@@ -387,6 +418,7 @@ Find documentation about memory hierarchy precedence and conflict resolution
 - [Stable Principles](references/stable-principles.md) - Detailed explanation of timeless principles
 - [Keyword Registry](references/keyword-registry.md) - Complete keyword list for docs-management queries
 - [Common Patterns](references/common-patterns.md) - Memory organization patterns and examples
+- [Audit Framework](references/audit-framework.md) - Audit scoring and query guides
 
 ## Version History
 

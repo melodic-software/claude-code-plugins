@@ -6,6 +6,7 @@ See @README for project overview and installation.
 
 - **NEVER read `index.yaml` directly** - use `manage_index.py` scripts
 - **NEVER chain `cd &&` in PowerShell** - causes path doubling
+- **Read before Edit (tool constraint)** - The Edit tool REQUIRES reading files first in the conversation. Parallel Edit operations on unread files will ALL fail. Sequence: Read all target files first, then Edit in parallel
 - **Use `MSYS_NO_PATHCONV=1`** in Git Bash
 - **Use Python 3.13** for spaCy operations
 - **Plugin dev mode required** - When modifying plugin scripts, set env vars to use local code instead of installed plugin. See `.claude/memory/plugin-dev-mode.md`
@@ -112,7 +113,7 @@ For comprehensive guidance on working with this repository, see:
 
 - **Command/Skill Execution Protocol** @.claude/memory/command-skill-protocol.md (~3,215 tokens) - CRITICAL: Prevents context collapse when executing commands/skills
 - **Operational Rules** @.claude/memory/operational-rules.md (~2,400 tokens) - Core operational guidance (temp files, error handling, workflow management)
-- **Claude Code ecosystem reference** @.claude/memory/claude-code-ecosystem.md (~1,025 tokens) - Enforcement layers, skills table, and delegation pattern for Claude Code documentation
+- **Claude Code ecosystem reference** @.claude/memory/claude-code-ecosystem.md (~2,300 tokens) - Enforcement layers, skills table, and delegation pattern for Claude Code documentation
 
 **Context-Dependent (Load When Needed):**
 
@@ -124,7 +125,7 @@ For comprehensive guidance on working with this repository, see:
 - **Behavioral Principles** `.claude/memory/behavioral-principles.md` (~2,250 tokens) - Communication, autonomy, limitations, transparency
 - **Natural Language Prompting** `.claude/memory/natural-language-guidance.md` (~700 tokens) - Natural language, intent, agentic instructions
 - **Anti-Patterns & Design Decisions** `.claude/memory/anti-patterns.md` (~1,880 tokens) - @-file bloat, slash command over-engineering, hook timing
-- **Tool Optimization** `.claude/memory/tool-optimization.md` (~2,245 tokens) - Tool design, tool selection, namespacing, error messages
+- **Tool Optimization** `.claude/memory/tool-optimization.md` (~2,200 tokens) - Tool design, tool selection, namespacing, error messages
 - **Context Engineering** `.claude/memory/context-engineering.md` (~4,390 tokens) - Context window, /compact, /clear, context rot, token budget
 - **Hook Timing Philosophy** `.claude/memory/hook-timing-philosophy.md` (~2,050 tokens) - PreToolUse, PostToolUse, block-at-submit, auto-fix
 - **Testing Principles** `.claude/memory/testing-principles.md` (~17,300 tokens) - FIRST principles, test pyramid, AAA pattern, mocking

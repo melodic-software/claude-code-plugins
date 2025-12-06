@@ -304,6 +304,37 @@ This repository uses MCP servers for:
 
 MCP servers are configured in the project's settings and should follow the patterns documented in official Claude Code documentation.
 
+## Auditing MCP Configurations
+
+This skill provides the validation criteria used by the `mcp-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Configuration Structure | 25 | Valid JSON, required fields |
+| Server Entries | 25 | Valid server configs, proper format |
+| Transport Config | 20 | Valid transport types, correct settings |
+| Authentication | 15 | Proper auth, no exposed secrets |
+| Scope Compliance | 15 | Correct scope (project/user/plugin) |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `mcp-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: mcp-integration`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-mcp` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

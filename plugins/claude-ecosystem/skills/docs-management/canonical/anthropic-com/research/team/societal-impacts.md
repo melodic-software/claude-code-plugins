@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:09dc54013fccf97c451bea7a1462746c53cc3524523434b0b5affbf065cbc132
+content_hash: sha256:f9e2a67fd11ec771cef6c869a581fdc811943cdb6e2fc4e75f069180482fdb71
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -14,7 +14,7 @@ fetch_method: html
 
 Working closely with the Anthropic Policy and Safeguards teams, Societal Impacts is a technical research team that explores how AI is used in the real world.
 
-Research teams:[Alignment](/research/team/alignment)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
+Research teams:[Alignment](/research/team/alignment)[Economic Research](/research/team/economic-research)[Interpretability](/research/team/interpretability)[Societal Impacts](/research/team/societal-impacts)
 
 ![Video thumbnail](https://cdn.sanity.io/images/4zrzovbb/website/4f268223739d63a56f89b21a45559ba82392e8e0-1280x720.jpg)
 

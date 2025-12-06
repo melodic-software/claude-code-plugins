@@ -61,6 +61,8 @@ Skills are provided by the **`claude-ecosystem` plugin** from the `claude-code-p
 | Sandboxing | `sandbox-configuration` | Sandboxed bash, isolation, escape hatches |
 | Agent SDK | `agent-sdk-development` | TypeScript/Python SDK, sessions, tools |
 | Documentation | `docs-management` | Official Claude Code documentation access |
+| Issue Lookup | `github-issues` (git plugin) | GitHub issues search, gh CLI, troubleshooting |
+| Claude Code Issues | `claude-code-issue-researcher` agent | Known bugs, workarounds for anthropics/claude-code |
 
 ## Delegation Pattern
 
@@ -132,10 +134,79 @@ If `claude-ecosystem` plugin is not installed (docs-management unavailable):
 - The `docs-researcher` agent cannot spawn `claude-code-guide`
 - Only the **main agent** can orchestrate running both in parallel
 
+## Troubleshooting Strategy
+
+### When Encountering Claude Code Errors
+
+When troubleshooting Claude Code errors, unexpected behavior, or configuration problems, use a **three-source parallel strategy**:
+
+| Source | Agent/Skill | Purpose |
+| ------ | ----------- | ------- |
+| Official Docs | `docs-management` skill | Correct usage, configuration, known limitations |
+| GitHub Issues | `claude-code-issue-researcher` agent | Known bugs, workarounds, community solutions |
+| Live Web | `claude-code-guide` subagent | Current discussions, recent fixes |
+
+### Mandatory Troubleshooting Workflow
+
+**When you see an error or unexpected behavior in Claude Code:**
+
+1. **Search GitHub Issues FIRST** - Spawn `claude-code-issue-researcher` agent
+   - Check if it's a known issue
+   - Look for workarounds
+   - Note if recently fixed (check closed issues)
+
+2. **Consult Official Docs** - Invoke `docs-management` skill
+   - Verify correct usage
+   - Check for documented limitations
+   - Find configuration requirements
+
+3. **Synthesize and Report**
+   - If known issue: Report issue number, status, and workaround
+   - If not known: Suggest reporting if reproducible
+   - Provide solution based on docs + community knowledge
+
+### Example Troubleshooting Flow
+
+```markdown
+User: "I'm getting path doubling errors in my hooks on Windows"
+
+1. [Task tool: claude-code-issue-researcher]
+   "Search for path doubling Windows hooks errors"
+   → Finds #11984, #5401, related issues
+   → Notes workaround: use absolute paths
+
+2. [Skill tool: docs-management]
+   "Find documentation about hooks Windows paths"
+   → Finds hook configuration guidance
+   → Notes any platform-specific requirements
+
+3. [Synthesize]
+   "This is a known issue (#11984). Workaround: use absolute paths
+   instead of cd && patterns. The issue is open and being tracked."
+```
+
+### Proactive Issue Checking Triggers
+
+**Automatically search GitHub issues when:**
+
+- User reports an error message
+- Unexpected behavior occurs during Claude Code operations
+- Platform-specific problems (Windows, macOS, Linux)
+- Tool failures (Bash, Read, Edit, etc.)
+- MCP server connection issues
+- Hook execution failures
+- Permission or sandbox errors
+
+**Keywords that should trigger issue lookup:**
+
+- "error", "bug", "broken", "not working", "fails", "crash"
+- "known issue", "is this a bug", "anyone else", "workaround"
+- Platform names: "Windows", "PowerShell", "macOS", "Linux", "WSL"
+
 ## Topics Index
 
 For comprehensive topic listings with keywords, see `.claude/memory/claude-code-topics-index.md`. Load when you need to look up specific features, find keywords for docs-management queries, or navigate the Claude Code documentation.
 
 ---
 
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-05

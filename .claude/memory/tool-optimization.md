@@ -203,6 +203,10 @@ With evaluation, measure the impact of prompt engineering. Even small refinement
 - Tool errors for invalid parameters -> Improve descriptions or add examples
 - Agents appending unnecessary data (e.g., year to queries) -> Refine tool descriptions
 
+## Tool Constraints
+
+For critical tool constraints including the **Read-before-Edit requirement**, see CLAUDE.md Critical Rules section. This file focuses on tool design principles; authoritative tool constraints are documented in CLAUDE.md.
+
 ## Summary
 
 Effective tools for agents:
@@ -224,4 +228,4 @@ Effective tools for agents:
 
 ---
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-05

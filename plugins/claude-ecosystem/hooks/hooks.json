@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/prevent-backup-files/bash/prevent-backup-files.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/prevent-backup-files/bash/prevent-backup-files.sh",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/suggest-docs-delegation.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /scripts/hooks/suggest-docs-delegation.sh",
             "timeout": 5
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/inject-current-date/bash/inject-current-date.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/inject-current-date/bash/inject-current-date.sh",
             "timeout": 5
           }
         ]

@@ -311,6 +311,38 @@ Command files use the exact command name with `.md` extension:
 - `/refresh-docs` -> `commands/refresh-docs.md`
 - `/validate-docs` -> `commands/validate-docs.md`
 
+## Auditing Commands
+
+This skill provides the validation criteria used by the `command-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Validation Checklist | `references/validation-checklist.md` | Pre-creation verification checklist |
+| Scoring Rubric | `references/validation-checklist.md#audit-scoring-rubric` | Formal audit scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| File Structure | 20 | Correct location, .md extension, kebab-case naming |
+| YAML Frontmatter | 25 | Description, allowed-tools, argument-hint present |
+| Description Quality | 20 | Clear, concise, action-oriented, when-to-use guidance |
+| Tool Configuration | 15 | Not over/under restricted for purpose |
+| Content Quality | 20 | Well-structured, proper argument handling, file references |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `command-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: command-development`
+- Uses validation checklist and scoring rubric
+- Generates structured audit reports
+- Invoked by `/audit-commands` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

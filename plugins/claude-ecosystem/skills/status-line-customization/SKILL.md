@@ -245,6 +245,36 @@ This repository does not currently use custom status lines. Status line document
 
 When working with status line topics, always use the docs-management skill to access official documentation.
 
+## Auditing Status Lines
+
+This skill provides the validation criteria used by the `statusline-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Script Structure | 25 | Valid script, shebang, executable |
+| JSON Handling | 25 | Correct JSON input parsing |
+| Output Format | 25 | Proper terminal formatting, colors |
+| Cross-Platform | 25 | Works on Windows, macOS, Linux |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `statusline-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: status-line-customization`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-statuslines` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

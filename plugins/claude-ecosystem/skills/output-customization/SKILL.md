@@ -229,6 +229,36 @@ This repository does not currently use custom output styles. Output style docume
 
 When working with output style topics, always use the docs-management skill to access official documentation.
 
+## Auditing Output Styles
+
+This skill provides the validation criteria used by the `output-style-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| File Structure | 20 | Correct location, .md extension |
+| YAML Frontmatter | 30 | Required fields present and valid |
+| Content Quality | 30 | Clear instructions, proper structure |
+| Compatibility | 20 | Works with style switching, no conflicts |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `output-style-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: output-customization`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-output-styles` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**

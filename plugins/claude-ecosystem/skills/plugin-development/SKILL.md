@@ -348,6 +348,37 @@ This repository does not currently use plugins. Plugin documentation is relevant
 
 When working with plugin topics, always use the docs-management skill to access official documentation.
 
+## Auditing Plugins
+
+This skill provides the validation criteria used by the `plugin-auditor` agent for formal audits.
+
+### Audit Resources
+
+| Resource | Location | Purpose |
+| -------- | -------- | ------- |
+| Audit Framework | `references/audit-framework.md` | Query guides and scoring criteria |
+
+### Scoring Categories
+
+| Category | Points | Key Criteria |
+| -------- | ------ | ------------ |
+| Manifest Structure | 25 | Valid plugin.json, required fields |
+| Component Organization | 25 | Proper directories for all components |
+| Namespace Compliance | 20 | Consistent naming, no conflicts |
+| Documentation | 15 | README, descriptions, examples |
+| Distribution Readiness | 15 | Version, marketplace requirements |
+
+**Thresholds:** 85+ = PASS, 70-84 = PASS WITH WARNINGS, <70 = FAIL
+
+### Related Agent
+
+The `plugin-auditor` agent (Haiku model) performs formal audits using this skill:
+
+- Auto-loads this skill via `skills: plugin-development`
+- Uses audit framework and docs-management for rules
+- Generates structured audit reports
+- Invoked by `/audit-plugins` command
+
 ## References
 
 **Official Documentation (via docs-management skill):**
