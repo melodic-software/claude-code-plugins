@@ -17,11 +17,19 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 
 ## Plugins
 
-| Plugin                                         | Purpose                              |
-| ---------------------------------------------- | ------------------------------------ |
-| [claude-ecosystem](plugins/claude-ecosystem/)  | Claude Code docs, meta-skills, hooks |
-| [code-quality](plugins/code-quality/)          | Code review, linting, debugging      |
-| [google-ecosystem](plugins/google-ecosystem/)  | Gemini CLI docs and planning         |
+| Plugin | Purpose |
+|--------|---------|
+| [claude-ecosystem](plugins/claude-ecosystem/) | Claude Code docs, meta-skills, hooks |
+| [code-quality](plugins/code-quality/) | Code review, linting, debugging |
+| [google-ecosystem](plugins/google-ecosystem/) | Gemini CLI docs and planning |
+| [claude-code-observability](plugins/claude-code-observability/) | Event logging, metrics, session diagnostics |
+| [enterprise-architecture](plugins/enterprise-architecture/) | TOGAF, Zachman, ADRs, cloud alignment |
+| [git](plugins/git/) | Git config, GPG signing, GitHub issues |
+| [melodic-software](plugins/melodic-software/) | Developer onboarding, environment setup, commit workflows |
+| [response-quality](plugins/response-quality/) | Response quality standards, source citations |
+| [tactical-agentic-coding](plugins/tactical-agentic-coding/) | Agentic coding tactics, multi-agent workflows |
+| [visualization](plugins/visualization/) | Diagrams-as-code (Mermaid, PlantUML) |
+| [windows-diagnostics](plugins/windows-diagnostics/) | Windows system diagnostics, troubleshooting |
 
 ## Usage
 

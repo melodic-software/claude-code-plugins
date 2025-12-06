@@ -1,109 +1,100 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 See @README for project overview and installation.
 
-## Critical Rules
+## Critical Rules (Repo-Specific)
 
-- **NEVER read `index.yaml` directly** - use `manage_index.py` scripts
-- **NEVER chain `cd &&` in PowerShell** - causes path doubling
-- **Read before Edit (tool constraint)** - The Edit tool REQUIRES reading files first in the conversation. Parallel Edit operations on unread files will ALL fail. Sequence: Read all target files first, then Edit in parallel
-- **Use `MSYS_NO_PATHCONV=1`** in Git Bash
 - **Use Python 3.13** for spaCy operations
-- **Plugin dev mode required** - When modifying plugin scripts, set env vars to use local code instead of installed plugin. See `.claude/memory/plugin-dev-mode.md`
+- **Set plugin dev mode** when modifying plugin scripts - use env vars for local code instead of installed plugin. See `.claude/memory/plugin-dev-mode.md`
+- **Use `docs-management` skill for documentation indexes** - invoke the skill to search docs rather than reading index.yaml files directly
+- **MCP Server Usage**: Microsoft tech -> `microsoft-learn`, libraries -> `context7`+`ref`, general -> `perplexity`+`firecrawl`. See `.claude/memory/mcp-usage-patterns.md`
+- **Git Bash on Windows**: Use `MSYS_NO_PATHCONV=1` prefix to prevent path conversion issues when running scripts
 
-## Quick Reference
+## Memory File References
 
-- **Skills First**: Before using tools, check if a matching skill exists and invoke it. Once loaded, follow the skill's complete workflow - skills are workflows to execute, not reference docs to bypass. When a skill instructs you to run a command, execute it immediately rather than stating assumed results. Skills exist because assumptions are unreliable; verification through execution ensures accuracy.
-  - **Skill Execution Fidelity**: When a skill provides execution instructions (bash commands, script patterns, workflow steps): (1) Read the skill's workflow section completely before executing tools, (2) Execute exactly as instructed without substituting alternative approaches, (3) Verify your execution matches the skill's pattern before proceeding, (4) If you deviate, stop and correct immediately.
-  - **Pre-Execution Skill Verification**: Before executing skill-provided commands or scripts: (1) Locate the execution pattern in SKILL.md (search for "Run", "Execute", "Do NOT"), (2) Read the full instruction (foreground/background, polling/streaming, etc.), (3) Verify your planned tool call matches the pattern exactly, (4) If any mismatch, re-read skill instructions.
-- **Proactive Delegation**: Before starting multi-step or multi-item tasks, evaluate for parallel delegation:
-  1. **Identify independent items**: Creating 4 files? Analyzing 5 components? Updating 3 platforms? Each is a candidate for delegation
-  2. **Parallelize when independent**: If items have no dependencies, run up to 5 subagents simultaneously (90% speedup)
-  3. **Preserve main context**: Delegate research/exploration to keep main agent context clean for user interaction
-  4. **Sequential requires justification**: Default to parallel delegation; use sequential only when tasks have dependencies
-  5. **Model selection**: Haiku for simple/search tasks (2-3x faster), Sonnet for complex reasoning, Opus for critical decisions
-  - **Recognition patterns (parallelize these)**:
-    - "Create/update N things" -> N parallel subagents (max 5 concurrent, batch if more)
-    - "Update across platforms" -> 1 subagent per platform
-    - "Research/explore X" -> Explore subagent (preserves main context)
-    - "Analyze multiple concerns" -> 1 subagent per concern
-- **Claude Code Documentation (Hybrid Strategy)**: For ALL Claude Code documentation queries, use BOTH sources in parallel for maximum comprehensiveness:
-  1. **Invoke `docs-management` skill** - Fast local cache, token-efficient (60-90% savings via subsections), curated, offline
-  2. **Spawn `claude-code-guide` subagent in parallel** - Live web search via WebFetch/WebSearch, always current
-  3. **Synthesize results** - Combine findings, deduplicate, note any discrepancies between local cache and live docs
-  4. If plugin not installed (docs-management unavailable), use `claude-code-guide` only
-  5. Base all responses on official documentation - no assumptions or memory
-  6. See @.claude/memory/claude-code-ecosystem.md for detailed hybrid strategy and topic index
-- **Zero Complacency - Report All Errors/Warnings**: When you encounter errors, warnings, import failures, deprecation notices, or any system feedback indicating something is wrong:
-  1. Stop and do not continue or report success when errors are present
-  2. Report the error/warning explicitly to the user with full context
-  3. If you are confident of the fix and it requires low effort (not medium+ refactor): Auto-fix it immediately and verify the fix worked
-  4. If unsure or medium+ effort required: Report to user and propose solution rather than guessing
-  5. Verify actual success before claiming it - imports working, tests passing, no warnings
-- **Current date awareness**: Automatically injected at session start via `inject-current-date` hook. For time-sensitive operations requiring the latest time, execute `date -u` directly
-- **Verify model identity**: Before reporting which model you are (especially in audits/skill metadata), check your system context where model info is provided. See `.claude/memory/model-identification.md` for comprehensive guidance
-- **MCP Server Usage**: Use MCP servers proactively before writing code/docs. Microsoft tech -> `microsoft-learn`, libraries -> `context7`+`ref`, general -> `perplexity`+`firecrawl`. See `.claude/memory/mcp-usage-patterns.md` for detailed selection guide
-- **Path doubling prevention**: Detect and prevent path doubling errors proactively. When executing commands with `cd` and `&&` in PowerShell, or when using relative paths in scripts, resolve paths absolutely from repo root before operations. See `.claude/memory/path-conventions.md` for detailed guidance
-- **Exploration before solutions**: Read and understand relevant code before proposing changes. Verify existing patterns before creating new ones. Do not speculate about code you have not inspected
-- **Research before planning**: Conduct comprehensive research to understand all components, current state, and desired future state before proposing solutions
-- **Use agent efficiency**: Offload complex research/exploration to Task agents when appropriate; use `.claude/temp/` for agent communication via .md files
-- **Performance optimization**: Use parallelization (3-5 agents = 90% speedup), Haiku model for simple tasks (2-3x faster), focused queries (not exhaustive searches). See @.claude/memory/performance-quick-start.md for comprehensive guide
-- **Prefer script-based automation**: Prefer scripts over manual file generation/manipulation when feasible - saves tokens, faster execution, more deterministic output. See @.claude/memory/operational-rules.md for detailed guidance
-- **Use temporary workspace**: Use `.claude/temp/YYYY-MM-DD_HHmmss-{agent-type}-{topic}.md` for scratch files because this location is gitignored by default. Timestamp in UTC
-- **Clean up temporary files**: Remove temporary test files, scripts, and artifacts that are not gitignored before completing any task. Run `git status` before completion to verify no unintended files remain
-- **UTC timestamps for all persisted data**: Default to UTC for timestamps in ISO-8601 format. Store all persisted data in UTC - convert to local time only for display purposes
-- **Command/Skill execution**: When executing commands that invoke skills/agents, maintain dual-level awareness and verify ALL steps before reporting completion (see @.claude/memory/command-skill-protocol.md)
-- **Use natural language prompting**: Use natural language describing intent for agentic instructions (commands, skills, agents) - see @.claude/memory/natural-language-guidance.md
-- **ASCII punctuation only**: Use straight ASCII punctuation in all docs, prompts, and responses because smart/curly quotes cause encoding issues in scripts and cross-platform compatibility problems
-- **UTF-8 encoding for all files**: Use UTF-8 encoding for all files. Preserve emojis and Unicode characters. When creating Python scripts, explicitly set UTF-8 encoding for stdin/stdout/stderr
-- **Skill encapsulation (global rule)**: Outside a skill, the ONLY thing you may reference is the **skill name** plus **natural language behavior/context**. Commands, docs, and other skills must not mention internal scripts, file paths, or CLI flags
-- **Context engineering**: Treat context as a finite resource with diminishing returns. Find the smallest set of high-signal tokens that maximize desired outcomes. See `.claude/memory/context-engineering.md`
-- **Progressive disclosure**: Use just-in-time context strategies - discover and load information on-demand rather than pre-processing all data upfront
-- **Start simple, add complexity only when needed**: Find the simplest solution possible, only increase complexity when demonstrably needed
-- **Overengineering prevention**: Keep solutions minimal and focused. Only make changes directly requested or clearly necessary
-- **Perfect is the enemy of good**: Ship working solutions and refine iteratively. Recognize when "good enough" serves users better than pursuing theoretical ideals
-- **Course correction**: Course correct early and often. Make a plan before coding, and don't code until the plan is confirmed. Press Escape to interrupt during any phase. Use `/clear` frequently between tasks to reset context window
-- **Extended thinking**: Use "think" keywords for deeper evaluation: "think" < "think hard" < "think harder" < "ultrathink" (each level allocates progressively more thinking budget)
-- **Claude Code ecosystem**: For all Claude Code topics (hooks, memory, skills, subagents, MCP, plugins, settings, model config, workflows, SDK, etc.), see @.claude/memory/claude-code-ecosystem.md for comprehensive topic index and delegation instructions to docs-management skill
-- **Tool selection and usage**: When tools are available, select tools with clear distinct purposes. Prefer error-proof tools (e.g., those requiring absolute paths vs relative). Use tools that return meaningful context
-- **Context awareness and persistence**: When working in environments with automatic context compaction, do not stop tasks early due to token budget concerns. Save current progress and state to memory before context window refreshes. Continue working persistently and autonomously
-- **Communication style**: Provide fact-based progress reports rather than verbose summaries. Be concise, direct, and grounded in what has actually been accomplished
-- **Test preservation**: Preserve tests because they verify correctness. If tests appear incorrect or the task unreasonable, inform the user rather than working around them
-- **Test-driven and behavior-driven development (TDD/BDD)**: When adding or changing non-trivial behavior, prefer TDD or BDD where feasible
-- **Security-first thinking**: Never expose or log sensitive data. Validate and sanitize all inputs. Default to least privilege
-- **Consistency as a first-class rule**: Use the same patterns, structures, and naming everywhere. Do not introduce a new approach when an existing one can be extended
-- **Pattern-first changes**: Before adding docs, workflows, or structures, look for an existing pattern in this repo and align to it
-- **Anti-Duplication**: Ensure every piece of information exists in exactly one authoritative location. Before creating content, search for existing content on the topic. See `.claude/memory/anti-duplication-enforcement.md`
-- **Single source of truth**: Avoid duplicating guidance. Prefer one canonical location and link to it from other docs
-- **DRY and deduplication**: Minimize duplicated variables, magic strings, magic numbers, and repeated code
-- **Law of Demeter (principle of least knowledge)**: Minimize coupling by talking only to immediate friends. Avoid brittle chains
-- **Best tool for the job**: Choose languages, libraries, and techniques that keep the solution simple, maintainable, and testable
-- **AI-friendly structure**: Use predictable sections and headings (Overview, Prerequisites, Installation, Configuration, Verification, Troubleshooting) so LLMs can reliably locate and reuse information
-- **Naming and terminology alignment**: Use consistent terminology for the same concepts across all docs
-- **Minimal, focused edits**: Make small, intentional changes that preserve existing formatting and structure
-- **Cross-platform, test-first mindset**: Treat Windows, macOS, and Linux as first-class. Consider platform differences up front
-- **No partial handoffs**: Do not end a task with "you finish this" or leave failing tests for the user
-- **Implementation integrity**: Do things correctly or do not do them at all. Avoid workarounds, hacks, or temporary fixes. Fix failing tests by fixing the code or tests with clear rationale
+- **Performance optimization**: See @.claude/memory/performance-quick-start.md
+- **Context engineering**: See `.claude/memory/context-engineering.md`
+- **Claude Code ecosystem**: See @.claude/memory/claude-code-ecosystem.md
+- **Anti-Duplication enforcement**: See `.claude/memory/anti-duplication-enforcement.md`
+- **Path conventions**: See `.claude/memory/path-conventions.md`
+- **Command/Skill protocol**: See @.claude/memory/command-skill-protocol.md
+- **Natural language guidance**: See @.claude/memory/natural-language-guidance.md
+- **Model identification**: See `.claude/memory/model-identification.md`
+
+## General Software Principles
+
+- **TDD/BDD**: When adding or changing non-trivial behavior, prefer test-driven development
+- **Consistency**: Use the same patterns, structures, and naming everywhere - extend existing approaches
+- **Pattern-First**: Before adding docs, workflows, or structures, look for existing patterns and align to them
+- **AI-Friendly Structure**: Use predictable sections (Overview, Prerequisites, Installation, Configuration, Verification, Troubleshooting)
+- **Cross-Platform**: Treat Windows, macOS, and Linux as first-class - consider platform differences up front
+- **ASCII Punctuation**: Use straight quotes - smart/curly quotes cause encoding issues in scripts
+- **UTF-8 Encoding**: Use UTF-8 for all files, preserve Unicode, set encoding in Python scripts
+- **UTC Timestamps**: Store persisted data in UTC (ISO-8601), convert to local only for display
+- **DRY**: Minimize duplicated variables, magic strings, magic numbers, repeated code
+- **Law of Demeter**: Minimize coupling by talking only to immediate friends
+- **Best tool for the job**: Choose languages, libraries, techniques that keep solutions simple and testable
 
 ## Documentation
 
-For Claude Code topics, invoke the `docs-management` skill or use:
+For Claude Code topics, invoke the `docs-management` skill.
 
-```bash
-python plugins/claude-ecosystem/skills/docs-management/scripts/core/find_docs.py search <keywords>
+For Gemini CLI topics, invoke the `gemini-cli-docs` skill.
+
+## Build and Test Commands
+
+### Running Tests
+
+Invoke the `docs-management` skill for test instructions - it provides platform-specific commands.
+
+### Markdown Linting
+
+Use `/code-quality:lint-md` command or invoke the `markdown-linting` skill.
+
+### Validate Plugin Skills
+
+Use `/claude-ecosystem:audit-skills` command or invoke the `skill-development` skill.
+
+## Architecture Overview
+
+### Plugin Structure
+
+```
+plugins/<plugin-name>/
+  plugin.json          # Plugin manifest (name, version, description)
+  skills/              # Skills (noun-phrase names, e.g., "docs-management")
+    <skill-name>/
+      SKILL.md         # Skill definition with YAML frontmatter
+      references/      # Supporting docs loaded on-demand
+      scripts/         # Python/Bash automation scripts
+  commands/            # Slash commands (verb-phrase names, e.g., "scrape-docs")
+  agents/              # Subagent definitions
+  hooks/               # Hook configurations
 ```
 
-For Gemini CLI topics, invoke the `gemini-cli-docs` skill or use:
+### Documentation Management Pattern
 
-```bash
-python plugins/google-ecosystem/skills/gemini-cli-docs/scripts/core/find_docs.py search <keywords>
-```
+The `docs-management` and `gemini-cli-docs` skills manage scraped official documentation with search indexes. **Always invoke the skill** to search docs - never read index.yaml directly. Skills handle search ranking, keyword extraction, and subsection loading.
+
+### Key Plugins
+
+| Plugin | Purpose |
+|--------|---------|
+| claude-ecosystem | Claude Code docs, skills (docs-management, hook-management, memory-management), hooks |
+| google-ecosystem | Gemini CLI docs (gemini-cli-docs), planning agents |
+| code-quality | Code review, markdown linting, debugging |
+| tactical-agentic-coding | ADW workflows, prompt engineering, agent design |
+| git | Git operations (config, GPG signing, hooks, GitHub issues) |
 
 ## Conventions
 
 - Skills: noun-phrase names (`hook-management`)
 - Commands: verb-phrase names (`scrape-docs`)
 - Skills use `allowed-tools`, agents use `tools` in frontmatter
+- YAML frontmatter required for SKILL.md files (name, description, allowed-tools)
+- References loaded progressively (just-in-time) to optimize tokens
 
 ## Detailed Documentation
 
@@ -145,4 +136,4 @@ For comprehensive guidance on working with this repository, see:
 
 - **Claude Code Topics Index** `.claude/memory/claude-code-topics-index.md` (~3,420 tokens) - Hooks, memory, skills, subagents, MCP, plugins, settings, SDK
 
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-06

@@ -33,6 +33,11 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/inject-current-date/bash/inject-current-date.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/inject-best-practices/bash/inject-best-practices.sh",
+            "timeout": 5
           }
         ]
       }
