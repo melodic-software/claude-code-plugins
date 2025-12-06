@@ -164,7 +164,7 @@ class TestDocScraper:
             with patch('scripts.core.scrape_docs.fetch_with_retry') as mock_fetch:
                 mock_fetch.return_value = mock_response
 
-                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page')
+                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page.md')
 
                 assert content == markdown_content
                 assert method == "markdown"
@@ -195,7 +195,7 @@ class TestDocScraper:
                 mock_fetch.return_value = mock_response
 
                 # Should succeed (fetch_with_retry handles retries internally)
-                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page')
+                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page.md')
 
                 assert content == markdown_content
                 assert method == "markdown"
@@ -263,7 +263,7 @@ class TestDocScraper:
                 mock_fetch.return_value = mock_response
 
                 # Should succeed (fetch_with_retry handles retries internally)
-                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page')
+                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page.md')
 
                 assert content == markdown_content
                 assert method == "markdown"
@@ -292,7 +292,7 @@ class TestDocScraper:
             with patch('scripts.core.scrape_docs.fetch_with_retry') as mock_fetch:
                 mock_fetch.return_value = mock_response
 
-                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page')
+                content, method, final_url = scraper.try_fetch_markdown('https://example.com/page.md')
 
                 # Should return None since content doesn't start with # or ---
                 assert content is None

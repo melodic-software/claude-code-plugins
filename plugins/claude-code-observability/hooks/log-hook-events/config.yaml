@@ -7,9 +7,9 @@
 # Example: CLAUDE_HOOK_LOG_VERBOSITY=full
 
 logging:
-  # Master enable/disable
+  # Master enable/disable (opt-in: disabled by default)
   # Env override: CLAUDE_HOOK_LOG_EVENTS_ENABLED=true|false
-  enabled: true
+  enabled: false
 
   # Verbosity level (minimal | summary | full)
   #
