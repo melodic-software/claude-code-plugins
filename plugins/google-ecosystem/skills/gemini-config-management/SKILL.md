@@ -1,6 +1,6 @@
 ---
 name: gemini-config-management
-description: Expert guide for configuring Google Gemini CLI. Covers global vs project settings (settings.json), Trusted Folders security model, Policy Engine, environment variables, and scope precedence. Delegates to gemini-cli-docs for official references.
+description: Expert guide for configuring Google Gemini CLI. Covers global vs project settings.json, Trusted Folders, Policy Engine, and environment variables. Use when configuring Gemini settings, managing trusted folders, setting up security policies, or troubleshooting configuration precedence. Delegates to gemini-cli-docs for official references.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

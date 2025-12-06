@@ -1,6 +1,6 @@
 ---
 name: gemini-workspace-bridge
-description: Central authority for Claude-Gemini shared workspace architecture. Defines directory structure, artifact exchange patterns, and file naming conventions for cross-CLI collaboration.
+description: Central authority for Claude-Gemini shared workspace architecture. Defines directory structure, artifact exchange, and file naming conventions. Use when setting up dual-CLI workflows, deciding where to store AI artifacts, or managing cross-CLI file exchange.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 

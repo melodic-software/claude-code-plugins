@@ -1,6 +1,6 @@
 ---
 name: gemini-mcp-integration
-description: Expert guide for Model Context Protocol (MCP) integration with Gemini CLI. Covers configuring MCP servers (HTTP, SSE, Stdio), connection management, troubleshooting, and tool permissions. Delegates to gemini-cli-docs.
+description: Expert guide for Model Context Protocol (MCP) integration with Gemini CLI. Covers MCP server configuration (HTTP, SSE, Stdio), connection management, and tool permissions. Use when adding MCP servers to Gemini, configuring transports, troubleshooting MCP connections, or managing tool permissions. Delegates to gemini-cli-docs.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

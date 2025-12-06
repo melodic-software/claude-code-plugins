@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/markdown-lint.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /scripts/hooks/markdown-lint.sh",
             "timeout": 30
           }
         ]

@@ -1,6 +1,6 @@
 ---
 name: gemini-sandbox-configuration
-description: Central authority for Gemini CLI sandboxing and isolation. Covers sandbox methods (Docker, Podman, macOS Seatbelt), profiles, configuration, and security boundaries. Delegates 100% to gemini-cli-docs for official documentation.
+description: Central authority for Gemini CLI sandboxing and isolation. Covers Docker, Podman, macOS Seatbelt profiles, and security boundaries. Use when enabling sandboxing, choosing sandbox methods, configuring Seatbelt profiles, or troubleshooting sandbox issues. Delegates 100% to gemini-cli-docs for official documentation.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

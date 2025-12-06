@@ -1,6 +1,6 @@
 ---
 name: gemini-command-development
-description: Expert guide for creating custom Gemini CLI commands. Covers slash command definitions (.toml), argument parsing, and shell execution within commands. Delegates to gemini-cli-docs.
+description: Expert guide for creating custom Gemini CLI commands. Covers slash command definitions (.toml), argument parsing, and shell execution. Use when creating custom Gemini commands, defining TOML command files, adding command arguments, or building extension-based commands. Delegates to gemini-cli-docs.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: gemini-exploration-patterns
-description: Strategic patterns for codebase exploration using Gemini's large context window. Covers token thresholds, model routing, exploration strategies, and output format standards for cross-CLI artifacts.
+description: Strategic patterns for codebase exploration using Gemini's large context window. Covers token thresholds, model routing, and exploration strategies. Use when deciding between Claude and Gemini for exploration, analyzing large codebases, or choosing between Flash and Pro models for context size.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

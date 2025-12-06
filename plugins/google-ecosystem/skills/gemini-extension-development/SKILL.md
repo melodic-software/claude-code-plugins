@@ -1,6 +1,6 @@
 ---
 name: gemini-extension-development
-description: Expert guide for building and managing Gemini CLI Extensions. Covers extension anatomy (context, commands, MCP), development workflow (link, install), and publishing. Delegates to gemini-cli-docs.
+description: Expert guide for building and managing Gemini CLI Extensions. Covers extension anatomy, GEMINI.md context, commands, MCP integration, and publishing. Use when creating Gemini extensions, linking local extensions, packaging MCP servers, or installing extensions from GitHub. Delegates to gemini-cli-docs.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

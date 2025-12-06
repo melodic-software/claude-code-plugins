@@ -1,6 +1,6 @@
 ---
 name: gemini-context-bridge
-description: Facilitates context sharing and strategic delegation between Claude Code (CLAUDE.md) and Gemini CLI (GEMINI.md). Syncs project instructions, memory, and configuration while providing guidance on which agent to use for specific tasks.
+description: Facilitates context sharing and strategic delegation between Claude Code and Gemini CLI. Syncs CLAUDE.md to GEMINI.md and provides agent selection guidance. Use when onboarding Gemini to a project, syncing instructions between agents, or deciding whether to use Claude or Gemini for a specific task.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 

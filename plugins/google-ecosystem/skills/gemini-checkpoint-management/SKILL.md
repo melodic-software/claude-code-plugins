@@ -1,6 +1,6 @@
 ---
 name: gemini-checkpoint-management
-description: Central authority for Gemini CLI Checkpointing. Covers git-based file snapshots, automatic state saving before modifications, /restore command for rollback, checkpoint storage, and conversation history preservation. Delegates 100% to gemini-cli-docs for official documentation.
+description: Central authority for Gemini CLI Checkpointing. Covers git-based file snapshots, automatic state saving, /restore command, and rollback. Use when enabling checkpointing, restoring previous states, undoing changes, or planning experimental workflows with Gemini. Delegates 100% to gemini-cli-docs for official documentation.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: gemini-cli-execution
-description: Expert guide for executing the Google Gemini CLI (`gemini`) in non-interactive, headless, and automation modes. Covers command syntax, piping input, handling output, context management, and error handling. Delegates to gemini-cli-docs for official command references.
+description: Expert guide for executing the Google Gemini CLI in non-interactive and headless modes. Covers command syntax, piping input, output handling, and automation patterns. Use when running gemini commands, piping context to Gemini, scripting Gemini workflows, or using interactive shell mode. Delegates to gemini-cli-docs for official command references.
 allowed-tools: Read, Glob, Grep, Skill, Bash
 ---
 

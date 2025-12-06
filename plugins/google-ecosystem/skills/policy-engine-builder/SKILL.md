@@ -1,6 +1,6 @@
 ---
 name: policy-engine-builder
-description: Guide for creating Gemini CLI policy engine TOML rules. Covers rule syntax, priority tiers, conditions, MCP wildcards, and enterprise patterns.
+description: Guide for creating Gemini CLI policy engine TOML rules. Covers rule syntax, priority tiers, conditions, and MCP wildcards. Use when restricting Gemini tools, creating security policies, controlling MCP server permissions, or setting up approval workflows.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

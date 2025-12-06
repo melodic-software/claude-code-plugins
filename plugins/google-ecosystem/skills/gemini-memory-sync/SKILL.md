@@ -1,6 +1,6 @@
 ---
 name: gemini-memory-sync
-description: Synchronization patterns for CLAUDE.md and GEMINI.md memory files. Covers import syntax, drift detection, one-way sync, and best practices for maintaining consistent context across both CLIs.
+description: Synchronization patterns for CLAUDE.md and GEMINI.md memory files. Covers import syntax, drift detection, and one-way sync. Use when setting up GEMINI.md, detecting context drift between memory files, understanding @import syntax, or troubleshooting sync issues.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 

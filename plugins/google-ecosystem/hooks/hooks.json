@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/suggest-gemini-docs.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /scripts/hooks/suggest-gemini-docs.sh",
             "timeout": 5
           }
         ]

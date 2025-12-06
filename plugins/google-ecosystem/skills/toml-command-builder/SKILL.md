@@ -1,6 +1,6 @@
 ---
 name: toml-command-builder
-description: Guide for building Gemini CLI TOML custom commands. Covers syntax, templates, argument handling, shell injection, file injection, and validation patterns.
+description: Guide for building Gemini CLI TOML custom commands. Covers syntax, templates, argument handling, shell injection, and file injection. Use when creating Gemini TOML commands, adding {{args}} argument handling, injecting shell output with !{}, or troubleshooting command issues.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 

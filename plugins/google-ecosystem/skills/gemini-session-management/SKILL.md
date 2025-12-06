@@ -1,6 +1,6 @@
 ---
 name: gemini-session-management
-description: Central authority for Gemini CLI session management. Covers session resume, retention policies, session browser, and cleanup configuration. Delegates 100% to gemini-cli-docs for official documentation.
+description: Central authority for Gemini CLI session management. Covers session resume, retention policies, session browser, and cleanup. Use when resuming Gemini sessions, configuring retention, browsing past sessions, or managing session storage. Delegates 100% to gemini-cli-docs for official documentation.
 allowed-tools: Read, Glob, Grep, Skill
 ---
 
