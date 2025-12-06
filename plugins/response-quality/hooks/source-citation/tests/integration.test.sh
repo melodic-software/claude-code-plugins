@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# integration.test.sh - Integration tests for inject-citation-context hook
+#
+# Tests the SessionStart hook that automatically injects source citation
+# requirements into Claude's context at session start.
+
+# ============================================================================
+# Environment Isolation - Clear hook-related env vars for consistent test behavior
+# ============================================================================
+# Unset CLAUDE_HOOK_* env vars to prevent user config from affecting tests
+for var in $(env | grep '^CLAUDE_HOOK_' | cut -d= -f1); do
+    unset "$var"
+done
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${HOOK_DIR}/../shared/test-helpers.sh"
+
+# Find jq - rely on PATH, skip tests gracefully if not found
+find_jq() {
+    command -v jq 2>/dev/null || return 1
+}
+
+JQ_CMD=$(find_jq || echo "")
+
+# Helper function to run hook and capture output
+run_hook() {
+    local input="${1:-{}}"
+    echo "$input" | bash "${HOOK_DIR}/inject-citation-context.sh" 2>/dev/null
+}
+
+# Helper function to check if output contains additionalContext
+has_context_injection() {
+    local output="$1"
+    [[ "$output" == *"additionalContext"* ]]
+}
+
+test_suite_start "inject-citation-context Integration Tests"
+
+# ============================================================================
+# SECTION 1: Hook Setup
+# ============================================================================
+test_section "Hook Setup"
+
+assert_file_exists "${HOOK_DIR}/inject-citation-context.sh" "Hook script exists"
+
+# ============================================================================
+# SECTION 2: Hook Output Structure
+# ============================================================================
+test_section "Hook Output Structure"
+
+OUTPUT=$(run_hook '{}')
+
+# Verify output exists and is not empty
+if [[ -n "$OUTPUT" ]]; then
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "${GREEN}✓${NC} PASS: Hook produces output"
+else
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "${RED}✗${NC} FAIL: Hook should produce output"
+fi
+
+# Verify context injection
+if has_context_injection "$OUTPUT"; then
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "${GREEN}✓${NC} PASS: Output contains additionalContext"
+else
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "${RED}✗${NC} FAIL: Output should contain additionalContext"
+    echo "  Output: $OUTPUT"
+fi
+
+# Verify hookSpecificOutput structure
+assert_contains "$OUTPUT" "hookSpecificOutput" "Contains hookSpecificOutput wrapper"
+assert_contains "$OUTPUT" "SessionStart" "Contains SessionStart event name"
+
+# ============================================================================
+# SECTION 3: Citation Content Verification
+# ============================================================================
+test_section "Citation Content Verification"
+
+OUTPUT=$(run_hook '{}')
+
+# Verify source-citation-reminder tags
+assert_contains "$OUTPUT" "source-citation-reminder" "Contains source-citation-reminder tags"
+
+# Verify citation format examples
+assert_contains "$OUTPUT" "FILE:" "Contains FILE citation format"
+assert_contains "$OUTPUT" "WEB:" "Contains WEB citation format"
+assert_contains "$OUTPUT" "MCP:" "Contains MCP citation format"
+assert_contains "$OUTPUT" "TRAINING" "Contains TRAINING citation format"
+assert_contains "$OUTPUT" "INFERRED:" "Contains INFERRED citation format"
+
+# Verify key instructions
+assert_contains "$OUTPUT" "MUST cite sources" "Contains citation requirement"
+assert_contains "$OUTPUT" "Sources section" "Contains Sources section requirement"
+
+# ============================================================================
+# SECTION 4: Exit Code Verification (Always 0)
+# ============================================================================
+test_section "Exit Code Verification"
+
+# Hook should always exit 0 (never blocks session)
+echo '{}' | bash "${HOOK_DIR}/inject-citation-context.sh" &>/dev/null
+EXIT_CODE=$?
+assert_exit_code 0 $EXIT_CODE "Hook exits 0 with empty JSON"
+
+echo '' | bash "${HOOK_DIR}/inject-citation-context.sh" &>/dev/null
+EXIT_CODE=$?
+assert_exit_code 0 $EXIT_CODE "Hook exits 0 with empty input"
+
+echo '{"session_id": "test-123"}' | bash "${HOOK_DIR}/inject-citation-context.sh" &>/dev/null
+EXIT_CODE=$?
+assert_exit_code 0 $EXIT_CODE "Hook exits 0 with session data"
+
+# ============================================================================
+# SECTION 5: JSON Output Validation
+# ============================================================================
+test_section "JSON Output Validation"
+
+OUTPUT=$(run_hook '{}')
+
+# Verify valid JSON output
+if [[ -n "$JQ_CMD" ]]; then
+    if echo "$OUTPUT" | "$JQ_CMD" empty 2>/dev/null; then
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "${GREEN}✓${NC} PASS: Output is valid JSON"
+    else
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "${RED}✗${NC} FAIL: Output is not valid JSON"
+        echo "  Output: $OUTPUT"
+    fi
+
+    # Verify hookSpecificOutput.hookEventName
+    # Strip CR characters (Windows jq.exe may output CRLF)
+    HOOK_EVENT=$(echo "$OUTPUT" | "$JQ_CMD" -r '.hookSpecificOutput.hookEventName // empty' 2>/dev/null | tr -d '\r')
+    assert_equals "SessionStart" "$HOOK_EVENT" "hookEventName is SessionStart"
+
+    # Verify additionalContext exists and is non-empty
+    CONTEXT=$(echo "$OUTPUT" | "$JQ_CMD" -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+    if [[ -n "$CONTEXT" ]]; then
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "${GREEN}✓${NC} PASS: additionalContext is non-empty"
+    else
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "${RED}✗${NC} FAIL: additionalContext should be non-empty"
+    fi
+else
+    skip_test "jq not found - skipping detailed JSON validation"
+
+    # Basic JSON structure check without jq
+    if [[ "$OUTPUT" == *"{"* && "$OUTPUT" == *"}"* ]]; then
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        echo -e "${GREEN}✓${NC} PASS: Output has JSON structure (basic check)"
+    else
+        TESTS_RUN=$((TESTS_RUN + 1))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        echo -e "${RED}✗${NC} FAIL: Output should have JSON structure"
+    fi
+fi
+
+# ============================================================================
+# SECTION 6: Exemption Content
+# ============================================================================
+test_section "Exemption Content"
+
+OUTPUT=$(run_hook '{}')
+
+# Verify exemption guidance is included
+assert_contains "$OUTPUT" "Exempt" "Contains exemption guidance"
+
+# ============================================================================
+# SECTION 7: Idempotency (Multiple Runs)
+# ============================================================================
+test_section "Idempotency"
+
+# Hook should work consistently across multiple invocations
+OUTPUT1=$(run_hook '{}')
+OUTPUT2=$(run_hook '{}')
+
+# Both outputs should have the same structure
+if has_context_injection "$OUTPUT1" && has_context_injection "$OUTPUT2"; then
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "${GREEN}✓${NC} PASS: Multiple invocations produce consistent structure"
+else
+    TESTS_RUN=$((TESTS_RUN + 1))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    echo -e "${RED}✗${NC} FAIL: Hook should produce consistent output structure"
+fi
+
+test_suite_end

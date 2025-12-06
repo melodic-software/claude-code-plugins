@@ -1,0 +1,17 @@
+{
+  "description": "Response quality enforcement hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/source-citation/inject-citation-context.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
