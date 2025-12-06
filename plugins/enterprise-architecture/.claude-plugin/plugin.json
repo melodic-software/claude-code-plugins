@@ -1,0 +1,31 @@
+{
+  "name": "enterprise-architecture",
+  "version": "1.0.0",
+  "description": "AI-assisted enterprise architecture guidance based on TOGAF, Zachman Framework, ADRs, and cloud alignment",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/enterprise-architecture",
+  "keywords": [
+    "enterprise-architecture",
+    "togaf",
+    "zachman",
+    "adr",
+    "architecture-decision-records",
+    "cloud-adoption-framework",
+    "well-architected",
+    "documentation",
+    "c4-model"
+  ],
+  "agents": [
+    "./agents/architecture-documenter.md",
+    "./agents/viewpoint-analyzer.md",
+    "./agents/principles-validator.md",
+    "./agents/migration-explorer.md"
+  ],
+  "commands": "./commands",
+  "hooks": "./hooks/hooks.json"
+}

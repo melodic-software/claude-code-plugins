@@ -33,14 +33,26 @@
     "logging",
     "event-logging",
     "date-injection",
-    "validation"
+    "validation",
+    "github-issues",
+    "claude-code-issues",
+    "troubleshooting"
   ],
-  "skills": "./skills",
   "agents": [
     "./agents/docs-researcher.md",
     "./agents/skill-auditor.md",
     "./agents/mcp-research.md",
-    "./agents/prompt-improver.md"
+    "./agents/prompt-improver.md",
+    "./agents/claude-code-issue-researcher.md",
+    "./agents/agent-auditor.md",
+    "./agents/command-auditor.md",
+    "./agents/hook-auditor.md",
+    "./agents/mcp-auditor.md",
+    "./agents/memory-auditor.md",
+    "./agents/output-style-auditor.md",
+    "./agents/plugin-auditor.md",
+    "./agents/settings-auditor.md",
+    "./agents/statusline-auditor.md"
   ],
   "commands": "./commands"
 }

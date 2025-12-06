@@ -23,7 +23,6 @@
     "powershell",
     "system-health"
   ],
-  "skills": "./skills",
   "agents": ["./agents/diagnostician.md"],
   "commands": "./commands"
 }

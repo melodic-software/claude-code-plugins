@@ -26,6 +26,5 @@
     "git-commit",
     "conventional-commits"
   ],
-  "skills": "./skills",
   "commands": "./commands"
 }

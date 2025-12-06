@@ -27,7 +27,6 @@
     "toml-commands",
     "policy-engine"
   ],
-  "skills": "./skills",
   "agents": [
     "./agents/gemini-docs-researcher.md",
     "./agents/gemini-planner.md",

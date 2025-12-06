@@ -1,6 +1,6 @@
 {
   "name": "git",
-  "description": "Git configuration, GPG signing, hooks management, cross-platform setup, and read-only history exploration agent for verbose output summarization.",
+  "description": "Git configuration, GPG signing, hooks management, cross-platform setup, GitHub issues lookup, and read-only agents for history exploration and issue research.",
   "version": "1.0.0",
   "author": {
     "name": "Melodic Software",
@@ -27,8 +27,16 @@
     "lefthook",
     "git-history",
     "git-log",
-    "git-blame"
+    "git-blame",
+    "github-issues",
+    "issue-lookup",
+    "bug-tracking",
+    "troubleshooting",
+    "gh-cli"
   ],
-  "skills": "./skills",
-  "agents": ["./agents/history-reviewer.md"]
+  "agents": [
+    "./agents/history-reviewer.md",
+    "./agents/issue-researcher.md"
+  ],
+  "commands": "./commands"
 }

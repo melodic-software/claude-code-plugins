@@ -1,0 +1,15 @@
+{
+  "name": "response-quality",
+  "description": "Enforces response quality standards including mandatory source citations",
+  "version": "1.0.0",
+  "author": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/melodic-software/claude-code-plugins",
+  "homepage": "https://github.com/melodic-software/claude-code-plugins/tree/main/plugins/response-quality",
+  "keywords": ["response-quality", "source-citation", "citations", "hooks"],
+  "hooks": "hooks/hooks.json",
+  "memory": ["memory/source-citation-requirements.md"]
+}

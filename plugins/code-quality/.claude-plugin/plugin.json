@@ -25,7 +25,6 @@
     "hooks",
     "auto-fix"
   ],
-  "skills": "./skills",
   "agents": [
     "./agents/code-reviewer.md",
     "./agents/codebase-analyst.md",
