@@ -1,0 +1,20 @@
+{
+  "description": "Enterprise architecture compliance hooks (disabled by default)",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/architecture-compliance/check-principles.sh",
+            "timeout": 30,
+            "environment": {
+              "ENABLED": "${CLAUDE_HOOK_ARCHITECTURE_COMPLIANCE_ENABLED:-false}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
