@@ -18,7 +18,7 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 ## Plugins
 
 | Plugin | Purpose |
-|--------|---------|
+| ------ | ------- |
 | [claude-ecosystem](plugins/claude-ecosystem/) | Claude Code docs, meta-skills, hooks |
 | [code-quality](plugins/code-quality/) | Code review, linting, debugging |
 | [google-ecosystem](plugins/google-ecosystem/) | Gemini CLI docs and planning |

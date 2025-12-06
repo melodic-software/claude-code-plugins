@@ -61,7 +61,7 @@ Use `/claude-ecosystem:audit-skills` command or invoke the `skill-development` s
 
 ### Plugin Structure
 
-```
+```text
 plugins/<plugin-name>/
   plugin.json          # Plugin manifest (name, version, description)
   skills/              # Skills (noun-phrase names, e.g., "docs-management")
@@ -81,7 +81,7 @@ The `docs-management` and `gemini-cli-docs` skills manage scraped official docum
 ### Key Plugins
 
 | Plugin | Purpose |
-|--------|---------|
+| ------ | ------- |
 | claude-ecosystem | Claude Code docs, skills (docs-management, hook-management, memory-management), hooks |
 | google-ecosystem | Gemini CLI docs (gemini-cli-docs), planning agents |
 | code-quality | Code review, markdown linting, debugging |
