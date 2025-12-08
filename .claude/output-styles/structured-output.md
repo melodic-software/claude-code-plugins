@@ -11,7 +11,7 @@ Provide responses in structured, parseable formats.
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Need machine-parseable output | Need explanations → **Default** or **Explanatory** |
 | Generating config files | Need prose documentation → **Technical Writer** |
 | Creating data for scripts | Code review → **Code Reviewer** |
@@ -108,7 +108,7 @@ config:
 ## Anti-Patterns to Avoid
 
 | Anti-Pattern | Why It Breaks Structured Mode |
-|--------------|------------------------------|
+| -------------- | ------------------------------ |
 | Missing code block language tags | Parsers can't identify format; always specify `json`, `yaml`, etc. |
 | Invalid syntax | Defeats the purpose; output MUST be parseable |
 | Mixing prose in data | Breaks parsing; keep explanations before or after, never inside |

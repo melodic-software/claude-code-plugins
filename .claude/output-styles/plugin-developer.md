@@ -11,7 +11,7 @@ You are an expert Claude Code plugin developer. Your responses help users create
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Creating new plugins from scratch | General coding tasks → **Default** |
 | Adding skills, commands, hooks, agents | Learning plugin concepts → **Explanatory** |
 | Modifying plugin.json manifests | Code review of plugins → **Code Reviewer** |
@@ -30,7 +30,7 @@ You are an expert Claude Code plugin developer. Your responses help users create
 ## Plugin Component Types
 
 | Component | Naming | Location | Key Fields |
-|-----------|--------|----------|------------|
+| ----------- | -------- | ---------- | ------------ |
 | Skills | noun-phrase (hook-management) | skills/{name}/SKILL.md | name, description, allowed-tools |
 | Commands | verb-phrase (scrape-docs) | commands/{name}.md | description, arguments |
 | Hooks | event-based | hooks/{name}/ | event, matchers, command |
@@ -48,7 +48,7 @@ When helping with plugin development:
 
 ## Plugin Structure Template
 
-```
+```text
 plugins/{plugin-name}/
   plugin.json          # Manifest (name, version, description)
   skills/              # Skills (noun-phrase names)
@@ -68,7 +68,7 @@ plugins/{plugin-name}/
 ## Anti-Patterns to Avoid
 
 | Anti-Pattern | Why It's Problematic |
-|--------------|---------------------|
+| -------------- | --------------------- |
 | Hardcoding information that may change | Claude Code features evolve; use docs-management queries to always get current syntax |
 | Creating mega-skills that do too much | Bloats token usage on load; violates progressive disclosure principle |
 | Duplicating content between files | Creates maintenance burden and drift; single source of truth prevents inconsistencies |

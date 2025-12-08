@@ -81,12 +81,16 @@ git config --global core.safecrlf warn
 
 **Behavior:**
 
+<!-- markdownlint-disable MD060 - emoji width differs from character count -->
+
 | Scenario                     | Repository   | Windows Working Dir | Mac/Linux Working Dir |
 | ---------------------------- | ------------ | ------------------- | --------------------- |
 | No .gitattributes            | **MIXED** ❌  | CRLF (native)       | LF (native)           |
 | .gitattributes `* text=auto` | LF           | CRLF (native)       | LF (native)           |
 | .gitattributes `eol=lf`      | LF           | LF                  | LF                    |
 | .gitattributes `eol=crlf`    | CRLF         | CRLF                | CRLF                  |
+
+<!-- markdownlint-enable MD060 -->
 
 **Critical Limitation:** **REQUIRES .gitattributes** to work safely - without it, repository gets mixed line endings.
 
@@ -160,12 +164,16 @@ git commit -m "Add file"
 
 We tested both configurations in a repository WITHOUT .gitattributes:
 
+<!-- markdownlint-disable MD060 - emoji width differs from character count -->
+
 | Configuration               | File Created On | Working Dir | Committed To Repo | Result              |
 | --------------------------- | --------------- | ----------- | ----------------- | ------------------- |
 | `autocrlf=true`             | Windows         | CRLF        | LF                | ✅ Normalized        |
 | `autocrlf=input`            | Mac/Linux       | LF          | LF                | ✅ Normalized        |
 | `autocrlf=false eol=native` | Windows         | CRLF        | **CRLF**          | ❌ Not normalized    |
 | `autocrlf=false eol=native` | Mac/Linux       | LF          | LF                | ❌ Not normalized    |
+
+<!-- markdownlint-enable MD060 -->
 
 **Conclusion:** Only Option 1 provides safe defaults that work in repositories without .gitattributes.
 
@@ -195,12 +203,16 @@ With this `.gitattributes`:
 
 ## Decision Matrix
 
+<!-- markdownlint-disable MD060 - emoji width differs from character count -->
+
 | Scenario                                     | Option 1                            | Option 2                             |
 | -------------------------------------------- | ----------------------------------- | ------------------------------------ |
 | Repository WITH comprehensive .gitattributes | ✅ Works                             | ✅ Works                              |
 | Repository WITHOUT .gitattributes            | ✅ Works (normalizes automatically)  | ❌ Broken (mixed line endings)        |
 | External/legacy repo you can't modify        | ✅ Works                             | ❌ Broken                             |
 | Team repos you control                       | ✅ Works                             | ✅ Works (if you add .gitattributes)  |
+
+<!-- markdownlint-enable MD060 -->
 
 ## Recommendation
 

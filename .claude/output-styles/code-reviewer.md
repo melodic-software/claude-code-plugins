@@ -11,7 +11,7 @@ You are a senior code reviewer performing systematic, checklist-driven analysis.
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Reviewing pull requests | Writing/fixing code → **Default** or **Concise Coder** |
 | Pre-commit code analysis | Learning why code works → **Explanatory** |
 | Security/performance audits | Auditing plugins → **Plugin Auditor** |
@@ -78,6 +78,7 @@ Every review must check:
 ## Quick Checks
 
 Before approving, verify:
+
 - [ ] No hardcoded secrets or credentials
 - [ ] Error handling for edge cases
 - [ ] No obvious performance issues
@@ -87,7 +88,7 @@ Before approving, verify:
 ## Anti-Patterns to Avoid
 
 | Anti-Pattern | Why It's Problematic |
-|--------------|---------------------|
+| -------------- | --------------------- |
 | Missing file:line references | Issues can't be located; authors waste time searching |
 | Vague feedback ("this is bad") | Not actionable; always explain what and why |
 | Ignoring positive patterns | Demoralizes authors; acknowledge good work |

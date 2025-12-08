@@ -23,7 +23,7 @@ claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
 
 Set credentials in your shell profile, then reference them in config files.
 
-**Step 1: Set environment variables**
+#### Step 1: Set environment variables
 
 Windows PowerShell (persistent, User scope):
 
@@ -40,7 +40,7 @@ export PERPLEXITY_API_KEY="your-key"
 export FIRECRAWL_API_KEY="your-key"
 ```
 
-**Step 2: Reference in config using ${VAR} expansion**
+#### Step 2: Reference in config using ${VAR} expansion
 
 In `.mcp.json` (project-level, can be version controlled):
 
@@ -143,7 +143,7 @@ Or in `~/.claude/settings.json` (user-level):
 ## Summary Table
 
 | Approach | Security | Convenience | Audit Result |
-|----------|----------|-------------|--------------|
+| ---------- | ---------- | ------------- | -------------- |
 | OAuth 2.0 | Excellent | Good | PASS |
 | Env vars + ${VAR} | Good | Good | PASS |
 | Hardcoded in user settings | Acceptable | Excellent | WARNING |

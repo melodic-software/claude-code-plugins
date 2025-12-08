@@ -45,15 +45,17 @@ The path `${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/` navigates from the plugin d
 ## Path Resolution
 
 Given:
+
 - `${CLAUDE_PLUGIN_ROOT}` = `/path/to/claude-code-plugins/plugins/plugin-name`
 - Relative path to shared = `/../../shared/hooks/`
 
 Result: `/path/to/claude-code-plugins/shared/hooks/hook-wrapper.py`
 
 This works for all installation modes:
+
 - **Local directory**: Plugins point to git repo, shared directory accessible
 - **Git/GitHub clone**: Entire repo is cloned, preserving directory structure
 
 ## Workaround Reference
 
-This infrastructure works around: https://github.com/anthropics/claude-code/issues/11984
+This infrastructure works around: <https://github.com/anthropics/claude-code/issues/11984>

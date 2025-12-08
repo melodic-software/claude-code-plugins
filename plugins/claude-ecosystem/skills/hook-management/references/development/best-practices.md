@@ -119,7 +119,7 @@ exit 0
 **Message Guidelines:**
 
 | Scenario | Message Pattern | Example |
-|----------|-----------------|---------|
+| ---------- | ----------------- | --------- |
 | Context injection | `{hook}: {noun} {past-verb}` | `inject-best-practices: reminder loaded` |
 | Validation pass | `{hook}: pattern validated` | `prevent-backup-files: pattern validated` |
 | Detection | `{hook}: [{topic}] detected` | `docs-management: [hooks] detected` |

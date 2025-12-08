@@ -13,7 +13,7 @@ This hook provides Claude with a complete, categorized index of ALL available ca
 Configure via environment variables:
 
 | Variable | Values | Default | Description |
-|----------|--------|---------|-------------|
+| ---------- | -------- | --------- | ------------- |
 | `CLAUDE_HOOK_CAPABILITY_INDEX_ENABLED` | `0`, `1` | `1` | Enable/disable hook |
 | `CLAUDE_HOOK_CAPABILITY_INDEX_MODE` | `static`, `cached`, `dynamic` | `static` | Generation strategy |
 | `CLAUDE_HOOK_CAPABILITY_INDEX_DETAIL` | `minimal`, `standard`, `comprehensive` | `standard` | Token budget level |
@@ -27,7 +27,7 @@ Configure via environment variables:
 ### Detail Levels
 
 | Level | Estimated Tokens | Contents |
-|-------|------------------|----------|
+| ------- | ------------------ | ---------- |
 | `minimal` | ~1,500 | Names + 1-line descriptions |
 | `standard` | ~2,200 | Names + descriptions + keywords |
 | `comprehensive` | ~3,500 | Full index with usage triggers and examples |
@@ -77,7 +77,7 @@ Commands: /scrape-docs, /refresh-docs, /list-skills, ...
 
 ## File Structure
 
-```
+```text
 inject-capability-index/
 ├── README.md                 # This file
 ├── bash/

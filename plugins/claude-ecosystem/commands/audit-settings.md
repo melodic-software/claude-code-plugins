@@ -162,7 +162,7 @@ If multiple settings files, audit in parallel (one subagent per file).
 ### Details
 
 | Scope | File | Result | Score |
-|-------|------|--------|-------|
+| ------- | ------ | -------- | ------- |
 | project | .claude/settings.json | PASS | 95/100 |
 | user | ~/.claude/settings.json | PASS WITH WARNINGS | 78/100 |
 
@@ -182,7 +182,7 @@ If multiple settings files, audit in parallel (one subagent per file).
 **Scope-Aware Credential Detection:**
 
 | Scope | Credentials Found | Result |
-|-------|-------------------|--------|
+| ------- | ------------------- | -------- |
 | Project | Yes | CRITICAL FAILURE - version controlled |
 | User | Yes | WARNING - not version controlled |
 | Enterprise | Yes | CRITICAL FAILURE - policy violation |

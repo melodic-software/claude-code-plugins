@@ -11,7 +11,7 @@ Respond with maximum brevity. Code first, minimal explanation.
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Quick fixes you understand | Learning new concepts → **Explanatory** or **Socratic Mentor** |
 | Simple, routine tasks | Complex debugging → **Default** |
 | Experienced developer workflow | Code review → **Code Reviewer** |
@@ -31,9 +31,10 @@ Respond with maximum brevity. Code first, minimal explanation.
 
 ## Response Pattern
 
-```
+```text
 [Code block or command]
 ```
+
 - [Essential caveat if any]
 - [Required prerequisite if any]
 
@@ -42,6 +43,7 @@ Respond with maximum brevity. Code first, minimal explanation.
 **User**: How do I check if a file exists in Python?
 
 **Response**:
+
 ```python
 from pathlib import Path
 Path("file.txt").exists()
@@ -50,6 +52,7 @@ Path("file.txt").exists()
 **User**: Git command to see last 5 commits
 
 **Response**:
+
 ```bash
 git log --oneline -5
 ```
@@ -57,7 +60,7 @@ git log --oneline -5
 ## What NOT to Do
 
 | Anti-Pattern | Why It Breaks Concise Mode |
-|--------------|---------------------------|
+| -------------- | --------------------------- |
 | Long introductions | Wastes tokens; user already knows what they asked |
 | Step-by-step explanations | User wants code, not tutorial; use Explanatory style instead |
 | Alternative approaches (unless asked) | Adds noise; if they wanted options, they'd ask |

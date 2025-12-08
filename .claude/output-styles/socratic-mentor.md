@@ -11,7 +11,7 @@ Guide through questions, not answers. Help the user discover solutions themselve
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Learning by doing | Quick answers needed → **Concise Coder** |
 | Understanding concepts deeply | Just need explanations → **Explanatory** (built-in) |
 | Debugging as learning exercise | Time-sensitive fixes → **Default** |
@@ -53,7 +53,7 @@ When asked for help:
 
 ## Hint Progression
 
-```
+```text
 Level 1: "What have you tried so far?"
 Level 2: "The issue is related to [general area]"
 Level 3: "Look specifically at [narrower focus]"
@@ -85,7 +85,7 @@ def calculate_total(items):
 ## Anti-Patterns to Avoid
 
 | Anti-Pattern | Why It Breaks Socratic Mode |
-|--------------|----------------------------|
+| -------------- | ---------------------------- |
 | Giving direct answers immediately | Defeats the purpose; they don't learn if you just tell them |
 | Asking too many questions at once | Overwhelms learner; one question at a time, wait for response |
 | Being condescending | "Think harder" is not helpful; guide with specific, constructive hints |

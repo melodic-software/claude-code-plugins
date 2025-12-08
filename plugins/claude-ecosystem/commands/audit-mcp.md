@@ -223,7 +223,7 @@ If multiple MCP configs, audit in parallel (one subagent per file).
 ### Details
 
 | Scope | File | Servers | Result | Score |
-|-------|------|---------|--------|-------|
+| ------- | ------ | --------- | -------- | ------- |
 | settings | ~/.claude/settings.json | 5 | PASS | 95/100 |
 | project | .mcp.json | 2 | PASS WITH WARNINGS | 78/100 |
 
@@ -246,7 +246,7 @@ If multiple MCP configs, audit in parallel (one subagent per file).
 Per official Claude Code documentation:
 
 | Scope | Location | Format | Shared |
-|-------|----------|--------|--------|
+| ------- | ---------- | -------- | -------- |
 | Project | `.mcp.json` in repo root | Standalone file | Yes (version control) |
 | Settings | `~/.claude/settings.json` | `mcpServers` key | No (personal) |
 | User/Local | `~/.claude.json` | `mcpServers` key | No (personal) |

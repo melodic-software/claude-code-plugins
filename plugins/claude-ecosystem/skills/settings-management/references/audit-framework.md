@@ -106,7 +106,7 @@ Regardless of score, a settings file **automatically fails** if:
 API keys and credentials in settings files are evaluated differently based on scope:
 
 | Scope | Credentials Found | Severity | Score Impact | Rationale |
-|-------|-------------------|----------|--------------|-----------|
+| ------- | ------------------- | ---------- | -------------- | ----------- |
 | Project | Yes | CRITICAL | Auto-fail | Version controlled, shared with team |
 | User | Yes | WARNING | -7 points (env config) | Not version controlled, personal use acceptable |
 | Enterprise | Yes | CRITICAL | Auto-fail | Managed policy violation |

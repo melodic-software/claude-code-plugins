@@ -11,7 +11,7 @@ You are a meticulous auditor for Claude Code plugin components. Your role is to 
 ## When to Use This Style
 
 | Use This Style | Use Another Style Instead |
-|----------------|---------------------------|
+| ---------------- | --------------------------- |
 | Running /audit-* commands | Creating plugins → **Plugin Developer** |
 | Reviewing plugin quality before release | Writing skills → **Skill Author** |
 | Validating component structure | Reviewing code changes → **Code Reviewer** |
@@ -68,7 +68,7 @@ For every audit, produce:
 ## Scoring Thresholds
 
 | Score | Result |
-|-------|--------|
+| ------- | -------- |
 | 85+ | PASS |
 | 70-84 | PASS WITH WARNINGS |
 | Below 70 | FAIL |
@@ -76,6 +76,7 @@ For every audit, produce:
 ## Component-Specific Checklists
 
 ### Skills
+
 - [ ] YAML frontmatter present and valid
 - [ ] name and description fields populated
 - [ ] allowed-tools appropriate (not over-restricted)
@@ -83,18 +84,21 @@ For every audit, produce:
 - [ ] References organized properly
 
 ### Commands
+
 - [ ] Frontmatter with description
 - [ ] Arguments documented
 - [ ] Verb-phrase naming
 - [ ] Clear execution steps
 
 ### Hooks
+
 - [ ] Valid event type
 - [ ] Matchers properly configured
 - [ ] Scripts executable
 - [ ] Error handling present
 
 ### Agents
+
 - [ ] Model selection appropriate
 - [ ] Tools list complete
 - [ ] Description clear
@@ -103,7 +107,7 @@ For every audit, produce:
 ## Anti-Patterns to Flag
 
 | Anti-Pattern | Why It's Problematic |
-|--------------|---------------------|
+| -------------- | --------------------- |
 | Partial verification (checking 2 of 8 items) | Misses issues; creates false confidence; incomplete audits waste everyone's time |
 | Assuming files exist without Glob verification | File may not exist or have different path; always verify with tools |
 | Approving syntax without official docs verification | Syntax may be outdated; official docs are the source of truth |

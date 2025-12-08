@@ -1,14 +1,10 @@
 {
-    "$schema": "https://json.schemastore.org/claude-code-settings.json",
-
-
-    "disableAllHooks": false,
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "disableAllHooks": false,
   "env": {
     "USE_BUILTIN_RIPGREP": "0",
-
     "CLAUDE_HOOK_DEBUG": "0",
     "CLAUDE_HOOK_LOG_LEVEL": "info",
-
     "CLAUDE_HOOK_MARKDOWN_LINT_ENABLED": "0",
     "CLAUDE_HOOK_PREVENT_BACKUP_FILES_ENABLED": "1",
     "CLAUDE_HOOK_REQUIRE_GPG_SIGNING_ENABLED": "0",
@@ -19,7 +15,6 @@
     "CLAUDE_HOOK_SECRET_SCAN_ENABLED": "0",
     "CLAUDE_HOOK_SUGGEST_DOCS_DELEGATION_ENABLED": "1",
     "CLAUDE_HOOK_SUGGEST_GEMINI_DOCS_ENABLED": "1",
-
     "CLAUDE_HOOK_LOG_EVENTS_ENABLED": "1",
     "CLAUDE_HOOK_LOG_PRETOOLUSE_ENABLED": "1",
     "CLAUDE_HOOK_LOG_POSTTOOLUSE_ENABLED": "1",
@@ -31,13 +26,11 @@
     "CLAUDE_HOOK_LOG_PRECOMPACT_ENABLED": "1",
     "CLAUDE_HOOK_LOG_NOTIFICATION_ENABLED": "1",
     "CLAUDE_HOOK_LOG_PERMISSIONREQUEST_ENABLED": "1",
-
     "CLAUDE_HOOK_LOG_VERBOSITY": "summary",
     "CLAUDE_HOOK_LOG_ROTATION_ENABLED": "1",
     "CLAUDE_HOOK_LOG_ROTATION_MAX_SIZE_MB": "10",
     "CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS": "30"
   },
-
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [
@@ -75,7 +68,6 @@
     ],
     "ask": []
   },
-
   "statusLine": {
     "type": "command",
     "command": "./scripts/statusline.sh"
