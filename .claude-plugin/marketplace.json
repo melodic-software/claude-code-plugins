@@ -87,8 +87,8 @@
       "license": "MIT"
     },
     {
-      "name": "tactical-agentic-coding",
-      "source": "./plugins/tactical-agentic-coding",
+      "name": "tac",
+      "source": "./plugins/tac",
       "description": "Tactical Agentic Coding course content by @IndyDevDan - Master agentic coding tactics to scale engineering and build self-operating codebases",
       "version": "1.0.0",
       "author": {

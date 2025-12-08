@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/source-citation/inject-citation-context.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/source-citation/inject-citation-context.sh",
             "timeout": 5
           }
         ]

@@ -1,5 +1,7 @@
 # Context Engineering Principles
 
+**Token Budget:** ~4,390 tokens | **Load Type:** Context-dependent (load for context management guidance)
+
 This document contains principles for effectively engineering context for AI agents, extracted from Anthropic's engineering research on context management and optimization.
 
 **Source:** Use docs-management skill to find "effective-context-engineering-for-ai-agents" documentation
@@ -449,4 +451,4 @@ Context engineering is about thoughtfully curating what enters the model's limit
 
 ---
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-06

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/cli-reference
 source_type: llms-txt
-content_hash: sha256:740e37a9798a59dc90e9cf3923aebd5d1dd14f40ddafefd16fd5696548407857
+content_hash: sha256:0008d7582dd382b277eccd67ec9ae51744d9d47942ef6ae5513dbfac9e8bc43c
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -38,7 +38,7 @@ Customize Claude Code's behavior with these command-line flags:
 | `--betas`                        | Beta headers to include in API requests (API key users only)                                                                                                                                            | `claude --betas interleaved-thinking`                                                              |
 | `--continue`, `-c`               | Load the most recent conversation in the current directory                                                                                                                                              | `claude --continue`                                                                                |
 | `--dangerously-skip-permissions` | Skip permission prompts (use with caution)                                                                                                                                                              | `claude --dangerously-skip-permissions`                                                            |
-| `--debug`                        | Enable debug mode with optional category filtering (e.g., `"api,hooks"` or `"!statsig,!file"`)                                                                                                          | `claude --debug "api,mcp"`                                                                         |
+| `--debug`                        | Enable debug mode with optional category filtering (for example, `"api,hooks"` or `"!statsig,!file"`)                                                                                                   | `claude --debug "api,mcp"`                                                                         |
 | `--disallowedTools`              | A list of tools that should be disallowed without prompting the user for permission, in addition to [settings.json files](/en/settings)                                                                 | `"Bash(git log:*)" "Bash(git diff:*)" "Edit"`                                                      |
 | `--fallback-model`               | Enable automatic fallback to specified model when default model is overloaded (print mode only)                                                                                                         | `claude -p --fallback-model sonnet "query"`                                                        |
 | `--fork-session`                 | When resuming, create a new session ID instead of reusing the original (use with `--resume` or `--continue`)                                                                                            | `claude --resume abc123 --fork-session`                                                            |
@@ -74,12 +74,12 @@ Customize Claude Code's behavior with these command-line flags:
 
 The `--agents` flag accepts a JSON object that defines one or more custom subagents. Each subagent requires a unique name (as the key) and a definition object with the following fields:
 
-| Field         | Required | Description                                                                                                     |
-| :------------ | :------- | :-------------------------------------------------------------------------------------------------------------- |
-| `description` | Yes      | Natural language description of when the subagent should be invoked                                             |
-| `prompt`      | Yes      | The system prompt that guides the subagent's behavior                                                           |
-| `tools`       | No       | Array of specific tools the subagent can use (e.g., `["Read", "Edit", "Bash"]`). If omitted, inherits all tools |
-| `model`       | No       | Model alias to use: `sonnet`, `opus`, or `haiku`. If omitted, uses the default subagent model                   |
+| Field         | Required | Description                                                                                                            |
+| :------------ | :------- | :--------------------------------------------------------------------------------------------------------------------- |
+| `description` | Yes      | Natural language description of when the subagent should be invoked                                                    |
+| `prompt`      | Yes      | The system prompt that guides the subagent's behavior                                                                  |
+| `tools`       | No       | Array of specific tools the subagent can use (for example, `["Read", "Edit", "Bash"]`). If omitted, inherits all tools |
+| `model`       | No       | Model alias to use: `sonnet`, `opus`, or `haiku`. If omitted, uses the default subagent model                          |
 
 Example:
 

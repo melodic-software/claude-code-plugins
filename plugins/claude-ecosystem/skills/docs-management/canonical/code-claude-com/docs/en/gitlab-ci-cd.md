@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/gitlab-ci-cd
 source_type: llms-txt
-content_hash: sha256:656adf857a361cf620832fb5372a2dc2b34e3ba39b53c705da481c00bef562ef
+content_hash: sha256:f96ee45c9fecb2886d4cc36e399993c2f1697a0e44fca7cf4b2c6f1f7ef2c5e7
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -387,7 +387,7 @@ Create a `CLAUDE.md` file at the repository root to define coding standards, rev
 
 ### Security considerations
 
-Never commit API keys or cloud credentials to your repository! Always use GitLab CI/CD variables:
+**Never commit API keys or cloud credentials to your repository**. Always use GitLab CI/CD variables:
 
 * Add `ANTHROPIC_API_KEY` as a masked variable (and protect it if needed)
 * Use provider-specific OIDC where possible (no long-lived keys)

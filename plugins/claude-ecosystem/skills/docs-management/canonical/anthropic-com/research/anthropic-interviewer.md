@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/anthropic-interviewer
 source_type: sitemap
-content_hash: sha256:423d7ee081f3a1289cba5f1f5cce81b1476dc577c4a6ebdfc22a551aa1325d8a
+content_hash: sha256:0052209b46ed00db7021376bfe73447a6ac1778279ff88aadb3a68cc89cf05da
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 published_at: '2025-12-04'
@@ -361,7 +361,7 @@ We will use Anthropic Interviewer to ask you about your vision for AI's role in 
 
 **3. How will you use the data?**
 
-We will analyze the insights from this study as part of our Societal Impacts research, publish our findings, and use this to improve our models and services in a way that reflects what we've learned. The data we collect through this study will be treated as Feedback and will be processed according to our [Privacy Policy](https://www.anthropic.com/legal/privacy). We may also include anonymized responses in published findings. **Learn more.**
+We will analyze the insights from this study as part of our Societal Impacts research, publish our findings, and use this to improve our models and services in a way that reflects what we've learned. The data we collect through this study will be treated as Feedback and will be processed according to our [Privacy Policy](https://www.anthropic.com/legal/privacy). We may also include anonymized responses in published findings. [**Learn more.**](https://privacy.claude.com/en/articles/12996960-how-does-anthropic-interviewer-collect-and-use-my-data)
 
 **4. Why don’t I see the Anthropic Interviewer invitation in [Claude.ai](http://claude.ai/redirect/website.v1.NORMALIZED)?**
 

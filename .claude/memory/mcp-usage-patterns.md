@@ -1,5 +1,7 @@
 # MCP Server Usage Patterns
 
+**Token Budget:** ~650 tokens | **Load Type:** Context-dependent (load when MCP guidance needed)
+
 Use appropriate MCP servers to access current, official documentation before planning or making changes. Use MCP servers proactively.
 
 ## Technology-Specific MCP Selection
@@ -44,4 +46,9 @@ When uncertain which MCP to use:
 1. Start with technology-specific MCP (microsoft-learn for MS tech, context7/ref for libraries)
 2. Enrich with perplexity/firecrawl if needed
 
-**Last Updated:** 2025-11-30
+## Related Documentation
+
+- `.claude/memory/claude-code-ecosystem.md` - Claude Code ecosystem and skill references
+- `.claude/memory/natural-language-guidance.md` - Prompting guidance for MCP queries
+
+**Last Updated:** 2025-12-06

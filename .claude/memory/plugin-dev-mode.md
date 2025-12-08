@@ -1,5 +1,7 @@
 # Plugin Development Mode
 
+**Token Budget:** ~1,200 tokens | **Load Type:** Context-dependent (load when developing plugins)
+
 ## Problem: Installed Plugin vs Development Repository
 
 When plugins are installed via `/plugin install`, Claude Code uses scripts from the **installed plugin location** (typically `~/.claude/plugins/marketplaces/...`), not from your development repository.
@@ -117,4 +119,4 @@ python scripts/core/scrape_all_sources.py  # <-- env var NOT set here!
 4. **Wrong env var name?** Each skill uses a different env var - check the table above
 5. **PROD MODE when expecting DEV?** The env var was not set - use inline syntax
 
-**Last Updated:** 2025-12-03
+**Last Updated:** 2025-12-06

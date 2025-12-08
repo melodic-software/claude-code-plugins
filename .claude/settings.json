@@ -1,6 +1,8 @@
 {
     "$schema": "https://json.schemastore.org/claude-code-settings.json",
 
+
+    "disableAllHooks": false,
   "env": {
     "USE_BUILTIN_RIPGREP": "0",
 
@@ -18,17 +20,17 @@
     "CLAUDE_HOOK_SUGGEST_DOCS_DELEGATION_ENABLED": "1",
     "CLAUDE_HOOK_SUGGEST_GEMINI_DOCS_ENABLED": "1",
 
-    "CLAUDE_HOOK_LOG_EVENTS_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_PRETOOLUSE_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_POSTTOOLUSE_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_USERPROMPTSUBMIT_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_STOP_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_SUBAGENTSTOP_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_SESSIONSTART_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_SESSIONEND_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_PRECOMPACT_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_NOTIFICATION_ENABLED": "0",
-    "CLAUDE_HOOK_LOG_PERMISSIONREQUEST_ENABLED": "0",
+    "CLAUDE_HOOK_LOG_EVENTS_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_PRETOOLUSE_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_POSTTOOLUSE_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_USERPROMPTSUBMIT_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_STOP_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_SUBAGENTSTOP_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_SESSIONSTART_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_SESSIONEND_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_PRECOMPACT_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_NOTIFICATION_ENABLED": "1",
+    "CLAUDE_HOOK_LOG_PERMISSIONREQUEST_ENABLED": "1",
 
     "CLAUDE_HOOK_LOG_VERBOSITY": "summary",
     "CLAUDE_HOOK_LOG_ROTATION_ENABLED": "1",
@@ -76,6 +78,6 @@
 
   "statusLine": {
     "type": "command",
-    "command": "bun x ccusage statusline --visual-burn-rate emoji --context-low-threshold 50 --context-medium-threshold 80 --cost-source auto --no-offline"
+    "command": "./scripts/statusline.sh"
   }
 }

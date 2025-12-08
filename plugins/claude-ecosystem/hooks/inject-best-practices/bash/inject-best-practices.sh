@@ -112,6 +112,7 @@ ESCAPED_MSG=$(json_escape "$CONTEXT_MSG")
 # Output JSON with additionalContext
 cat << EOF
 {
+  "systemMessage": "inject-best-practices: reminder loaded",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
     "additionalContext": "$ESCAPED_MSG"

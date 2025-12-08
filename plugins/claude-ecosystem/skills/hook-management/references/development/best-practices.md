@@ -95,7 +95,44 @@ echo "ERROR: Missing dependency: jq" >&2
 exit 3
 ```
 
-### 6. Log Appropriately
+### 6. Include systemMessage for User Feedback
+
+All hooks should output a descriptive `systemMessage` in their JSON output so users can see what hooks are being fired:
+
+```bash
+# Format: {hook-name}: {brief-action}
+# Keep messages under 50 characters
+
+# For success/allow cases with JSON output:
+cat << EOF
+{
+  "systemMessage": "my-hook: action completed",
+  "hookSpecificOutput": { ... }
+}
+EOF
+
+# For simple success cases:
+echo '{"systemMessage":"my-hook: pattern validated"}'
+exit 0
+```
+
+**Message Guidelines:**
+
+| Scenario | Message Pattern | Example |
+|----------|-----------------|---------|
+| Context injection | `{hook}: {noun} {past-verb}` | `inject-best-practices: reminder loaded` |
+| Validation pass | `{hook}: pattern validated` | `prevent-backup-files: pattern validated` |
+| Detection | `{hook}: [{topic}] detected` | `docs-management: [hooks] detected` |
+| Disabled | `{hook}: disabled` | `markdown-lint: disabled` |
+| Skipped | `{hook}: skipped ({reason})` | `markdown-lint: skipped (not markdown)` |
+| Active state | `{hook}: {noun} active` | `source-citation: requirements active` |
+
+**When to omit systemMessage:**
+
+- Logging/observability hooks (would create noise on every event)
+- Blocking hooks (exit code 2) use stderr for error messages instead
+
+### 7. Log Appropriately
 
 Use `log_message()` with appropriate levels:
 
@@ -108,7 +145,7 @@ log_message "error" "Critical failure: ${ERROR}"
 
 Logs respect global log_level configuration.
 
-### 7. Handle Missing Dependencies
+### 8. Handle Missing Dependencies
 
 Check for required tools and provide helpful error messages:
 
@@ -121,7 +158,7 @@ if ! command -v git &>/dev/null; then
 fi
 ```
 
-### 8. Source from Script Location
+### 9. Source from Script Location
 
 Use `$SCRIPT_DIR` for portability:
 

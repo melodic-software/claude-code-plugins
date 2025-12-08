@@ -1,6 +1,6 @@
 ---
 description: Audit MCP server configurations for quality, compliance, and security
-argument-hint: [project | user | all] [--force] (optional)
+argument-hint: [project | user | settings | all] [--force] (optional)
 allowed-tools: Read, Write, Edit, Bash(ls:*), Bash(git:*), Bash(test:*), Glob, Task, Skill
 ---
 
@@ -8,16 +8,34 @@ allowed-tools: Read, Write, Edit, Bash(ls:*), Bash(git:*), Bash(test:*), Glob, T
 
 You are tasked with auditing MCP server configurations for quality, compliance, and security.
 
+## Step 0: Load Official Documentation (REQUIRED)
+
+**CRITICAL**: Before discovering MCP configurations, invoke the `docs-management` skill to get authoritative information about MCP configuration locations:
+
+```text
+Invoke docs-management skill with keywords: "MCP installation scopes", ".mcp.json", "mcpServers"
+```
+
+This ensures the audit uses current official documentation for configuration discovery.
+
 ## What Gets Audited
 
-This command audits:
+This command audits MCP server configurations from multiple sources:
 
-- `.mcp.json` structure and syntax
+- **Project scope**: `.mcp.json` in project root (version-controlled, team-shared)
+- **User settings**: `~/.claude/settings.json` with `mcpServers` key (CLI-configured servers)
+- **User/Local scope**: `~/.claude.json` with `mcpServers` key (per official docs)
+- **Plugin scope**: `.mcp.json` files within plugin directories
+- **Enterprise scope**: `managed-mcp.json` in system directories
+
+For each configuration, the audit validates:
+
+- JSON structure and syntax
 - Server configuration fields
 - Transport types (stdio, HTTP, SSE)
 - Authentication patterns
 - Environment variable usage
-- Scope appropriateness (project, user, plugin)
+- Security (no exposed credentials)
 
 ## Command Arguments
 
@@ -25,70 +43,109 @@ This command accepts **scope selectors and/or flags** as arguments:
 
 - **No arguments**: Audit all discoverable MCP configurations
 - **project**: Audit only `.mcp.json` in project root
-- **user**: Audit only `~/.claude/.mcp.json`
-- **all**: Audit all MCP configs (project + user + any plugin configs)
+- **user**: Audit user-level configs (`~/.claude/settings.json` and `~/.claude.json`)
+- **settings**: Audit only `~/.claude/settings.json` mcpServers
+- **all**: Audit all MCP configs (project + user + settings + plugins)
 - **--force**: Audit regardless of modification status
 
 **Argument format**:
 
-- Scope first (e.g., `project`, `user`, `all`)
+- Scope first (e.g., `project`, `user`, `settings`, `all`)
 - Flags last: `--force` (case-insensitive)
 
-## Step 0: Get Current Date (REQUIRED)
+## Step 1: Get Current Date (REQUIRED)
 
 ```bash
 date -u +"%Y-%m-%d"
 ```
 
-## Step 1: Discover MCP Configurations
+## Step 2: Discover MCP Configurations
 
 ### Detection Algorithm
 
+Check all official MCP configuration locations:
+
 ```bash
-# Check for project MCP config
+# 1. Check for project-scoped .mcp.json (version-controlled)
 if [ -f ".mcp.json" ]; then
     echo "HAS_PROJECT_MCP=true"
+    echo "PROJECT_MCP_PATH=.mcp.json"
 fi
 
-# Check for user MCP config
-if [ -f "$HOME/.claude/.mcp.json" ]; then
-    echo "HAS_USER_MCP=true"
+# 2. Check user settings.json for mcpServers (CLI-configured servers)
+if [ -f "$HOME/.claude/settings.json" ]; then
+    # Check if mcpServers key exists
+    if grep -q '"mcpServers"' "$HOME/.claude/settings.json" 2>/dev/null; then
+        echo "HAS_SETTINGS_MCP=true"
+        echo "SETTINGS_MCP_PATH=$HOME/.claude/settings.json"
+    fi
 fi
 
-# Check for plugin MCP configs (in marketplace repos)
+# 3. Check ~/.claude.json for mcpServers (per official docs)
+if [ -f "$HOME/.claude.json" ]; then
+    if grep -q '"mcpServers"' "$HOME/.claude.json" 2>/dev/null; then
+        echo "HAS_USER_MCP=true"
+        echo "USER_MCP_PATH=$HOME/.claude.json"
+    fi
+fi
+
+# 4. Check for plugin MCP configs (in marketplace repos)
 if [ -f "marketplace.json" ] || [ -f ".claude-plugin/marketplace.json" ]; then
-    # Find all .mcp.json within plugin directories
-    find plugins -name ".mcp.json" 2>/dev/null
+    find plugins -name ".mcp.json" 2>/dev/null | while read -r f; do
+        echo "PLUGIN_MCP_PATH=$f"
+    done
 fi
+
+# 5. Check for enterprise managed-mcp.json (platform-specific)
+# macOS: /Library/Application Support/ClaudeCode/managed-mcp.json
+# Linux: /etc/claude-code/managed-mcp.json
+# Windows: %ProgramData%\ClaudeCode\managed-mcp.json
 ```
 
 ### Build MCP Config List
 
 ```text
-mcp_files = []
+mcp_configs = []
 
-if scope == "project" or scope == "all" or no_scope:
+# Project scope - .mcp.json in repo root
+if scope in ["project", "all", None]:
   if exists(".mcp.json"):
-    mcp_files.append({
+    mcp_configs.append({
       scope: "project",
       path: ".mcp.json",
+      type: "standalone",  # Full .mcp.json file
       audit_log: ".mcp-audit-log.md"
     })
 
-if scope == "user" or scope == "all":
-  if exists("~/.claude/.mcp.json"):
-    mcp_files.append({
-      scope: "user",
-      path: "~/.claude/.mcp.json",
-      audit_log: "~/.claude/.mcp-audit-log.md"
+# User settings - ~/.claude/settings.json (most common for CLI users)
+if scope in ["user", "settings", "all", None]:
+  if exists("~/.claude/settings.json") and has_mcpServers_key:
+    mcp_configs.append({
+      scope: "settings",
+      path: "~/.claude/settings.json",
+      type: "embedded",  # mcpServers key within settings
+      key: "mcpServers",
+      audit_log: "~/.claude/.mcp-settings-audit-log.md"
     })
 
+# User/Local scope - ~/.claude.json (per official docs)
+if scope in ["user", "all"]:
+  if exists("~/.claude.json") and has_mcpServers_key:
+    mcp_configs.append({
+      scope: "user",
+      path: "~/.claude.json",
+      type: "embedded",  # mcpServers key within config
+      key: "mcpServers",
+      audit_log: "~/.claude/.mcp-user-audit-log.md"
+    })
+
+# Plugin scope - .mcp.json within plugins
 if scope == "all":
-  # Include plugin-embedded MCP configs if any
   for each plugin with .mcp.json:
-    mcp_files.append({
+    mcp_configs.append({
       scope: "plugin:{name}",
-      path: "{plugin}/.mcp.json"
+      path: "{plugin}/.mcp.json",
+      type: "standalone"
     })
 ```
 
@@ -96,13 +153,13 @@ if scope == "all":
 
 Based on arguments, filter to requested scope(s).
 
-## Step 2: Parse Arguments
+## Step 3: Parse Arguments
 
 1. Parse scope selector from arguments
 2. Parse flags (--force)
 3. Build filtered MCP config list
 
-## Step 3: Present Audit Plan
+## Step 4: Present Audit Plan
 
 ```markdown
 ## Audit Plan
@@ -111,14 +168,15 @@ Based on arguments, filter to requested scope(s).
 **MCP configurations discovered**: X
 
 ### Files to Audit:
-1. [project] .mcp.json (last modified: YYYY-MM-DD)
-2. [user] ~/.claude/.mcp.json (last modified: YYYY-MM-DD)
+1. [settings] ~/.claude/settings.json (mcpServers) - X servers configured
+2. [project] .mcp.json - Y servers configured
+3. [user] ~/.claude.json (mcpServers) - Z servers configured
 ...
 
 Proceeding with audit...
 ```
 
-## Step 4: Execute Audits
+## Step 5: Execute Audits
 
 ### For Each MCP Configuration
 
@@ -128,8 +186,9 @@ Proceeding with audit...
    Use the mcp-auditor subagent to audit the MCP configuration.
 
    Context:
-   - Scope: {project/user/plugin}
+   - Scope: {project/settings/user/plugin}
    - File path: {full path}
+   - Config type: {standalone .mcp.json | embedded mcpServers key}
    - Last audit: {date} or "Never audited"
 
    The subagent auto-loads mcp-integration skill and handles the audit.
@@ -143,16 +202,18 @@ Proceeding with audit...
 
 If multiple MCP configs, audit in parallel (one subagent per file).
 
-## Step 5: Final Summary
+## Step 6: Final Summary
 
 ```markdown
 ## MCP Audit Complete
 
 **Total audited**: X MCP configurations
+**Total servers**: Y servers across all configs
 **By scope**:
-- Project: 1 file
-- User: 1 file
-- Plugin: N files
+- Settings: 1 file (N servers)
+- Project: 1 file (M servers)
+- User: 1 file (P servers)
+- Plugin: Q files
 
 **Results**:
 - Passed: Y files
@@ -161,10 +222,10 @@ If multiple MCP configs, audit in parallel (one subagent per file).
 
 ### Details
 
-| Scope | File | Result | Score |
-|-------|------|--------|-------|
-| project | .mcp.json | PASS | 95/100 |
-| user | ~/.claude/.mcp.json | PASS WITH WARNINGS | 78/100 |
+| Scope | File | Servers | Result | Score |
+|-------|------|---------|--------|-------|
+| settings | ~/.claude/settings.json | 5 | PASS | 95/100 |
+| project | .mcp.json | 2 | PASS WITH WARNINGS | 78/100 |
 
 **Security Alerts**:
 - [List any security issues found - exposed credentials, etc.]
@@ -180,11 +241,23 @@ If multiple MCP configs, audit in parallel (one subagent per file).
 
 ## Important Notes
 
+### Configuration Location Summary
+
+Per official Claude Code documentation:
+
+| Scope | Location | Format | Shared |
+|-------|----------|--------|--------|
+| Project | `.mcp.json` in repo root | Standalone file | Yes (version control) |
+| Settings | `~/.claude/settings.json` | `mcpServers` key | No (personal) |
+| User/Local | `~/.claude.json` | `mcpServers` key | No (personal) |
+| Plugin | `{plugin}/.mcp.json` | Standalone file | Via plugin |
+| Enterprise | `managed-mcp.json` | Standalone file | Org-managed |
+
 ### Security Considerations
 
 **Critical:** MCP configurations should NEVER contain:
 
-- Hardcoded API keys or tokens (use env var expansion)
+- Hardcoded API keys or tokens (use env var expansion like `${API_KEY}`)
 - Passwords or credentials
 - Private server endpoints without authentication
 
@@ -194,9 +267,9 @@ If found, mark as **CRITICAL FAILURE** and alert user.
 
 Valid transport types:
 
-- `stdio`: Standard input/output
-- `http`: HTTP transport (supports authentication headers)
-- `sse`: Server-Sent Events
+- `stdio`: Standard input/output (local processes)
+- `http`: HTTP transport (recommended for remote servers)
+- `sse`: Server-Sent Events (deprecated, use HTTP)
 
 Verify each server uses a valid transport type.
 
@@ -204,12 +277,18 @@ Verify each server uses a valid transport type.
 
 MCP configs support environment variable expansion. Verify:
 
-- Env vars are used for sensitive values
+- Env vars are used for sensitive values: `${VAR}` or `${VAR:-default}`
 - Expansion syntax is correct
-- Referenced env vars are likely to exist
+- Referenced env vars are documented or likely to exist
+
+### Windows Considerations
+
+- Windows requires `cmd /c` wrapper for npx-based stdio servers
+- Paths use forward slashes in JSON configs
+- User config at `%USERPROFILE%\.claude\settings.json`
 
 ### Cross-Platform Paths
 
-- User MCP config: `~/.claude/.mcp.json`
-- Project MCP config: `.mcp.json` in project root
-- Use forward slashes in paths
+- Project MCP: `.mcp.json` in project root
+- User settings: `~/.claude/settings.json` (or `%USERPROFILE%\.claude\settings.json`)
+- User config: `~/.claude.json` (or `%USERPROFILE%\.claude.json`)

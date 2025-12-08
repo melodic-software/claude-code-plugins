@@ -50,6 +50,7 @@ MSG_DOC="See CLAUDE.md for file management guidelines."
 # Check if hook is enabled (default: enabled)
 if ! is_hook_enabled "PREVENT_BACKUP_FILES" "true"; then
     log_message "debug" "prevent-backup-files: Hook disabled, exiting"
+    echo '{"systemMessage":"prevent-backup-files: disabled"}'
     exit 0
 fi
 
@@ -71,18 +72,21 @@ log_message "debug" "prevent-backup-files: tool=$TOOL, file_path=$FILE_PATH"
 # Only check Write and Edit tools
 if [[ "$TOOL" != "Write" && "$TOOL" != "Edit" ]]; then
     log_message "debug" "prevent-backup-files: Not a Write/Edit tool, allowing"
+    echo '{"systemMessage":"prevent-backup-files: skipped (not Write/Edit)"}'
     exit 0
 fi
 
 # If no file_path, nothing to check
 if [ -z "$FILE_PATH" ]; then
     log_message "debug" "prevent-backup-files: No file_path in payload, allowing"
+    echo '{"systemMessage":"prevent-backup-files: skipped (no file path)"}'
     exit 0
 fi
 
 # Check if path is in excluded directories
 if is_temp_path "$FILE_PATH" "$EXCLUDED_PATHS"; then
     log_message "debug" "prevent-backup-files: File in excluded path, allowing"
+    echo '{"systemMessage":"prevent-backup-files: skipped (excluded path)"}'
     exit 0
 fi
 
@@ -128,4 +132,5 @@ fi
 
 # File is allowed
 log_message "debug" "prevent-backup-files: File allowed"
+echo '{"systemMessage":"prevent-backup-files: pattern validated"}'
 exit 0

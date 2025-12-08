@@ -61,6 +61,7 @@ fi
 
 cat << EOF
 {
+  "systemMessage": "inject-current-date: timestamp injected",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
     "additionalContext": $ESCAPED_MSG

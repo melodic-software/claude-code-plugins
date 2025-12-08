@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/data-usage
 source_type: llms-txt
-content_hash: sha256:404828b4fdf52e8d18e5c5728d1460799a64a1f847bb5a736054ac353cf14583
+content_hash: sha256:c4d706a9c156f567899bfcfd00c179df3069b17e60fd4790abeb66fca24fc2a2
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 published_at: '2025-08-28'
@@ -26,7 +26,7 @@ We will train new models using data from Free, Pro, and Max accounts when this s
   If you're a new user, you can pick your setting for model training during the signup process.
   You can change your selection at any time in your Privacy Settings.
 
-**Commercial users**: (Team and Enterprise plans, API, 3rd-party platforms, and Claude Gov) maintain existing policies: Anthropic does not train generative models using code or prompts sent to Claude Code under commercial terms, unless the customer has chosen to provide their data to us for model improvement (e.g. [Developer Partner Program](https://support.claude.com/en/articles/11174108-about-the-development-partner-program)).
+**Commercial users**: (Team and Enterprise plans, API, 3rd-party platforms, and Claude Gov) maintain existing policies: Anthropic does not train generative models using code or prompts sent to Claude Code under commercial terms, unless the customer has chosen to provide their data to us for model improvement (for example, the [Developer Partner Program](https://support.claude.com/en/articles/11174108-about-the-development-partner-program)).
 
 ### Development Partner Program
 

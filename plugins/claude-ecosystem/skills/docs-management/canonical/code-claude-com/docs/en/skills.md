@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/skills
 source_type: llms-txt
-content_hash: sha256:fdd14b5f9de5b2641cce57f9c20108c469eb0760f6da752f0d95b3d738470bcc
+content_hash: sha256:67d1a207d9b79d690cddd87ddfd9086b26dc2186f8f26a3da21eed041b1db62d
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -154,10 +154,10 @@ This Skill provides read-only file access.
 When this Skill is active, Claude can only use the specified tools (Read, Grep, Glob) without needing to ask for permission. This is useful for:
 
 * Read-only Skills that shouldn't modify files
-* Skills with limited scope (e.g., only data analysis, no file writing)
+* Skills with limited scope: for example, only data analysis, no file writing
 * Security-sensitive workflows where you want to restrict capabilities
 
-If `allowed-tools` is not specified, Claude will ask for permission to use tools as normal, following the standard permission model.
+If `allowed-tools` isn't specified, Claude will ask for permission to use tools as normal, following the standard permission model.
 
 <Note>
   `allowed-tools` is only supported for Skills in Claude Code.

@@ -27,7 +27,7 @@ Plugins for Claude Code: documentation management, code quality, and ecosystem s
 | [git](plugins/git/) | Git config, GPG signing, GitHub issues |
 | [melodic-software](plugins/melodic-software/) | Developer onboarding, environment setup, commit workflows |
 | [response-quality](plugins/response-quality/) | Response quality standards, source citations |
-| [tactical-agentic-coding](plugins/tactical-agentic-coding/) | Agentic coding tactics, multi-agent workflows |
+| [tac](plugins/tac/) | Agentic coding tactics, multi-agent workflows |
 | [visualization](plugins/visualization/) | Diagrams-as-code (Mermaid, PlantUML) |
 | [windows-diagnostics](plugins/windows-diagnostics/) | Windows system diagnostics, troubleshooting |
 

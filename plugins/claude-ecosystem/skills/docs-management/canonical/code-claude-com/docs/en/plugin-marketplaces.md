@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/plugin-marketplaces
 source_type: llms-txt
-content_hash: sha256:b7d1193543044ad2d2a1d826428e13d0cfdb1689dde6bfc9024297f441c8fd03
+content_hash: sha256:f9d70aff1d2cbf04fa77c06b6118f6afa10ab1562ae06c6a52e12e41d426b933
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -199,7 +199,7 @@ Create `.claude-plugin/marketplace.json` in your repository root:
 | `author`      | object  | Plugin author information                                         |
 | `homepage`    | string  | Plugin homepage or documentation URL                              |
 | `repository`  | string  | Source code repository URL                                        |
-| `license`     | string  | SPDX license identifier (e.g., MIT, Apache-2.0)                   |
+| `license`     | string  | SPDX license identifier (for example, MIT, Apache-2.0)            |
 | `keywords`    | array   | Tags for plugin discovery and categorization                      |
 | `category`    | string  | Plugin category for organization                                  |
 | `tags`        | array   | Tags for searchability                                            |

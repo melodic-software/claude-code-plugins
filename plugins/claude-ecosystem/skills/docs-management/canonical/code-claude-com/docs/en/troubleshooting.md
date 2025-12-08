@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/troubleshooting
 source_type: llms-txt
-content_hash: sha256:9750947ed8a0b8edb0e9c32c3993252f084693ec9a2f7b2c5ebcfbcddd8f5aa1
+content_hash: sha256:8c3d00a01393b3ea8d352fb6dde79b3b53a5f55a4a4761d29a459de18cf7cd57
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -153,7 +153,7 @@ Claude Code stores configuration in several locations:
 | `managed-settings.json`       | [Enterprise managed settings](/en/settings#settings-files)             |
 | `managed-mcp.json`            | [Enterprise managed MCP servers](/en/mcp#enterprise-mcp-configuration) |
 
-On Windows, `~` refers to your user home directory (e.g., `C:\Users\YourName`).
+On Windows, `~` refers to your user home directory, such as `C:\Users\YourName`.
 
 **Enterprise managed file locations:**
 

@@ -179,13 +179,22 @@ If multiple settings files, audit in parallel (one subagent per file).
 
 ### Security Considerations
 
-**Critical:** Settings files should NEVER contain:
+**Scope-Aware Credential Detection:**
 
-- API keys or tokens
-- Passwords
-- Private credentials
+| Scope | Credentials Found | Result |
+|-------|-------------------|--------|
+| Project | Yes | CRITICAL FAILURE - version controlled |
+| User | Yes | WARNING - not version controlled |
+| Enterprise | Yes | CRITICAL FAILURE - policy violation |
 
-If found, mark as **CRITICAL FAILURE** and alert user.
+**Project settings** (`.claude/settings.json`) should NEVER contain API keys, tokens, or passwords. These are version controlled and shared.
+
+**User settings** (`~/.claude/settings.json`) with credentials receive WARNING, not failure. User settings are not version controlled, so hardcoded keys are acceptable for personal development machines (though environment variables are recommended).
+
+When credentials found:
+
+- **Project scope:** Recommend key rotation + git history cleanup
+- **User scope:** Recommend env vars, acknowledge acceptable risk, do NOT suggest git cleanup
 
 ### Precedence Hierarchy
 

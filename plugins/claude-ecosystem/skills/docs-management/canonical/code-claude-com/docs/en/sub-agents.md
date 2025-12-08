@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/sub-agents
 source_type: llms-txt
-content_hash: sha256:67c4b290ac00968e3ca3e532231f077f70f0c45f279d0b9b995781d025b9c79b
+content_hash: sha256:5d405d52cdc82f03196807d351d0709bafc5338a5d3fb68b08422b2a8507e5e8
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -69,7 +69,7 @@ To create your first subagent:
   </Step>
 
   <Step title="Save and use">
-    Your subagent is now available! Claude will use it automatically when appropriate, or you can invoke it explicitly:
+    Your subagent is now available. Claude will use it automatically when appropriate, or you can invoke it explicitly:
 
     ```
     > Use the code-reviewer subagent to check my recent changes

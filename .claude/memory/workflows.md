@@ -1,5 +1,7 @@
 # Claude Code Workflow Patterns
 
+**Token Budget:** ~4,400 tokens | **Load Type:** Context-dependent (load when planning workflows)
+
 General workflow patterns for using Claude Code effectively, extracted from Anthropic's best practices.
 
 **Source:** Use docs-management skill to find "claude-code-best-practices" documentation
@@ -193,4 +195,4 @@ When onboarding to a new codebase, use Claude Code for learning and exploration:
 
 ---
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-06

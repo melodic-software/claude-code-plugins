@@ -3,7 +3,7 @@
     "category": "api",
     "description": "Gemini Code Assist Standard and Enterprise overview  |  Gemini for Google Cloud  |  Google Cloud Documentation",
     "domain": "docs.cloud.google.com",
-    "hash": "sha256:ab41eafabf9deeb68486be3b7a3f0a2187b321bb7db8668d92b927995117aea8",
+    "hash": "sha256:c56835c4ccae666b471bdd9d706c5aa72a127b58e06442759107e2321d0ff398",
     "keywords": [
       "codeassist",
       "application integration",
@@ -18,7 +18,7 @@
       "context window",
       "stay organized"
     ],
-    "last_fetched": "2025-12-05",
+    "last_fetched": "2025-12-08",
     "path": "docs-cloud-google-com/gemini/docs/codeassist/overview.md",
     "sitemap_url": "https://geminicli.com/llms.txt",
     "source_type": "llms-txt",
@@ -136,7 +136,7 @@
       "mcp server",
       "shell tool"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs.md",
     "source_url": "http://geminicli.com/docs.md",
     "subsections": [
@@ -279,7 +279,7 @@
       "design",
       "level"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\architecture.md",
     "source_url": "http://geminicli.com/docs/architecture.md",
     "subsections": [
@@ -347,7 +347,7 @@
       "wondering",
       "provides"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\changelogs.md",
     "source_url": "http://geminicli.com/docs/changelogs.md",
     "subsections": [
@@ -501,7 +501,7 @@
       "checkpoint",
       "advanced"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli.md",
     "source_url": "http://geminicli.com/docs/cli.md",
     "subsections": [
@@ -560,7 +560,7 @@
       "authentication setup",
       "setup"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\authentication.md",
     "source_url": "http://geminicli.com/docs/cli/authentication.md",
     "tags": [
@@ -588,7 +588,7 @@
       "feature",
       "powered"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\checkpointing.md",
     "source_url": "http://geminicli.com/docs/cli/checkpointing.md",
     "subsections": [
@@ -675,7 +675,7 @@
       "checkpoint",
       "customize"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\commands.md",
     "source_url": "http://geminicli.com/docs/cli/commands.md",
     "subsections": [
@@ -788,7 +788,7 @@
       "api keys",
       "checkpointing"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\configuration.md",
     "source_url": "http://geminicli.com/docs/cli/configuration.md",
     "subsections": [
@@ -1008,7 +1008,7 @@
       "changelog.toml",
       "commit.toml"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\custom-commands.md",
     "source_url": "http://geminicli.com/docs/cli/custom-commands.md",
     "subsections": [
@@ -1194,7 +1194,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\enterprise.md",
     "source_url": "http://geminicli.com/docs/cli/enterprise.md",
     "subsections": [
@@ -1427,7 +1427,7 @@
       "exclude",
       "feature"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\gemini-ignore.md",
     "source_url": "http://geminicli.com/docs/cli/gemini-ignore.md",
     "subsections": [
@@ -1490,7 +1490,7 @@
       "instructions",
       "customize"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\gemini-md.md",
     "source_url": "http://geminicli.com/docs/cli/gemini-md.md",
     "subsections": [
@@ -1605,7 +1605,7 @@
       "application",
       "researchers"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\generation-settings.md",
     "source_url": "http://geminicli.com/docs/cli/generation-settings.md",
     "subsections": [
@@ -1798,7 +1798,7 @@
       "configuration",
       "interactive"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\headless.md",
     "source_url": "http://geminicli.com/docs/cli/headless.md",
     "subsections": [
@@ -1981,7 +1981,7 @@
       "combinations",
       "completions"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\keyboard-shortcuts.md",
     "source_url": "http://geminicli.com/docs/cli/keyboard-shortcuts.md",
     "subsections": [
@@ -2024,7 +2024,7 @@
       "dialog",
       "giving"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\model.md",
     "source_url": "http://geminicli.com/docs/cli/model.md",
     "subsections": [
@@ -2091,7 +2091,7 @@
       "switches",
       "untitled"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\model-routing.md",
     "source_url": "http://geminicli.com/docs/cli/model-routing.md",
     "subsections": [
@@ -2155,7 +2155,7 @@
       "prerequisites",
       "settings.json"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\sandbox.md",
     "source_url": "http://geminicli.com/docs/cli/sandbox.md",
     "subsections": [
@@ -2383,7 +2383,7 @@
       "listing sessions",
       "context window"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\session-management.md",
     "source_url": "http://geminicli.com/docs/cli/session-management.md",
     "subsections": [
@@ -2531,7 +2531,7 @@
       "including",
       "security"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\settings.md",
     "source_url": "http://geminicli.com/docs/cli/settings.md",
     "subsections": [
@@ -2674,7 +2674,7 @@
       "observability",
       "opentelemetry"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\telemetry.md",
     "source_url": "http://geminicli.com/docs/cli/telemetry.md",
     "subsections": [
@@ -2869,7 +2869,7 @@
       "preferences",
       "appearance"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\themes.md",
     "source_url": "http://geminicli.com/docs/cli/themes.md",
     "subsections": [
@@ -3143,7 +3143,7 @@
       "context",
       "feature"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\token-caching.md",
     "source_url": "http://geminicli.com/docs/cli/token-caching.md",
     "tags": [
@@ -3173,7 +3173,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\trusted-folders.md",
     "source_url": "http://geminicli.com/docs/cli/trusted-folders.md",
     "subsections": [
@@ -3266,7 +3266,7 @@
       "github",
       "launch"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\tutorials.md",
     "source_url": "http://geminicli.com/docs/cli/tutorials.md",
     "subsections": [
@@ -3332,7 +3332,7 @@
       "method",
       "cache"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\cli\\uninstall.md",
     "source_url": "http://geminicli.com/docs/cli/uninstall.md",
     "subsections": [
@@ -3388,7 +3388,7 @@
       "contributions",
       "contribute"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\contributing.md",
     "source_url": "http://geminicli.com/docs/contributing.md",
     "subsections": [
@@ -3754,7 +3754,7 @@
       "communication",
       "compression"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\core.md",
     "source_url": "http://geminicli.com/docs/core.md",
     "subsections": [
@@ -3877,7 +3877,7 @@
       "modularize",
       "claude.md"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\core\\memport.md",
     "source_url": "http://geminicli.com/docs/core/memport.md",
     "subsections": [
@@ -4242,7 +4242,7 @@
       "anchors like",
       "command text"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\core\\policy-engine.md",
     "source_url": "http://geminicli.com/docs/core/policy-engine.md",
     "subsections": [
@@ -4412,7 +4412,7 @@
       "web search",
       "capabilities"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\core\\tools-api.md",
     "source_url": "http://geminicli.com/docs/core/tools-api.md",
     "subsections": [
@@ -4492,7 +4492,7 @@
       "variable",
       "allows"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\examples\\proxy-script.md",
     "source_url": "http://geminicli.com/docs/examples/proxy-script.md",
     "tags": [
@@ -4520,7 +4520,7 @@
       "boilerplate",
       "disabling"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\extensions.md",
     "source_url": "http://geminicli.com/docs/extensions.md",
     "subsections": [
@@ -4713,7 +4713,7 @@
       "channels",
       "actions"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\extensions\\extension-releasing.md",
     "source_url": "http://geminicli.com/docs/extensions/extension-releasing.md",
     "subsections": [
@@ -4807,7 +4807,7 @@
       "extension",
       "gemini.md"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\extensions\\getting-started-extensions.md",
     "source_url": "http://geminicli.com/docs/extensions/getting-started-extensions.md",
     "subsections": [
@@ -4970,7 +4970,7 @@
       "rate limits",
       "api keys"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\faq.md",
     "source_url": "https://geminicli.com/docs/faq.md",
     "subsections": [
@@ -5222,7 +5222,7 @@
       "enhance",
       "install"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started.md",
     "source_url": "http://geminicli.com/docs/get-started.md",
     "subsections": [
@@ -5318,7 +5318,7 @@
       "authenticate",
       "application"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\authentication.md",
     "source_url": "http://geminicli.com/docs/get-started/authentication.md",
     "subsections": [
@@ -5480,7 +5480,7 @@
       "model routing",
       "policy engine"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\configuration.md",
     "source_url": "http://geminicli.com/docs/get-started/configuration.md",
     "subsections": [
@@ -5698,7 +5698,7 @@
       "mcp servers",
       "mcp server"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\configuration-v1.md",
     "source_url": "http://geminicli.com/docs/get-started/configuration-v1.md",
     "subsections": [
@@ -5930,7 +5930,7 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\deployment.md",
     "source_url": "http://geminicli.com/docs/get-started/deployment.md",
     "subsections": [
@@ -6042,7 +6042,7 @@
       "variety",
       "covers"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\examples.md",
     "source_url": "http://geminicli.com/docs/get-started/examples.md",
     "subsections": [
@@ -6122,7 +6122,7 @@
       "waitlist",
       "excited"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\gemini-3.md",
     "source_url": "http://geminicli.com/docs/get-started/gemini-3.md",
     "subsections": [
@@ -6237,7 +6237,7 @@
       "execution",
       "directly"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\get-started\\installation.md",
     "source_url": "http://geminicli.com/docs/get-started/installation.md",
     "subsections": [
@@ -6352,7 +6352,7 @@
       "automatic",
       "disabling"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\ide-integration.md",
     "source_url": "http://geminicli.com/docs/ide-integration.md",
     "subsections": [
@@ -6550,7 +6550,7 @@
       "closediff tool",
       "mcp server"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\ide-integration\\ide-companion-spec.md",
     "source_url": "http://geminicli.com/docs/ide-integration/ide-companion-spec.md",
     "subsections": [
@@ -6726,7 +6726,7 @@
       "file system",
       "single test"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\integration-tests.md",
     "source_url": "https://geminicli.com/docs/integration-tests.md",
     "subsections": [
@@ -6952,7 +6952,7 @@
       "pull requests",
       "label sync"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\issue-and-pr-automation.md",
     "source_url": "http://geminicli.com/docs/issue-and-pr-automation.md",
     "subsections": [
@@ -7068,7 +7068,7 @@
       "setting",
       "tracing"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\local-development.md",
     "source_url": "http://geminicli.com/docs/local-development.md",
     "subsections": [
@@ -7130,7 +7130,7 @@
       "package",
       "works"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\npm.md",
     "source_url": "http://geminicli.com/docs/npm.md",
     "subsections": [
@@ -7216,7 +7216,7 @@
       "paid tier",
       "professional"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\quota-and-pricing.md",
     "source_url": "https://geminicli.com/docs/quota-and-pricing.md",
     "subsections": [
@@ -7366,7 +7366,7 @@
       "automated",
       "checklist"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\release-confidence.md",
     "source_url": "http://geminicli.com/docs/release-confidence.md",
     "subsections": [
@@ -7551,7 +7551,7 @@
       "patch pull",
       "environments"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\releases.md",
     "source_url": "http://geminicli.com/docs/releases.md",
     "subsections": [
@@ -7815,7 +7815,7 @@
       "confirmation",
       "environment"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools.md",
     "source_url": "http://geminicli.com/docs/tools.md",
     "subsections": [
@@ -7893,7 +7893,7 @@
       "readfile",
       "replace"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\file-system.md",
     "source_url": "http://geminicli.com/docs/tools/file-system.md",
     "subsections": [
@@ -7992,7 +7992,7 @@
       "slash commands",
       "basic syntax"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\mcp-server.md",
     "source_url": "http://geminicli.com/docs/tools/mcp-server.md",
     "subsections": [
@@ -8561,7 +8561,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\memory.md",
     "source_url": "http://geminicli.com/docs/tools/memory.md",
     "subsections": [
@@ -8650,7 +8650,7 @@
       "environment",
       "arguments"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\shell.md",
     "source_url": "http://geminicli.com/docs/tools/shell.md",
     "subsections": [
@@ -8836,7 +8836,7 @@
       "describes",
       "behavior"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\todos.md",
     "source_url": "http://geminicli.com/docs/tools/todos.md",
     "subsections": [
@@ -8907,7 +8907,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\web-fetch.md",
     "source_url": "http://geminicli.com/docs/tools/web-fetch.md",
     "subsections": [
@@ -8989,7 +8989,7 @@
       "arguments",
       "describes"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tools\\web-search.md",
     "source_url": "http://geminicli.com/docs/tools/web-search.md",
     "subsections": [
@@ -9074,7 +9074,7 @@
       "powerful",
       "services"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\tos-privacy.md",
     "source_url": "http://geminicli.com/docs/tos-privacy.md",
     "subsections": [
@@ -9166,7 +9166,7 @@
       "solutions",
       "creating"
     ],
-    "last_fetched": "2025-12-06",
+    "last_fetched": "2025-12-08",
     "path": "geminicli-com\\docs\\troubleshooting.md",
     "source_url": "http://geminicli.com/docs/troubleshooting.md",
     "subsections": [

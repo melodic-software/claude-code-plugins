@@ -427,6 +427,10 @@ FodyWeavers.xsd
 settings.local.json
 .claude/temp/
 
+# Capability index cache (generated at runtime)
+plugins/claude-ecosystem/hooks/inject-capability-index/cache/*.txt
+plugins/claude-ecosystem/hooks/inject-capability-index/cache/*.json
+
 # Windows reserved device names (cannot be deleted on Windows)
 nul
 NUL

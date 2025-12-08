@@ -837,7 +837,7 @@ if canAccessPremiumContent(user) then
 
 - [ ] Is the code testable?
 - [ ] Are tests written for new/changed functionality?
-- [ ] Do tests follow FIRST principles? (see @.claude/memory/testing-principles.md)
+- [ ] Do tests follow FIRST principles? (see testing-principles.md below)
 - [ ] Is test coverage adequate?
 - [ ] Are tests clear and maintainable?
 
@@ -1260,6 +1260,6 @@ Clean code is characterized by:
 - SOLID Principles: <https://en.wikipedia.org/wiki/SOLID>
 - Clean Code Principles: <https://github.com/ryanmcdermott/clean-code-javascript>
 
-**Last Updated:** 2025-11-30
+**Last Updated:** 2025-12-06
 
 **Maintained By:** Repository guidelines and standards

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/third-party-integrations
 source_type: llms-txt
-content_hash: sha256:7cb9611acfb599bd35a86f65c6894ea191effb11439eff364a3d6a802580028d
+content_hash: sha256:9f295509998c49b26818d3f77fc7899f75a2fbfc5f56867f6ff60d46c4a4d7e8
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -256,7 +256,7 @@ Security teams can configure managed permissions for what Claude Code is and is 
 
 MCP is a great way to give Claude Code more information, such as connecting to ticket management systems or error logs. We recommend that one central team configures MCP servers and checks a `.mcp.json` configuration into the codebase so that all users benefit. [Learn more](/en/mcp).
 
-At Anthropic, we trust Claude Code to power development across every Anthropic codebase. We hope you enjoy using Claude Code as much as we do!
+At Anthropic, we trust Claude Code to power development across every Anthropic codebase. We hope you enjoy using Claude Code as much as we do.
 
 ## Next steps
 

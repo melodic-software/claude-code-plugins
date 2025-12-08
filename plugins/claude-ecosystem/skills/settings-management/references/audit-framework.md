@@ -96,8 +96,32 @@ The maximum possible score is **Total: 100 points**.
 Regardless of score, a settings file **automatically fails** if:
 
 - Invalid JSON syntax
-- Contains exposed secrets (API keys, passwords, tokens)
+- Contains exposed secrets in **project or enterprise scope** (API keys, passwords, tokens)
 - Uses completely invalid/unrecognized options
+
+**Note:** User-level settings with credentials receive WARNING (not auto-fail) since they are not version controlled. See "Scope-Aware Credential Detection" below.
+
+### Scope-Aware Credential Detection
+
+API keys and credentials in settings files are evaluated differently based on scope:
+
+| Scope | Credentials Found | Severity | Score Impact | Rationale |
+|-------|-------------------|----------|--------------|-----------|
+| Project | Yes | CRITICAL | Auto-fail | Version controlled, shared with team |
+| User | Yes | WARNING | -7 points (env config) | Not version controlled, personal use acceptable |
+| Enterprise | Yes | CRITICAL | Auto-fail | Managed policy violation |
+
+**Project-level (`.claude/settings.json`) messaging:**
+
+- Impact: "Credentials exposed in version control history"
+- Recommendations: Revoke keys, use environment variables, clean git history
+
+**User-level (`~/.claude/settings.json`) messaging:**
+
+- Impact: "Credentials stored in plaintext on local machine (not version controlled)"
+- Recommendations: Consider using environment variables with `${VAR}` expansion
+- Do NOT mention git history cleanup (not applicable)
+- Acceptable: For personal development machines, hardcoded user-level keys are acceptable with warning
 
 ## Settings File Discovery
 
@@ -114,7 +138,8 @@ These standards are specific to this repository and NOT from official Claude Cod
 
 | Standard | Value | Rationale |
 | -------- | ----- | --------- |
-| No exposed secrets | Never in settings | Security |
+| Secrets in project settings | Never (CRITICAL) | Version controlled, shared |
+| Secrets in user settings | Warning only | Not version controlled |
 | Hook env var naming | `CLAUDE_HOOK_{NAME}_ENABLED` | Consistency |
 | Descriptive comments | Via separate documentation | Settings is JSON (no comments) |
 
@@ -129,5 +154,5 @@ This file intentionally excludes:
 
 ---
 
-**Last Updated:** 2025-12-05
+**Last Updated:** 2025-12-06
 **Architecture:** Query-based audit framework (no duplicated official content)

@@ -76,6 +76,36 @@ This agent uses a **query-based audit framework**. All validation rules come fro
 - 70-84: PASS WITH WARNINGS
 - Below 70: FAIL
 
+## Scope-Aware Security Assessment
+
+When auditing for exposed credentials (API keys, tokens, passwords), adjust severity based on scope:
+
+### Project Scope (`.claude/settings.json`)
+
+- **Severity:** CRITICAL (automatic failure)
+- **Impact:** "Credentials exposed in version control history"
+- **Recommendations:**
+  1. Revoke exposed API keys immediately
+  2. Generate new keys from each service
+  3. Use environment variables with `${VAR}` expansion
+  4. Clean git history with `git filter-repo`
+
+### User Scope (`~/.claude/settings.json`)
+
+- **Severity:** WARNING (deduct points, but not auto-fail)
+- **Impact:** "Credentials stored in plaintext on local machine (not version controlled)"
+- **Recommendations:**
+  1. Consider using environment variables for better security
+  2. Use `${VAR}` expansion in mcpServers.*.env
+  3. **Do NOT** suggest git history cleanup (file is not in git)
+- **Acceptable:** For personal development machines, hardcoded user-level keys are acceptable with warning
+
+### Enterprise Scope
+
+- **Severity:** CRITICAL (automatic failure)
+- **Impact:** "Managed policy violation - credentials in enterprise settings"
+- **Recommendations:** Contact IT administrator
+
 ## Output Format
 
 ```markdown

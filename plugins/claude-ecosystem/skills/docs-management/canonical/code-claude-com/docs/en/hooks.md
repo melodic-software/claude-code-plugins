@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/hooks
 source_type: llms-txt
-content_hash: sha256:1332df77245c912f103f790b0bc0c6b6cedf1aaf76af9c29da74995a6649657f
+content_hash: sha256:293ce7d8cdab45bdcd4726c505d73733d4f201246b1bc3631d590137c90fb921
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -412,7 +412,7 @@ exit 0
 
 **Example: Persisting all environment changes from the hook**
 
-When your setup modifies the environment (e.g., `nvm use`), capture and persist all changes by diffing the environment:
+When your setup modifies the environment (for example, `nvm use`), capture and persist all changes by diffing the environment:
 
 ```bash  theme={null}
 #!/bin/bash

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/hooks-guide
 source_type: llms-txt
-content_hash: sha256:c64c2fcaf353f4a1314ade6e3f152685c921c2ba85de2b6a79d020eba3ffef6b
+content_hash: sha256:19e6d30899036fabcb1a04c936943b50fdfbacc18e27c6c841a369c867a28cd2
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -100,7 +100,7 @@ For storage location, select `User settings` since you're logging to your home
 directory. This hook will then apply to all projects, not just your current
 project.
 
-Then press Esc until you return to the REPL. Your hook is now registered!
+Then press `Esc` until you return to the REPL. Your hook is now registered.
 
 ### Step 5: Verify your hook
 

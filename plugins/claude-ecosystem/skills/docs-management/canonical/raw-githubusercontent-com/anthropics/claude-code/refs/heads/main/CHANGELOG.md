@@ -1,11 +1,15 @@
 ---
 source_url: https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG
 source_type: manual
-content_hash: sha256:ec3e72db36f326ecf8bcc5c2924097c93ca9bd3df1d374f2d5d1ca48fce4c610
+content_hash: sha256:69c8735e620cc883f3ef37cfa9335aeaea5b2a80862377e41f859753c022c402
 fetch_method: markdown
 ---
 
 # Changelog
+
+## 2.0.61
+
+- Reverted VSCode support for multiple terminal clients due to responsiveness issues.
 
 ## 2.0.60
 

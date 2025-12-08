@@ -1,5 +1,7 @@
 # Tool Optimization Principles
 
+**Token Budget:** ~2,200 tokens | **Load Type:** Context-dependent (load when designing or debugging tools)
+
 This document contains principles for designing effective tools for AI agents, extracted from Anthropic's engineering research and best practices.
 
 **Source:** Use docs-management skill to find "writing-tools-for-agents" documentation
@@ -228,4 +230,4 @@ Effective tools for agents:
 
 ---
 
-**Last Updated:** 2025-12-05
+**Last Updated:** 2025-12-06

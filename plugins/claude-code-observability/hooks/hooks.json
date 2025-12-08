@@ -1,5 +1,5 @@
 {
-  "description": "Observability hooks for Claude Code: comprehensive event logging for all hook events",
+  "description": "Observability hooks for Claude Code: comprehensive event logging for all hook events. Uses pure Python for cross-platform compatibility (Windows, macOS, Linux). Enable logging with CLAUDE_HOOK_LOG_EVENTS_ENABLED=1",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-pretooluse.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" pretooluse",
             "timeout": 5
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-permissionrequest.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" permissionrequest",
             "timeout": 5
           }
         ]
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-posttooluse.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" posttooluse",
             "timeout": 5
           }
         ]
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-notification.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" notification",
             "timeout": 5
           }
         ]
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-userpromptsubmit.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" userpromptsubmit",
             "timeout": 5
           }
         ]
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-stop.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" stop",
             "timeout": 5
           }
         ]
@@ -79,7 +79,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-subagentstop.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" subagentstop",
             "timeout": 5
           }
         ]
@@ -91,7 +91,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-precompact.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" precompact",
             "timeout": 5
           }
         ]
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-sessionstart.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" sessionstart",
             "timeout": 5
           }
         ]
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/shared/hook-wrapper.sh /hooks/log-hook-events/bash/log-sessionend.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/hook_dispatcher.py\" sessionend",
             "timeout": 5
           }
         ]

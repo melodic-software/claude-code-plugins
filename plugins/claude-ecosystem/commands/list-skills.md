@@ -1,26 +1,64 @@
 ---
 description: List all available Skills with their descriptions
-model: claude-haiku-4-5-20251001
-allowed-tools:
+allowed-tools: Bash, Glob
 ---
 
 # List Skills
 
-List all available skills from the Skill tool's built-in available skills list.
+List ALL available Claude Code skills by running the list_skills.py script.
 
-Format each skill as:
+## Step 1: Find the Script
 
-```text
-### **skill-name**
-Concise description (1-2 sentences max). Use when: [key use cases].
+Locate list_skills.py in the claude-ecosystem plugin:
+
+```bash
+# Check installed plugins first
+find ~/.claude/plugins -name "list_skills.py" -path "*claude-ecosystem*" 2>/dev/null | head -1
 ```
 
-Requirements:
+If not found, check current repo (for development):
 
-- Use bold markdown for skill names (### **name**)
-- Add horizontal rule separator (---) between skills
-- Keep descriptions concise - max 2-3 lines per skill
-- Combine "Use when" into the description flow naturally
-- Show total count at the end
+```bash
+find . -name "list_skills.py" -path "*claude-ecosystem*" 2>/dev/null | head -1
+```
 
-Do NOT use bash scripts or filesystem searches - just output the list from your internal knowledge of the Skill tool.
+## Step 2: Run the Script
+
+Execute with Python using the path found in Step 1:
+
+```bash
+python "<found-path>/list_skills.py"
+```
+
+## What the Script Scans
+
+The script finds ALL skills from:
+
+- **Personal skills**: `~/.claude/skills/*/SKILL.md`
+- **Project skills**: `.claude/skills/*/SKILL.md` (current working directory)
+- **Plugin skills**: `~/.claude/plugins/marketplaces/*/*/skills/*/SKILL.md`
+
+## Output Format
+
+The script outputs formatted markdown:
+
+```text
+## Personal Skills (~/.claude/skills/)
+### **skill-name**
+Description from SKILL.md frontmatter.
+---
+
+## Project Skills (.claude/skills/)
+### **skill-name**
+Description from SKILL.md frontmatter.
+---
+
+## Plugin Skills
+### **plugin-name:skill-name**
+Description from SKILL.md frontmatter.
+---
+
+**Total: X skills** (Y personal, Z project, W plugin)
+```
+
+Output the script results directly - they are already formatted.

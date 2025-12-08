@@ -1,10 +1,10 @@
 ---
 source_url: https://docs.cloud.google.com/gemini/docs/codeassist/overview
 source_type: llms-txt
-content_hash: sha256:ab41eafabf9deeb68486be3b7a3f0a2187b321bb7db8668d92b927995117aea8
+content_hash: sha256:c56835c4ccae666b471bdd9d706c5aa72a127b58e06442759107e2321d0ff398
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: html
-last_modified: '2025-12-03T16:36:12Z'
+last_modified: '2025-12-05T18:42:54Z'
 ---
 
 Gemini Code Assist Standard and Enterprise overview  |  Gemini for Google Cloud  |  Google Cloud Documentation
@@ -266,8 +266,8 @@ Send feedback
 
 Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
 
-Last updated 2025-12-03 UTC.
+Last updated 2025-12-05 UTC.
 
 Need to tell us more?
 
-[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Hard to understand","hardToUnderstand","thumb-down"],["Incorrect information or sample code","incorrectInformationOrSampleCode","thumb-down"],["Missing the information/samples I need","missingTheInformationSamplesINeed","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2025-12-03 UTC."],[],[]]
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Hard to understand","hardToUnderstand","thumb-down"],["Incorrect information or sample code","incorrectInformationOrSampleCode","thumb-down"],["Missing the information/samples I need","missingTheInformationSamplesINeed","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2025-12-05 UTC."],[],[]]

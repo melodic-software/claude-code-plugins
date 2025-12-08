@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/jetbrains
 source_type: llms-txt
-content_hash: sha256:883920ba1f69c528d74db7152dae01bfe0829fbfd6f8dd076228f84b26ff63f3
+content_hash: sha256:5b6e45265742bff4966b949b2f17615dbe76ebf6e4fd9b3918eb07dc19354b18
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -28,7 +28,7 @@ The Claude Code plugin works with most JetBrains IDEs, including:
 * **Quick launch**: Use `Cmd+Esc` (Mac) or `Ctrl+Esc` (Windows/Linux) to open Claude Code directly from your editor, or click the Claude Code button in the UI
 * **Diff viewing**: Code changes can be displayed directly in the IDE diff viewer instead of the terminal
 * **Selection context**: The current selection/tab in the IDE is automatically shared with Claude Code
-* **File reference shortcuts**: Use `Cmd+Option+K` (Mac) or `Alt+Ctrl+K` (Linux/Windows) to insert file references (e.g., @File#L1-99)
+* **File reference shortcuts**: Use `Cmd+Option+K` (Mac) or `Alt+Ctrl+K` (Linux/Windows) to insert file references (for example, @File#L1-99)
 * **Diagnostic sharing**: Diagnostic errors (lint, syntax, etc.) from the IDE are automatically shared with Claude as you work
 
 ## Installation
@@ -76,7 +76,7 @@ Configure the Claude Code plugin by going to **Settings → Tools → Claude Cod
 
 #### General Settings
 
-* **Claude command**: Specify a custom command to run Claude (e.g., `claude`, `/usr/local/bin/claude`, or `npx @anthropic/claude`)
+* **Claude command**: Specify a custom command to run Claude (for example, `claude`, `/usr/local/bin/claude`, or `npx @anthropic/claude`)
 * **Suppress notification for Claude command not found**: Skip notifications about not finding the Claude command
 * **Enable using Option+Enter for multi-line prompts** (macOS only): When enabled, Option+Enter inserts new lines in Claude Code prompts. Disable if experiencing issues with the Option key being captured unexpectedly (requires terminal restart)
 * **Enable automatic updates**: Automatically check for and install plugin updates (applied on restart)

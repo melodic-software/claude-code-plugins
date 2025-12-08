@@ -53,6 +53,7 @@ ESCAPED_MSG=$(json_escape "$CONTEXT_MSG")
 # Output JSON with additionalContext
 cat << EOF
 {
+  "systemMessage": "source-citation: requirements active",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
     "additionalContext": "$ESCAPED_MSG"

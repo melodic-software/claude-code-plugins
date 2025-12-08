@@ -3,7 +3,7 @@ docs-cloud-google-com-gemini-docs-codeassist-overview:
   description: Gemini Code Assist Standard and Enterprise overview  |  Gemini for
     Google Cloud  |  Google Cloud Documentation
   domain: docs.cloud.google.com
-  hash: sha256:ab41eafabf9deeb68486be3b7a3f0a2187b321bb7db8668d92b927995117aea8
+  hash: sha256:c56835c4ccae666b471bdd9d706c5aa72a127b58e06442759107e2321d0ff398
   keywords:
   - codeassist
   - application integration
@@ -17,7 +17,7 @@ docs-cloud-google-com-gemini-docs-codeassist-overview:
   - code assistance
   - context window
   - stay organized
-  last_fetched: '2025-12-05'
+  last_fetched: '2025-12-08'
   path: docs-cloud-google-com/gemini/docs/codeassist/overview.md
   sitemap_url: https://geminicli.com/llms.txt
   source_type: llms-txt
@@ -113,7 +113,7 @@ geminicli-com-docs:
   - memory tool
   - mcp server
   - shell tool
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs.md
   source_url: http://geminicli.com/docs.md
   subsections:
@@ -219,7 +219,7 @@ geminicli-com-docs-architecture:
   - provides
   - design
   - level
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\architecture.md
   source_url: http://geminicli.com/docs/architecture.md
   subsections:
@@ -275,7 +275,7 @@ geminicli-com-docs-changelogs:
   - changelog
   - wondering
   - provides
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\changelogs.md
   source_url: http://geminicli.com/docs/changelogs.md
   subsections:
@@ -397,7 +397,7 @@ geminicli-com-docs-cli:
   - associated
   - checkpoint
   - advanced
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli.md
   source_url: http://geminicli.com/docs/cli.md
   subsections:
@@ -443,7 +443,7 @@ geminicli-com-docs-cli-authentication:
   - authentication
   - authentication setup
   - setup
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\authentication.md
   source_url: http://geminicli.com/docs/cli/authentication.md
   tags:
@@ -470,7 +470,7 @@ geminicli-com-docs-cli-checkpointing:
   - command
   - feature
   - powered
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\checkpointing.md
   source_url: http://geminicli.com/docs/cli/checkpointing.md
   subsections:
@@ -540,7 +540,7 @@ geminicli-com-docs-cli-commands:
   - passthrough
   - checkpoint
   - customize
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\commands.md
   source_url: http://geminicli.com/docs/cli/commands.md
   subsections:
@@ -630,7 +630,7 @@ geminicli-com-docs-cli-configuration:
   - mcp server
   - api keys
   - checkpointing
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\configuration.md
   source_url: http://geminicli.com/docs/cli/configuration.md
   subsections:
@@ -800,7 +800,7 @@ geminicli-com-docs-cli-custom-commands:
   - prompt uses
   - changelog.toml
   - commit.toml
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\custom-commands.md
   source_url: http://geminicli.com/docs/cli/custom-commands.md
   subsections:
@@ -945,7 +945,7 @@ geminicli-com-docs-cli-enterprise:
   - disabling yolo
   - mcp servers
   - mcp server
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\enterprise.md
   source_url: http://geminicli.com/docs/cli/enterprise.md
   subsections:
@@ -1124,7 +1124,7 @@ geminicli-com-docs-cli-gemini-ignore:
   - apikeys
   - exclude
   - feature
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\gemini-ignore.md
   source_url: http://geminicli.com/docs/cli/gemini-ignore.md
   subsections:
@@ -1176,7 +1176,7 @@ geminicli-com-docs-cli-gemini-md:
   - instructional
   - instructions
   - customize
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\gemini-md.md
   source_url: http://geminicli.com/docs/cli/gemini-md.md
   subsections:
@@ -1268,7 +1268,7 @@ geminicli-com-docs-cli-generation-settings:
   - configuration
   - application
   - researchers
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\generation-settings.md
   source_url: http://geminicli.com/docs/cli/generation-settings.md
   subsections:
@@ -1417,7 +1417,7 @@ geminicli-com-docs-cli-headless:
   - programmatically
   - configuration
   - interactive
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\headless.md
   source_url: http://geminicli.com/docs/cli/headless.md
   subsections:
@@ -1559,7 +1559,7 @@ geminicli-com-docs-cli-keyboard-shortcuts:
   - text input
   - combinations
   - completions
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\keyboard-shortcuts.md
   source_url: http://geminicli.com/docs/cli/keyboard-shortcuts.md
   subsections:
@@ -1597,7 +1597,7 @@ geminicli-com-docs-cli-model:
   - results
   - dialog
   - giving
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\model.md
   source_url: http://geminicli.com/docs/cli/model.md
   subsections:
@@ -1653,7 +1653,7 @@ geminicli-com-docs-cli-model-routing:
   - provides
   - switches
   - untitled
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\model-routing.md
   source_url: http://geminicli.com/docs/cli/model-routing.md
   subsections:
@@ -1705,7 +1705,7 @@ geminicli-com-docs-cli-sandbox:
   - configuration
   - prerequisites
   - settings.json
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\sandbox.md
   source_url: http://geminicli.com/docs/cli/sandbox.md
   subsections:
@@ -1880,7 +1880,7 @@ geminicli-com-docs-cli-session-management:
   - automatic saving
   - listing sessions
   - context window
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\session-management.md
   source_url: http://geminicli.com/docs/cli/session-management.md
   subsections:
@@ -1996,7 +1996,7 @@ geminicli-com-docs-cli-settings:
   - experience
   - including
   - security
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\settings.md
   source_url: http://geminicli.com/docs/cli/settings.md
   subsections:
@@ -2105,7 +2105,7 @@ geminicli-com-docs-cli-telemetry:
   - authenticating
   - observability
   - opentelemetry
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\telemetry.md
   source_url: http://geminicli.com/docs/cli/telemetry.md
   subsections:
@@ -2256,7 +2256,7 @@ geminicli-com-docs-cli-themes:
   - configuration
   - preferences
   - appearance
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\themes.md
   source_url: http://geminicli.com/docs/cli/themes.md
   subsections:
@@ -2462,7 +2462,7 @@ geminicli-com-docs-cli-token-caching:
   - previous
   - context
   - feature
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\token-caching.md
   source_url: http://geminicli.com/docs/cli/token-caching.md
   tags:
@@ -2491,7 +2491,7 @@ geminicli-com-docs-cli-trusted-folders:
   - trust dialog
   - mcp servers
   - mcp server
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\trusted-folders.md
   source_url: http://geminicli.com/docs/cli/trusted-folders.md
   subsections:
@@ -2565,7 +2565,7 @@ geminicli-com-docs-cli-tutorials:
   - context
   - github
   - launch
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\tutorials.md
   source_url: http://geminicli.com/docs/cli/tutorials.md
   subsections:
@@ -2619,7 +2619,7 @@ geminicli-com-docs-cli-uninstall:
   - global
   - method
   - cache
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\cli\uninstall.md
   source_url: http://geminicli.com/docs/cli/uninstall.md
   subsections:
@@ -2666,7 +2666,7 @@ geminicli-com-docs-contributing:
   - file system
   - contributions
   - contribute
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\contributing.md
   source_url: http://geminicli.com/docs/contributing.md
   subsections:
@@ -2943,7 +2943,7 @@ geminicli-com-docs-core:
   - considerations
   - communication
   - compression
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\core.md
   source_url: http://geminicli.com/docs/core.md
   subsections:
@@ -3040,7 +3040,7 @@ geminicli-com-docs-core-memport:
   - alloweddirectories
   - modularize
   - claude.md
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\core\memport.md
   source_url: http://geminicli.com/docs/core/memport.md
   subsections:
@@ -3315,7 +3315,7 @@ geminicli-com-docs-core-policy-engine:
   - policy engine
   - anchors like
   - command text
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\core\policy-engine.md
   source_url: http://geminicli.com/docs/core/policy-engine.md
   subsections:
@@ -3447,7 +3447,7 @@ geminicli-com-docs-core-tools-api:
   - mcp server
   - web search
   - capabilities
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\core\tools-api.md
   source_url: http://geminicli.com/docs/core/tools-api.md
   subsections:
@@ -3513,7 +3513,7 @@ geminicli-com-docs-examples-proxy-script:
   - following
   - variable
   - allows
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\examples\proxy-script.md
   source_url: http://geminicli.com/docs/examples/proxy-script.md
   tags:
@@ -3538,7 +3538,7 @@ geminicli-com-docs-extensions:
   - documentation
   - boilerplate
   - disabling
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\extensions.md
   source_url: http://geminicli.com/docs/extensions.md
   subsections:
@@ -3685,7 +3685,7 @@ geminicli-com-docs-extensions-extension-releasing:
   - archives
   - channels
   - actions
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\extensions\extension-releasing.md
   source_url: http://geminicli.com/docs/extensions/extension-releasing.md
   subsections:
@@ -3762,7 +3762,7 @@ geminicli-com-docs-extensions-getting-started-extensions:
   - conclusion
   - extension
   - gemini.md
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\extensions\getting-started-extensions.md
   source_url: http://geminicli.com/docs/extensions/getting-started-extensions.md
   subsections:
@@ -3889,7 +3889,7 @@ geminicli-com-docs-faq:
   - code assist
   - rate limits
   - api keys
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\faq.md
   source_url: https://geminicli.com/docs/faq.md
   subsections:
@@ -4085,7 +4085,7 @@ geminicli-com-docs-get-started:
   - workflow
   - enhance
   - install
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started.md
   source_url: http://geminicli.com/docs/get-started.md
   subsections:
@@ -4161,7 +4161,7 @@ geminicli-com-docs-get-started-authentication:
   - api keys
   - authenticate
   - application
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\authentication.md
   source_url: http://geminicli.com/docs/get-started/authentication.md
   subsections:
@@ -4288,7 +4288,7 @@ geminicli-com-docs-get-started-configuration:
   - context window
   - model routing
   - policy engine
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\configuration.md
   source_url: http://geminicli.com/docs/get-started/configuration.md
   subsections:
@@ -4454,7 +4454,7 @@ geminicli-com-docs-get-started-configuration-v1:
   - file content
   - mcp servers
   - mcp server
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\configuration-v1.md
   source_url: http://geminicli.com/docs/get-started/configuration-v1.md
   subsections:
@@ -4631,7 +4631,7 @@ geminicli-com-docs-get-started-deployment:
   - installation
   - execution
   - directly
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\deployment.md
   source_url: http://geminicli.com/docs/get-started/deployment.md
   subsections:
@@ -4719,7 +4719,7 @@ geminicli-com-docs-get-started-examples:
   - reading
   - variety
   - covers
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\examples.md
   source_url: http://geminicli.com/docs/get-started/examples.md
   subsections:
@@ -4785,7 +4785,7 @@ geminicli-com-docs-get-started-gemini-3:
   - fallback
   - waitlist
   - excited
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\gemini-3.md
   source_url: http://geminicli.com/docs/get-started/gemini-3.md
   subsections:
@@ -4876,7 +4876,7 @@ geminicli-com-docs-get-started-installation:
   - deployment
   - execution
   - directly
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\get-started\installation.md
   source_url: http://geminicli.com/docs/get-started/installation.md
   subsections:
@@ -4968,7 +4968,7 @@ geminicli-com-docs-ide-integration:
   - understand
   - automatic
   - disabling
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\ide-integration.md
   source_url: http://geminicli.com/docs/ide-integration.md
   subsections:
@@ -5122,7 +5122,7 @@ geminicli-com-docs-ide-integration-ide-companion-spec:
   - companion plugin
   - closediff tool
   - mcp server
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\ide-integration\ide-companion-spec.md
   source_url: http://geminicli.com/docs/ide-integration/ide-companion-spec.md
   subsections:
@@ -5259,7 +5259,7 @@ geminicli-com-docs-integration-tests:
   - keeping test
   - file system
   - single test
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\integration-tests.md
   source_url: https://geminicli.com/docs/integration-tests.md
   subsections:
@@ -5432,7 +5432,7 @@ geminicli-com-docs-issue-and-pr-automation:
   - ongoing triage
   - pull requests
   - label sync
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\issue-and-pr-automation.md
   source_url: http://geminicli.com/docs/issue-and-pr-automation.md
   subsections:
@@ -5524,7 +5524,7 @@ geminicli-com-docs-local-development:
   - provides
   - setting
   - tracing
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\local-development.md
   source_url: http://geminicli.com/docs/local-development.md
   subsections:
@@ -5574,7 +5574,7 @@ geminicli-com-docs-npm:
   - packages
   - package
   - works
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\npm.md
   source_url: http://geminicli.com/docs/npm.md
   subsections:
@@ -5643,7 +5643,7 @@ geminicli-com-docs-quota-and-pricing:
   - free usage
   - paid tier
   - professional
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\quota-and-pricing.md
   source_url: https://geminicli.com/docs/quota-and-pricing.md
   subsections:
@@ -5761,7 +5761,7 @@ geminicli-com-docs-release-confidence:
   - data review
   - automated
   - checklist
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\release-confidence.md
   source_url: http://geminicli.com/docs/release-confidence.md
   subsections:
@@ -5903,7 +5903,7 @@ geminicli-com-docs-releases:
   - main branch
   - patch pull
   - environments
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\releases.md
   source_url: http://geminicli.com/docs/releases.md
   subsections:
@@ -6106,7 +6106,7 @@ geminicli-com-docs-tools:
   - capabilities
   - confirmation
   - environment
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools.md
   source_url: http://geminicli.com/docs/tools.md
   subsections:
@@ -6170,7 +6170,7 @@ geminicli-com-docs-tools-file-system:
   - provides
   - readfile
   - replace
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\file-system.md
   source_url: http://geminicli.com/docs/tools/file-system.md
   subsections:
@@ -6248,7 +6248,7 @@ geminicli-com-docs-tools-mcp-server:
   - automatic oauth
   - slash commands
   - basic syntax
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\mcp-server.md
   source_url: http://geminicli.com/docs/tools/mcp-server.md
   subsections:
@@ -6675,7 +6675,7 @@ geminicli-com-docs-tools-memory:
   - memory tool
   - arguments
   - describes
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\memory.md
   source_url: http://geminicli.com/docs/tools/memory.md
   subsections:
@@ -6746,7 +6746,7 @@ geminicli-com-docs-tools-shell:
   - configuration
   - environment
   - arguments
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\shell.md
   source_url: http://geminicli.com/docs/tools/shell.md
   subsections:
@@ -6886,7 +6886,7 @@ geminicli-com-docs-tools-todos:
   - arguments
   - describes
   - behavior
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\todos.md
   source_url: http://geminicli.com/docs/tools/todos.md
   subsections:
@@ -6941,7 +6941,7 @@ geminicli-com-docs-tools-web-fetch:
   - web fetch
   - arguments
   - describes
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\web-fetch.md
   source_url: http://geminicli.com/docs/tools/web-fetch.md
   subsections:
@@ -7004,7 +7004,7 @@ geminicli-com-docs-tools-web-search:
   - web search
   - arguments
   - describes
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tools\web-search.md
   source_url: http://geminicli.com/docs/tools/web-search.md
   subsections:
@@ -7072,7 +7072,7 @@ geminicli-com-docs-tos-privacy:
   - licensed
   - powerful
   - services
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\tos-privacy.md
   source_url: http://geminicli.com/docs/tos-privacy.md
   subsections:
@@ -7148,7 +7148,7 @@ geminicli-com-docs-troubleshooting:
   - including
   - solutions
   - creating
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-08'
   path: geminicli-com\docs\troubleshooting.md
   source_url: http://geminicli.com/docs/troubleshooting.md
   subsections:
