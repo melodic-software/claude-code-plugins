@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/github-actions
 source_type: llms-txt
-content_hash: sha256:36b8ff8cb606b4e818ed5f34f9702f113a127621e951a9d8f84b02c51a4b74ca
+content_hash: sha256:89634a8c16ccd2660b390d7261285e511895452a3eedb9fa6d90d63f1e100ec5
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -644,7 +644,7 @@ The Claude Code Action v1 uses a simplified configuration:
 \*Prompt is optional - when omitted for issue/PR comments, Claude responds to trigger phrase\
 \*\*Required for direct Claude API, not for Bedrock/Vertex
 
-#### Using claude\_args
+#### Pass CLI arguments
 
 The `claude_args` parameter accepts any Claude Code CLI arguments:
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agent-sdk/typescript
 source_type: sitemap
-content_hash: sha256:58b6c92a3a30e338a4ce1886b684edd78ba2780ef9a1c1569160e002b918d6bf
+content_hash: sha256:d5af7ac88b9b1c15614f0c67cb822321b9aeb1ca40a1afc659613d0b18261bcb
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -13,6 +13,10 @@ Complete API reference for the TypeScript Agent SDK, including all functions, ty
 ---
 
 <script src="/components/typescript-sdk-type-links.js" defer />
+
+<Note>
+**Try the new V2 interface (preview):** A simplified interface with `send()` and `receive()` patterns is now available, making multi-turn conversations easier. [Learn more](/docs/en/agent-sdk/typescript-v2-preview)
+</Note>
 
 ## Installation
 

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/devcontainer
 source_type: llms-txt
-content_hash: sha256:50bb3e4e0960e24a95be2fd21cb59710463084540cfc95c1701198a8c3e74b88
+content_hash: sha256:c36b41dda235ca4c6e7c8edcd809832ab3b2d9de926a8df5037028c68f94150a
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -16,7 +16,7 @@ The container's enhanced security measures (isolation and firewall rules) allow 
 
 <Warning>
   While the devcontainer provides substantial protections, no system is completely immune to all attacks.
-  When executed with `--dangerously-skip-permissions`, devcontainers do not prevent a malicious project from exfiltrating anything accessible in the devcontainer including Claude Code credentials.
+  When executed with `--dangerously-skip-permissions`, devcontainers don't prevent a malicious project from exfiltrating anything accessible in the devcontainer including Claude Code credentials.
   We recommend only using devcontainers when developing with trusted repositories.
   Always maintain good security practices and monitor Claude's activities.
 </Warning>

@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/sub-agents
 source_type: llms-txt
-content_hash: sha256:5d405d52cdc82f03196807d351d0709bafc5338a5d3fb68b08422b2a8507e5e8
+content_hash: sha256:f1ad1f9bc8b8b3068d019b3e7ccce1bc6e2f06ca8d97c17a07173bdb994f5370
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -35,7 +35,7 @@ When Claude Code encounters a task that matches a subagent's expertise, it can d
   </Card>
 
   <Card title="Reusability" icon="rotate">
-    Once created, subagents can be used across different projects and shared with your team for consistent workflows.
+    Once created, you can use subagents across different projects and share them with your team for consistent workflows.
   </Card>
 
   <Card title="Flexible permissions" icon="shield-check">
@@ -61,15 +61,15 @@ To create your first subagent:
   </Step>
 
   <Step title="Define the subagent">
-    * **Recommended**: Generate with Claude first, then customize to make it yours
-    * Describe your subagent in detail and when it should be used
-    * Select the tools you want to grant access to (or leave blank to inherit all tools)
-    * The interface shows all available tools, making selection easy
+    * **Recommended**: generate with Claude first, then customize to make it yours
+    * Describe your subagent in detail, including when Claude should use it
+    * Select the tools you want to grant access to, or leave this blank to inherit all tools
+    * The interface shows all available tools
     * If you're generating with Claude, you can also edit the system prompt in your own editor by pressing `e`
   </Step>
 
   <Step title="Save and use">
-    Your subagent is now available. Claude will use it automatically when appropriate, or you can invoke it explicitly:
+    Your subagent is now available. Claude uses it automatically when appropriate, or you can invoke it explicitly:
 
     ```
     > Use the code-reviewer subagent to check my recent changes
@@ -94,7 +94,7 @@ When subagent names conflict, project-level subagents take precedence over user-
 
 [Plugins](/en/plugins) can provide custom subagents that integrate seamlessly with Claude Code. Plugin agents work identically to user-defined agents and appear in the `/agents` interface.
 
-**Plugin agent locations**: Plugins include agents in their `agents/` directory (or custom paths specified in the plugin manifest).
+**Plugin agent locations**: plugins include agents in their `agents/` directory (or custom paths specified in the plugin manifest).
 
 **Using plugin agents**:
 
@@ -208,7 +208,7 @@ This opens an interactive menu where you can:
 * Edit existing custom subagents, including their tool access
 * Delete custom subagents
 * See which subagents are active when duplicates exist
-* **Easily manage tool permissions** with a complete list of available tools
+* **Manage tool permissions** with a complete list of available tools
 
 ### Direct file management
 
@@ -332,7 +332,7 @@ The Explore subagent is a fast, lightweight agent optimized for searching and an
 * **Mode**: Strictly read-only - cannot create, modify, or delete files
 * **Tools available**:
   * Glob - File pattern matching
-  * Grep - Content searching with regex
+  * Grep - Content searching with regular expressions
   * Read - Reading file contents
   * Bash - Read-only commands only (ls, git status, git log, git diff, find, cat, head, tail)
 
@@ -344,7 +344,7 @@ Claude will delegate to the Explore subagent when it needs to search or understa
 
 When invoking the Explore subagent, Claude specifies a thoroughness level:
 
-* **Quick** - Basic searches, fastest results. Good for simple lookups.
+* **Quick** - Fast searches with minimal exploration. Good for targeted lookups.
 * **Medium** - Moderate exploration. Balances speed and thoroughness.
 * **Very thorough** - Comprehensive analysis across multiple locations and naming conventions. Used when the target might be in unexpected places.
 
@@ -388,7 +388,7 @@ When invoked:
 3. Begin review immediately
 
 Review checklist:
-- Code is simple and readable
+- Code is clear and readable
 - Functions and variables are well-named
 - No duplicated code
 - Proper error handling
@@ -437,7 +437,7 @@ For each issue, provide:
 - Testing approach
 - Prevention recommendations
 
-Focus on fixing the underlying issue, not just symptoms.
+Focus on fixing the underlying issue, not the symptoms.
 ```
 
 ### Data scientist

@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/build-with-claude/prompt-caching
 source_type: sitemap
-content_hash: sha256:5671c078c62dc4534382fd1280aa53fb28c687e54addcf895ca9fca41127446a
+content_hash: sha256:ed8a8bbdbedc1d9175e463a9a5d6683b2c8d8a1c6e5c7fe153307ab65f9be2c3
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -220,7 +220,7 @@ Prompt caching is currently supported on:
 - Claude Opus 4
 - Claude Sonnet 4.5
 - Claude Sonnet 4
-- Claude Sonnet 3.7
+- Claude Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations))
 - Claude Haiku 4.5
 - Claude Haiku 3.5
 - Claude Haiku 3
@@ -1645,7 +1645,7 @@ This pattern is especially powerful for:
 
   <section title="Is prompt caching available for all models?">
 
-    No, prompt caching is currently only available for Claude Opus 4.5, Claude Opus 4.1, Claude Opus 4, Claude Sonnet 4.5, Claude Sonnet 4, Claude Sonnet 3.7, Claude Haiku 4.5, Claude Haiku 3.5, Claude Haiku 3, and Claude Opus 3 ([deprecated](/docs/en/about-claude/model-deprecations)).
+    No, prompt caching is currently only available for Claude Opus 4.5, Claude Opus 4.1, Claude Opus 4, Claude Sonnet 4.5, Claude Sonnet 4, Claude Sonnet 3.7 ([deprecated](/docs/en/about-claude/model-deprecations)), Claude Haiku 4.5, Claude Haiku 3.5, Claude Haiku 3, and Claude Opus 3 ([deprecated](/docs/en/about-claude/model-deprecations)).
   
 </section>
 

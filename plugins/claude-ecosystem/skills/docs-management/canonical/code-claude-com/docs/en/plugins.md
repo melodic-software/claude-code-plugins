@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/plugins
 source_type: llms-txt
-content_hash: sha256:d549890d0284098a60f790b294d5de1113412a15d1c26f31dbb58bfaf25f32b4
+content_hash: sha256:1709e7105b34ecc569ca20d5348b918da78c731ab24cd1943401bb7ae72f0b61
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -349,7 +349,7 @@ When your plugin is ready to share:
 
 1. **Add documentation**: Include a README.md with installation and usage instructions
 2. **Version your plugin**: Use semantic versioning in your `plugin.json`
-3. **Create or use a marketplace**: Distribute through plugin marketplaces for easy installation
+3. **Create or use a marketplace**: Distribute through plugin marketplaces for installation
 4. **Test with others**: Have team members test the plugin before wider distribution
 
 <Note>

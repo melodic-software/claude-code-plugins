@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/terminal-config
 source_type: llms-txt
-content_hash: sha256:7cec8ed54fd915b01e9d0bf515d2d866cbe46fea07e77dc91080cb952cad14f4
+content_hash: sha256:dd803385fd46710016a9448f44c3e5940e1b0f7a3fee516b4e9653ae1310f4b9
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -18,7 +18,7 @@ For additional customization of the Claude Code interface itself, you can config
 
 ### Line breaks
 
-You have several options for entering linebreaks into Claude Code:
+You have several options for entering line breaks into Claude Code:
 
 * **Quick escape**: Type `\` followed by Enter to create a newline
 * **Keyboard shortcut**: Set up a keybinding to insert a newline

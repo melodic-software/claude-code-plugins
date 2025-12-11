@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/overview
 source_type: llms-txt
-content_hash: sha256:34a07d50ac1beb597016fde7cdce8bcf91cb9ee3680c3895be9ccdd6bb99d523
+content_hash: sha256:1bfaa9213cf3ca5674bc5179cd33df9e0fc847e02a8127a3277d7631f91dcd7d
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -53,21 +53,17 @@ cd your-project
 claude
 ```
 
-You'll be prompted to log in on first use. That's it! [Continue with Quickstart (5 mins) →](/en/quickstart)
+You'll be prompted to log in on first use. That's it! [Continue with Quickstart (5 minutes) →](/en/quickstart)
 
 <Tip>
-  See [advanced setup](/en/setup) for installation options or [troubleshooting](/en/troubleshooting) if you hit issues.
+  Claude Code automatically keeps itself up to date. See [advanced setup](/en/setup) for installation options, manual updates, or uninstallation instructions. Visit [troubleshooting](/en/troubleshooting) if you hit issues.
 </Tip>
-
-<Note>
-  **New VS Code Extension (Beta)**: Prefer a graphical interface? Our new [VS Code extension](/en/vs-code) provides an easy-to-use native IDE experience without requiring terminal familiarity. Simply install from the marketplace and start coding with Claude directly in your sidebar.
-</Note>
 
 ## What Claude Code does for you
 
 * **Build features from descriptions**: Tell Claude what you want to build in plain English. It will make a plan, write the code, and ensure it works.
 * **Debug and fix issues**: Describe a bug or paste an error message. Claude Code will analyze your codebase, identify the problem, and implement a fix.
-* **Navigate any codebase**: Ask anything about your team's codebase, and get a thoughtful answer back. Claude Code maintains awareness of your entire project structure, can find up-to-date information from the web, and with [MCP](/en/mcp) can pull from external datasources like Google Drive, Figma, and Slack.
+* **Navigate any codebase**: Ask anything about your team's codebase, and get a thoughtful answer back. Claude Code maintains awareness of your entire project structure, can find up-to-date information from the web, and with [MCP](/en/mcp) can pull from external data sources like Google Drive, Figma, and Slack.
 * **Automate tedious tasks**: Fix fiddly lint issues, resolve merge conflicts, and write release notes. Do all this in a single command from your developer machines, or automatically in CI.
 
 ## Why developers love Claude Code

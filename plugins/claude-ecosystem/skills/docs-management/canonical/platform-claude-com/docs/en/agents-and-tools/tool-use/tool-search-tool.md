@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool
 source_type: sitemap
-content_hash: sha256:c14cf8a1775a7ac3da196e33dd162c28930c8165c55d8b6d77f3d668847b96ff
+content_hash: sha256:19323f70c17c0e231f94a0c2388df54182951c5aa3ca8c181b220db67934a65f
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -328,9 +328,12 @@ When Claude uses the tool search tool, the response includes new block types:
       }
     },
     {
-      "type": "tool_result",
+      "type": "tool_search_tool_result",
       "tool_use_id": "srvtoolu_01ABC123",
-      "content": [{ "type": "tool_reference", "tool_name": "get_weather" }]
+      "content": {
+        "type": "tool_search_tool_search_result",
+        "tool_references": [{ "type": "tool_reference", "tool_name": "get_weather" }]
+      }
     },
     {
       "type": "text",
@@ -350,7 +353,8 @@ When Claude uses the tool search tool, the response includes new block types:
 ### Understanding the response
 
 - **`server_tool_use`**: Indicates Claude is invoking the tool search tool
-- **`tool_result`** with **`tool_reference`**: The search results containing references to discovered tools
+- **`tool_search_tool_result`**: Contains the search results with a nested `tool_search_tool_search_result` object
+- **`tool_references`**: Array of `tool_reference` objects pointing to discovered tools
 - **`tool_use`**: Claude invoking the discovered tool
 
 The `tool_reference` blocks are automatically expanded into full tool definitions before being shown to Claude. You don't need to handle this expansion yourself. It happens automatically in the API as long as you provide all matching tool definitions in the `tools` parameter.
@@ -511,9 +515,12 @@ You can implement your own tool search logic (e.g., using embeddings or semantic
 
 ```json JSON
 {
-  "type": "tool_result",
+  "type": "tool_search_tool_result",
   "tool_use_id": "toolu_custom_search",
-  "content": [{ "type": "tool_reference", "tool_name": "discovered_tool_name" }]
+  "content": {
+    "type": "tool_search_tool_search_result",
+    "tool_references": [{ "type": "tool_reference", "tool_name": "discovered_tool_name" }]
+  }
 }
 ```
 
@@ -734,10 +741,10 @@ data: {"type": "content_block_delta", "index": 1, "delta": {"type": "input_json_
 
 // Search results streamed
 event: content_block_start
-data: {"type": "content_block_start", "index": 2, "content_block": {"type": "tool_result", "tool_use_id": "srvtoolu_xyz789", "content": [{"type": "tool_reference", "tool_name": "get_weather"}]}}
+data: {"type": "content_block_start", "index": 2, "content_block": {"type": "tool_search_tool_result", "tool_use_id": "srvtoolu_xyz789", "content": {"type": "tool_search_tool_search_result", "tool_references": [{"type": "tool_reference", "tool_name": "get_weather"}]}}}
 
 // Claude continues with discovered tools
-````
+```
 
 ## Batch requests
 

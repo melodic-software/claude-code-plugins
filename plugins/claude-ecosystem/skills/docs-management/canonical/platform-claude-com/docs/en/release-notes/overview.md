@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/release-notes/overview
 source_type: sitemap
-content_hash: sha256:9a5caf6ebc69bfc16aa026c270aee9b35e50d3f256e70e710770120dd33e668c
+content_hash: sha256:643d945886097029f0d407c30ce85a4cfbd0a2c5298847a2be6e20186311c8d6
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 published_at: '2025-12-04'
@@ -28,6 +28,9 @@ For updates to Claude Code, see the [complete CHANGELOG.md](https://github.com/a
 - We've launched the [tool search tool](/docs/en/agents-and-tools/tool-use/tool-search-tool) in public beta, enabling Claude to dynamically discover and load tools on-demand from large tool catalogs.
 - We've launched the [effort parameter](/docs/en/build-with-claude/effort) in public beta for Claude Opus 4.5, allowing you to control token usage by trading off between response thoroughness and efficiency.
 - We've added [client-side compaction](/docs/en/build-with-claude/context-editing#client-side-compaction-sdk) to our Python and TypeScript SDKs, automatically managing conversation context through summarization when using `tool_runner`.
+
+### November 21, 2025
+- Search result content blocks are now generally available on Amazon Bedrock. Learn more in our [search results documentation](/docs/en/build-with-claude/search-results).
 
 ### November 19, 2025
 - We've launched a **new documentation platform** at [platform.claude.com/docs](https://platform.claude.com/docs). Our documentation now lives side by side with the Claude Console, providing a unified developer experience. The previous docs site at docs.claude.com will redirect to the new location.

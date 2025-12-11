@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/headless
 source_type: llms-txt
-content_hash: sha256:5f60154cc0e9a647d643ca63970896559e105aaee8ff7827ecc1ae2723787cf9
+content_hash: sha256:7e52e398c60c0ca0fa4c5b39c28bba4d80ba78907d0039e03075fb9243e3a7cf
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -117,7 +117,7 @@ echo "Explain this code" | claude -p
 
 A stream of messages provided via `stdin` where each message represents a user turn. This allows multiple turns of a conversation without re-launching the `claude` binary and allows providing guidance to the model while it is processing a request.
 
-Each message is a JSON 'User message' object, following the same format as the output message schema. Messages are formatted using the [jsonl](https://jsonlines.org/) format where each line of input is a complete JSON object. Streaming JSON input requires `-p` and `--output-format stream-json`.
+Each message is a JSON 'User message' object, following the same format as the output message schema. Messages are formatted using the [`jsonl`](https://jsonlines.org/) format where each line of input is a complete JSON object. Streaming JSON input requires `-p` and `--output-format stream-json`.
 
 ```bash  theme={null}
 echo '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Explain this code"}]}}' | claude -p --output-format=stream-json --input-format=stream-json --verbose

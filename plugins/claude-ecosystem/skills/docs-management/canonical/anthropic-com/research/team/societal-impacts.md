@@ -1,7 +1,7 @@
 ---
 source_url: https://www.anthropic.com/research/team/societal-impacts
 source_type: sitemap
-content_hash: sha256:f9e2a67fd11ec771cef6c869a581fdc811943cdb6e2fc4e75f069180482fdb71
+content_hash: sha256:13b7c88e3b8b9bc50173f5c5add68d193ab59357d3909bbf08e64e081c0a1d8e
 sitemap_url: https://www.anthropic.com/sitemap.xml
 fetch_method: html
 ---
@@ -26,19 +26,19 @@ Which human values should AI models hold, and how should they operate in the fac
 
 Though the Societal Impacts team is technical, they often pick research questions that have policy relevance. They believe that providing trustworthy research concerning topics policymakers care about will lead to better policy (and overall) outcomes for everyone.
 
-![Anthropic Economic Index: Tracking AI’s role in the US and global economy](https://www-cdn.anthropic.com/images/4zrzovbb/website/1e2cc2ea6907317ec1daf171d8a8889c170fc727-1600x900.png)
+![How AI is transforming work at Anthropic](https://www-cdn.anthropic.com/images/4zrzovbb/website/83d7d2fe412ceb4dfe627f0d5f3d64aff1a3f5db-1000x1000.svg)
 
-[## Anthropic Economic Index: Tracking AI’s role in the US and global economy
+[## How AI is transforming work at Anthropic
 
-Economic ResearchSep 15, 2025
+Societal ImpactsDec 2, 2025
 
-This report maps how Claude is used differently across US states and countries, finding strong correlations between income and AI adoption. It also tracks a notable shift: directive automation has risen from 27% to 39% of conversations since December 2024, with businesses automating far more than consumers.](/research/economic-index-geography)
+We surveyed Anthropic engineers and researchers, conducted in-depth qualitative interviews, and studied internal Claude Code usage data to find out how AI use is changing how we do our jobs. We found that AI use is radically changing the nature of work for software developers.](/research/how-ai-is-transforming-work-at-anthropic)
 
-[Societal ImpactsApr 28, 2025
+[Societal ImpactsDec 4, 2025
 
-#### Anthropic Economic Index: AI’s impact on software development
+#### Introducing Anthropic Interviewer: What 1,250 professionals told us about working with AI
 
-Comparing Claude Code to Claude.ai reveals stark differences in how developers work with AI. The coding agent shows 79% automation versus 49% on Claude.ai, web development dominates usage, and startups are adopting agentic tools far faster than enterprises—patterns that may preview how AI transforms other occupations.](/research/impact-software-development)[Societal ImpactsApr 21, 2025
+We built an interview tool called Anthropic Interviewer. Powered by Claude, Anthropic Interviewer runs detailed interviews automatically and at unprecedented scale.](/research/anthropic-interviewer)[Societal ImpactsApr 21, 2025
 
 #### Values in the wild: Discovering and analyzing values in real-world language model interactions
 

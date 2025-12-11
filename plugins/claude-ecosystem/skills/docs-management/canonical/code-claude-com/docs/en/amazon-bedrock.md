@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/amazon-bedrock
 source_type: llms-txt
-content_hash: sha256:3c5210769e82406cd83d944679d4ee31075017682b27d8e0ef987b74acd718a6
+content_hash: sha256:9296b17c147185aecc9ab962677437ec6a171a8789105fb84814bfa03f65fa32
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -159,7 +159,7 @@ export MAX_THINKING_TOKENS=1024
 
 **Why these values:**
 
-* **`CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096`**: Bedrock's burndown throttling logic sets a minimum of 4096 tokens as the max\_token penalty. Setting this lower won't reduce costs but may cut off long tool uses, causing the Claude Code agent loop to fail persistently. Claude Code typically uses less than 4096 output tokens without extended thinking, but may need this headroom for tasks involving significant file creation or Write tool usage.
+* **`CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096`**: Bedrock's burndown throttling logic sets a minimum of 4096 tokens as the `max_token` penalty. Setting this lower won't reduce costs but may cut off long tool uses, causing the Claude Code agent loop to fail persistently. Claude Code typically uses less than 4096 output tokens without extended thinking, but may need this headroom for tasks involving significant file creation or Write tool usage.
 
 * **`MAX_THINKING_TOKENS=1024`**: This provides space for extended thinking without cutting off tool use responses, while still maintaining focused reasoning chains. This balance helps prevent trajectory changes that aren't always helpful for coding tasks specifically.
 

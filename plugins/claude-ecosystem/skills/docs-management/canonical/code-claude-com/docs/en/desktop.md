@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/desktop
 source_type: llms-txt
-content_hash: sha256:aa0c9ac0e994b4c67364f738770e23685941bfe6d9ce64e9bf93cc85d260210f
+content_hash: sha256:a15e38126e42f70fb8ed99cb1077fb354f96a670dfe3a6302eea04e8dd85bc34
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -21,7 +21,7 @@ The Claude desktop app provides a native interface for running multiple Claude C
 Claude Code on desktop provides:
 
 * **Parallel local sessions with `git` worktrees**: Run multiple Claude Code sessions simultaneously in the same repository, each with its own isolated `git` worktree
-* **Include `.gitignored` files in your worktrees**: Automatically copy gitignored files like `.env` to new worktrees using `.worktreeinclude`
+* **Include files listed in your `.gitignore` in your worktrees**: Automatically copy files in your `.gitignore`, like `.env`, to new worktrees using `.worktreeinclude`
 * **Launch Claude Code on the web**: Kick off secure cloud sessions directly from the desktop app
 
 ## Installation

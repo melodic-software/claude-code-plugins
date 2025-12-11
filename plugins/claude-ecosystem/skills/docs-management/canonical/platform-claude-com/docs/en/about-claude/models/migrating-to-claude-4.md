@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/about-claude/models/migrating-to-claude-4
 source_type: sitemap
-content_hash: sha256:f1a3edea5311e7286cfa487a0db47e5bcbe2ac63f80ec827c07202e0ab835447
+content_hash: sha256:5387e55786276e761eab224961baf384ea744499569f79f1056b49717519d695
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -95,7 +95,7 @@ Claude Sonnet 4.5 is our most intelligent model, offering best-in-class performa
 
 6. **Remove token-efficient tool use beta header**
 
-   [Token-efficient tool use](/docs/en/agents-and-tools/tool-use/token-efficient-tool-use) is a beta feature that only works with Claude 3.7 Sonnet. All Claude 4 models have built-in token-efficient tool use, so you should no longer include the beta header.
+   Token-efficient tool use is a beta feature that only works with Claude 3.7 Sonnet. All Claude 4 models have built-in token-efficient tool use, so you should no longer include the beta header.
 
    Remove the `token-efficient-tools-2025-02-19` [beta header](/docs/en/api/beta-headers) from your requests:
 

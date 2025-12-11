@@ -1547,6 +1547,79 @@ anthropic-com-news-advancing-claude-for-financial-services:
   - skills
   title: Advancing Claude for Financial Services
   url: https://www.anthropic.com/news/advancing-claude-for-financial-services
+anthropic-com-news-anthropic-accenture-partnership:
+  category: news
+  description: AnnouncementsProduct
+  domain: anthropic.com
+  hash: sha256:fef1cccabe6fa342389dcf67c8320794bb3e84e00b27dcc08cfe866a209a1bba
+  keywords:
+  - anthropic-accenture-partnership
+  - partnership
+  - accenture
+  - regulated industries
+  - software development
+  - partnership built
+  - year partnership
+  - amazon bedrock
+  - business group
+  - shared values
+  - announcementsproduct
+  - development
+  last_fetched: '2025-12-11'
+  path: anthropic-com/news/anthropic-accenture-partnership.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#introducing-the-accenture-anthropic-business-group'
+    heading: '**Introducing the Accenture Anthropic Business Group**'
+    keywords:
+    - introducing
+    - accenture
+    - business
+    - group
+    level: 2
+  - anchor: '#launching-a-product-to-help-cios-put-claude-code-at-the-center-of-software-development'
+    heading: '**Launching a product to help CIOs put Claude Code at the center of
+      software development**'
+    keywords:
+    - launching
+    - product
+    - help
+    - cios
+    - center
+    level: 2
+  - anchor: '#building-ai-offerings-for-regulated-industries'
+    heading: '**Building AI offerings for regulated industries**'
+    keywords:
+    - building
+    - offerings
+    - regulated
+    - industries
+    - accenture
+    level: 2
+  - anchor: '#a-partnership-built-on-shared-values'
+    heading: '**A partnership built on shared values**'
+    keywords:
+    - partnership
+    - built
+    - shared
+    - values
+    - grounded
+    level: 2
+  - anchor: '#getting-started'
+    heading: '**Getting started**'
+    keywords:
+    - getting
+    - started
+    - accenture
+    - clients
+    - contact
+    level: 2
+  tags:
+  - deployment
+  title: Accenture and Anthropic launch multi-year partnership to move enterprises
+    from AI pilots to production
+  url: https://www.anthropic.com/news/anthropic-accenture-partnership
 anthropic-com-news-anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone:
   category: news
   description: Announcements
@@ -3442,6 +3515,70 @@ anthropic-com-news-disrupting-AI-espionage:
   - streaming
   title: Disrupting the first reported AI-orchestrated cyber espionage campaign
   url: https://www.anthropic.com/news/disrupting-AI-espionage
+anthropic-com-news-donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation:
+  category: news
+  description: Announcements
+  domain: anthropic.com
+  hash: sha256:52eebcc8f8999982102796e5e2ae09710880c2f26df71cc2c1fb01ba361de2d0
+  keywords:
+  - model-context-protocol
+  - context-protocol
+  - model-context
+  - establishing
+  - foundation
+  - donating
+  - protocol
+  - agentic
+  - context
+  - model context protocol
+  - linux foundation
+  - visual studio
+  last_fetched: '2025-12-11'
+  path: anthropic-com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation.md
+  sitemap_url: https://www.anthropic.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#model-context-protocol'
+    heading: '**Model Context Protocol**'
+    keywords:
+    - model
+    - context
+    - protocol
+    - year
+    - introduced
+    level: 2
+  - anchor: '#the-linux-foundation-and-the-agentic-ai-foundation'
+    heading: '**The Linux Foundation and the Agentic AI Foundation**'
+    keywords:
+    - linux
+    - foundation
+    - agentic
+    - https
+    level: 2
+  - anchor: '#donating-the-model-context-protocol'
+    heading: '**Donating the Model Context Protocol**'
+    keywords:
+    - donating
+    - model
+    - context
+    - protocol
+    level: 2
+  - anchor: '#the-future-of-mcp'
+    heading: '**The future of MCP**'
+    keywords:
+    - future
+    - mcp
+    - open
+    - source
+    - software
+    level: 2
+  tags:
+  - agents
+  - deployment
+  - mcp
+  - models
+  title: Donating the Model Context Protocol and establishing the Agentic AI Foundation
+  url: https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation
 anthropic-com-news-economic-futures-uk-europe:
   category: news
   description: Economic Research
@@ -4701,7 +4838,7 @@ anthropic-com-news-political-even-handedness:
   category: news
   description: ProductSocietal Impacts
   domain: anthropic.com
-  hash: sha256:4985e69f8db9c8f6981d9489862172bcb53f8a48db48646cdeeb1ad458eb14e0
+  hash: sha256:20fe2263b28f5d1d67cd3374cf420b4df11f8b62872087353f6c9afa2e7e9540
   keywords:
   - political-even-handedness
   - handedness
@@ -4715,7 +4852,7 @@ anthropic-com-news-political-even-handedness:
   - conclusions
   - evaluating
   - evaluation
-  last_fetched: '2025-12-04'
+  last_fetched: '2025-12-11'
   path: anthropic-com/news/political-even-handedness.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8051,7 +8188,7 @@ anthropic-com-research-team-societal-impacts:
     Impacts is a technical research team that explores how AI is used in the real
     world.
   domain: anthropic.com
-  hash: sha256:f9e2a67fd11ec771cef6c869a581fdc811943cdb6e2fc4e75f069180482fdb71
+  hash: sha256:13b7c88e3b8b9bc50173f5c5add68d193ab59357d3909bbf08e64e081c0a1d8e
   keywords:
   - societal-impacts
   - research
@@ -8059,13 +8196,13 @@ anthropic-com-research-team-societal-impacts:
   - impacts
   - collective constitutional
   - sociotechnical alignment
-  - software development
+  - professionals told
   - analyzing values
   - large generative
   - policy relevance
   - societal impacts
   - world language
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: anthropic-com/research/team/societal-impacts.md
   sitemap_url: https://www.anthropic.com/sitemap.xml
   source_type: sitemap
@@ -8105,7 +8242,7 @@ code-claude-com-docs-en-amazon-bedrock:
   category: installation
   description: 'Before configuring Claude Code with Bedrock, ensure you have:'
   domain: code.claude.com
-  hash: sha256:3c5210769e82406cd83d944679d4ee31075017682b27d8e0ef987b74acd718a6
+  hash: sha256:9296b17c147185aecc9ab962677437ec6a171a8789105fb84814bfa03f65fa32
   keywords:
   - amazon-bedrock
   - bedrock
@@ -8119,7 +8256,7 @@ code-claude-com-docs-en-amazon-bedrock:
   - enable bedrock
   - prompt caching
   - case details
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/amazon-bedrock.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8239,7 +8376,7 @@ code-claude-com-docs-en-analytics:
   - dashboard
   - accepted
   - activity
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/analytics.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8371,7 +8508,7 @@ code-claude-com-docs-en-checkpointing:
   - checkpoints
   - automatic
   - allowing
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/checkpointing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8460,7 +8597,7 @@ code-claude-com-docs-en-claude-code-on-the-web:
   category: installation
   description: <Note> Claude Code on the web is currently in research preview. </Note>
   domain: code.claude.com
-  hash: sha256:707c9ade2bd70ff10e2e0be3cd1088516d63e161712a219906d5514797dae59d
+  hash: sha256:0e9c159b2d4396a507ba37e10db87ccd4da1c0425d6b53f5f218bbd14a2e8c3e
   keywords:
   - container registries
   - customized network
@@ -8474,7 +8611,7 @@ code-claude-com-docs-en-claude-code-on-the-web:
   - rate limits
   - configuration
   - CLAUDE.md
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/claude-code-on-the-web.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8680,7 +8817,7 @@ code-claude-com-docs-en-cli-reference:
   - agent sdk
   - command
   - agents
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/cli-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -8754,7 +8891,7 @@ code-claude-com-docs-en-common-workflows:
   - slash commands
   - system prompt
   - new features
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/common-workflows.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9049,7 +9186,7 @@ code-claude-com-docs-en-costs:
   - api keys
   - effectively
   - interaction
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/costs.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9174,7 +9311,7 @@ code-claude-com-docs-en-data-usage:
   - data training
   - data usage
   - data flow
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/data-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9280,7 +9417,7 @@ code-claude-com-docs-en-desktop:
   description: <img src="https://mintcdn.com/claude-code/zEGbGSbinVtT3BLw/images/desktop-interface.png?fit=max&auto=format&n=zEGbGSbinVtT3BLw&q=85&s=c4e9dc9737b437d36ab253b75a1cc595"
     alt="Claude Code on desktop...
   domain: code.claude.com
-  hash: sha256:aa0c9ac0e994b4c67364f738770e23685941bfe6d9ce64e9bf93cc85d260210f
+  hash: sha256:a15e38126e42f70fb8ed99cb1077fb354f96a670dfe3a6302eea04e8dd85bc34
   keywords:
   - desktop
   - enterprise configuration
@@ -9294,7 +9431,7 @@ code-claude-com-docs-en-desktop:
   - format
   - images
   - https
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/desktop.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9385,7 +9522,7 @@ code-claude-com-docs-en-devcontainer:
   description: The reference [devcontainer setup](https://github.com/anthropics/claude-code/tree/main/.devcontainer)
     and associated...
   domain: code.claude.com
-  hash: sha256:50bb3e4e0960e24a95be2fd21cb59710463084540cfc95c1701198a8c3e74b88
+  hash: sha256:c36b41dda235ca4c6e7c8edcd809832ab3b2d9de926a8df5037028c68f94150a
   keywords:
   - devcontainer
   - configuration breakdown
@@ -9399,7 +9536,7 @@ code-claude-com-docs-en-devcontainer:
   - development
   - anthropics
   - associated
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/devcontainer.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9507,7 +9644,7 @@ code-claude-com-docs-en-github-actions:
     workflow. With a simple `@claude` mention in any PR or issue, Claude can analyze
     your code, create pull requests, implement...
   domain: code.claude.com
-  hash: sha256:36b8ff8cb606b4e818ed5f34f9702f113a127621e951a9d8f84b02c51a4b74ca
+  hash: sha256:89634a8c16ccd2660b390d7261285e511895452a3eedb9fa6d90d63f1e100ec5
   keywords:
   - github-actions
   - actions
@@ -9521,7 +9658,7 @@ code-claude-com-docs-en-github-actions:
   - breaking changes
   - amazon bedrock
   - basic workflow
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/github-actions.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -9814,7 +9951,7 @@ code-claude-com-docs-en-gitlab-ci-cd:
   - api keys
   - authentication
   - functionality
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/gitlab-ci-cd.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10090,7 +10227,7 @@ code-claude-com-docs-en-google-vertex-ai:
   - token counting
   - enable vertex
   - google vertex
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/google-vertex-ai.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10209,7 +10346,7 @@ code-claude-com-docs-en-headless:
   description: The headless mode allows you to run Claude Code programmatically from
     command line scripts and automation tools without any interactive UI.
   domain: code.claude.com
-  hash: sha256:5f60154cc0e9a647d643ca63970896559e105aaee8ff7827ecc1ae2723787cf9
+  hash: sha256:7e52e398c60c0ca0fa4c5b39c28bba4d80ba78907d0039e03075fb9243e3a7cf
   keywords:
   - headless
   - configuration options
@@ -10223,7 +10360,7 @@ code-claude-com-docs-en-headless:
   - system prompt
   - basic usage
   - mcp servers
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/headless.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10388,7 +10525,7 @@ code-claude-com-docs-en-hooks:
   description: <Tip> For a quickstart guide with examples, see [Get started with Claude
     Code hooks](/en/hooks-guide). </Tip>
   domain: code.claude.com
-  hash: sha256:293ce7d8cdab45bdcd4726c505d73733d4f201246b1bc3631d590137c90fb921
+  hash: sha256:035740e7d9f71aaf04061caa6e65352555e16d9acd8e438eb5d7131cb12e1d20
   keywords:
   - hooks
   - model context protocol
@@ -10402,7 +10539,7 @@ code-claude-com-docs-en-hooks:
   - approve file
   - bash command
   - mcp servers
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/hooks.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -10859,7 +10996,7 @@ code-claude-com-docs-en-hooks-guide:
   - deterministic
   - formatting
   - execution
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/hooks-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11018,7 +11155,7 @@ code-claude-com-docs-en-iam:
   - api keys
   - tool use
   - authentication
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/iam.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11138,7 +11275,7 @@ code-claude-com-docs-en-interactive-mode:
   - multiline input
   - mode switching
   - slash commands
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/interactive-mode.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11285,7 +11422,7 @@ code-claude-com-docs-en-jetbrains:
   - configurations
   - considerations
   - configuration
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/jetbrains.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11467,7 +11604,7 @@ code-claude-com-docs-en-legal-and-compliance:
   - commercial
   - healthcare
   - reporting
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/legal-and-compliance.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11563,7 +11700,7 @@ code-claude-com-docs-en-llm-gateway:
   - google vertex
   - llm gateway
   - rate limits
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/llm-gateway.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11639,7 +11776,7 @@ code-claude-com-docs-en-mcp:
   description: export const MCPServersTable = ({platform = "all"}) => { const ifYouAreAnAiAgentReadingThisYouShouldInsteadFetch
     = 'https://api.anthropic.com/mcp-registry/docs'; const [servers, setServers] =...
   domain: code.claude.com
-  hash: sha256:e66486b25cc536ede1ec0f2b338dfd9a291b2a603fcdec4a87dac886ca2d7627
+  hash: sha256:0a9045b2bec36cfadc0e88c83ce0f61187dc2d586d14efc22eb329272a6a90f5
   keywords:
   - model context protocol
   - authentication header
@@ -11653,7 +11790,7 @@ code-claude-com-docs-en-mcp:
   - slash commands
   - basic syntax
   - bearer token
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/mcp.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -11946,21 +12083,21 @@ code-claude-com-docs-en-memory:
   description: Claude Code can remember your preferences across sessions, like style
     guidelines and common commands in your workflow.
   domain: code.claude.com
-  hash: sha256:bdef6dbaa9e8f3478fef6c175016eb7487afdb6935f7976cd51a20709524093a
+  hash: sha256:7824df90065bd8ec0ee17b916232eefa3849d9be383beaa3aa3cf00c0cf5bd6d
   keywords:
   - memory
   - individual preferences
   - descriptive variable
+  - development rules
+  - yaml frontmatter
   - version control
+  - glob patterns
+  - modular rules
   - level memory
+  - level rules
   - descriptive
-  - preferences
-  - guidelines
-  - CLAUDE.md
-  - claude.md
-  - determine
-  - directly
-  last_fetched: '2025-12-08'
+  - development
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/memory.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12017,6 +12154,65 @@ code-claude-com-docs-en-memory:
     - suppose
     - want
     level: 2
+  - anchor: '#modular-rules-with-clauderules'
+    heading: Modular rules with `.claude/rules/`
+    keywords:
+    - modular
+    - rules
+    - larger
+    - projects
+    - organize
+    level: 2
+  - anchor: '#basic-structure'
+    heading: Basic structure
+    keywords:
+    - basic
+    - structure
+    - place
+    - markdown
+    - files
+    level: 3
+  - anchor: '#path-specific-rules'
+    heading: Path-specific rules
+    keywords:
+    - path
+    - specific
+    - rules
+    - scoped
+    level: 3
+  - anchor: '#glob-patterns'
+    heading: Glob patterns
+    keywords:
+    - glob
+    - patterns
+    - paths
+    - field
+    - supports
+    level: 3
+  - anchor: '#subdirectories'
+    heading: Subdirectories
+    keywords:
+    - subdirectories
+    - rules
+    - organized
+    level: 3
+  - anchor: '#symlinks'
+    heading: Symlinks
+    keywords:
+    - symlinks
+    - rules
+    - directory
+    - supports
+    level: 3
+  - anchor: '#user-level-rules'
+    heading: User-level rules
+    keywords:
+    - user
+    - level
+    - rules
+    - create
+    - personal
+    level: 3
   - anchor: '#organization-level-memory-management'
     heading: Organization-level memory management
     keywords:
@@ -12037,6 +12233,8 @@ code-claude-com-docs-en-memory:
     level: 2
   tags:
   - memory
+  - security
+  - testing
   title: Manage Claude's memory
   url: https://code.claude.com/docs/en/memory
 code-claude-com-docs-en-microsoft-foundry:
@@ -12058,7 +12256,7 @@ code-claude-com-docs-en-microsoft-foundry:
   - configure azure
   - azure resource
   - azure rbac
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/microsoft-foundry.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12144,7 +12342,7 @@ code-claude-com-docs-en-model-config:
   category: configuration
   description: 'For the `model` setting in Claude Code, you can configure either:'
   domain: code.claude.com
-  hash: sha256:34ab86cb0edc60d1310a2ccbf1f26f56520909304ebb938d8ddf6561e8544b38
+  hash: sha256:ba19a4a1cad941f0606c5d7094c8eeeaee054f67072dc715e086e4d3d77ea8b7
   keywords:
   - model-config
   - config
@@ -12158,7 +12356,7 @@ code-claude-com-docs-en-model-config:
   - checking
   - aliases
   - caching
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/model-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12273,7 +12471,7 @@ code-claude-com-docs-en-monitoring-usage:
   - configure otlp
   - active time
   - bash tool
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/monitoring-usage.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12524,7 +12722,7 @@ code-claude-com-docs-en-network-config:
   - bypass proxy
   - https proxy
   - llm gateway
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/network-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12618,7 +12816,7 @@ code-claude-com-docs-en-output-styles:
   - capabilities
   - comparisons
   - CLAUDE.md
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/output-styles.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12719,14 +12917,14 @@ code-claude-com-docs-en-overview:
   category: installation
   description: 'Prerequisites:'
   domain: code.claude.com
-  hash: sha256:34a07d50ac1beb597016fde7cdce8bcf91cb9ee3680c3895be9ccdd6bb99d523
+  hash: sha256:1bfaa9213cf3ca5674bc5179cd33df9e0fc847e02a8127a3277d7631f91dcd7d
   keywords:
   - amazon bedrock
   - google vertex
   - release notes
   - agent sdk
   - prerequisites
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/overview.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -12801,7 +12999,7 @@ code-claude-com-docs-en-plugin-marketplaces:
   - install plugins
   - version control
   - development
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/plugin-marketplaces.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13095,7 +13293,7 @@ code-claude-com-docs-en-plugins:
     reference](/en/plugins-reference). For marketplace management, see [Plugin marketplaces](/en/plugin-marketplaces).
     </Tip>
   domain: code.claude.com
-  hash: sha256:d549890d0284098a60f790b294d5de1113412a15d1c26f31dbb58bfaf25f32b4
+  hash: sha256:1709e7105b34ecc569ca20d5348b918da78c731ab24cd1943401bb7ae72f0b61
   keywords:
   - plugins
   - plugin marketplace
@@ -13109,7 +13307,7 @@ code-claude-com-docs-en-plugins:
   - administrators
   - specifications
   - marketplaces
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/plugins.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13320,7 +13518,7 @@ code-claude-com-docs-en-plugins-reference:
   - version history
   - component path
   - file locations
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/plugins-reference.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13561,7 +13759,7 @@ code-claude-com-docs-en-quickstart:
   - powered
   - change
   - coding
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/quickstart.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13688,7 +13886,7 @@ code-claude-com-docs-en-sandboxing:
     for agent execution while reducing the need for constant permission prompts. Instead
     of asking permission for each bash...
   domain: code.claude.com
-  hash: sha256:179cd9438a0ca69c20cf0057f37611b1b9cecb26ae7b6fc1e8a4a6294710c364
+  hash: sha256:bcdc06de16c420371e610419230b3f8a6039df5f60b54b8a31a7f5c0a9dbdbec
   keywords:
   - sandboxing
   - configure sandboxing
@@ -13702,7 +13900,7 @@ code-claude-com-docs-en-sandboxing:
   - custom proxy
   - bash tool
   - tool use
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/sandboxing.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -13771,6 +13969,13 @@ code-claude-com-docs-en-sandboxing:
     - enable
     - sandboxing
     - running
+    level: 3
+  - anchor: '#sandbox-modes'
+    heading: Sandbox modes
+    keywords:
+    - sandbox
+    - modes
+    - offers
     level: 3
   - anchor: '#configure-sandboxing'
     heading: Configure sandboxing
@@ -13910,7 +14115,7 @@ code-claude-com-docs-en-sdk-migration-guide:
   - system prompt
   - agent sdk
   - tool use
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/sdk/migration-guide.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14046,7 +14251,7 @@ code-claude-com-docs-en-security:
   - version control
   - context window
   - mcp servers
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/security.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14210,10 +14415,11 @@ code-claude-com-docs-en-settings:
     to meet your needs. You can configure Claude Code by running the `/config` command
     when using the interactive REPL, which opens a...
   domain: code.claude.com
-  hash: sha256:b0e83995ae2a14ff5e5045db1a82ae348bc4f80a2cc3692f57ece46a0db3fd08
+  hash: sha256:964e9b652f09de7f5ce3d46479be6191cea42a91eec2a8d72a716c72b6a1345f
   keywords:
   - settings
   - environment variables
+  - attribution settings
   - configuration system
   - plugin configuration
   - excluding sensitive
@@ -14221,10 +14427,9 @@ code-claude-com-docs-en-settings:
   - managing plugins
   - yaml frontmatter
   - extending tools
-  - plugin settings
   - prompt caching
   - slash commands
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/settings.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14262,6 +14467,14 @@ code-claude-com-docs-en-settings:
     - configure
     - advanced
     - sandboxing
+    level: 3
+  - anchor: '#attribution-settings'
+    heading: Attribution settings
+    keywords:
+    - attribution
+    - settings
+    - adds
+    - commits
     level: 3
   - anchor: '#settings-precedence'
     heading: Settings precedence
@@ -14381,16 +14594,15 @@ code-claude-com-docs-en-settings:
 code-claude-com-docs-en-setup:
   category: installation
   description: '* **Operating Systems**: macOS 10.15+, Ubuntu 20.04+/Debian 10+, or
-    Windows 10+ (with WSL 1, WSL 2, or Git for Windows) * **Hardware**: 4GB+ RAM *
-    **Software**: [Node.js...'
+    Windows 10+ (with WSL 1, WSL 2, or Git for Windows) * **Hardware**: 4 GB+ RAM
+    * **Software**: [Node.js...'
   domain: code.claude.com
-  hash: sha256:d3b8a532d2d54175f8a38620bfc0d068ada43b1058b9d783708c5e2acb876857
+  hash: sha256:683b0cf69987aa8f1bfc5338564d601a350ccec61f1a374d05d1e561a60d5ccb
   keywords:
   - setup
   - alternative installation
-  - standard installation
+  - homebrew installation
   - native installation
-  - system requirements
   - amazon bedrock
   - install latest
   - install stable
@@ -14398,7 +14610,8 @@ code-claude-com-docs-en-setup:
   - google vertex
   - auto updates
   - api keys
-  last_fetched: '2025-12-08'
+  - configuration
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/setup.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14499,13 +14712,56 @@ code-claude-com-docs-en-setup:
     - theme
     - 'null'
     level: 3
+  - anchor: '#uninstall-claude-code'
+    heading: Uninstall Claude Code
+    keywords:
+    - uninstall
+    - need
+    - follow
+    level: 2
+  - anchor: '#native-installation'
+    heading: Native installation
+    keywords:
+    - native
+    - installation
+    - remove
+    - binary
+    - symlink
+    level: 3
+  - anchor: '#homebrew-installation'
+    heading: Homebrew installation
+    keywords:
+    - homebrew
+    - installation
+    - bash
+    - theme
+    - 'null'
+    level: 3
+  - anchor: '#npm-installation'
+    heading: NPM installation
+    keywords:
+    - npm
+    - installation
+    - bash
+    - theme
+    - 'null'
+    level: 3
+  - anchor: '#clean-up-configuration-files-optional'
+    heading: Clean up configuration files (optional)
+    keywords:
+    - clean
+    - configuration
+    - files
+    - optional
+    - warning
+    level: 3
   tags:
   - authentication
   - changelog
   - configuration
   - installation
+  - mcp
   - security
-  - troubleshooting
   title: Set up Claude Code
   url: https://code.claude.com/docs/en/setup
 code-claude-com-docs-en-skills:
@@ -14528,7 +14784,7 @@ code-claude-com-docs-en-skills:
   - agent sdk
   - functionality
   - capabilities
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/skills.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14929,12 +15185,272 @@ code-claude-com-docs-en-skills:
   - skills
   title: Agent Skills
   url: https://code.claude.com/docs/en/skills
+code-claude-com-docs-en-slack:
+  category: installation
+  description: Claude Code in Slack brings the power of Claude Code directly into
+    your Slack workspace. When you mention `@Claude` with a coding task, Claude automatically
+    detects the intent and creates a Claude...
+  domain: code.claude.com
+  hash: sha256:5ee26ba61c0f38fd4fc0753163927d5952862e915790d053aa35b75b1ba656cd
+  keywords:
+  - slack
+  - repository selection
+  - automatic detection
+  - session expiration
+  - context gathering
+  - message actions
+  - rate limits
+  - authentication
+  - accessible
+  - automatic
+  - workspace
+  - directly
+  last_fetched: '2025-12-11'
+  path: code-claude-com/docs/en/slack.md
+  sitemap_url: https://code.claude.com/docs/llms.txt
+  source_type: llms-txt
+  subsections:
+  - anchor: '#use-cases'
+    heading: Use cases
+    keywords:
+    - use
+    - cases
+    - investigation
+    - fixes
+    - investigate
+    level: 2
+  - anchor: '#prerequisites'
+    heading: Prerequisites
+    keywords:
+    - prerequisites
+    - slack
+    - ensure
+    - following
+    level: 2
+  - anchor: '#setting-up-claude-code-in-slack'
+    heading: Setting up Claude Code in Slack
+    keywords:
+    - setting
+    - slack
+    - steps
+    - step
+    - title
+    level: 2
+  - anchor: '#how-it-works'
+    heading: How it works
+    keywords:
+    - works
+    - automatic
+    - detection
+    - mention
+    level: 2
+  - anchor: '#automatic-detection'
+    heading: Automatic detection
+    keywords:
+    - automatic
+    - detection
+    - mention
+    - slack
+    - channel
+    level: 3
+  - anchor: '#context-gathering'
+    heading: Context gathering
+    keywords:
+    - context
+    - gathering
+    - threads
+    - mention
+    - thread
+    level: 3
+  - anchor: '#session-flow'
+    heading: Session flow
+    keywords:
+    - session
+    - flow
+    - initiation
+    - mention
+    - coding
+    level: 3
+  - anchor: '#user-interface-elements'
+    heading: User interface elements
+    keywords:
+    - user
+    - interface
+    - elements
+    - home
+    - shows
+    level: 2
+  - anchor: '#app-home'
+    heading: App Home
+    keywords:
+    - app
+    - home
+    - shows
+    - connection
+    level: 3
+  - anchor: '#message-actions'
+    heading: Message actions
+    keywords:
+    - message
+    - actions
+    - view
+    - session
+    - opens
+    level: 3
+  - anchor: '#repository-selection'
+    heading: Repository selection
+    keywords:
+    - repository
+    - selection
+    - automatically
+    - selects
+    level: 3
+  - anchor: '#access-and-permissions'
+    heading: Access and permissions
+    keywords:
+    - access
+    - permissions
+    - user
+    - level
+    level: 2
+  - anchor: '#user-level-access'
+    heading: User-level access
+    keywords:
+    - user
+    - level
+    - access
+    - type
+    - requirement
+    level: 3
+  - anchor: '#workspace-admin-permissions'
+    heading: Workspace admin permissions
+    keywords:
+    - workspace
+    - admin
+    - permissions
+    - slack
+    - administrators
+    level: 3
+  - anchor: '#whats-accessible-where'
+    heading: What's accessible where
+    keywords:
+    - accessible
+    - slack
+    - status
+    - updates
+    level: 2
+  - anchor: '#best-practices'
+    heading: Best practices
+    keywords:
+    - best
+    - practices
+    - writing
+    - effective
+    - requests
+    level: 2
+  - anchor: '#writing-effective-requests'
+    heading: Writing effective requests
+    keywords:
+    - writing
+    - effective
+    - requests
+    - specific
+    - include
+    level: 3
+  - anchor: '#when-to-use-slack-vs-web'
+    heading: When to use Slack vs. web
+    keywords:
+    - use
+    - slack
+    - web
+    - context
+    - exists
+    level: 3
+  - anchor: '#troubleshooting'
+    heading: Troubleshooting
+    keywords:
+    - troubleshooting
+    - sessions
+    - starting
+    - verify
+    level: 2
+  - anchor: '#sessions-not-starting'
+    heading: Sessions not starting
+    keywords:
+    - sessions
+    - starting
+    - verify
+    - account
+    - connected
+    level: 3
+  - anchor: '#repository-not-showing'
+    heading: Repository not showing
+    keywords:
+    - repository
+    - showing
+    - connect
+    - https
+    level: 3
+  - anchor: '#wrong-repository-selected'
+    heading: Wrong repository selected
+    keywords:
+    - wrong
+    - repository
+    - selected
+    - click
+    - change
+    level: 3
+  - anchor: '#authentication-errors'
+    heading: Authentication errors
+    keywords:
+    - authentication
+    - errors
+    - disconnect
+    - reconnect
+    - account
+    level: 3
+  - anchor: '#session-expiration'
+    heading: Session expiration
+    keywords:
+    - session
+    - expiration
+    - sessions
+    - remain
+    - accessible
+    level: 3
+  - anchor: '#current-limitations'
+    heading: Current limitations
+    keywords:
+    - current
+    - limitations
+    - github
+    - currently
+    - supports
+    level: 2
+  - anchor: '#related-resources'
+    heading: Related resources
+    keywords:
+    - related
+    - resources
+    - cardgroup
+    - card
+    - title
+    level: 2
+  tags:
+  - authentication
+  - changelog
+  - configuration
+  - installation
+  - security
+  - troubleshooting
+  title: Claude Code in Slack
+  url: https://code.claude.com/docs/en/slack
 code-claude-com-docs-en-slash-commands:
   category: skills
   description: '| Command                   | Purpose                                                                                                                     |
     | :------------------------ |...'
   domain: code.claude.com
-  hash: sha256:f1f124d6301915791551d8548d1288159d7ed68b0777e55ac0f7a927a18cc8bb
+  hash: sha256:beb94bd0553b3233e53a4ee2b9bdb6c5cb4ccd231c7fe090015672c834a21278
   keywords:
   - slash-commands
   - disable slashcommand
@@ -14948,7 +15464,7 @@ code-claude-com-docs-en-slash-commands:
   - slash commands
   - command types
   - release notes
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/slash-commands.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -14990,8 +15506,8 @@ code-claude-com-docs-en-slash-commands:
     keywords:
     - features
     - namespacing
-    - organize
-    - commands
+    - subdirectories
+    - group
     level: 3
   - anchor: '#context'
     heading: Context
@@ -15091,8 +15607,8 @@ code-claude-com-docs-en-slash-commands:
     - mcp
     - permissions
     - wildcards
-    - configuring
-    - tools
+    - aren
+    - supported
     level: 3
   - anchor: '#slashcommand-tool'
     heading: '`SlashCommand` tool'
@@ -15218,21 +15734,21 @@ code-claude-com-docs-en-statusline:
     the bottom of the Claude Code interface, similar to how terminal prompts (PS1)
     work in shells like Oh-my-zsh.
   domain: code.claude.com
-  hash: sha256:6ff460f2755395c7107b2d70651bf8d8ef93c299d26d3caabfabb3fa13b0adb6
+  hash: sha256:0f42ff98087c4f0d3257c1e57201bee81d40a0d9b632293d6e7a9d8ebe783766
   keywords:
   - statusline
   - helper functions
   - helper function
+  - context window
   - extract values
   - custom status
-  - simple status
   - aware status
   - json input
   - configuration
   - interface
   - approach
   - displays
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/statusline.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15316,6 +15832,15 @@ code-claude-com-docs-en-statusline:
     - complex
     - bash
     level: 3
+  - anchor: '#context-window-usage'
+    heading: Context Window Usage
+    keywords:
+    - context
+    - window
+    - usage
+    - display
+    - percentage
+    level: 3
   - anchor: '#tips'
     heading: Tips
     keywords:
@@ -15342,7 +15867,7 @@ code-claude-com-docs-en-sub-agents:
     can be invoked to handle specific types of tasks. They enable more efficient problem-solving
     by providing task-specific...
   domain: code.claude.com
-  hash: sha256:5d405d52cdc82f03196807d351d0709bafc5338a5d3fb68b08422b2a8507e5e8
+  hash: sha256:f1ad1f9bc8b8b3068d019b3e7ccce1bc6e2f06ca8d97c17a07173bdb994f5370
   keywords:
   - sub-agents
   - agents
@@ -15356,7 +15881,7 @@ code-claude-com-docs-en-sub-agents:
   - agents command
   - context window
   - data scientist
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/sub-agents.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15638,7 +16163,7 @@ code-claude-com-docs-en-terminal-config:
     your terminal application. You can match Claude Code's theme to your terminal
     any time via the `/config` command.
   domain: code.claude.com
-  hash: sha256:7cec8ed54fd915b01e9d0bf515d2d866cbe46fea07e77dc91080cb952cad14f4
+  hash: sha256:dd803385fd46710016a9448f44c3e5940e1b0f7a3fee516b4e9653ae1310f4b9
   keywords:
   - terminal-config
   - config
@@ -15652,7 +16177,7 @@ code-claude-com-docs-en-terminal-config:
   - command
   - control
   - handled
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/terminal-config.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15673,7 +16198,6 @@ code-claude-com-docs-en-terminal-config:
     - breaks
     - options
     - entering
-    - linebreaks
     level: 3
   - anchor: '#notification-setup'
     heading: Notification setup
@@ -15726,7 +16250,7 @@ code-claude-com-docs-en-third-party-integrations:
   - corporate proxy
   - direct provider
   - amazon bedrock
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/third-party-integrations.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -15944,7 +16468,7 @@ code-claude-com-docs-en-troubleshooting:
   category: installation
   description: 'You might encounter the following issues in WSL:'
   domain: code.claude.com
-  hash: sha256:8c3d00a01393b3ea8d352fb6dde79b3b53a5f55a4a4761d29a459de18cf7cd57
+  hash: sha256:a733812ac8742afbcca29744a6bcab0620fdf41310093afc13df602ebb0d5b42
   keywords:
   - troubleshooting
   - authentication issues
@@ -15958,7 +16482,7 @@ code-claude-com-docs-en-troubleshooting:
   - alpine linux
   - mcp servers
   - arch linux
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/troubleshooting.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16104,10 +16628,10 @@ code-claude-com-docs-en-troubleshooting:
     - integration
     - issues
     level: 3
-  - anchor: '#esc-key-not-working-in-jetbrains-intellij-pycharm-etc-terminals'
-    heading: ESC key not working in JetBrains (IntelliJ, PyCharm, etc.) terminals
+  - anchor: '#escape-key-not-working-in-jetbrains-intellij-pycharm-etc-terminals'
+    heading: Escape key not working in JetBrains (IntelliJ, PyCharm, etc.) terminals
     keywords:
-    - esc
+    - escape
     - key
     - working
     - jetbrains
@@ -16172,7 +16696,7 @@ code-claude-com-docs-en-vs-code:
   description: <img src="https://mintcdn.com/claude-code/-YhHHmtSxwr7W8gy/images/vs-code-extension-interface.jpg?fit=max&auto=format&n=-YhHHmtSxwr7W8gy&q=85&s=300652d5678c63905e6b0ea9e50835f8"
     alt="Claude Code VS...
   domain: code.claude.com
-  hash: sha256:873c0c7a254b6c56c18ede51867e4d26063ebaafb2028756e1178e275df41242
+  hash: sha256:fd1087d0ade6491cdd1f872181257c8bbb9d2ab3e924fd3fc22941b9eeff3166
   keywords:
   - vs-code
   - security considerations
@@ -16186,7 +16710,7 @@ code-claude-com-docs-en-vs-code:
   - visual studio
   - mcp servers
   - considerations
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: code-claude-com/docs/en/vs-code.md
   sitemap_url: https://code.claude.com/docs/llms.txt
   source_type: llms-txt
@@ -16221,7 +16745,7 @@ code-claude-com-docs-en-vs-code:
     - extension
     level: 3
   - anchor: '#how-it-works'
-    heading: How It Works
+    heading: How it works
     keywords:
     - works
     - installed
@@ -16237,15 +16761,15 @@ code-claude-com-docs-en-vs-code:
     - settings
     level: 3
   - anchor: '#not-yet-implemented'
-    heading: Not Yet Implemented
+    heading: Not yet implemented
     keywords:
     - implemented
     - following
     - features
-    - available
+    - aren
     level: 3
   - anchor: '#security-considerations'
-    heading: Security Considerations
+    heading: Security considerations
     keywords:
     - security
     - considerations
@@ -16254,12 +16778,12 @@ code-claude-com-docs-en-vs-code:
     - edit
     level: 2
   - anchor: '#legacy-cli-integration'
-    heading: Legacy CLI Integration
+    heading: Legacy CLI integration
     keywords:
     - legacy
     - cli
     - integration
-    - released
+    - original
     - allows
     level: 2
   - anchor: '#troubleshooting'
@@ -16271,7 +16795,7 @@ code-claude-com-docs-en-vs-code:
     - ensure
     level: 2
   - anchor: '#extension-not-installing'
-    heading: Extension Not Installing
+    heading: Extension not installing
     keywords:
     - extension
     - installing
@@ -16280,7 +16804,7 @@ code-claude-com-docs-en-vs-code:
     - version
     level: 3
   - anchor: '#claude-code-never-responds'
-    heading: Claude Code Never Responds
+    heading: Claude Code never responds
     keywords:
     - responds
     - responding
@@ -16288,7 +16812,7 @@ code-claude-com-docs-en-vs-code:
     - check
     level: 3
   - anchor: '#legacy-integration-not-working'
-    heading: Legacy Integration Not Working
+    heading: Legacy integration not working
     keywords:
     - legacy
     - integration
@@ -17541,7 +18065,7 @@ platform-claude-com-docs-en-about-claude-models-migrating-to-claude-4:
   category: models
   description: 'This guide covers two key migration paths to Claude 4.5 models:'
   domain: platform.claude.com
-  hash: sha256:f1a3edea5311e7286cfa487a0db47e5bcbe2ac63f80ec827c07202e0ab835447
+  hash: sha256:5387e55786276e761eab224961baf384ea744499569f79f1056b49717519d695
   keywords:
   - migrating-to-claude-4
   - about-claude
@@ -17555,7 +18079,7 @@ platform-claude-com-docs-en-about-claude-models-migrating-to-claude-4:
   - code execution
   - prompt caching
   - release notes
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/about-claude/models/migrating-to-claude-4.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -22186,7 +22710,7 @@ platform-claude-com-docs-en-agent-sdk-typescript:
   description: Complete API reference for the TypeScript Agent SDK, including all
     functions, types, and interfaces.
   domain: platform.claude.com
-  hash: sha256:58b6c92a3a30e338a4ce1886b684edd78ba2780ef9a1c1569160e002b918d6bf
+  hash: sha256:d5af7ac88b9b1c15614f0c67cb822321b9aeb1ca40a1afc659613d0b18261bcb
   keywords:
   - agent-sdk
   - typescript
@@ -22200,7 +22724,7 @@ platform-claude-com-docs-en-agent-sdk-typescript:
   - context window
   - search results
   - slash commands
-  last_fetched: '2025-12-03'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agent-sdk/typescript.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -22912,6 +23436,155 @@ platform-claude-com-docs-en-agent-sdk-typescript:
   - models
   title: Agent SDK reference - TypeScript
   url: https://platform.claude.com/docs/en/agent-sdk/typescript
+platform-claude-com-docs-en-agent-sdk-typescript-v2-preview:
+  category: agents
+  description: Preview of the simplified V2 TypeScript Agent SDK, with session-based
+    send/receive patterns for multi-turn conversations.
+  domain: platform.claude.com
+  hash: sha256:743e19150b15d9195be44db84270dedbc37a6b8207d4623fca8d9a8321512ad1
+  keywords:
+  - typescript-v2-preview
+  - agent-sdk
+  - typescript
+  - preview
+  - agent
+  - feature availability
+  - session interface
+  - turn conversation
+  - session resume
+  - basic session
+  - shot prompt
+  - agent sdk
+  last_fetched: '2025-12-11'
+  path: platform-claude-com/docs/en/agent-sdk/typescript-v2-preview.md
+  sitemap_url: https://platform.claude.com/sitemap.xml
+  source_type: sitemap
+  subsections:
+  - anchor: '#installation'
+    heading: Installation
+    keywords:
+    - installation
+    - interface
+    - included
+    - existing
+    level: 2
+  - anchor: '#quick-start'
+    heading: Quick start
+    keywords:
+    - quick
+    - start
+    - shot
+    - prompt
+    - simple
+    level: 2
+  - anchor: '#one-shot-prompt'
+    heading: One-shot prompt
+    keywords:
+    - shot
+    - prompt
+    - simple
+    - single
+    - turn
+    level: 3
+  - anchor: '#basic-session'
+    heading: Basic session
+    keywords:
+    - basic
+    - session
+    - interactions
+    - single
+    - prompt
+    level: 3
+  - anchor: '#multi-turn-conversation'
+    heading: Multi-turn conversation
+    keywords:
+    - multi
+    - turn
+    - conversation
+    - sessions
+    - persist
+    level: 3
+  - anchor: '#session-resume'
+    heading: Session resume
+    keywords:
+    - session
+    - resume
+    - previous
+    - interaction
+    level: 3
+  - anchor: '#cleanup'
+    heading: Cleanup
+    keywords:
+    - cleanup
+    - sessions
+    - closed
+    - manually
+    level: 3
+  - anchor: '#api-reference'
+    heading: API reference
+    keywords:
+    - creates
+    - session
+    - multi
+    level: 2
+  - anchor: '#unstable_v2_createsession'
+    heading: '`unstable_v2_createSession()`'
+    keywords:
+    - creates
+    - session
+    - multi
+    level: 3
+  - anchor: '#unstable_v2_resumesession'
+    heading: '`unstable_v2_resumeSession()`'
+    keywords:
+    - resumes
+    - existing
+    - session
+    level: 3
+  - anchor: '#unstable_v2_prompt'
+    heading: '`unstable_v2_prompt()`'
+    keywords:
+    - shot
+    - convenience
+    - function
+    level: 3
+  - anchor: '#session-interface'
+    heading: Session interface
+    keywords:
+    - session
+    - interface
+    - typescript
+    level: 3
+  - anchor: '#feature-availability'
+    heading: Feature availability
+    keywords:
+    - feature
+    - availability
+    - features
+    - available
+    - following
+    level: 2
+  - anchor: '#feedback'
+    heading: Feedback
+    keywords:
+    - feedback
+    - share
+    - interface
+    level: 2
+  - anchor: '#see-also'
+    heading: See also
+    keywords:
+    - typescript
+    - agent
+    level: 2
+  tags:
+  - agents
+  - models
+  - sdk
+  - streaming
+  - troubleshooting
+  title: TypeScript SDK V2 interface (preview)
+  url: https://platform.claude.com/docs/en/agent-sdk/typescript-v2-preview
 platform-claude-com-docs-en-agents-and-tools-agent-skills-best-practices:
   category: skills
   description: Learn how to write effective Skills that Claude can discover and use
@@ -24946,7 +25619,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-computer-use-tool:
     use tool, which provides screenshot capabilities and mouse/keyboard control for
     autonomous desktop interaction.
   domain: platform.claude.com
-  hash: sha256:cf2135fd74006d0f2fb5b6c6ff99ce1c1420eeb2fe091cf71c51cbfa3ad9a291
+  hash: sha256:6b3cfa128d480e68cf74ceefec1ec65955f022c209dbaba2d1717c77d26a52be
   keywords:
   - computer-use-tool
   - agents-and-tools
@@ -24956,11 +25629,11 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-computer-use-tool:
   - tools
   - computing environment
   - augmenting computer
-  - implement computer
+  - handle coordinate
   - custom computer
   - enable thinking
   - latest version
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agents-and-tools/tool-use/computer-use-tool.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -25194,7 +25867,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-implement-tool-use:
     model for complex tools and ambiguous queries; they handle multiple tools better
     and seek clarification when needed.
   domain: platform.claude.com
-  hash: sha256:7d2f4fda11379eca5547cf5cbad39d52a1ee9842a05eb95020d7168768dcbb0f
+  hash: sha256:daa8f0873ede71655e81af51d45830ddc5879ac839abaa013d523358a1fe738a
   keywords:
   - implement-tool-use
   - agents-and-tools
@@ -25208,7 +25881,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-implement-tool-use:
   - natural language
   - calling message
   - advanced usage
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agents-and-tools/tool-use/implement-tool-use.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -25506,12 +26179,12 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-implement-tool-use:
     - error
     level: 2
   tags:
-  - agents
   - caching
   - configuration
   - models
   - performance
   - prompt-engineering
+  - sdk
   title: How to implement tool use
   url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use
 platform-claude-com-docs-en-agents-and-tools-tool-use-memory-tool:
@@ -25832,7 +26505,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-programmatic-tool-calling:
     tools programmatically within a [code execution](/docs/en/agents-and-tools/tool-use/code-execution-tool)
     container, rather than...
   domain: platform.claude.com
-  hash: sha256:e06ed512d8fcaed8b7c4493c10aeb8366275b5d89f18b70119a85a698ebb50fa
+  hash: sha256:3b90a7d549a1ff55426cb1c3bec0305f52223f8f6e702b42c999008277e66298
   keywords:
   - programmatic-tool-calling
   - agents-and-tools
@@ -25846,7 +26519,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-programmatic-tool-calling:
   - batch processing
   - conditional tool
   - code execution
-  last_fetched: '2025-12-05'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling.md
   sitemap_url: https://platform.claude.com/sitemap.xml
   source_type: sitemap
@@ -26282,7 +26955,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-text-editor-tool:
     text files, helping you debug, fix, and improve your code or other text documents.
     This allows Claude to directly interact with...
   domain: platform.claude.com
-  hash: sha256:2ecccf74784ace9e0aa65fee99cd6cbfbdcc3b7c25a66b7652a08d71f2001876
+  hash: sha256:1f276035e9418c9ea35d0c5b8b013ecb248d6b2c76846ea769d3d683f94e9a4b
   keywords:
   - agents-and-tools
   - text-editor-tool
@@ -26296,7 +26969,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-text-editor-tool:
   - bash tool
   - tool use
   - compatibility
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agents-and-tools/tool-use/text-editor-tool.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -26406,12 +27079,12 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-text-editor-tool:
     - editor
     level: 2
   tags:
-  - agents
   - models
   - sdk
   - security
   - streaming
   - testing
+  - tools
   title: Text editor tool
   url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/text-editor-tool
 platform-claude-com-docs-en-agents-and-tools-tool-use-token-efficient-tool-use:
@@ -26450,7 +27123,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-tool-search-tool:
     of tools by dynamically discovering and loading them on-demand. Instead of loading
     all tool definitions into the context window...
   domain: platform.claude.com
-  hash: sha256:c14cf8a1775a7ac3da196e33dd162c28930c8165c55d8b6d77f3d668847b96ff
+  hash: sha256:19323f70c17c0e231f94a0c2388df54182951c5aa3ca8c181b220db67934a65f
   keywords:
   - agents-and-tools
   - tool-search-tool
@@ -26464,7 +27137,7 @@ platform-claude-com-docs-en-agents-and-tools-tool-use-tool-search-tool:
   - batch requests
   - context window
   - error handling
-  last_fetched: '2025-12-05'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/agents-and-tools/tool-use/tool-search-tool.md
   sitemap_url: https://platform.claude.com/sitemap.xml
   source_type: sitemap
@@ -99339,7 +100012,7 @@ platform-claude-com-docs-en-build-with-claude-overview:
   category: skills
   description: Explore Claude's advanced features and capabilities.
   domain: platform.claude.com
-  hash: sha256:75b81580d6c99eb4fafbbd4e01567023e281190ee80e51d61d5ea28795342c54
+  hash: sha256:f966bdffd470568569552a457a210f6228709acff6c0a91b2fdd600ba3c8a40b
   keywords:
   - build-with-claude
   - build
@@ -99353,7 +100026,7 @@ platform-claude-com-docs-en-build-with-claude-overview:
   - prompt caching
   - search results
   - token counting
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/build-with-claude/overview.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -99528,7 +100201,7 @@ platform-claude-com-docs-en-build-with-claude-prompt-caching:
     by allowing resuming from specific prefixes in your prompts. This approach significantly
     reduces processing time and costs for...
   domain: platform.claude.com
-  hash: sha256:5671c078c62dc4534382fd1280aa53fb28c687e54addcf895ca9fca41127446a
+  hash: sha256:ed8a8bbdbedc1d9175e463a9a5d6683b2c8d8a1c6e5c7fe153307ab65f9be2c3
   keywords:
   - build-with-claude
   - prompt-caching
@@ -99542,7 +100215,7 @@ platform-claude-com-docs-en-build-with-claude-prompt-caching:
   - cache checkpoint
   - cache includes
   - checking works
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/build-with-claude/prompt-caching.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -100855,7 +101528,7 @@ platform-claude-com-docs-en-build-with-claude-search-results:
   description: Enable natural citations for RAG applications by providing search results
     with source attribution
   domain: platform.claude.com
-  hash: sha256:04ef4bb1c8b9eab14b367029b987813209eee37718098dcd1615e5177ff06944
+  hash: sha256:20aaace83f55a996a6992d76cd4ab9929c224ba443d827a2ba516d95bc0a5ba0
   keywords:
   - build-with-claude
   - search-results
@@ -100866,10 +101539,10 @@ platform-claude-com-docs-en-build-with-claude-search-results:
   - citation control
   - citation fields
   - advanced usage
+  - amazon bedrock
   - knowledge base
   - search results
-  - cache control
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/build-with-claude/search-results.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -102029,11 +102702,10 @@ platform-claude-com-docs-en-build-with-claude-usage-cost-api:
   url: https://platform.claude.com/docs/en/build-with-claude/usage-cost-api
 platform-claude-com-docs-en-build-with-claude-vision:
   category: models
-  description: The Claude 3 and 4 families of models comes with new vision capabilities
-    that allow Claude to understand and analyze images, opening up exciting possibilities
-    for multimodal interaction.
+  description: Claude's vision capabilities allow it to understand and analyze images,
+    opening up exciting possibilities for multimodal interaction.
   domain: platform.claude.com
-  hash: sha256:05134678cfde9638df21a586099984ed21f634409be759a41b2eb7d76b725268
+  hash: sha256:8ae555eb66560c0e3174098555b4f85a432219bff75ee3b5f13e3695db4478da
   keywords:
   - build-with-claude
   - vision
@@ -102047,7 +102719,7 @@ platform-claude-com-docs-en-build-with-claude-vision:
   - system prompt
   - dive deeper
   - image file
-  last_fetched: '2025-11-25'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/build-with-claude/vision.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -102412,7 +103084,7 @@ platform-claude-com-docs-en-release-notes-overview:
   description: Updates to the Claude Developer Platform, including the Claude API,
     client SDKs, and the Claude Console.
   domain: platform.claude.com
-  hash: sha256:9a5caf6ebc69bfc16aa026c270aee9b35e50d3f256e70e710770120dd33e668c
+  hash: sha256:643d945886097029f0d407c30ce85a4cfbd0a2c5298847a2be6e20186311c8d6
   keywords:
   - release-notes
   - release
@@ -102426,7 +103098,7 @@ platform-claude-com-docs-en-release-notes-overview:
   - search results
   - token counting
   - google vertex
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/release-notes/overview.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -102446,6 +103118,14 @@ platform-claude-com-docs-en-release-notes-overview:
     - launched
     - opus
     - https
+    level: 3
+  - anchor: '#november-21-2025'
+    heading: November 21, 2025
+    keywords:
+    - november
+    - search
+    - result
+    - content
     level: 3
   - anchor: '#november-19-2025'
     heading: November 19, 2025
@@ -103119,14 +103799,14 @@ platform-claude-com-docs-en-resources-overview:
   category: models
   description: Documentation - Claude Docs
   domain: platform.claude.com
-  hash: sha256:6ef3943699a44595e258d9d6add8bf6e207cede4b8328d5306717a36f3002ee9
+  hash: sha256:91d6476ddbc7b607c7ea1f84805e5920cf78e94bdbcb6ac005c621e0e7c9f6cd
   keywords:
   - system prompt
   - documentation
   - ingestion
   - learning
   - cards
-  last_fetched: '2025-12-06'
+  last_fetched: '2025-12-11'
   path: platform-claude-com/docs/en/resources/overview.md
   sitemap_url: https://docs.claude.com/sitemap.xml
   source_type: sitemap
@@ -106612,28 +107292,50 @@ platform-claude-com-docs-en-test-and-evaluate-strengthen-guardrails-reduce-promp
   url: https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-prompt-leak
 raw-githubusercontent-com-anthropics-claude-code-refs-heads-main-CHANGELOG:
   category: changelog
-  description: '- Reverted VSCode support for multiple terminal clients due to responsiveness
-    issues.'
+  description: '- Added ability to switch models while writing a prompt using alt+p
+    (linux, windows), option+p (macos). - Added context window information to status
+    line input - Added `fileSuggestion` setting for...'
   domain: raw.githubusercontent.com
-  hash: sha256:2681a0a5d4fcaf986d40037cc112a69173a3b4acf1190cdea3a0011eef6ce53b
+  hash: sha256:4d76da28aad873275d7efa6576ff13e52f39a9f25312843aa0d14791afcafef5
   keywords:
   - claude-code
   - anthropics
   - changelog
   - heads
   - plugin marketplace
+  - context window
   - search results
   - slash commands
+  - token counting
   - release notes
   - system prompt
   - mcp servers
-  - text editor
-  - remote mcp
-  last_fetched: '2025-12-08'
+  last_fetched: '2025-12-11'
   path: raw-githubusercontent-com/anthropics/claude-code/refs/heads/main/CHANGELOG.md
   sitemap_url: null
   source_type: manual
   subsections:
+  - anchor: '#2065'
+    heading: 2.0.65
+    keywords:
+    - added
+    - ability
+    - switch
+    level: 2
+  - anchor: '#2064'
+    heading: 2.0.64
+    keywords:
+    - auto
+    - compacting
+    - instant
+    level: 2
+  - anchor: '#2062'
+    heading: 2.0.62
+    keywords:
+    - added
+    - recommended
+    - indicator
+    level: 2
   - anchor: '#2061'
     heading: 2.0.61
     keywords:

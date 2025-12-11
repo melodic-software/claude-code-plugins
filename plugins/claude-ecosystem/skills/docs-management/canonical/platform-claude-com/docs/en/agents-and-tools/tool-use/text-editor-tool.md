@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/text-editor-tool
 source_type: sitemap
-content_hash: sha256:2ecccf74784ace9e0aa65fee99cd6cbfbdcc3b7c25a66b7652a08d71f2001876
+content_hash: sha256:1f276035e9418c9ea35d0c5b8b013ecb248d6b2c76846ea769d3d683f94e9a4b
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -1287,15 +1287,6 @@ As you build applications with the text editor tool, we're excited to see how yo
   >
     Learn how to implement tool workflows for use with Claude.
   </Card>
-
-{" "}
-<Card
-  title="Token-efficient tool use"
-  icon="lightning"
-  href="/docs/en/agents-and-tools/tool-use/token-efficient-tool-use"
->
-  Reduce latency and costs when using tools with Claude Sonnet 3.7.
-</Card>
 
   <Card
     title="Bash tool"

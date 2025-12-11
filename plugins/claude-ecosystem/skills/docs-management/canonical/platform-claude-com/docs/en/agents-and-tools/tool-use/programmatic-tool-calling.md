@@ -1,7 +1,7 @@
 ---
 source_url: https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling
 source_type: sitemap
-content_hash: sha256:e06ed512d8fcaed8b7c4493c10aeb8366275b5d89f18b70119a85a698ebb50fa
+content_hash: sha256:3b90a7d549a1ff55426cb1c3bec0305f52223f8f6e702b42c999008277e66298
 sitemap_url: https://platform.claude.com/sitemap.xml
 fetch_method: markdown
 ---
@@ -832,8 +832,5 @@ We recommend using Anthropic's managed solution if you're using the Claude API.
   </Card>
   <Card title="Implement Tool Use" icon="hammer" href="/docs/en/agents-and-tools/tool-use/implement-tool-use">
     Step-by-step guide for implementing tools.
-  </Card>
-  <Card title="Token-Efficient Tool Use" icon="bolt" href="/docs/en/agents-and-tools/tool-use/token-efficient-tool-use">
-    Optimize your tool implementations for better performance.
   </Card>
 </CardGroup>

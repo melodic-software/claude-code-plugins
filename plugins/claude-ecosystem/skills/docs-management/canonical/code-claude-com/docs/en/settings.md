@@ -1,7 +1,7 @@
 ---
 source_url: https://code.claude.com/docs/en/settings
 source_type: llms-txt
-content_hash: sha256:b0e83995ae2a14ff5e5045db1a82ae348bc4f80a2cc3692f57ece46a0db3fd08
+content_hash: sha256:964e9b652f09de7f5ce3d46479be6191cea42a91eec2a8d72a716c72b6a1345f
 sitemap_url: https://code.claude.com/docs/llms.txt
 fetch_method: markdown
 ---
@@ -74,12 +74,13 @@ Code through hierarchical settings:
 | `cleanupPeriodDays`          | Sessions inactive for longer than this period are deleted at startup. Setting to `0` immediately deletes all sessions. (default: 30 days)                                                                                                                        | `20`                                                                    |
 | `companyAnnouncements`       | Announcement to display to users at startup. If multiple announcements are provided, they will be cycled through at random.                                                                                                                                      | `["Welcome to Acme Corp! Review our code guidelines at docs.acme.com"]` |
 | `env`                        | Environment variables that will be applied to every session                                                                                                                                                                                                      | `{"FOO": "bar"}`                                                        |
-| `includeCoAuthoredBy`        | Whether to include the `co-authored-by Claude` byline in git commits and pull requests (default: `true`)                                                                                                                                                         | `false`                                                                 |
+| `attribution`                | Customize attribution for git commits and pull requests. See [Attribution settings](#attribution-settings)                                                                                                                                                       | `{"commit": "🤖 Generated with Claude Code", "pr": ""}`                 |
+| `includeCoAuthoredBy`        | **Deprecated**: Use `attribution` instead. Whether to include the `co-authored-by Claude` byline in git commits and pull requests (default: `true`)                                                                                                              | `false`                                                                 |
 | `permissions`                | See table below for structure of permissions.                                                                                                                                                                                                                    |                                                                         |
 | `hooks`                      | Configure custom commands to run before or after tool executions. See [hooks documentation](/en/hooks)                                                                                                                                                           | `{"PreToolUse": {"Bash": "echo 'Running command...'"}}`                 |
 | `disableAllHooks`            | Disable all [hooks](/en/hooks)                                                                                                                                                                                                                                   | `true`                                                                  |
 | `model`                      | Override the default model to use for Claude Code                                                                                                                                                                                                                | `"claude-sonnet-4-5-20250929"`                                          |
-| `statusLine`                 | Configure a custom status line to display context. See [statusLine documentation](/en/statusline)                                                                                                                                                                | `{"type": "command", "command": "~/.claude/statusline.sh"}`             |
+| `statusLine`                 | Configure a custom status line to display context. See [`statusLine` documentation](/en/statusline)                                                                                                                                                              | `{"type": "command", "command": "~/.claude/statusline.sh"}`             |
 | `outputStyle`                | Configure an output style to adjust the system prompt. See [output styles documentation](/en/output-styles)                                                                                                                                                      | `"Explanatory"`                                                         |
 | `forceLoginMethod`           | Use `claudeai` to restrict login to Claude.ai accounts, `console` to restrict login to Claude Console (API usage billing) accounts                                                                                                                               | `claudeai`                                                              |
 | `forceLoginOrgUUID`          | Specify the UUID of an organization to automatically select it during login, bypassing the organization selection step. Requires `forceLoginMethod` to be set                                                                                                    | `"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"`                                |
@@ -115,7 +116,7 @@ Configure advanced sandboxing behavior. Sandboxing isolates bash commands from y
 | `excludedCommands`          | Commands that should run outside of the sandbox                                                                                                                                                                                                                                                                                   | `["git", "docker"]`       |
 | `allowUnsandboxedCommands`  | Allow commands to run outside the sandbox via the `dangerouslyDisableSandbox` parameter. When set to `false`, the `dangerouslyDisableSandbox` escape hatch is completely disabled and all commands must run sandboxed (or be in `excludedCommands`). Useful for enterprise policies that require strict sandboxing. Default: true | `false`                   |
 | `network.allowUnixSockets`  | Unix socket paths accessible in sandbox (for SSH agents, etc.)                                                                                                                                                                                                                                                                    | `["~/.ssh/agent-socket"]` |
-| `network.allowLocalBinding` | Allow binding to localhost ports (MacOS only). Default: false                                                                                                                                                                                                                                                                     | `true`                    |
+| `network.allowLocalBinding` | Allow binding to localhost ports (macOS only). Default: false                                                                                                                                                                                                                                                                     | `true`                    |
 | `network.httpProxyPort`     | HTTP proxy port used if you wish to bring your own proxy. If not specified, Claude will run its own proxy.                                                                                                                                                                                                                        | `8080`                    |
 | `network.socksProxyPort`    | SOCKS5 proxy port used if you wish to bring your own proxy. If not specified, Claude will run its own proxy.                                                                                                                                                                                                                      | `8081`                    |
 | `enableWeakerNestedSandbox` | Enable weaker sandbox for unprivileged Docker environments (Linux only). **Reduces security.** Default: false                                                                                                                                                                                                                     | `true`                    |
@@ -150,6 +151,47 @@ Configure advanced sandboxing behavior. Sandboxing isolates bash commands from y
 * Use `Edit` allow rules to let Claude write to directories beyond the current working directory
 * Use `Edit` deny rules to block writes to specific paths
 * Use `WebFetch` allow/deny rules to control which network domains Claude can access
+
+### Attribution settings
+
+Claude Code adds attribution to git commits and pull requests. These are configured separately:
+
+* Commits use [git trailers](https://git-scm.com/docs/git-interpret-trailers) (like `Co-Authored-By`) by default,  which can be customized or disabled
+* Pull request descriptions are plain text
+
+| Keys     | Description                                                                                |
+| :------- | :----------------------------------------------------------------------------------------- |
+| `commit` | Attribution for git commits, including any trailers. Empty string hides commit attribution |
+| `pr`     | Attribution for pull request descriptions. Empty string hides pull request attribution     |
+
+**Default commit attribution:**
+
+```
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
+
+**Default pull request attribution:**
+
+```
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+**Example:**
+
+```json  theme={null}
+{
+  "attribution": {
+    "commit": "Generated with AI\n\nCo-Authored-By: AI <ai@example.com>",
+    "pr": ""
+  }
+}
+```
+
+<Note>
+  The `attribution` setting takes precedence over the deprecated `includeCoAuthoredBy` setting. To hide all attribution, set `commit` and `pr` to empty strings.
+</Note>
 
 ### Settings precedence
 
@@ -374,7 +416,7 @@ Claude Code supports the following environment variables to control its behavior
 | `MCP_TOOL_TIMEOUT`                         | Timeout in milliseconds for MCP tool execution                                                                                                                                                                                                                                                                                                                                               |
 | `NO_PROXY`                                 | List of domains and IPs to which requests will be directly issued, bypassing proxy                                                                                                                                                                                                                                                                                                           |
 | `SLASH_COMMAND_TOOL_CHAR_BUDGET`           | Maximum number of characters for slash command metadata shown to [SlashCommand tool](/en/slash-commands#slashcommand-tool) (default: 15000)                                                                                                                                                                                                                                                  |
-| `USE_BUILTIN_RIPGREP`                      | Set to `0` to use system-installed `rg` intead of `rg` included with Claude Code                                                                                                                                                                                                                                                                                                             |
+| `USE_BUILTIN_RIPGREP`                      | Set to `0` to use system-installed `rg` instead of `rg` included with Claude Code                                                                                                                                                                                                                                                                                                            |
 | `VERTEX_REGION_CLAUDE_3_5_HAIKU`           | Override region for Claude 3.5 Haiku when using Vertex AI                                                                                                                                                                                                                                                                                                                                    |
 | `VERTEX_REGION_CLAUDE_3_7_SONNET`          | Override region for Claude 3.7 Sonnet when using Vertex AI                                                                                                                                                                                                                                                                                                                                   |
 | `VERTEX_REGION_CLAUDE_4_0_OPUS`            | Override region for Claude 4.0 Opus when using Vertex AI                                                                                                                                                                                                                                                                                                                                     |
