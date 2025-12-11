@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/release-confidence
 source_type: llms-txt
-content_hash: sha256:493531cd464cd6fe6a02c20cca36e0574a644163b39de4d020408fd9deda9612
+content_hash: sha256:2a2a9f9f239878c4068b6958cff95157e13e64cf825658797372453eb708584d
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"6b50b9cae16414b7003a102f6544ae4695ff732545f8a0593364abe257f2cb17"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"a6884aaf43c693ddb6e047f50260e8ad9f512d7104a3375c062e741ee06bda85"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Release confidence strategy
@@ -43,7 +43,7 @@ nightly) or the release branch (for preview/stable).
 
 ### 2. End-to-end (E2E) tests
 
-All workflows in `.github/workflows/e2e.yml` must pass.
+All workflows in `.github/workflows/chained_e2e.yml` must pass.
 
 - **Platforms:** **Linux, macOS and Windows**.
 - **Sandboxing:** Tests must pass with both `sandbox:none` and `sandbox:docker`

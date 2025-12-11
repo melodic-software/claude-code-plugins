@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs
 source_type: llms-txt
-content_hash: sha256:e8e66b6810993d3e7cafc4d3ea8debfd08bd54a9bf5e3629b32736dc8e54dc3f
+content_hash: sha256:00cf45cae6ebec475cf1013028e2817601b1123d01ec39376b0b9b6a13b23f22
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"ae6450932670e8de61d80c7e31d2eb461e8324873d4b1e7f252cf621f141b33a"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"424d1861b0bb16211228814e62cd33019a712a4d7187c19d24d22ae49831ef20"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Welcome to Gemini CLI documentation
@@ -111,6 +111,15 @@ This documentation is organized into the following sections:
   Learn how to build your own extension.
 - **[Extension releasing](/docs/extensions/extension-releasing):** How to release
   Gemini CLI extensions.
+
+### Hooks
+
+- **[Hooks](/docs/hooks):** Intercept and customize Gemini CLI behavior at
+  key lifecycle points.
+- **[Writing Hooks](/docs/hooks/writing-hooks):** Learn how to create your first
+  hook with a comprehensive example.
+- **[Best Practices](/docs/hooks/best-practices):** Security, performance, and
+  debugging guidelines for hooks.
 
 ### IDE integration
 

@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/tools/todos
 source_type: llms-txt
-content_hash: sha256:1d566aa79452ffbd3b2df6072bf41d483d34b4060b19150ab0afe7f522811234
+content_hash: sha256:1ce5f42b1d0aa526f2d2be8d9fba7abf59f4a82c6757b0e5e352186ef0a6d343
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"33cb3e2994ead755cca430f149896b9bab4c388c15964f73c6f048f524fdf51b"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"85f24e51ae51c46d334fa85f75cb78ca470a6c3990bbf6aade415442c835c28f"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Todo tool (`write_todos`)
@@ -36,7 +36,7 @@ plan.
 
 - **Progress tracking:** The agent updates this list as it works, marking tasks
   as `completed` when done.
-- **Single socus:** Only one task will be marked `in_progress` at a time,
+- **Single focus:** Only one task will be marked `in_progress` at a time,
   indicating exactly what the agent is currently working on.
 - **Dynamic updates:** The plan may evolve as the agent discovers new
   information, leading to new tasks being added or unnecessary ones being

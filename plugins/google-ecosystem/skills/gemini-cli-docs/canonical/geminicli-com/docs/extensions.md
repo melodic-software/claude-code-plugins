@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/extensions
 source_type: llms-txt
-content_hash: sha256:9b06b2ed8f0aa2ff10b5f9036adc296298c68cad8d53307c097b4e633d00438f
+content_hash: sha256:9ef294b63f180c28f6e06244863cf214ccc9f044c7ddd41b7f671048656166d2
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"1bb5ecfd033370a49a1c655a40344418984225405347ae732435f3132839db66"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"b35e6e664ec3f17f73ff347e4862caaab5210740a23a5dd1036e7908ca4de102"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Gemini CLI extensions
@@ -173,11 +173,11 @@ The file has the following structure:
   your extension in the CLI. Note that we expect this name to match the
   extension directory name.
 - `version`: The version of the extension.
-- `mcpServers`: A map of MCP servers to configure. The key is the name of the
+- `mcpServers`: A map of MCP servers to settings. The key is the name of the
   server, and the value is the server configuration. These servers will be
-  loaded on startup just like MCP servers configured in a
+  loaded on startup just like MCP servers settingsd in a
   [`settings.json` file](/docs/get-started/configuration). If both an extension
-  and a `settings.json` file configure an MCP server with the same name, the
+  and a `settings.json` file settings an MCP server with the same name, the
   server defined in the `settings.json` file takes precedence.
   - Note that all MCP server configuration options are supported except for
     `trust`.
@@ -232,6 +232,21 @@ Each object in the array should have the following properties:
 When a user installs this extension, they will be prompted to enter their API
 key. The value will be saved to a `.env` file in the extension's directory
 (e.g., `<home>/.gemini/extensions/my-api-extension/.env`).
+
+You can view a list of an extension's settings by running:
+
+```
+gemini extensions settings list <extension name>
+```
+
+and you can update a given setting using:
+
+```
+gemini extensions settings set <extension name> <setting name> [--scope <scope>]
+```
+
+- `--scope`: The scope to set the setting in (`user` or `workspace`). This is
+  optional and will default to `user`.
 
 ### Custom commands
 

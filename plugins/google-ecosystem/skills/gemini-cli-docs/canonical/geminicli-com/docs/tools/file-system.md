@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/tools/file-system
 source_type: llms-txt
-content_hash: sha256:e2e233e7e2812923614f825784c2b757fcffb154a0fa198dabb36a1bfccccaa1
+content_hash: sha256:13ac56f5ee79e161cc69964660fe1e38240848a17b414d27d5fe1799b4e33bc0
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"e08a0762a237fd44bd479312ad7e0aea910d4713bf18c99953b6a048f193008a"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"6676a8976fdb04951d3f427419aad119d4714e1591db293384223853f0acb552"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Gemini CLI file system tools
@@ -46,8 +46,9 @@ glob patterns.
 ## 2. `read_file` (ReadFile)
 
 `read_file` reads and returns the content of a specified file. This tool handles
-text, images (PNG, JPG, GIF, WEBP, SVG, BMP), and PDF files. For text files, it
-can read specific line ranges. Other binary file types are generally skipped.
+text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio files (MP3, WAV, AIFF, AAC,
+OGG, FLAC), and PDF files. For text files, it can read specific line ranges.
+Other binary file types are generally skipped.
 
 - **Tool name:** `read_file`
 - **Display name:** ReadFile
@@ -63,16 +64,16 @@ can read specific line ranges. Other binary file types are generally skipped.
   - For text files: Returns the content. If `offset` and `limit` are used,
     returns only that slice of lines. Indicates if content was truncated due to
     line limits or line length limits.
-  - For image and PDF files: Returns the file content as a base64-encoded data
-    structure suitable for model consumption.
+  - For image, audio, and PDF files: Returns the file content as a
+    base64-encoded data structure suitable for model consumption.
   - For other binary files: Attempts to identify and skip them, returning a
     message indicating it's a generic binary file.
 - **Output:** (`llmContent`):
   - For text files: The file content, potentially prefixed with a truncation
     message (e.g.,
     `[File content truncated: showing lines 1-100 of 500 total lines...]\nActual file content...`).
-  - For image/PDF files: An object containing `inlineData` with `mimeType` and
-    base64 `data` (e.g.,
+  - For image/audio/PDF files: An object containing `inlineData` with `mimeType`
+    and base64 `data` (e.g.,
     `{ inlineData: { mimeType: 'image/png', data: 'base64encodedstring' } }`).
   - For other binary files: A message like
     `Cannot display content of binary file: /path/to/data.bin`.

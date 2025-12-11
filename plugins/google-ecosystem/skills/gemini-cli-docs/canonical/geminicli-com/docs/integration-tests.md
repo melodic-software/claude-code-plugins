@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/integration-tests
 source_type: llms-txt
-content_hash: sha256:9209bfc7db6adfe0669fd681fb8a40d045343cf8bbaf5d20e5ffe5487f91ed0e
+content_hash: sha256:02597b22508023bb674a66370a9a439dd6686938e40d7d12d7efceb085f6632c
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"e1f66c7bc7f897b900286e6985e91b6373277363a8079849d5c0d830275c23fc"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"7328f5003b1bbf34dae914aa3e85e26acf78614ebcb49ec3d507a9307c182fae"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Integration tests
@@ -209,9 +209,9 @@ file, or case.
 ## Continuous integration
 
 To ensure the integration tests are always run, a GitHub Actions workflow is
-defined in `.github/workflows/e2e.yml`. This workflow automatically runs the
-integrations tests for pull requests against the `main` branch, or when a pull
-request is added to a merge queue.
+defined in `.github/workflows/chained_e2e.yml`. This workflow automatically runs
+the integrations tests for pull requests against the `main` branch, or when a
+pull request is added to a merge queue.
 
 The workflow runs the tests in different sandboxing environments to ensure
 Gemini CLI is tested across each:

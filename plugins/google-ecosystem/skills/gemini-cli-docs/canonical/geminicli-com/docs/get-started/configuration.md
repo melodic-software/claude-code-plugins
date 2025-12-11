@@ -1,11 +1,11 @@
 ---
 source_url: https://geminicli.com/docs/get-started/configuration
 source_type: llms-txt
-content_hash: sha256:e2b9826b99cbc04ebfed3f4504baf109a00b5a681edf0246a3712934f265dbd2
+content_hash: sha256:b83c936859faf9b558578447ca6c278142f8e5854c4c95528df86665ad3a352c
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"44d369a3f004d37feb097e36354f770d9272e0275d1bf6a66bc092410ed19944"'
-last_modified: '2025-12-03T18:17:56Z'
+etag: '"5fe26c5013ceb70d45f5671fee4b382e56d587d746a98e1b3a5e69ce6150065e"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Gemini CLI configuration
@@ -776,6 +776,11 @@ their corresponding top-level category object in your `settings.json` file.
   - **Default:** `undefined`
 
 #### `experimental`
+
+- **`experimental.enableAgents`** (boolean):
+  - **Description:** Enable local and remote subagents.
+  - **Default:** `false`
+  - **Requires restart:** Yes
 
 - **`experimental.extensionManagement`** (boolean):
   - **Description:** Enable extension management features.

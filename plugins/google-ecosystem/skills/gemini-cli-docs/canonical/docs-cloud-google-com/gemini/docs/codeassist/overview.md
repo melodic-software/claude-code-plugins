@@ -1,17 +1,17 @@
 ---
 source_url: https://docs.cloud.google.com/gemini/docs/codeassist/overview
 source_type: llms-txt
-content_hash: sha256:c56835c4ccae666b471bdd9d706c5aa72a127b58e06442759107e2321d0ff398
+content_hash: sha256:48916516f09effa72d83f78e178fdab16f5a9b522fd800d00666cdafc9cdbcd4
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: html
-last_modified: '2025-12-05T18:42:54Z'
+last_modified: '2025-12-10T16:27:35Z'
 ---
 
 Gemini Code Assist Standard and Enterprise overview  |  Gemini for Google Cloud  |  Google Cloud Documentation
 
 [Skip to main content](#main-content)
 
-[![Google Cloud Documentation](https://www.gstatic.com/devrel-devsite/prod/vf25d28f8fa3eb402b276b2981491ec30329502b5e6089118cc6ebe4dff7f7eb7/clouddocs/images/lockup.svg)](/)
+[![Google Cloud Documentation](https://www.gstatic.com/devrel-devsite/prod/v9de0f443992d54ad799f913d3a82969ff613e39ab9e3e056983c556b3c2ef1f8/clouddocs/images/lockup.svg)](/)
 
 `/`
 
@@ -69,6 +69,14 @@ prompts, including
 [source citations](/gemini/docs/discover/works#how-when-gemini-cites-sources)
 regarding which documentation and code samples
 Gemini Code Assist used to generate its responses.
+
+The Gemini large language models (LLMs) that are used by
+Gemini Code Assist are trained on datasets of publicly available code,
+Google Cloud-specific material, and other relevant technical information
+in addition to the datasets used to train the Gemini
+[foundation models](https://storage.googleapis.com/deepmind-media/gemini/gemini_1_report.pdf).
+Models are trained so that Gemini Code Assist responses are as useful
+to Gemini Code Assist users as possible.
 
 [Learn how and when
 Gemini for Google Cloud uses your data](/gemini/docs/discover/data-governance).
@@ -146,17 +154,17 @@ assistance in your IDE.
 #### Gemini Cloud Assist
 
 The following table shows the types of generative AI assistance in
-[Gemini Cloud Assist](https://cloud.google.com/gemini/docs/cloud-assist/overview)
+[Gemini Cloud Assist](https://docs.cloud.google.com/gemini/docs/cloud-assist/overview)
 in the Google Cloud console:
 
 | Gemini Cloud Assist assistance | Gemini Code Assist Standard | Gemini Code Assist Enterprise |
 | --- | --- | --- |
-| [Gemini Cloud Assist features](https://cloud.google.com/gemini/docs/cloud-assist/overview#ai-assistance) (including features available to all Google users and available to Gemini Code Assist Enterprise users) |  |  |
+| [Gemini Cloud Assist features](https://docs.cloud.google.com/gemini/docs/cloud-assist/overview#ai-assistance) (including features available to all Google users and available to Gemini Code Assist Enterprise users) |  |  |
 
 #### Gemini in Apigee
 
 The following table shows the types of generative AI assistance with API
-development in [Apigee](https://cloud.google.com/apigee/docs) (IDE and the
+development in [Apigee](https://docs.cloud.google.com/apigee/docs) (IDE and the
 Google Cloud console):
 
 | Gemini Code Assist for API management | Gemini Code Assist Standard | Gemini Code Assist Enterprise |
@@ -168,19 +176,19 @@ Google Cloud console):
 #### Gemini in Application Integration
 
 The following table shows the types of generative AI assistance in
-[Application Integration](https://cloud.google.com/application-integration/docs/overview)
+[Application Integration](https://docs.cloud.google.com/application-integration/docs/overview)
 in the Google Cloud console:
 
 | Integration creation assist | Gemini Code Assist Standard | Gemini Code Assist Enterprise |
 | --- | --- | --- |
-| [AI-assisted visual editor for automation flow generation](https://cloud.google.com/application-integration/docs/build-integrations-gemini#create-an-integration) |  |  |
-| [Enterprise context embedded AI-assisted automation authoring](https://cloud.google.com/application-integration/docs/build-integrations-gemini#contextual-recommendations) |  |  |
-| [Generative AI Automation flow documentation generation and refinement](https://cloud.google.com/application-integration/docs/build-integrations-gemini#generate-integration-description) |  |  |
+| [AI-assisted visual editor for automation flow generation](https://docs.cloud.google.com/application-integration/docs/build-integrations-gemini#create-an-integration) |  |  |
+| [Enterprise context embedded AI-assisted automation authoring](https://docs.cloud.google.com/application-integration/docs/build-integrations-gemini#contextual-recommendations) |  |  |
+| [Generative AI Automation flow documentation generation and refinement](https://docs.cloud.google.com/application-integration/docs/build-integrations-gemini#generate-integration-description) |  |  |
 
 #### Gemini in BigQuery features with Gemini Code Assist
 
 The following table shows the types of generative AI assistance for BigQuery
-in [BigQuery Studio](https://cloud.google.com/bigquery/docs/query-overview#bigquery-studio):
+in [BigQuery Studio](https://docs.cloud.google.com/bigquery/docs/query-overview#bigquery-studio):
 
 | Data insights | Gemini Code Assist Standard | Gemini Code Assist Enterprise |
 | --- | --- | --- |
@@ -189,11 +197,11 @@ in [BigQuery Studio](https://cloud.google.com/bigquery/docs/query-overview#bigqu
 #### Gemini in Colab Enterprise
 
 The following table shows the types of generative AI assistance for code in
-[Colab Enterprise](https://cloud.google.com/colab/docs/introduction):
+[Colab Enterprise](https://docs.cloud.google.com/colab/docs/introduction):
 
 | Notebook code assist | Gemini Code Assist Standard | Gemini Code Assist Enterprise |
 | --- | --- | --- |
-| [Python code generation and completion in notebook](https://cloud.google.com/colab/docs/use-code-completion) |  |  |
+| [Python code generation and completion in notebook](https://docs.cloud.google.com/colab/docs/use-code-completion) |  |  |
 
 #### Gemini in databases
 
@@ -266,8 +274,8 @@ Send feedback
 
 Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
 
-Last updated 2025-12-05 UTC.
+Last updated 2025-12-10 UTC.
 
 Need to tell us more?
 
-[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Hard to understand","hardToUnderstand","thumb-down"],["Incorrect information or sample code","incorrectInformationOrSampleCode","thumb-down"],["Missing the information/samples I need","missingTheInformationSamplesINeed","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2025-12-05 UTC."],[],[]]
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Hard to understand","hardToUnderstand","thumb-down"],["Incorrect information or sample code","incorrectInformationOrSampleCode","thumb-down"],["Missing the information/samples I need","missingTheInformationSamplesINeed","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2025-12-10 UTC."],[],[]]

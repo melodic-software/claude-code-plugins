@@ -1,11 +1,11 @@
 ---
 source_url: http://geminicli.com/docs/cli/model
 source_type: llms-txt
-content_hash: sha256:4503679dec0599d258687c93a094fe389d79c0a1f8832c9ad219da6acf37d4dc
+content_hash: sha256:b8c38c5ea2f5ae9c1d0eb35f2da229d31ac1bcdc2318c12b964ce01e3e512796
 sitemap_url: https://geminicli.com/llms.txt
 fetch_method: markdown
-etag: '"b6bc5233b1d756157439be04daf101b889d190c7af2534fe018113327ab49cfe"'
-last_modified: '2025-12-01T20:04:32Z'
+etag: '"e69bea8b78c240ca6afb89cb283b20eb51864b3c40fc66dc6ba2a6ae3f1446bd"'
+last_modified: '2025-12-09T17:19:48Z'
 ---
 
 # Gemini CLI model selection (`/model` command)
@@ -13,6 +13,10 @@ last_modified: '2025-12-01T20:04:32Z'
 Select your Gemini CLI model. The `/model` command opens a dialog where you can
 configure the model used by Gemini CLI, giving you more control over your
 results.
+
+**Note:** The `/model` command (and the `--model` flag) does not override the
+model used by sub-agents. Consequently, even when using the `/model` flag you
+may see other models used in your model usage reports.
 
 ## How to use the `/model` command
 
