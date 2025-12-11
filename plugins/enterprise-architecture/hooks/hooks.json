@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/architecture-compliance/check-principles.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /hooks/architecture-compliance/check-principles.sh",
             "timeout": 30,
             "environment": {
               "ENABLED": "${CLAUDE_HOOK_ARCHITECTURE_COMPLIANCE_ENABLED:-false}"

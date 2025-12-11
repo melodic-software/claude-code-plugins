@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/prevent-backup-files/bash/prevent-backup-files.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /hooks/prevent-backup-files/bash/prevent-backup-files.sh",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /scripts/hooks/suggest-docs-delegation.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /scripts/hooks/suggest-docs-delegation.sh",
             "timeout": 5
           }
         ]
@@ -31,17 +31,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/inject-current-date/bash/inject-current-date.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /hooks/inject-current-date/bash/inject-current-date.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/inject-best-practices/bash/inject-best-practices.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /hooks/inject-best-practices/bash/inject-best-practices.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/../../shared/hooks/hook-wrapper.py\" /hooks/inject-capability-index/bash/inject-capability-index.sh",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/hook-wrapper.py\" /hooks/inject-capability-index/bash/inject-capability-index.sh",
             "timeout": 10
           }
         ]
