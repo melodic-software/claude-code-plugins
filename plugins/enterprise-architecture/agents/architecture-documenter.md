@@ -4,9 +4,10 @@ description: Generate comprehensive architecture documentation with diagrams. An
 tools: Read, Write, Glob, Grep, Skill, Task
 model: sonnet
 color: blue
-# Note: This agent has Write access (no permissionMode: plan) because it generates documentation files.
-# Other EA agents use permissionMode: plan for read-only analysis.
 ---
+
+<!-- Note: This agent has Write access (no permissionMode: plan) because it generates documentation files.
+     Other EA agents use permissionMode: plan for read-only analysis. -->
 
 # Architecture Documenter Agent
 

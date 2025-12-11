@@ -1,5 +1,6 @@
 ---
 description: Analyze existing prompt and suggest improvements using the Seven Levels framework
+allowed-tools: Read, Glob, Grep, Skill
 argument-hint: [prompt-file-path]
 ---
 

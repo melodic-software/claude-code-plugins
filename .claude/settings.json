@@ -70,6 +70,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "./scripts/statusline.sh"
+    "command": "bun x ccusage statusline --visual-burn-rate emoji --context-low-threshold 50 --context-medium-threshold 80 --cost-source auto --no-offline"
   }
 }

@@ -3,8 +3,8 @@ name: issue-researcher
 description: Research GitHub issues to find relevant bugs, feature requests, and discussions. Use when troubleshooting errors, checking if an issue is already reported, or finding workarounds. Works with any GitHub repository.
 tools: Bash, Read, Grep, WebFetch, WebSearch, Skill
 model: haiku
-skills: github-issues
 color: green
+skills: github-issues
 ---
 
 # Issue Researcher Agent
