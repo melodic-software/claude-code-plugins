@@ -22,7 +22,7 @@ cat > /dev/null
 
 # Check if hook is disabled (default: enabled)
 if [[ "${CLAUDE_HOOK_CAPABILITY_INDEX_ENABLED:-1}" == "0" ]]; then
-    echo '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}'
+    echo '{"systemMessage":"inject-capability-index: disabled","hookSpecificOutput":{"hookEventName":"SessionStart"}}'
     exit 0
 fi
 
@@ -130,7 +130,7 @@ esac
 
 # If no content available, exit gracefully without injection
 if [[ -z "$INDEX_CONTENT" ]]; then
-    echo '{"hookSpecificOutput":{"hookEventName":"SessionStart"}}'
+    echo '{"systemMessage":"inject-capability-index: skipped (no content)","hookSpecificOutput":{"hookEventName":"SessionStart"}}'
     exit 0
 fi
 
@@ -155,6 +155,7 @@ ESCAPED_CONTENT=$(json_escape "$INDEX_CONTENT")
 # Output JSON with additionalContext
 cat << EOF
 {
+  "systemMessage": "inject-capability-index: index loaded",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
     "additionalContext": "$ESCAPED_CONTENT"

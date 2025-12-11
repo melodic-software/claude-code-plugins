@@ -24,7 +24,7 @@ Delete old hook log files to free up disk space.
 
 ## Arguments
 
-- First argument (optional): Number of days - delete logs older than N days (default: 30)
+- First argument (optional): Number of days - delete logs older than N days (default: 30, or from `CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS`)
 - `--dry-run` or `-n`: Preview what would be deleted without actually deleting
 
 ## Task
@@ -32,20 +32,27 @@ Delete old hook log files to free up disk space.
 Run the cleanup script to delete old log files:
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/hooks/log-hook-events/python/cleanup_logs.py" --days ${1:-30} ${2:---verbose}
+python "${CLAUDE_PLUGIN_ROOT}/hooks/cleanup_logs.py" --days ${1:-30} ${2:---verbose}
 ```
 
 If the user specified `--dry-run`, add that flag. Otherwise run with `--verbose` to show progress.
 
 ## What Gets Deleted
 
-- All `.jsonl` files in the logs directory older than the specified days
-- Both base files (`2025-12-05.jsonl`) and rotated files (`2025-12-05-001.jsonl`)
-- Empty event directories are removed after cleanup
+- All `.jsonl` files in `.claude/logs/hooks/` older than the specified days
+- Both base files (`events-2025-12-05.jsonl`) and rotated files (`events-2025-12-05-001.jsonl`)
+
+## Configuration
+
+The default retention period can be configured via environment variable:
+
+```bash
+# In .claude/settings.json "env" section:
+"CLAUDE_HOOK_LOG_RETENTION_MAX_AGE_DAYS": "30"
+```
 
 ## Safety Notes
 
 - Use `--dry-run` first to preview what will be deleted
 - Deleted files cannot be recovered
-- The default retention is 30 days (configurable in `config.yaml`)
 - Log files contain session metadata for debugging - ensure you don't need them before deleting
