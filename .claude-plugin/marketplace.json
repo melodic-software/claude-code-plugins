@@ -1,8 +1,9 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "melodic-software",
   "owner": {
     "name": "Melodic Software",
-    "url": "https://github.com/melodic-software"
+    "email": "info@melodicsoftware.com"
   },
   "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, and agents.",
   "metadata": {

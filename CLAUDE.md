@@ -14,14 +14,24 @@ from a fetched page this session, treat it as unverified and say so.
 |---|---|
 | Create plugins | https://code.claude.com/docs/en/plugins |
 | Plugins reference (schemas, variables, CLI) | https://code.claude.com/docs/en/plugins-reference |
+| Plugin dependencies (version constraints) | https://code.claude.com/docs/en/plugin-dependencies |
 | Create & distribute a marketplace | https://code.claude.com/docs/en/plugin-marketplaces |
 | Discover & install plugins | https://code.claude.com/docs/en/discover-plugins |
 | Skills | https://code.claude.com/docs/en/skills |
+| Slash commands | https://code.claude.com/docs/en/commands |
 | Hooks reference | https://code.claude.com/docs/en/hooks |
 | Subagents | https://code.claude.com/docs/en/sub-agents |
 | Settings | https://code.claude.com/docs/en/settings |
+| Memory — CLAUDE.md, `.claude/rules/`, auto memory | https://code.claude.com/docs/en/memory |
+| The `.claude` directory | https://code.claude.com/docs/en/claude-directory |
 | MCP | https://code.claude.com/docs/en/mcp |
+| Tools reference (monitors) | https://code.claude.com/docs/en/tools-reference |
 | Docs index (discover any other page) | https://code.claude.com/docs/llms.txt |
+
+Machine-readable JSON Schemas (editor validation for the JSON in this repo; Claude Code ignores the
+`$schema` field at load time): `marketplace.json` →
+`https://json.schemastore.org/claude-code-marketplace.json`, `plugin.json` →
+`https://json.schemastore.org/claude-code-plugin-manifest.json` (published on SchemaStore).
 
 ## Design rules for plugins added here
 
