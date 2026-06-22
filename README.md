@@ -1,2 +1,34 @@
-# claude-code-plugins
-Melodic Software — public Claude Code plugin marketplace: reusable, repo-agnostic skills, hooks, and agents.
+# Melodic Software — Claude Code plugins
+
+A public [Claude Code](https://code.claude.com/docs) plugin marketplace of reusable, repo-agnostic
+skills, hooks, and agents. Each plugin is designed to work in any repository and to be customized by
+consumers without editing the plugin itself.
+
+> Status: initialized. Plugins are migrated in one at a time; the catalog below grows as each is
+> vetted and validated. See [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md).
+
+## Use this marketplace
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install <plugin-name>@melodic-software
+```
+
+Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
+
+## What's here
+
+- `.claude-plugin/marketplace.json` — the marketplace catalog.
+- `plugins/` — one directory per plugin.
+- `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, and the per-plugin migration gate.
+- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
+
+## Official documentation
+
+This repo tracks policy and wiring only; authoritative behavior lives in the official docs, which must
+be read fresh rather than recalled. Start at the
+[Claude Code plugins guide](https://code.claude.com/docs/en/plugins).
+
+## License
+
+[MIT](LICENSE).

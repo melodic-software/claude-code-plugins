@@ -1,0 +1,9 @@
+# Normalize line endings to LF for all text files (cross-platform consistency)
+* text=auto eol=lf
+
+# Binary types Git should never normalize
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary
