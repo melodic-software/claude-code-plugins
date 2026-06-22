@@ -1,0 +1,12 @@
+{
+  "name": "melodic-software",
+  "owner": {
+    "name": "Melodic Software",
+    "url": "https://github.com/melodic-software"
+  },
+  "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, and agents.",
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": []
+}

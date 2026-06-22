@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+__pycache__/
+.venv/
+venv/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local-only Claude Code state
+.claude/settings.local.json
+CLAUDE.local.md
