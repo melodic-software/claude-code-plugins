@@ -36,7 +36,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies — the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean, optional sensitive). Also exported as `CLAUDE_PLUGIN_OPTION_<KEY>`. Non-sensitive stored in `settings.json` `pluginConfigs`; sensitive in keychain | Endpoints, toggles, tokens — consumer config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Also exported as `CLAUDE_PLUGIN_OPTION_<KEY>`. Non-sensitive stored in `settings.json` under `pluginConfigs[<id>].options`; sensitive in the system keychain | Endpoints, toggles, tokens — consumer config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
@@ -51,8 +51,9 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 - **Cache isolation.** Installed plugins are copied to `~/.claude/plugins/cache`. Any reference to files
   outside the plugin directory (`../../tools/...`, `.claude/rules/...`) breaks. Fix: bundle dependencies
   inside the plugin and reference them via `${CLAUDE_PLUGIN_ROOT}`; persist state via `${CLAUDE_PLUGIN_DATA}`.
-- **Namespacing.** An in-repo `/foo` becomes `/melodic-software:foo` (plugin-namespaced). Internal
-  cross-references to the bare name break — update them.
+- **Namespacing.** Components are namespaced by the plugin's own `name`, not the marketplace name —
+  an in-repo `/foo` becomes `/<plugin-name>:foo`. Internal cross-references to the bare name break —
+  update them.
 - **Agent shadowing.** Project/user `.claude/agents/` override same-named plugin agents. A leftover
   in-repo copy masks the plugin version until removed from the source repo.
 - **Headless registration.** `extraKnownMarketplaces` auto-registration requires the interactive trust
