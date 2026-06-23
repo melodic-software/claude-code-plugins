@@ -1,0 +1,20 @@
+# ShellCheck configuration. ShellCheck auto-discovers this by walking up from
+# the script's directory. Optional checks are selectively enabled — NOT
+# enable=all (the wiki warns optional checks are subjective and may conflict).
+# Ref: https://github.com/koalaman/shellcheck/wiki/Optional
+
+shell=bash
+
+# Allow sourcing external files; resolve them relative to the script's directory.
+external-sources=true
+source-path=SCRIPTDIR
+
+# --- Optional checks (selectively enabled) ---
+enable=add-default-case
+enable=avoid-negated-conditions
+enable=avoid-nullary-conditions
+enable=check-set-e-suppressed
+enable=check-unassigned-uppercase
+enable=deprecate-which
+enable=require-double-brackets
+enable=useless-use-of-cat
