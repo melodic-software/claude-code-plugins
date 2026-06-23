@@ -6,8 +6,12 @@
     "email": "info@melodicsoftware.com"
   },
   "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, and agents.",
-  "metadata": {
-    "pluginRoot": "./plugins"
-  },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "markdown-formatter",
+      "source": "./plugins/markdown-formatter",
+      "category": "formatting",
+      "tags": ["markdown", "markdownlint", "formatter", "linter", "hook"]
+    }
+  ]
 }
