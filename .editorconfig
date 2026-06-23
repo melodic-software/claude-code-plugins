@@ -1,0 +1,23 @@
+root = true
+
+# Global defaults. LF everywhere (matches .gitattributes `* text=auto eol=lf`).
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Markdown — trailing whitespace is significant (hard line breaks); indent varies
+# per CommonMark. Includes .mdc (Cursor MDC: markdown + YAML frontmatter).
+[*.{md,mdc}]
+trim_trailing_whitespace = false
+indent_size = unset
+
+# Shell — shfmt reads these keys (it does not read .shellcheckrc).
+[*.{sh,bash}]
+indent_size = 2
+binary_next_line = true
+switch_case_indent = true
+shell_variant = bash

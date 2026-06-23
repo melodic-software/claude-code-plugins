@@ -16,6 +16,14 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
+## Catalog
+
+| Plugin | Type | What it does |
+|---|---|---|
+| [`markdown-formatter`](plugins/markdown-formatter) | Hook | Auto-formats and lints Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config. |
+
+Install one: `/plugin install markdown-formatter@melodic-software`.
+
 ## What's here
 
 - `.claude-plugin/marketplace.json` — the marketplace catalog.

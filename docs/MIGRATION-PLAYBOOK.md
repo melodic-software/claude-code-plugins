@@ -75,7 +75,11 @@ For each skill/hook/agent being migrated:
 8. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
    source repo (proves repo-agnosticism).
 9. **Version.** Set an explicit semver `version` in `plugin.json`.
-10. **Publish.** Add the entry to `.claude-plugin/marketplace.json` and document it in the README.
+10. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
+    `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
+    even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
+    2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
+    itself** — a bad entry surfaces only there, not in per-plugin validation. Document the plugin in the README.
 
 ## What to wait on / avoid for now
 
