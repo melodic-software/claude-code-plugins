@@ -1,0 +1,31 @@
+{
+  "_comment": "editorconfig-checker config (keys per editorconfig-checker 3.x). Validates files against the repo-root .editorconfig. Line endings are NOT checked here — .gitattributes is the single authority for EOL, so EndOfLine is disabled to avoid double-enforcement. IndentSize and MaxLineLength are disabled because indent width and line length are owned by per-language formatters and are IDE hints, not hard rules. Exclude[] entries are regular expressions (universal, alphabetical); a consuming repo adds its own paths or excludes per-run with the -exclude flag (which combines additively with this list). Version is intentionally blank so the config adopts cleanly on any 3.x engine; a consuming repo pins its engine version in CI (this repo pins it in .github/workflows/ci.yml).",
+  "Version": "",
+  "Verbose": false,
+  "Debug": false,
+  "IgnoreDefaults": false,
+  "SpacesAfterTabs": false,
+  "NoColor": false,
+  "Exclude": [
+    "bin/",
+    "build/",
+    "\\.git/",
+    "\\.lock$",
+    "\\.min\\.",
+    "node_modules/",
+    "obj/",
+    "package-lock\\.json$",
+    "\\.venv/"
+  ],
+  "AllowedContentTypes": [],
+  "PassedFiles": [],
+  "Disable": {
+    "Charset": false,
+    "EndOfLine": true,
+    "Indentation": false,
+    "InsertFinalNewline": false,
+    "TrimTrailingWhitespace": false,
+    "IndentSize": true,
+    "MaxLineLength": true
+  }
+}

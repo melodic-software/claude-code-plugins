@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # Minimal hook utility library for the markdown-formatter plugin.
 # Sourced (not executed). Trimmed subset of a larger shared library — only the
 # functions this plugin's hook needs: kill switch, file_path parsing + path

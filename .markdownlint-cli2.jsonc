@@ -1,0 +1,36 @@
+{
+  // GitHub Flavored Markdown (GFM) ruleset for markdownlint-cli2.
+  // Schema pinned to markdownlint-cli2 v0.22.1 — bump together on upgrade.
+  // Rules reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  // All rules are enabled by default; only deviations are listed below.
+  // Globs are passed by the caller (CLI / CI), not declared here.
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.22.1/schema/markdownlint-cli2-config-schema.json",
+  "ignores": [
+    // Build, dependency, and cache trees — not authored markdown.
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/bin/**",
+    "**/obj/**"
+  ],
+  "config": {
+    // --- GFM-aligned style ---
+    "MD003": { "style": "atx" }, // ATX headings (# Heading)
+    "MD004": { "style": "dash" }, // Dash unordered-list bullets
+    "MD049": { "style": "asterisk" }, // *emphasis*
+    "MD050": { "style": "asterisk" }, // **strong**
+    "MD046": { "style": "fenced" }, // Fenced (not indented) code blocks
+    "MD048": { "style": "backtick" }, // Backtick (not tilde) code fences
+    "MD024": { "siblings_only": true }, // Allow duplicate headings under different parents
+    "MD060": false, // Table column style — disabled; allows any pipe spacing (its default flags tables matching no supported style)
+
+    // --- Relaxed for GFM / prose ---
+    "MD013": false, // No hard line-length limit (tables and code exceed 80)
+    "MD025": false, // Allow multiple top-level (H1) sections
+    "MD028": false, // Allow blank lines between adjacent blockquotes
+    "MD033": false, // Allow inline HTML (<details>, <summary>, <br>, ...)
+    "MD034": false, // Allow bare URLs (GFM autolinks them)
+    "MD036": false, // Allow bold text used as a pseudo-heading
+    "MD040": false, // Fenced code need not declare a language
+    "MD041": false // First line need not be a top-level heading (frontmatter)
+  }
+}
