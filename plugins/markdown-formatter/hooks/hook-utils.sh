@@ -89,6 +89,67 @@ hook::ctx_flush() {
   hook::ctx_reset
 }
 
+# Emit one telemetry envelope per hook run to the consumer-set sink.
+# Fire-and-forget: sink is dispatched in the background; the hook never waits
+# on it and its failure never affects the hook's own exit code or stdout.
+# Opt-in guard: HOOK_TELEMETRY_SINK unset or empty → return 0 immediately.
+# Fail-open: jq absent → return 0 immediately.
+#
+# Usage:
+#   hook::emit_telemetry <hook_id> <hook_event> <status> <start_epoch> <data_json>
+#
+# <start_epoch>  Value of $EPOCHREALTIME captured by the caller before work began.
+#               Handles both '.' and ',' as the decimal separator (LC_NUMERIC).
+# <data_json>   Pre-built JSON object for the `data` field.
+#
+# NEVER writes to fd1 (the hook's stdout / additionalContext channel).
+hook::emit_telemetry() {
+  # Opt-in guard.
+  [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
+  # Fail-open when jq is absent.
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local hook_id="$1"
+  local hook_event="$2"
+  local status="$3"
+  local start_epoch="$4"
+  local data_json="$5"
+
+  # Compute duration_ms from caller's $EPOCHREALTIME snapshot to now.
+  # Both '.' and ',' separators handled; 10# prefix prevents octal mis-parse
+  # of fractional parts with leading zeros (e.g. .045123 → 10#045123 = 45123).
+  local now=$EPOCHREALTIME
+  local s_s="${start_epoch%[.,]*}" s_f="${start_epoch#*[.,]}"
+  local e_s="${now%[.,]*}"         e_f="${now#*[.,]}"
+  local duration_ms=$(( (e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000 ))
+
+  # True UTC timestamp (TZ= prefix overrides LC_ALL / local TZ; the Z is not a lie).
+  local timestamp
+  timestamp=$(TZ=UTC printf '%(%Y-%m-%dT%H:%M:%SZ)T' -1)
+
+  # Build the envelope. Redirect jq stderr to /dev/null; output goes to a local
+  # variable — never to fd1.
+  local envelope
+  envelope=$(jq -n \
+    --arg     schema_version "1.0" \
+    --arg     timestamp      "$timestamp" \
+    --arg     hook           "$hook_id" \
+    --arg     hook_event     "$hook_event" \
+    --arg     status         "$status" \
+    --argjson duration_ms    "$duration_ms" \
+    --argjson data           "$data_json" \
+    '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:$data}' \
+    2>/dev/null) || return 0
+
+  # Fire-and-forget: pipe the envelope to the sink in a background subshell.
+  # The subshell's stdout AND stderr are redirected to /dev/null so the sink
+  # cannot write to the hook's fd1 (the additionalContext channel) and the
+  # backgrounded subshell does not hold a copy of the hook's fd1 open — which
+  # would block any command substitution wrapping the hook until the sink exits
+  # (the "C1 fd1-inheritance blocker").
+  printf '%s\n' "$envelope" | ($HOOK_TELEMETRY_SINK >/dev/null 2>&1) &
+}
+
 # Print cross-host hook JSON to stdout (exit 0). No-op when context is empty.
 # Shape: { hookSpecificOutput: { hookEventName[, additionalContext] } }.
 hook::emit_additional_context() {

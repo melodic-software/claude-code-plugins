@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# Unit tests for hook-utils.sh: sourced-lib tests for hook::emit_telemetry.
+#
+# Tests source hook-utils.sh directly and drive hook::emit_telemetry in
+# isolation. No subprocess invocation of markdown-format.sh — black-box
+# integration tests live in markdown-format.test.sh.
+
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+PASS=0
+FAIL=0
+fail() {
+  echo "FAIL: $*" >&2
+  FAIL=$((FAIL + 1))
+}
+ok() {
+  echo "ok: $*"
+  PASS=$((PASS + 1))
+}
+
+# --- Source the lib under test -----------------------------------------------
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+
+# --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
+unset HOOK_TELEMETRY_SINK 2>/dev/null || true
+out=$(hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null)
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "sink unset: returns 0"
+else
+  fail "sink unset: expected 0, got $rc"
+fi
+if [[ -z "$out" ]]; then
+  ok "sink unset: no output"
+else
+  fail "sink unset: unexpected output: $out"
+fi
+
+# --- Test 2: jq absent → emit skipped, no error, returns 0 ------------------
+# Shadow jq with a function that returns 127 to simulate absence.
+# The HOOK_TELEMETRY_SINK env var and the jq shadow are scoped to the subshell
+# so they never pollute the outer test context.
+# shellcheck disable=SC2030,SC2031
+out_nojq=$(
+  export HOOK_TELEMETRY_SINK="cat"
+  (
+    unset _MDFMT_HOOK_UTILS_LOADED 2>/dev/null || true
+    jq() { return 127; }
+    export -f jq
+    source "$HOOK_DIR/hook-utils.sh"
+    hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null
+  )
+)
+rc_nojq=$?
+if [[ $rc_nojq -eq 0 ]]; then
+  ok "jq absent: returns 0"
+else
+  fail "jq absent: expected 0, got $rc_nojq"
+fi
+if [[ -z "$out_nojq" ]]; then
+  ok "jq absent: no output"
+else
+  fail "jq absent: unexpected output: $out_nojq"
+fi
+
+# --- Test 3: envelope shape matches schema (7 required common fields + data) --
+SINK_FILE="$(mktemp)"
+cleanup_t3() { rm -f "$SINK_FILE"; }
+trap cleanup_t3 EXIT
+
+# Use a file-writing sink to capture the envelope.
+# shellcheck disable=SC2031  # prior subshell export is intentionally scoped there
+export HOOK_TELEMETRY_SINK="tee $SINK_FILE"
+data_json='{"tool":"Write","file":"docs/foo.md","findings":["docs/foo.md:12 MD013/line-length"]}'
+start=$EPOCHREALTIME
+hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
+# Allow the background process to finish
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+
+if [[ -s "$SINK_FILE" ]]; then
+  ok "envelope shape: sink received data"
+  # Validate all 7 required common fields
+  for field in schema_version timestamp hook hook_event status duration_ms data; do
+    if jq -e "has(\"$field\")" "$SINK_FILE" >/dev/null 2>&1; then
+      ok "envelope shape: field '$field' present"
+    else
+      fail "envelope shape: field '$field' missing. envelope=$(cat "$SINK_FILE")"
+    fi
+  done
+  # Validate data sub-fields
+  for subfield in tool file findings; do
+    if jq -e ".data | has(\"$subfield\")" "$SINK_FILE" >/dev/null 2>&1; then
+      ok "envelope shape: data.$subfield present"
+    else
+      fail "envelope shape: data.$subfield missing. data=$(jq .data "$SINK_FILE")"
+    fi
+  done
+  # Validate schema_version
+  sv=$(jq -r '.schema_version' "$SINK_FILE")
+  if [[ "$sv" == "1.0" ]]; then
+    ok "envelope: schema_version is 1.0"
+  else
+    fail "envelope: schema_version expected 1.0, got $sv"
+  fi
+  # Validate hook id
+  hook_val=$(jq -r '.hook' "$SINK_FILE")
+  if [[ "$hook_val" == "markdown-format" ]]; then
+    ok "envelope: hook is markdown-format"
+  else
+    fail "envelope: hook expected markdown-format, got $hook_val"
+  fi
+  # Validate hook_event
+  he=$(jq -r '.hook_event' "$SINK_FILE")
+  if [[ "$he" == "PostToolUse" ]]; then
+    ok "envelope: hook_event is PostToolUse"
+  else
+    fail "envelope: hook_event expected PostToolUse, got $he"
+  fi
+  # Validate status
+  st=$(jq -r '.status' "$SINK_FILE")
+  if [[ "$st" == "ok" ]]; then
+    ok "envelope: status is ok"
+  else
+    fail "envelope: status expected ok, got $st"
+  fi
+else
+  fail "envelope shape: sink file empty — emit did not fire or sink did not write"
+  for field in schema_version timestamp hook hook_event status duration_ms data; do
+    fail "envelope shape: field '$field' not verifiable (no envelope)"
+  done
+  for subfield in tool file findings; do
+    fail "envelope shape: data.$subfield not verifiable (no envelope)"
+  done
+fi
+
+# --- Test 4: timestamp is UTC RFC3339 with Z suffix --------------------------
+if [[ -s "$SINK_FILE" ]]; then
+  ts=$(jq -r '.timestamp' "$SINK_FILE")
+  if [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+    ok "timestamp: matches RFC3339 UTC pattern"
+  else
+    fail "timestamp: does not match pattern: $ts"
+  fi
+  # Verify it is genuinely UTC: timestamp hour must align with UTC hour (±1 for boundary)
+  # We verify by checking the TZ=UTC prefix actually produces UTC
+  utc_h=$(TZ=UTC date +%H)
+  ts_h="${ts:11:2}"
+  # Allow ±1h boundary tolerance
+  h_diff=$(( ${ts_h#0} - ${utc_h#0} ))
+  h_diff=${h_diff#-}
+  if [[ $h_diff -le 1 ]]; then
+    ok "timestamp: UTC hour aligns with system UTC"
+  else
+    fail "timestamp: hour drift vs UTC: ts_h=$ts_h utc_h=$utc_h diff=$h_diff"
+  fi
+else
+  fail "timestamp: no envelope to check"
+  fail "timestamp: UTC alignment not verifiable"
+fi
+
+# --- Test 5: duration_ms is a non-negative integer ---------------------------
+if [[ -s "$SINK_FILE" ]]; then
+  dur=$(jq '.duration_ms' "$SINK_FILE")
+  if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$SINK_FILE" >/dev/null 2>&1; then
+    ok "duration_ms: is non-negative integer (value=$dur)"
+  else
+    fail "duration_ms: not a non-negative integer: $dur"
+  fi
+else
+  fail "duration_ms: no envelope to check"
+fi
+
+rm -f "$SINK_FILE"
+trap - EXIT
+
+# --- Test 6: status "skipped" passes through ---------------------------------
+SINK_FILE2="$(mktemp)"
+export HOOK_TELEMETRY_SINK="tee $SINK_FILE2"
+hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+
+if [[ -s "$SINK_FILE2" ]]; then
+  st2=$(jq -r '.status' "$SINK_FILE2")
+  if [[ "$st2" == "skipped" ]]; then
+    ok "status skipped: correctly emitted"
+  else
+    fail "status skipped: got $st2"
+  fi
+else
+  fail "status skipped: no envelope written"
+fi
+rm -f "$SINK_FILE2"
+
+echo
+echo "PASS=$PASS FAIL=$FAIL"
+[[ $FAIL -eq 0 ]]
