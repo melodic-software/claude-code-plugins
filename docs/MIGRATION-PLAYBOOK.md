@@ -81,6 +81,30 @@ For each skill/hook/agent being migrated:
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
     itself** — a bad entry surfaces only there, not in per-plugin validation. Document the plugin in the README.
 
+## Local development loop
+
+For a plugin that already ships here, iterate against your local clone without re-publishing and
+without changing any consumer's marketplace registration. `--plugin-dir` loads a plugin straight from
+a directory; when its `name` matches an installed marketplace plugin, **the local copy takes
+precedence for that session**, so you exercise working-tree edits against the installed copy without
+uninstalling it (verified 2026-06-24).
+
+```shell
+# from this repo root — point at the plugin directory, not the marketplace root
+claude --plugin-dir ./plugins/<name>
+```
+
+- **Edit, then `/reload-plugins`** to pick up changes without restarting — it reloads skills, agents,
+  hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
+- **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
+  consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
+  exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or
+  force-disable.
+- **Trust.** A locally loaded plugin carries the same trust considerations as any source — only load
+  directories you control.
+- **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
+  change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
+
 ## What to wait on / avoid for now
 
 - Don't pre-build cross-plugin `dependencies` graphs until two plugins genuinely share a need.
