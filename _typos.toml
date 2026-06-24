@@ -1,0 +1,39 @@
+# typos — https://github.com/crate-ci/typos
+# Config reference: https://github.com/crate-ci/typos/blob/master/docs/reference.md
+# Identifiers vs words:  https://github.com/crate-ci/typos/blob/master/docs/design.md
+#
+# Decoupled base config: only repo-agnostic ignores live here. typos already
+# respects .gitignore and skips binary files, so the lists below stay minimal.
+# Adopters extend [default.extend-words], [default.extend-identifiers], and
+# [files] extend-exclude with their own domain vocabulary and vendored paths.
+
+[default]
+extend-ignore-re = [
+  # Inline ignore directives. typos has no built-in pragma, so this config
+  # blesses a convention: silence a single line, the following line, or a
+  # block, without polluting the global allow-lists. Shell / JS comment forms.
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+  "(#|//)\\s*spellchecker:ignore-next-line\\n.*",
+  "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
+  # Markdown / HTML comment form of the block directive — invisible in render.
+  "(?s)<!--\\s*spellchecker:off\\s*-->.*?<!--\\s*spellchecker:on\\s*-->",
+  # Braced GUID / UUID literals — opaque hex segments trip the word splitter
+  # (e.g. `ba54` -> "bash"). Matches the canonical 8-4-4-4-12 brace form.
+  "\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}",
+]
+
+# Domain words / proper nouns (case-insensitive) and whole-token identifiers
+# (case-sensitive) are repo-specific — adopters add them, the base ships none:
+#
+#   [default.extend-words]
+#   ASO = "ASO"
+#
+#   [default.extend-identifiers]
+#   seeked = "seeked"
+
+[files]
+# typos respects .gitignore by default, so only tracked paths that should never
+# be spell-checked belong here. Minified bundles are the near-universal case.
+extend-exclude = [
+  "*.min.*",
+]

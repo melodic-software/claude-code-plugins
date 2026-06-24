@@ -1,0 +1,22 @@
+# Dependabot keeps this repo's dependencies current with REVIEWED pull requests — GitHub-native,
+# no third-party app and no PAT. One ecosystem today: the SHA-pinned GitHub Actions in
+# .github/workflows/ (Dependabot bumps the pinned commit SHA and refreshes the trailing version
+# comment, keeping them digest-pinned). Add npm here only if this repo gains its own package.json
+# (the plugin hooks rely on the consuming repo's tooling, so there is none today). No auto-merge is
+# configured, so every bump is a PR that runs ci before a human merges.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+    # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
+    # updates bypass cooldown and still surface immediately.
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
