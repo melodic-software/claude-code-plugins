@@ -16,6 +16,10 @@ updates:
     # updates bypass cooldown and still surface immediately.
     cooldown:
       default-days: 7
+      # First-party melodic-software/* actions skip the supply-chain wait so our
+      # own ci-workflows fixes propagate without the cooldown delay.
+      exclude:
+        - "melodic-software/*"
     groups:
       github-actions:
         patterns:
