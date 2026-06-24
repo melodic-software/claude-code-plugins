@@ -12,3 +12,6 @@ Initial published contract.
 - Common envelope: `schema_version`, `timestamp`, `hook`, `hook_event`, `status`, `duration_ms`, `data`.
 - `status` enum: `ok | error | skipped | blocked`.
 - First per-hook `data` schema: `markdown-format` (`tool`, `file`, `findings`).
+- Sink path resolution: `HOOK_TELEMETRY_SINK` is a single executable path, absolute or relative to the
+  consuming repo root (producer-resolved). Relative is the portable, tracked-wiring form. Not an envelope
+  field, so no `schema_version` change.

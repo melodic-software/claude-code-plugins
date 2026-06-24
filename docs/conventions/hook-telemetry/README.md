@@ -24,6 +24,21 @@ where no sink is configured.
   ("find the slow hook"), **not** for must-not-lose data. Do not build accounting, billing, or audit-of-record
   on it.
 
+## Sink path resolution
+
+`HOOK_TELEMETRY_SINK` is a **single executable path** — absolute, or relative to the consuming repo root.
+The producer resolves it before dispatch:
+
+- **Absolute** (POSIX `/…` or Windows `X:\` / `X:/`) — used as-is.
+- **Relative** (e.g. `.claude/hooks/hook-telemetry-sink.sh`) — joined onto the consuming repo root the
+  producer already resolves for `data.file` (falling back to `$CLAUDE_PROJECT_DIR`); skipped fail-open if
+  neither anchor is available, since a drifted hook CWD would mis-resolve it.
+
+Relative is the portable, team-shared wiring form. Claude Code injects `settings.json` `env` values
+**literally** — no `${VAR}` expansion (that is a `.mcp.json`-only feature) — so a relative path committed in
+`settings.json` is the only clone-portable, worktree-safe way to wire a sink without a per-machine absolute
+path. To pass arguments, wrap the sink in a script: the value is exec'd as a single command.
+
 ## The envelope (common fields)
 
 Every event, from every hook, carries these seven fields. All are required and always present.

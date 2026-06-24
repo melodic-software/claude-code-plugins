@@ -96,11 +96,22 @@ hook::ctx_flush() {
 # Fail-open: jq absent → return 0 immediately.
 #
 # Usage:
-#   hook::emit_telemetry <hook_id> <hook_event> <status> <start_epoch> <data_json>
+#   hook::emit_telemetry <hook_id> <hook_event> <status> <start_epoch> <data_json> [repo_root]
 #
 # <start_epoch>  Value of $EPOCHREALTIME captured by the caller before work began.
 #               Handles both '.' and ',' as the decimal separator (LC_NUMERIC).
 # <data_json>   Pre-built JSON object for the `data` field.
+# <repo_root>   Optional consuming-repo root, used to resolve a RELATIVE
+#               HOOK_TELEMETRY_SINK. The caller passes the root it already
+#               resolved for data.file; ignored when the sink is absolute.
+#
+# Sink path resolution: HOOK_TELEMETRY_SINK may be absolute OR relative to the
+# consuming repo root. Absolute (POSIX /… or Windows X:\ / X:/) is used as-is; a
+# relative value is joined onto <repo_root> (or $CLAUDE_PROJECT_DIR when no root
+# is passed), and skipped fail-open if neither is available. Relative is the
+# portable, team-shared wiring form: CC injects settings.json env values
+# literally (no ${VAR} expansion), so a relative path tracked in settings.json is
+# the only clone-portable, worktree-safe option.
 #
 # NEVER writes to fd1 (the hook's stdout / additionalContext channel).
 hook::emit_telemetry() {
@@ -114,6 +125,7 @@ hook::emit_telemetry() {
   local status="$3"
   local start_epoch="$4"
   local data_json="$5"
+  local repo_root="${6:-}"
 
   # Compute duration_ms from caller's $EPOCHREALTIME snapshot to now.
   # Both '.' and ',' separators handled; 10# prefix prevents octal mis-parse
@@ -141,13 +153,28 @@ hook::emit_telemetry() {
     '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:$data}' \
     2>/dev/null) || return 0
 
+  # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
+  # consuming repo root (portable, tracked wiring); absolute is used as-is. A
+  # relative value with no anchor is skipped fail-open — never exec a path the
+  # drifted hook CWD would mis-resolve.
+  local sink="$HOOK_TELEMETRY_SINK"
+  case "$sink" in
+    /* | [A-Za-z]:[/\\]*) ;;
+    *)
+      local root="${repo_root:-${CLAUDE_PROJECT_DIR:-}}"
+      [[ -n "$root" ]] || return 0
+      sink="${root%/}/$sink"
+      ;;
+  esac
+
   # Fire-and-forget: pipe the envelope to the sink in a background subshell.
   # The subshell's stdout AND stderr are redirected to /dev/null so the sink
   # cannot write to the hook's fd1 (the additionalContext channel) and the
   # backgrounded subshell does not hold a copy of the hook's fd1 open — which
   # would block any command substitution wrapping the hook until the sink exits
-  # (the "C1 fd1-inheritance blocker").
-  printf '%s\n' "$envelope" | ($HOOK_TELEMETRY_SINK >/dev/null 2>&1) &
+  # (the "C1 fd1-inheritance blocker"). The sink is quoted — it is a single
+  # executable path (wrap in a script to pass arguments).
+  printf '%s\n' "$envelope" | ("$sink" >/dev/null 2>&1) &
 }
 
 # Print cross-host hook JSON to stdout (exit 0). No-op when context is empty.

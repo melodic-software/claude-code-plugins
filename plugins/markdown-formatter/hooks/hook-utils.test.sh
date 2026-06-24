@@ -24,6 +24,21 @@ ok() {
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
+# make_sink <outfile> → prints the path to a single-executable stub sink that
+# copies its stdin to <outfile>. The contract requires HOOK_TELEMETRY_SINK to be
+# a single executable path (not a command-with-args), so tests point it at a
+# stub script rather than `tee FILE`.
+make_sink() {
+  local s
+  s="$(mktemp)"
+  cat >"$s" <<EOF
+#!/usr/bin/env bash
+cat >"$1"
+EOF
+  chmod +x "$s"
+  printf '%s' "$s"
+}
+
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
 unset HOOK_TELEMETRY_SINK 2>/dev/null || true
 out=$(hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null)
@@ -73,7 +88,8 @@ trap cleanup_t3 EXIT
 
 # Use a file-writing sink to capture the envelope.
 # shellcheck disable=SC2031  # prior subshell export is intentionally scoped there
-export HOOK_TELEMETRY_SINK="tee $SINK_FILE"
+HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE")"
+export HOOK_TELEMETRY_SINK
 data_json='{"tool":"Write","file":"docs/foo.md","findings":["docs/foo.md:12 MD013/line-length"]}'
 start=$EPOCHREALTIME
 hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
@@ -179,7 +195,8 @@ trap - EXIT
 
 # --- Test 6: status "skipped" passes through ---------------------------------
 SINK_FILE2="$(mktemp)"
-export HOOK_TELEMETRY_SINK="tee $SINK_FILE2"
+HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE2")"
+export HOOK_TELEMETRY_SINK
 hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
 sleep 0.2
 unset HOOK_TELEMETRY_SINK
@@ -195,6 +212,81 @@ else
   fail "status skipped: no envelope written"
 fi
 rm -f "$SINK_FILE2"
+
+# --- Test 7: RELATIVE sink resolves against the passed repo_root (6th arg) ----
+# This is the portable/tracked-wiring path: a relative HOOK_TELEMETRY_SINK joined
+# onto the consuming repo root the caller passes.
+ROOT7="$(mktemp -d)"
+mkdir -p "$ROOT7/.claude/hooks"
+REL7=".claude/hooks/sink.sh"
+OUT7="$(mktemp)"
+cat >"$ROOT7/$REL7" <<EOF
+#!/usr/bin/env bash
+cat >"$OUT7"
+EOF
+chmod +x "$ROOT7/$REL7"
+export HOOK_TELEMETRY_SINK="$REL7"
+hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' "$ROOT7" 2>/dev/null
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+if [[ -s "$OUT7" ]] && [[ "$(jq -r '.hook' "$OUT7")" == "markdown-format" ]]; then
+  ok "relative sink: resolved against repo_root arg, envelope delivered"
+else
+  fail "relative sink: not resolved against repo_root arg (out empty or wrong)"
+fi
+rm -rf "$ROOT7" "$OUT7"
+
+# --- Test 8: RELATIVE sink resolves against CLAUDE_PROJECT_DIR when no root arg --
+ROOT8="$(mktemp -d)"
+mkdir -p "$ROOT8/.claude/hooks"
+OUT8="$(mktemp)"
+cat >"$ROOT8/.claude/hooks/sink.sh" <<EOF
+#!/usr/bin/env bash
+cat >"$OUT8"
+EOF
+chmod +x "$ROOT8/.claude/hooks/sink.sh"
+export HOOK_TELEMETRY_SINK=".claude/hooks/sink.sh"
+CLAUDE_PROJECT_DIR="$ROOT8" hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' 2>/dev/null
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+if [[ -s "$OUT8" ]]; then
+  ok "relative sink: resolved against CLAUDE_PROJECT_DIR fallback"
+else
+  fail "relative sink: CLAUDE_PROJECT_DIR fallback did not resolve"
+fi
+rm -rf "$ROOT8" "$OUT8"
+
+# --- Test 9: RELATIVE sink with NO anchor → fail-open skip (return 0, no write) --
+OUT9="$(mktemp)"
+rm -f "$OUT9" # ensure absent
+export HOOK_TELEMETRY_SINK="relative/no/anchor/sink.sh"
+(
+  unset CLAUDE_PROJECT_DIR 2>/dev/null || true
+  hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' 2>/dev/null
+)
+rc9=$?
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+if [[ $rc9 -eq 0 ]] && [[ ! -s "$OUT9" ]]; then
+  ok "relative sink, no anchor: fail-open skip (rc 0, no write)"
+else
+  fail "relative sink, no anchor: expected skip (rc=$rc9, out exists=$([[ -s "$OUT9" ]] && echo y || echo n))"
+fi
+rm -f "$OUT9"
+
+# --- Test 10: ABSOLUTE sink passes through unchanged --------------------------
+OUT10="$(mktemp)"
+ABS10="$(make_sink "$OUT10")" # mktemp path is absolute
+export HOOK_TELEMETRY_SINK="$ABS10"
+hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' "/some/ignored/root" 2>/dev/null
+sleep 0.2
+unset HOOK_TELEMETRY_SINK
+if [[ -s "$OUT10" ]] && [[ "$(jq -r '.hook' "$OUT10")" == "markdown-format" ]]; then
+  ok "absolute sink: passes through unchanged (repo_root ignored)"
+else
+  fail "absolute sink: did not pass through"
+fi
+rm -f "$ABS10" "$OUT10"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

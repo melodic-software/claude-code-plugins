@@ -65,7 +65,7 @@ else
     --arg file     "$FILE_REL" \
     --argjson findings '[]' \
     '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
-  hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$start" "$data_json"
+  hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
@@ -76,7 +76,7 @@ if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
     --arg file     "$FILE_REL" \
     --argjson findings '[]' \
     '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
-  hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json"
+  hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
@@ -102,5 +102,5 @@ data_json=$(jq -n \
   --arg file     "$FILE_REL" \
   --argjson findings "$FINDINGS_JSON" \
   '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
-hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json"
+hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
 exit 0
