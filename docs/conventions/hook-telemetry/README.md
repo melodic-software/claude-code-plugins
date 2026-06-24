@@ -32,7 +32,7 @@ The producer resolves it before dispatch:
 - **Absolute** (POSIX `/…` or Windows `X:\` / `X:/`) — used as-is.
 - **Relative** (e.g. `.claude/hooks/hook-telemetry-sink.sh`) — joined onto the consuming repo root the
   producer already resolves for `data.file` (falling back to `$CLAUDE_PROJECT_DIR`); skipped fail-open if
-  neither anchor is available, since a drifted hook CWD would mis-resolve it.
+  neither anchor is available, since a drifted hook CWD would resolve it incorrectly.
 
 Relative is the portable, team-shared wiring form. Claude Code injects `settings.json` `env` values
 **literally** — no `${VAR}` expansion (that is a `.mcp.json`-only feature) — so a relative path committed in

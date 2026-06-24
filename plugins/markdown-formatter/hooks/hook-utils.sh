@@ -128,7 +128,7 @@ hook::emit_telemetry() {
   local repo_root="${6:-}"
 
   # Compute duration_ms from caller's $EPOCHREALTIME snapshot to now.
-  # Both '.' and ',' separators handled; 10# prefix prevents octal mis-parse
+  # Both '.' and ',' separators handled; 10# prefix prevents octal misreading
   # of fractional parts with leading zeros (e.g. .045123 → 10#045123 = 45123).
   local now=$EPOCHREALTIME
   local s_s="${start_epoch%[.,]*}" s_f="${start_epoch#*[.,]}"
@@ -156,7 +156,7 @@ hook::emit_telemetry() {
   # Resolve the sink path. A relative HOOK_TELEMETRY_SINK is joined onto the
   # consuming repo root (portable, tracked wiring); absolute is used as-is. A
   # relative value with no anchor is skipped fail-open — never exec a path the
-  # drifted hook CWD would mis-resolve.
+  # drifted hook CWD would resolve incorrectly.
   local sink="$HOOK_TELEMETRY_SINK"
   case "$sink" in
     /* | [A-Za-z]:[/\\]*) ;;
