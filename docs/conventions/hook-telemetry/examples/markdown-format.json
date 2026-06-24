@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-06-23T22:37:29Z",
+  "hook": "markdown-format",
+  "hook_event": "PostToolUse",
+  "status": "ok",
+  "duration_ms": 142,
+  "data": {
+    "tool": "Write",
+    "file": "docs/foo.md",
+    "findings": [
+      "docs/foo.md:12 MD013/line-length Line length [Expected: 80; Actual: 118]"
+    ]
+  }
+}

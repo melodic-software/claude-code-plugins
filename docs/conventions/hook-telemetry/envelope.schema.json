@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/envelope.schema.json",
+  "title": "Hook Telemetry Envelope",
+  "description": "Common envelope a marketplace plugin hook (producer) emits to a consumer-set sink. Versioned by schema_version. Per-hook detail lives in `data`, described by data/<hook>.schema.json keyed on the `hook` value. Contract-doc only: no validator is wired (see README).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp",
+    "hook",
+    "hook_event",
+    "status",
+    "duration_ms",
+    "data"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "SemVer version of this envelope contract."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC instant the hook finished. True UTC (TZ=UTC) — the Z suffix is not a local-time lie."
+    },
+    "hook": {
+      "type": "string",
+      "description": "Producer hook id, e.g. \"markdown-format\". NOT Claude Code's hook_name (event:matcher). Keys data-schema discovery: data/<hook>.schema.json."
+    },
+    "hook_event": {
+      "type": "string",
+      "description": "Free string naming the triggering event (PostToolUse, SessionStart, ConfigChange, WorktreeCreate, ...). Deliberately not an enum."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error", "skipped", "blocked"],
+      "description": "Universal execution outcome. Consumers MUST tolerate unknown future values (treat as a catch-all, never hard-fail)."
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "This hook's own runtime in milliseconds. NOT Claude Code's aggregate total_duration_ms."
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Per-hook payload; always present (at minimum {}). Shape described by data/<hook>.schema.json. Generic sinks ignore this and consume only the common fields."
+    }
+  }
+}
