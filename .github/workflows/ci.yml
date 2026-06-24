@@ -1,0 +1,226 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Quality lanes run the ci-workflows composite actions / reusable workflows
+# (referenced by SHA, bumped via Dependabot — never copied) against this repo's
+# own copies of the standards configs. Tool configs live at the repo root, so
+# each lane overrides the action's config input to that root path; the
+# comment-hygiene policy and lychee ruleset sit under modules/ at the actions'
+# default paths. The local ci-status gateway aggregates every lane into the
+# single required check the org ci-gate ruleset keys on.
+jobs:
+  markdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Lint markdown
+        uses: melodic-software/ci-workflows/.github/actions/markdown@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          config: .markdownlint-cli2.jsonc
+
+  typos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Spell-check
+        uses: melodic-software/ci-workflows/.github/actions/typos@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          config: _typos.toml
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Scan for secrets
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          config: .gitleaks.toml
+
+  editorconfig:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check editorconfig conformance
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          config: .editorconfig-checker.json
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Lint shell scripts
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          rcfile: .shellcheckrc
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Lint workflows
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+
+  jsonschema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Validate marketplace manifest
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          schemafile: https://json.schemastore.org/claude-code-marketplace.json
+          files: .claude-plugin/marketplace.json
+      - name: Validate plugin manifests
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
+          files: plugins/*/.claude-plugin/plugin.json
+      - name: Validate dependabot.yml
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          builtin-schema: vendor.dependabot
+          files: .github/dependabot.yml
+      - name: Validate workflows
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          builtin-schema: vendor.github-workflows
+          files: >-
+            .github/workflows/ci.yml
+            .github/workflows/link-check.yml
+
+  exec-bit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Verify shebang files are executable
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+
+  machine-specific-paths:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check for machine-specific paths
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+
+  eol-renormalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check index-level EOL drift
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+
+  comment-hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Scan comment hygiene
+        # The vendored policy library references the literal marker tokens in its
+        # own comments, so skip the module to avoid self-matching.
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        with:
+          exclude: ':(exclude)modules/comment-hygiene/**'
+
+  zizmor:
+    permissions:
+      contents: read
+    # Advisory Actions security lint; findings annotate without blocking.
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+    with:
+      paths: .
+
+  ci-status:
+    if: always()
+    needs:
+      - markdown
+      - typos
+      - gitleaks
+      - editorconfig
+      - shellcheck
+      - actionlint
+      - jsonschema
+      - exec-bit
+      - machine-specific-paths
+      - eol-renormalize
+      - comment-hygiene
+      - zizmor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Aggregate lane results
+        env:
+          RESULTS: >-
+            ${{ needs.markdown.result }}
+            ${{ needs.typos.result }}
+            ${{ needs.gitleaks.result }}
+            ${{ needs.editorconfig.result }}
+            ${{ needs.shellcheck.result }}
+            ${{ needs.actionlint.result }}
+            ${{ needs.jsonschema.result }}
+            ${{ needs.exec-bit.result }}
+            ${{ needs.machine-specific-paths.result }}
+            ${{ needs.eol-renormalize.result }}
+            ${{ needs.comment-hygiene.result }}
+            ${{ needs.zizmor.result }}
+        run: |
+          for r in $RESULTS; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "A lane did not pass (result: $r)."; exit 1 ;;
+            esac
+          done
+          echo "All lanes passed or were skipped."

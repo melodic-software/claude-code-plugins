@@ -1,0 +1,16 @@
+# gitleaks — https://github.com/gitleaks/gitleaks
+# Config reference: https://github.com/gitleaks/gitleaks#configuration
+#
+# Decoupled base config: inherit the upstream default ruleset and add nothing
+# repo-specific. Adopters layer their own [[allowlists]] (false positives,
+# vendored fixtures) on top. Intentional / known findings are better handled
+# per-repo with a root .gitleaksignore or an inline `gitleaks:allow` comment
+# than by editing this shared config.
+
+# Floor the engine version: silences the "no minVersion specified" debug
+# warning (v8.29.0+) and pins the feature baseline this config relies on
+# (`[extend].useDefault`, `[[allowlists]]`).
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true

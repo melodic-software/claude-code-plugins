@@ -1,9 +1,60 @@
-# Normalize line endings to LF for all text files (cross-platform consistency)
+# Language/framework-agnostic base. `* text=auto eol=lf` normalizes text to LF in
+# the repository AND checks it out LF on every platform (deterministic, regardless
+# of a developer's core.autocrlf). Windows-native types below override to CRLF. A
+# later line overrides an earlier one, per attribute. This file is the single
+# authority for line endings (editorconfig end_of_line is an editor hint only).
+
 * text=auto eol=lf
 
-# Binary types Git should never normalize
-*.png binary
-*.jpg binary
-*.gif binary
-*.ico binary
-*.zip binary
+###############################################################################
+# Richer diffs (line endings inherit the LF default above).
+###############################################################################
+
+*.md    diff=markdown
+*.sh    diff=bash
+*.bash  diff=bash
+
+###############################################################################
+# PowerShell — LF is deliberate. Verified to run on both PowerShell 7 and
+# Windows PowerShell 5.1. The PowerShell repo pins .ps1 to eol=lf; the popular
+# community gitattributes template pins crlf — they target different eras. Listed
+# explicitly so it is not "corrected" to crlf without a requirement to round-trip
+# pre-existing CRLF-signed scripts unchanged.
+###############################################################################
+
+*.ps1   text eol=lf
+*.psm1  text eol=lf
+*.psd1  text eol=lf
+
+###############################################################################
+# Windows-native — cmd.exe requires CRLF (overrides the LF default above).
+###############################################################################
+
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+###############################################################################
+# Lockfiles — tracked, but suppress noisy diffs (regenerate to resolve).
+###############################################################################
+
+package-lock.json  -diff
+*.lock             -diff
+
+###############################################################################
+# Binary — no line-ending conversion, no diff.
+###############################################################################
+
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.7z     binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
