@@ -10,7 +10,8 @@ marked deprecated here for one minor cycle before removal.
 Initial published contract.
 
 - Common envelope: `schema_version`, `timestamp`, `hook`, `hook_event`, `status`, `duration_ms`, `data`.
-- `status` enum: `ok | error | skipped | blocked`.
+- `status`: documented value set `ok | error | skipped | blocked` — a documented open string, not a closed
+  JSON-Schema enum (mirrors `hook_event`), so a future value never trips a schema-derived validator.
 - First per-hook `data` schema: `markdown-format` (`tool`, `file`, `findings`).
 - Sink path resolution: `HOOK_TELEMETRY_SINK` is a single executable path, absolute or relative to the
   consuming repo root (producer-resolved). Relative is the portable, tracked-wiring form. Not an envelope

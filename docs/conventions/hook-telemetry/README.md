@@ -49,7 +49,7 @@ Every event, from every hook, carries these seven fields. All are required and a
 | `timestamp` | string (RFC 3339, UTC) | Instant the hook finished. True UTC — the `Z` is not a local-time lie. |
 | `hook` | string | Producer hook id, e.g. `markdown-format`. **Not** CC's `hook_name` (event:matcher). Keys data-schema discovery. |
 | `hook_event` | string | The triggering event: `PostToolUse`, `SessionStart`, `ConfigChange`, `WorktreeCreate`, … A **free string**, not an enum — the event vocabulary grows, and custom events exist. |
-| `status` | string (enum) | Universal execution outcome. See below. |
+| `status` | string | Universal execution outcome (documented value set, not a closed enum). See below. |
 | `duration_ms` | integer (≥ 0) | **This hook's** runtime in milliseconds. Not CC's aggregate `total_duration_ms`. |
 | `data` | object | Per-hook payload; always present (at minimum `{}`). See "Per-hook data". |
 
@@ -57,10 +57,12 @@ Naming is snake_case throughout and aligns with Claude Code's own field names wh
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠
 `total_duration_ms`) so a name never misleads.
 
-### `status` — the universal outcome enum
+### `status` — the universal outcome (documented value set)
 
-`ok | error | skipped | blocked`. These express the outcome of *any* hook, validated against the full medley
-hook set (formatters, guards, audit, action hooks):
+`ok | error | skipped | blocked` — a **documented open string, not a closed JSON-Schema enum** (same encoding
+as `hook_event`, and for the same reason: the set grows). A closed enum would *reject* a future value at
+validation time, contradicting the tolerate-unknown rule below. These four express the outcome of *any* hook,
+validated against the full medley hook set (formatters, guards, audit, action hooks):
 
 | Value | Meaning |
 |-------|---------|
@@ -95,7 +97,11 @@ Two rules make that hold:
    any future enum value) as a catch-all rather than crashing. Ignore-unknown-keys alone is not enough —
    enum growth (e.g. a future `status`) needs the tolerate-unknown-enum rule too.
 
-Both schema files set `additionalProperties: true` to encode rule 1 at the schema level.
+Both schema files set `additionalProperties: true`, which encodes only the **unknown-keys-tolerated** half of
+these rules. The rest is **policy, enforced by review and the deprecation cycle below — not by the schema**:
+`additionalProperties` says nothing about existing keys never being removed/renamed/type-changed, and a closed
+`enum` would actively *reject* a new `status` value (which is why `status` is a documented open string, like
+`hook_event`). Do not over-trust the schema as the enforcement boundary; it is the contract a reviewer reads.
 
 ## Deprecation policy
 
@@ -108,6 +114,12 @@ before a breaking change lands.
 `schema_version` (SemVer) versions the **envelope**. Per-hook `data` schemas churn independently under the
 additive / ignore-unknown rules above and are **not** separately version-stamped (deferred as YAGNI). The
 envelope version and a hook's `data` shape are decoupled on purpose.
+
+A per-`data` version signal is **deferred, not designed out**: today a hook's `data` shape is discovered only
+by the `hook` value, so a breaking `data` change would carry no version marker short of a whole-envelope major
+bump. **Trigger** — when a producer first needs a *breaking* `data` change, add an optional per-payload schema
+identifier (a `data_schema` URI, à la CloudEvents `dataschema`) rather than bumping the envelope. It is
+additive (optional field), so it ships without breaking existing consumers.
 
 ## Schemas are contract-docs, not machine-enforced
 
@@ -123,6 +135,18 @@ under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. The firs
 (`markdown-formatter`) carries its own copy. **The moment a second hook needs to emit, extract a canonical
 copy and add a drift-check in the same change** — copy once, then consolidate, so the two copies never drift
 unwatched. This mirrors the standards-repo "adopt by copy" seam.
+
+## Consuming (sink side)
+
+A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (relative, committed in `settings.json`) to an
+executable that reads one envelope on stdin and maps the common fields into its own store. The sink:
+
+- consumes only the common envelope unless it specifically handles a given `hook`'s `data`;
+- ignores unknown keys and treats an unrecognized `status` as a catch-all (see Forward compatibility);
+- never crashes and never writes to stdout — it runs fire-and-forget, exec'd as a single command per event.
+
+That is the whole consumer contract: any number of independently-written sinks can subscribe to the same
+producers without coordinating with them or each other.
 
 ## Implementers
 

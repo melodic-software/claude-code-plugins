@@ -34,8 +34,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["ok", "error", "skipped", "blocked"],
-      "description": "Universal execution outcome. Consumers MUST tolerate unknown future values (treat as a catch-all, never hard-fail)."
+      "description": "Universal execution outcome. Documented values: ok | error | skipped | blocked. Deliberately a documented open string, NOT a closed enum (mirrors hook_event) — the value set grows, and a closed enum would reject a future value, contradicting the tolerate-unknown rule. Consumers MUST treat an unrecognized value as a catch-all, never hard-fail. See README \"status\"."
     },
     "duration_ms": {
       "type": "integer",
