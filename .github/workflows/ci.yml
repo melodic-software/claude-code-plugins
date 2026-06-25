@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint markdown
-        uses: melodic-software/ci-workflows/.github/actions/markdown@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/markdown@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           config: .markdownlint-cli2.jsonc
 
@@ -42,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Spell-check
-        uses: melodic-software/ci-workflows/.github/actions/typos@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/typos@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           config: _typos.toml
 
@@ -55,7 +55,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Scan for secrets
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           config: .gitleaks.toml
 
@@ -68,7 +68,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check editorconfig conformance
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           config: .editorconfig-checker.json
 
@@ -81,7 +81,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint shell scripts
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           rcfile: .shellcheckrc
 
@@ -94,7 +94,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint workflows
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
 
   jsonschema:
     runs-on: ubuntu-latest
@@ -105,22 +105,22 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate marketplace manifest
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
       - name: Validate dependabot.yml
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
       - name: Validate workflows
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -136,7 +136,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify shebang files are executable
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
 
   machine-specific-paths:
     runs-on: ubuntu-latest
@@ -147,7 +147,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check for machine-specific paths
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
 
   eol-renormalize:
     runs-on: ubuntu-latest
@@ -158,7 +158,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check index-level EOL drift
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
 
   comment-hygiene:
     runs-on: ubuntu-latest
@@ -171,7 +171,7 @@ jobs:
       - name: Scan comment hygiene
         # The vendored policy library references the literal marker tokens in its
         # own comments, so skip the module to avoid self-matching.
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
         with:
           exclude: ':(exclude)modules/comment-hygiene/**'
 
@@ -179,7 +179,7 @@ jobs:
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@08a9343ba6c3ebc2355f140d381c5ac6de9bbb06 # 08a9343 2026-06-23
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
     with:
       paths: .
 
