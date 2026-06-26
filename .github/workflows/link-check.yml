@@ -19,4 +19,4 @@ jobs:
     permissions:
       contents: read
       issues: write
-    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@9567b8b58f33fcfd1ece6bffc4564a74264cd421 # 9567b8b 2026-06-24
+    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@b6431a1644f2d8c447edc7846d12d53dd1dc0743 # b6431a1 2026-06-26
