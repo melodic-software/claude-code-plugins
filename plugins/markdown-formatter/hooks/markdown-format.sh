@@ -31,7 +31,6 @@ case "$FILE" in
 esac
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-TOOL="${TOOL:-}"
 
 # Resolve repo root early — needed for CWD-anchored config discovery and for
 # computing the schema-required repo-relative path in data.file.
@@ -53,6 +52,19 @@ else
   FILE_REL="${FILE#"$REPO_ROOT"/}"
 fi
 
+# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
+# findings JSON array. jq is authoritative; the string fallback keeps telemetry
+# best-effort if jq fails (findings collapse to [] since they can't be re-quoted
+# safely without jq).
+build_data_json() {
+  jq -n \
+    --arg tool     "$TOOL" \
+    --arg file     "$FILE_REL" \
+    --argjson findings "$1" \
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
+    || printf '{"tool":"%s","file":"%s","findings":[]}' "$TOOL" "$FILE_REL"
+}
+
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
@@ -60,22 +72,14 @@ elif command -v npx >/dev/null 2>&1; then
   MDLINT=(npx markdownlint-cli2)
 else
   # markdownlint unavailable — emit skipped telemetry then exit cleanly.
-  data_json=$(jq -n \
-    --arg tool     "$TOOL" \
-    --arg file     "$FILE_REL" \
-    --argjson findings '[]' \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
+  data_json=$(build_data_json '[]')
   hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
 if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
   # Clean after fix — emit ok with empty findings.
-  data_json=$(jq -n \
-    --arg tool     "$TOOL" \
-    --arg file     "$FILE_REL" \
-    --argjson findings '[]' \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
+  data_json=$(build_data_json '[]')
   hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
@@ -88,19 +92,21 @@ fi
 # Violation lines are identified by the " MD<digits>/" rule-code pattern.
 hook::ctx_reset
 hook::ctx_append "markdown-format: $(basename "$FILE") has markdownlint findings:"
-FINDINGS_JSON='[]'
+findings_raw=""
 while IFS= read -r line; do
   hook::ctx_append "  $line"
   if [[ "$line" =~ [[:space:]]MD[0-9]+/ ]]; then
-    FINDINGS_JSON=$(printf '%s' "$FINDINGS_JSON" | jq --arg l "$line" '. + [$l]' 2>/dev/null) || true
+    findings_raw+="$line"$'\n'
   fi
 done <<<"$FIX_OUTPUT"
 hook::ctx_flush PostToolUse
 
-data_json=$(jq -n \
-  --arg tool     "$TOOL" \
-  --arg file     "$FILE_REL" \
-  --argjson findings "$FINDINGS_JSON" \
-  '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null) || data_json="{\"tool\":\"$TOOL\",\"file\":\"$FILE_REL\",\"findings\":[]}"
+# Build the findings array in one jq pass (one JSON string per matched line).
+FINDINGS_JSON='[]'
+if [[ -n "$findings_raw" ]]; then
+  FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
+fi
+
+data_json=$(build_data_json "$FINDINGS_JSON")
 hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
 exit 0

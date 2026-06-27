@@ -202,20 +202,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Aggregate lane results
+        # Derived from the needs graph above — the single source of truth for the
+        # lane list. Adding a lane to needs automatically extends this check.
         env:
-          RESULTS: >-
-            ${{ needs.markdown.result }}
-            ${{ needs.typos.result }}
-            ${{ needs.gitleaks.result }}
-            ${{ needs.editorconfig.result }}
-            ${{ needs.shellcheck.result }}
-            ${{ needs.actionlint.result }}
-            ${{ needs.jsonschema.result }}
-            ${{ needs.exec-bit.result }}
-            ${{ needs.machine-specific-paths.result }}
-            ${{ needs.eol-renormalize.result }}
-            ${{ needs.comment-hygiene.result }}
-            ${{ needs.zizmor.result }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           for r in $RESULTS; do
             case "$r" in
