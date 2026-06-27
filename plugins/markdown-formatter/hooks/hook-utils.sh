@@ -18,13 +18,18 @@ hook::check_enabled() {
   fi
 }
 
-# Normalize a path: backslashes → forward slashes, then POSIX/lowercase drive
-# letter → uppercase Windows drive letter (idempotent). On macOS/Linux the
-# regex does not match (multi-char first segments) — no-op.
+# Normalize a path for the membership comparison below: backslashes → forward
+# slashes, and for Windows drive paths (case-insensitive filesystem) upper-case
+# the drive letter and lower-case the remainder so the byte-exact comparison is
+# effectively case-insensitive. Idempotent. On macOS/Linux the drive regex does
+# not match (case-sensitive filesystems) — the path passes through unchanged so
+# casing is preserved. The result is used ONLY for comparison; the emitted path
+# is always the caller's original.
 hook::normalize_path() {
   local p="${1//\\//}"
   if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
-    printf '%s' "${BASH_REMATCH[1]^}:${p:2}"
+    local rest="${p:2}"
+    printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
   else
     printf '%s' "$p"
   fi
@@ -43,7 +48,11 @@ hook::read_file_path() {
     local norm_file norm_project
     norm_file=$(hook::normalize_path "$file")
     norm_project=$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")
-    if [[ "$norm_file" != "$norm_project"* ]]; then
+    norm_project="${norm_project%/}"
+    # Anchor on a path-segment boundary: accept the project root itself or a
+    # child under it, but not a sibling whose name merely shares the prefix
+    # (e.g. /c/repo must not admit /c/repo-backup/...).
+    if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
       return 1
     fi
   fi

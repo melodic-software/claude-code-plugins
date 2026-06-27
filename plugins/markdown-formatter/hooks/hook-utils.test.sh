@@ -39,6 +39,20 @@ EOF
   printf '%s' "$s"
 }
 
+# wait_for_sink <file> [max_polls] → block until <file> is non-empty (the
+# fire-and-forget sink has flushed) or the bound elapses. Polls in 20ms steps so
+# the assertion fires as soon as the write lands instead of racing a fixed sleep
+# (sink dispatch is a freshly-spawned process; spawn latency varies, especially
+# on Windows Git Bash). Returns non-zero on timeout so negative cases can assert.
+wait_for_sink() {
+  local f="$1" tries="${2:-150}"
+  while (( tries-- > 0 )); do
+    [[ -s "$f" ]] && return 0
+    sleep 0.02
+  done
+  return 1
+}
+
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
 unset HOOK_TELEMETRY_SINK 2>/dev/null || true
 out=$(hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null)
@@ -54,22 +68,20 @@ else
   fail "sink unset: unexpected output: $out"
 fi
 
-# --- Test 2: jq absent → emit skipped, no error, returns 0 ------------------
-# Shadow jq with a function that returns 127 to simulate absence.
-# The HOOK_TELEMETRY_SINK env var and the jq shadow are scoped to the subshell
-# so they never pollute the outer test context.
+# --- Test 2: jq absent → fail-open (returns 0, no output) -------------------
+# Make `command -v jq` genuinely fail by running with a PATH that contains no
+# jq. A shell-function shadow does NOT exercise the guard: `command -v jq`
+# reports a defined function as present, so the absence branch is never taken.
+# emit_telemetry uses only shell builtins until its jq calls, so an empty PATH
+# is sufficient. Scoped to the command so PATH/sink never leak into the suite.
+EMPTY_BIN="$(mktemp -d)"
 # shellcheck disable=SC2030,SC2031
 out_nojq=$(
   export HOOK_TELEMETRY_SINK="cat"
-  (
-    unset _MDFMT_HOOK_UTILS_LOADED 2>/dev/null || true
-    jq() { return 127; }
-    export -f jq
-    source "$HOOK_DIR/hook-utils.sh"
-    hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null
-  )
+  PATH="$EMPTY_BIN" hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.md","findings":[]}' 2>/dev/null
 )
 rc_nojq=$?
+rmdir "$EMPTY_BIN" 2>/dev/null || true
 if [[ $rc_nojq -eq 0 ]]; then
   ok "jq absent: returns 0"
 else
@@ -93,8 +105,7 @@ export HOOK_TELEMETRY_SINK
 data_json='{"tool":"Write","file":"docs/foo.md","findings":["docs/foo.md:12 MD013/line-length"]}'
 start=$EPOCHREALTIME
 hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
-# Allow the background process to finish
-sleep 0.2
+wait_for_sink "$SINK_FILE"
 unset HOOK_TELEMETRY_SINK
 
 if [[ -s "$SINK_FILE" ]]; then
@@ -165,10 +176,12 @@ if [[ -s "$SINK_FILE" ]]; then
   # We verify by checking the TZ=UTC prefix actually produces UTC
   utc_h=$(TZ=UTC date +%H)
   ts_h="${ts:11:2}"
-  # Allow ±1h boundary tolerance
-  h_diff=$(( ${ts_h#0} - ${utc_h#0} ))
-  h_diff=${h_diff#-}
-  if [[ $h_diff -le 1 ]]; then
+  # Circular ±1h tolerance to absorb an hour-boundary straddle between the emit
+  # and this check — including the 23→00 midnight wrap, where a linear distance
+  # would read 23 and false-fail once per day. (#0 strips the leading zero so
+  # 00–09 are not misread as octal inside (( )).)
+  h_diff=$(( ( ${ts_h#0} - ${utc_h#0} + 24 ) % 24 ))
+  if [[ $h_diff -le 1 || $h_diff -ge 23 ]]; then
     ok "timestamp: UTC hour aligns with system UTC"
   else
     fail "timestamp: hour drift vs UTC: ts_h=$ts_h utc_h=$utc_h diff=$h_diff"
@@ -198,7 +211,7 @@ SINK_FILE2="$(mktemp)"
 HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE2")"
 export HOOK_TELEMETRY_SINK
 hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
-sleep 0.2
+wait_for_sink "$SINK_FILE2"
 unset HOOK_TELEMETRY_SINK
 
 if [[ -s "$SINK_FILE2" ]]; then
@@ -227,7 +240,7 @@ EOF
 chmod +x "$ROOT7/$REL7"
 export HOOK_TELEMETRY_SINK="$REL7"
 hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' "$ROOT7" 2>/dev/null
-sleep 0.2
+wait_for_sink "$OUT7"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT7" ]] && [[ "$(jq -r '.hook' "$OUT7")" == "markdown-format" ]]; then
   ok "relative sink: resolved against repo_root arg, envelope delivered"
@@ -247,7 +260,7 @@ EOF
 chmod +x "$ROOT8/.claude/hooks/sink.sh"
 export HOOK_TELEMETRY_SINK=".claude/hooks/sink.sh"
 CLAUDE_PROJECT_DIR="$ROOT8" hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' 2>/dev/null
-sleep 0.2
+wait_for_sink "$OUT8"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT8" ]]; then
   ok "relative sink: resolved against CLAUDE_PROJECT_DIR fallback"
@@ -279,7 +292,7 @@ OUT10="$(mktemp)"
 ABS10="$(make_sink "$OUT10")" # mktemp path is absolute
 export HOOK_TELEMETRY_SINK="$ABS10"
 hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.md","findings":[]}' "/some/ignored/root" 2>/dev/null
-sleep 0.2
+wait_for_sink "$OUT10"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT10" ]] && [[ "$(jq -r '.hook' "$OUT10")" == "markdown-format" ]]; then
   ok "absolute sink: passes through unchanged (repo_root ignored)"
