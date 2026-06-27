@@ -49,6 +49,19 @@ make_sink() {
   printf '%s' "$s"
 }
 
+# wait_for_sink <file> [max_polls] → block until <file> is non-empty (the
+# fire-and-forget sink has flushed) or the bound elapses, polling in 20ms steps.
+# Replaces a fixed sleep so delivery assertions fire as soon as the write lands
+# instead of racing variable process-spawn latency (notably on Windows Git Bash).
+wait_for_sink() {
+  local f="$1" tries="${2:-150}"
+  while (( tries-- > 0 )); do
+    [[ -s "$f" ]] && return 0
+    sleep 0.02
+  done
+  return 1
+}
+
 # --- Build the throwaway consumer repo --------------------------------------
 REPO="$WORK/consumer"
 mkdir -p "$REPO"
@@ -214,7 +227,7 @@ printf '# Doc T\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixt
 _OUT_T="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureT.md" \
   | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_SINK" bash "$HOOK")"
 RC_T=$?
-sleep 0.3  # allow background sink to flush
+wait_for_sink "$TEL_FILE"
 
 if [[ $RC_T -eq 0 ]]; then ok "telemetry/stub-sink: hook exit 0"; else fail "telemetry/stub-sink: hook exit $RC_T"; fi
 
@@ -288,7 +301,7 @@ printf '# Clean Doc\n\nSome text.\n' >"$REPO/fixtureClean.md"
 _OUT_CLEAN="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureClean.md" \
   | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_CLEAN" bash "$HOOK")"
 RC_CLEAN=$?
-sleep 0.3
+wait_for_sink "$TEL_CLEAN"
 
 if [[ $RC_CLEAN -eq 0 ]]; then ok "telemetry/clean: hook exit 0"; else fail "telemetry/clean: hook exit $RC_CLEAN"; fi
 if [[ -s "$TEL_CLEAN" ]]; then
@@ -312,7 +325,7 @@ printf '# Failing Sink Doc\n\nSome text.\n' >"$REPO/fixtureFailSink.md"
 _OUT_FS="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureFailSink.md" \
   | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$FAIL_SINK" bash "$HOOK")"
 RC_FS=$?
-sleep 0.3
+wait_for_sink "$FAIL_SINK_FILE"
 
 if [[ $RC_FS -eq 0 ]]; then ok "telemetry/fail-sink: hook exit 0 despite sink failure"; else fail "telemetry/fail-sink: hook exit $RC_FS, expected 0"; fi
 rm -f "$FAIL_SINK_FILE"
@@ -348,7 +361,7 @@ LEAK_SINK="$(make_sink "cat >\"$TEL_LEAK\"")"
 printf '# Leak Doc\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixtureLeakCheck.md"
 OUT_LEAK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureLeakCheck.md" \
   | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$LEAK_SINK" bash "$HOOK")"
-sleep 0.3
+wait_for_sink "$TEL_LEAK"
 
 # The hook stdout must NOT contain the telemetry envelope's top-level keys
 if printf '%s' "$OUT_LEAK" | jq -e '.schema_version' >/dev/null 2>&1; then

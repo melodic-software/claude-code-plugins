@@ -18,16 +18,29 @@ hook::check_enabled() {
   fi
 }
 
-# Normalize a path: backslashes → forward slashes, then POSIX/lowercase drive
-# letter → uppercase Windows drive letter (idempotent). On macOS/Linux the
-# regex does not match (multi-char first segments) — no-op.
+# Normalize a path for the membership comparison below: backslashes → forward
+# slashes, and — only on Windows/MSYS, whose filesystem is case-insensitive —
+# fold a leading drive (POSIX `/c/...` or `c:/...`) to an upper-case drive
+# letter + lower-cased remainder so the byte-exact comparison is effectively
+# case-insensitive. The fold is gated on the host (OSTYPE), NOT on the path
+# shape: on a case-sensitive POSIX filesystem a real single-letter top-level
+# directory such as `/c/Repo` must pass through unchanged, otherwise it would
+# collapse with `/c/repo` and the membership guard would admit a sibling
+# outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
+# emitted path is always the caller's original.
 hook::normalize_path() {
   local p="${1//\\//}"
-  if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
-    printf '%s' "${BASH_REMATCH[1]^}:${p:2}"
-  else
-    printf '%s' "$p"
-  fi
+  case "${OSTYPE:-}" in
+    msys* | cygwin* | win32)
+      if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
+        local rest="${p:2}"
+        printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
+        return
+      fi
+      ;;
+    *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
+  esac
+  printf '%s' "$p"
 }
 
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
@@ -43,7 +56,11 @@ hook::read_file_path() {
     local norm_file norm_project
     norm_file=$(hook::normalize_path "$file")
     norm_project=$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")
-    if [[ "$norm_file" != "$norm_project"* ]]; then
+    norm_project="${norm_project%/}"
+    # Anchor on a path-segment boundary: accept the project root itself or a
+    # child under it, but not a sibling whose name merely shares the prefix
+    # (e.g. /c/repo must not admit /c/repo-backup/...).
+    if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
       return 1
     fi
   fi
