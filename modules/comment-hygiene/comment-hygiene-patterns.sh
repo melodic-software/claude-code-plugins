@@ -77,8 +77,10 @@ chp::scan_text() {
       continue
     fi
 
-    # owner/repo#N — same- or cross-repo issue reference (e.g. org/app#123).
-    if [[ "$line" =~ (^|[^[:alnum:]_/])[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+ ]]; then
+    # owner/repo#N — same- or cross-repo issue reference (e.g. org/app#123). The
+    # leading boundary excludes '.' so a dotted URL host (e.g. example.com/page#2)
+    # is not misread as an owner/repo segment.
+    if [[ "$line" =~ (^|[^[:alnum:]_/.])[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+ ]]; then
       printf '%s:tracker-ref:repo-issue\n' "$lineno"
       violations=$((violations + 1))
       continue
