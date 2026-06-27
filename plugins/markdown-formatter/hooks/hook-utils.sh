@@ -19,20 +19,28 @@ hook::check_enabled() {
 }
 
 # Normalize a path for the membership comparison below: backslashes → forward
-# slashes, and for Windows drive paths (case-insensitive filesystem) upper-case
-# the drive letter and lower-case the remainder so the byte-exact comparison is
-# effectively case-insensitive. Idempotent. On macOS/Linux the drive regex does
-# not match (case-sensitive filesystems) — the path passes through unchanged so
-# casing is preserved. The result is used ONLY for comparison; the emitted path
-# is always the caller's original.
+# slashes, and — only on Windows/MSYS, whose filesystem is case-insensitive —
+# fold a leading drive (POSIX `/c/...` or `c:/...`) to an upper-case drive
+# letter + lower-cased remainder so the byte-exact comparison is effectively
+# case-insensitive. The fold is gated on the host (OSTYPE), NOT on the path
+# shape: on a case-sensitive POSIX filesystem a real single-letter top-level
+# directory such as `/c/Repo` must pass through unchanged, otherwise it would
+# collapse with `/c/repo` and the membership guard would admit a sibling
+# outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
+# emitted path is always the caller's original.
 hook::normalize_path() {
   local p="${1//\\//}"
-  if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
-    local rest="${p:2}"
-    printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
-  else
-    printf '%s' "$p"
-  fi
+  case "${OSTYPE:-}" in
+    msys* | cygwin* | win32)
+      if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
+        local rest="${p:2}"
+        printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
+        return
+      fi
+      ;;
+    *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
+  esac
+  printf '%s' "$p"
 }
 
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when

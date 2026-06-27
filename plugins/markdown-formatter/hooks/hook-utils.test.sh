@@ -301,6 +301,43 @@ else
 fi
 rm -f "$ABS10" "$OUT10"
 
+# --- Test 11: hook::normalize_path is host-gated on OSTYPE --------------------
+# The drive-letter fold is for Windows/MSYS only (case-insensitive FS). On a
+# case-sensitive POSIX host a real single-letter top dir like /c/Repo must pass
+# through unchanged, or the membership guard collapses it with /c/repo and
+# admits a sibling outside CLAUDE_PROJECT_DIR. normalize_path reads the shell's
+# OSTYPE, so override it in a subshell per case (the global stays intact).
+norm_as() { ( OSTYPE="$1"; hook::normalize_path "$2" ); }
+assert_norm() { # <ostype> <input> <expected> <desc>
+  local got
+  got="$(norm_as "$1" "$2")"
+  if [[ "$got" == "$3" ]]; then
+    ok "normalize_path[$1]: $4"
+  else
+    fail "normalize_path[$1]: $4 — expected '$3', got '$got'"
+  fi
+}
+
+# Windows/MSYS: fold both the POSIX /c/ and colon c:/ drive forms.
+assert_norm msys   "/c/Repo"        "C:/repo"        "msys folds /c/Repo → C:/repo"
+assert_norm msys   "C:/Repo"        "C:/repo"        "msys folds C:/Repo → C:/repo"
+assert_norm msys   "/c/Repo/Sub"    "C:/repo/sub"    "msys folds nested path"
+assert_norm msys   'C:\Repo\x'      "C:/repo/x"      "msys: backslashes → slashes then fold"
+assert_norm cygwin "/c/Repo"        "C:/repo"        "cygwin folds like msys"
+
+# POSIX: NO fold — single-letter top dirs stay distinct (the regression guard).
+assert_norm linux-gnu "/c/Repo"     "/c/Repo"        "linux leaves /c/Repo unchanged"
+assert_norm linux-gnu "/c/repo"     "/c/repo"        "linux leaves /c/repo unchanged"
+assert_norm linux-gnu "/home/u/Pj"  "/home/u/Pj"     "linux leaves normal path unchanged"
+assert_norm linux-gnu 'a\b'         "a/b"            "linux still converts backslashes"
+
+# Explicit guard: on POSIX the two casings must NOT collapse to one value.
+if [[ "$(norm_as linux-gnu /c/Repo)" != "$(norm_as linux-gnu /c/repo)" ]]; then
+  ok "normalize_path[linux-gnu]: /c/Repo and /c/repo stay distinct"
+else
+  fail "normalize_path[linux-gnu]: /c/Repo and /c/repo collapsed (membership-guard regression)"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
