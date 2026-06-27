@@ -328,7 +328,7 @@ assert_norm cygwin "/c/Repo"        "C:/repo"        "cygwin folds like msys"
 # POSIX: NO fold — single-letter top dirs stay distinct (the regression guard).
 assert_norm linux-gnu "/c/Repo"     "/c/Repo"        "linux leaves /c/Repo unchanged"
 assert_norm linux-gnu "/c/repo"     "/c/repo"        "linux leaves /c/repo unchanged"
-assert_norm linux-gnu "/home/u/Pj"  "/home/u/Pj"     "linux leaves normal path unchanged"
+assert_norm linux-gnu "/opt/App/Sub" "/opt/App/Sub"  "linux leaves normal path unchanged"
 assert_norm linux-gnu 'a\b'         "a/b"            "linux still converts backslashes"
 
 # Explicit guard: on POSIX the two casings must NOT collapse to one value.
