@@ -23,9 +23,19 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BASH_LINT"
 
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers
-# the work below (pre-work exits do not emit telemetry).
-start=$EPOCHREALTIME
+# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
+# work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
+# on older bash it is unset, so default to empty — referencing it bare under
+# `set -u` would abort before the advisory exit 0, failing every edit.
+start=${EPOCHREALTIME:-}
+
+# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
+# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
+# lints and formats on older bash rather than aborting.
+emit_tel() {
+  [[ -n "$start" ]] || return 0
+  hook::emit_telemetry "$@"
+}
 
 INPUT=$(cat)
 
@@ -91,10 +101,14 @@ has_editorconfig() {
 
 ran_any=0
 
-# Format pass (opt-in, mutating). No parser/printer flags — that is what keeps
-# .editorconfig in effect.
+# Format pass (opt-in, mutating). No parser/printer flags — that keeps
+# .editorconfig formatting in effect. --apply-ignore is a utility flag (not a
+# parser/printer flag, so it does not disable editorconfig formatting): it makes
+# shfmt honor `ignore = true` editorconfig rules for this single direct file,
+# which it otherwise skips for direct-file invocations — so a repo's opt-out for
+# generated/vendored scripts is respected, not overwritten.
 if command -v shfmt >/dev/null 2>&1 && has_editorconfig; then
-  shfmt -w "$FILE" 2>/dev/null
+  shfmt --apply-ignore -w "$FILE" 2>/dev/null
   ran_any=1
 fi
 
@@ -120,7 +134,7 @@ if command -v shellcheck >/dev/null 2>&1; then
       FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
     fi
     data_json=$(build_data_json "$FINDINGS_JSON")
-    hook::emit_telemetry "bash-lint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+    emit_tel "bash-lint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
     exit 0
   fi
 fi
@@ -130,5 +144,5 @@ fi
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"
 data_json=$(build_data_json '[]')
-hook::emit_telemetry "bash-lint" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "bash-lint" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
 exit 0

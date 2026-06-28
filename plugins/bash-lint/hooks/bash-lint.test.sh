@@ -196,6 +196,29 @@ EOF
   else
     fail "shfmt gate OFF -> file was reformatted: $(cat "$REPO_NO/src/fmt.sh")"
   fi
+
+  # editorconfig opt-OUT: an `ignore = true` section for the edited file must be
+  # honored even on this direct-file invocation (requires --apply-ignore; shfmt
+  # skips ignore rules for direct files without it). The file is misformatted and
+  # an .editorconfig IS present (so the gate passes), but the ignore rule must
+  # leave it untouched.
+  REPO_IGN="$WORK/ignore-config"
+  new_repo "$REPO_IGN"
+  cat >"$REPO_IGN/.editorconfig" <<'EOF'
+root = true
+[*.sh]
+indent_style = space
+indent_size = 2
+[gen.sh]
+ignore = true
+EOF
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_IGN/gen.sh"
+  run_hook "$REPO_IGN/gen.sh" >/dev/null
+  if grep -q '^echo hi$' "$REPO_IGN/gen.sh"; then
+    ok "shfmt honors editorconfig ignore=true (--apply-ignore) -> file untouched"
+  else
+    fail "shfmt ignored editorconfig ignore=true -> file was reformatted: $(cat "$REPO_IGN/gen.sh")"
+  fi
 else
   echo "  (shfmt absent -- gate cases skipped)"
 fi

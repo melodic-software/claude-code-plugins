@@ -13,11 +13,13 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 - **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
   every edit. It is non-mutating; it only reports.
-- **Format on edit (opt-in).** `shfmt -w` runs **only when an `.editorconfig`
+- **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`
   governs the edited file** — walking up from the file to the repository root.
   With no `.editorconfig`, the file is left untouched rather than rewritten to
   shfmt's built-in defaults, so the plugin never imposes a style you did not
-  choose. Run with no formatting flags, so your `.editorconfig` is authoritative.
+  choose. It runs with no parser/printer flags, so your `.editorconfig` is
+  authoritative, and with `--apply-ignore` so an `ignore = true` section (e.g.
+  for generated or vendored scripts) is honored even on a single edited file.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.
@@ -33,6 +35,10 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 Each pass is independent: when a tool is absent its pass is skipped and the other
 still runs. With neither present the hook is a silent no-op.
+
+The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
+(Bash 5.0+); on older bash the telemetry envelope is skipped while linting and
+formatting still run.
 
 ## Install
 
