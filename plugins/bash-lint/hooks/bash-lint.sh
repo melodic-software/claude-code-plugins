@@ -80,19 +80,45 @@ build_data_json() {
     || printf '{"tool":"%s","file":"%s","findings":[]}' "$TOOL" "$FILE_REL"
 }
 
-# Consumer opt-in for shfmt: an .editorconfig in the edited file's directory or
-# any ancestor up to (and including) the repo root. Bare `shfmt -w` honors
-# .editorconfig only when no formatting flags are passed, so this gate is the
-# whole formatting contract — present means "format to my config", absent means
-# "leave my bytes alone".
-has_editorconfig() {
-  local dir root
+# A section header governs shell files when it is the `[*]` catch-all or names a
+# shell extension — `[*.sh]` / `[*.bash]` (incl. path prefixes like `[**/*.sh]`)
+# or a brace list naming sh or bash (`[*.{sh,bash}]`). Path-only sections such as
+# `[scripts/**]` are intentionally NOT treated as shell opt-in: matching those
+# correctly means reimplementing EditorConfig globbing, and the safe bias is to
+# leave files untouched when unsure. $1 is the text inside the brackets.
+section_applies_to_shell() {
+  local h="$1"
+  [[ "$h" == '*' ]] && return 0
+  [[ "$h" =~ \*\.(sh|bash)([^[:alnum:]]|$) ]] && return 0
+  [[ "$h" =~ [{,](sh|bash)[,}] ]] && return 0
+  return 1
+}
+
+# Consumer opt-in for shfmt: an EditorConfig SECTION that governs the edited
+# shell file (not merely the presence of any .editorconfig — a repo whose
+# .editorconfig only configures other languages must not have its shell files
+# rewritten to shfmt's built-in defaults). Walks up from the file to the repo
+# root, stopping at a `root = true` config per EditorConfig search semantics.
+# This gate is the whole formatting opt-in.
+shell_editorconfig_opt_in() {
+  local dir root cfg line is_root parent
   dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || return 1
   root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
   while :; do
-    [[ -f "$dir/.editorconfig" ]] && return 0
+    cfg="$dir/.editorconfig"
+    if [[ -f "$cfg" ]]; then
+      is_root=0
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        if [[ "$line" =~ ^[[:space:]]*\[(.+)\][[:space:]]*$ ]]; then
+          section_applies_to_shell "${BASH_REMATCH[1]}" && return 0
+        elif [[ "$line" =~ ^[[:space:]]*[Rr][Oo][Oo][Tt][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee][[:space:]]*$ ]]; then
+          is_root=1
+        fi
+      done <"$cfg"
+      [[ $is_root -eq 1 ]] && return 1 # root config, no shell section → stop
+    fi
     [[ -n "$root" && "$dir" == "$root" ]] && return 1
-    local parent
     parent="$(dirname "$dir")"
     [[ "$parent" == "$dir" ]] && return 1 # reached filesystem root
     dir="$parent"
@@ -107,7 +133,7 @@ ran_any=0
 # shfmt honor `ignore = true` editorconfig rules for this single direct file,
 # which it otherwise skips for direct-file invocations — so a repo's opt-out for
 # generated/vendored scripts is respected, not overwritten.
-if command -v shfmt >/dev/null 2>&1 && has_editorconfig; then
+if command -v shfmt >/dev/null 2>&1 && shell_editorconfig_opt_in; then
   # --apply-ignore requires shfmt 3.8+ (2024-02). On older shfmt the flag is
   # unknown and the call fails without formatting, so fall back to a plain
   # in-place format — those versions cannot honor direct-file ignore rules

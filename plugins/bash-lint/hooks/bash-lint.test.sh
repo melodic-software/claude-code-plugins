@@ -219,6 +219,32 @@ EOF
   else
     fail "shfmt ignored editorconfig ignore=true -> file was reformatted: $(cat "$REPO_IGN/gen.sh")"
   fi
+
+  # Opt-in precision: an .editorconfig with NO shell-applicable section (only
+  # [*.md], no [*]) must NOT trigger formatting — otherwise shfmt would impose
+  # its built-in defaults on shell files the repo never opted in for.
+  REPO_NONSHELL="$WORK/nonshell-config"
+  new_repo "$REPO_NONSHELL"
+  printf '[*.md]\nindent_style = space\n' >"$REPO_NONSHELL/.editorconfig"
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_NONSHELL/x.sh"
+  run_hook "$REPO_NONSHELL/x.sh" >/dev/null
+  if grep -q '^echo hi$' "$REPO_NONSHELL/x.sh"; then
+    ok "non-shell .editorconfig ([*.md] only) -> shell file left untouched"
+  else
+    fail "non-shell .editorconfig -> shell file was reformatted: $(cat "$REPO_NONSHELL/x.sh")"
+  fi
+
+  # A [*] catch-all governs shell files, so formatting opts in.
+  REPO_STAR="$WORK/star-config"
+  new_repo "$REPO_STAR"
+  printf 'root = true\n[*]\nindent_style = space\nindent_size = 2\n' >"$REPO_STAR/.editorconfig"
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_STAR/x.sh"
+  run_hook "$REPO_STAR/x.sh" >/dev/null
+  if grep -q '^  echo hi$' "$REPO_STAR/x.sh"; then
+    ok "[*] catch-all .editorconfig -> shell file formatted"
+  else
+    fail "[*] catch-all -> shell file not formatted: $(cat "$REPO_STAR/x.sh")"
+  fi
 else
   echo "  (shfmt absent -- gate cases skipped)"
 fi
