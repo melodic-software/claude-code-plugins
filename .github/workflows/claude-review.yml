@@ -1,0 +1,28 @@
+name: claude-review
+
+# Automated PR code review via the ci-workflows reusable workflow. The caller
+# owns the triggers + GITHUB_TOKEN permission grant (a called workflow can only
+# downgrade them, never elevate); the reusable workflow owns the action pin and
+# the secret-handling safety model.
+#
+# Fork PRs receive no secrets and a read-only token, so they are simply not
+# reviewed by design (no token-exfiltration surface). Requires `claude-code-plugins` to be
+# in the CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post review + track_progress tracking comment
+      id-token: write        # OIDC — mints the Claude GitHub App token
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@025be4512ede5f24ec159d52608613c167a49881 # 025be45 2026-06-27
+    # Pass only the one named secret (least privilege) rather than `secrets:
+    # inherit`, which would forward every parent secret to the called workflow.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
