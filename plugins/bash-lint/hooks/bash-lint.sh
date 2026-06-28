@@ -108,7 +108,12 @@ ran_any=0
 # which it otherwise skips for direct-file invocations — so a repo's opt-out for
 # generated/vendored scripts is respected, not overwritten.
 if command -v shfmt >/dev/null 2>&1 && has_editorconfig; then
-  shfmt --apply-ignore -w "$FILE" 2>/dev/null
+  # --apply-ignore requires shfmt 3.8+ (2024-02). On older shfmt the flag is
+  # unknown and the call fails without formatting, so fall back to a plain
+  # in-place format — those versions cannot honor direct-file ignore rules
+  # anyway (that is exactly the capability --apply-ignore adds). On shfmt 3.8+
+  # the first call succeeds (skipping ignored files), so the fallback never runs.
+  shfmt --apply-ignore -w "$FILE" 2>/dev/null || shfmt -w "$FILE" 2>/dev/null
   ran_any=1
 fi
 
