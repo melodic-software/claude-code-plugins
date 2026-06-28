@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# PostToolUse hook: auto-format and lint shell scripts via shfmt + ShellCheck.
+# Triggered on Write|Edit of *.sh and *.bash files.
+#
+# ADVISORY: always exits 0. ShellCheck findings (warning severity and above)
+# surface via additionalContext but never block the edit. Uses the consuming
+# repo's own .shellcheckrc and .editorconfig — ships none.
+#
+# shfmt is gated on the consumer opting in: it runs only when an .editorconfig
+# governs the edited file (walking up to the repo root). Without that opt-in the
+# file is left unformatted rather than rewritten to shfmt's built-in defaults.
+# ShellCheck (non-mutating) always runs when available.
+
+set -uo pipefail
+
+# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
+# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
+# resolve (ENOENT → silent no-op). stdin is read ONCE here and fed to both
+# hook::read_file_path (file_path) and the tool_name parse below; reading fd0
+# twice would drain the pipe on the second call.
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+
+hook::check_enabled "BASH_LINT"
+
+# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers
+# the work below (pre-work exits do not emit telemetry).
+start=$EPOCHREALTIME
+
+INPUT=$(cat)
+
+FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+case "$FILE" in
+  *.sh | *.bash) ;;
+  *) exit 0 ;;
+esac
+
+TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+
+# Resolve repo root early — used to bound the .editorconfig opt-in walk and to
+# compute the schema-required repo-relative path in data.file.
+REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+# Repo-relative path: schema requires "relative to the consuming repo root".
+# On Windows Git Bash, git rev-parse --show-toplevel returns a drive-letter path
+# while FILE may be in POSIX mount form. Normalize both through cygpath -lm
+# (long name, forward-slash mixed form) when available so the prefix strip
+# compares the same representation. On Linux/macOS, cygpath is absent and both
+# paths are already POSIX. Falls back to raw FILE on any normalization error.
+FILE_REL="$FILE"
+if command -v cygpath >/dev/null 2>&1; then
+  _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
+  _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
+  if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
+    FILE_REL="${_file_lm#"$_root_lm"/}"
+  fi
+else
+  FILE_REL="${FILE#"$REPO_ROOT"/}"
+fi
+
+# Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
+# findings JSON array. jq is authoritative; the string fallback keeps telemetry
+# best-effort if jq fails (findings collapse to [] since they can't be re-quoted
+# safely without jq).
+build_data_json() {
+  jq -n \
+    --arg tool     "$TOOL" \
+    --arg file     "$FILE_REL" \
+    --argjson findings "$1" \
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
+    || printf '{"tool":"%s","file":"%s","findings":[]}' "$TOOL" "$FILE_REL"
+}
+
+# Consumer opt-in for shfmt: an .editorconfig in the edited file's directory or
+# any ancestor up to (and including) the repo root. Bare `shfmt -w` honors
+# .editorconfig only when no formatting flags are passed, so this gate is the
+# whole formatting contract — present means "format to my config", absent means
+# "leave my bytes alone".
+has_editorconfig() {
+  local dir root
+  dir="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || return 1
+  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+  while :; do
+    [[ -f "$dir/.editorconfig" ]] && return 0
+    [[ -n "$root" && "$dir" == "$root" ]] && return 1
+    local parent
+    parent="$(dirname "$dir")"
+    [[ "$parent" == "$dir" ]] && return 1 # reached filesystem root
+    dir="$parent"
+  done
+}
+
+ran_any=0
+
+# Format pass (opt-in, mutating). No parser/printer flags — that is what keeps
+# .editorconfig in effect.
+if command -v shfmt >/dev/null 2>&1 && has_editorconfig; then
+  shfmt -w "$FILE" 2>/dev/null
+  ran_any=1
+fi
+
+# Lint pass (always-on, non-mutating). -x follows `source`/`.` directives;
+# -f gcc gives one finding per line; -S warning drops info/style noise. Config
+# (.shellcheckrc) is auto-discovered from the file's directory upward.
+if command -v shellcheck >/dev/null 2>&1; then
+  ran_any=1
+  SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$FILE" 2>&1) || true
+  if [[ -n "$SC_OUTPUT" ]]; then
+    hook::ctx_reset
+    hook::ctx_append "bash-lint: $(basename "$FILE") has ShellCheck findings:"
+    findings_raw=""
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      hook::ctx_append "  $line"
+      findings_raw+="$line"$'\n'
+    done <<<"$SC_OUTPUT"
+    hook::ctx_flush PostToolUse
+
+    FINDINGS_JSON='[]'
+    if [[ -n "$findings_raw" ]]; then
+      FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
+    fi
+    data_json=$(build_data_json "$FINDINGS_JSON")
+    hook::emit_telemetry "bash-lint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+    exit 0
+  fi
+fi
+
+# No findings. "skipped" when neither tool did anything (both absent / no opt-in);
+# "ok" when at least one pass ran cleanly.
+status="ok"
+[[ $ran_any -eq 0 ]] && status="skipped"
+data_json=$(build_data_json '[]')
+hook::emit_telemetry "bash-lint" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
+exit 0

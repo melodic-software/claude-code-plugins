@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "bash-lint",
+  "version": "0.1.0",
+  "description": "Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "keywords": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"]
+}
