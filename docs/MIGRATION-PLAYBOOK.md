@@ -119,7 +119,10 @@ in-repo hook had that the generalized plugin dropped to one of these, in order:
 
 - **Kill switch / toggles** → the plugin's own env var, set in the consumer's `settings.json` `env`
   (the name changes from the in-repo `HOOK_<OLD>_ENABLED` to the plugin's `HOOK_<PLUGIN>_ENABLED`).
-- **Project conventions** → the consumer's `CLAUDE.md` / `.claude/rules`, which the plugin already reads.
+- **Project conventions** → for a hook plugin, the consumer's own tool config files that the hook already
+  reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …) — that is where these plugins pick up project
+  conventions, **not** `CLAUDE.md`. (`CLAUDE.md` / `.claude/rules` reach only a plugin's *skill/agent*
+  components, which run in Claude's model context; hook scripts see only env vars and file-based config.)
 - **Telemetry / observability** → the consumer's own **telemetry sink**. This is the key seam: the
   plugin emits the generic telemetry envelope contract to `HOOK_TELEMETRY_SINK`, and the consumer's sink
   script translates that envelope into the consumer's local observability shape. A consumer whose prior
