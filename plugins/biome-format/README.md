@@ -37,6 +37,10 @@ runs only when your repo has opted into Biome.
 - **Biome** available to the repo — installed in the repo's `node_modules`
   (the hook runs `node_modules/.bin/biome`) or on `PATH`. Biome is never
   downloaded on the fly; if it is not present, the hook is a silent no-op.
+  **Biome 2.x is recommended** (tested against 2.5.1): the hook invokes
+  `check --write --error-on-warnings --reporter=github`, and on much older
+  releases those flags may be absent, in which case the run is reported as a
+  tool break rather than a finding.
 - A **`biome.json`** (or `.jsonc` / dotted variant) in the repo — the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
