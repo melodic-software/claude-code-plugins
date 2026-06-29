@@ -18,6 +18,12 @@
       "source": "./plugins/bash-lint",
       "category": "formatting",
       "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "biome-format",
+      "source": "./plugins/biome-format",
+      "category": "formatting",
+      "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"]
     }
   ]
 }
