@@ -4,8 +4,10 @@ How skills, hooks, and agents become reusable plugins in this marketplace. One p
 time: lift it out, make it work in plugin form and in any repo, build in configuration and extensibility,
 vet it against best practices, then publish.
 
-All schema and behavior claims below were verified against the official docs on 2026-06-22. Re-verify
-fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
+"Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
+project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
+guide). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
 ## Intent
 
@@ -135,18 +137,23 @@ surface to a published plugin for a single consumer's low-value nicety.
 **Cutover checklist:**
 
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
-   `enabledPlugins` (project `settings.json`, so clones inherit). Headless/CI needs an explicit
+   `enabledPlugins` (project `settings.json`, so clones inherit on trust). Headless/CI needs an explicit
    `claude plugin marketplace add` — the auto-registration trust dialog is interactive-only.
 2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
    sink script (the bridge), adapting the sink for any observability-contract divergence.
-3. Remove the in-repo hook's `settings.json` registration and delete the hook script **and its test**.
-4. Verify the plugin hook fires (edit a governed file, confirm format/lint + surfaced findings), and that
-   the consumer's hard gate (commit hooks, CI) is untouched — those are independent of the edit-time hook.
+3. **Verify before retiring** the old hook (blue-green — never leave a window with no active hook). With
+   the plugin enabled, edit a governed file and confirm: the plugin formats/lints and surfaces findings,
+   the telemetry sink receives the expected envelope (so a broken remap is caught now, not when
+   observability is next needed), and the consumer's hard gate (commit hooks, CI) is untouched — those are
+   independent of the edit-time hook. The brief overlap where both hooks fire is harmless: formatting is
+   idempotent.
+4. Only then remove the in-repo hook's `settings.json` registration and delete the hook script **and its
+   test**.
 
 **Bootstrap-direction caveat.** While a repo is still the harvest *source* (its hooks are mid-migration
 out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo — a mixed
-state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once its ported
-plugins can move together.
+state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once the repo's
+ported plugins can move together.
 
 ## What to wait on / avoid for now
 
