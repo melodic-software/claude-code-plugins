@@ -18,9 +18,19 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "MARKDOWN_FORMAT"
 
-# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers
-# the formatting work (pre-format exits below do not emit telemetry).
-start=$EPOCHREALTIME
+# Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
+# formatting work (pre-format exits below do not emit telemetry). EPOCHREALTIME is
+# Bash 5.0+; on older bash it is unset, so default to empty — referencing it bare
+# under `set -u` would abort before the advisory exit 0, failing every edit.
+start=${EPOCHREALTIME:-}
+
+# Telemetry needs the high-res start stamp. When EPOCHREALTIME is unavailable
+# (Bash < 5.0) the stamp is empty and telemetry is skipped, so the hook still
+# formats on older bash rather than aborting.
+emit_tel() {
+  [[ -n "$start" ]] || return 0
+  hook::emit_telemetry "$@"
+}
 
 INPUT=$(cat)
 
@@ -73,14 +83,14 @@ elif command -v npx >/dev/null 2>&1; then
 else
   # markdownlint unavailable — emit skipped telemetry then exit cleanly.
   data_json=$(build_data_json '[]')
-  hook::emit_telemetry "markdown-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "markdown-format" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
 if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
   # Clean after fix — emit ok with empty findings.
   data_json=$(build_data_json '[]')
-  hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
@@ -108,5 +118,5 @@ if [[ -n "$findings_raw" ]]; then
 fi
 
 data_json=$(build_data_json "$FINDINGS_JSON")
-hook::emit_telemetry "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "markdown-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
 exit 0
