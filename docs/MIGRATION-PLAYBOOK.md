@@ -140,8 +140,11 @@ surface to a published plugin for a single consumer's low-value nicety.
 **Cutover checklist:**
 
 1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
-   `enabledPlugins` (project `settings.json`, so clones inherit on trust). Headless/CI needs an explicit
-   `claude plugin marketplace add` — the auto-registration trust dialog is interactive-only.
+   `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
+   both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
+   marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
+   then `claude plugin install <plugin>@<marketplace> --scope project` — otherwise the marketplace is known
+   but the plugin is absent, and step 3's verify edit would run with no plugin hook.
 2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
    sink script (the bridge), adapting the sink for any observability-contract divergence.
 3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
