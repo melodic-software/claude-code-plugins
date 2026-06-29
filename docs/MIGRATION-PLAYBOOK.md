@@ -105,6 +105,49 @@ claude --plugin-dir ./plugins/<name>
 - **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
   change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
 
+## Reintegration — a consumer adopts the published plugin
+
+The forward migration (above) ends at *publish*. The lifecycle closes when the source repo stops running
+its in-repo copy and instead **consumes the published plugin** — one source of truth, and the repo
+dogfoods the marketplace. Reintegration is a *consumer-side* change: adapt through the documented
+extension points, never by teaching the plugin a consumer's specifics.
+
+**The plugin is generic; the consumer's own seams restore its specifics.** Map each behavior the
+in-repo hook had that the generalized plugin dropped to one of these, in order:
+
+- **Kill switch / toggles** → the plugin's own env var, set in the consumer's `settings.json` `env`
+  (the name changes from the in-repo `HOOK_<OLD>_ENABLED` to the plugin's `HOOK_<PLUGIN>_ENABLED`).
+- **Project conventions** → the consumer's `CLAUDE.md` / `.claude/rules`, which the plugin already reads.
+- **Telemetry / observability** → the consumer's own **telemetry sink**. This is the key seam: the
+  plugin emits the generic telemetry envelope contract to `HOOK_TELEMETRY_SINK`, and the consumer's sink
+  script translates that envelope into the consumer's local observability shape. A consumer whose prior
+  hook emitted a different status or hook-identity (e.g. `status=error` on a surfaced violation, or a
+  legacy hook name) restores that contract **in its own sink**, by remapping the plugin's native envelope
+  (`status=ok` + populated `findings`) — not by changing the plugin. Before remapping, verify how the
+  consumer's observability actually keys events (e.g. on `status` vs a derived `exit_code`/findings count),
+  so the remap preserves the real contract rather than a guessed one.
+
+If a genuine specific has **no** seam, that is a real plugin gap → add a declared extension
+(`userConfig`, or a new env var consistent with the plugin's existing ones) — but only when it carries
+real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
+surface to a published plugin for a single consumer's low-value nicety.
+
+**Cutover checklist:**
+
+1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
+   `enabledPlugins` (project `settings.json`, so clones inherit). Headless/CI needs an explicit
+   `claude plugin marketplace add` — the auto-registration trust dialog is interactive-only.
+2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
+   sink script (the bridge), adapting the sink for any observability-contract divergence.
+3. Remove the in-repo hook's `settings.json` registration and delete the hook script **and its test**.
+4. Verify the plugin hook fires (edit a governed file, confirm format/lint + surfaced findings), and that
+   the consumer's hard gate (commit hooks, CI) is untouched — those are independent of the edit-time hook.
+
+**Bootstrap-direction caveat.** While a repo is still the harvest *source* (its hooks are mid-migration
+out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo — a mixed
+state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once its ported
+plugins can move together.
+
 ## What to wait on / avoid for now
 
 - Don't pre-build cross-plugin `dependencies` graphs until two plugins genuinely share a need.
