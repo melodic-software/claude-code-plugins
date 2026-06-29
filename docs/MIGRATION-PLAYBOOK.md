@@ -144,14 +144,18 @@ surface to a published plugin for a single consumer's low-value nicety.
    `claude plugin marketplace add` — the auto-registration trust dialog is interactive-only.
 2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
    sink script (the bridge), adapting the sink for any observability-contract divergence.
-3. **Verify before retiring** the old hook (blue-green — never leave a window with no active hook). With
-   the plugin enabled, edit a governed file and confirm: the plugin formats/lints and surfaces findings,
-   the telemetry sink receives the expected envelope (so a broken remap is caught now, not when
-   observability is next needed), and the consumer's hard gate (commit hooks, CI) is untouched — those are
-   independent of the edit-time hook. The brief overlap where both hooks fire is harmless: formatting is
-   idempotent.
-4. Only then remove the in-repo hook's `settings.json` registration and delete the hook script **and its
-   test**.
+3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
+   same edit). First **disable** the in-repo hook — flip its kill switch or comment out its `settings.json`
+   registration; do **not** delete it yet. Don't leave both registered: matching `PostToolUse` hooks run
+   concurrently, so two formatters would race on the just-edited file (last-writer-wins clobbering, plus
+   doubled telemetry and context) — idempotence only makes *serial* re-runs converge, it doesn't make
+   concurrent writes safe. With the old hook off and the plugin enabled, edit a governed file and confirm:
+   the plugin formats/lints and surfaces findings, the telemetry sink receives the expected envelope (so a
+   broken remap is caught now, not when observability is next needed), and the consumer's hard gate (commit
+   hooks, CI) is untouched — those are independent of the edit-time hook. If anything is wrong, re-enable
+   the old hook; the plugin stays active throughout, so there is never a no-hook gap.
+4. Only once verified, remove the in-repo hook's `settings.json` registration and delete the hook script
+   **and its test**.
 
 **Bootstrap-direction caveat.** While a repo is still the harvest *source* (its hooks are mid-migration
 out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo — a mixed
