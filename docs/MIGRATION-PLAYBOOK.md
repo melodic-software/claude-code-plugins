@@ -4,8 +4,10 @@ How skills, hooks, and agents become reusable plugins in this marketplace. One p
 time: lift it out, make it work in plugin form and in any repo, build in configuration and extensibility,
 vet it against best practices, then publish.
 
-All schema and behavior claims below were verified against the official docs on 2026-06-22. Re-verify
-fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
+"Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
+project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
+guide). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
 ## Intent
 
@@ -104,6 +106,67 @@ claude --plugin-dir ./plugins/<name>
   directories you control.
 - **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
   change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
+
+## Reintegration — a consumer adopts the published plugin
+
+The forward migration (above) ends at *publish*. The lifecycle closes when the source repo stops running
+its in-repo copy and instead **consumes the published plugin** — one source of truth, and the repo
+dogfoods the marketplace. Reintegration is a *consumer-side* change: adapt through the documented
+extension points, never by teaching the plugin a consumer's specifics.
+
+**The plugin is generic; the consumer's own seams restore its specifics.** Map each behavior the
+in-repo hook had that the generalized plugin dropped to one of these, in order:
+
+- **Kill switch / toggles** → the plugin's own env var, set in the consumer's `settings.json` `env`
+  (the name changes from the in-repo `HOOK_<OLD>_ENABLED` to the plugin's `HOOK_<PLUGIN>_ENABLED`).
+- **Project conventions** → for a hook plugin, the consumer's own tool config files that the hook already
+  reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …) — that is where these plugins pick up project
+  conventions, **not** `CLAUDE.md`. (`CLAUDE.md` / `.claude/rules` reach only a plugin's *skill/agent*
+  components, which run in Claude's model context; hook scripts see only env vars and file-based config.)
+- **Telemetry / observability** → the consumer's own **telemetry sink**. This is the key seam: the
+  plugin emits the generic telemetry envelope contract to `HOOK_TELEMETRY_SINK`, and the consumer's sink
+  script translates that envelope into the consumer's local observability shape. A consumer whose prior
+  hook emitted a different status or hook-identity (e.g. `status=error` on a surfaced violation, or a
+  legacy hook name) restores that contract **in its own sink**, by remapping the plugin's native envelope
+  (`status=ok` + populated `findings`) — not by changing the plugin. Before remapping, verify how the
+  consumer's observability actually keys events (e.g. on `status` vs a derived `exit_code`/findings count),
+  so the remap preserves the real contract rather than a guessed one.
+
+If a genuine specific has **no** seam, that is a real plugin gap → add a declared extension
+(`userConfig`, or a new env var consistent with the plugin's existing ones) — but only when it carries
+real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
+surface to a published plugin for a single consumer's low-value nicety.
+
+**Cutover checklist:**
+
+1. Register the marketplace in the consumer's `extraKnownMarketplaces` and enable the plugin in
+   `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
+   both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
+   marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
+   then `claude plugin install <plugin>@<marketplace> --scope project` — otherwise the marketplace is known
+   but the plugin is absent, and step 3's verify edit would run with no plugin hook.
+2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
+   sink script (the bridge), adapting the sink for any observability-contract divergence.
+3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
+   same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
+   formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —
+   idempotence only makes *serial* re-runs converge, not concurrent writes safe. So **exactly one is
+   active at a time**: disable the in-repo hook by setting its kill-switch env var to `"false"` (or, if it
+   has none, removing its registration entry — `settings.json` is JSON, so toggling the value or removing
+   the entry is the edit, never a `//` comment). With the old hook off and the plugin enabled, edit a
+   governed file and confirm: the plugin formats/lints and surfaces findings, the telemetry sink receives
+   the expected envelope (so a broken remap is caught now, not when observability is next needed), and the
+   consumer's hard gate (commit hooks, CI) is untouched — those are independent of the edit-time hook. If
+   verification fails, **disable the plugin first, then re-enable the old hook** (always flip one off as you
+   turn the other on) and debug before retrying — so the two never run together and there is never a
+   no-hook gap.
+4. Only once verified, remove the in-repo hook's `settings.json` registration and delete the hook script
+   **and its test**.
+
+**Bootstrap-direction caveat.** While a repo is still the harvest *source* (its hooks are mid-migration
+out), reintegrating one plugin makes it consume one plugin while still running the rest in-repo — a mixed
+state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once the repo's
+ported plugins can move together.
 
 ## What to wait on / avoid for now
 
