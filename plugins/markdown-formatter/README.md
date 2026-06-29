@@ -27,6 +27,10 @@ imposes no rules of its own.
 `npx` (the hook falls back to `npx markdownlint-cli2`). When neither is present
 the hook is a silent no-op.
 
+The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
+(Bash 5.0+); on older bash the telemetry envelope is skipped while formatting
+still runs.
+
 ## Install
 
 ```shell
