@@ -255,6 +255,24 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "ignored file -> exit 0, silent (no nag)"; else fail "ignored file not silent (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_IGN/generated/gen.ts")" == "$BEFORE_IGN" ]]; then ok "ignored file -> left untouched (respects config ignore)"; else fail "ignored file -> was rewritten"; fi
 
+# --- Case 9: BIOME_CONFIG_PATH override does not hijack the repo config -------
+# Biome reads BIOME_CONFIG_PATH as a config-path override; the hook unsets it so
+# the gated repo config stays authoritative. Repo config formats single-quoted;
+# an external config formats double-quoted. With BIOME_CONFIG_PATH pointing at
+# the external config, the result must still be single-quoted (repo config wins).
+REPO_ENV="$WORK/env-override"
+new_biome_repo "$REPO_ENV" '{ "javascript": { "formatter": { "quoteStyle": "single" } } }'
+EXT_CFG="$WORK/external-cfg"
+mkdir -p "$EXT_CFG"
+printf '%s\n' '{ "javascript": { "formatter": { "quoteStyle": "double" } } }' >"$EXT_CFG/biome.json"
+printf 'const s = "hi";\nexport { s };\n' >"$REPO_ENV/q.ts"
+run_hook_env "$REPO_ENV/q.ts" HOOK_BIOME_FORMAT_ENABLED=true BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
+if grep -q "const s = 'hi';" "$REPO_ENV/q.ts"; then
+  ok "BIOME_CONFIG_PATH override neutralized -> repo config authoritative"
+else
+  fail "BIOME_CONFIG_PATH hijacked the config: $(cat "$REPO_ENV/q.ts")"
+fi
+
 # ============================================================================
 # Telemetry
 # ============================================================================

@@ -169,7 +169,14 @@ fi
 # workflow-command line per diagnostic (::warning/::error/::notice with rule,
 # file, line, and message) instead of the verbose default boxes — the analog of
 # ShellCheck's gcc format: actionable findings without the decorative noise.
-if OUTPUT=$(cd "$CONFIG_DIR" && "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
+#
+# BIOME_CONFIG_PATH is unset for this command: Biome reads it as a config-path
+# override, so a stray user- or project-level export would make Biome format the
+# edit with an unrelated config even though the gate keyed on the repo's own
+# biome.json (verified empirically). Unsetting it keeps the discovered CONFIG_DIR
+# config authoritative — consistent with the in-tree opt-in this plugin is built
+# on (an out-of-tree config has no in-tree biome.json, so the gate skips anyway).
+if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
   data_json=$(build_data_json '[]')
   emit_tel "biome-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
