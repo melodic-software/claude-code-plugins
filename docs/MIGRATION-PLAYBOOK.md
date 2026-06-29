@@ -145,15 +145,18 @@ surface to a published plugin for a single consumer's low-value nicety.
 2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
    sink script (the bridge), adapting the sink for any observability-contract divergence.
 3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
-   same edit). First **disable** the in-repo hook — flip its kill switch or comment out its `settings.json`
-   registration; do **not** delete it yet. Don't leave both registered: matching `PostToolUse` hooks run
-   concurrently, so two formatters would race on the just-edited file (last-writer-wins clobbering, plus
-   doubled telemetry and context) — idempotence only makes *serial* re-runs converge, it doesn't make
-   concurrent writes safe. With the old hook off and the plugin enabled, edit a governed file and confirm:
-   the plugin formats/lints and surfaces findings, the telemetry sink receives the expected envelope (so a
-   broken remap is caught now, not when observability is next needed), and the consumer's hard gate (commit
-   hooks, CI) is untouched — those are independent of the edit-time hook. If anything is wrong, re-enable
-   the old hook; the plugin stays active throughout, so there is never a no-hook gap.
+   same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
+   formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —
+   idempotence only makes *serial* re-runs converge, not concurrent writes safe. So **exactly one is
+   active at a time**: disable the in-repo hook by setting its kill-switch env var to `"false"` (or, if it
+   has none, removing its registration entry — `settings.json` is JSON, so toggling the value or removing
+   the entry is the edit, never a `//` comment). With the old hook off and the plugin enabled, edit a
+   governed file and confirm: the plugin formats/lints and surfaces findings, the telemetry sink receives
+   the expected envelope (so a broken remap is caught now, not when observability is next needed), and the
+   consumer's hard gate (commit hooks, CI) is untouched — those are independent of the edit-time hook. If
+   verification fails, **disable the plugin first, then re-enable the old hook** (always flip one off as you
+   turn the other on) and debug before retrying — so the two never run together and there is never a
+   no-hook gap.
 4. Only once verified, remove the in-repo hook's `settings.json` registration and delete the hook script
    **and its test**.
 
