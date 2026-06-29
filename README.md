@@ -22,6 +22,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 |---|---|---|
 | [`markdown-formatter`](plugins/markdown-formatter) | Hook | Auto-formats and lints Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config. |
 | [`bash-lint`](plugins/bash-lint) | Hook | Lints shell scripts on edit via ShellCheck, and formats via shfmt when the repo opts in with an `.editorconfig`, using the consuming repo's own config. |
+| [`biome-format`](plugins/biome-format) | Hook | Formats and lints JS/TS/JSX/JSON on edit via Biome, only when the repo opts in with a `biome.json`, using the consuming repo's own Biome config. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
