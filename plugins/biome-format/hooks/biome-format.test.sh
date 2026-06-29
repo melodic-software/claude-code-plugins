@@ -133,6 +133,19 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "gate OFF (no biome.json) -> exit 0, silent"; else fail "gate OFF not silent (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_NO/nofmt.ts")" == "$BEFORE_NO" ]]; then ok "gate OFF -> file left untouched"; else fail "gate OFF -> file was rewritten"; fi
 
+# --- Case 1b: hidden .biome.json alone does NOT opt in ----------------------
+# .biome.json/.biome.jsonc are only loaded by Biome >= 2.4, so the gate must not
+# fire on them — otherwise an older Biome would reformat with built-in defaults.
+REPO_DOT="$WORK/dotted-only"
+new_biome_repo "$REPO_DOT" NO_CONFIG
+printf '{}\n' >"$REPO_DOT/.biome.json"
+printf 'const x=1;var y=2\n' >"$REPO_DOT/dot.ts"
+BEFORE_DOT="$(cat "$REPO_DOT/dot.ts")"
+OUT=$(run_hook "$REPO_DOT/dot.ts")
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "hidden .biome.json only -> exit 0, silent (no opt-in)"; else fail "hidden config opted in (rc=$RC out=$OUT)"; fi
+if [[ "$(cat "$REPO_DOT/dot.ts")" == "$BEFORE_DOT" ]]; then ok "hidden .biome.json only -> file left untouched"; else fail "hidden config -> file was rewritten"; fi
+
 # --- Case 2: gate ON + clean file -> exit 0, empty stdout -------------------
 REPO="$WORK/consumer"
 new_biome_repo "$REPO"

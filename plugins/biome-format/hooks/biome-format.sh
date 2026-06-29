@@ -8,9 +8,9 @@
 # --error-on-warnings, warnings) surface via additionalContext but never block
 # the edit. A commit hook or CI is the hard gate.
 #
-# Opt-in: Biome runs ONLY when a biome.json (or .jsonc / dotted) config governs
-# the edited file — found by walking up from the file to the repo root. A repo
-# that has not adopted a Biome config is left untouched rather than rewritten to
+# Opt-in: Biome runs ONLY when a biome.json or biome.jsonc config governs the
+# edited file — found by walking up from the file to the repo root. A repo that
+# has not adopted a Biome config is left untouched rather than rewritten to
 # Biome's built-in defaults, so the plugin never imposes a style it did not
 # choose. The Biome binary is resolved from the repo's own node_modules (or PATH)
 # — never downloaded.
@@ -106,10 +106,18 @@ root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 # (`"root": false`) configs beneath it, so running from the topmost config's
 # directory is the correct, monorepo-safe CWD. Absence of any config is the
 # opt-out: the file is left untouched.
+#
+# Only the canonical names are accepted, NOT the hidden .biome.json/.biome.jsonc
+# variants: hidden-config loading was added in Biome 2.4, so on an older Biome
+# this gate would fire while Biome's own discovery ignored the dotted file and
+# reformatted with built-in defaults — the exact silent wrong-config reformat the
+# opt-in exists to prevent. Gating on the names every supported Biome discovers keeps
+# the gate in lockstep with discovery across versions. Dotted-config support is
+# deferred behind a Biome>=2.4 probe.
 CONFIG_DIR=""
 dir="$FILE_DIR_POSIX"
 while [[ -n "$dir" ]]; do
-  for name in biome.json biome.jsonc .biome.json .biome.jsonc; do
+  for name in biome.json biome.jsonc; do
     [[ -f "$dir/$name" ]] && CONFIG_DIR="$dir" && break
   done
   [[ -n "$root" && "$dir" == "$root" ]] && break

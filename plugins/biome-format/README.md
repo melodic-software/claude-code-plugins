@@ -12,11 +12,14 @@ runs only when your repo has opted into Biome.
 
 ## Behavior
 
-- **Opt-in on `biome.json`.** Biome runs **only when a Biome configuration
-  governs the edited file** — `biome.json`, `biome.jsonc`, `.biome.json`, or
-  `.biome.jsonc`, found by walking up from the file to the repository root. A
-  repo without a Biome config is left untouched rather than rewritten to Biome's
-  built-in defaults, so the plugin never imposes a style you did not choose.
+- **Opt-in on `biome.json`.** Biome runs **only when a `biome.json` or
+  `biome.jsonc` governs the edited file**, found by walking up from the file to
+  the repository root. A repo without a Biome config is left untouched rather
+  than rewritten to Biome's built-in defaults, so the plugin never imposes a
+  style you did not choose. (The hidden `.biome.json` / `.biome.jsonc` names are
+  intentionally not treated as the opt-in: Biome only loads them from 2.4
+  onward, so honoring them here would risk reformatting with built-in defaults on
+  an older Biome. Use a canonical `biome.json` / `biome.jsonc`.)
 - **Format + lint on edit.** `biome check --write` applies safe fixes,
   formatting, and import sorting in place. Residual diagnostics — errors and,
   because the hook passes `--error-on-warnings`, warnings — are reported but not
@@ -41,7 +44,7 @@ runs only when your repo has opted into Biome.
   `check --write --error-on-warnings --reporter=github`, and on much older
   releases those flags may be absent, in which case the run is reported as a
   tool break rather than a finding.
-- A **`biome.json`** (or `.jsonc` / dotted variant) in the repo — the opt-in.
+- A **`biome.json`** or **`biome.jsonc`** in the repo — the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
