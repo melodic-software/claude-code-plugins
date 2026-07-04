@@ -46,7 +46,7 @@ EOF
 # on Windows Git Bash). Returns non-zero on timeout so negative cases can assert.
 wait_for_sink() {
   local f="$1" tries="${2:-150}"
-  while (( tries-- > 0 )); do
+  while ((tries-- > 0)); do
     [[ -s "$f" ]] && return 0
     sleep 0.02
   done
@@ -180,7 +180,7 @@ if [[ -s "$SINK_FILE" ]]; then
   # and this check — including the 23→00 midnight wrap, where a linear distance
   # would read 23 and false-fail once per day. (#0 strips the leading zero so
   # 00–09 are not misread as octal inside (( )).)
-  h_diff=$(( ( ${ts_h#0} - ${utc_h#0} + 24 ) % 24 ))
+  h_diff=$(((${ts_h#0} - ${utc_h#0} + 24) % 24))
   if [[ $h_diff -le 1 || $h_diff -ge 23 ]]; then
     ok "timestamp: UTC hour aligns with system UTC"
   else
@@ -307,7 +307,10 @@ rm -f "$ABS10" "$OUT10"
 # through unchanged, or the membership guard collapses it with /c/repo and
 # admits a sibling outside CLAUDE_PROJECT_DIR. normalize_path reads the shell's
 # OSTYPE, so override it in a subshell per case (the global stays intact).
-norm_as() { ( OSTYPE="$1"; hook::normalize_path "$2" ); }
+norm_as() { (
+  OSTYPE="$1"
+  hook::normalize_path "$2"
+); }
 assert_norm() { # <ostype> <input> <expected> <desc>
   local got
   got="$(norm_as "$1" "$2")"
@@ -319,17 +322,17 @@ assert_norm() { # <ostype> <input> <expected> <desc>
 }
 
 # Windows/MSYS: fold both the POSIX /c/ and colon c:/ drive forms.
-assert_norm msys   "/c/Repo"        "C:/repo"        "msys folds /c/Repo → C:/repo"
-assert_norm msys   "C:/Repo"        "C:/repo"        "msys folds C:/Repo → C:/repo"
-assert_norm msys   "/c/Repo/Sub"    "C:/repo/sub"    "msys folds nested path"
-assert_norm msys   'C:\Repo\x'      "C:/repo/x"      "msys: backslashes → slashes then fold"
-assert_norm cygwin "/c/Repo"        "C:/repo"        "cygwin folds like msys"
+assert_norm msys "/c/Repo" "C:/repo" "msys folds /c/Repo → C:/repo"
+assert_norm msys "C:/Repo" "C:/repo" "msys folds C:/Repo → C:/repo"
+assert_norm msys "/c/Repo/Sub" "C:/repo/sub" "msys folds nested path"
+assert_norm msys 'C:\Repo\x' "C:/repo/x" "msys: backslashes → slashes then fold"
+assert_norm cygwin "/c/Repo" "C:/repo" "cygwin folds like msys"
 
 # POSIX: NO fold — single-letter top dirs stay distinct (the regression guard).
-assert_norm linux-gnu "/c/Repo"     "/c/Repo"        "linux leaves /c/Repo unchanged"
-assert_norm linux-gnu "/c/repo"     "/c/repo"        "linux leaves /c/repo unchanged"
-assert_norm linux-gnu "/opt/App/Sub" "/opt/App/Sub"  "linux leaves normal path unchanged"
-assert_norm linux-gnu 'a\b'         "a/b"            "linux still converts backslashes"
+assert_norm linux-gnu "/c/Repo" "/c/Repo" "linux leaves /c/Repo unchanged"
+assert_norm linux-gnu "/c/repo" "/c/repo" "linux leaves /c/repo unchanged"
+assert_norm linux-gnu "/opt/App/Sub" "/opt/App/Sub" "linux leaves normal path unchanged"
+assert_norm linux-gnu 'a\b' "a/b" "linux still converts backslashes"
 
 # Explicit guard: on POSIX the two casings must NOT collapse to one value.
 if [[ "$(norm_as linux-gnu /c/Repo)" != "$(norm_as linux-gnu /c/repo)" ]]; then
@@ -337,6 +340,99 @@ if [[ "$(norm_as linux-gnu /c/Repo)" != "$(norm_as linux-gnu /c/repo)" ]]; then
 else
   fail "normalize_path[linux-gnu]: /c/Repo and /c/repo collapsed (membership-guard regression)"
 fi
+
+# --- Test 12: read_file_path membership guard — lexical and symlink cases ----
+# Drives hook::read_file_path directly. Each case runs in a subshell so
+# CLAUDE_PROJECT_DIR never leaks into the suite; JSON is built with jq so
+# arbitrary mktemp paths are safely quoted. Symlink cases are attempted with
+# MSYS=winsymlinks:nativestrict (real symlinks on Windows when Developer Mode
+# allows; a no-op elsewhere) and SKIP-pass when the host cannot create one —
+# MSYS ln -s otherwise silently copies, which would test nothing.
+# MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL: Git Bash rewrites POSIX-looking
+# arguments to Windows form when invoking a native exe like jq, which would
+# feed the guard a converted file_path against an unconverted
+# CLAUDE_PROJECT_DIR — a mixed-form pair production never produces (file_path
+# arrives via stdin JSON and the project dir via env, neither is converted).
+rfp() { # <project_dir> <file_path> → stdout: emitted path; rc: guard verdict
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$2" '{tool_input: {file_path: $fp}}' |
+    (
+      export CLAUDE_PROJECT_DIR="$1"
+      hook::read_file_path
+    )
+}
+try_symlink() { # <target> <link> → rc 0 iff a REAL symlink now exists
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null
+  [[ -L "$2" ]]
+}
+
+PROJ12="$(mktemp -d)"
+OUTSIDE12="$(mktemp -d)"
+SIB12="${PROJ12}-sibling"
+mkdir -p "$SIB12"
+echo 'x = 1' >"$PROJ12/inside.py"
+echo 'y = 2' >"$OUTSIDE12/outside.py"
+echo 'z = 3' >"$SIB12/near.py"
+
+# In-project file → accepted, caller's original path emitted.
+if got=$(rfp "$PROJ12" "$PROJ12/inside.py") && [[ "$got" == "$PROJ12/inside.py" ]]; then
+  ok "read_file_path: in-project file accepted, original path emitted"
+else
+  fail "read_file_path: in-project file rejected or path mangled (got '$got')"
+fi
+
+# Sibling directory sharing the root's name as a prefix → rejected.
+if got=$(rfp "$PROJ12" "$SIB12/near.py"); then
+  fail "read_file_path: prefix-sibling admitted (got '$got')"
+else
+  ok "read_file_path: prefix-sibling rejected"
+fi
+
+# Symlink inside the project pointing OUTSIDE it → rejected (the escape case).
+if try_symlink "$OUTSIDE12/outside.py" "$PROJ12/escape.py"; then
+  if got=$(rfp "$PROJ12" "$PROJ12/escape.py"); then
+    fail "read_file_path: escaping symlink admitted (got '$got')"
+  else
+    ok "read_file_path: escaping symlink rejected"
+  fi
+else
+  ok "read_file_path: escaping symlink SKIPPED (host cannot create symlinks)"
+fi
+
+# Symlink inside the project pointing INSIDE it → accepted (no over-reject).
+if try_symlink "$PROJ12/inside.py" "$PROJ12/alias.py"; then
+  if got=$(rfp "$PROJ12" "$PROJ12/alias.py") && [[ "$got" == "$PROJ12/alias.py" ]]; then
+    ok "read_file_path: in-project symlink accepted, original path emitted"
+  else
+    fail "read_file_path: in-project symlink rejected or path mangled (got '$got')"
+  fi
+else
+  ok "read_file_path: in-project symlink SKIPPED (host cannot create symlinks)"
+fi
+
+# Escape via a symlinked DIRECTORY inside the project → rejected.
+if try_symlink "$OUTSIDE12" "$PROJ12/subdir"; then
+  if got=$(rfp "$PROJ12" "$PROJ12/subdir/outside.py"); then
+    fail "read_file_path: symlinked-directory escape admitted (got '$got')"
+  else
+    ok "read_file_path: symlinked-directory escape rejected"
+  fi
+else
+  ok "read_file_path: symlinked-directory escape SKIPPED (host cannot create symlinks)"
+fi
+
+# Project root itself reached via a symlink (e.g. macOS /tmp) → file under the
+# real root is still recognized as in-project (both sides canonicalized).
+if try_symlink "$PROJ12" "$OUTSIDE12/projlink"; then
+  if got=$(rfp "$OUTSIDE12/projlink" "$PROJ12/inside.py") && [[ "$got" == "$PROJ12/inside.py" ]]; then
+    ok "read_file_path: symlinked project root resolves to real root"
+  else
+    fail "read_file_path: symlinked project root rejected real-root file (got '$got')"
+  fi
+else
+  ok "read_file_path: symlinked project root SKIPPED (host cannot create symlinks)"
+fi
+
+rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

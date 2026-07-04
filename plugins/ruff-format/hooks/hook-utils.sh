@@ -31,21 +31,43 @@ hook::check_enabled() {
 hook::normalize_path() {
   local p="${1//\\//}"
   case "${OSTYPE:-}" in
-    msys* | cygwin* | win32)
-      if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
-        local rest="${p:2}"
-        printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
-        return
-      fi
-      ;;
-    *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
+  msys* | cygwin* | win32)
+    if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
+      local rest="${p:2}"
+      printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
+      return
+    fi
+    ;;
+  *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
   esac
   printf '%s' "$p"
 }
 
+# Canonicalize to a physical path — symlinks resolved — for the membership
+# comparison below, so an in-project symlink pointing outside the project root
+# cannot defeat the guard (the lexical path would pass the prefix check while
+# the write lands elsewhere). GNU realpath ships with Git Bash and Linux
+# coreutils; readlink -f covers the BSD/macOS hosts that have no realpath.
+# When neither resolver exists the caller falls back to comparing the lexical
+# path as before — the guard is defense-in-depth scoping for a file the agent
+# already wrote via its own tools, so degrading to the historical comparison
+# beats silently disabling the hook on those hosts.
+hook::physical_path() {
+  local resolved
+  if resolved=$(realpath -- "$1" 2>/dev/null) || resolved=$(readlink -f -- "$1" 2>/dev/null); then
+    if [[ -n "$resolved" ]]; then
+      printf '%s' "$resolved"
+      return
+    fi
+  fi
+  printf '%s' "$1"
+}
+
 # Parse file_path from PostToolUse JSON on stdin; validate existence and (when
-# CLAUDE_PROJECT_DIR is set) project membership. Outputs the path on success.
-# Returns 1 to skip.
+# CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
+# comparison are canonicalized (symlinks resolved) first, so neither an
+# escaping symlink nor a project root reached via a symlinked path (e.g.
+# macOS /tmp) skews the verdict. Outputs the path on success. Returns 1 to skip.
 #   FILE=$(hook::read_file_path) || exit 0
 hook::read_file_path() {
   local file
@@ -54,8 +76,8 @@ hook::read_file_path() {
   [[ -f "$file" ]] || return 1
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     local norm_file norm_project
-    norm_file=$(hook::normalize_path "$file")
-    norm_project=$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")
+    norm_file=$(hook::normalize_path "$(hook::physical_path "$file")")
+    norm_project=$(hook::normalize_path "$(hook::physical_path "${CLAUDE_PROJECT_DIR}")")
     norm_project="${norm_project%/}"
     # Anchor on a path-segment boundary: accept the project root itself or a
     # child under it, but not a sibling whose name merely shares the prefix
@@ -149,8 +171,8 @@ hook::emit_telemetry() {
   # of fractional parts with leading zeros (e.g. .045123 → 10#045123 = 45123).
   local now=$EPOCHREALTIME
   local s_s="${start_epoch%[.,]*}" s_f="${start_epoch#*[.,]}"
-  local e_s="${now%[.,]*}"         e_f="${now#*[.,]}"
-  local duration_ms=$(( (e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000 ))
+  local e_s="${now%[.,]*}" e_f="${now#*[.,]}"
+  local duration_ms=$(((e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000))
 
   # True UTC timestamp (TZ= prefix overrides LC_ALL / local TZ; the Z is not a lie).
   local timestamp
@@ -160,13 +182,13 @@ hook::emit_telemetry() {
   # variable — never to fd1.
   local envelope
   envelope=$(jq -n \
-    --arg     schema_version "1.0" \
-    --arg     timestamp      "$timestamp" \
-    --arg     hook           "$hook_id" \
-    --arg     hook_event     "$hook_event" \
-    --arg     status         "$status" \
-    --argjson duration_ms    "$duration_ms" \
-    --argjson data           "$data_json" \
+    --arg schema_version "1.0" \
+    --arg timestamp "$timestamp" \
+    --arg hook "$hook_id" \
+    --arg hook_event "$hook_event" \
+    --arg status "$status" \
+    --argjson duration_ms "$duration_ms" \
+    --argjson data "$data_json" \
     '{schema_version:$schema_version,timestamp:$timestamp,hook:$hook,hook_event:$hook_event,status:$status,duration_ms:$duration_ms,data:$data}' \
     2>/dev/null) || return 0
 
@@ -176,12 +198,12 @@ hook::emit_telemetry() {
   # drifted hook CWD would resolve incorrectly.
   local sink="$HOOK_TELEMETRY_SINK"
   case "$sink" in
-    /* | [A-Za-z]:[/\\]*) ;;
-    *)
-      local root="${repo_root:-${CLAUDE_PROJECT_DIR:-}}"
-      [[ -n "$root" ]] || return 0
-      sink="${root%/}/$sink"
-      ;;
+  /* | [A-Za-z]:[/\\]*) ;;
+  *)
+    local root="${repo_root:-${CLAUDE_PROJECT_DIR:-}}"
+    [[ -n "$root" ]] || return 0
+    sink="${root%/}/$sink"
+    ;;
   esac
 
   # Fire-and-forget: pipe the envelope to the sink in a background subshell.
