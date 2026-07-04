@@ -24,6 +24,12 @@
       "source": "./plugins/biome-format",
       "category": "formatting",
       "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "ruff-format",
+      "source": "./plugins/ruff-format",
+      "category": "formatting",
+      "tags": ["ruff", "python", "formatter", "linter", "hook"]
     }
   ]
 }
