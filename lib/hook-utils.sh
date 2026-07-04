@@ -132,6 +132,16 @@ hook::ctx_flush() {
   hook::ctx_reset
 }
 
+# Cheap telemetry opt-in probe — true iff a consumer wired a sink. Producers
+# gate telemetry-payload construction on this (repo-relative path
+# normalization, data JSON) so the unwired default path spawns zero
+# telemetry-only subprocesses. Pure shell test, no subprocess.
+# hook::emit_telemetry re-checks the sink itself, so skipping this probe
+# costs only wasted payload work, never correctness.
+hook::telemetry_enabled() {
+  [[ -n "${HOOK_TELEMETRY_SINK:-}" ]]
+}
+
 # Emit one telemetry envelope per hook run to the consumer-set sink.
 # Fire-and-forget: sink is dispatched in the background; the hook never waits
 # on it and its failure never affects the hook's own exit code or stdout.

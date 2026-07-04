@@ -379,6 +379,92 @@ else
 fi
 rm -f "$TEL_LEAK"
 
+# --- Unwired producer runs zero telemetry-only subprocesses -------------------
+# The telemetry payload (tool_name jq parse, cygpath path normalization, data
+# JSON build) must be gated on sink presence. Count the hook's subprocess
+# spawns via PATH shims: a cygpath shim that logs and echoes its last argument
+# unchanged (a plausible `-lm` result on any host, so the Windows branch is
+# exercised even on Linux), and a jq shim that logs then delegates to the real
+# jq so hook behavior is unaffected. cygpath assertions filter on the hook's
+# `-lm` flag: on Windows, npm/npx launcher shims may call `cygpath -w` on
+# their own, which is not the hook's doing.
+SHIM_DIR="$WORK/shims"
+mkdir -p "$SHIM_DIR"
+CYG_LOG="$WORK/cygpath.log"
+JQ_LOG="$WORK/jq.log"
+REAL_JQ="$(command -v jq)"
+cat >"$SHIM_DIR/cygpath" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$CYG_LOG"
+printf '%s\n' "\${!#}"
+EOF
+cat >"$SHIM_DIR/jq" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$JQ_LOG"
+exec "$REAL_JQ" "\$@"
+EOF
+chmod +x "$SHIM_DIR/cygpath" "$SHIM_DIR/jq"
+
+count_lm() { grep -c -- '-lm' "$CYG_LOG" 2>/dev/null || true; }
+
+# Unwired (sink unset), clean fixture: the only legitimate jq spawn is
+# hook::read_file_path's file_path parse — TOOL, FILE_REL and data_json are
+# all telemetry-only and must not be built.
+: >"$CYG_LOG"
+: >"$JQ_LOG"
+printf '# Gate Doc\n\nClean text.\n' >"$REPO/fixtureGate.md"
+OUT_GATE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGate.md" \
+  | env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK HOOK_MARKDOWN_FORMAT_ENABLED=true PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
+RC_GATE=$?
+if [[ $RC_GATE -eq 0 && -z "$OUT_GATE" ]]; then
+  ok "telemetry-gate/unwired: exit 0, empty stdout"
+else
+  fail "telemetry-gate/unwired: rc=$RC_GATE out=$OUT_GATE"
+fi
+CYG_LM_UNWIRED="$(count_lm)"
+if [[ "$CYG_LM_UNWIRED" -eq 0 ]]; then
+  ok "telemetry-gate/unwired: zero cygpath -lm spawns"
+else
+  fail "telemetry-gate/unwired: $CYG_LM_UNWIRED cygpath -lm spawns: $(cat "$CYG_LOG")"
+fi
+JQ_UNWIRED="$(wc -l <"$JQ_LOG")"
+if [[ "$JQ_UNWIRED" -eq 1 ]]; then
+  ok "telemetry-gate/unwired: exactly 1 jq spawn (file_path parse only)"
+else
+  fail "telemetry-gate/unwired: expected 1 jq spawn, got $JQ_UNWIRED: $(cat "$JQ_LOG")"
+fi
+
+# Wired (stub sink), same fixture shape: the payload construction must still
+# run — positive control proving the shims observe the telemetry spawns (the
+# unwired zeroes above would otherwise pass vacuously).
+: >"$CYG_LOG"
+: >"$JQ_LOG"
+TEL_GATE="$(mktemp)"
+GATE_SINK="$(make_sink "cat >\"$TEL_GATE\"")"
+printf '# Gate Doc Wired\n\nClean text.\n' >"$REPO/fixtureGateWired.md"
+# shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_GATE
+_OUT_GW="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGateWired.md" \
+  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$GATE_SINK" PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
+wait_for_sink "$TEL_GATE"
+CYG_LM_WIRED="$(count_lm)"
+if [[ "$CYG_LM_WIRED" -eq 2 ]]; then
+  ok "telemetry-gate/wired: 2 cygpath -lm spawns (FILE + REPO_ROOT normalization)"
+else
+  fail "telemetry-gate/wired: expected 2 cygpath -lm spawns, got $CYG_LM_WIRED: $(cat "$CYG_LOG")"
+fi
+JQ_WIRED="$(wc -l <"$JQ_LOG")"
+if [[ "$JQ_WIRED" -gt 1 ]]; then
+  ok "telemetry-gate/wired: payload jq spawns present ($JQ_WIRED total)"
+else
+  fail "telemetry-gate/wired: expected >1 jq spawns, got $JQ_WIRED: $(cat "$JQ_LOG")"
+fi
+if [[ -s "$TEL_GATE" ]] && jq -e '.data.tool == "Write"' "$TEL_GATE" >/dev/null 2>&1; then
+  ok "telemetry-gate/wired: envelope delivered with data.tool intact"
+else
+  fail "telemetry-gate/wired: envelope missing or data.tool wrong: $(cat "$TEL_GATE" 2>/dev/null)"
+fi
+rm -f "$TEL_GATE"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
