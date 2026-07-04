@@ -182,10 +182,14 @@ fi
 # own regardless of flags.
 RUFF_COMMON=(--force-exclude --no-cache --quiet)
 
-# Pass 1: apply safe lint fixes (never --unsafe-fixes), keeping F401 unfixable
-# per the header rationale. Pass 2: format. Both are best-effort; the verify
-# pass below is the single source of residual findings.
-(cd "$RUN_DIR" && "$RUFF_BIN" check --fix --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
+# Pass 1: apply safe lint fixes, keeping F401 unfixable per the header
+# rationale. --no-unsafe-fixes is explicit, not the default restated: a
+# consumer config may set unsafe-fixes = true, aimed at interactive runs —
+# an unattended edit-time pass must never apply fixes Ruff itself labels as
+# possibly not intent-preserving (same principle as --no-fix on the verify
+# pass below). Pass 2: format. Both are best-effort; the verify pass below
+# is the single source of residual findings.
+(cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
 (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
 
 # Verify pass — a pure reporter. --no-fix matters: a consumer config may set
