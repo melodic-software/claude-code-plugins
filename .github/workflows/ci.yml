@@ -195,6 +195,8 @@ jobs:
           fetch-depth: 0
       - name: Verify plugin copies match the shared lib
         run: scripts/sync-hook-utils.sh --check
+      - name: Run shared lib tests
+        run: bash lib/hook-utils.test.sh
       - name: Verify carrying plugins bumped when the lib changed
         if: github.event_name == 'pull_request'
         env:

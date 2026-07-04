@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Unit tests for hook-utils.sh: sourced-lib tests for hook::emit_telemetry.
-#
-# Tests source hook-utils.sh directly and drive hook::emit_telemetry in
-# isolation. No subprocess invocation of ruff-format.sh — black-box
-# integration tests live in ruff-format.test.sh.
+# Unit tests for the shared hook utility library. Tests source the canonical
+# lib/hook-utils.sh directly and drive its functions in isolation; each
+# plugin's own <plugin>.test.sh keeps the black-box hook contract tests.
+# Because CI enforces that every plugin copy is byte-identical to the source,
+# passing here covers the copies too.
 
 set -uo pipefail
 
@@ -55,7 +55,7 @@ wait_for_sink() {
 
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
 unset HOOK_TELEMETRY_SINK 2>/dev/null || true
-out=$(hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null)
+out=$(hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null)
 rc=$?
 if [[ $rc -eq 0 ]]; then
   ok "sink unset: returns 0"
@@ -78,7 +78,7 @@ EMPTY_BIN="$(mktemp -d)"
 # shellcheck disable=SC2030,SC2031
 out_nojq=$(
   export HOOK_TELEMETRY_SINK="cat"
-  PATH="$EMPTY_BIN" hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null
+  PATH="$EMPTY_BIN" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null
 )
 rc_nojq=$?
 rmdir "$EMPTY_BIN" 2>/dev/null || true
@@ -104,7 +104,7 @@ HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE")"
 export HOOK_TELEMETRY_SINK
 data_json='{"tool":"Write","file":"src/foo.py","findings":["src/foo.py:1:8: F401 os imported but unused"]}'
 start=$EPOCHREALTIME
-hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
+hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$start" "$data_json" 2>/dev/null
 wait_for_sink "$SINK_FILE"
 unset HOOK_TELEMETRY_SINK
 
@@ -135,10 +135,10 @@ if [[ -s "$SINK_FILE" ]]; then
   fi
   # Validate hook id
   hook_val=$(jq -r '.hook' "$SINK_FILE")
-  if [[ "$hook_val" == "ruff-format" ]]; then
-    ok "envelope: hook is ruff-format"
+  if [[ "$hook_val" == "sample-hook" ]]; then
+    ok "envelope: hook is sample-hook"
   else
-    fail "envelope: hook expected ruff-format, got $hook_val"
+    fail "envelope: hook expected sample-hook, got $hook_val"
   fi
   # Validate hook_event
   he=$(jq -r '.hook_event' "$SINK_FILE")
@@ -210,7 +210,7 @@ trap - EXIT
 SINK_FILE2="$(mktemp)"
 HOOK_TELEMETRY_SINK="$(make_sink "$SINK_FILE2")"
 export HOOK_TELEMETRY_SINK
-hook::emit_telemetry "ruff-format" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
+hook::emit_telemetry "sample-hook" "PostToolUse" "skipped" "$EPOCHREALTIME" '{"tool":"","file":"","findings":[]}' 2>/dev/null
 wait_for_sink "$SINK_FILE2"
 unset HOOK_TELEMETRY_SINK
 
@@ -239,10 +239,10 @@ cat >"$OUT7"
 EOF
 chmod +x "$ROOT7/$REL7"
 export HOOK_TELEMETRY_SINK="$REL7"
-hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "$ROOT7" 2>/dev/null
+hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "$ROOT7" 2>/dev/null
 wait_for_sink "$OUT7"
 unset HOOK_TELEMETRY_SINK
-if [[ -s "$OUT7" ]] && [[ "$(jq -r '.hook' "$OUT7")" == "ruff-format" ]]; then
+if [[ -s "$OUT7" ]] && [[ "$(jq -r '.hook' "$OUT7")" == "sample-hook" ]]; then
   ok "relative sink: resolved against repo_root arg, envelope delivered"
 else
   fail "relative sink: not resolved against repo_root arg (out empty or wrong)"
@@ -259,7 +259,7 @@ cat >"$OUT8"
 EOF
 chmod +x "$ROOT8/.claude/hooks/sink.sh"
 export HOOK_TELEMETRY_SINK=".claude/hooks/sink.sh"
-CLAUDE_PROJECT_DIR="$ROOT8" hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' 2>/dev/null
+CLAUDE_PROJECT_DIR="$ROOT8" hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' 2>/dev/null
 wait_for_sink "$OUT8"
 unset HOOK_TELEMETRY_SINK
 if [[ -s "$OUT8" ]]; then
@@ -275,7 +275,7 @@ rm -f "$OUT9" # ensure absent
 export HOOK_TELEMETRY_SINK="relative/no/anchor/sink.sh"
 (
   unset CLAUDE_PROJECT_DIR 2>/dev/null || true
-  hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' 2>/dev/null
+  hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' 2>/dev/null
 )
 rc9=$?
 sleep 0.2
@@ -291,10 +291,10 @@ rm -f "$OUT9"
 OUT10="$(mktemp)"
 ABS10="$(make_sink "$OUT10")" # mktemp path is absolute
 export HOOK_TELEMETRY_SINK="$ABS10"
-hook::emit_telemetry "ruff-format" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "/some/ignored/root" 2>/dev/null
+hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "/some/ignored/root" 2>/dev/null
 wait_for_sink "$OUT10"
 unset HOOK_TELEMETRY_SINK
-if [[ -s "$OUT10" ]] && [[ "$(jq -r '.hook' "$OUT10")" == "ruff-format" ]]; then
+if [[ -s "$OUT10" ]] && [[ "$(jq -r '.hook' "$OUT10")" == "sample-hook" ]]; then
   ok "absolute sink: passes through unchanged (repo_root ignored)"
 else
   fail "absolute sink: did not pass through"
