@@ -168,10 +168,47 @@ out), reintegrating one plugin makes it consume one plugin while still running t
 state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once the repo's
 ported plugins can move together.
 
+## Shared code across plugins — decision record (2026-07-04)
+
+Decided when four plugins carried byte-identical `hooks/hook-utils.sh` copies — the Rule-of-Three
+threshold below, exceeded. The mechanism is **single source of truth at authoring time, plain copies
+at runtime**:
+
+- `lib/hook-utils.sh` is the only copy to edit. `scripts/sync-hook-utils.sh` propagates it into every
+  carrying plugin; a plugin opts in by committing an initial `hooks/hook-utils.sh` copy.
+- CI (`hook-utils-sync` lane) fails a PR when any plugin copy drifts from the source, and when the lib
+  changed but a carrying plugin's manifest version did not — the plugin `version` is the update cache
+  key, so an unbumped plugin never delivers the change to consumers.
+- Runtime is untouched: each installed plugin stays self-contained under cache isolation, with no
+  cross-plugin coupling and no change to the one-plugin install UX.
+
+Alternatives weighed (docs verified 2026-07-03):
+
+- **Dependency plugin carrying the lib — rejected as not viable.** A hook sees only its own
+  `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}`; no variable or documented mechanism exposes a
+  *dependency's* install path, and cache directories are per-version (with a commit-SHA suffix for
+  tag-resolved dependencies), so computing the path is unsupported by design (plugins-reference
+  "Plugin caching and file resolution"; plugin-dependencies guide). Revisit iff Claude Code ships a
+  documented dependency-path variable — that would also allow sharing the lib beyond this marketplace.
+- **Marketplace-internal symlinks — deferred.** Documented mechanism: a symlink from a plugin to a
+  file elsewhere in the same marketplace is dereferenced at install, copying the target's content into
+  the cache — native SSOT with no sync script (plugins-reference "Share files within a marketplace
+  with symlinks"). Deferred because such symlinks are *skipped* for `--plugin-dir` / local-path
+  installs (breaking the local development loop above) and are fragile to author and clone on Windows,
+  the primary environment on both the authoring and consuming side. Revisit if the dev loop stops
+  depending on `--plugin-dir` or the Windows constraint lifts.
+- **Copies with only a byte-identity CI gate — subsumed.** The chosen shape is that gate plus a
+  canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
+
+Known follow-up: the four `hooks/hook-utils.test.sh` suites test the same lib but have diverged (four
+distinct files; the newest has more cases). Consolidating them into one suite is deferred to the next
+behavioral lib change.
+
 ## What to wait on / avoid for now
 
 - Don't pre-build cross-plugin `dependencies` graphs until two plugins genuinely share a need.
-- Don't abstract a shared library before a second consumer exists (Rule of Three).
+- Don't abstract a shared library before a second consumer exists (Rule of Three); at the threshold,
+  the shared-code decision record above is the settled shape — extend it rather than re-deciding.
 - Don't rely on any mechanism not confirmed from current docs this session — if a customization need has
   no proven native path yet, record it here as a gap and keep the workaround in the consumer's repo until
   the native mechanism is verified.
