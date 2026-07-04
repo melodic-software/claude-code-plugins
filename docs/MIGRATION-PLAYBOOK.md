@@ -200,9 +200,9 @@ Alternatives weighed (docs verified 2026-07-03):
 - **Copies with only a byte-identity CI gate — subsumed.** The chosen shape is that gate plus a
   canonical source and one sync script, removing the edit-×N-by-hand step at negligible cost.
 
-Known follow-up: the four `hooks/hook-utils.test.sh` suites test the same lib but have diverged (four
-distinct files; the newest has more cases). Consolidating them into one suite is deferred to the next
-behavioral lib change.
+The lib's unit tests live beside the source as one consolidated suite (`lib/hook-utils.test.sh`,
+run by the same CI lane) rather than as per-plugin copies — byte-identity of the copies means
+testing the source covers them. Plugins keep only their own black-box hook contract tests.
 
 ## What to wait on / avoid for now
 
