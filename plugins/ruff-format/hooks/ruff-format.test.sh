@@ -263,6 +263,29 @@ else
   fail "version-floor syntax not flagged: $OUT"
 fi
 
+# --- Case 4e: consumer unsafe-fixes = true -> unsafe fix NOT applied ---------
+# A consumer config may set unsafe-fixes = true for interactive runs; the
+# hook's fix pass passes --no-unsafe-fixes so the unattended edit-time pass
+# never applies fixes Ruff labels as possibly not intent-preserving. E712's
+# fix (x == True -> x) is such a fix: the comparison must survive and the
+# finding surface as advisory instead.
+REPO_UNSAFE="$WORK/unsafe-fixes"
+new_ruff_repo "$REPO_UNSAFE" 'unsafe-fixes = true'
+printf 'x = 1\nif x == True:\n    pass\n' >"$REPO_UNSAFE/u.py"
+OUT=$(run_hook "$REPO_UNSAFE/u.py")
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "unsafe-fixes config -> exit 0 (advisory)"; else fail "unsafe-fixes config exit $RC"; fi
+if grep -q 'x == True' "$REPO_UNSAFE/u.py"; then
+  ok "unsafe fix NOT applied despite unsafe-fixes = true"
+else
+  fail "unsafe fix applied (intent-changing rewrite): $(cat "$REPO_UNSAFE/u.py")"
+fi
+if printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -q 'E712'; then
+  ok "unsafe-fixable finding surfaced as advisory instead"
+else
+  fail "E712 not reported: $OUT"
+fi
+
 # --- Case 5: config excludes the edited file -> untouched, no nag ------------
 # --force-exclude honors the config's excludes even for an explicitly-passed
 # path. An excluded file must be left untouched with no advisory noise.
