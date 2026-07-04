@@ -1,12 +1,16 @@
 # shellcheck shell=bash
-# Minimal hook utility library for the markdown-formatter plugin.
-# Sourced (not executed). Trimmed subset of a larger shared library — only the
-# functions this plugin's hook needs: kill switch, file_path parsing + path
-# normalization, repo-root resolution, and the additionalContext accumulator.
+# Shared hook utility library for this marketplace's hook plugins. Sourced
+# (not executed): kill switch, file_path parsing + path normalization,
+# repo-root resolution, additionalContext accumulator, telemetry envelope.
+#
+# SINGLE SOURCE OF TRUTH: lib/hook-utils.sh at the marketplace repo root. The
+# copies at plugins/*/hooks/hook-utils.sh exist because installed plugins are
+# cache-isolated and must be self-contained — never edit a copy. Edit the
+# source and run scripts/sync-hook-utils.sh; CI rejects drifted copies.
 
 # Guard against double-sourcing.
-[[ -n "${_MDFMT_HOOK_UTILS_LOADED:-}" ]] && return 0
-readonly _MDFMT_HOOK_UTILS_LOADED=1
+[[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
+readonly _HOOK_UTILS_LOADED=1
 
 # Per-hook kill switch via HOOK_<NAME>_ENABLED env var. Exits 0 (allow) if
 # disabled. Place after source, before stdin parsing.

@@ -183,6 +183,24 @@ jobs:
     with:
       paths: .
 
+  hook-utils-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin copies match the shared lib
+        run: scripts/sync-hook-utils.sh --check
+      - name: Verify carrying plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
+
   ci-status:
     if: always()
     needs:
@@ -197,6 +215,7 @@ jobs:
       - machine-specific-paths
       - eol-renormalize
       - comment-hygiene
+      - hook-utils-sync
       - zizmor
     runs-on: ubuntu-latest
     timeout-minutes: 15
