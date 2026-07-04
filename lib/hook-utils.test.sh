@@ -434,6 +434,32 @@ fi
 
 rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
 
+# --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
+# Producers gate telemetry-payload construction on this, so its verdict must
+# track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any
+# non-empty value is enabled.
+unset HOOK_TELEMETRY_SINK 2>/dev/null || true
+if hook::telemetry_enabled; then
+  fail "telemetry_enabled: sink unset reported enabled"
+else
+  ok "telemetry_enabled: sink unset → disabled"
+fi
+
+HOOK_TELEMETRY_SINK=""
+if hook::telemetry_enabled; then
+  fail "telemetry_enabled: empty sink reported enabled"
+else
+  ok "telemetry_enabled: empty sink → disabled"
+fi
+
+HOOK_TELEMETRY_SINK="/some/sink.sh"
+if hook::telemetry_enabled; then
+  ok "telemetry_enabled: non-empty sink → enabled"
+else
+  fail "telemetry_enabled: non-empty sink reported disabled"
+fi
+unset HOOK_TELEMETRY_SINK
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
