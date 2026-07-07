@@ -26,4 +26,13 @@ exclude = [
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://example\.(com|org)',
+  # PRIVATE GitHub repos: valid links for authenticated collaborators, but the
+  # online lane's credential is the calling repo's GITHUB_TOKEN (or nothing
+  # locally), which cannot read any other private repo, so GitHub answers 404.
+  # Listed per repo, not per owner, so links to public siblings stay checked.
+  # Keep in sync with actual visibility: add newly created private repos here;
+  # drop an entry when its repo goes public. The optional \.git arm covers
+  # HTTPS clone URLs, which end in a dot and so miss the [/#?] boundary.
+  '^https?://github\.com/kyle-sexton/(dotfiles|provisioning|github-iac)(\.git)?([/#?]|$)',
+  '^https?://github\.com/melodic-software/(standards|github-iac|medley)(\.git)?([/#?]|$)',
 ]
