@@ -2,10 +2,9 @@
 # Config reference: https://github.com/crate-ci/typos/blob/master/docs/reference.md
 # Identifiers vs words:  https://github.com/crate-ci/typos/blob/master/docs/design.md
 #
-# Decoupled base config: only repo-agnostic ignores live here. typos already
-# respects .gitignore and skips binary files, so the lists below stay minimal.
-# Adopters extend [default.extend-words], [default.extend-identifiers], and
-# [files] extend-exclude with their own domain vocabulary and vendored paths.
+# Base config synced verbatim to consumers (Track B; read-only downstream).
+# typos already respects .gitignore and skips binary files, so the lists below
+# stay minimal.
 
 [default]
 extend-ignore-re = [
@@ -22,14 +21,23 @@ extend-ignore-re = [
   "\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}",
 ]
 
-# Domain words / proper nouns (case-insensitive) and whole-token identifiers
-# (case-sensitive) are repo-specific — adopters add them, the base ships none:
-#
-#   [default.extend-words]
-#   ASO = "ASO"
-#
-#   [default.extend-identifiers]
-#   seeked = "seeked"
+# Domain words / proper nouns (case-insensitive, [default.extend-words]) and
+# whole-token identifiers (case-sensitive, below): the base carries the
+# CONSTELLATION-WIDE UNION. This file is synced verbatim to consumers and typos
+# has no config layering, so a repo-specific exception cannot survive as a
+# local edit — route it here via an upstream PR (decided 2026-07-06,
+# superseding the copy-adoption-era "adopters add them locally" guidance).
+# Each entry only skips its exact token, so the union is inert outside the
+# repos that need it; keep every entry annotated.
+[default.extend-identifiers]
+# Win32 APPBARDATA variable ($abd) — dotfiles set-windows-prefs (taskbar auto-hide).
+abd = "abd"
+# Business Associate Agreements (HIPAA) — provisioning.
+BAAs = "BAAs"
+# Features on Demand (Windows optional-feature packaging) — provisioning.
+FoD = "FoD"
+# NIC power-management registry value name — provisioning.
+PnPCapabilities = "PnPCapabilities"
 
 [files]
 # typos respects .gitignore by default, so only tracked paths that should never
