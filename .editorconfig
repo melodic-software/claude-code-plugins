@@ -52,8 +52,12 @@ end_of_line = crlf
 [{.gitconfig,*.gitconfig,dot_gitconfig*}]
 indent_style = tab
 
-# Lockfiles — generated; suppress formatting enforcement.
-[{package-lock.json,*.lock}]
+# Lockfiles — generated; suppress formatting enforcement. packages.lock.json is
+# NuGet's lock file (written by restore with platform line endings and no final
+# newline — hence end_of_line is unset too; .gitattributes still normalizes the
+# committed bytes to LF).
+[{package-lock.json,packages.lock.json,*.lock}]
+end_of_line = unset
 indent_size = unset
 insert_final_newline = unset
 trim_trailing_whitespace = unset

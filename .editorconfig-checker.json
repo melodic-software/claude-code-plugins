@@ -15,6 +15,7 @@
     "node_modules/",
     "obj/",
     "package-lock\\.json$",
+    "packages\\.lock\\.json$",
     "\\.venv/"
   ],
   "AllowedContentTypes": [],

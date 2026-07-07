@@ -37,8 +37,9 @@
 # Lockfiles — tracked, but suppress noisy diffs (regenerate to resolve).
 ###############################################################################
 
-package-lock.json  -diff
-*.lock             -diff
+package-lock.json   -diff
+packages.lock.json  -diff
+*.lock              -diff
 
 ###############################################################################
 # Binary — no line-ending conversion, no diff.
