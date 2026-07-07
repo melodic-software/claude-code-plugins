@@ -78,9 +78,11 @@ chp::scan_text() {
     fi
 
     # owner/repo#N — same- or cross-repo issue reference (e.g. org/app#123). The
-    # leading boundary excludes '.' so a dotted URL host (e.g. example.com/page#2)
-    # is not misread as an owner/repo segment.
-    if [[ "$line" =~ (^|[^[:alnum:]_/.])[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+ ]]; then
+    # leading boundary excludes '.' and '-' so a dotted/hyphenated URL host (e.g.
+    # example.com/page#2 or foo-example.com/page#2) is not misread as an
+    # owner/repo segment; owners that themselves contain '-' still match because
+    # '-' is excluded only at the boundary, not inside the owner character class.
+    if [[ "$line" =~ (^|[^[:alnum:]_/.-])[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+ ]]; then
       printf '%s:tracker-ref:repo-issue\n' "$lineno"
       violations=$((violations + 1))
       continue
