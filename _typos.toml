@@ -12,7 +12,9 @@ extend-ignore-re = [
   # blesses a convention: silence a single line, the following line, or a
   # block, without polluting the global allow-lists. Shell / JS comment forms.
   "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
-  "(#|//)\\s*spellchecker:ignore-next-line\\n.*",
+  # \r?\n tolerates a CRLF line ending, matching the CRLF-awareness of the sibling
+  # directives above (?Rm) and below (?s); a bare \n silently no-ops on a CRLF file.
+  "(#|//)\\s*spellchecker:ignore-next-line\\r?\\n.*",
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
   # Markdown / HTML comment form of the block directive — invisible in render.
   "(?s)<!--\\s*spellchecker:off\\s*-->.*?<!--\\s*spellchecker:on\\s*-->",

@@ -1,10 +1,11 @@
 root = true
 
-# Language/framework-agnostic base. Covers universal defaults plus the
-# languages with a presence in this repo (Markdown, shell, PowerShell) and the
-# generic Windows-native batch class. Language overlays (.NET, Python, …) extend
-# this file with their own source sections when adopted; they do not ship a
-# separate editorconfig.
+# Language/framework-agnostic base. Covers universal defaults plus per-type
+# sections for the file classes that appear across the platform: Markdown, shell,
+# PowerShell, config/serialization (JSON/YAML/TOML), JS/TS, Windows batch, git
+# config, and lockfiles. Deeper language overlays (.NET, Python, …) extend this
+# file with their own source sections when adopted; they do not ship a separate
+# editorconfig.
 #
 # .gitattributes is the single authority for line endings (it transforms bytes
 # on checkout); end_of_line here is an editor hint only.
@@ -28,8 +29,9 @@ indent_size = unset
 indent_size = 2
 
 # JavaScript / TypeScript — 2-space, matching Biome's formatter (the single
-# owner of JS/TS formatting; see modules/typescript). IndentSize is disabled in
-# the checker, so this is an editor hint that keeps editors aligned with Biome.
+# owner of JS/TS formatting; its config lives in the standards repo under
+# modules/typescript). IndentSize is disabled in the checker, so this is an
+# editor hint that keeps editors aligned with Biome.
 [*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}]
 indent_size = 2
 
