@@ -37,11 +37,6 @@ indent_size = 2
 [*.{sh,bash}]
 indent_size = 2
 
-# PowerShell — LF runs on both PowerShell 7 and Windows PowerShell 5.1 (verified
-# empirically). See the .gitattributes note before changing this to crlf.
-[*.{ps1,psm1,psd1}]
-indent_size = 4
-
 # Windows batch — cmd.exe requires CRLF.
 [*.{cmd,bat}]
 end_of_line = crlf
