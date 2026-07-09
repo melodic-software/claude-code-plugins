@@ -83,6 +83,47 @@ For each skill/hook/agent being migrated:
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
     itself** — a bad entry surfaces only there, not in per-plugin validation. Document the plugin in the README.
 
+## Plugin-acceptance security review
+
+A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted
+here — new, or a version bump that adds a trust surface — passes this review** in addition to the migration
+gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
+Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `CLAUDE.md` fresh-docs mandate.
+
+1. **Code execution — hooks & scripts.** A hook command runs shell on the consumer's machine on matched events,
+   with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, `${user_config.*}`, and any
+   `${ENV_VAR}` interpolated in. Check: which binaries it spawns; whether it mutates files in place and is
+   **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
+   input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
+   (`HOOK_<PLUGIN>_ENABLED`) exists.
+2. **Remote MCP servers — `.mcp.json` / inline in `plugin.json`.** **Net-new surface** — no current plugin
+   ships one. A plugin's MCP server **starts automatically when the plugin is enabled** (subject to per-server
+   approval). Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
+   to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine** — a remote
+   server receives whatever Claude sends and, if it returns external content, is a prompt-injection vector
+   (official guidance: "Verify you trust each server before connecting it"); auth shape (header/Bearer/OAuth)
+   with any token sourced from `userConfig` `sensitive` or an env var, **never hardcoded**; a stated reason the
+   capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
+   explicit recorded trust decision naming the vendor, the data egress, and the token scope.
+3. **Consumer config — `userConfig`.** Any credential/token option MUST set `"sensitive": true` — that masks
+   input and stores the value in the system keychain (or `~/.claude/.credentials.json`), **not** `settings.json`.
+   Non-sensitive values land in `settings.json` under `pluginConfigs[<id>].options` and are readable — never put
+   a secret there. Endpoints and toggles are fine as non-sensitive. Every option is documented.
+4. **Cache isolation — no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
+   persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no absolute paths, no reading consumer files
+   outside `${CLAUDE_PROJECT_DIR}`.
+5. **Data egress — telemetry & network.** Any telemetry (e.g. `HOOK_TELEMETRY_SINK`) is opt-in (unset = exact
+   no-op), never writes to the hook's stdout/`additionalContext` channel, and emits only the declared envelope —
+   no payload beyond the documented schema. Name any other outbound network call and justify it.
+6. **Provenance & third-party trust.** Verify authorship (does `plugin.json` `author` match who actually
+   submitted the PR?), license, and that the source is what it claims. A plugin that promotes or wires a
+   third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
+   plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
+   don't design around that.
+
+Record accept/deny + rationale for any plugin touching surfaces 2, 5, or 6; a later version bump that
+introduces a new surface re-triggers this review.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and

@@ -43,8 +43,12 @@ Machine-readable JSON Schemas (editor validation for the JSON in this repo; Clau
   plugin via `${CLAUDE_PLUGIN_ROOT}`; persist state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs.
 - **No PII / secrets.** Public repo + permanent git history: scrub before the first commit, not after.
 - **Versioned.** Set an explicit semver `version` in each `plugin.json` so consumers update on bumps.
+- **Security-reviewed.** Every plugin clears the playbook's plugin-acceptance security review before publish —
+  code execution, remote MCP servers, config secrets, cache isolation, data egress, and third-party trust.
+  Deny by default on unjustified egress or trust delegation.
 
 ## Process
 
-The full design charter, extensibility model, plugin-form caveats, and per-plugin migration gate live
-in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow it for every migration.
+The full design charter, extensibility model, plugin-form caveats, per-plugin migration gate, and the
+plugin-acceptance security review live in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow it
+for every migration.
