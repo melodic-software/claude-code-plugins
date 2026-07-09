@@ -1,4 +1,4 @@
-# Melodic Software — Claude Code plugins
+# Melodic Software - Claude Code plugins
 
 A public [Claude Code](https://code.claude.com/docs) plugin marketplace of reusable, repo-agnostic
 skills, hooks, and agents. Each plugin is designed to work in any repository and to be customized by
@@ -24,15 +24,16 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`bash-lint`](plugins/bash-lint) | Hook | Lints shell scripts on edit via ShellCheck, and formats via shfmt when the repo opts in with an `.editorconfig`, using the consuming repo's own config. |
 | [`biome-format`](plugins/biome-format) | Hook | Formats and lints JS/TS/JSX/JSON on edit via Biome, only when the repo opts in with a `biome.json`, using the consuming repo's own Biome config. |
 | [`ruff-format`](plugins/ruff-format) | Hook | Formats and lints Python on edit via Ruff, only when the repo opts in with a Ruff config (`ruff.toml`, `.ruff.toml`, or `pyproject.toml` `[tool.ruff]`), using the consuming repo's own Ruff config. |
+| [`xquik-x-data`](plugins/xquik-x-data) | Skill + MCP | Guides Xquik API, MCP, SDK, and webhook workflows for X data tasks. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
 ## What's here
 
-- `.claude-plugin/marketplace.json` — the marketplace catalog.
-- `plugins/` — one directory per plugin.
-- `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, and the per-plugin migration gate.
-- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
+- `.claude-plugin/marketplace.json` - the marketplace catalog.
+- `plugins/` - one directory per plugin.
+- `docs/MIGRATION-PLAYBOOK.md` - design charter, extensibility model, and the per-plugin migration gate.
+- `CLAUDE.md` - operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
 
 ## Official documentation
 

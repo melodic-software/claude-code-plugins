@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, and agents.",
+  "description": "Reusable, repo-agnostic Claude Code plugins - skills, hooks, and agents.",
   "plugins": [
     {
       "name": "markdown-formatter",
@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "xquik-x-data",
+      "source": "./plugins/xquik-x-data",
+      "category": "data",
+      "tags": ["xquik", "x-data", "mcp", "api", "webhooks"]
     }
   ]
 }

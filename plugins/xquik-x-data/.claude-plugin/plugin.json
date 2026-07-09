@@ -1,0 +1,10 @@
+{
+  "name": "xquik-x-data",
+  "version": "1.0.0",
+  "description": "Use Xquik's X data API, MCP endpoint, SDKs, and webhooks from Claude Code.",
+  "author": {
+    "name": "Xquik",
+    "url": "https://github.com/Xquik-dev/x-twitter-scraper"
+  },
+  "keywords": ["xquik", "x-data", "mcp", "api", "webhooks"]
+}
