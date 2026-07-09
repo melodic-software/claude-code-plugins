@@ -20,4 +20,4 @@ jobs:
   pr-title:
     permissions:
       pull-requests: read
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@2bb57ddba29c7fec1db643a577aae54bef5a1dc2
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@2275e82c502d29b468e3ee2b9c11b2de69b1677f
