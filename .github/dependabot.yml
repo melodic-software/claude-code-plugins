@@ -8,6 +8,12 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    # Only the `dependencies` label (already in the governed taxonomy). This overrides
+    # Dependabot's defaults, suppressing the auto-created snake_case `github_actions`
+    # ecosystem label — the label every downstream tool ignores anyway (release notes
+    # group on `dependencies`; auto-merge, unused here, keys on fetch-metadata outputs).
+    labels:
+      - dependencies
     schedule:
       interval: weekly
     commit-message:
