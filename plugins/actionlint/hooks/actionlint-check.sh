@@ -95,7 +95,7 @@ fi
 # (2) adds latency unsuited to an edit-time advisory hook. Native workflow
 # diagnostics (the value of this hook) are unaffected; deep embedded-bash linting
 # belongs in a commit hook or CI, not here.
-AL_OUTPUT=$(actionlint -shellcheck= "$FILE" 2>&1) || true
+AL_OUTPUT=$(actionlint -shellcheck= -- "$FILE" 2>&1) || true
 
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
