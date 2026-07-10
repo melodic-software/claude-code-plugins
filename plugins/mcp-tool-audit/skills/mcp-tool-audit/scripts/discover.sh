@@ -162,7 +162,7 @@ while IFS= read -r file; do
       | sed $'s/^[\'"]//; s/[\'"]$//')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" typescript "$rel" "$tool_name" "$line_num"
-  done < <(grep -nE '^[[:space:]]*server\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
+  done < <(grep -nE '^[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
 done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
   ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' \
   ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | LC_ALL=C sort)
@@ -189,7 +189,7 @@ while IFS= read -r file; do
     done
     [[ -z "$tool_name" ]] && continue
     add_record "$server" python "$rel" "$tool_name" "$line_num"
-  done < <(grep -n '@mcp\.tool' "$file" 2>/dev/null | tr -d '\r' || true)
+  done < <(grep -nE '^[[:space:]]*@mcp\.tool' "$file" 2>/dev/null | tr -d '\r' || true)
 done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.py' \
   ! -path '*/.venv/*' ! -path '*/__pycache__/*' \
   ! -name '*_test.py' ! -name 'test_*.py' 2>/dev/null | LC_ALL=C sort)
@@ -214,7 +214,10 @@ while IFS= read -r file; do
       offset=$((offset + 1))
     done
     [[ -z "$method_line" ]] && continue
-    tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).*[[:space:]]\+\([A-Za-z0-9_]*\)[[:space:]]*(.*/\2/p')"
+    # A client-facing name on the attribute wins over the method name:
+    # [McpServerTool(Name = "inventory_list_items")] is what clients see.
+    tool_name="$(printf '%s' "${hit#*:}" | sed -n 's/.*\[McpServerTool[^]]*Name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p')"
+    [[ -z "$tool_name" ]] && tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).*[[:space:]]\+\([A-Za-z0-9_]*\)[[:space:]]*(.*/\2/p')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" dotnet "$rel" "$tool_name" "$line_num"
   done < <(grep -nE '\[McpServerTool[^A-Za-z0-9_]' "$file" 2>/dev/null | tr -d '\r' || true)

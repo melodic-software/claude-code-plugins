@@ -73,7 +73,7 @@ The spec defines tool annotations as OPTIONAL — so every criterion here is WAR
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid** — the tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and `inputSchema` is a valid non-null JSON Schema object | ANTHROPIC + SPEC-MUST | WARN (FAIL if `inputSchema` is missing or not a valid JSON Schema object) | The spec requires `inputSchema` to be a valid JSON Schema object (not `null`) — a violation is FAIL. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid** — the tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | The spec requires the wire-level `inputSchema` to be a valid JSON Schema object (not `null`). When auditing SOURCE (not a live server), SDK-native schema forms count as valid — the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints (FastMCP), .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## Scoring
 

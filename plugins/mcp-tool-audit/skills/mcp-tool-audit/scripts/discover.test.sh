@@ -67,12 +67,22 @@ server.registerTool(
   { description: "Invalid name for C9." },
   async () => ({})
 );
+mcpServer.registerTool(
+  "custom_variable_tool",
+  { description: "Registered on a non-'server' variable." },
+  async () => ({})
+);
 TS
 
 cat >"$proj/reports/python/server.py" <<'PY'
 @mcp.tool
 def get_report(report_id: str) -> str:
     """Get a report."""
+    return ""
+
+# @mcp.tool
+def disabled_example(x: str) -> str:
+    """Commented-out decorator; NOT a registered tool."""
     return ""
 PY
 
@@ -89,6 +99,9 @@ public class InventoryTools
     [McpServerTool]
     [Description("Removes an item.")]
     public string RemoveItem(string boardId) => "";
+
+    [McpServerTool(Name = "inventory_rename_item")]
+    public string RenameItem(string boardId) => "";
 }
 CS
 
@@ -121,6 +134,16 @@ assert_contains "python tool discovered" "$out" "Tool: get_report"
 assert_contains "dotnet tool discovered" "$out" "Tool: ListItems"
 assert_contains "dotnet combined-attribute tool discovered" "$out" "Tool: AddItem"
 assert_contains "dotnet separate-Description tool discovered" "$out" "Tool: RemoveItem"
+assert_contains "dotnet attribute Name wins over method name" "$out" "Tool: inventory_rename_item"
+assert_contains "typescript non-'server' variable discovered" "$out" "Tool: custom_variable_tool"
+case "$out" in
+  *disabled_example*) fail "commented-out python decorator excluded" "no disabled_example" ;;
+  *) pass "commented-out python decorator excluded" ;;
+esac
+case "$out" in
+  *"Tool: RenameItem"*) fail "attribute-named dotnet tool not duplicated under method name" "no RenameItem" ;;
+  *) pass "attribute-named dotnet tool not duplicated under method name" ;;
+esac
 assert_contains "dotnet class attribute does not duplicate tool" "$out" "Tool: ListItems"
 case "$out" in
   *"Tool: ListItems"*)
