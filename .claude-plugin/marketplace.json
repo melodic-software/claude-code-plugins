@@ -50,6 +50,12 @@
       "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
     },
     {
+      "name": "actionlint",
+      "source": "./plugins/actionlint",
+      "category": "formatting",
+      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
+    },
+    {
       "name": "improve-architecture",
       "source": "./plugins/improve-architecture",
       "category": "architecture",
