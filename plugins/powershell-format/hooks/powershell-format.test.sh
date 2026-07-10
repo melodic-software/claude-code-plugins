@@ -320,6 +320,75 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.ps1")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
 
+# --- Case 8: UTF-8 BOM survives a reformat (encoding preservation) -----------
+# pwsh's Set-Content default (utf8NoBOM) would strip the BOM on the first
+# auto-format; the hook must write back with the detected original encoding.
+printf '\xEF\xBB\xBFget-childitem -Path '"'"'.'"'"'\n' >"$REPO/bom.ps1"
+OUT=$(run_hook "$REPO/bom.ps1")
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "BOM file -> exit 0"; else fail "BOM file exit $RC"; fi
+if grep -q 'Get-ChildItem' "$REPO/bom.ps1"; then ok "BOM file -> casing fixed (formatter ran)"; else fail "BOM file -> casing not fixed: $(cat "$REPO/bom.ps1")"; fi
+BOM_HEX=$(head -c 6 "$REPO/bom.ps1" | od -An -tx1 | tr -d ' \n')
+if [[ "$BOM_HEX" == "efbbbf476574" ]]; then
+  ok "BOM file -> single UTF-8 BOM preserved on write-back"
+else
+  fail "BOM file -> leading bytes changed: $BOM_HEX (expected efbbbf476574)"
+fi
+
+# --- Case 9: legacy ANSI (invalid UTF-8) -> skipped byte-identical ------------
+# A BOM-less file that is not valid UTF-8 cannot be round-tripped safely; the
+# hook must skip it (exit 5 arm) rather than transcode. Wrong casing proves the
+# skip: had the formatter run, it would have rewritten it.
+printf 'write-output "caf\xE9"\n' >"$REPO/ansi.ps1"
+ANSI_HEX_BEFORE=$(od -An -tx1 <"$REPO/ansi.ps1" | tr -d ' \n')
+OUT=$(run_hook "$REPO/ansi.ps1")
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "ANSI file -> exit 0 silent skip"; else fail "ANSI file (rc=$RC out=$OUT)"; fi
+if [[ "$(od -An -tx1 <"$REPO/ansi.ps1" | tr -d ' \n')" == "$ANSI_HEX_BEFORE" ]]; then
+  ok "ANSI file -> byte-identical (never transcoded)"
+else
+  fail "ANSI file -> bytes changed"
+fi
+
+# --- Case 10: relative CustomRulePath resolves from the settings dir ----------
+# PSScriptAnalyzer resolves a relative CustomRulePath from the current
+# PowerShell location; the hook runs from an unrelated cwd, so it must anchor
+# at the settings directory first. Without that anchor this repo's analysis
+# throws (rule path not found) -> tool break; with it, the format applies.
+REPO_CRP="$WORK/customrule"
+new_repo "$REPO_CRP" NO_SETTINGS
+mkdir -p "$REPO_CRP/rules"
+cat >"$REPO_CRP/rules/CleanRules.psm1" <<'EOF'
+function Measure-AlwaysClean {
+    [CmdletBinding()]
+    [OutputType('Microsoft.Windows.PowerShell.ScriptAnalyzer.Generic.DiagnosticRecord[]')]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Management.Automation.Language.ScriptBlockAst]$ScriptBlockAst
+    )
+    return
+}
+Export-ModuleMember -Function Measure-AlwaysClean
+EOF
+cat >"$REPO_CRP/PSScriptAnalyzerSettings.psd1" <<'EOF'
+@{
+    CustomRulePath = './rules/CleanRules.psm1'
+    IncludeRules = @('PSUseCorrectCasing', 'Measure-AlwaysClean')
+    Rules = @{
+        PSUseCorrectCasing = @{ Enable = $true }
+    }
+}
+EOF
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp.ps1"
+OUT=$(run_hook "$REPO_CRP/crp.ps1")
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "CustomRulePath -> exit 0, no tool break"; else fail "CustomRulePath (rc=$RC out=$OUT)"; fi
+if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
+  ok "CustomRulePath -> relative rule path resolved, formatter ran"
+else
+  fail "CustomRulePath -> formatter did not run: $(cat "$REPO_CRP/crp.ps1")"
+fi
+
 # ============================================================================
 # Telemetry
 # ============================================================================

@@ -159,6 +159,8 @@ PSSA_SETTINGS_ARG="$(to_pwsh_path "$SETTINGS_FOUND")"
 #   exit 0  clean
 #   exit 1  findings (written to stderr, one line each)
 #   exit 4  Invoke-Formatter / Invoke-ScriptAnalyzer threw -> tool break
+#   exit 5  file is neither BOM'd nor valid UTF-8 (legacy ANSI) -> clean skip
+#           (cannot round-trip the bytes safely, so never rewrite)
 # SC2016: PowerShell uses $env:VAR syntax inside single quotes — not bash expansion.
 # shellcheck disable=SC2016
 PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
@@ -170,7 +172,29 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
         $file = $env:PSSA_FILE
         $settings = $env:PSSA_SETTINGS
 
-        $original = Get-Content -Raw -LiteralPath $file
+        # Relative CustomRulePath entries in the settings file resolve from the
+        # current PowerShell location, and the hook inherits whatever cwd the
+        # agent happened to use — anchor at the settings directory so
+        # repo-relative rule paths resolve the way the repo intended.
+        Set-Location -LiteralPath (Split-Path -Parent $settings)
+
+        # Read with BOM detection and remember the encoding so the write-back
+        # preserves the original byte shape (UTF-8 with/without BOM, UTF-16
+        # LE/BE). Get-Content/Set-Content would rewrite with the shell default
+        # (utf8NoBOM on pwsh), stripping a BOM or transcoding UTF-16 on the
+        # first auto-format. Strict UTF-8 is the BOM-less fallback: a file that
+        # fails it (legacy ANSI) cannot be round-tripped safely -> exit 5.
+        $sr = $null
+        try {
+            $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+            $sr = [System.IO.StreamReader]::new($file, $strictUtf8, $true)
+            $original = $sr.ReadToEnd()
+            $enc = $sr.CurrentEncoding
+        } catch [System.Text.DecoderFallbackException] {
+            exit 5
+        } finally {
+            if ($sr) { $sr.Dispose() }
+        }
         if ($null -eq $original) { $original = "" }
         $formatted = Invoke-Formatter -ScriptDefinition $original -Settings $settings
         # -cne (case-SENSITIVE) is load-bearing: PowerShell string -ne is
@@ -181,7 +205,7 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
             if (-not $formatted.EndsWith("`n")) {
                 $formatted += "`n"
             }
-            Set-Content -LiteralPath $file -Value $formatted -NoNewline
+            [System.IO.File]::WriteAllText($file, $formatted, $enc)
         }
 
         # Invoke-ScriptAnalyzer has no -LiteralPath (verified against module
@@ -240,6 +264,12 @@ case $PWSH_EXIT in
   # PSScriptAnalyzer module not installed — the repo opted into a settings file
   # but the analyzer is not present; nothing to run. Clean silent skip, the same
   # status as the no-settings / no-pwsh paths.
+  emit_skipped
+  ;;
+5)
+  # File is neither BOM'd nor valid UTF-8 (legacy ANSI) — rewriting it would
+  # transcode bytes the hook cannot round-trip. Clean silent skip; the repo's
+  # commit hook / CI remains the gate for such files.
   emit_skipped
   ;;
 *)
