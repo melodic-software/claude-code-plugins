@@ -56,6 +56,12 @@
       "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
     },
     {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "category": "security",
+      "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
+    },
+    {
       "name": "bug-report",
       "source": "./plugins/bug-report",
       "category": "workflow",
