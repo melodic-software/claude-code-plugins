@@ -44,6 +44,12 @@
       "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
     },
     {
+      "name": "powershell-format",
+      "source": "./plugins/powershell-format",
+      "category": "formatting",
+      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
+    },
+    {
       "name": "prototype",
       "source": "./plugins/prototype",
       "category": "workflow",
