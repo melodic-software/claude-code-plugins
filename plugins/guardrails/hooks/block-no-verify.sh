@@ -143,6 +143,7 @@ resolve_git_index() {
         case "${w[i]}" in
         -u | -C | --chdir) ((i += 2)) ;;
         -*) ((i++)) ;;
+        *) ((i++)) ;;
         esac
       done
       continue
@@ -160,6 +161,7 @@ resolve_git_index() {
         case "${w[i]}" in
         -u | -g | -h | -p | -C | -D | -R | -T | --user | --group | --chdir) ((i += 2)) ;;
         -*) ((i++)) ;;
+        *) ((i++)) ;;
         esac
       done
       continue
