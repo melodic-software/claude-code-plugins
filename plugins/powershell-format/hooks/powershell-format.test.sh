@@ -339,7 +339,7 @@ fi
 # A BOM-less file that is not valid UTF-8 cannot be round-tripped safely; the
 # hook must skip it (exit 5 arm) rather than transcode. Wrong casing proves the
 # skip: had the formatter run, it would have rewritten it.
-printf 'write-output "caf\xE9"\n' >"$REPO/ansi.ps1"
+printf 'write-output "\xE9"\n' >"$REPO/ansi.ps1"
 ANSI_HEX_BEFORE=$(od -An -tx1 <"$REPO/ansi.ps1" | tr -d ' \n')
 OUT=$(run_hook "$REPO/ansi.ps1")
 RC=$?
