@@ -118,7 +118,7 @@ fi
 if [[ "$root" == "$project_root" ]]; then
   scan_prefix=""
 else
-  scan_prefix="${root#$project_root/}"
+  scan_prefix="${root#"$project_root"/}"
 fi
 
 if [[ ! -d "$root" ]]; then
