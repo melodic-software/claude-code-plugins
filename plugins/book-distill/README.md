@@ -19,9 +19,10 @@ target skill name.
 - **Multi-author merges** — where two books cover the same concept, their
   content is consolidated into a shared file.
 
-Output lands in a **target skill** inside your project (`.claude/skills/<target>/`) —
-either an existing skill it extends or a new one it creates. You name the target
-when you invoke the tool, so you always know where the output goes.
+Output lands in a **target skill** inside your project
+(`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`) — either an existing skill it
+extends or a new one it creates. You name the target when you invoke the tool, so
+you always know where the output goes.
 
 ## How it works
 
@@ -45,6 +46,11 @@ defense raised after the fact, not a safe harbor you can assume in advance.
 Publish, commit, or redistribute a distilled output only once you have satisfied
 yourself that doing so is lawful for that book. This is a caution, not legal
 advice.
+
+The distilled output is written into a skill that Claude later **auto-loads as
+model context** — so review it before you commit or share it: treat the source
+book as untrusted input and confirm the distillation reflects the book rather than
+any instructions injected through its text.
 
 ## Requirements
 
