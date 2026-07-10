@@ -1,0 +1,55 @@
+# actionlint
+
+A Claude Code plugin that lints GitHub Actions workflow files the moment you
+edit them. On every `Write` or `Edit` of a file under `.github/workflows/`
+(`*.yml` or `*.yaml`) it runs [actionlint](https://github.com/rhysd/actionlint)
+and surfaces any findings back to Claude as advisory context.
+
+It ships no rules of its own and no binary — it runs the `actionlint` already on
+your `PATH`.
+
+## Behavior
+
+- **Lint on edit.** actionlint runs on every edit of a workflow file. It is
+  non-mutating; it only reports.
+- **Advisory, never blocking.** The hook always exits `0`. Findings are reported
+  via `additionalContext`; they never reject the edit. Make a commit hook or CI
+  your hard gate.
+- **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
+  `.github/workflows/*.yaml` are linted. Other YAML is left alone.
+- **Embedded ShellCheck disabled (`-shellcheck=`).** actionlint's embedded-bash
+  ShellCheck integration is turned off. It spawns a ShellCheck subprocess per
+  `run:` block — which deadlocks on large blocks under the Windows subprocess IPC
+  path in actionlint 1.7.x and adds latency unsuited to an edit-time hook. Native
+  workflow diagnostics are unaffected; run the full integration in CI.
+- **Graceful degrade.** When `actionlint` is not on `PATH` the hook is a silent
+  no-op.
+
+## Requirements
+
+- **actionlint** on `PATH`. See the
+  [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install actionlint@melodic-software
+```
+
+## Configuration
+
+This plugin has no `userConfig`. actionlint auto-discovers its own
+`.github/actionlint.yaml` config from your repository when present.
+
+### Disable without uninstalling
+
+Set the kill switch in your settings `env` block:
+
+```json
+{ "env": { "HOOK_ACTIONLINT_ENABLED": "false" } }
+```
+
+## License
+
+[MIT](../../LICENSE).
