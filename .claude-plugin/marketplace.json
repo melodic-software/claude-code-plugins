@@ -60,6 +60,12 @@
       "source": "./plugins/guardrails",
       "category": "security",
       "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
+    },
+    {
+      "name": "bug-report",
+      "source": "./plugins/bug-report",
+      "category": "workflow",
+      "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
     }
   ]
 }

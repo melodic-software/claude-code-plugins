@@ -29,6 +29,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`powershell-format`](plugins/powershell-format) | Hook | Formats and lints PowerShell on edit via PSScriptAnalyzer, only when the repo opts in with a `PSScriptAnalyzerSettings.psd1`, using the consuming repo's own analyzer settings. |
 | [`actionlint`](plugins/actionlint) | Hook | Lints GitHub Actions workflow files (`.github/workflows/*.yml`/`.yaml`) on edit via the `actionlint` already on your `PATH` — advisory findings, never blocking. |
 | [`guardrails`](plugins/guardrails) | Hook | Bundles four independently-toggleable PreToolUse safety guards: secret-pattern detection, hardcoded machine-path check, git hook-bypass blocking (`--no-verify`, `core.hooksPath`, `LEFTHOOK=0`), and advisory CLI-flag verification. |
+| [`bug-report`](plugins/bug-report) | Skill | Turns an informal defect description into a structured five-field bug report (title, repro, expected vs actual, severity, fix location). Read-only — it captures, never fixes or files on its own. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
