@@ -48,6 +48,12 @@
       "source": "./plugins/powershell-format",
       "category": "formatting",
       "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "actionlint",
+      "source": "./plugins/actionlint",
+      "category": "formatting",
+      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
     }
   ]
 }
