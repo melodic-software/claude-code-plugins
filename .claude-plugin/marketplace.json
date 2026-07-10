@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "book-distill",
+      "source": "./plugins/book-distill",
+      "category": "knowledge",
+      "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
     }
   ]
 }
