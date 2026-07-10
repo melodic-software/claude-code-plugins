@@ -17,11 +17,12 @@ your `PATH`.
   your hard gate.
 - **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
   `.github/workflows/*.yaml` are linted. Other YAML is left alone.
-- **Embedded ShellCheck disabled (`-shellcheck=`).** actionlint's embedded-bash
-  ShellCheck integration is turned off. It spawns a ShellCheck subprocess per
-  `run:` block — which deadlocks on large blocks under the Windows subprocess IPC
-  path in actionlint 1.7.x and adds latency unsuited to an edit-time hook. Native
-  workflow diagnostics are unaffected; run the full integration in CI.
+- **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
+  actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
+  integrations are turned off. Each spawns a subprocess per `run:` block —
+  ShellCheck deadlocks on large blocks under the Windows subprocess IPC path in
+  actionlint 1.7.x, and either adds latency unsuited to an edit-time hook.
+  Native workflow diagnostics are unaffected; run the full integrations in CI.
 - **Graceful degrade.** When `actionlint` is not on `PATH` the hook is a silent
   no-op.
 

@@ -90,13 +90,13 @@ if ! command -v actionlint >/dev/null 2>&1; then
   exit 0
 fi
 
-# -shellcheck= disables actionlint's embedded-bash ShellCheck integration. That
-# integration spawns a ShellCheck subprocess per `run:` block, which (1) deadlocks
-# on large blocks under the Windows subprocess IPC path in actionlint 1.7.x and
-# (2) adds latency unsuited to an edit-time advisory hook. Native workflow
-# diagnostics (the value of this hook) are unaffected; deep embedded-bash linting
-# belongs in a commit hook or CI, not here.
-AL_OUTPUT=$(cd "$REPO_ROOT" && actionlint -shellcheck= -- "$FILE_REL" 2>&1) || true
+# -shellcheck= and -pyflakes= disable actionlint's external run-block linters
+# (embedded-bash ShellCheck, `shell: python` pyflakes). Both spawn a subprocess
+# per `run:` block — ShellCheck deadlocks on large blocks under the Windows
+# subprocess IPC path in actionlint 1.7.x, and either adds latency unsuited to
+# an edit-time advisory hook. Native workflow diagnostics (the value of this
+# hook) are unaffected; deep run-block linting belongs in a commit hook or CI.
+AL_OUTPUT=$(cd "$REPO_ROOT" && actionlint -shellcheck= -pyflakes= -- "$FILE_REL" 2>&1) || true
 
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
