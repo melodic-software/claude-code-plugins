@@ -38,19 +38,41 @@ run "git -c core.hookspath=/dev/null push (blocked)" "git -c core.hookspath=/dev
 run "cd foo && git -c core.hooksPath commit (compound, blocked)" "cd foo && git -c core.hooksPath=/dev/null commit -m test" 2
 run "quoted core.hooksPath prose (allowed)" 'echo "git -c core.hooksPath=/dev/null commit"' 0
 
-# --- Quote-stripping bypass regressions (P3) --------------------------------
-# The shell removes quotes before git parses argv, so a flag hidden by
-# argument-level quoting must still be caught.
+# --- Argv-faithful gate regressions (P3) ------------------------------------
+# The shell removes quotes/escapes before git parses argv, so quoting the git
+# executable, the subcommand, OR the flag must all still be caught.
 run "git commit \"--no-verify\" (quoted flag, blocked)" \
   'git commit "--no-verify" -m test' 2
 run "git commit --no-ver'ify' (partial-quote flag, blocked)" \
   "git commit --no-ver'ify' -m test" 2
 run "git commit \"-n\" (quoted short flag, blocked)" \
   'git commit "-n" -m test' 2
+run "git commit --no-\\verify (escaped flag, blocked)" \
+  'git commit --no-\verify -m test' 2
+run "\"git\" commit --no-verify (quoted executable, blocked)" \
+  '"git" commit --no-verify -m test' 2
+run "git \"commit\" --no-verify (quoted subcommand, blocked)" \
+  'git "commit" --no-verify -m test' 2
+run "g'i't commit --no-verify (split-quoted executable, blocked)" \
+  "g'i't commit --no-verify -m test" 2
 run "git -c \"core.hooksPath=…\" commit (quoted config, blocked)" \
   'git -c "core.hooksPath=/dev/null" commit -m test' 2
+run "\"git\" -c core.hooksPath=… commit (quoted exec + config, blocked)" \
+  '"git" -c core.hooksPath=/dev/null commit -m test' 2
 run "git -c 'core.hooksPath=…' push (single-quoted config, blocked)" \
   "git -c 'core.hooksPath=/dev/null' push" 2
+
+# --- Argv-faithful negatives — must NOT block (exit 0) ----------------------
+run "echo \"git commit --no-verify\" (quoted arg, allowed)" \
+  'echo "git commit --no-verify"' 0
+run "echo 'use git commit --no-verify never' (quoted arg, allowed)" \
+  "echo 'use git commit --no-verify never'" 0
+run "echo \"a && git commit --no-verify\" (operator in quotes, allowed)" \
+  'echo "a && git commit --no-verify"' 0
+run "\"git commit\" --no-verify (command-not-found form, allowed)" \
+  '"git commit" --no-verify -m test' 0
+run "git commit -m \"explain --no-verify\" (flag in message value, allowed)" \
+  'git commit -m "explain --no-verify"' 0
 
 # --- Form 2: hook-manager env-var bypass on git commit / push ---------------
 run "LEFTHOOK=0 git commit (blocked)" "LEFTHOOK=0 git commit -m test" 2

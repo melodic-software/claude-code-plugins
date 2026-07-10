@@ -25,11 +25,12 @@ but always allows the edit.
   disable env vars (husky, pre-commit, …) are **not** matched — but the
   manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
   bypasses regardless of which manager runs the hooks.
-- **Quote-transparent, fail-closed.** `block-no-verify` sees through
-  argument-level shell quoting (`git commit "--no-verify"` is caught). The
-  trade-off is fail-closed: a literal `--no-verify` token inside a commit message
-  (`git commit -m "explain --no-verify"`) is also blocked. Reword the message, or
-  use the kill switch for that one commit.
+- **Argv-faithful matching.** `block-no-verify` parses the command the way the
+  shell builds argv, so it sees through quoting/escaping of the git executable,
+  the subcommand, AND the flag — `"git" commit --no-verify`, `git "commit" …`,
+  `git commit "--no-verify"`, and `git commit --no-\verify` all block. A
+  `--no-verify` token INSIDE a quoted argument value (`git commit -m "explain
+  --no-verify"`) is a message, not a flag, and is correctly allowed.
 
 ## Per-hook kill switches
 
