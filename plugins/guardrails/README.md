@@ -18,6 +18,19 @@ The three blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The advisory guard surfaces its findings the same way
 but always allows the edit.
 
+### Scope notes
+
+- **Hook-manager coverage.** `block-no-verify` recognizes the **lefthook**
+  env-var disable prefix (`LEFTHOOK=0` / `LEFTHOOK_*=false`). Other managers'
+  disable env vars (husky, pre-commit, …) are **not** matched — but the
+  manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
+  bypasses regardless of which manager runs the hooks.
+- **Quote-transparent, fail-closed.** `block-no-verify` sees through
+  argument-level shell quoting (`git commit "--no-verify"` is caught). The
+  trade-off is fail-closed: a literal `--no-verify` token inside a commit message
+  (`git commit -m "explain --no-verify"`) is also blocked. Reword the message, or
+  use the kill switch for that one commit.
+
 ## Per-hook kill switches
 
 Each guard is toggled by its own env var (default **on**; set to `false` for a
@@ -70,7 +83,9 @@ as before.
 
 ## Requirements
 
-- **bash 5.0+** and **jq** — the guards' runtime.
+- **bash 5.0+** and **jq** — the guards' runtime. Without **jq**, each guard
+  fails **open** (disabled) and prints a one-line stderr notice — never a silent
+  disable.
 - On Windows, **Git Bash** (the hooks run via Git Bash's bash).
 - `cli-flag-verify` runs `<bin> --help` for the binaries it scans; findings
   require those binaries on PATH (missing binaries are skipped, never flagged).

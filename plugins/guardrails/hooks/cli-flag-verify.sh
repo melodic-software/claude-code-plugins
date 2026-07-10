@@ -33,6 +33,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "CLI_FLAG_VERIFY"
 
+# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
+# the degraded state visible rather than silently disabling the hook.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "guardrails/cli-flag-verify: jq not found on PATH — hook disabled (install jq to enable)." >&2
+  exit 0
+fi
+
 hook::ctx_reset
 
 # Bundled verifier — resolved under the plugin root (CC sets CLAUDE_PLUGIN_ROOT;
@@ -251,6 +258,12 @@ emit_tel() {
   else
     file_rel="${FILE#"$REPO_ROOT"/}"
   fi
+  # Redaction: if the path could not be made repo-relative, emit the basename
+  # only — never an absolute path (it would embed the developer's username).
+  case "$file_rel" in
+    /* | [A-Za-z]:*) file_rel="${file_rel##*/}"; file_rel="${file_rel##*\\}" ;;
+    *) ;;
+  esac
   if ((${#FAILURES[@]} > 0)); then
     local f raw="" bin rest chainstr flag disp
     for f in "${FAILURES[@]}"; do

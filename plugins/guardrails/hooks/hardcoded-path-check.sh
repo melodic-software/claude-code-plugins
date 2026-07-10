@@ -35,6 +35,13 @@ hook::check_enabled "HARDCODED_PATH_CHECK"
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
+# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
+# the degraded state visible rather than silently disabling the guard.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "guardrails/hardcoded-path-check: jq not found on PATH — guard disabled (install jq to enable)." >&2
+  exit 0
+fi
+
 # Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin` (Windows Git Bash
 # Win32-pipe ENOENT → silent no-op). Buffer once; parse each field from it.
 INPUT=$(cat)
@@ -102,6 +109,12 @@ if [[ -n "$PROJECT_ROOT" ]]; then
   _fwd="${FILE//\\//}"
   FILE_REL="${_fwd#"$_root"/}"
 fi
+# Redaction: if the path could not be made repo-relative, emit the basename only
+# — never an absolute path (it would embed the developer's username) into telemetry.
+case "$FILE_REL" in
+  /* | [A-Za-z]:*) FILE_REL="${FILE_REL##*/}"; FILE_REL="${FILE_REL##*\\}" ;;
+  *) ;;
+esac
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing.

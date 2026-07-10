@@ -117,6 +117,28 @@ OUT=$(HOOK_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json 
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
 
+# --- jq fail-open visibility (finding P4) -----------------------------------
+# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
+# cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
+# Assert the fail-open guard (visible notice, no silent disable) is present in
+# the hook source; the runtime path itself is a trivial `command -v jq` short.
+HOOK_SRC=$(cat "$HOOK")
+assert_contains "jq guard: command -v jq check present" "$HOOK_SRC" 'command -v jq'
+assert_contains "jq guard: visible stderr notice" "$HOOK_SRC" 'jq not found on PATH'
+assert_contains "jq guard: fail-open exit 0" "$HOOK_SRC" 'guard disabled'
+
+# --- Allowlist path-segment anchoring (finding P5) --------------------------
+# A real dependency-cache SEGMENT is exempt; a directory that merely CONTAINS the
+# name as a substring is scanned (and blocked on a real token).
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/src/node_modules/pkg/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+assert_exit "node_modules real segment → exit 0 (exempt)" 0 "$RC"
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/evil_node_modules/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+assert_exit "evil_node_modules substring → exit 2 (scanned)" 2 "$RC"
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv/lib/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+assert_exit ".venv real segment → exit 0 (exempt)" 0 "$RC"
+OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv-backup/creds.env" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
+
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
 SINK="$(make_sink "cat >\"$TEL\"")"
@@ -129,6 +151,23 @@ if wait_for_sink "$TEL"; then
   assert_absent "telemetry: no raw token in envelope" "$(cat "$TEL")" "$AWS_TOKEN"
 else
   bad "telemetry: no envelope written on block"
+fi
+
+# --- Telemetry path redaction (finding P4): absolute path (no project dir) →
+# --- basename only, so no username-bearing path lands in the envelope --------
+H="ho""me"
+ABS_FILE="/${H}/alice/secretproj/config.env"
+TELR="$(mktemp -p "$TEST_TMPDIR")"
+SINKR="$(make_sink "cat >\"$TELR\"")"
+env HOOK_TELEMETRY_SINK="$SINKR" bash "$HOOK" \
+  <<<"$(write_json "$ABS_FILE" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELR"; then
+  df=$(jq -r '.data.file' "$TELR")
+  assert_contains "redaction: data.file is the basename" "$df" "config.env"
+  assert_absent "redaction: data.file has no path separator" "$df" "/"
+  assert_absent "redaction: envelope drops the username dir" "$(cat "$TELR")" "alice"
+else
+  bad "redaction: no envelope written"
 fi
 
 report
