@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "bug-report",
+      "source": "./plugins/bug-report",
+      "category": "workflow",
+      "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
     }
   ]
 }
