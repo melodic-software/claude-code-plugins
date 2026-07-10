@@ -67,13 +67,16 @@ normalize_eol_file() {
 normalize_eol_to_lf() {
   local file="$1"
   if command -v perl >/dev/null 2>&1; then
-    perl -pi -e 's/\r\n/\n/g' "$file"
+    perl -pi -e 's/\r\n/\n/g' -- "$file"
   else
-    # Portable fallback: strip all CR (text files carry no lone CR).
-    if tr -d '\r' <"$file" >"${file}.lf.tmp"; then
-      mv "${file}.lf.tmp" "$file"
+    # Portable fallback: strip all CR (text files carry no lone CR). Stage into a
+    # same-dir mktemp file (unpredictable name — CWE-377) then atomically mv.
+    local tmp
+    tmp=$(mktemp "${file}.XXXXXX") || return 0
+    if tr -d '\r' <"$file" >"$tmp"; then
+      mv -- "$tmp" "$file"
     else
-      rm -f "${file}.lf.tmp"
+      rm -f -- "$tmp"
     fi
   fi
 }
@@ -82,12 +85,15 @@ normalize_eol_to_lf() {
 normalize_eol_to_crlf() {
   local file="$1"
   if command -v perl >/dev/null 2>&1; then
-    perl -pi -e 's/(?<!\r)\n/\r\n/g' "$file"
+    perl -pi -e 's/(?<!\r)\n/\r\n/g' -- "$file"
   else
-    if awk 'BEGIN{RS="\r?\n"; ORS="\r\n"} {print}' "$file" >"${file}.crlf.tmp"; then
-      mv "${file}.crlf.tmp" "$file"
+    # Stage into a same-dir mktemp file (unpredictable name — CWE-377) then mv.
+    local tmp
+    tmp=$(mktemp "${file}.XXXXXX") || return 0
+    if awk 'BEGIN{RS="\r?\n"; ORS="\r\n"} {print}' "$file" >"$tmp"; then
+      mv -- "$tmp" "$file"
     else
-      rm -f "${file}.crlf.tmp"
+      rm -f -- "$tmp"
     fi
   fi
 }
