@@ -4,14 +4,14 @@ description: "Builds a throwaway interactive terminal app to pressure-test busin
 argument-hint: "[scope] (e.g., /prototype:logic scheduling state machine)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(ls:*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash *detect-ecosystems.sh*)"]
 ---
 
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -10 || echo "clean"`
-Project ecosystems: !`{ found=(); for f in *.slnx *.sln package.json pyproject.toml Cargo.toml go.mod; do [ -e "$f" ] && found+=("$f"); done; if [ ${#found[@]} -eq 0 ]; then echo "none detected"; else printf '%s\n' "${found[@]}"; fi; }`
+Project ecosystems: !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh" 2>/dev/null || echo "none detected"`
 
 ## Variables
 
