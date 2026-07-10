@@ -153,3 +153,4 @@ producers without coordinating with them or each other.
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
 | `markdown-formatter` plugin | `markdown-format` | `data/markdown-format.schema.json` |
+| `desktop-notification` plugin | `desktop-notification` | `data/desktop-notification.schema.json` |

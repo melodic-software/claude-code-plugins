@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "desktop-notification",
+      "source": "./plugins/desktop-notification",
+      "category": "notifications",
+      "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
     }
   ]
 }
