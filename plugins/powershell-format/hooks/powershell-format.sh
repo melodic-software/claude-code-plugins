@@ -98,9 +98,11 @@ emit_skipped() {
   exit 0
 }
 
-# Resolve the file's directory in `pwd` form once — anchors the settings walk.
-FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
-root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
+# Resolve the file's directory and walk anchors as physical paths — same
+# representation hook::read_file_path uses for membership — so a symlinked
+# CLAUDE_PROJECT_DIR still matches the file's resolved directory at the ceiling.
+FILE_DIR_POSIX="$(hook::normalize_path "$(hook::physical_path "$(dirname "$FILE")")")" || FILE_DIR_POSIX=""
+root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
 # there, so the settings ceiling matches the file-membership ceiling that
@@ -110,8 +112,7 @@ root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 # (see README "Trust model"). The git-root ceiling is the fallback when unset.
 CEILING="$root"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  _cpd="$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd)" || _cpd=""
-  [[ -n "$_cpd" ]] && CEILING="$_cpd"
+  CEILING="$(hook::normalize_path "$(hook::physical_path "$CLAUDE_PROJECT_DIR")")"
 fi
 
 # Consumer opt-in: a PSScriptAnalyzerSettings.psd1 that governs the edited file.
