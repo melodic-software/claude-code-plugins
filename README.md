@@ -27,6 +27,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`eol-normalizer`](plugins/eol-normalizer) | Hook | Normalizes a file's working-tree line endings on edit to its `.gitattributes` `eol=` value via `git check-attr` — symmetric CRLF↔LF, binary-safe, using the consuming repo's own attributes. |
 | [`desktop-notification`](plugins/desktop-notification) | Hook | Alerts you when Claude Code needs input via an audible bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts. |
 | [`powershell-format`](plugins/powershell-format) | Hook | Formats and lints PowerShell on edit via PSScriptAnalyzer, only when the repo opts in with a `PSScriptAnalyzerSettings.psd1`, using the consuming repo's own analyzer settings. |
+| [`actionlint`](plugins/actionlint) | Hook | Lints GitHub Actions workflow files (`.github/workflows/*.yml`/`.yaml`) on edit via the `actionlint` already on your `PATH` — advisory findings, never blocking. |
 | [`bug-report`](plugins/bug-report) | Skill | Turns an informal defect description into a structured five-field bug report (title, repro, expected vs actual, severity, fix location). Read-only — it captures, never fixes or files on its own. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
