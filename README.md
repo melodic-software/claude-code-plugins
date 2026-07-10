@@ -34,6 +34,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`improve-architecture`](plugins/improve-architecture) | Skill | Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and interviews the selected candidate before handing off for planning. |
 | [`mcp-tool-audit`](plugins/mcp-tool-audit) | Skill | Audits MCP server tool definitions against MCP-spec and Anthropic tool-design criteria, returning a per-tool PASS/WARN/FAIL scorecard. Language-agnostic (Python, TypeScript, .NET). |
 | [`prototype`](plugins/prototype) | Skills | Builds throwaway code to answer a design question before committing to architecture. Ships two skills: `/prototype:logic` (an interactive terminal app over a portable state model) and `/prototype:ui` (radically different visual variants on one route). |
+| [`book-distill`](plugins/book-distill) | Skill | Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline, updating the target skill's routing table. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 

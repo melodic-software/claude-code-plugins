@@ -90,6 +90,12 @@
       "source": "./plugins/prototype",
       "category": "workflow",
       "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
+    },
+    {
+      "name": "book-distill",
+      "source": "./plugins/book-distill",
+      "category": "knowledge",
+      "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
     }
   ]
 }
