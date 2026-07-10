@@ -148,6 +148,10 @@ jobs:
           persist-credentials: false
       - name: Check for machine-specific paths
         uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@2275e82c502d29b468e3ee2b9c11b2de69b1677f # b6431a1 2026-06-26
+        with:
+          # The guardrails plugin bundles a path-detection pattern lib whose
+          # regex bodies self-match this lane's own detector.
+          exclude: ':(exclude)plugins/guardrails/lib/path-detection/**'
 
   eol-renormalize:
     runs-on: ubuntu-latest
