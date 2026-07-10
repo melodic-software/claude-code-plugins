@@ -23,7 +23,7 @@ Classify each candidate's dependencies per [../research/deepening/dependencies.m
 
 ## Phase 2 — Present candidates as HTML report
 
-Write a self-contained HTML file to the OS temp directory. Resolve temp dir from `$TMPDIR` / `$TEMP` / `/tmp`. Filename: `<tmpdir>/deepening-review-<timestamp>.html`. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path.
+Write a self-contained HTML file via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create it with `mktemp` (e.g. `mktemp --tmpdir deepening-review-XXXXXX.html` or `mktemp -t deepening-review.XXXXXX.html`); on Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path.
 
 Report is **self-contained — inline `<style>` + inline SVG only, no CDN or remote runtime** (a report that fetches remote assets is both a privacy and a supply-chain hazard, and breaks when opened offline). Build layout from an inline `<style>` block; draw diagrams as inline SVG or hand-built HTML/CSS — inline SVG node-and-edge for graph-shaped relationships, hand-built divs for editorial visuals (mass diagrams, cross-sections).
 
