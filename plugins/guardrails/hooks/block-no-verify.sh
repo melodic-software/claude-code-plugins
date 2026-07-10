@@ -29,6 +29,13 @@ hook::check_enabled "BLOCK_NO_VERIFY"
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
+# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
+# the degraded state visible rather than silently disabling the guard.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "guardrails/block-no-verify: jq not found on PATH — guard disabled (install jq to enable)." >&2
+  exit 0
+fi
+
 # Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
 # Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
 # resolve (ENOENT → silent no-op).
@@ -101,34 +108,52 @@ block() {
   exit 2
 }
 
-EXECUTABLE=$(strip_literals "$COMMAND")
-COMMAND_LC="${EXECUTABLE,,}"
+# Two views of the command, because shell quoting is stripped from argv before
+# git ever parses it — so a bypass token hidden by argument-level quotes
+# (git commit "--no-verify", git commit --no-ver'ify', git -c "core.hooksPath=…"
+# commit) must be seen the way the shell's argv sees it, NOT as a quoted literal:
+#   STRIPPED  — quoted SPANS removed (delimiters + content). Used ONLY to confirm
+#     a REAL `git commit` / `git push` EXECUTABLE token exists, so a mention
+#     nested in a quoted argument (echo "git commit --no-verify") is deleted and
+#     does not false-fire.
+#   COLLAPSED — quote CHARACTERS removed, content kept. Used to detect the bypass
+#     token itself, exactly as the shell's argv would present it.
+STRIPPED=$(strip_literals "$COMMAND")
+STRIPPED_LC="${STRIPPED,,}"
+COLLAPSED="${COMMAND//\"/}"
+COLLAPSED="${COLLAPSED//\'/}"
+COLLAPSED_LC="${COLLAPSED,,}"
 
-# Form 1: --no-verify / -n on git commit (word-boundaried git token)
-if [[ "$COMMAND_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+commit([[:space:]]|-|$) ]]; then
-  if [[ "$EXECUTABLE" == *"--no-verify"* ]] \
-    || [[ "$EXECUTABLE" =~ (^|[[:space:];|&()]+)git[[:space:]]+commit.*[[:space:]]+-[a-zA-Z]*n([[:space:]]|$) ]]; then
+# Form 1: --no-verify / -n on git commit. Gate on the real executable (STRIPPED);
+# detect the flag on the quote-collapsed argv (COLLAPSED) so `git commit
+# "--no-verify"` and `git commit --no-ver'ify'` are both caught.
+if [[ "$STRIPPED_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+commit([[:space:]]|-|$) ]]; then
+  if [[ "$COLLAPSED" == *"--no-verify"* ]] \
+    || [[ "$COLLAPSED" =~ (^|[[:space:];|&()]+)git[[:space:]]+commit.*[[:space:]]+-[a-zA-Z]*n([[:space:]]|$) ]]; then
     block "no-verify" \
       "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
       "Fix the issues that caused the hook failure instead of bypassing."
   fi
 fi
 
-# Form 1b: core.hooksPath assignment bypasses all git hooks.
-if [[ "$COMMAND_LC" =~ core\.hookspath= ]] \
-  && [[ "$COMMAND_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+ ]] \
-  && [[ "$COMMAND_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+.*[[:space:]]+(commit|push)([[:space:]]|-|$) ]]; then
+# Form 1b: core.hooksPath assignment bypasses all git hooks. Gate on the real
+# git commit/push executable (STRIPPED); detect the assignment on the
+# quote-collapsed argv (COLLAPSED) so `git -c "core.hooksPath=…" commit` is caught.
+if [[ "$COLLAPSED_LC" =~ core\.hookspath= ]] \
+  && [[ "$STRIPPED_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+ ]] \
+  && [[ "$STRIPPED_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+.*[[:space:]]+(commit|push)([[:space:]]|-|$) ]]; then
   block "hooksPath" \
     "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
     "Fix the hook failure instead of bypassing git hooks."
 fi
 
-# Form 2: hook-manager env-var bypass on git commit OR git push.
-# Matches LEFTHOOK=0, LEFTHOOK=false (any case), and LEFTHOOK_*=0|false
-# prefixes. The env var must combine with a git commit/push to fire — a bare
-# `LEFTHOOK=0 echo foo` is not blocked.
-if [[ "$COMMAND_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+(commit|push)([[:space:]]|-|$) ]]; then
-  if [[ "$COMMAND_LC" =~ lefthook[_a-z]*=(0|false)([[:space:]]|$) ]]; then
+# Form 2: hook-manager env-var bypass on git commit OR git push. Gate on the real
+# git commit/push executable (STRIPPED); detect the env prefix on the
+# quote-collapsed argv (COLLAPSED). Matches LEFTHOOK=0, LEFTHOOK=false (any case),
+# and LEFTHOOK_*=0|false. The env var must combine with a git commit/push to fire
+# — a bare `LEFTHOOK=0 echo foo` is not blocked.
+if [[ "$STRIPPED_LC" =~ (^|[[:space:];|&()]+)git[[:space:]]+(commit|push)([[:space:]]|-|$) ]]; then
+  if [[ "$COLLAPSED_LC" =~ lefthook[_a-z]*=(0|false)([[:space:]]|$) ]]; then
     block "hook-manager-env" \
       "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
       "Fix the hook lane failure instead of bypassing."
