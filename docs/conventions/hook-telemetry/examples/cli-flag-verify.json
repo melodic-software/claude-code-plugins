@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-10T14:25:12Z",
+  "hook": "cli-flag-verify",
+  "hook_event": "PostToolUse",
+  "status": "ok",
+  "duration_ms": 512,
+  "data": {
+    "tool": "",
+    "file": "docs/setup.md",
+    "findings": ["claude --max-turns"]
+  }
+}

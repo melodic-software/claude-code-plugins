@@ -56,6 +56,30 @@
       "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
     },
     {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "category": "security",
+      "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
+    },
+    {
+      "name": "bug-report",
+      "source": "./plugins/bug-report",
+      "category": "workflow",
+      "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
+    },
+    {
+      "name": "diagnose",
+      "source": "./plugins/diagnose",
+      "category": "debugging",
+      "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
+    },
+    {
+      "name": "improve-architecture",
+      "source": "./plugins/improve-architecture",
+      "category": "architecture",
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
+    },
+    {
       "name": "mcp-tool-audit",
       "source": "./plugins/mcp-tool-audit",
       "category": "quality",
