@@ -82,6 +82,13 @@ public class InventoryTools
 {
     [McpServerTool]
     public string ListItems(string boardId) => "";
+
+    [McpServerTool, Description("Adds an item.")]
+    public string AddItem(string boardId) => "";
+
+    [McpServerTool]
+    [Description("Removes an item.")]
+    public string RemoveItem(string boardId) => "";
 }
 CS
 
@@ -112,6 +119,8 @@ assert_contains "invalid-name tool discovered for C9" "$out" 'Tool: bad tool'
 assert_contains "single-quoted typescript tool discovered" "$out" "Tool: search_docs"
 assert_contains "python tool discovered" "$out" "Tool: get_report"
 assert_contains "dotnet tool discovered" "$out" "Tool: ListItems"
+assert_contains "dotnet combined-attribute tool discovered" "$out" "Tool: AddItem"
+assert_contains "dotnet separate-Description tool discovered" "$out" "Tool: RemoveItem"
 assert_contains "dotnet class attribute does not duplicate tool" "$out" "Tool: ListItems"
 case "$out" in
   *"Tool: ListItems"*)
