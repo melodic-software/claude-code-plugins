@@ -100,7 +100,7 @@ Filename: derive a slug from the title (kebab-case, ~40-char cap), prefix an ISO
 
 After emitting the report, recommend the next step (do NOT auto-invoke):
 
-- **File it as a work item** — if you are in a GitHub repository and the `gh` CLI is available: `gh issue create --title "<title>" --body-file <report>`. If a work-item tracker MCP tool is available, use it. Map the severity to your tracker's priority labels if it has them. Pass any untrusted-derived string — the title included — as a literal argv value (as above), never embedded into a shell command string where backticks or `$( )` in the reporter's text could expand.
+- **File it as a work item** — if you are in a GitHub repository and the `gh` CLI is available: run `gh issue create --body-file <report>` and let `gh` prompt for the title interactively. If filing non-interactively, invoke `gh` with `--title` and `--body-file` as **separate argv values** (via the Bash/shell tool's argument array, not a single copy-pastable quoted command string) so reporter text with backticks or `$( )` cannot undergo shell expansion. If a work-item tracker MCP tool is available, use it. Map the severity to your tracker's priority labels if it has them.
 - **A fix is next** — if your project provides an investigation or implementation workflow, route there; otherwise scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off) — done; copy/paste the stdout.
 
