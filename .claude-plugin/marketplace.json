@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "eol-normalizer",
+      "source": "./plugins/eol-normalizer",
+      "category": "formatting",
+      "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
     }
   ]
 }
