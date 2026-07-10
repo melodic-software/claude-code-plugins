@@ -68,12 +68,12 @@
     {
       "id": 6,
       "name": "identifier-typo-not-autocorrected",
-      "prompt": "There's a bug in `deseralize()` — it drops nested objects when the payload is deeply nested. Report it.",
-      "expected_output": "The skill does not silently rewrite the possibly-misspelled identifier `deseralize` to `deserialize` and proceed. It asks one clarifying question to confirm the intended symbol (or flags the possible typo) before committing to a report.",
+      "prompt": "There's a bug in `paginaton()` — it skips the last row of each page when the page size is small. Report it.",
+      "expected_output": "The skill does not silently rewrite the possibly-misspelled identifier `paginaton` to `pagination` and proceed. It asks one clarifying question to confirm the intended symbol (or flags the possible typo) before committing to a report.",
       "files": [],
       "expectations": [
-        "Output does not silently rewrite `deseralize` to `deserialize` and emit a report as if the symbol were confirmed",
-        "Output asks one clarifying question about the intended identifier, or explicitly flags `deseralize` as a possible typo, before finalizing the report"
+        "Output does not silently rewrite `paginaton` to `pagination` and emit a report as if the symbol were confirmed",
+        "Output asks one clarifying question about the intended identifier, or explicitly flags `paginaton` as a possible typo, before finalizing the report"
       ]
     }
   ]
