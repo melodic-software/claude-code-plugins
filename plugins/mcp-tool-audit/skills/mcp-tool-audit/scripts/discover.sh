@@ -206,7 +206,7 @@ while IFS= read -r file; do
     tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).*[[:space:]]\+\([A-Za-z0-9_]*\)[[:space:]]*(.*/\2/p')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" dotnet "$rel" "$tool_name" "$line_num"
-  done < <(grep -n '\[McpServerTool\]' "$file" 2>/dev/null | tr -d '\r' || true)
+  done < <(grep -nE "\[McpServerTool\]" "$file" 2>/dev/null | tr -d '\r' || true)
 done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.cs' \
   ! -path '*/bin/*' ! -path '*/obj/*' ! -path '*Tests/*' 2>/dev/null | LC_ALL=C sort)
 
