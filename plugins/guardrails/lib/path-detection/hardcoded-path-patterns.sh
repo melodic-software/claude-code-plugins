@@ -1,0 +1,185 @@
+# shellcheck shell=bash
+# Shared hardcoded-path detection patterns for the hardcoded-path-check hook.
+#
+# This is a library — NOT executable. Pure-function: no env reads, no stdin
+# parsing, no exit calls. Callers handle I/O, exemptions, and exit-code
+# mapping.
+#
+# Cross-platform: detects Windows (C:\Users\, drive letters), macOS
+# (/Users/), and Linux (/home/) hardcoded paths plus machine-specific repo
+# checkout roots. Uses POSIX ERE only (grep -E) — NO grep -P. macOS BSD grep
+# lacks -P entirely. Lookbehinds/lookaheads are replaced by grep -v
+# pipe-stage exclusions.
+
+# Per-OS machine-path regex BODIES — single source of truth shared by this
+# lib's hpp::scan_text and any driver that sources it. Extracting the bodies
+# lets a pattern change land once and reach every scan driver in lockstep.
+#
+# DEFINE single-quoted, EXPAND double-quoted ("$HPP_…"): a double-quoted
+# definition would collapse the escaped-repo body's doubled backslashes and
+# silently change what grep matches. POSIX ERE only. Only the BODIES are
+# shared — each call site keeps its own wrapping (macOS/Linux pipe exclusions
+# here; a boundary prefix in a driver).
+#
+# The 3 Windows bodies match the separator as single-backslash, forward-slash,
+# OR doubled-backslash (JSON-escaped) at EVERY position — (/|\\\\?) is fwd-slash
+# OR one-or-two backslashes — and accept an 8.3 short-name segment that ends
+# ~<digit> (e.g. ALICE~1) via the optional (~[0-9]+). These are the two shapes
+# a script-written temp path evaded with. The negative class still excludes a
+# bare ~ so a tilde-shorthand segment stays clean. macOS/Linux bodies are NOT
+# widened: no 8.3 / escaped-JSON analogue exists there, so widening is pure
+# false-positive risk.
+HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
+HPP_MACOS_USER_BODY='/Users/[^/$<{~]+/'
+HPP_LINUX_USER_BODY='/home/[^/$<{~]+/'
+HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)repos(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
+# shellcheck disable=SC1003  # literal backslashes in the ERE body, not a quote escape
+HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\repos\\\\[^\\$<{~]+(~[0-9]+)?\\\\'
+
+# hpp::scan_text <content> [project-root] [file-path]
+#
+# Scans <content> for hardcoded machine-specific paths. When [project-root]
+# is non-empty, also matches the absolute repo path in slash, backslash, and
+# double-escaped backslash forms.
+#
+# When [file-path] is non-empty, OS-specific detection blocks are suppressed
+# for files unambiguously scoped to that OS:
+#   Windows context — file ext .ps1/.psm1/.psd1/.cmd/.bat/.reg, OR path
+#     matches */scripts/windows/* or */tests/windows/*, OR filename matches
+#     *-windows.* or *-win32.*  → suppresses Win-user, Win-repo, escaped-
+#     Win-repo blocks
+#   macOS context — */scripts/macos/*, *-macos.*, *-osx.*, *-darwin.*
+#     → suppresses macOS-user block
+#   Linux context — */scripts/linux/*, *-linux.*
+#     → suppresses Linux-user block
+# Cross-OS detections (e.g. /Users/alice/ inside a .ps1) and project-root
+# match (machine-specific repo path) are NEVER suppressed — these are leaks
+# regardless of file context.
+#
+# Output (stdout): violation block(s). Each block:
+#   <label>:
+#   <up to 3 matched "lineno:line" entries>
+#   <blank line>
+#
+# Exit: 0 = clean, 1 = violations found.
+#
+# Callers: capture stdout, then map the return code to whatever exit code
+# their layer expects (a PreToolUse hook blocks via exit 2; a commit hook
+# fails the commit via exit 1).
+hpp::scan_text() {
+  local content="$1" project_root="${2:-}" file_path="${3:-}"
+  local violations="" match
+  local nl=$'\n'
+
+  # ---- Cheap pre-filter gate (perf; behavior-preserving) ----
+  # On clean content (~99% of calls in a large scan) this skips the ~8-10
+  # detailed `grep` pipelines below. The alternation is a strict SUPERSET
+  # of every detailed pattern's invariant literal:
+  #   Users   ⊇ Windows-user + macOS-user  (both forms contain "Users")
+  #   /home/  ⊇ Linux-user
+  #   repos   ⊇ Windows-repo + escaped-Windows-repo
+  # The project-root branch keys on the root's final path segment, which is
+  # present identically in the slash, backslash, and escaped forms. When NONE of
+  # these triggers fire, no detailed pattern below can match, so early-returning
+  # 0 cannot drop a true positive. A false NEGATIVE here = guard bypass, so the
+  # gate must never be TIGHTER than the detailed patterns (a looser gate only
+  # costs a wasted full scan). The gate stays case-sensitive for the OS-path
+  # alternation (matching the detailed patterns' literal "Users") and
+  # case-insensitive for the root segment (matching the detailed `grep -Fi`).
+  # Uses a here-string, NOT `printf | grep -q`: a pipe + `grep -q` early-exit
+  # would SIGPIPE printf, and under `pipefail` the pipeline would report printf's
+  # failure and invert the result.
+  if ! grep -qE 'Users|/home/|repos' <<<"$content" 2>/dev/null; then
+    local gate_root=""
+    if [[ -n "$project_root" ]]; then
+      gate_root="${project_root//\\//}"
+      gate_root="${gate_root%/}"
+      gate_root="${gate_root##*/}"
+    fi
+    if [[ -z "$gate_root" ]] || ! grep -qFi "$gate_root" <<<"$content" 2>/dev/null; then
+      return 0
+    fi
+  fi
+  # ---- end gate (clean content has returned; fall through to full scan) ----
+
+  # Normalize file_path for OS-context matching: backslash→slash, lowercase.
+  # Use tr for the lowercasing pass — bash-3.2-compatible (macOS stock bash
+  # before brew install). This lib may be sourced by commit-time hooks running
+  # under whatever bash a fresh macOS clone has on PATH; staying portable here
+  # avoids commit-time failures.
+  local norm_file="${file_path//\\//}"
+  norm_file=$(printf '%s' "$norm_file" | tr '[:upper:]' '[:lower:]')
+
+  # OS-context flags — non-empty when file is unambiguously OS-scoped
+  local windows_context="" macos_context="" linux_context=""
+  case "$norm_file" in
+    *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg) windows_context=1 ;;
+    */scripts/windows/* | */tests/windows/*) windows_context=1 ;;
+    *-windows.* | *-win32.*) windows_context=1 ;;
+    *) ;;
+  esac
+  case "$norm_file" in
+    */scripts/macos/* | *-macos.* | *-osx.* | *-darwin.*) macos_context=1 ;;
+    *) ;;
+  esac
+  case "$norm_file" in
+    */scripts/linux/* | *-linux.*) linux_context=1 ;;
+    *) ;;
+  esac
+
+  # Windows user home paths: C:\Users\<name>\ or C:/Users/<name>/
+  # Suppressed in Windows context (.ps1 etc). Cross-OS leaks (macOS/Linux
+  # user paths in a .ps1) still fire from their own blocks below.
+  if [[ -z "$windows_context" ]]; then
+    match=$(printf '%s' "$content" | grep -nE "$HPP_WIN_USER_BODY" 2>/dev/null | head -3)
+    [[ -n "$match" ]] && violations="${violations}Windows user path detected:${nl}${match}${nl}${nl}"
+  fi
+
+  # macOS user home paths: /Users/<name>/
+  # Exclusions via pipe (replaces Perl lookbehind/lookahead):
+  #   grep -v '/Users/Shared/'  — legitimate shared directory
+  #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
+  if [[ -z "$macos_context" ]]; then
+    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -v '/Users/Shared/' | grep -vE '[A-Za-z]:[/\\]' | head -3)
+    [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
+  fi
+
+  # Linux user home paths
+  if [[ -z "$linux_context" ]]; then
+    match=$(printf '%s' "$content" | grep -nE "$HPP_LINUX_USER_BODY" 2>/dev/null | head -3)
+    [[ -n "$match" ]] && violations="${violations}Linux user path detected:${nl}${match}${nl}${nl}"
+  fi
+
+  # Generic Windows repo checkout roots — suppressed in Windows context.
+  if [[ -z "$windows_context" ]]; then
+    match=$(printf '%s' "$content" | grep -nE "$HPP_WIN_REPO_BODY" 2>/dev/null | head -3)
+    [[ -n "$match" ]] && violations="${violations}Windows repo path detected:${nl}${match}${nl}${nl}"
+
+    match=$(printf '%s' "$content" | grep -nE "$HPP_ESCAPED_WIN_REPO_BODY" 2>/dev/null | head -3)
+    [[ -n "$match" ]] && violations="${violations}Escaped Windows repo path detected:${nl}${match}${nl}${nl}"
+  fi
+
+  # Current repo absolute path in slash/backslash/escaped forms. ALWAYS
+  # runs — machine-specific marker for THIS checkout, never suppressible by
+  # OS context.
+  if [[ -n "$project_root" ]]; then
+    local root_fwd root_bslash root_escaped candidate
+    root_fwd=${project_root//\\//}
+    root_fwd=${root_fwd%/}
+    # Bash expansion — `tr '/' '\\'` mishandles backslashes on Git Bash.
+    root_bslash=${root_fwd//\//\\}
+    root_escaped=${root_bslash//\\/\\\\}
+
+    for candidate in "$root_fwd" "$root_bslash" "$root_escaped"; do
+      [[ -n "$candidate" ]] || continue
+      match=$(printf '%s' "$content" | grep -nFi "$candidate" 2>/dev/null | head -3)
+      [[ -n "$match" ]] && violations="${violations}Machine-specific repo path detected:${nl}${match}${nl}${nl}"
+    done
+  fi
+
+  if [[ -n "$violations" ]]; then
+    printf '%s' "$violations"
+    return 1
+  fi
+  return 0
+}

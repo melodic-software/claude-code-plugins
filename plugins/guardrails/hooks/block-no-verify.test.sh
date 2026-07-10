@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Contract test for block-no-verify.sh (guardrails plugin).
+#
+# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
+# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained — no
+# host-repo assertion library.
+
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK="$HOOK_DIR/block-no-verify.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+# shellcheck source=guardrails-test-helpers.sh
+source "$HOOK_DIR/guardrails-test-helpers.sh"
+
+# run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+run() {
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  local rc
+  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
+# --- Form 1: --no-verify / -n on git commit ---------------------------------
+run "git commit --no-verify (blocked)" "git commit --no-verify -m test" 2
+run "git commit -n (blocked)" "git commit -n -m test" 2
+run "cd foo && git commit --no-verify (compound, blocked)" "cd foo && git commit --no-verify -m test" 2
+run "git commit -m test (allowed)" "git commit -m test" 0
+run "quoted --no-verify prose (allowed)" 'echo "git commit --no-verify is banned"' 0
+
+# --- Form 1b: core.hooksPath assignment -------------------------------------
+run "git -c core.hooksPath=/dev/null commit (blocked)" "git -c core.hooksPath=/dev/null commit -m test" 2
+run "git -c core.hookspath=/dev/null push (blocked)" "git -c core.hookspath=/dev/null push" 2
+run "cd foo && git -c core.hooksPath commit (compound, blocked)" "cd foo && git -c core.hooksPath=/dev/null commit -m test" 2
+run "quoted core.hooksPath prose (allowed)" 'echo "git -c core.hooksPath=/dev/null commit"' 0
+
+# --- Form 2: hook-manager env-var bypass on git commit / push ---------------
+run "LEFTHOOK=0 git commit (blocked)" "LEFTHOOK=0 git commit -m test" 2
+run "LEFTHOOK=false git push (blocked)" "LEFTHOOK=false git push" 2
+run "LEFTHOOK=FALSE git commit (blocked, uppercase)" "LEFTHOOK=FALSE git commit -m test" 2
+run "LEFTHOOK=False git push (blocked, mixed case)" "LEFTHOOK=False git push origin main" 2
+run "LEFTHOOK_SUFFIX=false git push (blocked, suffix var)" "LEFTHOOK_VERIFY_GATE_ENABLED=false git push" 2
+run "cd foo && LEFTHOOK=0 git commit (compound, blocked)" "cd foo && LEFTHOOK=0 git commit -m test" 2
+
+# --- Form 2 negatives — env-var alone or with non-git command must NOT block -
+run "LEFTHOOK=0 echo foo (not git, allowed)" "LEFTHOOK=0 echo foo" 0
+run "LEFTHOOK=false ls (not git, allowed)" "LEFTHOOK=false ls" 0
+run "LEFTHOOK=1 git commit (truthy value, allowed)" "LEFTHOOK=1 git commit -m test" 0
+run "LEFTHOOK=true git push (truthy value, allowed)" "LEFTHOOK=true git push" 0
+
+# --- Unrelated commands — always no-op --------------------------------------
+run "git status (read-only, allowed)" "git status" 0
+run "empty command (allowed)" "" 0
+run "git push (no env-var, allowed)" "git push" 0
+
+# --- Kill switch — disabled path is a clean no-op even on a bypass -----------
+run "kill switch off → no-op despite --no-verify" "git commit --no-verify -m test" 0 \
+  HOOK_BLOCK_NO_VERIFY_ENABLED=false
+
+# --- Telemetry: block emits a `blocked` envelope ----------------------------
+TEL="$(mktemp -p "$TEST_TMPDIR")"
+SINK="$(make_sink "cat >\"$TEL\"")"
+env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(command_json 'git commit --no-verify -m test')" >/dev/null 2>&1 || true
+if wait_for_sink "$TEL"; then
+  assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "block-no-verify"
+  assert_contains "telemetry: status blocked" "$(jq -r '.status' "$TEL")" "blocked"
+  assert_contains "telemetry: subject Bash:git" "$(jq -r '.data.subject' "$TEL")" "Bash:git"
+  assert_contains "telemetry: form no-verify" "$(jq -r '.data.form' "$TEL")" "no-verify"
+else
+  bad "telemetry: no envelope written on block"
+fi
+
+report

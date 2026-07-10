@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "category": "security",
+      "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
     }
   ]
 }

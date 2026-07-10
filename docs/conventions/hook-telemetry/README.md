@@ -153,3 +153,7 @@ producers without coordinating with them or each other.
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
 | `markdown-formatter` plugin | `markdown-format` | `data/markdown-format.schema.json` |
+| `guardrails` plugin | `secret-pattern-detection` | `data/secret-pattern-detection.schema.json` |
+| `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |
+| `guardrails` plugin | `cli-flag-verify` | `data/cli-flag-verify.schema.json` |
+| `guardrails` plugin | `block-no-verify` | `data/block-no-verify.schema.json` |
