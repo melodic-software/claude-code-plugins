@@ -58,7 +58,7 @@ A fast breadth pass before deep work. In parallel:
 - `git log --oneline -10 -- <suspected-file>` if a file is named — a recent change may be the cause
 - Check the output directory (see Step 4) for prior bug reports on the same area, to avoid duplicates
 
-If the description names a single unambiguous symbol AND the user passed `--quick` or `--no-survey`, skip the survey.
+Skip the survey when `--no-survey` was passed (unconditionally — the flag means "trust the description"), or when `--quick` was passed AND the description names a single unambiguous symbol.
 
 ### Step 3 — Targeted Q&A
 
