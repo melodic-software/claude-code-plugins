@@ -85,6 +85,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 root=""
+project_root=""
+scan_prefix=""
 if [[ -n "$SCAN_PATH" ]]; then
   if [[ ! -d "$SCAN_PATH" ]]; then
     echo "Server count: 0"
@@ -105,9 +107,18 @@ if [[ -n "$SCAN_PATH" ]]; then
     exit 3
   fi
   root="$scan_canon"
+  project_root="$boundary_canon"
+  [[ -z "$project_root" ]] && project_root="$root"
 else
-  root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -z "$root" ]] && root="."
+  project_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  [[ -z "$project_root" ]] && project_root="."
+  root="$project_root"
+fi
+
+if [[ "$root" == "$project_root" ]]; then
+  scan_prefix=""
+else
+  scan_prefix="${root#$project_root/}"
 fi
 
 if [[ ! -d "$root" ]]; then
@@ -116,6 +127,16 @@ if [[ ! -d "$root" ]]; then
   exit 0
 fi
 cd "$root" || exit 0
+
+# to_project_rel <path-relative-to-scan-root> — emit a path relative to project_root.
+to_project_rel() {
+  local f="${1#./}"
+  if [[ -n "$scan_prefix" ]]; then
+    printf '%s/%s' "$scan_prefix" "$f"
+  else
+    printf '%s' "$f"
+  fi
+}
 
 records=""
 servers_seen=""
@@ -131,7 +152,7 @@ add_record() {
 # TypeScript — @modelcontextprotocol/sdk
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
-  rel="${file#./}"
+  rel="$(to_project_rel "$file")"
   server="$(derive_server "$rel")"
   while IFS= read -r line_num; do
     [[ -z "$line_num" ]] && continue
@@ -147,7 +168,7 @@ done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
 # Python — FastMCP
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
-  rel="${file#./}"
+  rel="$(to_project_rel "$file")"
   server="$(derive_server "$rel")"
   while IFS= read -r hit; do
     [[ -z "$hit" ]] && continue
@@ -165,16 +186,27 @@ done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.py' \
 # .NET — ModelContextProtocol
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
-  rel="${file#./}"
+  rel="$(to_project_rel "$file")"
   server="$(derive_server "$rel")"
   while IFS= read -r hit; do
     [[ -z "$hit" ]] && continue
     line_num="${hit%%:*}"
-    method_line="$(sed -n "$((line_num + 1))p" "$file" 2>/dev/null)"
-    tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).* \([A-Za-z0-9_]*\)(.*/\2/p')"
+    method_line=""
+    offset=1
+    while [[ $offset -le 12 ]]; do
+      candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
+      [[ -z "$candidate" ]] && break
+      if printf '%s' "$candidate" | grep -qE '^[[:space:]]*(public|private|internal|protected).*[[:alnum:]_][[:alnum:]_]*[[:space:]]*\('; then
+        method_line="$candidate"
+        break
+      fi
+      offset=$((offset + 1))
+    done
+    [[ -z "$method_line" ]] && continue
+    tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).*[[:space:]]\+\([A-Za-z0-9_]*\)[[:space:]]*(.*/\2/p')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" dotnet "$rel" "$tool_name" "$line_num"
-  done < <(grep -n '\[McpServerTool\]' "$file" 2>/dev/null | tr -d '\r' || true)
+  done < <(grep -n '\[McpServerTool' "$file" 2>/dev/null | tr -d '\r' || true)
 done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.cs' \
   ! -path '*/bin/*' ! -path '*/obj/*' ! -path '*Tests/*' 2>/dev/null | LC_ALL=C sort)
 
@@ -183,6 +215,7 @@ for _ in $servers_seen; do
   server_count=$((server_count + 1))
 done
 
+printf 'Scan root: %s\n' "${scan_prefix:-.}"
 printf 'Server count: %s\n' "$server_count"
 [[ -n "$records" ]] && printf '%s' "$records"
 
