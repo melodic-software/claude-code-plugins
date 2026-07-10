@@ -43,7 +43,7 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - dependency-category: in-process | local-substitutable | ports-and-adapters | mock
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
-- deepening: <one sentence — the proposed deep interface>
+- deepening: <one sentence — the shallow-module friction signal, not an interface proposal>
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```
