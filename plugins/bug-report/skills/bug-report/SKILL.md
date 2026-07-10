@@ -91,8 +91,8 @@ Default: emit Markdown to stdout (read-only). Follow the 5-field template — se
 `--file` mode: write the report to a file with frontmatter `type: bug-report`. Resolve the output directory in this precedence, and always tell the user the final path:
 
 1. If the consumer configured `output_dir`, write to `${user_config.output_dir}`.
-2. Otherwise, resolve the plugin's persistent data directory — run `echo "${CLAUDE_PLUGIN_DATA:-}"` in a Bash call and, if non-empty, write to `$CLAUDE_PLUGIN_DATA/bug-reports/`.
-3. If neither resolves (the variable is empty), fall back to `${CLAUDE_PROJECT_DIR}/.bug-reports/` and state clearly where the file landed.
+2. Otherwise, write to `${CLAUDE_PLUGIN_DATA}/bug-reports/` (the plugin's persistent data directory).
+3. If neither resolves, fall back to `${CLAUDE_PROJECT_DIR}/.bug-reports/` and state clearly where the file landed.
 
 Filename: derive a slug from the title (kebab-case, ~40-char cap), prefix an ISO basic UTC timestamp with no colons (Windows-safe), e.g. `20260502T143000Z-bug-pricefor-discount-math.md`. If the title cannot yet produce a slug, fall back to the timestamp alone.
 
