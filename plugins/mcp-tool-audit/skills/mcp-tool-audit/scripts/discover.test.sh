@@ -62,26 +62,48 @@ cat >"$proj/inventory/dotnet/Tools.cs" <<'CS'
 public string ListItems(string boardId) => "";
 CS
 
+# A tool buried deeper than the scan-depth cap (12) — must NOT be discovered.
+deep="$proj/d1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/d13/d14"
+mkdir -p "$deep"
+cat >"$deep/server.py" <<'PY'
+@mcp.tool
+def deep_buried_tool() -> str:
+    """Buried past the depth cap."""
+    return ""
+PY
+
 # --- Cases ---
 assert_exit "--help exits 0" 0 "$(
   bash "$DISCOVER" --help >/dev/null 2>&1
   echo $?
 )"
 
-out="$(bash "$DISCOVER" --path "$proj")"
+out="$(CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$proj")"
 assert_contains "server count present" "$out" "Server count:"
 assert_contains "typescript tool discovered" "$out" "Tool: payments_charge_card"
 assert_contains "python tool discovered" "$out" "Tool: get_report"
 assert_contains "dotnet tool discovered" "$out" "Tool: ListItems"
 assert_contains "server label derived (payments)" "$out" "Server: payments"
 assert_contains "runtime tagged (python)" "$out" "Runtime: python"
+case "$out" in
+  *deep_buried_tool*) fail "depth cap excludes buried tool" "no deep_buried_tool" ;;
+  *) pass "depth cap excludes buried tool" ;;
+esac
 
-scoped="$(bash "$DISCOVER" --path "$proj/reports")"
+scoped="$(CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$proj/reports")"
 assert_contains "scoped run finds in-scope tool" "$scoped" "Tool: get_report"
 case "$scoped" in
   *payments_charge_card*) fail "scoped run excludes out-of-scope tool" "no payments_charge_card" ;;
   *) pass "scoped run excludes out-of-scope tool" ;;
 esac
+
+# --path outside the project boundary is refused (exit 3).
+outside="$(mktemp -d)"
+assert_exit "--path outside project refused (exit 3)" 3 "$(
+  CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$outside" 2>/dev/null
+  echo $?
+)"
+rm -rf "$outside"
 
 assert_exit "unknown arg exits 2" 2 "$(
   bash "$DISCOVER" --unknown 2>/dev/null

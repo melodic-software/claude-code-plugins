@@ -4,8 +4,12 @@
 # Discovery config: reference/server-discovery.md
 # Output: Server count, then one block per tool (Server, Runtime, Tool file, Tool, Tool line).
 # Scan root: the git repository root, or the directory given to --path.
-# Exit: always 0.
+# --path is bounded to ${CLAUDE_PROJECT_DIR} (or the git root when that is unset);
+# a path resolving outside it is refused (exit 3). The scan is depth-capped.
+# Exit: 0 normally, 2 on argument error, 3 on an out-of-bounds --path.
 set -u
+
+MAX_SCAN_DEPTH=12
 
 SCAN_PATH=""
 
@@ -20,8 +24,10 @@ Usage:
 
 Scans the project (git root, or --path) for MCP tool markers across
 Python (FastMCP), TypeScript (@modelcontextprotocol/sdk), and .NET.
+--path is bounded to the project directory (${CLAUDE_PROJECT_DIR}, or the
+git root when unset); a path outside it is refused. The scan is depth-capped.
 
-Exit: always 0.
+Exit: 0 normally, 2 on argument error, 3 on an out-of-bounds --path.
 EOF
 }
 
@@ -80,7 +86,25 @@ done
 
 root=""
 if [[ -n "$SCAN_PATH" ]]; then
-  root="$SCAN_PATH"
+  if [[ ! -d "$SCAN_PATH" ]]; then
+    echo "Server count: 0"
+    echo "Error: scan path is not a directory: $SCAN_PATH"
+    exit 0
+  fi
+  # Canonicalize the scan path and the project boundary the same way (cd + pwd -P,
+  # portable — no realpath/readlink dependency) so the prefix comparison is valid
+  # regardless of symlinks, '..', or Git-Bash path form. Refuse a path that
+  # resolves outside the boundary.
+  scan_canon="$(cd "$SCAN_PATH" 2>/dev/null && pwd -P)"
+  boundary="${CLAUDE_PROJECT_DIR:-}"
+  [[ -z "$boundary" ]] && boundary="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  boundary_canon=""
+  [[ -n "$boundary" ]] && boundary_canon="$(cd "$boundary" 2>/dev/null && pwd -P)"
+  if [[ -n "$boundary_canon" && "$scan_canon" != "$boundary_canon" && "$scan_canon" != "$boundary_canon"/* ]]; then
+    echo "discover.sh: --path '$SCAN_PATH' resolves outside the project directory ($boundary_canon); refusing to scan" >&2
+    exit 3
+  fi
+  root="$scan_canon"
 else
   root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -z "$root" ]] && root="."
@@ -116,7 +140,7 @@ while IFS= read -r file; do
     [[ -z "$tool_name" ]] && continue
     add_record "$server" typescript "$rel" "$tool_name" "$line_num"
   done < <(grep -nE 'server\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
-done < <(find . -type f -name '*.ts' \
+done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
   ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' \
   ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | LC_ALL=C sort)
 
@@ -134,7 +158,7 @@ while IFS= read -r file; do
     [[ -z "$tool_name" ]] && continue
     add_record "$server" python "$rel" "$tool_name" "$line_num"
   done < <(grep -n '@mcp\.tool' "$file" 2>/dev/null | tr -d '\r' || true)
-done < <(find . -type f -name '*.py' \
+done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.py' \
   ! -path '*/.venv/*' ! -path '*/__pycache__/*' \
   ! -name '*_test.py' ! -name 'test_*.py' 2>/dev/null | LC_ALL=C sort)
 
@@ -151,7 +175,7 @@ while IFS= read -r file; do
     [[ -z "$tool_name" ]] && continue
     add_record "$server" dotnet "$rel" "$tool_name" "$line_num"
   done < <(grep -n '\[McpServerTool\]' "$file" 2>/dev/null | tr -d '\r' || true)
-done < <(find . -type f -name '*.cs' \
+done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.cs' \
   ! -path '*/bin/*' ! -path '*/obj/*' ! -path '*Tests/*' 2>/dev/null | LC_ALL=C sort)
 
 server_count=0
