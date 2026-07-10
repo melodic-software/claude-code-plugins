@@ -78,6 +78,12 @@
       "source": "./plugins/improve-architecture",
       "category": "architecture",
       "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
+    },
+    {
+      "name": "mcp-tool-audit",
+      "source": "./plugins/mcp-tool-audit",
+      "category": "quality",
+      "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"]
     }
   ]
 }
