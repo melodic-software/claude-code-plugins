@@ -27,7 +27,7 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 
 ## Emit checklist
 
-For multi-session book distillation (Phases 1-5 split across sessions), copy `templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{book-slug}-checklist.md`. Tick each phase as completed; the ticked state IS the cross-session resume pointer. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so it survives between sessions. Phase 3 SKIPPED for thin / single-chapter books.
+For multi-session book distillation (Phases 1-5 split across sessions), copy `templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so it survives between sessions. Phase 3 SKIPPED for thin / single-chapter books.
 
 ## Phase 1 — Setup
 
@@ -52,7 +52,7 @@ Map chapters to output files. Group related chapters into single files when they
 
 ### 1.4 Create the progress file
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so the file survives between sessions. Fill-in template in [context/templates.md](context/templates.md) "Progress file".
+Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens, so distilling the same book in different repos or into different target skills does not collide. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so the file survives between sessions. Fill-in template in [context/templates.md](context/templates.md) "Progress file".
 
 ### 1.5 Session budget
 

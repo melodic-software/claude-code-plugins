@@ -1,6 +1,6 @@
 # book-distill checklist
 
-Copy into `${CLAUDE_PLUGIN_DATA}/{book-slug}-checklist.md`. Tick as each phase completes; the ticked state is the cross-session resume pointer.
+Copy into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name, each slugified to lowercase alphanumerics and hyphens. Tick as each phase completes; the ticked state is the cross-session resume pointer.
 
 ## Phases
 
