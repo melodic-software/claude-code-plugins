@@ -24,6 +24,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`bash-lint`](plugins/bash-lint) | Hook | Lints shell scripts on edit via ShellCheck, and formats via shfmt when the repo opts in with an `.editorconfig`, using the consuming repo's own config. |
 | [`biome-format`](plugins/biome-format) | Hook | Formats and lints JS/TS/JSX/JSON on edit via Biome, only when the repo opts in with a `biome.json`, using the consuming repo's own Biome config. |
 | [`ruff-format`](plugins/ruff-format) | Hook | Formats and lints Python on edit via Ruff, only when the repo opts in with a Ruff config (`ruff.toml`, `.ruff.toml`, or `pyproject.toml` `[tool.ruff]`), using the consuming repo's own Ruff config. |
+| [`mcp-tool-audit`](plugins/mcp-tool-audit) | Skill | Audits MCP server tool definitions against MCP-spec and Anthropic tool-design criteria, returning a per-tool PASS/WARN/FAIL scorecard. Language-agnostic (Python, TypeScript, .NET). |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 

@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "mcp-tool-audit",
+      "source": "./plugins/mcp-tool-audit",
+      "category": "quality",
+      "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"]
     }
   ]
 }
