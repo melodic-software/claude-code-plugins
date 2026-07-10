@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-10T14:26:55Z",
+  "hook": "block-no-verify",
+  "hook_event": "PreToolUse",
+  "status": "blocked",
+  "duration_ms": 9,
+  "data": {
+    "tool": "Bash",
+    "subject": "Bash:git",
+    "form": "no-verify"
+  }
+}

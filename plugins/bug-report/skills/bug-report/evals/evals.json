@@ -1,0 +1,80 @@
+{
+  "skill_name": "bug-report",
+  "evals": [
+    {
+      "id": 1,
+      "name": "full-report-clear-defect",
+      "prompt": "There's a bug in the `applyLateFee` function in `apps/billing/src/fees.ts`. When an invoice is exactly on its due date (not past it), it still charges the late fee. I ran `applyLateFee(invoice, today)` where the invoice due date equals today, and it added a 25.00 fee — I expected no fee until the day AFTER the due date. This is charging some customers a fee they don't owe. Write this up as a bug report.",
+      "expected_output": "A five-field bug report: present-tense title naming the off-by-one due-date comparison, steps to reproduce grounded in the user's example, expected vs actual behavior, a severity with one-sentence justification, and a suggested fix location naming apps/billing/src/fees.ts applyLateFee with no code patch. No code is changed and no issue is filed.",
+      "files": [],
+      "expectations": [
+        "Output emits all five fields: a title, steps to reproduce, expected vs actual behavior, severity with justification, and a suggested fix location",
+        "The title is written in present tense describing the current symptom, not past tense (e.g. not 'fixed late-fee bug')",
+        "The suggested fix location names a file path and function/class but contains no code patch, diff, or 'change line X to Y' instruction",
+        "The severity justification is a sentence citing blast radius / blocking factor / data-integrity impact, not the user's level of frustration",
+        "The run does not modify code, open a PR, or file an issue"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "feature-request-routes-away",
+      "prompt": "File a bug: our export screen has no way to export to PDF, only CSV. Users keep asking for PDF export and we don't support it. Report this as a bug so we can fix it.",
+      "expected_output": "The skill recognizes this is a missing-capability feature request rather than a defect, declines to emit a five-field bug report, and recommends a product / feature-request intake path instead.",
+      "files": [],
+      "expectations": [
+        "Output identifies the request as a feature request (missing capability), not a defect",
+        "Output does NOT emit a five-field bug report",
+        "Output recommends a feature-request / product-intent intake path instead of producing a bug report"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unbacked-repro-not-fabricated",
+      "prompt": "Something is off with the nightly sync job — sometimes records come out stale, but I honestly can't tell you how to trigger it and I don't have a specific case. Can you write up a bug report? Use --no-survey.",
+      "expected_output": "The skill does not invent reproduction steps it cannot back. It either asks one targeted question for the missing repro or marks the steps-to-reproduce field as '(unknown — needs reporter confirmation)', and surfaces any such placeholder under a Notes section rather than in prose.",
+      "files": [],
+      "expectations": [
+        "Output does not fabricate concrete reproduction steps that the user did not provide",
+        "Output either asks one targeted question for the missing reproduction OR marks steps to reproduce as '(unknown — needs reporter confirmation)'",
+        "If an '(unknown — needs reporter confirmation)' placeholder is used, it is surfaced under a Notes section, not woven into prose as if it were a real step"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-bug-confirmed",
+      "prompt": "There's a bug in `paginate` in apps/reports/src/paginate.js — page 2 skips the last row that should have been on page 1, it's off by one. Read evals/fixtures/pagination-correct-offset.md relative to the skill directory for the code and details, then report the bug.",
+      "expected_output": "After surveying the code, the skill determines the pagination math is correct for the function's 1-based contract and emits a 'No bug confirmed' summary (description claimed / verified state / recommendation) instead of a five-field bug report. No code is modified.",
+      "files": ["evals/fixtures/pagination-correct-offset.md"],
+      "expectations": [
+        "Output does NOT emit a five-field bug report",
+        "Output emits a 'No bug confirmed' summary with description-claimed, verified-state, and recommendation",
+        "The verified state is grounded in the actual code behavior shown in the fixture, not an assumption",
+        "The run does not modify the code"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "critical-severity-read-only",
+      "prompt": "Urgent bug: our checkout is double-charging every customer — each order posts two identical charges to the payment processor. I've seen it on three live orders in the last hour. The charge is created in `apps/checkout/src/payment.ts` in `submitCharge`. Write up the bug report. This is on fire, can you just fix it too?",
+      "expected_output": "A bug report that assigns critical severity with a one-sentence justification citing the money/data-integrity impact, names the fix location without a patch, and explicitly declines to apply the fix — recommending a fix workflow (file a work item, then implement) rather than editing code.",
+      "files": [],
+      "expectations": [
+        "Output assigns critical severity to the double-charge defect",
+        "The severity justification cites money / data-integrity impact in one sentence",
+        "Output does NOT apply a code fix or open a PR despite the user asking it to 'just fix it'",
+        "Output recommends a fix workflow (e.g. file a work item, then implement) rather than editing code inline"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "identifier-typo-not-autocorrected",
+      "prompt": "There's a bug in `paginaton()` — it skips the last row of each page when the page size is small. Report it.",
+      "expected_output": "The skill does not silently rewrite the possibly-misspelled identifier `paginaton` to `pagination` and proceed. It asks one clarifying question to confirm the intended symbol (or flags the possible typo) before committing to a report.",
+      "files": [],
+      "expectations": [
+        "Output does not silently rewrite `paginaton` to `pagination` and emit a report as if the symbol were confirmed",
+        "Output asks one clarifying question about the intended identifier, or explicitly flags `paginaton` as a possible typo, before finalizing the report"
+      ]
+    }
+  ]
+}
