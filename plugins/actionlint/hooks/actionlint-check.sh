@@ -39,7 +39,8 @@ INPUT=$(cat)
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 # Only GitHub Actions workflow files. actionlint recognizes both .yml and .yaml
 # under .github/workflows/; other YAML is not a workflow and must be skipped.
-case "$FILE" in
+FILE_NORM="$(hook::normalize_path "$FILE")"
+case "$FILE_NORM" in
   */.github/workflows/*.yml | */.github/workflows/*.yaml) ;;
   *) exit 0 ;;
 esac
@@ -95,7 +96,7 @@ fi
 # (2) adds latency unsuited to an edit-time advisory hook. Native workflow
 # diagnostics (the value of this hook) are unaffected; deep embedded-bash linting
 # belongs in a commit hook or CI, not here.
-AL_OUTPUT=$(actionlint -shellcheck= -- "$FILE" 2>&1) || true
+AL_OUTPUT=$(cd "$REPO_ROOT" && actionlint -shellcheck= -- "$FILE_REL" 2>&1) || true
 
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
