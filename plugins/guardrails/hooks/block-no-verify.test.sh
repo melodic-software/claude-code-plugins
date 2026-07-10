@@ -31,6 +31,7 @@ run "git commit -n (blocked)" "git commit -n -m test" 2
 run "cd foo && git commit --no-verify (compound, blocked)" "cd foo && git commit --no-verify -m test" 2
 run "git commit -m test (allowed)" "git commit -m test" 0
 run "quoted --no-verify prose (allowed)" 'echo "git commit --no-verify is banned"' 0
+run "echo git commit --no-verify (git as arg, allowed)" 'echo git commit --no-verify' 0
 
 # --- Form 1b: core.hooksPath assignment -------------------------------------
 run "git -c core.hooksPath=/dev/null commit (blocked)" "git -c core.hooksPath=/dev/null commit -m test" 2

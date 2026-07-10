@@ -74,6 +74,10 @@ assert_exit "Windows path in .ps1 → suppressed → exit 0" 0 "$RC"
 OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1); RC=$?
 assert_exit "Read tool → exit 0" 0 "$RC"
 
+# Outside CLAUDE_PROJECT_DIR → exit 0 (another repo's concern).
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "/tmp/other/file.txt" "$LINUX_HOME")" 2>&1); RC=$?
+assert_exit "outside CLAUDE_PROJECT_DIR → exit 0" 0 "$RC"
+
 OUT=$(bash "$HOOK" <<<"$(write_json "/some/repo/.claude/hooks/foo.sh" "pattern ${LINUX_HOME}")" 2>&1); RC=$?
 assert_exit ".claude/hooks/ self-exemption → exit 0" 0 "$RC"
 

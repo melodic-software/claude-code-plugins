@@ -32,6 +32,18 @@
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
     },
     {
+      "name": "eol-normalizer",
+      "source": "./plugins/eol-normalizer",
+      "category": "formatting",
+      "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
+    },
+    {
+      "name": "desktop-notification",
+      "source": "./plugins/desktop-notification",
+      "category": "notifications",
+      "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
+    },
+    {
       "name": "guardrails",
       "source": "./plugins/guardrails",
       "category": "security",

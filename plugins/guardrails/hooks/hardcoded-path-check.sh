@@ -58,6 +58,21 @@ FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null
 # Normalize path separators for cross-platform case matching.
 NORM_FILE="${FILE//\\//}"
 
+# --- Scope guard: police only files inside THIS project ---
+# A PreToolUse Write|Edit hook fires on every file write regardless of which
+# repo the target lives in. A file outside the project root is not ours to scan
+# — that repo owns its own path policy. Fail OPEN: when CLAUDE_PROJECT_DIR is
+# unset, fall through and scan rather than skip.
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  _scope_file="$(hook::normalize_path "$FILE")"
+  _scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
+  _scope_project="${_scope_project%/}"
+  case "$_scope_file" in
+    "$_scope_project"/*) ;; # inside the project — proceed
+    *) exit 0 ;;           # outside the project — not this hook's concern
+  esac
+fi
+
 # Skip files that legitimately contain path patterns (regex strings). These
 # cannot rely on the gitignore check below because they are tracked.
 case "$NORM_FILE" in

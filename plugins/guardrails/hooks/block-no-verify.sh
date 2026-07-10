@@ -12,8 +12,9 @@
 # builds argv — top-level segments split on unquoted control operators, each
 # tokenized into argv words honoring '…', "…", $'…' (ANSI-C), and backslash
 # escapes — then a real git executable (basename `git`, case/.exe-folded on
-# Windows) is found ANYWHERE in a segment (so wrappers like `env -i git …`,
-# `nice git …`, `sudo -u x git …` are transparent), its subcommand resolved
+# Windows) is found at the segment's command position — after leading env-var
+# assignments and known wrappers (`env -i git …`, `nice git …`, `sudo -u x git …`
+# are transparent) — its subcommand resolved
 # past git global options (including arg-consuming ones like `-C <dir>`), and
 # the bypass tokens matched on the parsed argv.
 #
@@ -121,6 +122,65 @@ ansi_c_decode() {
   printf -- "$b" 2>/dev/null
 }
 
+# Return the argv index of a real `git` executable at the segment's command
+# position (after env-var prefixes and known wrappers), or return 1 when absent.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+resolve_git_index() {
+  local -a w=("$@")
+  local n=${#w[@]} i=0 tok
+
+  while ((i < n)); do
+    tok="${w[i]}"
+    if [[ "$tok" == *=* ]]; then
+      ((i++))
+      continue
+    fi
+
+    case "${tok##*/}" in
+    env)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -u | -C | --chdir) ((i += 2)) ;;
+        -*) ((i++)) ;;
+        esac
+      done
+      continue
+      ;;
+    nice | nohup)
+      ((i++))
+      if ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    sudo)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -u | -g | -h | -p | -C | -D | -R | -T | --user | --group | --chdir) ((i += 2)) ;;
+        -*) ((i++)) ;;
+        esac
+      done
+      continue
+      ;;
+    timeout)
+      ((i++))
+      if ((i < n)); then ((i++)); fi
+      continue
+      ;;
+    *)
+      if is_git_bin "$tok"; then
+        echo "$i"
+        return 0
+      fi
+      return 1
+      ;;
+    esac
+  done
+  return 1
+}
+
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
 # when the segment is a real `git commit`/`git push` carrying a bypass token.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
@@ -128,78 +188,76 @@ check_segment() {
   local -a w=("$@")
   local nseg=${#w[@]} gi j k x lc ch rest sub sub_idx gw
 
-  for ((gi = 0; gi < nseg; gi++)); do
-    is_git_bin "${w[gi]}" || continue
+  gi=$(resolve_git_index "${w[@]}") || return 0
 
-    # Resolve the subcommand: walk words after the git executable, skipping git
-    # global options. The listed options consume the FOLLOWING word as their
-    # value (two-word form); their =-forms and every other option are single
-    # words handled by the generic `-*` skip.
-    sub=""
-    sub_idx=-1
-    j=$((gi + 1))
-    while ((j < nseg)); do
-      gw="${w[j]}"
-      case "$gw" in
-      -c | -C | --git-dir | --work-tree | --namespace | --super-prefix | --config-env | --attr-source | --exec-path)
-        ((j += 2))
-        ;;
-      -*)
-        ((j++))
-        ;;
-      *)
-        sub="$gw"
-        sub_idx=$j
-        break
-        ;;
-      esac
-    done
-    [[ "$sub" == "commit" || "$sub" == "push" ]] || continue
-
-    # Form 2: hook-manager env-var prefix (commit OR push) — scan every word.
-    for ((k = 0; k < nseg; k++)); do
-      lc="${w[k],,}"
-      [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
-        "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
-        "Fix the hook lane failure instead of bypassing."
-    done
-
-    # Form 1b: core.hooksPath assignment (commit OR push) — any word after git.
-    for ((k = gi + 1; k < nseg; k++)); do
-      lc="${w[k],,}"
-      [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-        "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
-        "Fix the hook failure instead of bypassing git hooks."
-    done
-
-    # Form 1: --no-verify / -n (commit only) — words after the subcommand. A
-    # quoted -m value is a single argv word, so a --no-verify inside a message
-    # is not its own flag. In a short-option bundle, `n` counts only when it
-    # precedes the first argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg`
-    # blocks but `-mn` (m takes value "n") does not.
-    if [[ "$sub" == "commit" ]]; then
-      for ((k = sub_idx + 1; k < nseg; k++)); do
-        x="${w[k]}"
-        [[ "$x" == "--no-verify" ]] && block "no-verify" \
-          "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
-          "Fix the issues that caused the hook failure instead of bypassing."
-        if [[ "$x" =~ ^-[A-Za-z]+$ ]]; then
-          rest="${x#-}"
-          for ((ch = 0; ch < ${#rest}; ch++)); do
-            case "${rest:ch:1}" in
-            n) block "no-verify" \
-              "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
-              "Fix the issues that caused the hook failure instead of bypassing." ;;
-            m | F | c | C | t | u | S | G) break ;;
-            *) ;;
-            esac
-          done
-        fi
-      done
-    fi
-
-    return 0
+  # Resolve the subcommand: walk words after the git executable, skipping git
+  # global options. The listed options consume the FOLLOWING word as their
+  # value (two-word form); their =-forms and every other option are single
+  # words handled by the generic `-*` skip.
+  sub=""
+  sub_idx=-1
+  j=$((gi + 1))
+  while ((j < nseg)); do
+    gw="${w[j]}"
+    case "$gw" in
+    -c | -C | --git-dir | --work-tree | --namespace | --super-prefix | --config-env | --attr-source | --exec-path)
+      ((j += 2))
+      ;;
+    -*)
+      ((j++))
+      ;;
+    *)
+      sub="$gw"
+      sub_idx=$j
+      break
+      ;;
+    esac
   done
+  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
+
+  # Form 2: hook-manager env-var prefix (commit OR push) — scan every word.
+  for ((k = 0; k < nseg; k++)); do
+    lc="${w[k],,}"
+    [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
+      "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
+      "Fix the hook lane failure instead of bypassing."
+  done
+
+  # Form 1b: core.hooksPath assignment (commit OR push) — any word after git.
+  for ((k = gi + 1; k < nseg; k++)); do
+    lc="${w[k],,}"
+    [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
+      "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
+      "Fix the hook failure instead of bypassing git hooks."
+  done
+
+  # Form 1: --no-verify / -n (commit only) — words after the subcommand. A
+  # quoted -m value is a single argv word, so a --no-verify inside a message
+  # is not its own flag. In a short-option bundle, `n` counts only when it
+  # precedes the first argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg`
+  # blocks but `-mn` (m takes value "n") does not.
+  if [[ "$sub" == "commit" ]]; then
+    for ((k = sub_idx + 1; k < nseg; k++)); do
+      x="${w[k]}"
+      [[ "$x" == "--no-verify" ]] && block "no-verify" \
+        "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+        "Fix the issues that caused the hook failure instead of bypassing."
+      if [[ "$x" =~ ^-[A-Za-z]+$ ]]; then
+        rest="${x#-}"
+        for ((ch = 0; ch < ${#rest}; ch++)); do
+          case "${rest:ch:1}" in
+          n) block "no-verify" \
+            "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+            "Fix the issues that caused the hook failure instead of bypassing." ;;
+          m | F | c | C | t | u | S | G) break ;;
+          *) ;;
+          esac
+        done
+      fi
+    done
+  fi
+
+  return 0
 }
 
 # Single linear pass: read the command into a char array once (O(n)), then walk
