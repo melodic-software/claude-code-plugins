@@ -4,7 +4,7 @@ description: "Builds a throwaway interactive terminal app to pressure-test busin
 argument-hint: "[scope] (e.g., /prototype:logic scheduling state machine)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash *detect-ecosystems.sh*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)"]
 ---
 
 ## Pre-computed context
