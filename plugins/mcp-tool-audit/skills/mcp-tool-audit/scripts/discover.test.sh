@@ -102,6 +102,9 @@ public class InventoryTools
 
     [McpServerTool(Name = "inventory_rename_item")]
     public string RenameItem(string boardId) => "";
+
+    // [McpServerTool]
+    public string DisabledExample(string boardId) => "";
 }
 CS
 
@@ -143,6 +146,10 @@ esac
 case "$out" in
   *"Tool: RenameItem"*) fail "attribute-named dotnet tool not duplicated under method name" "no RenameItem" ;;
   *) pass "attribute-named dotnet tool not duplicated under method name" ;;
+esac
+case "$out" in
+  *DisabledExample*) fail "commented-out dotnet attribute excluded" "no DisabledExample" ;;
+  *) pass "commented-out dotnet attribute excluded" ;;
 esac
 assert_contains "dotnet class attribute does not duplicate tool" "$out" "Tool: ListItems"
 case "$out" in
