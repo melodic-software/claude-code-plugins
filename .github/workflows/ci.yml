@@ -203,6 +203,33 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  plugin-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      # Contract tests run first and gate independently of the CLI validate step
+      # below: a validate-infra problem (e.g. the CLI needing auth) can never mask
+      # a real contract-test failure. shellcheck is preinstalled on the runner;
+      # shfmt is not, so shfmt-gated cases skip rather than fail. Biome and Ruff
+      # are installed below so biome-format/ruff-format suites execute instead of
+      # silently skipping when the binaries are absent.
+      - name: Install plugin test toolchains
+        run: |
+          npm install -g @biomejs/biome
+          python3 -m pip install --user ruff
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run plugin contract tests
+        run: scripts/run-plugin-tests.sh
+      # Node.js is preinstalled on ubuntu-latest; no setup-node action needed.
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate plugin and catalog manifests
+        run: scripts/validate-plugins.sh
+
   ci-status:
     if: always()
     needs:
@@ -218,6 +245,7 @@ jobs:
       - eol-renormalize
       - comment-hygiene
       - hook-utils-sync
+      - plugin-gate
       - zizmor
     runs-on: ubuntu-latest
     timeout-minutes: 15
