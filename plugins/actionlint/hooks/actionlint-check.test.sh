@@ -117,6 +117,7 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "clean .yaml -> exit 0 empty (glob covers .yaml)"; else fail "clean .yaml (rc=$RC out=$OUT)"; fi
 
 # --- Case 3: violation -> advisory (exit 0) + finding in additionalContext ---
+# shellcheck disable=SC2016  # literal workflow YAML fixture: ${{ }} must stay unexpanded
 printf 'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n' \
   >"$REPO/.github/workflows/violation.yml"
 OUT=$(run_hook "$REPO/.github/workflows/violation.yml")
@@ -161,6 +162,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent despi
 # exits 0 with no finding. If -shellcheck= regressed AND ShellCheck is present,
 # an SC2086 line would surface. When ShellCheck is absent actionlint skips the
 # integration regardless, so this never false-fails.
+# shellcheck disable=SC2016  # literal workflow YAML fixture: $FOO must stay unexpanded
 printf 'name: bigrun\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          FOO=bar\n          echo $FOO\n          for i in 1 2 3; do echo "line $i"; done\n' \
   >"$REPO/.github/workflows/bigrun.yml"
 OUT=$(run_hook "$REPO/.github/workflows/bigrun.yml")
