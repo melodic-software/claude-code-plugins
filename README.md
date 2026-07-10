@@ -31,6 +31,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`guardrails`](plugins/guardrails) | Hook | Bundles four independently-toggleable PreToolUse safety guards: secret-pattern detection, hardcoded machine-path check, git hook-bypass blocking (`--no-verify`, `core.hooksPath`, `LEFTHOOK=0`), and advisory CLI-flag verification. |
 | [`bug-report`](plugins/bug-report) | Skill | Turns an informal defect description into a structured five-field bug report (title, repro, expected vs actual, severity, fix location). Read-only — it captures, never fixes or files on its own. |
 | [`diagnose`](plugins/diagnose) | Skill | Debugs observed failures via a disciplined six-phase loop — build a fast deterministic reproduction signal, reproduce, rank falsifiable hypotheses, instrument, fix with a regression test, then clean up and post-mortem. |
+| [`improve-architecture`](plugins/improve-architecture) | Skill | Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and interviews the selected candidate before handing off for planning. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 

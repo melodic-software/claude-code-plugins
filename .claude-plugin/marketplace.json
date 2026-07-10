@@ -72,6 +72,12 @@
       "source": "./plugins/diagnose",
       "category": "debugging",
       "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
+    },
+    {
+      "name": "improve-architecture",
+      "source": "./plugins/improve-architecture",
+      "category": "architecture",
+      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
     }
   ]
 }
