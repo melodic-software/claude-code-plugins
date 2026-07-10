@@ -29,6 +29,55 @@ Every plugin is designed to these principles (named here as the bar; apply, don'
 Concretely for plugins: a plugin owns one cohesive capability, depends on nothing repo-specific, and
 exposes its variability through declared configuration rather than internal forks.
 
+## Organization — one plugin per cohesive concern
+
+The charter's "one cohesive capability" is also the packaging boundary: **one plugin per cohesive
+concern or capability**, grouped in the catalog through `category` / `tags` rather than by splitting.
+A cohesive plugin MAY hold several units — a first-party plugin bundles many skills of one concern, a
+hooks plugin bundles many hooks of one concern. One-unit-per-plugin is not the norm; do not ship a
+plugin per hook.
+
+- **Skills group by capability.** Distinct capabilities are distinct plugins; a single capability's
+  always-together facets bundle (e.g. a prototyping capability's `logic` and `ui` skills ship together).
+- **Hooks group by concern.** Per-hook selectivity comes from an env kill-switch
+  (`HOOK_<PLUGIN>_ENABLED`), a `matcher`, or an `if` guard — author-managed control inside the bundle,
+  the ecosystem norm.
+- **Whole-product / vendor-brand bundles** driven by distribution are a separate, allowed shape.
+
+**Why capability, not grab-bag.** Enabling and disabling happen at the plugin level, and the
+`skillOverrides` setting explicitly *excludes* plugin skills (those are managed through `/plugin`), so
+there is no clean per-skill à-la-carte toggle. Bundling several skills is therefore acceptable only
+*within* one cohesive capability you would never split — it forbids lumping *distinct* capabilities into
+a single plugin. Hooks differ: the env kill-switch gives clean per-hook control inside a bundle. The
+discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via env) versus
+**opt-in-per-invocation** components (skills — group by capability).
+
+## Naming
+
+Name a plugin and its units by this precedence — an earlier rule wins on conflict:
+
+1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
+   overloaded generic term (a bare `audit` is collision bait).
+2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
+   `name` (not the marketplace name); mirror established Claude Code patterns.
+3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
+   no unit-type suffix (`-hook` / `-skill`) unless load-bearing; names track their semantic scope.
+
+Applying that precedence:
+
+- **Plugin `name` is a domain noun, kebab-case** (e.g. `feature-dev`, `pr-review-toolkit`).
+- **Skill name follows its KIND.** An action / user-invoked skill reads as a **verb-phrase**
+  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill is a **noun-phrase**
+  (`cqrs-implementation`, `agent-development`). The "reads-as-a-verb-phrase" heuristic scopes to action
+  skills only — a `noun:noun` name is correct for a knowledge skill.
+- **`/plugin:skill` doubling is idiomatic** (`/prototype:prototype`, first-party `/code-review:code-review`)
+  — docs-blessed, not an anti-pattern. Do not contort a name solely to avoid the doubling.
+- **Generic skill names are safe under namespacing** (`help`, `list`, `configure`) — the overloaded-term
+  caution governs plugin *identity*, not a namespaced skill leaf.
+- **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
+  plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
+  — do not formalize such a split.
+
 ## Extensibility model — what works today
 
 These are the proven, documented mechanisms for consumer customization that do not confuse the agent.
@@ -45,6 +94,27 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 
 Design a skill so its variable parts route through the table above. "If you need to customize X, set
 `userConfig` Y / add it to your project rules" — never "open an issue" or "fork the skill".
+
+## Persistence, configuration & external integration
+
+A skill is a markdown prompt (plus optional scripts), not a compiled runtime — so ports / adapters /
+CQS layering is a **category error** here. Expose variability the way real plugins and the extensibility
+model above already prescribe:
+
+- **Persistence.** Write generated state and caches to `${CLAUDE_PLUGIN_DATA}` (the per-plugin directory
+  that survives updates — see the extensibility table). Choose JSON / JSONL / SQLite per need.
+- **Configurable location or behavior.** One `userConfig` knob (`${user_config.KEY}`, per the
+  extensibility table) with a sane default — never a consumer-bound interface. Add a knob **only** where
+  a real repo-specific behavior surfaces (Rule of Three; no speculative knobs — see the design charter).
+- **External systems (issue trackers and the like).** Use backend-neutral **"work item"** vocabulary
+  plus either a direct CLI call (e.g. `gh`) or dependence on an **MCP server** — swapping the backend
+  means swapping the MCP server, not introducing a pluggable-tracker abstraction (every official
+  integration is a bare MCP wrapper).
+- **Cross-skill references.** Hand off through the slash invocation when the target skill is present;
+  degrade gracefully to prose when it is absent.
+
+This is deliberately **not** ports / adapters: there is no runtime seam to invert in a prompt medium, so
+a declared config surface, not an abstraction layer, is the extension point.
 
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
@@ -82,6 +152,31 @@ For each skill/hook/agent being migrated:
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
     itself** — a bad entry surfaces only there, not in per-plugin validation. Document the plugin in the README.
+
+## Migration order, PRs & parallelization
+
+**Seams first** (Fowler's Branch by Abstraction). Establish the shared foundations — the conventions in
+this playbook, the shared `lib/` source of truth (see "Shared code across plugins"), and the
+persistence/config pattern above — in one small sequential PR *before* fanning out. Everything downstream
+builds on those seams.
+
+**Per-unit atomic PRs, authored in parallel.** One PR per cohesive migratable unit: small changesets
+review faster and more thoroughly, and the per-unit acceptance gate makes each one atomic and
+rollback-safe. Parallelize with one worktree (or worker) per unit — **conflict-free by design**, because
+each plugin is an isolated `plugins/<name>/` directory, so N units become N concurrent PRs with no merge
+conflicts. Group units into one PR only when they are hard-coupled, or when the change is a single
+mechanical bulk edit.
+
+**Expect one shared-file conflict, resolved at merge.** The two files parallel PRs all touch are the
+catalog manifest (`.claude-plugin/marketplace.json`) and the README catalog table. Those conflicts are
+expected — resolve them by **serializing the final merges**, not by serializing authorship.
+
+**Gate every unit before publish.** Each unit clears its parity / acceptance gate — the per-plugin
+migration gate and the plugin-acceptance security review below — before it ships.
+
+**Sequence heuristic.** Order lowest-coupling units first (clean, self-contained units with graceful
+degradation). Defer risky units (hard external dependencies, no graceful degradation) and any
+license-gated units to per-item triage rather than a blanket hold. The ordering is reversible.
 
 ## Plugin-acceptance security review
 
