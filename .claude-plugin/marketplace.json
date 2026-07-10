@@ -32,10 +32,34 @@
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
     },
     {
+      "name": "eol-normalizer",
+      "source": "./plugins/eol-normalizer",
+      "category": "formatting",
+      "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
+    },
+    {
       "name": "desktop-notification",
       "source": "./plugins/desktop-notification",
       "category": "notifications",
       "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
+    },
+    {
+      "name": "powershell-format",
+      "source": "./plugins/powershell-format",
+      "category": "formatting",
+      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "actionlint",
+      "source": "./plugins/actionlint",
+      "category": "formatting",
+      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
+    },
+    {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "category": "security",
+      "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
     }
   ]
 }

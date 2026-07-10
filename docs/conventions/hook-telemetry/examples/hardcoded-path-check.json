@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-10T14:23:41Z",
+  "hook": "hardcoded-path-check",
+  "hook_event": "PreToolUse",
+  "status": "blocked",
+  "duration_ms": 74,
+  "data": {
+    "tool": "Edit",
+    "file": "scripts/deploy.sh",
+    "violations": ["Linux user path detected"]
+  }
+}
