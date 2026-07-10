@@ -30,6 +30,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`actionlint`](plugins/actionlint) | Hook | Lints GitHub Actions workflow files (`.github/workflows/*.yml`/`.yaml`) on edit via the `actionlint` already on your `PATH` — advisory findings, never blocking. |
 | [`guardrails`](plugins/guardrails) | Hook | Bundles four independently-toggleable PreToolUse safety guards: secret-pattern detection, hardcoded machine-path check, git hook-bypass blocking (`--no-verify`, `core.hooksPath`, `LEFTHOOK=0`), and advisory CLI-flag verification. |
 | [`bug-report`](plugins/bug-report) | Skill | Turns an informal defect description into a structured five-field bug report (title, repro, expected vs actual, severity, fix location). Read-only — it captures, never fixes or files on its own. |
+| [`diagnose`](plugins/diagnose) | Skill | Debugs observed failures via a disciplined six-phase loop — build a fast deterministic reproduction signal, reproduce, rank falsifiable hypotheses, instrument, fix with a regression test, then clean up and post-mortem. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 

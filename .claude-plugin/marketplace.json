@@ -66,6 +66,12 @@
       "source": "./plugins/bug-report",
       "category": "workflow",
       "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
+    },
+    {
+      "name": "diagnose",
+      "source": "./plugins/diagnose",
+      "category": "debugging",
+      "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
     }
   ]
 }
