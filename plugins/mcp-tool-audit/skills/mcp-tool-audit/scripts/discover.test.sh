@@ -52,9 +52,19 @@ TS
 
 mkdir -p "$proj/search/node/src"
 cat >"$proj/search/node/src/server.ts" <<'TS'
+// server.registerTool(
+//   "commented_out_tool",
+//   { description: "Disabled example." },
+//   async () => ({})
+// );
 server.registerTool(
   'search_docs',
   { description: "Search docs." },
+  async () => ({})
+);
+server.registerTool(
+  "bad tool",
+  { description: "Invalid name for C9." },
   async () => ({})
 );
 TS
@@ -94,6 +104,11 @@ assert_exit "--help exits 0" 0 "$(
 out="$(CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$proj")"
 assert_contains "server count present" "$out" "Server count:"
 assert_contains "typescript tool discovered" "$out" "Tool: payments_charge_card"
+case "$out" in
+  *commented_out_tool*) fail "commented-out registration excluded" "no commented_out_tool" ;;
+  *) pass "commented-out registration excluded" ;;
+esac
+assert_contains "invalid-name tool discovered for C9" "$out" 'Tool: bad tool'
 assert_contains "single-quoted typescript tool discovered" "$out" "Tool: search_docs"
 assert_contains "python tool discovered" "$out" "Tool: get_report"
 assert_contains "dotnet tool discovered" "$out" "Tool: ListItems"
@@ -122,6 +137,10 @@ case "$scoped" in
   *payments_charge_card*) fail "scoped run excludes out-of-scope tool" "no payments_charge_card" ;;
   *) pass "scoped run excludes out-of-scope tool" ;;
 esac
+
+# Unscoped scan uses CLAUDE_PROJECT_DIR even from a server subdirectory cwd.
+unscoped="$(cd "$proj/payments/node/src" && CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER")"
+assert_contains "unscoped CLAUDE_PROJECT_DIR scan finds sibling server" "$unscoped" "Tool: get_report"
 
 # --path outside the project boundary is refused (exit 3).
 outside="$(mktemp -d)"

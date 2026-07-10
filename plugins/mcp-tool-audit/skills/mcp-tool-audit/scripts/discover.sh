@@ -110,7 +110,8 @@ if [[ -n "$SCAN_PATH" ]]; then
   project_root="$boundary_canon"
   [[ -z "$project_root" ]] && project_root="$root"
 else
-  project_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  project_root="${CLAUDE_PROJECT_DIR:-}"
+  [[ -z "$project_root" ]] && project_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -z "$project_root" ]] && project_root="."
   root="$project_root"
 fi
@@ -157,11 +158,11 @@ while IFS= read -r file; do
   while IFS= read -r line_num; do
     [[ -z "$line_num" ]] && continue
     tool_name="$(sed -n "${line_num},$((line_num + 6))p" "$file" 2>/dev/null \
-      | grep -oE $'[\'"][a-zA-Z][a-zA-Z0-9_.-]*[\'"]' | head -1 \
-      | sed $'s/[\'"]//g')"
+      | grep -oE $'[\'"][^\'"]+[\'"]' | head -1 \
+      | sed $'s/^[\'"]//; s/[\'"]$//')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" typescript "$rel" "$tool_name" "$line_num"
-  done < <(grep -nE 'server\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
+  done < <(grep -nE '^[[:space:]]*server\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
 done < <(find . -maxdepth "$MAX_SCAN_DEPTH" -type f -name '*.ts' \
   ! -path '*/node_modules/*' ! -path '*/build/*' ! -path '*/dist/*' \
   ! -name '*.test.ts' ! -name '*.spec.ts' 2>/dev/null | LC_ALL=C sort)
