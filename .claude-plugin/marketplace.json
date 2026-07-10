@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "diagnose",
+      "source": "./plugins/diagnose",
+      "category": "debugging",
+      "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
     }
   ]
 }
