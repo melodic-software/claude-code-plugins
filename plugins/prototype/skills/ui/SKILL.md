@@ -4,6 +4,7 @@ description: "Builds throwaway UI variations — several radically different vis
 argument-hint: "[scope] (e.g., /prototype:ui settings page)"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(ls:*)"]
 ---
 
 ## Pre-computed context
@@ -97,7 +98,11 @@ Constraints:
 - **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured
   values.
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
-  `file://` — no external scripts, fonts, or data fetches.
+  `file://` — no external scripts, fonts, or data fetches. Enforce this rather than trusting it:
+  emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource —
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">`.
+  Inline `<style>` and inline `<script>` stay allowed (the in-page switcher needs inline script);
+  only remote origins — CDNs, web fonts, `fetch`/XHR — are forbidden.
 - **Ephemeral placement.** Generate the mockup into an OS temp or gitignored scratch location, not
   a tracked path.
 - **Markdown captures the answer.** Copy the winning-variant key and notes into your durable

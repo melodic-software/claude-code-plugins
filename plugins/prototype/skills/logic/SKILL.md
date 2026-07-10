@@ -4,6 +4,7 @@ description: "Builds a throwaway interactive terminal app to pressure-test busin
 argument-hint: "[scope] (e.g., /prototype:logic scheduling state machine)"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(ls:*)"]
 ---
 
 ## Pre-computed context
