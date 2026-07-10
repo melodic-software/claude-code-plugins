@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Human-in-the-loop reproduction loop — TEMPLATE.
-# Copy this file, replace the placeholder steps below, and run it.
-# The agent runs the script; the human follows prompts in their terminal.
+# Copy this file, replace the placeholder steps below, and run it yourself.
+# The human runs the script in their terminal; paste the captured stdout back to the agent.
 #
-# Usage:
+# Usage (user-run — do NOT invoke via the agent Bash tool; interactive `read` needs a TTY):
 #   bash hitl-loop.template.sh
 #
 # Helpers:
@@ -11,7 +11,7 @@
 #   capture VAR "<question>"      → show question, read response into VAR
 #
 # At the end, captured values are printed as KEY=VALUE for the agent to parse
-# back from stdout.
+# from the pasted stdout.
 #
 # Cross-platform notes:
 # - Works on Git Bash (Windows MSYS2), macOS bash 3.2+, Linux bash 4+.

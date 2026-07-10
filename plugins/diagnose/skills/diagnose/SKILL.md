@@ -56,7 +56,7 @@ Spend disproportionate effort here. Be aggressive. Be creative. Refuse to give u
 7. **Property / fuzz loop** — for "sometimes wrong output", run 1000 random inputs and look for the failure mode
 8. **Bisection harness** — if the bug appeared between two known states (commit, dataset, version), automate "boot at state X, check, repeat" so `git bisect run` works
 9. **Differential loop** — same input through old-version vs new-version (or two configs), diff outputs
-10. **HITL bash script** — last resort. If a human must click, drive *them* with the bundled template at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/scripts/hitl-loop.template.sh` so the loop is still structured. Captured output feeds back to the agent
+10. **HITL bash script** — last resort. If a human must click, copy the bundled template at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/scripts/hitl-loop.template.sh`, customize the steps, and ask the **user** to run it in their terminal (the Bash tool cannot satisfy interactive `read` prompts). Have them paste the `--- Captured ---` KEY=VALUE stdout back into the session so the loop stays structured
 
 ### Loop-recursion hazard
 
