@@ -7,10 +7,9 @@
 # the consuming repo's commit hook / CI (editorconfig, git renormalize) remains
 # the authoritative gate.
 #
-# CROSS-PLATFORM: the LF arm (CRLF->LF) runs on every OS; the CRLF arm
-# (LF->CRLF) is Windows-only. That OS gate lives inside the lib's crlf arm
-# (normalize_eol_platform_crlf), NOT here — a top-level uname short-circuit
-# would silence the always-on LF arm on Linux/macOS.
+# CROSS-PLATFORM: both arms (CRLF->LF and LF->CRLF) run on every OS — the hook
+# compensates for tool writes that bypass git's checkout smudge, and such
+# writes happen on any platform.
 #
 # Uses the consuming repo's own .gitattributes — it ships no policy of its own.
 
@@ -40,7 +39,7 @@ emit_tel() {
   hook::emit_telemetry "$@"
 }
 
-# The bundled EOL library (normalize_eol_file / normalize_eol_platform_crlf).
+# The bundled EOL library (normalize_eol_file).
 # Sourced from the plugin's own hooks dir so it is self-contained on install.
 # shellcheck source=normalize-eol.sh
 source "$(dirname "${BASH_SOURCE[0]}")/normalize-eol.sh"
@@ -89,7 +88,7 @@ build_data_json() {
 ACTION=$(normalize_eol_file "$REPO_ROOT" "$FILE")
 
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
-# attr was unspecified or the crlf arm self-gated off on a non-Windows host.
+# attr was unspecified, the path is -text, or content sniffed binary.
 case "$ACTION" in
   lf | crlf) status="ok" ;;
   *) status="skipped" ;;

@@ -7,22 +7,25 @@
 # rule wins over a broader `*.txt eol=crlf`). NO fast-path extension list:
 # a hardcoded list re-introduces the very bug this lib removes.
 #
-# Dispatch:
-#   lf          -> CRLF->LF, unconditional + idempotent. LF is correct on every
-#                  platform; a CRLF-contaminated .sh / requirements.txt breaks
-#                  shebangs / pip parsing everywhere, so this arm is NOT gated.
-#   crlf        -> LF->CRLF, Windows-only. git smudge already yields CRLF on a
-#                  Linux/macOS checkout for eol=crlf paths; the only way such a
-#                  file lands as LF on disk is a Windows Write that bypasses
-#                  smudge, so the arm gates on normalize_eol_platform_crlf.
+# Dispatch (both arms run on every OS — the hook compensates for tool writes
+# that bypass git's checkout smudge, and such writes happen on any platform):
+#   lf          -> CRLF->LF, idempotent.
+#   crlf        -> LF->CRLF, idempotent.
 #   unspecified -> no-op.
+#
+# Binary guard: `eol` alone is not proof of text. Under `* text=auto eol=lf`,
+# check-attr reports `eol: lf` for binaries too, while git's own conversion
+# stays guarded by content detection. The guard mirrors gitattributes
+# semantics: explicit `text` is trusted, `-text` skips, `text=auto` content-
+# sniffs; `eol` with `text` unspecified sets text implicitly (per the
+# gitattributes doc), so it converts like explicit `text`.
 
-# Returns 0 when this platform should enforce CRLF on disk (Windows Git Bash).
-normalize_eol_platform_crlf() {
-  case "$(uname -s)" in
-    MINGW* | MSYS*) return 0 ;;
-    *) return 1 ;;
-  esac
+# Returns 0 when <file> looks binary: any NUL byte in the first 8000 bytes —
+# the same window git's buffer_is_binary() uses for text=auto detection.
+normalize_eol_is_binary() {
+  local file="$1" nul_count
+  nul_count=$(head -c 8000 <"$file" | LC_ALL=C tr -dc '\0' | wc -c) || return 1
+  [[ "$nul_count" -gt 0 ]]
 }
 
 # Normalize <file>'s working-tree EOL to its .gitattributes `eol=` value.
@@ -44,19 +47,43 @@ normalize_eol_file() {
   eol="${eol##* }"
 
   case "$eol" in
+    lf | crlf) ;;
+    *)
+      printf 'skip'
+      return 0
+      ;;
+  esac
+
+  # Binary guard (see header). `unspecified` falls to the `set` arm: eol on a
+  # path with no text attr implicitly sets text, so git itself would convert.
+  local text
+  text=$(git -C "$root" check-attr text -- "$file" 2>/dev/null | tr -d '\r')
+  text="${text##* }"
+  case "$text" in
+    unset)
+      printf 'skip'
+      return 0
+      ;;
+    auto)
+      if normalize_eol_is_binary "$file"; then
+        printf 'skip'
+        return 0
+      fi
+      ;;
+    *) ;;
+  esac
+
+  case "$eol" in
     lf)
       normalize_eol_to_lf "$file"
       printf 'lf'
       ;;
     crlf)
-      if normalize_eol_platform_crlf; then
-        normalize_eol_to_crlf "$file"
-        printf 'crlf'
-      else
-        printf 'skip'
-      fi
+      normalize_eol_to_crlf "$file"
+      printf 'crlf'
       ;;
     *)
+      # Unreachable — eol was vetted lf|crlf above.
       printf 'skip'
       ;;
   esac
@@ -71,8 +98,11 @@ normalize_eol_to_lf() {
   else
     # Portable fallback: strip all CR (text files carry no lone CR). Stage into a
     # same-dir mktemp file (unpredictable name — CWE-377) then atomically mv.
+    # `cp -p` first so the staged file carries the original's mode (chmod
+    # --reference is GNU-only); the redirect then replaces its content.
     local tmp
     tmp=$(mktemp "${file}.XXXXXX") || return 0
+    cp -p -- "$file" "$tmp" 2>/dev/null || true
     if tr -d '\r' <"$file" >"$tmp"; then
       mv -- "$tmp" "$file"
     else
@@ -88,8 +118,11 @@ normalize_eol_to_crlf() {
     perl -pi -e 's/(?<!\r)\n/\r\n/g' -- "$file"
   else
     # Stage into a same-dir mktemp file (unpredictable name — CWE-377) then mv.
+    # `cp -p` first so the staged file carries the original's mode (chmod
+    # --reference is GNU-only); the redirect then replaces its content.
     local tmp
     tmp=$(mktemp "${file}.XXXXXX") || return 0
+    cp -p -- "$file" "$tmp" 2>/dev/null || true
     if awk 'BEGIN{RS="\r?\n"; ORS="\r\n"} {print}' "$file" >"$tmp"; then
       mv -- "$tmp" "$file"
     else

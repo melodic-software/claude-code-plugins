@@ -11,14 +11,17 @@ imposes no rules of its own.
 
 ## Behavior
 
-- **LF arm (every OS).** A file resolving to `eol=lf` is normalized CRLF→LF
-  unconditionally. LF is correct on every platform — a CRLF-contaminated `.sh`
-  or `requirements.txt` breaks shebangs and parsing everywhere — so this arm is
-  never OS-gated.
-- **CRLF arm (Windows only).** A file resolving to `eol=crlf` is normalized
-  LF→CRLF only on Windows. On Linux/macOS, git's checkout smudge already yields
-  CRLF for those paths; the only way such a file lands as LF on disk is a Windows
-  write that bypasses smudge, so the arm self-gates to Windows.
+- **LF arm (every OS).** A file resolving to `eol=lf` is normalized CRLF→LF.
+- **CRLF arm (every OS).** A file resolving to `eol=crlf` is normalized
+  LF→CRLF. The hook compensates for tool writes that bypass git's checkout
+  smudge, and such writes happen on any platform — an LF write to an
+  `eol=crlf` path violates the repo's policy on Linux/macOS just as much as on
+  Windows.
+- **Binary guard.** `eol` alone is not proof of text: under a broad
+  `* text=auto eol=lf` rule, the `eol` attribute resolves to `lf` for binaries
+  too. The hook mirrors gitattributes semantics — explicit `text` is trusted,
+  `-text` skips, and `text=auto` content-sniffs (NUL scan of the first 8000
+  bytes, git's own detection window) — so binary files are never rewritten.
 - **Unspecified → no-op.** A path with no `eol=` attribute is left untouched.
   There is no hardcoded extension list — resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly

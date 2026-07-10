@@ -3,9 +3,9 @@
 #
 # Proves BEHAVIOR + WIRING: the hook fires on Write|Edit, resolves each file's
 # eol from the consuming repo's own .gitattributes via git check-attr, normalizes
-# CRLF->LF (every OS) and LF->CRLF (Windows only), no-ops on unspecified paths,
-# honors the kill switch, keeps stdout empty (advisory, exit 0), and emits a
-# schema-valid telemetry envelope. No policy of its own — the fixture repo's
+# CRLF->LF and LF->CRLF (both on every OS), no-ops on unspecified paths, skips
+# binary content under text=auto, honors the kill switch, keeps stdout empty
+# (advisory, exit 0), and emits a schema-valid telemetry envelope. No policy of its own — the fixture repo's
 # .gitattributes is the sole authority.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures and
@@ -39,13 +39,6 @@ WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
-
-is_windows() {
-  case "$(uname -s)" in
-    MINGW* | MSYS*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
 
 cr_count() { tr -cd '\r' <"$1" | wc -c | tr -d ' '; }
 
@@ -133,16 +126,60 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch -> exit 0 silent"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 if [[ "$(cr_count "$REPO/off.sh")" == "1" ]]; then ok "kill switch -> CRLF preserved (not normalized)"; else fail "kill switch normalized despite off: CR=$(cr_count "$REPO/off.sh")"; fi
 
-# --- Case 4: CRLF arm (Windows only) — LF .txt -> CRLF, OS-gated -------------
+# --- Case 4: CRLF arm (every OS) — LF .txt -> CRLF ---------------------------
 printf 'line one\nline two\n' >"$REPO/gap.txt"
 OUT=$(run_hook "$REPO/gap.txt")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "CRLF arm .txt -> exit 0"; else fail "CRLF arm .txt exit $RC"; fi
-if is_windows; then
-  if [[ "$(cr_count "$REPO/gap.txt")" == "2" ]]; then ok "CRLF arm LF .txt -> 2 CR (Windows)"; else fail "CRLF arm .txt CR=$(cr_count "$REPO/gap.txt") (expected 2 on Windows)"; fi
+if [[ "$(cr_count "$REPO/gap.txt")" == "2" ]]; then ok "CRLF arm LF .txt -> 2 CR (every OS)"; else fail "CRLF arm .txt CR=$(cr_count "$REPO/gap.txt") (expected 2)"; fi
+
+# --- Case 5: text=auto binary guard — NUL content never rewritten ------------
+# Under a broad `* text=auto eol=lf` rule, check-attr resolves eol=lf for
+# binaries too; the hook must content-sniff and skip instead of corrupting.
+AUTOREPO="$WORK/autorepo"
+new_repo "$AUTOREPO"
+printf '* text=auto eol=lf\n' >"$AUTOREPO/.gitattributes"
+printf 'BIN\r\n\x00\x01\x02\r\ndata' >"$AUTOREPO/blob.bin"
+BIN_BYTES_BEFORE=$(wc -c <"$AUTOREPO/blob.bin" | tr -d ' ')
+OUT=$(run_hook "$AUTOREPO/blob.bin")
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "binary guard -> exit 0 silent"; else fail "binary guard (rc=$RC out=$OUT)"; fi
+if [[ "$(wc -c <"$AUTOREPO/blob.bin" | tr -d ' ')" == "$BIN_BYTES_BEFORE" && "$(cr_count "$AUTOREPO/blob.bin")" == "2" ]]; then
+  ok "binary guard: NUL file under text=auto eol=lf left byte-identical"
 else
-  if [[ "$(cr_count "$REPO/gap.txt")" == "0" ]]; then ok "CRLF arm .txt -> unchanged 0 CR (non-Windows, self-gated off)"; else fail "CRLF arm .txt CR=$(cr_count "$REPO/gap.txt") (expected 0 off-Windows)"; fi
+  fail "binary guard: binary file was rewritten (bytes $(wc -c <"$AUTOREPO/blob.bin" | tr -d ' ')/$BIN_BYTES_BEFORE CR=$(cr_count "$AUTOREPO/blob.bin"))"
 fi
+# Text sibling in the same repo still normalizes (the sniff passes text through).
+printf 'echo t\r\n' >"$AUTOREPO/auto.sh"
+run_hook "$AUTOREPO/auto.sh" >/dev/null
+if [[ "$(cr_count "$AUTOREPO/auto.sh")" == "0" ]]; then ok "binary guard: text file under text=auto still normalized"; else fail "binary guard: text file not normalized CR=$(cr_count "$AUTOREPO/auto.sh")"; fi
+
+# --- Case 6: -text is never rewritten even with eol set ----------------------
+printf '*.dat -text eol=lf\n' >>"$AUTOREPO/.gitattributes"
+printf 'a\r\nb\r\n' >"$AUTOREPO/keep.dat"
+run_hook "$AUTOREPO/keep.dat" >/dev/null
+if [[ "$(cr_count "$AUTOREPO/keep.dat")" == "2" ]]; then ok "-text guard: CR preserved despite eol=lf"; else fail "-text guard: rewritten CR=$(cr_count "$AUTOREPO/keep.dat")"; fi
+
+# --- Case 7: no-perl fallback preserves file mode (white-box) -----------------
+# The mktemp fallback stages into a fresh temp file; without mode preservation
+# a 755 script would come back non-executable. Shadow `command` so the lib's
+# perl probe fails, forcing the fallback arm.
+printf '#!/bin/sh\r\necho hi\r\n' >"$REPO/exec.sh"
+chmod 755 "$REPO/exec.sh"
+(
+  # shellcheck disable=SC2329  # invoked indirectly: the sourced lib's `command -v perl` probe hits this shadow
+  command() { if [[ "${1:-}" == "-v" && "${2:-}" == "perl" ]]; then return 1; fi; builtin command "$@"; }
+  # Prove the shim actually hides perl before relying on it.
+  if command -v perl >/dev/null 2>&1; then
+    echo "FAIL: test shim: perl shadow ineffective" >&2
+    exit 1
+  fi
+  # shellcheck source=normalize-eol.sh
+  source "$HOOK_DIR/normalize-eol.sh"
+  normalize_eol_to_lf "$REPO/exec.sh"
+) || fail "fallback: subshell failed"
+if [[ "$(cr_count "$REPO/exec.sh")" == "0" ]]; then ok "fallback: CRLF stripped without perl"; else fail "fallback: CR=$(cr_count "$REPO/exec.sh")"; fi
+if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else fail "fallback: exec bit lost"; fi
 
 # ============================================================================
 # Telemetry
