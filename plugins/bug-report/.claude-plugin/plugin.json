@@ -7,6 +7,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "license": "MIT",
   "keywords": ["bug", "bug-report", "defect", "triage", "issue", "workflow", "skill"],
   "userConfig": {
     "output_dir": {

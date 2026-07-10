@@ -77,4 +77,5 @@ Otherwise the emitted report is the deliverable — copy it into your tracker.
 
 ## License
 
-[MIT](../../LICENSE).
+MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
+melodic-software/claude-code-plugins repository.

@@ -7,5 +7,6 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "license": "MIT",
   "keywords": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
 }
