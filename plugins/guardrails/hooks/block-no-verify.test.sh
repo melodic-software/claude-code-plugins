@@ -121,6 +121,16 @@ run "git commit -m --no-verify (message value, allowed)" \
   'git commit -m --no-verify' 0
 run "git commit -m 'LEFTHOOK=0' (message literal, allowed)" \
   "git commit -m 'LEFTHOOK=0'" 0
+run "env -S 'git commit --no-verify' (split-string operand, blocked)" \
+  "env -S 'git commit --no-verify -m test'" 2
+run "env -S'git commit --no-verify' (attached split-string, blocked)" \
+  "env -S'git commit --no-verify -m test'" 2
+run "env --split-string='git commit --no-verify' (long form, blocked)" \
+  "env --split-string='git commit --no-verify -m test'" 2
+run "eval git commit --no-verify (eval prefix, blocked)" \
+  'eval git commit --no-verify -m test' 2
+run "env -S 'ls -la' (split-string non-git, allowed)" \
+  "env -S 'ls -la'" 0
 
 # --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in

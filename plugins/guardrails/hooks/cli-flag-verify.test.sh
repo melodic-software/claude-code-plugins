@@ -156,4 +156,22 @@ else
   bad "telemetry: no envelope written"
 fi
 
+# ================= VERIFIER OPTION PARSING (positional guard) ===============
+# Verifier options are recognized only before <bin>; a TARGET flag spelled
+# --quiet/--verbose must be verified as a positional, not consumed (the old
+# whole-argv scan returned rc 3 and the hook silently skipped those flags).
+VERIFIER="$HOOK_DIR/../lib/verification/verify-cli-flag.sh"
+opt_dir="$TEST_TMPDIR/verifier-opts"
+mkdir -p "$opt_dir/cache"
+run_verifier() {
+  PATH="$FAKE_BIN_DIR:$PATH" LOCALAPPDATA="$opt_dir/cache" \
+    XDG_CACHE_HOME="$opt_dir/cache" bash "$VERIFIER" "$@" >/dev/null 2>&1
+}
+run_verifier --quiet faketool --toplevel
+assert_exit "verifier: leading --quiet still parsed as option" 0 $?
+run_verifier --quiet faketool --verbose
+assert_exit "verifier: target --verbose verified, not consumed (absent -> 1)" 1 $?
+run_verifier --quiet faketool --quiet
+assert_exit "verifier: target --quiet verified, not consumed (absent -> 1)" 1 $?
+
 report

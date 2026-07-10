@@ -123,11 +123,17 @@ ansi_c_decode() {
   printf -- "$b" 2>/dev/null
 }
 
-# Return the argv index of a real `git` executable at the segment's command
-# position (after env-var prefixes and known wrappers), or return 1 when absent.
+# Locate a real `git` executable at the segment's command position (after
+# env-var prefixes and known wrappers), or return 1 when absent. Results go in
+# globals, NOT a $( ) echo: `env -S` splicing rewrites the argv, and the caller
+# must match on the rewritten words, so the index alone is not enough.
+#   RESOLVED_GI    — index of git in RESOLVED_WORDS
+#   RESOLVED_WORDS — the (possibly rewritten) segment argv
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 resolve_git_index() {
-  local -a w=("$@")
+  RESOLVED_WORDS=("$@")
+  RESOLVED_GI=-1
+  local -n w=RESOLVED_WORDS
   local n=${#w[@]} i=0 tok
 
   while ((i < n)); do
@@ -142,6 +148,30 @@ resolve_git_index() {
       ((i++))
       while ((i < n)) && [[ "${w[i]}" == -* ]]; do
         case "${w[i]}" in
+        # -S/--split-string re-splits its operand into argv (GNU env), so a
+        # quoted 'git commit --no-verify' would otherwise hide from the
+        # resolver as one non-git word. Splice the split words back into the
+        # scan and restart at the command position.
+        -S | --split-string)
+          local sval=""
+          ((i + 1 < n)) && sval="${w[i + 1]}"
+          local -a sw=()
+          read -r -a sw <<<"$sval"
+          w=("${sw[@]}" "${w[@]:i+2}")
+          n=${#w[@]}
+          i=0
+          continue 2
+          ;;
+        -S* | --split-string=*)
+          local sval="${w[i]#-S}"
+          sval="${sval#--split-string=}"
+          local -a sw=()
+          read -r -a sw <<<"$sval"
+          w=("${sw[@]}" "${w[@]:i+1}")
+          n=${#w[@]}
+          i=0
+          continue 2
+          ;;
         -u | -C | --chdir) ((i += 2)) ;;
         -*) ((i++)) ;;
         *) ((i++)) ;;
@@ -190,7 +220,9 @@ resolve_git_index() {
       fi
       continue
       ;;
-    command | exec | builtin | !)
+    # eval concatenates and re-executes its arguments, so for the unquoted
+    # form (`eval git commit ...`) scanning the following words is exact.
+    command | exec | builtin | eval | !)
       ((i++))
       continue
       ;;
@@ -207,7 +239,7 @@ resolve_git_index() {
       ;;
     *)
       if is_git_bin "$tok"; then
-        echo "$i"
+        RESOLVED_GI=$i
         return 0
       fi
       return 1
@@ -224,7 +256,11 @@ check_segment() {
   local -a w=("$@")
   local nseg=${#w[@]} gi j k x lc ch rest sub sub_idx gw
 
-  gi=$(resolve_git_index "${w[@]}") || return 0
+  resolve_git_index "${w[@]}" || return 0
+  gi=$RESOLVED_GI
+  # env -S splicing may have rewritten the argv — match on the resolved words.
+  w=("${RESOLVED_WORDS[@]}")
+  nseg=${#w[@]}
 
   # Resolve the subcommand: walk words after the git executable, skipping git
   # global options. The listed options consume the FOLLOWING word as their

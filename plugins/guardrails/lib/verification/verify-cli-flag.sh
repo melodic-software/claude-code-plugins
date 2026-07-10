@@ -7,10 +7,12 @@
 # Usage:
 #   verify-cli-flag.sh [OPTIONS] <bin> [<subcmd>...] --<flag>
 #
-# Options:
+# Options (recognized only BEFORE <bin>; a target flag named --quiet or
+# --verbose is therefore never consumed as a verifier option):
 #   -h, --help        Print usage and exit 0
 #   --quiet           Suppress non-error output
 #   --verbose         Print the matching --help line on success
+#   --                End of verifier options
 #
 # Arguments:
 #   <bin>             Binary name on PATH (e.g. claude, gh, dotnet)
@@ -35,19 +37,33 @@ usage() {
 
 QUIET=false
 VERBOSE=false
-ARGS=()
 
-for arg in "$@"; do
-  case "$arg" in
+# Verifier options are recognized only at the FRONT of argv; parsing stops at
+# the first positional so a TARGET flag spelled --quiet/--verbose stays a
+# positional and gets verified instead of silently steering the verifier.
+while (($# > 0)); do
+  case "$1" in
     -h | --help)
       usage
       exit 0
       ;;
-    --quiet) QUIET=true ;;
-    --verbose) VERBOSE=true ;;
-    *) ARGS+=("$arg") ;;
+    --quiet)
+      QUIET=true
+      shift
+      ;;
+    --verbose)
+      VERBOSE=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *) break ;;
   esac
 done
+
+ARGS=("$@")
 
 if ((${#ARGS[@]} < 2)); then
   echo "verify-cli-flag: error: expected <bin> [<subcmd>...] --<flag>" >&2
