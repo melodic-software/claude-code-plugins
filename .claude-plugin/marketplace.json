@@ -84,6 +84,12 @@
       "source": "./plugins/mcp-tool-audit",
       "category": "quality",
       "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"]
+    },
+    {
+      "name": "prototype",
+      "source": "./plugins/prototype",
+      "category": "workflow",
+      "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
     }
   ]
 }

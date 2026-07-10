@@ -33,6 +33,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`diagnose`](plugins/diagnose) | Skill | Debugs observed failures via a disciplined six-phase loop — build a fast deterministic reproduction signal, reproduce, rank falsifiable hypotheses, instrument, fix with a regression test, then clean up and post-mortem. |
 | [`improve-architecture`](plugins/improve-architecture) | Skill | Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and interviews the selected candidate before handing off for planning. |
 | [`mcp-tool-audit`](plugins/mcp-tool-audit) | Skill | Audits MCP server tool definitions against MCP-spec and Anthropic tool-design criteria, returning a per-tool PASS/WARN/FAIL scorecard. Language-agnostic (Python, TypeScript, .NET). |
+| [`prototype`](plugins/prototype) | Skills | Builds throwaway code to answer a design question before committing to architecture. Ships two skills: `/prototype:logic` (an interactive terminal app over a portable state model) and `/prototype:ui` (radically different visual variants on one route). |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
