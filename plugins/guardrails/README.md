@@ -106,4 +106,5 @@ as before.
 
 ## License
 
-[MIT](../../LICENSE).
+MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
+melodic-software/claude-code-plugins repository.

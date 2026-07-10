@@ -1,11 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "actionlint",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "license": "MIT",
   "keywords": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
 }
