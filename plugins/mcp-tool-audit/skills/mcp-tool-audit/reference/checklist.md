@@ -57,6 +57,8 @@ Severity levels:
 
 The spec defines tool annotations as OPTIONAL — so every criterion here is WARN or info, never FAIL.
 
+When auditing SOURCE, accept each SDK's native spelling of these hints as satisfying the criterion — e.g. .NET `[McpServerTool(ReadOnly = true, Destructive = false, Idempotent = true)]` attribute properties, FastMCP `annotations=` arguments — not only literal `readOnlyHint`/`destructiveHint`/`idempotentHint` keys; the SDK maps them to the wire-level annotations.
+
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
 | C12 | **readOnlyHint set on read-only tools** | SPEC-OPTIONAL | WARN | Tools that only read (list, get, search, check) should declare `readOnlyHint: true`. Missing on a read-only tool = warn. This enables parallel execution in Claude Code |
