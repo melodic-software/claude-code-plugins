@@ -30,6 +30,12 @@
       "source": "./plugins/ruff-format",
       "category": "formatting",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
+    },
+    {
+      "name": "powershell-format",
+      "source": "./plugins/powershell-format",
+      "category": "formatting",
+      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
     }
   ]
 }
