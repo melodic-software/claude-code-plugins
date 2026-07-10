@@ -4,7 +4,7 @@ The two fill-in templates the SKILL.md phases point to: the progress file (Phase
 
 ## Progress file (Phase 1.4)
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug) with this template. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name, each slugified to lowercase alphanumerics and hyphens:
+Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug) with this template. Derive both slugs per SKILL.md Phase 1.4 (`{project-slug}` includes the path-hash discriminator):
 
 ```markdown
 # {Book title} distillation

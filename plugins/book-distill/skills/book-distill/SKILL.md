@@ -27,7 +27,7 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 
 ## Emit checklist
 
-For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_SKILL_DIR}/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so it survives between sessions. Phase 3 SKIPPED for thin / single-chapter books.
+For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_SKILL_DIR}/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive `{project-slug}` per Phase 1.4 (basename + path-hash discriminator) and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so it survives between sessions. Phase 3 SKIPPED for thin / single-chapter books.
 
 ## Phase 1 — Setup
 
@@ -36,6 +36,8 @@ Run this phase once at the start of a new book.
 ### 1.1 Identify the target
 
 Determine whether this extends an existing skill or creates a new one. One skill per discipline — a testing skill for testing knowledge, a domain-design skill for domain design, not a mega catch-all skill.
+
+When the target skill does NOT yet exist, bootstrap it now — before any reference file is written: create `${CLAUDE_PROJECT_DIR}/.claude/skills/{target-skill-slug}/` with an empty `reference/` subdirectory and a minimal `SKILL.md` (frontmatter `name` + `description` naming the discipline, plus an empty routing table for Phase 4 to extend). Phase 2 writes into `reference/` and Phase 4 updates the routing table, so both fail or orphan files if the skeleton is missing.
 
 ### 1.2 Survey the book
 
@@ -52,7 +54,7 @@ Map chapters to output files. Group related chapters into single files when they
 
 ### 1.4 Create the progress file
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens, so distilling the same book in different repos or into different target skills does not collide. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so the file survives between sessions. Fill-in template in [context/templates.md](context/templates.md) "Progress file".
+Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then append `-` plus the first 8 hex chars of the SHA-256 of the resolved absolute project path (`printf '%s' "<resolved-project-path>" | sha256sum | cut -c1-8`) — the basename alone collides when two clones or worktrees share a directory name (`/tmp/api` vs `~/work/api`). Derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified the same way, so distilling the same book in different projects or into different target skills never collides. `${CLAUDE_PLUGIN_DATA}` persists across plugin updates, so the file survives between sessions. Fill-in template in [context/templates.md](context/templates.md) "Progress file".
 
 ### 1.5 Session budget
 
