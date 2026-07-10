@@ -1,6 +1,6 @@
 # HTML Report Format
 
-Deepening review rendered as self-contained HTML in the OS temp directory. Inline styles only — no CDN, no remote runtime, no remote fetch (a report that fetches remote assets is a privacy and supply-chain hazard and breaks when opened offline).
+Deepening review rendered as self-contained HTML in the OS temp directory. Inline styles only — no CDN, no remote runtime, no remote fetch (a report that fetches remote assets is a privacy and supply-chain hazard and breaks when opened offline). Diagrams use inline SVG shapes and text only — no `<script>` elements inside SVG (SVG script executes like any page script and defeats the no-remote-runtime guarantee).
 
 ## Scaffold
 
