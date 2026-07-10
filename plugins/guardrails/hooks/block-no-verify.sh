@@ -297,6 +297,7 @@ check_segment() {
         ((k++))
         continue
         ;;
+      *) ;;
       esac
       [[ "$x" == "--no-verify" ]] && block "no-verify" \
         "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
