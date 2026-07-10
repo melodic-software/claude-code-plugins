@@ -56,3 +56,35 @@ Read the progress file first. Then read PDF pages {start}-{end}
 for Ch {X} and write `{next-file}.md`. Continue the read-write pipeline
 for remaining chapters in the file plan.
 ```
+
+## Continuation prompt — EPUB (Phase 2, session end)
+
+When the source is EPUB, use this template instead of the PDF page ranges above:
+
+```markdown
+## Session: {Book title} distillation (continued)
+
+### Context
+{Book title} by {Author} distillation into the `{skill-name}` skill.
+Progress file: `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`
+
+### Completed so far
+- `{file1}.md` — Ch {N} ({topic}) — DONE
+- `{file2}.md` — Ch {M} ({topic}) — DONE
+- ...
+
+### Next up
+- `{next-file}.md` — Ch {X} ({topic})
+  - Chapter file: `{path/to/chapter.xhtml}`
+  - Key sections to capture: {list}
+
+### EPUB chapter map (for reference)
+- Ch {X}: `{path/to/chapter.xhtml}` — {section heading}
+- Ch {Y}: `{path/to/chapter.yhtml}` — {section heading}
+- ...
+
+### Instructions
+Read the progress file first. Then read the chapter XHTML at `{path/to/chapter.xhtml}`
+for Ch {X} and write `{next-file}.md`. Continue the read-write pipeline
+for remaining chapters in the file plan.
+```

@@ -9,7 +9,7 @@ user-invocable: true
 
 Transform technical books into structured skill reference files that provide the WHY behind decisions during development. This is a multi-session process — each session handles ~3 chapters. The skill produces concept-organized reference files with author attribution, suitable for progressive disclosure in Claude Code skills.
 
-The reference files are written into a **target skill** — either an existing skill you extend or a new one you create — inside the consuming project (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`). Name the target skill when you invoke the tool.
+The reference files are written into a **target skill** — either an existing skill you extend or a new one you create — inside the consuming project (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`). Name the target skill when you invoke the tool. **Slugify the target name** (lowercase alphanumerics and hyphens only — strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `${CLAUDE_PROJECT_DIR}/.claude/skills/` before writing.
 
 **Example shape:** a testing skill distilled from two books — Beck's *Test-Driven Development by Example* and Khorikov's *Unit Testing* — producing ~14 reference files, with shared files where the authors overlap.
 
