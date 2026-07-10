@@ -31,6 +31,19 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   PSScriptAnalyzer module is not available, the hook is a clean silent no-op —
   no error spam. `pwsh` is resolved from `PATH` and is never downloaded.
 
+## Trust model
+
+The opt-in `PSScriptAnalyzerSettings.psd1` is **executed-adjacent configuration**,
+not inert data. A settings file may declare a
+[`CustomRulePath`](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
+pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
+modules' exported functions during analysis. Treat the settings file — and any
+module it references — with the same trust you give your build and CI
+configuration: it runs on your machine on every edit. The hook only reads a
+settings file at or below your project root (bounded by `CLAUDE_PROJECT_DIR` when
+set), so it never picks up one from an ancestor directory outside the project.
+Do not enable this plugin against an untrusted working tree.
+
 ## Requirements
 
 - **PowerShell** (`pwsh`) on `PATH` — PowerShell 7+ (cross-platform) or Windows

@@ -188,6 +188,29 @@ else
 fi
 rm -f "$STUB_BIN/pwsh"
 
+# --- settings walk-up bounded by CLAUDE_PROJECT_DIR ceiling ------------------
+# A settings file ABOVE CLAUDE_PROJECT_DIR (but still inside the git repo) must
+# NOT govern an edit inside the project — the walk stops at the project-dir
+# ceiling, matching the membership guard hook::read_file_path enforces. Runs
+# without pwsh: with no settings found within the ceiling, the skip fires before
+# the pwsh call. The git-root-fallback contrast (CLAUDE_PROJECT_DIR unset finds
+# the same root settings) is Case 1b below, which needs a real pwsh.
+REPO_CEIL="$WORK/ceiling"
+new_repo "$REPO_CEIL" # settings at git root
+mkdir -p "$REPO_CEIL/proj/sub"
+# SC2016: literal PowerShell variable syntax — single quotes are intentional.
+# shellcheck disable=SC2016
+printf '%s\n' '$global:c = 1' >"$REPO_CEIL/proj/sub/c.ps1"
+BEFORE_CEIL="$(cat "$REPO_CEIL/proj/sub/c.ps1")"
+OUT=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CEIL/proj/sub/c.ps1" |
+    CLAUDE_PROJECT_DIR="$REPO_CEIL/proj" HOOK_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "settings above CLAUDE_PROJECT_DIR ceiling -> not found, silent skip"; else fail "ceiling not respected (rc=$RC out=$OUT)"; fi
+if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceiling -> file left untouched"; else fail "ceiling -> file was rewritten"; fi
+
 # ============================================================================
 # Behavioral cases — require a real pwsh + PSScriptAnalyzer module
 # ============================================================================
@@ -215,6 +238,21 @@ OUT=$(run_hook "$REPO_NO/nofmt.ps1")
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "gate OFF (no settings) -> exit 0, silent"; else fail "gate OFF not silent (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_NO/nofmt.ps1")" == "$BEFORE_NO" ]]; then ok "gate OFF -> file left untouched"; else fail "gate OFF -> file was rewritten"; fi
+
+# --- Case 1b: ceiling contrast — CLAUDE_PROJECT_DIR unset finds git-root cfg --
+# Reuses the REPO_CEIL tree from the ceiling case above. With CLAUDE_PROJECT_DIR
+# unset, run_hook's walk ceiling falls back to the git root, so the root settings
+# file IS found and the global-var finding surfaces — proving the ceiling case's
+# skip was the bound working, not a missing settings file.
+# SC2016: literal PowerShell variable syntax — single quotes are intentional.
+# shellcheck disable=SC2016
+printf '%s\n' '$global:d = 1' >"$REPO_CEIL/proj/sub/d.ps1"
+OUT=$(run_hook "$REPO_CEIL/proj/sub/d.ps1")
+if printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -q 'PSAvoidGlobalVars'; then
+  ok "CLAUDE_PROJECT_DIR unset -> git-root settings found (walk fallback)"
+else
+  fail "git-root fallback did not find settings: $OUT"
+fi
 
 # --- Case 2: gate ON + clean file -> exit 0, empty stdout --------------------
 REPO="$WORK/consumer"

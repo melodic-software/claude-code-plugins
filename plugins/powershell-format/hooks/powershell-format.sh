@@ -102,8 +102,20 @@ emit_skipped() {
 FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
 root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 
+# Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
+# there, so the settings ceiling matches the file-membership ceiling that
+# hook::read_file_path already enforced — a settings file above the project dir
+# (which the agent was never allowed to write under) can never govern the edit,
+# and a settings file discovered under CustomRulePath is executed during analysis
+# (see README "Trust model"). The git-root ceiling is the fallback when unset.
+CEILING="$root"
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  _cpd="$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd)" || _cpd=""
+  [[ -n "$_cpd" ]] && CEILING="$_cpd"
+fi
+
 # Consumer opt-in: a PSScriptAnalyzerSettings.psd1 that governs the edited file.
-# Walk up from the file's directory to the repo root, stopping at the FIRST
+# Walk up from the file's directory to the ceiling, stopping at the FIRST
 # (closest) settings file — a monorepo may keep per-module settings, and the
 # closest one is the one that should govern this file. Absence of any settings
 # file is the opt-out: the file is left untouched.
@@ -114,7 +126,7 @@ while [[ -n "$dir" ]]; do
     SETTINGS_FOUND="$dir/PSScriptAnalyzerSettings.psd1"
     break
   fi
-  [[ -n "$root" && "$dir" == "$root" ]] && break
+  [[ -n "$CEILING" && "$dir" == "$CEILING" ]] && break
   parent="$(dirname "$dir")"
   [[ "$parent" == "$dir" ]] && break # reached filesystem root
   dir="$parent"
@@ -172,7 +184,13 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
             Set-Content -LiteralPath $file -Value $formatted -NoNewline
         }
 
-        $results = @(Invoke-ScriptAnalyzer -Path $file -Settings $settings)
+        # Invoke-ScriptAnalyzer has no -LiteralPath (verified against module
+        # 1.25.0); -Path treats wildcard metacharacters ([ ] * ?) in a filename
+        # as a pattern. Escape the path so it is matched literally — the same
+        # literal-path intent the Get-Content/Set-Content -LiteralPath calls above
+        # carry, realized via the only mechanism -Path offers.
+        $litFile = [System.Management.Automation.WildcardPattern]::Escape($file)
+        $results = @(Invoke-ScriptAnalyzer -Path $litFile -Settings $settings)
         if ($results.Count -gt 0) {
             foreach ($r in $results) {
                 [Console]::Error.WriteLine(
