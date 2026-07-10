@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/cli-flag-verify.schema.json",
+  "title": "cli-flag-verify telemetry data",
+  "description": "Per-hook `data` payload for the cli-flag-verify advisory hook. Discovered from the envelope `hook` value \"cli-flag-verify\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook. May be an empty string — this advisory hook resolves only the file path, not the tool name."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the scanned file, relative to the consuming repo root when resolvable."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unknown (likely-hallucinated) CLI invocations, each `<bin> [<subcmd>...] <flag>` (public CLI identifiers, not secret). Empty array when every scanned flag verified (status ok)."
+    }
+  }
+}

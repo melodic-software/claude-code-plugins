@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-no-verify.schema.json",
+  "title": "block-no-verify telemetry data",
+  "description": "Per-hook `data` payload for the block-no-verify guard. Discovered from the envelope `hook` value \"block-no-verify\". Evolves additive-only. Carries NO full command string.",
+  "type": "object",
+  "required": ["tool", "subject", "form"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Always \"Bash\" — this guard matches only Bash tool calls."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe command subject `Bash:<first-token>` with leading sudo / env-assignment prefixes stripped and the token basenamed. NEVER the full command or its arguments."
+    },
+    "form": {
+      "type": "string",
+      "description": "The bypass form when blocked: \"no-verify\" | \"hooksPath\" | \"hook-manager-env\" | \"too-long\" (command exceeded the parse cap and was blocked fail-closed). Empty string when the command was allowed (status ok)."
+    }
+  }
+}
