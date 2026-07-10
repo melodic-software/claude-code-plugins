@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/desktop-notification.schema.json",
+  "title": "desktop-notification telemetry data",
+  "description": "Per-hook `data` payload for the desktop-notification hook. Discovered from the envelope `hook` value \"desktop-notification\". Evolves additive-only.",
+  "type": "object",
+  "required": ["notification_type", "channels"],
+  "additionalProperties": true,
+  "properties": {
+    "notification_type": {
+      "type": "string",
+      "description": "The Claude Code notification type that triggered the hook (permission_prompt or idle_prompt)."
+    },
+    "channels": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Channels that actually fired for this notification: any of bell, terminal_notify, os_toast. Empty array = nothing fired (envelope status is then skipped)."
+    }
+  }
+}

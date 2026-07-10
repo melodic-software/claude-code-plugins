@@ -20,6 +20,8 @@
 
 set -euo pipefail
 
+CAPTURED_VARS=()
+
 step() {
   printf '\n>>> %s\n' "$1"
   read -r -p "    [Enter when done] " _
@@ -30,6 +32,7 @@ capture() {
   printf '\n>>> %s\n' "$question"
   read -r -p "    > " answer
   printf -v "$var" '%s' "$answer"
+  CAPTURED_VARS+=("$var")
 }
 
 # === REPLACE EVERYTHING BELOW THIS LINE WITH STEPS FOR YOUR BUG ===========
@@ -51,5 +54,7 @@ capture RESULT "TODO: replace with the question that captures the observation"
 # === REPLACE EVERYTHING ABOVE THIS LINE ===================================
 
 printf '\n--- Captured ---\n'
-# shellcheck disable=SC2154  # RESULT is set by the `capture` macro above when the user instantiates this template.
-printf 'RESULT=%s\n' "$RESULT"
+for var in "${CAPTURED_VARS[@]}"; do
+  # shellcheck disable=SC2154  # each name in CAPTURED_VARS is set by `capture` when the user instantiates this template.
+  printf '%s=%s\n' "$var" "${!var}"
+done
