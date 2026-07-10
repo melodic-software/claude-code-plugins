@@ -151,6 +151,14 @@ resolve_git_index() {
       ;;
     nice | nohup)
       ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -n | --adjustment) ((i += 2)) ;;
+        --adjustment=*) ((i++)) ;;
+        -*) ((i++)) ;;
+        *) break ;;
+        esac
+      done
       if ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]]; then
         ((i++))
       fi
@@ -186,7 +194,14 @@ resolve_git_index() {
       ((i++))
       continue
       ;;
-    if | while | until | for | case | select | time | coproc | '{' | '}')
+    time)
+      ((i++))
+      if ((i < n)) && [[ "${w[i]}" == "-p" ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    if | while | until | for | case | select | coproc | '{' | '}')
       ((i++))
       continue
       ;;
@@ -255,22 +270,34 @@ check_segment() {
   done
   [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
 
-  # Form 2: hook-manager env-var prefix (commit OR push) — scan every word.
-  for ((k = 0; k < nseg; k++)); do
+  # Form 2: hook-manager env-var prefix (commit OR push) — only leading env
+  # assignments before the git executable (not commit messages or pathspecs).
+  for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
     [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
       "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
       "Fix the hook lane failure instead of bypassing."
   done
 
-  # Form 1: --no-verify / -n (commit or push) — words after the subcommand. A
-  # quoted -m value is a single argv word, so a --no-verify inside a message
-  # is not its own flag. In a short-option bundle, `n` counts only when it
-  # precedes the first argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg`
-  # blocks but `-mn` (m takes value "n") does not.
+  # Form 1: --no-verify / -n (commit or push) — words after the subcommand,
+  # skipping values consumed by commit/push options (e.g. -m message text).
+  # In a short-option bundle, `n` counts only when it precedes the first
+  # argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg` blocks but `-mn`
+  # (m takes value "n") does not.
   if [[ "$sub" == "commit" || "$sub" == "push" ]]; then
-    for ((k = sub_idx + 1; k < nseg; k++)); do
+    k=$((sub_idx + 1))
+    while ((k < nseg)); do
       x="${w[k]}"
+      case "$x" in
+      -m | --message | -F | --file | -t | --template | -c | -C | --author | --date)
+        ((k += 2))
+        continue
+        ;;
+      --message=* | --file=* | --template=* | --author=* | --date=*)
+        ((k++))
+        continue
+        ;;
+      esac
       [[ "$x" == "--no-verify" ]] && block "no-verify" \
         "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
         "Fix the issues that caused the hook failure instead of bypassing."
@@ -281,11 +308,21 @@ check_segment() {
           n) block "no-verify" \
             "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
             "Fix the issues that caused the hook failure instead of bypassing." ;;
-          m | F | c | C | t | u | S | G) break ;;
+          m | F | c | C | t | u | S | G)
+            if ((ch + 1 < ${#rest})); then
+              ((k++))
+            elif ((k + 1 < nseg)); then
+              ((k += 2))
+            else
+              ((k++))
+            fi
+            continue 2
+            ;;
           *) ;;
           esac
         done
       fi
+      ((k++))
     done
   fi
 

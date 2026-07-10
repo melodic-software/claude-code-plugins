@@ -113,8 +113,14 @@ run "if git commit --no-verify (shell keyword prefix, blocked)" \
   'if git commit --no-verify -m test; then echo ok; fi' 2
 run "sudo -u x git commit --no-verify (wrapper option, blocked)" \
   'sudo -u x git commit --no-verify -m test' 2
-run "nohup git commit --no-verify (blocked)" \
-  'nohup git commit --no-verify -m test' 2
+run "nice -n 10 git commit --no-verify (nice -n option, blocked)" \
+  'nice -n 10 git commit --no-verify -m test' 2
+run "time -p git commit --no-verify (time -p option, blocked)" \
+  'time -p git commit --no-verify -m test' 2
+run "git commit -m --no-verify (message value, allowed)" \
+  'git commit -m --no-verify' 0
+run "git commit -m 'LEFTHOOK=0' (message literal, allowed)" \
+  "git commit -m 'LEFTHOOK=0'" 0
 
 # --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in
