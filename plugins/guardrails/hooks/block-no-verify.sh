@@ -4,6 +4,7 @@
 #
 # Catches three bypass surfaces on a real `git commit` / `git push`:
 #   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
+#      and --no-verify on git push (skips pre-push hook)
 #   2. core.hooksPath assignment on git commit/push (disables all git hooks)
 #   3. hook-manager env-var prefix (LEFTHOOK=0 / LEFTHOOK_*=0|false) on git
 #      commit/push (disables the hook manager for one invocation)
@@ -168,7 +169,25 @@ resolve_git_index() {
       ;;
     timeout)
       ((i++))
-      if ((i < n)); then ((i++)); fi
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -s | --signal | -k | --kill-after) ((i += 2)) ;;
+        --preserve-status | --foreground | --verbose) ((i++)) ;;
+        -*) ((i++)) ;;
+        *) break ;;
+        esac
+      done
+      if ((i < n)) && [[ "${w[i]}" =~ ^[0-9]+([.][0-9]+)?(s|m|h|d)?$ ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    command | exec | builtin | !)
+      ((i++))
+      continue
+      ;;
+    if | while | until | for | case | select | time | coproc | '{' | '}')
+      ((i++))
       continue
       ;;
     *)
@@ -195,14 +214,33 @@ check_segment() {
   # Resolve the subcommand: walk words after the git executable, skipping git
   # global options. The listed options consume the FOLLOWING word as their
   # value (two-word form); their =-forms and every other option are single
-  # words handled by the generic `-*` skip.
+  # words handled by the generic `-*` skip. core.hooksPath is checked only on
+  # git config arguments (-c/--config/--config-env), not commit messages or
+  # pathspecs.
   sub=""
   sub_idx=-1
   j=$((gi + 1))
   while ((j < nseg)); do
     gw="${w[j]}"
     case "$gw" in
-    -c | -C | --git-dir | --work-tree | --namespace | --super-prefix | --config-env | --attr-source | --exec-path)
+    -c | --config | --config-env)
+      if ((j + 1 < nseg)); then
+        lc="${w[j + 1],,}"
+        [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
+          "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
+          "Fix the hook failure instead of bypassing git hooks."
+      fi
+      ((j += 2))
+      ;;
+    --config=*|--config-env=*)
+      lc="${gw#*=}"
+      lc="${lc,,}"
+      [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
+        "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
+        "Fix the hook failure instead of bypassing git hooks."
+      ((j++))
+      ;;
+    -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
       ((j += 2))
       ;;
     -*)
@@ -225,26 +263,18 @@ check_segment() {
       "Fix the hook lane failure instead of bypassing."
   done
 
-  # Form 1b: core.hooksPath assignment (commit OR push) — any word after git.
-  for ((k = gi + 1; k < nseg; k++)); do
-    lc="${w[k],,}"
-    [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-      "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
-      "Fix the hook failure instead of bypassing git hooks."
-  done
-
-  # Form 1: --no-verify / -n (commit only) — words after the subcommand. A
+  # Form 1: --no-verify / -n (commit or push) — words after the subcommand. A
   # quoted -m value is a single argv word, so a --no-verify inside a message
   # is not its own flag. In a short-option bundle, `n` counts only when it
   # precedes the first argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg`
   # blocks but `-mn` (m takes value "n") does not.
-  if [[ "$sub" == "commit" ]]; then
+  if [[ "$sub" == "commit" || "$sub" == "push" ]]; then
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--no-verify" ]] && block "no-verify" \
-        "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+        "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
         "Fix the issues that caused the hook failure instead of bypassing."
-      if [[ "$x" =~ ^-[A-Za-z]+$ ]]; then
+      if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
         rest="${x#-}"
         for ((ch = 0; ch < ${#rest}; ch++)); do
           case "${rest:ch:1}" in

@@ -30,12 +30,15 @@ run "git commit --no-verify (blocked)" "git commit --no-verify -m test" 2
 run "git commit -n (blocked)" "git commit -n -m test" 2
 run "cd foo && git commit --no-verify (compound, blocked)" "cd foo && git commit --no-verify -m test" 2
 run "git commit -m test (allowed)" "git commit -m test" 0
+run "git push --no-verify (blocked)" "git push --no-verify" 2
 run "quoted --no-verify prose (allowed)" 'echo "git commit --no-verify is banned"' 0
 run "echo git commit --no-verify (git as arg, allowed)" 'echo git commit --no-verify' 0
 
 # --- Form 1b: core.hooksPath assignment -------------------------------------
 run "git -c core.hooksPath=/dev/null commit (blocked)" "git -c core.hooksPath=/dev/null commit -m test" 2
 run "git -c core.hookspath=/dev/null push (blocked)" "git -c core.hookspath=/dev/null push" 2
+run "git commit -m core.hooksPath=/tmp (message literal, allowed)" \
+  "git commit -m 'core.hooksPath=/tmp'" 0
 run "cd foo && git -c core.hooksPath commit (compound, blocked)" "cd foo && git -c core.hooksPath=/dev/null commit -m test" 2
 run "quoted core.hooksPath prose (allowed)" 'echo "git -c core.hooksPath=/dev/null commit"' 0
 
@@ -102,6 +105,12 @@ run "nice git commit --no-verify (blocked)" \
   'nice git commit --no-verify -m test' 2
 run "timeout 5 git commit --no-verify (positional-arg wrapper, blocked)" \
   'timeout 5 git commit --no-verify -m test' 2
+run "timeout -s KILL 5 git commit --no-verify (option + duration, blocked)" \
+  'timeout -s KILL 5 git commit --no-verify -m test' 2
+run "command git commit --no-verify (builtin prefix, blocked)" \
+  'command git commit --no-verify -m test' 2
+run "if git commit --no-verify (shell keyword prefix, blocked)" \
+  'if git commit --no-verify -m test; then echo ok; fi' 2
 run "sudo -u x git commit --no-verify (wrapper option, blocked)" \
   'sudo -u x git commit --no-verify -m test' 2
 run "nohup git commit --no-verify (blocked)" \

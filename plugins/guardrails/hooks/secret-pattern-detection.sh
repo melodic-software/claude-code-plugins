@@ -64,6 +64,7 @@ ALLOW_FILE="${FILE//\\//}"
 # — that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
 PROJECT_DIR="$(hook::normalize_path "${CLAUDE_PROJECT_DIR:-}")"
+PROJECT_DIR="${PROJECT_DIR%/}"
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
     "$PROJECT_DIR"/*) ;; # inside the project — proceed

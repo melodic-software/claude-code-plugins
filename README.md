@@ -24,7 +24,9 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`bash-lint`](plugins/bash-lint) | Hook | Lints shell scripts on edit via ShellCheck, and formats via shfmt when the repo opts in with an `.editorconfig`, using the consuming repo's own config. |
 | [`biome-format`](plugins/biome-format) | Hook | Formats and lints JS/TS/JSX/JSON on edit via Biome, only when the repo opts in with a `biome.json`, using the consuming repo's own Biome config. |
 | [`ruff-format`](plugins/ruff-format) | Hook | Formats and lints Python on edit via Ruff, only when the repo opts in with a Ruff config (`ruff.toml`, `.ruff.toml`, or `pyproject.toml` `[tool.ruff]`), using the consuming repo's own Ruff config. |
+| [`eol-normalizer`](plugins/eol-normalizer) | Hook | Normalizes a file's working-tree line endings on edit to its `.gitattributes` `eol=` value via `git check-attr` — symmetric CRLF↔LF, binary-safe, using the consuming repo's own attributes. |
 | [`desktop-notification`](plugins/desktop-notification) | Hook | Alerts you when Claude Code needs input via an audible bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts. |
+| [`powershell-format`](plugins/powershell-format) | Hook | Formats and lints PowerShell on edit via PSScriptAnalyzer, only when the repo opts in with a `PSScriptAnalyzerSettings.psd1`, using the consuming repo's own analyzer settings. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 

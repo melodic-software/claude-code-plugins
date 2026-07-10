@@ -79,6 +79,10 @@ OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config
 assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
 assert_contains "in-project secret → message" "$OUT" "AWS Access Key"
 
+# Trailing slash on CLAUDE_PROJECT_DIR must not skip in-project scans.
+OUT=$(CLAUDE_PROJECT_DIR="/repo/" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1); RC=$?
+assert_exit "trailing-slash PROJECT_DIR still scans in-project file → exit 2" 2 "$RC"
+
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1); RC=$?
 assert_exit "clean content → exit 0" 0 "$RC"
