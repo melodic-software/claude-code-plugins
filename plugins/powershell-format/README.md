@@ -46,8 +46,9 @@ Do not enable this plugin against an untrusted working tree.
 
 ## Requirements
 
-- **PowerShell** (`pwsh`) on `PATH` — PowerShell 7+ (cross-platform) or Windows
-  PowerShell. If absent, the hook is a silent no-op.
+- **PowerShell 7+** (`pwsh`) on `PATH` — the hook probes `pwsh` only; legacy
+  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook is
+  a silent no-op.
 - The **PSScriptAnalyzer** module installed
   (`Install-Module PSScriptAnalyzer`). If absent, the hook is a silent no-op.
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo — the opt-in.
