@@ -2,6 +2,8 @@
 
 Deepening review rendered as self-contained HTML in the OS temp directory. Inline styles only — no CDN, no remote runtime, no remote fetch (a report that fetches remote assets is a privacy and supply-chain hazard and breaks when opened offline). Diagrams use inline SVG shapes and text only — no `<script>` elements inside SVG (SVG script executes like any page script and defeats the no-remote-runtime guarantee).
 
+**Escape all codebase-derived text** before writing the report. Paths, glossary terms, ADR excerpts, repo names, module labels, and any other string taken from the scanned repository must be HTML-escaped (`&`, `<`, `>`, `"`, `'`) before embedding in element text or attributes. Never paste attacker-controlled markup verbatim into the HTML file.
+
 ## Scaffold
 
 ```html
