@@ -2,20 +2,29 @@
 # PreToolUse hook: block git hook-bypass attempts on git commit and git push.
 # Triggered on Bash tool calls.
 #
-# Catches three bypass surfaces:
-#   1. --no-verify / -n flags on git commit (skips pre-commit + commit-msg hooks)
+# Catches three bypass surfaces on a real `git commit` / `git push`:
+#   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
 #   2. core.hooksPath assignment on git commit/push (disables all git hooks)
-#   3. GIT hook-manager env-var prefix (LEFTHOOK=0 / LEFTHOOK=false /
-#      LEFTHOOK_*=0|false) on git commit or git push (disables the hook manager
-#      for one invocation)
+#   3. hook-manager env-var prefix (LEFTHOOK=0 / LEFTHOOK_*=0|false) on git
+#      commit/push (disables the hook manager for one invocation)
 #
-# Deny rules in settings.json have known bypasses via compound commands. This
-# hook sees the full command string and catches all forms including:
-#   cd foo && LEFTHOOK=0 git commit -m "msg"
+# Detection is ARGV-GRAMMAR-FAITHFUL: the command is parsed the way the shell
+# builds argv — top-level segments split on unquoted control operators, each
+# tokenized into argv words honoring '…', "…", $'…' (ANSI-C), and backslash
+# escapes — then a real git executable (basename `git`, case/.exe-folded on
+# Windows) is found ANYWHERE in a segment (so wrappers like `env -i git …`,
+# `nice git …`, `sudo -u x git …` are transparent), its subcommand resolved
+# past git global options (including arg-consuming ones like `-C <dir>`), and
+# the bypass tokens matched on the parsed argv.
 #
-# BLOCKING: exits 2 on any bypass form (stderr shown to Claude as feedback).
-# The kill switch (HOOK_BLOCK_NO_VERIFY_ENABLED=false) is the ONLY supported
-# bypass — do not use --no-verify or an env-var prefix.
+# SCOPE (documented residual): this is a static matcher over the literal
+# command string. It does NOT evaluate shell variable / command substitution
+# ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
+# bypass. It is a friction guard against accidental/casual bypass, not a
+# sandbox. The ONLY supported deliberate bypass is the kill switch
+# (HOOK_BLOCK_NO_VERIFY_ENABLED=false).
+#
+# BLOCKING: exits 2 on any detected bypass form.
 
 set -uo pipefail
 
@@ -43,124 +52,10 @@ INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 
-# --- Argv-faithful command parser -------------------------------------------
-# Shell quoting/escaping is removed before git parses argv, so quoting the git
-# EXECUTABLE (`"git" commit …`), the SUBCOMMAND (`git "commit" …`), or the flag
-# (`git commit "--no-verify"`, `git commit --no-\verify`) all defeat any regex
-# over a flattened string. Parse the command the way the shell builds argv
-# instead: split into top-level segments on UNQUOTED control operators, then
-# tokenize each segment into argv words honoring '…', "…", and backslash escapes.
-
-# Emit top-level segments (NUL-separated), split on unquoted ; & | ( ) ` and
-# newline. An operator inside quotes does NOT split — so a quoted mention like
-# `echo "a && git commit --no-verify"` stays one segment led by `echo`.
-# shellcheck disable=SC1003  # '\' matches a literal backslash char, not a quote escape
-emit_segments() {
-  local s="$1" seg="" i len c nx in_s=0 in_d=0
-  len=${#s}
-  for ((i = 0; i < len; i++)); do
-    c="${s:i:1}"
-    if ((in_s)); then
-      seg+="$c"
-      [[ "$c" == "'" ]] && in_s=0
-      continue
-    fi
-    if ((in_d)); then
-      seg+="$c"
-      if [[ "$c" == '\' ]]; then
-        nx="${s:i+1:1}"
-        seg+="$nx"
-        ((i++))
-      elif [[ "$c" == '"' ]]; then
-        in_d=0
-      fi
-      continue
-    fi
-    case "$c" in
-    "'")
-      in_s=1
-      seg+="$c"
-      ;;
-    '"')
-      in_d=1
-      seg+="$c"
-      ;;
-    '\')
-      nx="${s:i+1:1}"
-      seg+="$c$nx"
-      ((i++))
-      ;;
-    ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
-      printf '%s\0' "$seg"
-      seg=""
-      ;;
-    *) seg+="$c" ;;
-    esac
-  done
-  printf '%s\0' "$seg"
-}
-
-# Tokenize a segment into argv words (NUL-separated), honoring '…', "…", and
-# backslash escapes. Quoted whitespace stays WITHIN a word, so
-# `-m "msg --no-verify"` yields the words `-m` and `msg --no-verify` (the flag
-# text is inside the message value, not its own argv flag → not a bypass).
-# shellcheck disable=SC1003  # '\' matches a literal backslash char, not a quote escape
-argv_words() {
-  local s="$1" word="" i len c nx in_s=0 in_d=0 have=0
-  len=${#s}
-  for ((i = 0; i < len; i++)); do
-    c="${s:i:1}"
-    if ((in_s)); then
-      if [[ "$c" == "'" ]]; then in_s=0; else word+="$c"; fi
-      continue
-    fi
-    if ((in_d)); then
-      if [[ "$c" == '\' ]]; then
-        nx="${s:i+1:1}"
-        case "$nx" in
-        '"' | '\' | '$' | '`')
-          word+="$nx"
-          ((i++))
-          ;;
-        *) word+="$c" ;;
-        esac
-      elif [[ "$c" == '"' ]]; then
-        in_d=0
-      else
-        word+="$c"
-      fi
-      continue
-    fi
-    case "$c" in
-    "'")
-      in_s=1
-      have=1
-      ;;
-    '"')
-      in_d=1
-      have=1
-      ;;
-    '\')
-      nx="${s:i+1:1}"
-      word+="$nx"
-      ((i++))
-      have=1
-      ;;
-    ' ' | $'\t')
-      if ((have)); then
-        printf '%s\0' "$word"
-        word=""
-        have=0
-      fi
-      ;;
-    *)
-      word+="$c"
-      have=1
-      ;;
-    esac
-  done
-  ((have)) && printf '%s\0' "$word"
-}
+# Above this length the command is not parsed — a pathologically long command is
+# assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
+# commands are well under it). The linear parser keeps normal commands cheap.
+MAX_COMMAND_LEN=16384
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -199,107 +94,231 @@ block() {
   exit 2
 }
 
-# Walk each top-level segment. A segment is a bypass only when its ARGV
-# executable basenames to `git` AND its subcommand is `commit`/`push` — resolved
-# from real argv words, so quoting the git or commit token no longer evades the
-# gate, while a quoted mention in a non-git segment (echo "git commit
-# --no-verify") never fires (its executable word is `echo`).
-process_command() {
-  local -a segs=()
-  mapfile -d '' -t segs < <(emit_segments "$COMMAND")
+# Does an argv word name the git executable? Basename compared exactly on POSIX;
+# on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the OS-gate in
+# hook-utils normalize_path) so `GIT` / `git.exe` are caught there but a
+# case-variant stays distinct on a case-sensitive POSIX filesystem.
+is_git_bin() {
+  local b="${1##*/}"
+  b="${b##*\\}"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    local lc="${b,,}"
+    lc="${lc%.exe}"
+    [[ "$lc" == "git" ]]
+    ;;
+  *) [[ "$b" == "git" ]] ;;
+  esac
+}
 
-  local s
-  for s in "${segs[@]}"; do
-    local -a w=()
-    mapfile -d '' -t w < <(argv_words "$s")
-    ((${#w[@]})) || continue
+# Decode an ANSI-C `$'…'` body to its literal bytes (\xHH, \NNN octal, \uHHHH,
+# \n, \\, …). %-escaped so the body can never act as a printf format specifier;
+# `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
+# malformed body — the raw text still flows through the caller unchanged).
+ansi_c_decode() {
+  local b="${1//%/%%}"
+  # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
+  printf -- "$b" 2>/dev/null
+}
 
-    # Skip env-assignment + wrapper prefixes to reach the executable word.
-    # Env-assignment words are remembered for the hook-manager test.
-    local idx=0 tok
-    local -a envs=()
-    while ((idx < ${#w[@]})); do
-      tok="${w[idx]}"
-      case "$tok" in
-      sudo | env | command | time | exec | xargs)
-        ((idx++))
-        continue
-        ;;
-      *) ;;
-      esac
-      if [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-        envs+=("$tok")
-        ((idx++))
-        continue
-      fi
-      break
-    done
-    ((idx < ${#w[@]})) || continue
+# Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
+# when the segment is a real `git commit`/`git push` carrying a bypass token.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+check_segment() {
+  local -a w=("$@")
+  local nseg=${#w[@]} gi j k x lc ch rest sub sub_idx gw
 
-    local bin="${w[idx]##*/}"
-    [[ "$bin" == "git" ]] || continue
+  for ((gi = 0; gi < nseg; gi++)); do
+    is_git_bin "${w[gi]}" || continue
 
-    # Resolve the subcommand: skip git global options after the bin. `-c`
-    # consumes the next word (its k=v value); other options are single words.
-    local j=$((idx + 1)) sub="" gw
-    while ((j < ${#w[@]})); do
+    # Resolve the subcommand: walk words after the git executable, skipping git
+    # global options. The listed options consume the FOLLOWING word as their
+    # value (two-word form); their =-forms and every other option are single
+    # words handled by the generic `-*` skip.
+    sub=""
+    sub_idx=-1
+    j=$((gi + 1))
+    while ((j < nseg)); do
       gw="${w[j]}"
       case "$gw" in
-      -c)
+      -c | -C | --git-dir | --work-tree | --namespace | --super-prefix | --config-env | --attr-source | --exec-path)
         ((j += 2))
-        continue
         ;;
       -*)
         ((j++))
-        continue
         ;;
       *)
         sub="$gw"
+        sub_idx=$j
         break
         ;;
       esac
     done
     [[ "$sub" == "commit" || "$sub" == "push" ]] || continue
 
-    # Real `git commit` / `git push`. Run the bypass tests over this segment's
-    # argv words (env prefixes + command words).
-    local x lc
-
-    # Form 2: hook-manager env-var prefix (commit OR push).
-    for x in "${envs[@]}"; do
-      lc="${x,,}"
-      if [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]]; then
-        block "hook-manager-env" \
-          "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
-          "Fix the hook lane failure instead of bypassing."
-      fi
+    # Form 2: hook-manager env-var prefix (commit OR push) — scan every word.
+    for ((k = 0; k < nseg; k++)); do
+      lc="${w[k],,}"
+      [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
+        "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
+        "Fix the hook lane failure instead of bypassing."
     done
 
-    # Form 1b: core.hooksPath assignment (commit OR push).
-    for ((j = idx + 1; j < ${#w[@]}; j++)); do
-      lc="${w[j],,}"
+    # Form 1b: core.hooksPath assignment (commit OR push) — any word after git.
+    for ((k = gi + 1; k < nseg; k++)); do
+      lc="${w[k],,}"
       [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
         "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
         "Fix the hook failure instead of bypassing git hooks."
     done
 
-    # Form 1: --no-verify / -n (commit only). Test argv words for equality — a
-    # `--no-verify` inside a quoted -m value is a single value word, not a flag.
+    # Form 1: --no-verify / -n (commit only) — words after the subcommand. A
+    # quoted -m value is a single argv word, so a --no-verify inside a message
+    # is not its own flag. In a short-option bundle, `n` counts only when it
+    # precedes the first argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg`
+    # blocks but `-mn` (m takes value "n") does not.
     if [[ "$sub" == "commit" ]]; then
-      for ((j = idx + 1; j < ${#w[@]}; j++)); do
-        x="${w[j]}"
-        if [[ "$x" == "--no-verify" ]] \
-          || { [[ "$x" != --* ]] && [[ "$x" =~ ^-[A-Za-z]*n$ ]]; }; then
-          block "no-verify" \
-            "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
-            "Fix the issues that caused the hook failure instead of bypassing."
+      for ((k = sub_idx + 1; k < nseg; k++)); do
+        x="${w[k]}"
+        [[ "$x" == "--no-verify" ]] && block "no-verify" \
+          "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+          "Fix the issues that caused the hook failure instead of bypassing."
+        if [[ "$x" =~ ^-[A-Za-z]+$ ]]; then
+          rest="${x#-}"
+          for ((ch = 0; ch < ${#rest}; ch++)); do
+            case "${rest:ch:1}" in
+            n) block "no-verify" \
+              "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+              "Fix the issues that caused the hook failure instead of bypassing." ;;
+            m | F | c | C | t | u | S | G) break ;;
+            *) ;;
+            esac
+          done
         fi
       done
     fi
+
+    return 0
   done
 }
 
-process_command
+# Single linear pass: read the command into a char array once (O(n)), then walk
+# it splitting top-level segments on UNQUOTED control operators and tokenizing
+# each segment into argv words honoring '…', "…", $'…', and backslash escapes
+# (including backslash-newline continuation). Each completed segment is checked
+# as it closes, so no full segment list is retained.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+parse_and_check() {
+  local -a chars=()
+  local c nx
+  while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$COMMAND")
+  local n=${#chars[@]} i
+  local word="" have=0
+  local -a seg=()
+
+  for ((i = 0; i < n; i++)); do
+    c="${chars[i]}"
+    case "$c" in
+    "'")
+      ((i++))
+      while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+        word+="${chars[i]}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '"')
+      ((i++))
+      while ((i < n)) && [[ "${chars[i]}" != '"' ]]; do
+        if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
+          nx="${chars[i + 1]}"
+          case "$nx" in
+          '"' | '\' | '$' | '`')
+            word+="$nx"
+            ((i += 2))
+            continue
+            ;;
+          $'\n')
+            ((i += 2))
+            continue
+            ;;
+          *) ;;
+          esac
+        fi
+        word+="${chars[i]}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '$')
+      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == "'" ]]; then
+        i=$((i + 2))
+        local body=""
+        while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+          if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
+            body+="${chars[i]}${chars[i + 1]}"
+            ((i += 2))
+            continue
+          fi
+          body+="${chars[i]}"
+          ((i++))
+        done
+        word+="$(ansi_c_decode "$body")"
+        have=1
+      else
+        word+="$c"
+        have=1
+      fi
+      ;;
+    '\')
+      if ((i + 1 < n)); then
+        nx="${chars[i + 1]}"
+        if [[ "$nx" == $'\n' ]]; then
+          ((i++))
+        else
+          word+="$nx"
+          ((i++))
+          have=1
+        fi
+      else
+        have=1
+      fi
+      ;;
+    ' ' | $'\t')
+      if ((have)); then
+        seg+=("$word")
+        word=""
+        have=0
+      fi
+      ;;
+    ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
+      if ((have)); then
+        seg+=("$word")
+        word=""
+        have=0
+      fi
+      if ((${#seg[@]})); then
+        check_segment "${seg[@]}"
+        seg=()
+      fi
+      ;;
+    *)
+      word+="$c"
+      have=1
+      ;;
+    esac
+  done
+  if ((have)); then seg+=("$word"); fi
+  if ((${#seg[@]})); then check_segment "${seg[@]}"; fi
+}
+
+if ((${#COMMAND} > MAX_COMMAND_LEN)); then
+  block "too-long" \
+    "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
+    "Shorten the command, or set HOOK_BLOCK_NO_VERIFY_ENABLED=false to bypass."
+fi
+
+parse_and_check
 
 emit_tel "ok" ""
 exit 0

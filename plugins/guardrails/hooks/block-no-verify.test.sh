@@ -74,6 +74,62 @@ run "\"git commit\" --no-verify (command-not-found form, allowed)" \
 run "git commit -m \"explain --no-verify\" (flag in message value, allowed)" \
   'git commit -m "explain --no-verify"' 0
 
+# --- [P2] git global options that consume an argument -----------------------
+run "git -C . commit --no-verify (arg-consuming -C, blocked)" \
+  'git -C . commit --no-verify -m test' 2
+run "git --git-dir=/x commit --no-verify (=-form global, blocked)" \
+  'git --git-dir=/x commit --no-verify -m test' 2
+run "git --work-tree /tmp commit --no-verify (two-word global, blocked)" \
+  'git --work-tree /tmp commit --no-verify -m test' 2
+run "git -C . -c core.hooksPath=/dev/null push (blocked)" \
+  'git -C . -c core.hooksPath=/dev/null push' 2
+
+# --- [P2] short-option bundle -n --------------------------------------------
+run "git commit -nm msg (n before arg-taking m, blocked)" \
+  'git commit -nm msg' 2
+run "git commit -vn (n after non-arg short, blocked)" \
+  'git commit -vn -m test' 2
+run "git commit -mn (m takes value 'n', allowed)" \
+  'git commit -mn' 0
+run "git commit -am fix (no n-flag, allowed)" \
+  'git commit -am fix' 0
+
+# --- [P2] wrappers (with options) transparently pass through ----------------
+run "env -i git commit --no-verify (env + option, blocked)" \
+  'env -i git commit --no-verify -m test' 2
+run "nice git commit --no-verify (blocked)" \
+  'nice git commit --no-verify -m test' 2
+run "timeout 5 git commit --no-verify (positional-arg wrapper, blocked)" \
+  'timeout 5 git commit --no-verify -m test' 2
+run "sudo -u x git commit --no-verify (wrapper option, blocked)" \
+  'sudo -u x git commit --no-verify -m test' 2
+run "nohup git commit --no-verify (blocked)" \
+  'nohup git commit --no-verify -m test' 2
+
+# --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
+*) exp_win=0 ;;                        # POSIX stays case-sensitive
+esac
+run "GIT commit --no-verify (uppercase exec, OS-gated)" \
+  'GIT commit --no-verify -m test' "$exp_win"
+run "git.exe commit --no-verify (.exe strip, OS-gated)" \
+  'git.exe commit --no-verify -m test' "$exp_win"
+
+# --- [P5 subset] ANSI-C $'…' + backslash-newline continuation ---------------
+run "git commit \$'--no-verify' (ANSI-C plain, blocked)" \
+  "git commit \$'--no-verify' -m test" 2
+run "git commit \$'\\x2d\\x2dno-verify' (ANSI-C hex, blocked)" \
+  "git commit \$'\\x2d\\x2dno-verify' -m test" 2
+lc_cmd=$(printf 'git commit --no-\\\nverify -m test')
+run "git commit --no-<backslash-newline>verify (continuation, blocked)" \
+  "$lc_cmd" 2
+
+# --- [P4] over-length command fails CLOSED (blocked) ------------------------
+long_cmd="echo $(printf 'a%.0s' {1..20000})"
+run "command over the parse cap (fail-closed, blocked)" \
+  "$long_cmd" 2
+
 # --- Form 2: hook-manager env-var bypass on git commit / push ---------------
 run "LEFTHOOK=0 git commit (blocked)" "LEFTHOOK=0 git commit -m test" 2
 run "LEFTHOOK=false git push (blocked)" "LEFTHOOK=false git push" 2

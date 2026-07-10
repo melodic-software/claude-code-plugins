@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The bypass form when blocked: \"no-verify\" | \"hooksPath\" | \"hook-manager-env\". Empty string when the command was allowed (status ok)."
+      "description": "The bypass form when blocked: \"no-verify\" | \"hooksPath\" | \"hook-manager-env\" | \"too-long\" (command exceeded the parse cap and was blocked fail-closed). Empty string when the command was allowed (status ok)."
     }
   }
 }

@@ -25,12 +25,18 @@ but always allows the edit.
   disable env vars (husky, pre-commit, …) are **not** matched — but the
   manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
   bypasses regardless of which manager runs the hooks.
-- **Argv-faithful matching.** `block-no-verify` parses the command the way the
-  shell builds argv, so it sees through quoting/escaping of the git executable,
-  the subcommand, AND the flag — `"git" commit --no-verify`, `git "commit" …`,
-  `git commit "--no-verify"`, and `git commit --no-\verify` all block. A
-  `--no-verify` token INSIDE a quoted argument value (`git commit -m "explain
-  --no-verify"`) is a message, not a flag, and is correctly allowed.
+- **Argv-grammar-faithful matching (and its residual).** `block-no-verify`
+  parses the command the way the shell builds argv — segmenting on unquoted
+  operators and tokenizing each segment honoring `'…'`, `"…"`, `$'…'` (ANSI-C),
+  and backslash escapes. It detects literal `git commit`/`git push`
+  `--no-verify` / `-n` / `core.hooksPath=` across quoting, escaping, wrappers
+  (`env -i git …`, `nice git …`, `sudo -u x git …`), and git global options
+  (`git -C <dir> commit …`). A `--no-verify` inside a quoted `-m` value stays a
+  message, not a flag. It does **not** evaluate shell variable / command
+  substitution (`$VAR`, `$(…)`, `$IFS`) — a determined author can construct an
+  expansion-based bypass. **This is a friction guard against accidental/casual
+  bypass, not a sandbox.** (A command longer than 16 KB is not parsed and is
+  blocked fail-closed.)
 
 ## Per-hook kill switches
 
