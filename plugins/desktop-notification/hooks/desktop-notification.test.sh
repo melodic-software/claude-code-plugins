@@ -226,6 +226,74 @@ wait_for_sink "$FAIL_FILE"
 if [[ $RC_FS -eq 0 ]]; then ok "telemetry/fail-sink: hook exit 0 despite sink failure"; else fail "telemetry/fail-sink: hook exit $RC_FS"; fi
 rm -f "$FAIL_FILE"
 
+# ============================================================================
+# Security: untrusted .message / branch sanitization
+# ============================================================================
+
+# A hostile .message carrying: a leading dash, a double-quote, a raw ESC + OSC 9
+# open + BEL (escape-smuggling attempt), a raw newline (statement-injection
+# attempt), and a tab. build_input JSON-encodes the control bytes via jq --arg;
+# the hook must strip them at parse time before any sink.
+EVIL="$(printf -- '-danger"q\033]9;INJECTED\007mid\tafter\nline2')"
+
+# --- Case 15: emitted terminalSequence carries only framing control bytes ----
+# BELL off → the only legitimate control bytes are ONE framing ESC (\033, opens
+# OSC 9) and ONE terminating BEL (\007). Any ESC/BEL/newline/tab from .message
+# must be gone: esc==1, bel==1, and zero other C0 bytes.
+OUT="$(run "$(build_input permission_prompt "$EVIL")" HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
+RC=$?
+SEQ="$(jq -r '.terminalSequence' <<<"$OUT")"
+ESC_N="$(printf '%s' "$SEQ" | tr -cd '\033' | wc -c | tr -d ' \r')"
+BEL_N="$(printf '%s' "$SEQ" | tr -cd '\007' | wc -c | tr -d ' \r')"
+OTHER_N="$(printf '%s' "$SEQ" | tr -d '\033\007' | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
+if [[ $RC -eq 0 ]]; then ok "sanitize/seq: exit 0"; else fail "sanitize/seq: exit $RC"; fi
+if [[ "$ESC_N" == "1" ]]; then ok "sanitize/seq: exactly 1 ESC (framing only, no smuggled ESC)"; else fail "sanitize/seq: ESC count $ESC_N, want 1"; fi
+if [[ "$BEL_N" == "1" ]]; then ok "sanitize/seq: exactly 1 BEL (OSC terminator only, no smuggled BEL)"; else fail "sanitize/seq: BEL count $BEL_N, want 1"; fi
+if [[ "$OTHER_N" == "0" ]]; then ok "sanitize/seq: zero other C0 bytes (newline/tab stripped)"; else fail "sanitize/seq: $OTHER_N other C0 bytes remain"; fi
+# Printable payload text survives (proves we stripped control bytes, not content).
+if printf '%s' "$SEQ" | grep -q 'INJECTED'; then ok "sanitize/seq: printable text preserved"; else fail "sanitize/seq: over-stripped printable text: $SEQ"; fi
+
+# --- Case 16: osascript receives text as argv, not interpolated program ------
+# Stub uname→Darwin (force the macOS branch cross-platform) and osascript→capture
+# argv + stdin program. Proves (a) HEADLINE/BODY arrive as argv items, (b) the
+# AppleScript source (with "display notification") comes via stdin and never
+# carries the message text, (c) the delivered BODY arg has no control bytes.
+SHIM="$WORK/osa-shim"
+mkdir -p "$SHIM"
+OSA_LOG="$WORK/osa.log"
+{ printf '#!/usr/bin/env bash\necho Darwin\n'; } >"$SHIM/uname"
+{
+  printf '#!/usr/bin/env bash\n'
+  # Single quotes are intentional: $#/$@/$a must appear LITERALLY in the emitted
+  # stub script, not expand here in the test.
+  # shellcheck disable=SC2016
+  printf '{ printf "ARGC=%%s\\n" "$#"; for a in "$@"; do printf "ARG=[%%s]\\n" "$a"; done; printf "PROG<<\\n"; cat; printf "\\n>>PROG\\n"; } >%q\n' "$OSA_LOG"
+} >"$SHIM/osascript"
+chmod +x "$SHIM/uname" "$SHIM/osascript"
+
+IN_EVIL="$(build_input permission_prompt "$EVIL")"
+(cd "$UNRELATED" && printf '%s' "$IN_EVIL" \
+  | env -u HOOK_TELEMETRY_SINK -u HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED \
+    -u HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
+    CLAUDE_PROJECT_DIR="$FAKE_REPO" HOOK_DESKTOP_NOTIFICATION_ENABLED=true \
+    HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=true PATH="$SHIM:$PATH" \
+    bash "$HOOK" >/dev/null 2>&1)
+wait_for_sink "$OSA_LOG"
+
+if grep -qx 'ARGC=3' "$OSA_LOG" 2>/dev/null; then ok "sanitize/osascript: 3 args (- + title + body)"; else fail "sanitize/osascript: ARGC wrong: $(cat "$OSA_LOG" 2>/dev/null)"; fi
+if grep -qxF 'ARG=[Permission Required]' "$OSA_LOG" 2>/dev/null; then ok "sanitize/osascript: title passed as argv item"; else fail "sanitize/osascript: title not an argv item: $(cat "$OSA_LOG" 2>/dev/null)"; fi
+# Body argv line: starts with the hostile leading dash, carries no control bytes.
+BODY_LINE="$(grep -m1 '^ARG=\[-danger' "$OSA_LOG" 2>/dev/null)"
+if [[ -n "$BODY_LINE" ]]; then ok "sanitize/osascript: body passed as argv item (leading dash intact, not an option)"; else fail "sanitize/osascript: body argv item missing: $(cat "$OSA_LOG" 2>/dev/null)"; fi
+BODY_CTL="$(printf '%s' "$BODY_LINE" | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
+if [[ "$BODY_CTL" == "0" ]]; then ok "sanitize/osascript: body argv item has no control bytes"; else fail "sanitize/osascript: body argv item carries $BODY_CTL control bytes"; fi
+# The AppleScript program came via stdin, and no ARG= line carries the program.
+if grep '^ARG=' "$OSA_LOG" 2>/dev/null | grep -q 'display notification'; then fail "sanitize/osascript: program leaked into argv (interpolation!)"; else ok "sanitize/osascript: program not in argv"; fi
+# The message text must NOT appear inside the stdin program (no interpolation).
+PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
+if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
+if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

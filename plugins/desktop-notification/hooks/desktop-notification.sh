@@ -45,9 +45,15 @@ start=${EPOCHREALTIME:-}
 # parsed from the buffered value; reading fd0 twice would drain the pipe.
 INPUT=$(cat)
 
-# Extract notification details; strip CR (Git Bash pipe output).
-TYPE=$(printf '%s' "$INPUT" | jq -r '.notification_type // "unknown"' 2>/dev/null | tr -d '\r')
-MESSAGE=$(printf '%s' "$INPUT" | jq -r '.message // "Needs your attention"' 2>/dev/null | tr -d '\r')
+# Extract notification details. Strip ALL C0 control bytes (\000-\037 — includes
+# ESC, BEL, CR, LF, TAB) from the UNTRUSTED .message at parse time, before it can
+# reach ANY sink: an embedded ESC/BEL would otherwise smuggle terminal escapes
+# into the emitted OSC 9 sequence, and a newline could inject statements on the
+# osascript path. .notification_type is only matched against literal cases (a
+# control byte → no match → exit) and JSON-escaped by jq for telemetry, so it
+# needs no sanitization for safety; it is normalized here only for a clean value.
+TYPE=$(printf '%s' "$INPUT" | jq -r '.notification_type // "unknown"' 2>/dev/null | tr -d '\000-\037')
+MESSAGE=$(printf '%s' "$INPUT" | jq -r '.message // "Needs your attention"' 2>/dev/null | tr -d '\000-\037')
 [[ -n "$TYPE" ]] || TYPE="unknown"
 [[ -n "$MESSAGE" ]] || MESSAGE="Needs your attention"
 
@@ -67,6 +73,10 @@ case "$TYPE" in
 esac
 
 [[ "$MESSAGE" == "Needs your attention" ]] && MESSAGE="$DEFAULT_MSG"
+
+# HEADLINE is a fixed literal from the case above (no untrusted bytes today);
+# strip C0 defensively so a future dynamic headline can't reintroduce smuggling.
+HEADLINE=$(printf '%s' "$HEADLINE" | tr -d '\000-\037')
 
 # Consuming-repo root — used for the telemetry sink's relative-path resolution
 # and (below) the optional git branch context on the OS toast body.
@@ -100,18 +110,30 @@ fi
 # off the pipe; the hook's own terminalSequence JSON still reaches CC.
 if [[ "${HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "true" ]]; then
   # Optional git branch context for the toast body (generic; empty outside a
-  # git repo → body is just the message).
-  BRANCH=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')
+  # git repo → body is just the message). Branch is also untrusted input — strip
+  # C0 bytes through the same gate as .message (a ref name can't legally carry
+  # them, but defense-in-depth so the branch can never reach a sink un-sanitized).
+  BRANCH=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\000-\037')
   BODY="$MESSAGE"
   [[ -n "$BRANCH" ]] && BODY="$MESSAGE — $BRANCH"
   case "$(uname -s)" in
     Darwin)
-      osascript -e "display notification \"$BODY\" with title \"$HEADLINE\"" >/dev/null 2>&1 &
+      # Pass text via argv, NEVER interpolated into the AppleScript source: a `"`
+      # in $BODY would close the string literal and a newline inject statements
+      # (→ code execution). `osascript -` reads the program from stdin (the quoted
+      # heredoc, so nothing expands); the trailing args populate `on run argv`.
+      osascript - "$HEADLINE" "$BODY" >/dev/null 2>&1 <<'OSA' &
+on run argv
+  display notification (item 2 of argv) with title (item 1 of argv)
+end run
+OSA
       CHANNELS+=("os_toast")
       ;;
     Linux)
       if command -v notify-send >/dev/null 2>&1; then
-        notify-send "$HEADLINE" "$BODY" >/dev/null 2>&1 &
+        # `--` terminates option parsing so a title/body starting with `-` is
+        # treated as a positional, never an option flag.
+        notify-send -- "$HEADLINE" "$BODY" >/dev/null 2>&1 &
         CHANNELS+=("os_toast")
       fi
       ;;
