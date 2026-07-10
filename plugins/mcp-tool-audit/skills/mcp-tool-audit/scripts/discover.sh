@@ -157,7 +157,8 @@ while IFS= read -r file; do
   while IFS= read -r line_num; do
     [[ -z "$line_num" ]] && continue
     tool_name="$(sed -n "${line_num},$((line_num + 6))p" "$file" 2>/dev/null \
-      | grep -oE "['\"][a-zA-Z][a-zA-Z0-9_.-]*['\"]" | head -1 | tr -d "'\"")
+      | grep -oE $'[\'"][a-zA-Z][a-zA-Z0-9_.-]*[\'"]' | head -1 \
+      | sed $'s/[\'"]//g')"
     [[ -z "$tool_name" ]] && continue
     add_record "$server" typescript "$rel" "$tool_name" "$line_num"
   done < <(grep -nE 'server\.(register)?[tT]ool\(' "$file" 2>/dev/null | cut -d: -f1 | tr -d '\r' || true)
@@ -173,9 +174,18 @@ while IFS= read -r file; do
   while IFS= read -r hit; do
     [[ -z "$hit" ]] && continue
     line_num="${hit%%:*}"
-    func_line="$(sed -n "$((line_num + 1))p" "$file" 2>/dev/null)"
-    tool_name="$(printf '%s' "$func_line" | sed -n 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
-    [[ -z "$tool_name" ]] && tool_name="$(printf '%s' "$func_line" | sed -n 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
+    tool_name=""
+    offset=1
+    while [[ $offset -le 12 ]]; do
+      candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
+      [[ -z "$candidate" ]] && break
+      tool_name="$(printf '%s' "$candidate" | sed -n 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
+      [[ -z "$tool_name" ]] && tool_name="$(printf '%s' "$candidate" | sed -n 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
+      if [[ -n "$tool_name" ]]; then
+        break
+      fi
+      offset=$((offset + 1))
+    done
     [[ -z "$tool_name" ]] && continue
     add_record "$server" python "$rel" "$tool_name" "$line_num"
   done < <(grep -n '@mcp\.tool' "$file" 2>/dev/null | tr -d '\r' || true)
