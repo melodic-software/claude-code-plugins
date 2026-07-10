@@ -50,6 +50,15 @@ server.registerTool(
 );
 TS
 
+mkdir -p "$proj/search/node/src"
+cat >"$proj/search/node/src/server.ts" <<'TS'
+server.registerTool(
+  'search_docs',
+  { description: "Search docs." },
+  async () => ({})
+);
+TS
+
 cat >"$proj/reports/python/server.py" <<'PY'
 @mcp.tool
 def get_report(report_id: str) -> str:
@@ -58,8 +67,12 @@ def get_report(report_id: str) -> str:
 PY
 
 cat >"$proj/inventory/dotnet/Tools.cs" <<'CS'
-[McpServerTool]
-public string ListItems(string boardId) => "";
+[McpServerToolType]
+public class InventoryTools
+{
+    [McpServerTool]
+    public string ListItems(string boardId) => "";
+}
 CS
 
 # A tool buried deeper than the scan-depth cap (12) — must NOT be discovered.
@@ -81,8 +94,21 @@ assert_exit "--help exits 0" 0 "$(
 out="$(CLAUDE_PROJECT_DIR="$proj" bash "$DISCOVER" --path "$proj")"
 assert_contains "server count present" "$out" "Server count:"
 assert_contains "typescript tool discovered" "$out" "Tool: payments_charge_card"
+assert_contains "single-quoted typescript tool discovered" "$out" "Tool: search_docs"
 assert_contains "python tool discovered" "$out" "Tool: get_report"
 assert_contains "dotnet tool discovered" "$out" "Tool: ListItems"
+assert_contains "dotnet class attribute does not duplicate tool" "$out" "Tool: ListItems"
+case "$out" in
+  *"Tool: ListItems"*)
+    tool_count="$(printf '%s' "$out" | grep -c 'Tool: ListItems' || true)"
+    if [[ "$tool_count" -eq 1 ]]; then
+      pass "dotnet ListItems appears exactly once"
+    else
+      fail "dotnet ListItems appears exactly once" "count=1"
+    fi
+    ;;
+  *) fail "dotnet ListItems appears exactly once" "Tool: ListItems" ;;
+esac
 assert_contains "server label derived (payments)" "$out" "Server: payments"
 assert_contains "runtime tagged (python)" "$out" "Runtime: python"
 case "$out" in
