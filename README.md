@@ -24,6 +24,8 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`bash-lint`](plugins/bash-lint) | Hook | Lints shell scripts on edit via ShellCheck, and formats via shfmt when the repo opts in with an `.editorconfig`, using the consuming repo's own config. |
 | [`biome-format`](plugins/biome-format) | Hook | Formats and lints JS/TS/JSX/JSON on edit via Biome, only when the repo opts in with a `biome.json`, using the consuming repo's own Biome config. |
 | [`ruff-format`](plugins/ruff-format) | Hook | Formats and lints Python on edit via Ruff, only when the repo opts in with a Ruff config (`ruff.toml`, `.ruff.toml`, or `pyproject.toml` `[tool.ruff]`), using the consuming repo's own Ruff config. |
+| [`eol-normalizer`](plugins/eol-normalizer) | Hook | Normalizes a file's working-tree line endings on edit via `git check-attr`, rewriting CRLF↔LF to match the consuming repo's `.gitattributes`. |
+| [`desktop-notification`](plugins/desktop-notification) | Hook | Alerts you when Claude Code needs input via an audible bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts. |
 | [`book-distill`](plugins/book-distill) | Skill | Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline, updating the target skill's routing table. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
