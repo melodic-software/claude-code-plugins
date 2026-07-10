@@ -1,7 +1,6 @@
 # ShellCheck configuration — repo-agnostic shell-quality ruleset.
 # ShellCheck searches for this file from each script's directory upward; CI
-# points at this copy explicitly with --rcfile (its canonical home is the
-# standards repo's modules/shellcheck/).
+# points at this root-canonical file explicitly with --rcfile.
 #
 # Ref: https://github.com/koalaman/shellcheck/wiki/Optional
 # Targets ShellCheck 0.11.0+.
