@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-09T22:37:29Z",
+  "hook": "desktop-notification",
+  "hook_event": "Notification",
+  "status": "ok",
+  "duration_ms": 6,
+  "data": {
+    "notification_type": "permission_prompt",
+    "channels": ["terminal_notify", "bell", "os_toast"]
+  }
+}
