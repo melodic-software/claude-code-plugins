@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "book-distill",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline.",
   "author": {
     "name": "Melodic Software",
