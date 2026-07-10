@@ -60,9 +60,10 @@ repository with the `gh` CLI available:
 gh issue create --body-file <report-path>
 ```
 
-Let `gh` prompt for the title interactively. If filing non-interactively, pass `--title`
-as a separate argv value (not embedded in a quoted shell string) so reporter text cannot
-undergo shell expansion.
+Let `gh` prompt for the title interactively. If filing non-interactively, never paste
+the reporter's title text into the command string — write it to a file and pass
+`--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
+is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
 
 If a work-item tracker MCP tool is available, the skill can hand off to that instead.
 Otherwise the emitted report is the deliverable — copy it into your tracker.
