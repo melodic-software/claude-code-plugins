@@ -34,8 +34,8 @@ when you describe broken behavior with no pre-existing reproduction.
   **optional**: if your environment provides it, the skill uses it; otherwise it
   proceeds with self-contained inline guidance. No phase blocks on a missing tool.
 - **Reads your conventions, assumes none.** Test naming, module layout, banned APIs,
-  and where working notes live come from your own project's `CLAUDE.md` and tool
-  config.
+  and where working notes live come from your own project's `CLAUDE.md`, its
+  `.claude/rules/` project rules, and tool config.
 
 ## Install
 

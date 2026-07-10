@@ -2,7 +2,7 @@
 
 Referenced from `/diagnose` Phase 1 ("Iterate on the loop itself" — `timing-injection`) and Phase 4 ("Instrument" — `logging` + `banned-output`; "Performance branch" — `perf-tooling`). Find your stack below; the universal principle is to wrap I/O and time sources at their seam and tag every probe with a unique `[DEBUG-<hex>]` prefix so cleanup is a single grep.
 
-The rows below are idiomatic defaults, not policy. Where your project defines its own conventions — a mandated logger, a banned-symbols analyzer, a preferred benchmark harness — those win; read your project's `CLAUDE.md` and tool config and honor them.
+The rows below are idiomatic defaults, not policy. Where your project defines its own conventions — a mandated logger, a banned-symbols analyzer, a preferred benchmark harness — those win; read your project's `CLAUDE.md`, its `.claude/rules/` project rules, and tool config, and honor them.
 
 ## .NET (`dotnet`)
 
