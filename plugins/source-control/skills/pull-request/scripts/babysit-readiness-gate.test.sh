@@ -239,4 +239,16 @@ r=$(run_gate "$F")
 assert_contains "self classification row repeating severity -> findings=1" "$r" "findings=1"
 assert_contains "self classification row repeating severity -> OK" "$r" "READINESS_OK"
 
+# --- Case: plain bracketed [P1]/[P2] severity markers count as findings ------
+# Reviewers that emit neither a severity word nor a shields badge use bare
+# `[P1]` markers — the gate must not report findings=0 for them
+# (codex r3564558962). Two plain markers, one classification row => BLOCKED.
+F=$(mkjson plain-pseverity '[
+  {author:"some-reviewer[bot]", body:"[P1] null deref in handler\n[P2] missing timeout"},
+  {author:"me[bot]", body:"| 1 | null deref | VALID | fixed abc123 |"}
+]')
+r=$(run_gate "$F")
+assert_contains "plain [P-num] markers -> findings=2" "$r" "findings=2"
+assert_contains "plain [P-num] under-decomposed -> blocked" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
 [[ $FAILED -eq 0 ]] || exit 1

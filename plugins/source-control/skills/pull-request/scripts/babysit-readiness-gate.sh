@@ -171,6 +171,11 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # word char in `shields.io/badge/...`).
 SEVERITY_WORDS_RE='CRITICAL|IMPORTANT|SUGGESTION'
 SEVERITY_BADGE_RE='/badge/P[0-3]-'
+# Plain bracketed P-severity markers ([P1] .. [P3]) — a common reviewer format
+# with neither a severity word nor a shields badge. The badge alt text is
+# `![PN Badge]` (space before the closing bracket), so this pattern cannot  # spellchecker:disable-line
+# double-count a badge finding.
+SEVERITY_PLAIN_RE='\[P[0-9]\]'
 CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
@@ -212,11 +217,13 @@ $self_source_bodies"
 # §5.0.4), so non-table prose classifications intentionally do not count.
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
+sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)
 classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -cwE "$CLASSIFY_RE" || true)
 sev_words=${sev_words//[^0-9]/}
 sev_badges=${sev_badges//[^0-9]/}
+sev_plain=${sev_plain//[^0-9]/}
 classified=${classified//[^0-9]/}
-findings=$((${sev_words:-0} + ${sev_badges:-0}))
+findings=$((${sev_words:-0} + ${sev_badges:-0} + ${sev_plain:-0}))
 classified=${classified:-0}
 
 # --- R6: checklist completeness ----------------------------------------------

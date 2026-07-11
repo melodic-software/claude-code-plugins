@@ -192,8 +192,15 @@ CUR_WT=$(git rev-parse --show-toplevel)
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 if [ "$CUR_BRANCH" = "$BRANCH" ]; then
   # Already own the branch — no checkout; freshness check below still runs.
+  # The dirty-tree guard still applies: uncommitted changes may be another
+  # session's WIP even on this branch — full mode only on a clean tree.
   git fetch origin "$DEFAULT_BRANCH"
-  CHECKOUT_MODE="full"
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "Working tree has uncommitted changes — processing read-only"
+    CHECKOUT_MODE="read-only"
+  else
+    CHECKOUT_MODE="full"
+  fi
 elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
   echo "Branch $BRANCH checked out in another worktree — processing read-only"
   CHECKOUT_MODE="read-only"
