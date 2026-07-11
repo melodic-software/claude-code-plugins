@@ -84,7 +84,8 @@ for pair in \
   "running:noop-already-running" \
   "stopped:would-start" \
   "aspire-dashboard-running:skip-aspire-dashboard-present" \
-  "docker-absent:skip-docker-absent"; do
+  "docker-absent:skip-docker-absent" \
+  "docker-unreachable:skip-docker-unreachable"; do
   state="${pair%%:*}"
   expected_action="${pair#*:}"
   dry_out="$(CC_OTEL_DASHBOARD_INSPECT_STATE="$state" bash "$SCRIPT" --dry-run 2>/dev/null)"

@@ -22,15 +22,17 @@ port_status() {
     #
     # Exit-code mapping: anything proving a TCP peer ACCEPTED the connection is
     # "listening" even when it does not speak HTTP — rc 0 (HTTP answer),
-    # 8 (weird reply), 52 (empty reply), 56 (recv failure after connect). A
-    # non-HTTP process on the port must read as occupied, or callers publish
-    # a doomed bind onto it. Remaining ambiguity (28 timeout, and anything
-    # else) leans "free" on purpose: this is an advisory ensure-running, so a
-    # false "free" only triggers a spurious spawn that loses the OS dup-bind
-    # race, whereas a false "listening" would leave the daemon DOWN all session.
+    # 1 (protocol mismatch, e.g. an SSH/HTTP-0.9-style banner; the scheme here
+    # is a fixed http:// so rc 1 never means a bad URL), 8 (weird reply),
+    # 52 (empty reply), 56 (recv failure after connect). A non-HTTP process on
+    # the port must read as occupied, or callers publish a doomed bind onto it.
+    # Remaining ambiguity (28 timeout, and anything else) leans "free" on
+    # purpose: this is an advisory ensure-running, so a false "free" only
+    # triggers a spurious spawn that loses the OS dup-bind race, whereas a
+    # false "listening" would leave the daemon DOWN all session.
     curl --noproxy '*' -sS --max-time 2 -o /dev/null "http://127.0.0.1:${port}" 2>/dev/null || rc=$?
     case "$rc" in
-      0 | 8 | 52 | 56) printf 'listening\n' ;;
+      0 | 1 | 8 | 52 | 56) printf 'listening\n' ;;
       *) printf 'free\n' ;;
     esac
     return 0

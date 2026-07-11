@@ -23,7 +23,7 @@
 # Env overrides:
 #   CC_OTEL_DASHBOARD_IMAGE          image ref (default: mcr.microsoft.com/dotnet/aspire-dashboard:13.4.2)
 #   CC_OTEL_DASHBOARD_RUN_CMD        replace the docker run invocation (tests / failure injection)
-#   CC_OTEL_DASHBOARD_INSPECT_STATE  override container inspect: running|stopped|absent|aspire-dashboard-running|docker-absent
+#   CC_OTEL_DASHBOARD_INSPECT_STATE  override container inspect: running|stopped|absent|aspire-dashboard-running|docker-absent|docker-unreachable
 
 set -euo pipefail
 
@@ -64,7 +64,7 @@ Env:
 EOF
 }
 
-# Always returns 0 — prints running|stopped|absent|aspire-dashboard-running|docker-absent.
+# Always returns 0 — prints running|stopped|absent|aspire-dashboard-running|docker-absent|docker-unreachable.
 container_state() {
   local container_name="$1"
   if [[ -n "${CC_OTEL_DASHBOARD_INSPECT_STATE:-}" ]]; then
@@ -73,6 +73,13 @@ container_state() {
   fi
   if ! command -v docker >/dev/null 2>&1; then
     printf '%s\n' "docker-absent"
+    return 0
+  fi
+  # CLI present but daemon stopped/inaccessible: `docker inspect` fails exactly
+  # like an absent container, which would wrongly route to would-spawn and die on
+  # docker run under set -e. Probe the daemon once and take an advisory skip.
+  if ! docker info >/dev/null 2>&1; then
+    printf '%s\n' "docker-unreachable"
     return 0
   fi
   if docker inspect "$container_name" >/dev/null 2>&1; then
@@ -171,6 +178,7 @@ main() {
     stopped) action="would-start" ;;
     aspire-dashboard-running) action="skip-aspire-dashboard-present" ;;
     docker-absent) action="skip-docker-absent" ;;
+    docker-unreachable) action="skip-docker-unreachable" ;;
     absent)
       # docker run publishes BOTH ports; either one being bound dooms the bind.
       if [[ "$ui_port_state" == "listening" || "$otlp_port_state" == "listening" ]]; then
@@ -218,6 +226,10 @@ main() {
       ;;
     skip-docker-absent)
       printf 'start-dashboard.sh: docker not on PATH — dashboard live tail unavailable (advisory).\n' >&2
+      return 0
+      ;;
+    skip-docker-unreachable)
+      printf 'start-dashboard.sh: docker CLI present but the daemon is unreachable (advisory) - start Docker, then re-run.\n' >&2
       return 0
       ;;
     would-start)

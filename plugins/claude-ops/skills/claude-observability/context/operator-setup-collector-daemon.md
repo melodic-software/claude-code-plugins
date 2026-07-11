@@ -52,13 +52,17 @@ directories. Set the env var and create the directory as part of machine setup.
 ### Windows — per-user Scheduled Task (no admin)
 
 The registration command carries machine-specific absolute paths, so it is **generated from
-your machine's paths** (by hand, or by your setup tooling) and never committed —
-`hardcoded-path-check` blocks literal machine paths in tracked files. Template (`%USERPROFILE%`
-resolves at run time; replace `<repo-root>` with your canonical checkout's absolute path):
+your machine's paths** (by hand, or by your setup tooling) and never committed to tracked
+files. The collector config ships inside the
+installed plugin — resolve its absolute path from a Claude Code session
+(`${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/otel-collector.yaml`). Because the
+plugin cache directory changes on plugin updates, copy the yaml to a stable local path first
+(e.g. `%USERPROFILE%\.otelcol\otel-collector.yaml`) and point the task at the copy — re-copy
+after a plugin update that changes the config. Template (`%USERPROFILE%` resolves at run time):
 
 ```text
 schtasks /create /tn "ClaudeCodeOtelCollector" /sc onlogon /rl limited /f /tr ^
-  "\"%USERPROFILE%\.otelcol\otelcol-contrib.exe\" --config \"<repo-root>\.claude\skills\claude-observability\otel\otel-collector.yaml\""
+  "\"%USERPROFILE%\.otelcol\otelcol-contrib.exe\" --config \"%USERPROFILE%\.otelcol\otel-collector.yaml\""
 ```
 
 `/sc onlogon` fires at logon; `/rl limited` runs as the current user (no elevation). With
@@ -84,8 +88,9 @@ schtasks /delete /tn "ClaudeCodeOtelCollector" /f
 ### macOS — deferred (recipe)
 
 A `launchd` LaunchAgent at `~/Library/LaunchAgents/<label>.plist` with `RunAtLoad` +
-`KeepAlive`; `ProgramArguments` = the `otelcol-contrib` binary + `--config
-<repo-root>/${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/otel-collector.yaml`; `CC_OTEL_STORE` via an
+`KeepAlive`; `ProgramArguments` = the `otelcol-contrib` binary + `--config` pointing at a stable local copy
+of the plugin's `otel-collector.yaml` (same copy-out rationale as the Windows recipe);
+`CC_OTEL_STORE` via an
 `EnvironmentVariables` dict. Load with `launchctl bootstrap gui/$(id -u) <plist>`. Not
 implemented (Windows-first).
 
