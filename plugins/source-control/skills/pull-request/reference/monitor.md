@@ -83,10 +83,19 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
        prev_checks="$cur_checks"
      fi
 
-     # New comments (emit login + first 80 chars of body)
+     # New comments — ALL THREE review surfaces (issue-level, inline
+     # review comments, review bodies). Watching only issues/comments
+     # misses inline findings posted with no CI state change.
      now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
      gh api "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts" \
        --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' \
+       2>/dev/null | tr -d '\r' | grep --line-buffered . || true
+     gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts" \
+       --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' \
+       2>/dev/null | tr -d '\r' | grep --line-buffered . || true
+     # Reviews API has no `since` param — filter client-side on submitted_at
+     gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
+       --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" \
        2>/dev/null | tr -d '\r' | grep --line-buffered . || true
      last_comment_ts="$now"
 

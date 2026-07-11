@@ -42,7 +42,9 @@
 
 ## 2.2 Rebase onto the latest default branch
 
-Ensure the branch is current with the default branch before committing and pushing. Prevents merge conflicts and stale-branch CI failures. (`main` below — substitute the repo's default branch.)
+Ensure the branch is current with the default branch before pushing. Prevents merge conflicts and stale-branch CI failures. (`main` below — substitute the repo's default branch.)
+
+**Ordering — rebase needs a clean tree.** `git rebase` refuses to run with unstaged changes (`error: cannot rebase: You have unstaged changes.`). On the normal `create` path the PR changes are still uncommitted when this phase starts — in that case run 2.3 (classify unrelated changes + stage + commit) FIRST, then return here and integrate before the 2.4 push. Run 2.2 in the listed order only when the tree is already clean (all work committed).
 
 ```bash
 git fetch origin main

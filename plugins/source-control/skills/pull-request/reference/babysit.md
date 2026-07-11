@@ -180,19 +180,19 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 (`main` below — substitute the repo's default branch.)
 
 ```bash
-# Pre-check: is branch checked out in another worktree?
+# Pre-check 1: is branch checked out in another worktree?
+# Pre-check 2: does THIS worktree have uncommitted changes? They may be
+# another session's WIP — never reset/clean work this loop did not create.
 BRANCH="<headRefName>"
 if git worktree list | grep -q "\[$BRANCH\]"; then
   echo "Branch $BRANCH checked out in another worktree — processing read-only"
   CHECKOUT_MODE="read-only"
+elif [ -n "$(git status --porcelain)" ]; then
+  echo "Working tree has uncommitted changes (possibly another session's WIP) — no checkout, processing read-only"
+  CHECKOUT_MODE="read-only"
 else
   git fetch origin "$BRANCH"
   git fetch origin main
-  # Ensure clean working tree + index before checkout
-  if [ -n "$(git status --porcelain)" ]; then
-    git reset --hard HEAD
-    git clean -fd
-  fi
   git checkout "$BRANCH"
 
   # Branch freshness — rebase if behind main
