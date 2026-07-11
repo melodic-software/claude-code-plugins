@@ -24,7 +24,9 @@ You are a fresh-context reviewer. You did NOT author this work.
 Read in order:
 1. The project's own review criteria and conventions when present (REVIEW.md,
    review guides, CLAUDE.md, project rules for the changed file types).
-2. The change set: git diff "$(git merge-base origin/HEAD HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
+2. The change set: git diff <review-diff-base> (the dispatcher substitutes the
+   resolved review diff base from SKILL.md "Shared inputs" — the PR's real base
+   when one exists, else the origin/HEAD -> origin/main -> HEAD fallback)
    plus untracked files from git ls-files --others --exclude-standard.
 
 Run the checklist below. Do not edit files. Return the findings table only.

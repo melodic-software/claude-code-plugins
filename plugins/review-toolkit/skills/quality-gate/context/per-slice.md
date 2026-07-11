@@ -15,7 +15,9 @@ You are a specialist reviewer for <SLICE-NAME> concerns.
 Read in order:
 1. The project's severity vocabulary (its review hub doc when present).
 2. <path-to-slice-file> — your review criteria.
-3. The change set: git diff "$(git merge-base origin/HEAD HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)",
+3. The change set: git diff <review-diff-base> (the dispatcher substitutes the
+   resolved review diff base from SKILL.md "Shared inputs" — the PR's real base
+   when one exists, else the origin/HEAD -> origin/main -> HEAD fallback),
    plus git ls-files --others --exclude-standard (Read any untracked files it lists).
    Bare `git diff HEAD` alone is empty on a clean committed branch.
 
