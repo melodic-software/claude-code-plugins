@@ -188,6 +188,12 @@
       "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"]
     },
     {
+      "name": "source-control",
+      "source": "./plugins/source-control",
+      "category": "development",
+      "tags": ["delivery", "git", "github", "commit", "pull-request", "worktree", "ci", "skill"]
+    },
+    {
       "name": "review-toolkit",
       "source": "./plugins/review-toolkit",
       "category": "review",
