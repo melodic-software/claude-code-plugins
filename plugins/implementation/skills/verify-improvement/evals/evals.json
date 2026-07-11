@@ -1,0 +1,52 @@
+{
+  "skill_name": "verify-improvement",
+  "evals": [
+    {
+      "id": 1,
+      "name": "performance-compare-against-planning-baseline",
+      "prompt": "/verify-improvement performance",
+      "expected_output": "Runs the `compare` phase: retrieves the baseline captured at planning time from the baselines directory beside the plan artifact, measures the after-state under the same conditions, and verifies the improvement claim. If no baseline exists, reports honestly that improvement cannot be quantified — does not fabricate numbers.",
+      "files": [],
+      "expectations": [
+        "Looks for a baseline in the baselines directory beside the plan artifact (captured at planning time, not here)",
+        "Compares after-state to baseline under the SAME conditions; CONFIRMED only on clear improvement with sound methodology",
+        "If no baseline exists, states \"cannot quantify improvement\" rather than fabricating a delta"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "metrics-vs-review-gate-boundary",
+      "prompt": "/verify-improvement metrics",
+      "expected_output": "Applies the `metrics` family: MEASURE a code-metrics delta (complexity / coverage / CRAP) before→after vs the planning-time baseline, verifying an improvement claim. Distinct from a review gate, which REVIEWS design quality for ship-readiness (absolute axis). Reads context/metrics.md.",
+      "files": [],
+      "expectations": [
+        "Measures a metric delta (before→after) rather than reviewing for ship-readiness",
+        "Distinguishes itself from a review gate (measure-delta vs review-for-ship); does not route metric measurement into a review skill",
+        "Compares against the planning-time baseline"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "baseline-phase-routed-from-planning",
+      "prompt": "/verify-improvement performance baseline",
+      "expected_output": "Runs the `baseline` phase (the planning-stage routing target for plans with a measurable perf goal): identifies the claim precisely, chooses metrics matching it, checks the noise floor, and captures pre-change measurements under controlled conditions — stored in the baselines directory beside the plan artifact with baseline + target recorded in the plan.",
+      "files": [],
+      "expectations": [
+        "Captures the PRE-change state (multiple runs, mean ± std, warm-up discarded) — does not measure after the change and call it a baseline",
+        "Stores measurements in the baselines directory beside the plan artifact and records baseline + target in the plan",
+        "Surfaces the noise-floor argument BEFORE the work if projected savings sit within run-to-run variance"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "outcome-confirmation-routes-to-verify-changes",
+      "prompt": "/verify-improvement — did we build everything the plan asked for?",
+      "expected_output": "Recognizes an intent/outcome-confirmation request (plan-vs-implementation match) and routes to /verify-changes rather than measuring a delta. /verify-improvement only verifies measurable-improvement claims against a baseline.",
+      "files": [],
+      "expectations": [
+        "Routes plan-vs-implementation / intent-match requests to /verify-changes",
+        "Reserves itself for measurable-improvement claims (performance or code metrics) with a baseline/compare shape"
+      ]
+    }
+  ]
+}

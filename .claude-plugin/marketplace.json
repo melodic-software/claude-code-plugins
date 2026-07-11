@@ -204,6 +204,12 @@
       "source": "./plugins/review-toolkit",
       "category": "review",
       "tags": ["review", "code-review", "security", "architecture", "doc-drift", "ci-audit", "quality-gate", "fanout", "agents", "skill"]
+    },
+    {
+      "name": "implementation",
+      "source": "./plugins/implementation",
+      "category": "development",
+      "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
     }
   ]
 }
