@@ -213,7 +213,9 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
     echo "Branch $BRANCH is behind origin/main — rebasing"
     if git rebase origin/main; then
       REBASE_STATUS="rebased"
-      git push --force-with-lease origin "$BRANCH"
+      # Bare push — the branch's upstream was configured by `gh pr checkout`
+      # (fork PRs push to the HEAD repository, not the base repo's origin).
+      git push --force-with-lease
     else
       # Graduated conflict handling — attempt simple, abort complex.
       # conflict-attempting is a TRANSIENT state: resolve it (rebase
@@ -236,8 +238,8 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
   # conflict-attempting: resolve NOW — per file, take the mechanical
   # resolution; if ANY file needs intent judgment, `git rebase --abort` and
   # set REBASE_STATUS="conflict-aborted". On success: `git add <files>` +
-  # `git rebase --continue` + `git push --force-with-lease origin "$BRANCH"`,
-  # then set REBASE_STATUS="rebased". Only terminal states pass this point.
+  # `git rebase --continue` + a bare `git push --force-with-lease` (upstream
+  # set by gh pr checkout), then REBASE_STATUS="rebased". Only terminal states pass this point.
 
   # Safe fallback: ONLY the terminal success states keep full mode. A
   # lingering conflict-attempting (resolution skipped) degrades to read-only
@@ -251,7 +253,7 @@ fi
 **Rebase conflict handling (graduated).** Check for merge commits first (`git log --merges origin/main..HEAD`) — a branch that previously merged main integrates via `git merge origin/main`, not rebase. Then:
 
 - **Zero conflicts** (`REBASE_STATUS=rebased`) — rebase succeeded, force-push with lease, continue normally
-- **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt resolution immediately; on success `git rebase --continue` + force-push with lease → `rebased`; if ANY file requires intent judgment, `git rebase --abort` → `conflict-aborted`. Never proceed to comment processing, parking, or the next PR with a rebase in progress
+- **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt resolution immediately; on success `git rebase --continue` + bare `git push --force-with-lease` → `rebased`; if ANY file requires intent judgment, `git rebase --abort` → `conflict-aborted`. Never proceed to comment processing, parking, or the next PR with a rebase in progress
 - **Complex conflicts** (>3 files, `REBASE_STATUS=conflict-aborted`) — abort the rebase, post a PR comment: `"⚠️ Branch is behind main with merge conflicts ({N} files). Manual rebase required before CI will trigger."`. If an interactive terminal, also surface to the user directly. Process comments read-only (classification + reply, no fixes — the code may be stale)
 - **Already current** (`REBASE_STATUS=current`) — no action needed
 
