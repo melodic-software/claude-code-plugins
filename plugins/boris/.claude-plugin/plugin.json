@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "boris",
+  "version": "0.1.0",
+  "description": "Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) as an on-demand knowledge skill — 107 tips across 95 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, and orchestration, split into topic reference files, with a vendored upstream baseline and a drift-check update script.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["claude-code", "workflow", "tips", "knowledge", "boris-cherny", "best-practices"]
+}
