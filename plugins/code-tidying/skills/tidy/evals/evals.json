@@ -1,0 +1,66 @@
+{
+  "skill_name": "tidy",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dry-run-side-effect-free",
+      "prompt": "tidy dry-run docs-prose",
+      "expected_output": "A plan-only run that triages the lane, explores and researches, hunts candidate tidyings, and presents a prioritized findings table plus the proposed PR scope — with no edits, no branch, no commit, and no push. The user is left to decide whether to proceed.",
+      "files": [],
+      "expectations": [
+        "Runs the hunt (triage, explore, research) and presents a prioritized findings table of candidate tidyings",
+        "Makes zero file edits — no Edit or Write to any repo file",
+        "Does not create a git branch, commit, or push",
+        "Presents the proposed PR scope and leaves the decision to proceed to the user"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "smart-default-lane-inference",
+      "prompt": "do some tidy work",
+      "expected_output": "With no lane argument, the skill infers the most appropriate lane from the current branch, recent commits, or git status; if the inference is ambiguous it asks the user rather than guessing, then reads the resolved lane file (consumer .claude/tidy-lanes/ first, bundled lanes second) before hunting.",
+      "files": [],
+      "expectations": [
+        "Infers a lane from current branch, recent commits, or git status rather than defaulting to a fixed lane",
+        "When lane inference is ambiguous, asks the user instead of silently picking an arbitrary lane",
+        "Resolves the lane file with consumer .claude/tidy-lanes/ taking precedence over bundled lanes, and reads it before hunting"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "backlog-throttle-stop",
+      "prompt": "Run a tidy pass on the shell-tooling lane. Heads up — we already have 3 open chore/tidy-* PRs awaiting review.",
+      "expected_output": "Phase A backlog throttle fires: with three or more open chore/tidy-* PRs, the skill STOPs, surfaces a one-line throttle note, and exits cleanly without creating a branch or a new PR.",
+      "files": [],
+      "expectations": [
+        "Treats the >=3 open chore/tidy-* PR backlog as a STOP condition",
+        "Exits without creating a new branch, commit, or PR",
+        "Surfaces a one-line throttle note rather than opening another tidy PR"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hard-exclusion-path-refusal",
+      "prompt": "Tidy the shell-tooling lane. While you're at it, .claude/hooks/branch-protection.sh has an unused variable and one of the .github/workflows YAML files has a redundant step definition — fold those cleanups in too.",
+      "expected_output": "The skill tidies within the shell-tooling scope but refuses to touch the HARD-excluded paths (.claude/hooks/** and .github/workflows/**), excluding them from the PR and explaining the exclusion rather than silently applying the requested edits.",
+      "files": [],
+      "expectations": [
+        "Refuses to edit the HARD-excluded paths (.claude/hooks/** and .github/workflows/**)",
+        "Excludes the HARD-excluded-path changes from the tidy PR",
+        "Explains that those paths are HARD-excluded rather than silently applying the requested edits"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "behavioral-not-structural-defer",
+      "prompt": "Tidy up our core library lane. I noticed a public helper other packages call has an awkward name, and there are still a few call sites of an API our lint config bans — rename the public helper and migrate the banned calls as part of the tidy.",
+      "expected_output": "The skill classifies the public-symbol rename as a breaking API (behavioral) change and the banned-API call-site edits as a behavioral migration — both outside structure-only tidy scope. It applies neither, and files deferred work items instead of including them in the tidy PR.",
+      "files": [],
+      "expectations": [
+        "Classifies the rename of a consumed public symbol as a behavioral (breaking API) change, not a structural tidying",
+        "Does not migrate banned-API call sites as a tidying (behavioral migration)",
+        "Files deferred work items for the out-of-scope behavioral changes instead of applying them in the tidy PR"
+      ]
+    }
+  ]
+}
