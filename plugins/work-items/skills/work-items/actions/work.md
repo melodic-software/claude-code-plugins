@@ -67,7 +67,14 @@ Match by title prefix `[Maintenance] {schedule item title}`.
 
 ### Step 3: Hold (immediate — before presenting)
 
-Place a hold on the candidate to prevent concurrent agents from selecting it. This MUST happen before presenting to the user (writes):
+Place a hold on the candidate to prevent concurrent agents from selecting it. This MUST happen before presenting to the user. First run in a repo: ensure the protocol's status labels exist — the hold write fails on an unknown label:
+
+```bash
+gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r' | grep -qxF "status:considering" \
+  || { gh label create "status:considering" --description "Held by an agent evaluating the item"; gh label create "status:claimed" --description "Claimed by a work session"; }
+```
+
+Then hold (writes):
 
 ```bash
 # Add considering label

@@ -26,7 +26,7 @@ gh issue view <N> --json assignees,labels --jq '{assignees: [.assignees[].login]
 
 If assignees are non-empty OR has `status:claimed`/`status:considering` label, warn: "Issue #N is already claimed/held by {assignee}. Proceed anyway? (yes / pick different)"
 
-1. **Hold.** Place a temporary hold before claiming (writes):
+1. **Hold.** Place a temporary hold before claiming. First run in a repo: ensure `status:considering` / `status:claimed` labels exist (see `work.md` step 3 — the hold write fails on an unknown label). Then (writes):
 
 ```bash
 gh issue edit <N> --add-label "status:considering"
