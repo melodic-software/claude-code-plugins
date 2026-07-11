@@ -54,7 +54,13 @@ gh issue list --label "status:claimed" --search "updated:<$(date -u -d '24 hours
 
 Note: the `date` command differs between GNU (`-d '24 hours ago'`) and macOS BSD (`-v-1d`). If both fail, fall back to fetching all claimed issues and comparing `updatedAt` timestamps against the current time.
 
-Present each stale issue with assignee and last update time. Ask the user before releasing — the agent may still be working in another session.
+Before flagging, check each candidate for an active linked PR — a claim with an open PR under review is working, not stale (this is what the report's "no linked PR" column asserts):
+
+```bash
+gh pr list --search "<N> in:body" --state open --json number,title --limit 5 | tr -d '\r'
+```
+
+Exclude candidates with an open referencing PR. Present each remaining stale issue with assignee and last update time. Ask the user before releasing — the agent may still be working in another session.
 
 **Action:** For stale claims, suggest (writes; explicit-login `--remove-assignee` is identity-agnostic):
 

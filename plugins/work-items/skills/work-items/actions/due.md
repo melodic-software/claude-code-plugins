@@ -34,7 +34,7 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 gh issue list --label "recurring" --state open --json number,title --limit 50 | tr -d '\r'
 ```
 
-Match by title prefix `[Maintenance]` (the convention used by recurring automation and `add --recurring`).
+Match each schedule row against the FULL expected title `[Maintenance] {schedule item title}` — never by the bare `[Maintenance]` prefix alone, or any recurring issue would satisfy every due row.
 
 1. **Check for orphaned entries.** Only DUE entries (`next_due <= today`) without a corresponding open issue are orphan-suspect — future items legitimately have no issue yet (recurring automation creates issues only when an item becomes due):
 
