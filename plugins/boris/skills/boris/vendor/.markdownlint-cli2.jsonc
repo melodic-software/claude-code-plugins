@@ -1,0 +1,9 @@
+{
+  // Verbatim upstream baseline for drift detection (see the skill's update
+  // action) — third-party content is never edited to satisfy local style, so
+  // markdownlint is disabled for this directory. Nested directory configs
+  // merge with the root config, leaving the managed root file untouched.
+  "config": {
+    "default": false
+  }
+}
