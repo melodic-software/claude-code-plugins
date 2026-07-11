@@ -10,7 +10,8 @@ argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktr
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Worktree inventory: !`git worktree list 2>/dev/null | head -30 || echo "not a git repo"`
-In a worktree: !`test "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" && echo "yes" || echo "no"`
+Git dir: !`git rev-parse --git-dir 2>/dev/null || echo "none"`
+Git common dir (differs from git dir when in a linked worktree): !`git rev-parse --git-common-dir 2>/dev/null || echo "none"`
 
 ## Purpose
 

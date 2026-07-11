@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # test-helpers.sh — shared assertion primitives for this plugin's *.test.sh
 # suites. Self-contained — no host-repo assertion library. Sourced, not
 # executed; the plugin test runner ignores it via the *.test.sh glob.
