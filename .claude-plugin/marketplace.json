@@ -120,6 +120,12 @@
       "source": "./plugins/docs-hygiene",
       "category": "documentation",
       "tags": ["maintenance", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
+    },
+    {
+      "name": "fable-5-playbook",
+      "source": "./plugins/fable-5-playbook",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "doctrine", "playbook", "engineering-judgment", "best-practices"]
     }
   ]
 }
