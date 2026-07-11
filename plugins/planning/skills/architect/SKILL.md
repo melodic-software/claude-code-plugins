@@ -131,8 +131,8 @@ Stress-test needed: [Yes — invoking /devils-advocate / No — plan-reviewer su
 Reason: <1-2 sentences>
 ```
 
-If LOW and no triggers match: proceed to Step 5 (Present for Approval).
-If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Test).
+If LOW and no triggers match: skip Step 4 (Formal Stress-Test) only — continue at Step 4.5 (execution shape), then Steps 4.6-4.7 before presenting.
+If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Test), then continue through Steps 4.5-4.7.
 
 ### Step 4: Formal Stress-Test and Research-Iterate (conditional)
 
