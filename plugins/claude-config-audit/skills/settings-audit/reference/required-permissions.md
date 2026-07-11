@@ -56,6 +56,14 @@ Bash patterns that should require confirmation before execution. `git push` is t
 | `Bash(git push *)` | Require confirmation before pushing with args |
 | `Bash(git push)` | Require confirmation before pushing without args |
 
+## Narrowing the baseline
+
+The baseline is a floor for the common case, not an unconditional mandate. A repo where a pattern is
+genuinely inapplicable — e.g. a read-only analysis or documentation repo with no push access, where
+the `git push` ask-gates protect nothing — documents the exemption in its own rules files; Category B
+checks for such a documented exemption before flagging an absent pattern. Undocumented absence is
+still a finding.
+
 ## Interaction with hook-based gates
 
 A deny rule fires before any PreToolUse hook. When a project escalates an operation to a permission

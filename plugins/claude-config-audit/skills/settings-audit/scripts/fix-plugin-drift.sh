@@ -214,24 +214,18 @@ fi
 
 # Atomic edit: read-modify-write via jq + temp + rename.
 TMP_SETTINGS=$(mktemp -t settings-XXXXXX.json)
-trap 'rm -f "$TMP_JSON" "$TMP_SETTINGS"' EXIT
+trap '[[ -n "${TMP_JSON:-}" ]] && rm -f "$TMP_JSON"; rm -f "${TMP_SETTINGS:-}"' EXIT
 
-# Build jq filter that performs all removals + additions in one pass.
-jq_filter='.'
+# Plugin names come from upstream marketplace JSON — pass them to jq as data
+# (--argjson arrays consumed by reduce), never interpolated into the filter
+# program, so a crafted upstream name cannot inject jq code.
+remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove")
+add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add")
 
-if [[ "$remove_count" -gt 0 ]]; then
-  # del(.enabledPlugins["k1"], .enabledPlugins["k2"], ...)
-  remove_args=$(echo "$auto_remove" | jq -R . | jq -s 'map("del(.enabledPlugins[\"" + . + "\"])") | join(" | ")' -r)
-  jq_filter="$jq_filter | $remove_args"
-fi
-
-if [[ "$add_count" -gt 0 ]]; then
-  # .enabledPlugins["k1"] = false | .enabledPlugins["k2"] = false | ...
-  add_args=$(echo "$auto_add" | jq -R . | jq -s 'map(".enabledPlugins[\"" + . + "\"] = false") | join(" | ")' -r)
-  jq_filter="$jq_filter | $add_args"
-fi
-
-if ! jq "$jq_filter" "$SETTINGS" >"$TMP_SETTINGS"; then
+if ! jq --argjson rm "$remove_json" --argjson add "$add_json" '
+  reduce $rm[] as $k (.; del(.enabledPlugins[$k])) |
+  reduce $add[] as $k (.; .enabledPlugins[$k] = false)
+' "$SETTINGS" >"$TMP_SETTINGS"; then
   echo "ERROR: jq filter failed — settings unchanged" >&2
   exit 2
 fi

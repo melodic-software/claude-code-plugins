@@ -70,8 +70,9 @@ shopt -s nullglob
 for file in .claude/rules/*.md; do
   is_always_loaded "$file" || continue
   base=$(basename "$file")
-  # Any tracked file (outside .work/, excluding the rule itself) referencing the basename.
-  local_refs=$(git grep -l -F -- "$base" -- ':(exclude).work/' 2>/dev/null | grep -vc "^${file}$" || true)
+  # Any tracked file (outside .work/, excluding the rule itself) referencing the
+  # basename. -xF: fixed-string whole-line match, so path dots stay literal.
+  local_refs=$(git grep -l -F -- "$base" -- ':(exclude).work/' 2>/dev/null | grep -vcxF -- "$file" || true)
   [[ "$local_refs" -eq 0 ]] && orphans+=("$base")
 done
 shopt -u nullglob

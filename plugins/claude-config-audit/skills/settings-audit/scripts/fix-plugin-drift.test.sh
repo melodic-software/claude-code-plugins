@@ -216,6 +216,30 @@ out=$(run_fix_dry "$case_dir" 2>&1) || exit_code=$?
 
 assert_exit "case-6: dry-run with empty findings exits 0" 0 "$exit_code"
 
+# --- Case 7: jq-metacharacter plugin name is treated as data, not filter code ------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+evil='a"]) | halt_error | path(["b'
+jq -n --arg evil "$evil" '[{
+  key: "market1",
+  status: "ok",
+  skip_reason: "",
+  orphans: [{name: $evil, marketplace: "market1", enabled: false}],
+  new_upstream: [],
+  renames: []
+}]' >"$case_dir/findings.json"
+jq -n --arg evil "$evil" '{enabledPlugins: {($evil + "@market1"): false, "alpha@market1": true}}' >"$case_dir/settings.json"
+
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+
+assert_exit "case-7: apply with hostile name exits 0" 0 "$exit_code"
+evil_absent=$(jq -e --arg evil "$evil" '.enabledPlugins | has($evil + "@market1") | not' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
+alpha_preserved=$(jq -e '.enabledPlugins["alpha@market1"] == true' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
+assert_eq "case-7: hostile-name entry removed literally" "yes" "$evil_absent"
+assert_eq "case-7: other entries untouched (no filter injection)" "yes" "$alpha_preserved"
+
 # --- Final ------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
