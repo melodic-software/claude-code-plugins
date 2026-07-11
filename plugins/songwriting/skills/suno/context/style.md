@@ -129,11 +129,13 @@ avoid 4-on-the-floor kick
 
 ## Key, time signature, groove
 
+<!-- ordinal note-value notation in table trips the spell-checker --><!-- spellchecker:off -->
 | Parameter | Syntax | Reliability |
 |-----------|--------|-------------|
 | Key | `key of D minor`, `A minor`, `Bb major` | Generally respected |
 | Time signature | `4/4`, `3/4`, `7/8` in style prompt | Inconsistent — Studio supports editing but the generative model isn't yet wired to it |
 | Groove / feel | `swing`, `shuffle`, `half-time`, `triplet feel`, `straight 8ths` | Effective |
+<!-- spellchecker:on -->
 
 ## Working examples
 

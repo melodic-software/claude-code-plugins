@@ -132,9 +132,11 @@ sound: -ive
 rhymes: alive / dive / strive / deprive
 ```
 
+<!-- nonsense drill syllables trip the spell-checker --><!-- spellchecker:off -->
 The source exercise asks for three perfect rhymes for nonsense or partial
 syllables such as `lant`, `ints`, `rutch`, `mose`, and `kate`. Treat that as an
 ear-training drill: find sound matches first, usable words second.
+<!-- spellchecker:on -->
 
 ## Masculine rhyme
 

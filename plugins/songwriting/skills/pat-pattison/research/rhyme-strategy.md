@@ -697,6 +697,7 @@ strategically — not by accident.
 Pat cites Verse 3 of Paul Simon's "50 Ways to Leave Your Lover" as
 demonstrating consonance rhyme as a deceleration tool:
 
+<!-- phonetic ending fragment trips the spell-checker --><!-- spellchecker:off -->
 - The verse's three rhyme-position words share consonant endings (pain /
   again / explain) — all -ane ending consonance, technically a partial
   rhyme since the stressed vowels differ
@@ -705,6 +706,7 @@ demonstrating consonance rhyme as a deceleration tool:
 - The verse keeps the song "lighter" than the verses that use perfect rhyme
 - The placement is intentional — verse 3 is meant to feel less weighted
   than verses 1-2, and the rhyme stability shift carries that intent
+<!-- spellchecker:on -->
 
 ### What this teaches
 

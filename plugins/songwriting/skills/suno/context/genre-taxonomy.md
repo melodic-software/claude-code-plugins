@@ -102,6 +102,7 @@ Template: `templates/metal.md`. Down-tuned guitars define the family; subdivisio
 
 Template: `templates/pop.md`. Pop is hook-engineering wrapped around the production zeitgeist of the decade; subdivisions track production fashion (analog synths / R&B-blend / EDM-influence / hyperpop chaos) and demographic targeting (teen / adult-contemporary / global-export / niche).
 
+<!-- chord/vocal-production vocabulary in table trips the spell-checker --><!-- spellchecker:off -->
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
 | Synth-pop | 1980-1987; revival ongoing | UK | 110-130 | Major, often modal | Clean melodic, often male alto/female alto | Analog synths (DX7 FM bass, Jupiter pads), drum machines (LinnDrum, TR-707), gated reverb on snare | Nostalgic, hopeful, longing | H |
@@ -122,6 +123,7 @@ Template: `templates/pop.md`. Pop is hook-engineering wrapped around the product
 | Baroque pop | 1966-1971; revival ongoing | UK/US | 90-125 | Major, modal | Smooth melodic, often falsetto-tinged | Harpsichord, string quartet, brass, mellotron | Ornate, melancholic, literary | H |
 | Chamber pop | 1995-present | US/UK | 80-120 | Major | Earnest melodic | String section, woodwinds, intimate vocal mix | Literate, autumnal, wistful | H |
 | City pop | 1979-1986 | Japan | 95-125 | Major-7th jazz changes | Smooth Japanese melodic | Fusion-jazz keys, slap bass, sax solos, glossy mix | Cosmopolitan, romantic, glossy | H |
+<!-- spellchecker:on -->
 
 ---
 
@@ -431,6 +433,7 @@ Genres organized around texture and atmosphere rather than song-form. Tempo is o
 
 Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord communities, often with rapid cycles and shared producer vocabularies. Confidence skews MEDIUM — communities are recent and definitions still shift.
 
+<!-- chord/vocal-production vocabulary in table trips the spell-checker --><!-- spellchecker:off -->
 | Genre | Era | Region | BPM | Key | Vocal | Production | Mood | Conf |
 |-------|-----|--------|-----|-----|-------|------------|------|------|
 | Hyperpop | 2018-present | online (PC Music descendants) | 135-180 | Major, often pitched up | Heavy Auto-Tune fast-retune, chipmunk formant +5-7 semitones | Distorted 808s + bitcrushed hi-hats + OTT compression + glitch chops | Chaotic, maximalist, ironic | H |
@@ -459,6 +462,7 @@ Genres that emerged primarily through SoundCloud, TikTok, YouTube, and Discord c
 | Slap house / Brazilian bass | 2017-present | Brazil/EU | 125-128 | Minor | Pitched vocal hooks | Slapping wobble bass + OTT compression + big drops | Festival, aggressive | M |
 | Chillwave | 2009-2014 | online | 90-120 | Major | Hazy reverb-buried | Synth pads + drum machine + tape warble | Hazy, nostalgic, summer | H |
 | Vapor-trap / SoundCloud rap | 2014-present | online | 130-150 (half-time) | Minor | Auto-Tuned mumble | Trap drums + cloud-rap pads | Hazy, melancholy, dreamy | M |
+<!-- spellchecker:on -->
 
 ---
 

@@ -50,6 +50,7 @@ BPM ranges, vocal styles, common signature elements"
 
 Translate findings into the 6-layer formula vocabulary:
 
+<!-- guitar-model shorthand in table trips the spell-checker --><!-- spellchecker:off -->
 | Research finding | Suno descriptor |
 |------------------|-----------------|
 | "Records to Pro Tools with vintage Neumann U67" | `vintage tube warmth, polished mix` |
@@ -58,6 +59,7 @@ Translate findings into the 6-layer formula vocabulary:
 | "Layered vocal harmonies, slight Auto-Tune" | `layered vocal harmonies, subtle pitch correction` |
 | "Trap with mumble flow, dark moods" | `melodic trap, mumbling flow, dark and melancholic` |
 | "Room sound, no compression, raw takes" | `intimate room mic, dry mix, no heavy compression` |
+<!-- spellchecker:on -->
 
 **Strip:**
 
@@ -109,10 +111,12 @@ no autotune, no electronic instruments
 
 **Phase 1 lookup:**
 
+<!-- artist stage-name trips the spell-checker --><!-- spellchecker:off -->
 - Dream pop: ethereal vocals, reverb-soaked, washy guitars, mid-tempo
 - Modern pop: tight production, polished mix, vocal layering
 - Synth-driven: analog or digital lead synths, pad layers
 - Modern retro throwback: 80s synth-pop revival currently strong (Weeknd, Dua Lipa-era influences) — gated drums, FM bass, neon-colored chord progressions
+<!-- spellchecker:on -->
 
 **Phase 2 translation:**
 

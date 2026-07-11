@@ -68,6 +68,7 @@ Keep modifiers short — 2-4 words each, 2-5 modifiers per section.
 
 ### What you can override per section
 
+<!-- ordinal note-value notation in table trips the spell-checker --><!-- spellchecker:off -->
 | Axis | Examples |
 |------|----------|
 | **Instrumentation** | `piano only`, `no drums`, `full band`, `add strings`, `acoustic guitar only`, `add saxophone solo`, `808s and hi-hats only` |
@@ -76,6 +77,7 @@ Keep modifiers short — 2-4 words each, 2-5 modifiers per section.
 | **Vocal** | `whispered`, `harmonized`, `double-tracked`, `gang vocals`, `solo voice`, `melismatic`, `staccato` |
 | **Energy / mood** | `dark`, `triumphant`, `melancholic`, `aggressive`, `intimate`, `cinematic` |
 | **Tempo feel** | `half-time feel`, `double-time`, `swing`, `straight 8ths` |
+<!-- spellchecker:on -->
 
 ### Working example — full song with section overrides
 

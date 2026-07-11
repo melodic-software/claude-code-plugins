@@ -825,17 +825,21 @@ The model:
 - **Fa** (a fourth above) — typical strong-stress
 - **Mi** (a third above) — secondary stress
 
+<!-- phonetic stress spelling trips the spell-checker --><!-- spellchecker:off -->
 So a content word like "lonely" carries `sol-do` (loo-uh-LEE-NLY... actually
 `SOL-do`); a two-syllable preposition like "before" carries `mi-do` —
 secondary stress, not full primary. This matters when setting melody: pitch
 contours that mirror natural speech stress feel inevitable; pitch contours
 that fight it feel forced.
+<!-- spellchecker:on -->
 
 ### Compound word stress rule
 
+<!-- stress-caps compound examples trip the spell-checker --><!-- spellchecker:off -->
 Primary stress on **compound words** in English almost always lands on the
 **first syllable**. Examples: HOMEwork, RAINbow, FOOTball, SUITcase. The
 second syllable carries secondary stress, not primary.
+<!-- spellchecker:on -->
 
 This rule conflicts with default phrase-stress reading; it must be applied
 word-by-word.
