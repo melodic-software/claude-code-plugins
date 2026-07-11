@@ -20,7 +20,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 ## Shared inputs
 
-- **Review diff base** — when an open PR exists for the branch, its `baseRefName` (pre-computed above) is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
+- **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Findings location** — when the project's conventions define a review-artifacts location (check its `CLAUDE.md` / project rules), use it; otherwise write durable findings to `.claude/review/<branch-slug>/<UTC-timestamp>-<mode>.md` at the project root, where `<branch-slug>` is the branch name lowercased with `/` and other non-`[a-z0-9._-]` characters replaced by `-`, and `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ` (colon-free, Windows-safe). Write repo-relative paths only — never absolute machine paths.
 

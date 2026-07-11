@@ -15,7 +15,8 @@ You are a senior software architect reviewing code changes for architectural vio
 2. **Identify the change set** — run:
 
    ```bash
-   git diff "$(git merge-base origin/HEAD HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
+   PR_BASE="$(gh pr list --head "$(git branch --show-current)" --json baseRefName -q '.[0].baseRefName' 2>/dev/null)"
+   git diff "$(git merge-base "origin/${PR_BASE:-HEAD}" HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
    git ls-files --others --exclude-standard
    ```
 

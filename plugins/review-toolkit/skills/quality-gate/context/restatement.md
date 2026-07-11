@@ -25,7 +25,7 @@ Write a findings artifact to the findings location (SKILL.md "Shared inputs"), n
 
 ```yaml
 ---
-type: review-findings
+type: restatement-review
 mode: restatement
 date: <ISO-8601 UTC>
 branch: <branch>

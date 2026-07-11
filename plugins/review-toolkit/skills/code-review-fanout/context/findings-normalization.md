@@ -42,7 +42,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filter
 
 ## Stage 3 — Dedup
 
-Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings bucket by path only; doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT** — a false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
+Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check — merge two line-less records only when their `raw_text` describes the same issue; path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT** — a false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
 
 ## Stage 4 — Agreement / rank
 
