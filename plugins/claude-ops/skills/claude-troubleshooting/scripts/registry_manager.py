@@ -670,13 +670,17 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     own install directory — that is replaced on every update.
     """
     if cli_data_dir:
-        return cli_data_dir.resolve()
-    env_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
-    data_dir = (
-        Path(env_dir).resolve()
-        if env_dir
-        else Path.home() / ".claude" / "plugins" / "data" / "claude-ops"
-    )
+        data_dir = cli_data_dir.resolve()
+    else:
+        env_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+        data_dir = (
+            Path(env_dir).resolve()
+            if env_dir
+            else Path.home() / ".claude" / "plugins" / "data" / "claude-ops-melodic-software"
+        )
+    # Create the resolved directory for every path (CLI --data-dir included) — a
+    # freshly configured registry_dir must be writable on first `add`, matching
+    # the fallback behaviour (else save_registry's tempfile raises FileNotFoundError).
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 

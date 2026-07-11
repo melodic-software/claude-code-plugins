@@ -13,7 +13,7 @@ Quick health snapshot for proactive auto-invocation. Combines registry stats wit
 - Count of open blocking issues (need attention)
 - Stale issues (not checked in >14 days)
 
-Use the registry manager script for efficient stats:
+Use the registry manager script for efficient stats (add `--data-dir` per the SKILL.md registry-location rule when a `registry_dir` is configured):
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/skills/claude-troubleshooting/scripts/registry_manager.py" stats
