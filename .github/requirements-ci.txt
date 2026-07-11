@@ -1,0 +1,4 @@
+# Keep this exact Linux x64 wheel pin and hash on a reviewed Dependabot surface.
+# Hosted and local plugin-gate jobs both use Ubuntu 24.04 x64.
+ruff==0.15.21 \
+    --hash=sha256:bab0905d2f29e0d9fbc3c373ed23db0095edaa3f71f1f4f519ec15134d9e85c8

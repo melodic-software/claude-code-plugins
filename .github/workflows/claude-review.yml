@@ -21,7 +21,7 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:

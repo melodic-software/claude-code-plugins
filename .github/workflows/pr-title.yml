@@ -8,6 +8,8 @@ name: pr-title
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   pull-requests: read
@@ -17,7 +19,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select-runner:
+    name: Select runner for PR title
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
   pr-title:
+    # Preserve `pr-title / pr-title`, including in a merge queue. A selector
+    # infrastructure failure falls back to the literal reviewed hosted image;
+    # cancellation still stops downstream work.
+    if: ${{ !cancelled() }}
+    needs: select-runner
     permissions:
       pull-requests: read
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    with:
+      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}

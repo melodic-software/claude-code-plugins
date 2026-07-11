@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "visibility": "private",
+  "selfHostedCi": true,
+  "exceptions": {
+    ".github/workflows/ci.yml#zizmor": {
+      "reason": "docker-socket",
+      "justification": "The reviewed zizmor reusable workflow invokes a container action, while local workers deliberately receive no Docker socket."
+    },
+    ".github/workflows/ci.yml#runner-policy": {
+      "reason": "hosted-control-plane",
+      "justification": "The policy enforcement path must remain independent of the fleet and able to report invalid local routing."
+    },
+    ".github/workflows/ci.yml#ci-status": {
+      "reason": "hosted-control-plane",
+      "justification": "The required-check aggregator stays hosted and gates actual workload outcomes; selector infrastructure may fail independently while workloads use their literal hosted fallback."
+    },
+    ".github/workflows/claude-review.yml#review": {
+      "reason": "privileged-control-plane",
+      "justification": "Claude review mints an OIDC credential and writes pull-request comments, so it remains isolated on GitHub-hosted compute."
+    },
+    ".github/workflows/link-check.yml#link-check": {
+      "reason": "privileged-control-plane",
+      "justification": "The scheduled link checker can create or update repository issues and therefore remains on GitHub-hosted compute."
+    }
+  }
+}
