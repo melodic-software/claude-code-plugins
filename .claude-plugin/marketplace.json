@@ -198,6 +198,12 @@
       "source": "./plugins/planning",
       "category": "development",
       "tags": ["planning", "brainstorm", "prd", "interview", "design", "devils-advocate", "architect", "stress-test", "skill"]
+    },
+    {
+      "name": "review-toolkit",
+      "source": "./plugins/review-toolkit",
+      "category": "review",
+      "tags": ["review", "code-review", "security", "architecture", "doc-drift", "ci-audit", "quality-gate", "fanout", "agents", "skill"]
     }
   ]
 }
