@@ -18,7 +18,7 @@ Issues with `status:considering` label that haven't been promoted to `status:cla
 gh issue list --label "status:considering" --state open --json number,title,updatedAt --limit 50 | tr -d '\r'
 ```
 
-For each issue, check if the hold is older than 15 minutes by comparing `updatedAt`. If stale (writes):
+For each issue, check the hold's age from the hold comment's embedded epoch timestamp (`<!-- hold:<host>:<epoch> -->` — authoritative; the issue's `updatedAt` moves on ANY activity and would mask a stale hold). If older than 15 minutes (writes):
 
 ```bash
 # Remove the stale considering label
@@ -71,14 +71,21 @@ Cross-reference: schedule items without a matching issue are orphaned. Note: rec
 
 ### 4. Unlabeled Issues
 
-Open issues missing expected labels (no `type:*` label, no `category:*` label — skip the `category:` check when the repo defines no category labels):
+Open issues missing expected labels. Gate the `category:` check on the repo actually defining category labels — otherwise every issue would be flagged:
 
 ```bash
+HAS_CATEGORY=$(gh label list --limit 200 --json name --jq '[.[].name | select(startswith("category:"))] | length' | tr -d '\r')
+
+# Missing type: label (always checked)
 gh issue list --state open --json number,title,labels --limit 100 --jq '
-  [.[] | select(
-    (any(.labels[]; .name | startswith("type:")) | not) or
-    (any(.labels[]; .name | startswith("category:")) | not)
-  ) | {number, title, labels: [.labels[].name]}]
+  [.[] | select(any(.labels[]; .name | startswith("type:")) | not)
+   | {number, title, labels: [.labels[].name]}]
+' | tr -d '\r'
+
+# Missing category: label (only when HAS_CATEGORY > 0)
+gh issue list --state open --json number,title,labels --limit 100 --jq '
+  [.[] | select(any(.labels[]; .name | startswith("category:")) | not)
+   | {number, title, labels: [.labels[].name]}]
 ' | tr -d '\r'
 ```
 

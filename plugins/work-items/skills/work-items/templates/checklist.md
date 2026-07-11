@@ -24,9 +24,9 @@ Copy the section matching the action you're running into your session task list 
 
 ## Action: done
 
-- [ ] Verify PR merged
-- [ ] `gh issue close <N>` (or rely on PR `Closes #N` auto-close)
-- [ ] Comment with merge SHA + learnings pointer if applicable
+- [ ] Confirm the work is complete (PR merged, or no PR applies) — for recurring items use `recheck` instead
+- [ ] `gh issue close <N> --comment '<summary>'` (or rely on PR `Closes #N` auto-close); `--reason "not planned"` when closing as superseded/rejected
+- [ ] Remove `status:claimed`; comment with merge SHA + learnings pointer if applicable
 
 ## Action: stats / list / search / scan / audit
 

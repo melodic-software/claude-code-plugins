@@ -4,7 +4,7 @@ Create a new work item with labels from the taxonomy.
 
 **Defaults applied by this action:**
 
-- **Priority** — when the `--priority` flag is absent, apply `priority:p3-low`.
+- **Priority** — when the `--priority` flag is absent, apply `priority:p3-low` (include it in the labels array built below).
 - **Body template** — when `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this issue, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
 - **Label taxonomy** — labels are validated against the group structure documented in [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md).
 
@@ -16,7 +16,7 @@ add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--p
 
 ## Flags
 
-- `--category <name>` -- Category label (default: `general` when the repo has that label). Valid values are the consuming repo's `category:` labels ([`../reference/label-taxonomy.md`](../reference/label-taxonomy.md))
+- `--category <name>` -- Category label. Valid values are the consuming repo's `category:` labels ([`../reference/label-taxonomy.md`](../reference/label-taxonomy.md)). Default: `general` ONLY when the repo actually has a `category:general` label (check `gh label list`); otherwise omit the category label entirely
 - `--type <type>` -- Type label (default: `chore`). Valid: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf`
 - `--area <area>` -- Area label (the consuming repo's `area:` labels)
 - `--ecosystem <eco>` -- Ecosystem label (the consuming repo's `ecosystem:` labels)
@@ -41,11 +41,12 @@ gh issue list --search "<title keywords>" --state all --json number,title,state 
 
 If a potential duplicate is found (similar title), present it: "Similar issue found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-1. **Build labels array:**
+1. **Build labels array.** Start from the defaults that apply (`type:` default `chore`; `priority:p3-low` when `--priority` absent; `category:general` only when that label exists in the repo), then add each flag-specified label. Every label must exist in the repo — `gh issue create` fails on unknown labels:
 
 ```bash
-LABELS="--label type:chore --label category:general"
-# Add each flag-specified label
+LABELS="--label type:chore --label priority:p3-low"
+# + --label category:general  (only if the repo has it)
+# + each flag-specified label
 ```
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`../reference/agent-brief.md`](../reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
@@ -74,8 +75,7 @@ LABELS="--label type:chore --label category:general"
 gh issue create \
   --title "[Maintenance] {title}" \
   --body "{body}" \
-  --label "type:chore" \
-  --label "category:general" \
+  $LABELS \
   | tr -d '\r'
 ```
 

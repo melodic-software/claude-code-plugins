@@ -61,7 +61,7 @@ gh issue list --label "recurring" --state open --json number,title --limit 100 |
 
 Match by title prefix `[Maintenance] {schedule item title}`.
 
-**Due-recurring tier (`next_due <= today`):** if no open issue exists, create one via the `add --recurring` pattern before claiming. These items are actionable now — dead-ending without an issue to hold would strand work.
+**Due-recurring tier (`next_due <= today`):** if no open issue exists, create one before claiming — issue only, using the `[Maintenance] {title}` prefix plus the `recurring` and `cadence:{cadence}` labels. Do NOT route through `add --recurring`: the item already exists in the schedule, and that flow would append a duplicate schedule entry. These items are actionable now — dead-ending without an issue to hold would strand work.
 
 **Last-resort recurring tier (`next_due > today`):** recurring automation typically only creates issues when `next_due <= today`, so there is usually no open issue to hold. Since picking early shifts the cadence and undermines the recurrence guarantee, **skip last-resort candidates that have no open issue and advance to the next candidate**. Only hold/claim a last-resort item when an open issue already exists (e.g., created manually ahead of cadence). If every last-resort candidate is skipped for lack of an issue, report "no actionable work" to the user rather than forcing one into existence.
 

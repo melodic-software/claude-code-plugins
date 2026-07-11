@@ -37,10 +37,12 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean the `rec
 {if --pr: Fixed in #{pr_number}}
 ```
 
-1. **Close the issue** (write):
+1. **Close the issue** (write). Use `--reason "not planned"` when `--not-planned` was passed:
 
 ```bash
 gh issue close <N> --comment "Done ($(date +%Y-%m-%d)): {summary}" --reason completed
+# with --not-planned:
+gh issue close <N> --comment "Closing ($(date +%Y-%m-%d)): {summary}" --reason "not planned"
 ```
 
 1. **Clean up claim labels** (write):
@@ -52,13 +54,14 @@ gh issue edit <N> --remove-label "status:claimed"
 1. **Belt-and-suspenders: verify PR body keyword presence.** This step fires when `done` is invoked for a manual PR flow (no PR tooling injected a closing keyword). Only runs when `--pr` is provided:
 
 ```bash
-gh pr view <PR> --json body,mergedAt --jq '.body' | tr -d '\r' > "${TMPDIR:-/tmp}/pr-body.md"
+PR_BODY=$(mktemp)
+gh pr view <PR> --json body,mergedAt --jq '.body' | tr -d '\r' > "$PR_BODY"
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
 OPTOUT_REGEX='^(Refs #[0-9]+|No related issue:)'
 
-if grep -iE "$KEYWORD_REGEX" "${TMPDIR:-/tmp}/pr-body.md" >/dev/null; then
+if grep -iE "$KEYWORD_REGEX" "$PR_BODY" >/dev/null; then
   :  # keyword present — auto-close will fire on merge
-elif grep -E "$OPTOUT_REGEX" "${TMPDIR:-/tmp}/pr-body.md" >/dev/null; then
+elif grep -E "$OPTOUT_REGEX" "$PR_BODY" >/dev/null; then
   :  # explicit opt-out — leave PR body alone
 else
   # PR body lacks keyword AND lacks opt-out. Behavior depends on merge state.
@@ -66,11 +69,12 @@ else
   if [[ -z "$MERGED_AT" || "$MERGED_AT" == "null" ]]; then
     # Unmerged — read-modify-write the PR body to prepend `Closes #<N>`
     # (`--body-file` REPLACES, never appends). Write op.
-    printf '%s\n\n%s\n' "Closes #<N>" "$(cat "${TMPDIR:-/tmp}/pr-body.md")" | gh pr edit <PR> --body-file -
+    printf '%s\n\n%s\n' "Closes #<N>" "$(cat "$PR_BODY")" | gh pr edit <PR> --body-file -
   fi
   # Merged — keyword can no longer auto-fire. Step 4's `gh issue close <N>`
   # is the only remaining path.
 fi
+rm -f "$PR_BODY"
 ```
 
 If keyword present → GitHub auto-closes the issue on merge (the structural path). If absent on an unmerged PR → read-modify-write injects `Closes #<N>` at top of body. If absent on a merged PR → step 4's manual `gh issue close` is the only remaining path; keyword can no longer auto-fire.

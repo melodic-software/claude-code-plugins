@@ -30,7 +30,7 @@ Filter into buckets programmatically. Present as compact table. (Read — bare `
 Read the issue body, comments, and any linked PRs (read — bare `gh`):
 
 ```bash
-gh issue view <n> --json number,title,body,labels,assignees,comments
+gh issue view <n> --json number,title,body,labels,assignees,comments | tr -d '\r'
 ```
 
 ### 2. Recommend category + state

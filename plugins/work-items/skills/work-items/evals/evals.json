@@ -42,6 +42,20 @@
         "Publishes issues in dependency order (blockers first) so real numbers fill the Blocked-by fields",
         "Does NOT close or modify the parent issue"
       ]
+    },
+    {
+      "id": 4,
+      "name": "add-gates-runs-preflight-and-applies-defaults",
+      "prompt": "/work-items:work-items add \"retry logic drops the final attempt when the backoff cap is hit\" --type fix",
+      "expected_output": "Treats the explicit add invocation as authorization, runs the duplicate pre-flight search before creating, and creates ONE issue with the type label plus the default priority:p3-low, applying category:general only if that label exists in the repo.",
+      "files": [],
+      "expectations": [
+        "Treats the explicit user `add` invocation as the authorization to create (no extra confirmation demanded, no silent skip)",
+        "Runs the duplicate pre-flight (`gh issue list --search ... --state all`) BEFORE creating, and pauses to present any similar match",
+        "Creates exactly ONE issue with `--label type:fix` and the default `--label priority:p3-low` (priority flag absent)",
+        "Applies `category:general` only when the repo defines that label — never passes a label the repo lacks",
+        "Body follows the default skeleton (Context / Proposed work / Acceptance criteria / References) since `--body` was not provided"
+      ]
     }
   ]
 }

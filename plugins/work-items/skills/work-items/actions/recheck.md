@@ -47,10 +47,11 @@ Read the current file, find the matched item, then:
 gh issue list --search "\"[Maintenance] <title>\" label:recurring" --state open --json number,title --limit 5 | tr -d '\r'
 ```
 
-If found, close it with a recheck comment (write):
+If found, close it with a recheck comment and clean up any claim label (writes):
 
 ```bash
 gh issue close <N> --comment "Rechecked $(date +%Y-%m-%d). Next due: <next_due>." --reason completed
+gh issue edit <N> --remove-label "status:claimed"
 ```
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
