@@ -45,7 +45,7 @@ Parse `$ARGUMENTS` to determine the action:
 |----------|--------|----------|
 | *(empty)* | **Smart default** | Infer the most appropriate lane from current branch / recent commits / git status. If the inference is ambiguous, pause and ask the user. Otherwise proceed as if `<lane>` was passed. |
 | `<lane>` (from the catalog below) | **Targeted lane run** | Load the lane file, run the full Workflow on that lane's scope. |
-| `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. Do NOT make edits. Do NOT branch. Do NOT push. The user reviews and decides whether to proceed. |
+| `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. Do NOT make edits. Do NOT branch. Do NOT push. Do NOT file tracker items. The user reviews and decides whether to proceed. |
 | `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files — valid ONLY in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
 | `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
 
@@ -107,7 +107,7 @@ Understand before changing. No exceptions for "small" tidyings — workflow disc
 2. Hunt: walk the lane's scope globs, looking for instances of the lane's watch-for tidyings. For each candidate, classify: tidying type, file, line range, estimated LOC delta, confidence.
 3. Build a prioritized findings table.
 4. Apply the scope budget (`reference/scope-budget.md`): target ≤200 LOC + ≤8 files; hard cap ≤400 LOC + ≤15 files. Take the highest-priority subset that fits.
-5. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: via `/work-items:work-items add` when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable).
+5. Overflow → file one work item per deferred candidate using the template in `reference/scope-budget.md`: via `/work-items:work-items add` when that plugin is installed, else `gh issue create` (or present the list to the user when no tracker is reachable). **In `dry-run` mode, present the overflow list instead — dry-run never files tracker items or causes any other external side effect.**
 
 If the hunt finds zero applicable improvements after thorough exploration: clean exit, NO PR. Do not produce empty-PR churn.
 

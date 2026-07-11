@@ -33,9 +33,9 @@ Supported formats: `24h`, `48h`, `72h`, `7d`, `2d`, `1w`. Default: `48h`.
 
 ### Mode 2: Branch diff
 
-Trigger: argument is `branch`, or contains "branch", "feature branch", or "all commits". Uses `git diff --name-only <default-branch>..HEAD` to find files changed on the current branch vs the default branch. Requires being on a non-default branch.
+Trigger: argument is `branch`, or contains "branch", "feature branch", or "all commits". Uses `git diff --name-only <default-branch>...HEAD` (three-dot — diff from the merge base, so files changed only on the default branch since the branch point are NOT swept in) to find files this branch changed. Requires being on a non-default branch.
 
-**Detection heuristic:** if `$ARGUMENTS` does NOT match `^\d+[hdw]$` (time-window pattern), treat as branch mode.
+**Detection heuristic** (after stripping the `docs` flag): empty remaining argument → default `48h` time window; matches `^\d+[hdw]$` → time-window mode; contains a branch trigger word → branch mode; anything else → ask the user rather than guessing.
 
 ### Flag: `docs`
 
@@ -60,8 +60,8 @@ Both modes union committed history with uncommitted changes (staged + unstaged) 
 **Branch mode** (argument matches the branch/feature-branch/all-commits pattern):
 
 ```bash
-# Committed on branch + uncommitted working tree changes
-{ git diff --diff-filter=ACDMR --name-only <default-branch>..HEAD; git diff --diff-filter=ACDMR --name-only HEAD; } | sort -u
+# Committed on branch (vs merge base) + uncommitted working tree changes
+{ git diff --diff-filter=ACDMR --name-only <default-branch>...HEAD; git diff --diff-filter=ACDMR --name-only HEAD; } | sort -u
 ```
 
 Requires being on a non-default branch. If on the default branch, report the error and exit.
@@ -89,6 +89,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 
 - `.md` files (documentation — prose, not code). **Exception:** when the `docs` flag is set, include `.md` files that are NOT in the protected list below. The simplifier reviews docs for stale references, outdated library names, incorrect API examples, or references to renamed/removed code — not for prose quality
 - `.lock` files (`uv.lock`, `package-lock.json` — auto-generated)
+- **Agent & enforcement configuration** — `.claude/hooks/**`, `.claude/settings*.json`, `.claude/agents/**`, `.mcp.json`, `.github/workflows/**`, git-hook manager config (`lefthook.yml`, `.husky/**`, `.pre-commit-config.yaml`): never handed to an autonomous simplifier (same safety model as this plugin's tidy skill). If they changed in the window, list them as read-only deferred items instead
 - Data files (fixtures, datasets, exported records — anything that is content rather than logic)
 - Skill/agent definition prose (`SKILL.md`, agent markdown), `README.md`, `CLAUDE.md`
 - Generated or vendored code

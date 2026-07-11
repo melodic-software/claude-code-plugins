@@ -5,11 +5,13 @@ Bash and PowerShell scripts in the project's tooling directories. **The single m
 ## Scope
 
 ```text
-tools/**.sh
-tools/**.ps1
-scripts/**.sh
-scripts/**.ps1
+tools/**/*.sh
+tools/**/*.ps1
+scripts/**/*.sh
+scripts/**/*.ps1
 ```
+
+(`**` matches zero or more directories, so these cover both `tools/x.sh` and `tools/a/b/y.sh`.)
 
 Adjust to the consuming project's actual tooling directories (a project lane at `.claude/tidy-lanes/shell-tooling.md` overrides this file entirely). Hook directories (`.claude/hooks/**`, `.lefthook/**`, `.husky/**`) are HARD-EXCLUDED at the lane level (and also globally) — read-only investigation is fine, mutation is not.
 

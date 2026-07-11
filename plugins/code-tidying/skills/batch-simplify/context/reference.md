@@ -11,18 +11,18 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 1. **Same project directory** — files in the same project (identified by the nearest `*.csproj`, `package.json`, `pyproject.toml`, `Cargo.toml`, or equivalent manifest) go together
 2. **Source vs tests** — separate source code from test code within the same project if the combined count exceeds ~15 files
 3. **Root config files** — all root-level config files (`.editorconfig`, build-system props, formatter configs) form one group
-4. **Agent infrastructure** — `.claude/hooks/`, `.claude/settings.json`, `.mcp.json` and similar form one group
-5. **Standalone scripts** — skill/tool scripts group by parent directory
+4. **Standalone scripts** — skill/tool scripts group by parent directory
+
+Agent & enforcement configuration (`.claude/hooks/**`, `.claude/settings*.json`, `.mcp.json`, CI workflows, git-hook manager config) is excluded in Phase 2 — it never forms a simplification group; changed files there surface as read-only deferred items.
 
 **Dependency ordering** — process groups in this order:
 
 1. Root build/tooling config (everything depends on these)
-2. Agent infrastructure (hooks, settings, MCP config)
-3. Standalone scripts (skills, tools)
-4. Shared/platform libraries (other code depends on these)
-5. Application code (depends on shared libs)
-6. Architecture/cross-cutting tests (depend on libs + apps)
-7. Independent polyglot services — by ecosystem, source before tests
+2. Standalone scripts (skills, tools)
+3. Shared/platform libraries (other code depends on these)
+4. Application code (depends on shared libs)
+5. Architecture/cross-cutting tests (depend on libs + apps)
+6. Independent polyglot services — by ecosystem, source before tests
 
 ## Summary report template (Phase 8)
 
