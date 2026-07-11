@@ -6,7 +6,7 @@ The skill's default action: read the git facts, classify the change into a lifec
 
 Decide whether there is anything *diffable* to review — BEFORE tier classification:
 
-1. **Truly clean** — `git status --porcelain` empty AND no open PR → report "no changes to review", spawn nothing, write no findings file.
+1. **Truly clean** — `git status --porcelain` empty AND the branch is not ahead of its base (the pre-computed merge-base shortstat is empty) AND no open PR → report "no changes to review", spawn nothing, write no findings file. A clean committed branch with no PR yet is the *reviewable* case below, not this one.
 2. **Untracked-only** — porcelain shows ONLY `??` entries AND the branch is not ahead of its base AND no open PR → report: ``Only untracked files present — `git diff` cannot show them; `git add` them to include in review.`` Spawn nothing. **Do NOT stage the files** — review modes mutate nothing but the findings file.
 3. **Reviewable** — tracked uncommitted changes OR ahead of base OR an open PR → proceed against the review diff base.
 

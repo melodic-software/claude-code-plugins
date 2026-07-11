@@ -10,7 +10,7 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 2. **Main-thread orchestrators** — sequentially invoke the optional orchestrator plugins per SKILL.md "Orchestrator plugins". They fan out their OWN agents from the main thread; a Workflow `agent()` is a subagent and cannot dependably spawn them.
 3. **Resolve the roster** — run the discovery recipe in `leaf-roster.md` to get the slice list, and resolve the review diff base (SKILL.md "Shared inputs").
 4. **Leaf fan-out** — if the gate passed, substitute the resolved diff base into `REVIEW_DIFF` and the discovered slice names into `OWNERLESS_SLICES` in the script below, then launch it via the Workflow tool. Else take the coverage-parity fallback.
-5. **Normalize main-thread** — gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. If the Workflow returned `rawFallback`, run Stage 0 on those raw leaf outputs main-thread too.
+5. **Normalize main-thread** — gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. Reconcile per surface against the Workflow's `raw` array: any surface whose raw output is non-empty but yielded zero extracted records gets Stage 0 re-run main-thread on that raw text; whatever still fails to parse goes verbatim into `## Unparsed` — partial extraction never silently drops a surface.
 6. **Persist** per `default-mode.md` "Findings-writer contract"; prepend the DEGRADED block when the fallback was taken.
 
 **Diffability pre-check (before step 4):** the untracked-only diagnostic from `default-mode.md` applies here too — with nothing diffable, every leaf would diff an empty tree and return nothing. Emit the diagnostic and skip the launch; do NOT stage files.
@@ -34,7 +34,7 @@ Constructed at dispatch: copy the script below, substitute `REVIEW_DIFF` (the re
 - Plain JS — no TypeScript annotations; no `Date.now()`/`Math.random()`/argless `new Date()`.
 - Each leaf reads the diff via its OWN Bash (`git diff <REVIEW_DIFF>`); the script layer has no filesystem access.
 - Leaves return raw free-text (NO `schema`) — schema over a custom agent's baked-in output prose is unreliable. Only the dedicated extraction agent uses `schema` (a fresh general-purpose agent, where it is reliable).
-- Backstop: the script returns `rawFallback` (raw leaf outputs) when extraction yields zero despite non-empty input — no silent zero-records.
+- Backstop: the script always returns `raw` (every leaf's raw output alongside extracted records) so the main thread can reconcile per surface — partial extraction preserves unparsed surfaces, not just the all-zero case.
 
 ```javascript
 export const meta = {
@@ -133,7 +133,7 @@ const extracted = await agent(
 const records = extracted && extracted.records ? extracted.records : []
 return {
   records,
-  rawFallback: (records.length === 0 && returned.length > 0) ? returned : null,
+  raw: returned.map(r => ({ label: r.label, output: r.output })),
   nulls,
   ran: roster.map(l => l.label),
 }
