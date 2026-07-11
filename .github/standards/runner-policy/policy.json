@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "selectorWorkflowPaths": ["melodic-software/ci-workflows/.github/workflows/select-runner.yml"],
   "approvedSelectorReferences": [
-    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6"
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c"
   ],
   "approvedReusableWorkflowContracts": {
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@1d3762c2ace413db0f347048307946c46850161c": {
@@ -46,7 +46,7 @@
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-latest"]
     },
-    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["skip-actors"],
       "allowedSecrets": {
@@ -54,19 +54,19 @@
       },
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/link-check.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["args"],
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": [],
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/pester.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/pester.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": [
         "run",
@@ -78,19 +78,19 @@
       "allowedSecrets": {},
       "fixedRunsOn": ["windows-2025"]
     },
-    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": [],
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner"],
       "allowedSecrets": {}
     },
-    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["dry-run", "targets"],
       "allowedSecrets": {
@@ -99,7 +99,7 @@
       },
       "fixedRunsOn": ["ubuntu-24.04"]
     },
-    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6": {
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["paths"],
       "allowedSecrets": {},
