@@ -98,7 +98,7 @@ Check whether another agent also placed a hold concurrently. GitHub comment IDs 
 
 ```bash
 # List all hold comments on this issue
-gh api "repos/{owner}/{repo}/issues/<N>/comments" --jq '[.[] | select(.body | startswith("<!-- hold:")) | {id, user: .user.login, created_at}] | sort_by(.id)' | tr -d '\r'
+gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" --jq '[.[] | select(.body | startswith("<!-- hold:")) | {id, user: .user.login, created_at}] | sort_by(.id)' | tr -d '\r'
 ```
 
 **Conflict resolution:**

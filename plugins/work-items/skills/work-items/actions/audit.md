@@ -22,7 +22,7 @@ For each issue, list the hold comments and read each hold's age from its embedde
 
 ```bash
 # List hold comments with their embedded timestamps
-gh api "repos/{owner}/{repo}/issues/<N>/comments" --jq '[.[] | select(.body | startswith("<!-- hold:")) | {id, marker: (.body | split("-->")[0])}]' | tr -d '\r'
+gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" --jq '[.[] | select(.body | startswith("<!-- hold:")) | {id, marker: (.body | split("-->")[0])}]' | tr -d '\r'
 ```
 
 Release ONLY the individual hold comments older than 15 minutes via PATCH (preserves audit trail) — an issue can carry an abandoned hold AND a newer active one, and the active holder must keep its hold:

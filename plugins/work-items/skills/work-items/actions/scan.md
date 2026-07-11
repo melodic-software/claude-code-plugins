@@ -18,7 +18,8 @@ scan [--path <dir>] [--work]
 If the consuming repo has its own comment-hygiene tooling (a shared pattern library, a lint lane), use that as the detection source of truth per the repo's own rules. Otherwise, scan tracked files directly:
 
 ```bash
-# -C roots the scan at the repo top — a bare git grep from a subdirectory searches only that subtree
+# -C roots the scan at the repo top — a bare git grep from a subdirectory searches only that subtree.
+# With --path <dir>, thread it in as a root-relative pathspec (keep the exclusions): ... -- '<dir>' ':!*.min.*' ':!*node_modules*'
 git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\r'
 ```
 
