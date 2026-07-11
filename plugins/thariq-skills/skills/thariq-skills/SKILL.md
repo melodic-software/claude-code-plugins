@@ -12,7 +12,7 @@ metadata:
 
 ## Update
 
-`/thariq-skills:thariq-skills update` runs `scripts/update.sh` (`--check` default; `--apply` syncs `vendor/SKILL.md` + frontmatter metadata). Maintainer-facing: run it in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy — consumers receive updates through `/plugin marketplace update`. The action is advisory: `--apply` refreshes the vendored baseline only; integrating upstream deltas into this distilled body stays a manual, reviewed step.
+`/thariq-skills:thariq-skills update` runs `bash "${CLAUDE_SKILL_DIR}/scripts/update.sh"` (`--check` default; `--apply` syncs `vendor/SKILL.md` + frontmatter metadata). Maintainer-facing: run it in a working-tree checkout of this plugin (the marketplace clone, or a directory loaded via `--plugin-dir`), never against an installed marketplace copy — consumers receive updates through `/plugin marketplace update`. The action is advisory: `--apply` refreshes the vendored baseline only; integrating upstream deltas into this distilled body stays a manual, reviewed step.
 
 The verbatim upstream baseline lives at `vendor/SKILL.md` for drift detection — do NOT read it for a normal invocation; read it only when syncing upstream.
 
@@ -94,11 +94,13 @@ Example: inline bash cats `config.json` from the skill directory. If absent, out
 
 ### 7. Memory & Storing Data
 
-Skills can store data across runs. Use `${CLAUDE_PLUGIN_DATA}` as a stable folder — data in the skill directory may be deleted on upgrade.
+Skills can store data across runs. Use `CLAUDE_PLUGIN_DATA` (referenced in your skill content as a dollar-brace `${...}` placeholder) as a stable folder — data in the skill directory may be deleted on upgrade.
 
 Options: append-only text logs, JSON files, SQLite databases. A standup-post skill might keep `standups.log` so Claude can diff against yesterday.
 
-For effort-aware behavior, embed `${CLAUDE_EFFORT}` in SKILL.md content — Claude Code injects the current effort value (`low`, `medium`, `high`, `xhigh`, or `max`) at invocation. Example: skip expensive research phases when effort is `low`, run the full workflow at `high` or above.
+For effort-aware behavior, embed the `CLAUDE_EFFORT` placeholder (same dollar-brace form) in SKILL.md content — Claude Code injects the current effort value (`low`, `medium`, `high`, `xhigh`, or `max`) at invocation. Example: skip expensive research phases when effort is `low`, run the full workflow at `high` or above.
+
+(The two variable names above are written without their dollar-brace wrapper because Claude Code substitutes such placeholders inline when this very skill loads.)
 
 ### 8. Store Scripts & Generate Code
 
@@ -146,8 +148,8 @@ Reference other skills by name. Claude invokes them if installed. Native depende
 | Don't railroad | Info + flexibility > step-by-step scripts |
 | Description = trigger | Write it for the model, include trigger phrases |
 | Setup pattern | config.json + first-run prompting |
-| Store data | ${CLAUDE_PLUGIN_DATA} persists across upgrades |
-| Adapt to effort | ${CLAUDE_EFFORT} = low/medium/high/xhigh/max at invocation |
+| Store data | `CLAUDE_PLUGIN_DATA` persists across upgrades |
+| Adapt to effort | `CLAUDE_EFFORT` = low/medium/high/xhigh/max at invocation |
 | Give it code | Helper scripts > prose instructions |
 | On-demand hooks | Session-scoped guardrails for risky contexts |
 
