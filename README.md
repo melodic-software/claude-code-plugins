@@ -36,6 +36,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`prototype`](plugins/prototype) | Skills | Builds throwaway code to answer a design question before committing to architecture. Ships two skills: `/prototype:logic` (an interactive terminal app over a portable state model) and `/prototype:ui` (radically different visual variants on one route). |
 | [`book-distill`](plugins/book-distill) | Skill | Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline, updating the target skill's routing table. |
 | [`context7`](plugins/context7) | Skill | Looks up current library documentation, API references, and code examples via Context7 — a two-step resolve-then-query workflow over the `ctx7` CLI or the consumer's Context7 MCP server, plus an upstream drift-check `update` action. |
+| [`source-control`](plugins/source-control) | Skills | Git/GitHub delivery workflow in three skills: `/source-control:commit` (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), `/source-control:pull-request` (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), and `/source-control:worktree` (create/status/cleanup/audit for parallel-session isolation). |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
