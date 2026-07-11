@@ -1,0 +1,7 @@
+# Lychee link-check exclusions. One regex per line (matches anywhere in URL).
+
+# Vendored upstream baselines (plugins/*/skills/*/vendor/) are byte-exact
+# snapshots kept solely for drift diffing. Their relative links may point at
+# upstream sibling files that are deliberately not vendored — do not check
+# links that resolve into a vendor directory.
+/plugins/[^/]+/skills/[^/]+/vendor/
