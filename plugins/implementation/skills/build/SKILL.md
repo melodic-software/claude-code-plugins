@@ -54,7 +54,9 @@ All commands use absolute paths. Never `cd` and lose context.
 
 If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every enabled ecosystem. Otherwise, classify changed files from `git status --porcelain` against each enabled ecosystem's `globs` in [reference/ecosystem-config.md](reference/ecosystem-config.md).
 
-If no changes detected and no `$ARGUMENTS`: report "No uncommitted changes found. Use `/build all` to verify the full repo, or `/build <ecosystem>` for a specific ecosystem." and exit.
+If the working tree is clean, fall back to the branch diff — `git diff --name-only $(git merge-base <default-branch> HEAD)..HEAD` — so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). A caller passing an explicit changed-file list (e.g. `/verify-changes`) overrides both detection paths.
+
+If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/build all` to verify the full repo, or `/build <ecosystem>` for a specific ecosystem." and exit.
 
 **Conversation-aware targeting**: when the conversation has been working with specific files/projects, scope the build to what was touched — don't rebuild the whole scope for a single-project change. The ecosystem config's `anchor` field provides the default scoping anchor for ecosystems with a canonical entry point; substitute a narrower project file when changes are confined to one project. For .NET specifically: use the specific `.csproj` when changes are in one project, use the solution file when changes span multiple projects or touch shared files (`.props`, `.targets`, solution file).
 

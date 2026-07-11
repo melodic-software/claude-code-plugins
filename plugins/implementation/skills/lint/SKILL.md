@@ -56,7 +56,7 @@ Parse `$ARGUMENTS` for:
 
 ### 1. Detect ecosystems
 
-If an ecosystem filter was provided, use it. If `all`, run every applicable ecosystem from the config. Otherwise, classify changed files from `git status --porcelain` against each ecosystem's `globs` list. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
+If an ecosystem filter was provided, use it. If `all`, run every applicable ecosystem from the config. Otherwise, classify changed files from `git status --porcelain` against each ecosystem's `globs` list; when the working tree is clean, fall back to the branch diff (`git diff --name-only $(git merge-base <default-branch> HEAD)..HEAD`) so checkpoint-committed work still gets classified. A caller passing an explicit changed-file list (e.g. `/verify-changes`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
 
 Auto-detection algorithm:
 
@@ -64,7 +64,7 @@ Auto-detection algorithm:
 2. For each ecosystem, match its `globs` against the changed-files list
 3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed
 
-If no changes detected and no filter specified: report "No uncommitted changes found. Use `/lint all` to check the full repo, or `/lint <ecosystem>` for a specific filter." and stop.
+If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/lint all` to check the full repo, or `/lint <ecosystem>` for a specific filter." and stop.
 
 ### 2. Run linters per ecosystem
 
