@@ -6,7 +6,7 @@ The skill's default action: read the git facts, classify the change into a lifec
 
 Decide whether there is anything *diffable* to review — BEFORE tier classification:
 
-1. **Truly clean** — `git status --porcelain` empty AND the branch is not ahead of its base (the pre-computed merge-base shortstat is empty) AND no open PR → report "no changes to review", spawn nothing, write no findings file. A clean committed branch with no PR yet is the *reviewable* case below, not this one.
+1. **Truly clean** — `git status --porcelain` empty AND the branch is not ahead of its base (the pre-computed committed shortstat is empty) AND no open PR → report "no changes to review", spawn nothing, write no findings file. A clean committed branch with no PR yet is the *reviewable* case below, not this one.
 2. **Untracked-only** — porcelain shows ONLY `??` entries AND the branch is not ahead of its base AND no open PR → report: ``Only untracked files present — `git diff` cannot show them; `git add` them to include in review.`` Spawn nothing. **Do NOT stage the files** — review modes mutate nothing but the findings file.
 3. **Reviewable** — tracked uncommitted changes OR ahead of base OR an open PR → proceed against the review diff base.
 
@@ -16,7 +16,7 @@ Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs"): `H
 
 ## Tier classification
 
-Deterministic diff-size thresholds, refined by a judgment layer — a 30-line change touching auth or crossing a module boundary is NOT "small" in risk even if small in size; promote it.
+Deterministic diff-size thresholds, refined by a judgment layer — a 30-line change touching auth or crossing a module boundary is NOT "small" in risk even if small in size; promote it. Size = the SUM of the two pre-computed shortstats (committed-vs-merge-base + uncommitted) so dirty tracked edits count; when an open PR targets a non-default base, recompute the committed side against that `baseRefName` first.
 
 | Tier | Size trigger | Promote when | Surfaces |
 |---|---|---|---|

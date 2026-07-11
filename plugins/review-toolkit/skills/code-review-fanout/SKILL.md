@@ -10,8 +10,9 @@ disable-model-invocation: false
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
-Open PRs (match headRefName to current branch above): !`gh pr list --json number,title,headRefName --limit 10 2>/dev/null || echo "unknown"`
-Tracked diff size (vs merge base, same fallback chain as the review diff base): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
+Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
+Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || echo "unavailable"`
+Uncommitted diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
 
@@ -23,7 +24,7 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 
 ## Shared inputs
 
-- **Review diff base** — dispatched surfaces diff `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`); never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
+- **Review diff base** — when an open PR exists for the branch, its `baseRefName` (pre-computed above) is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`). Never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Findings location** — when the project's conventions define a review-artifacts location (check its `CLAUDE.md` / project rules), use it; otherwise `.claude/review/<branch-slug>/` at the project root, where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`.
 
