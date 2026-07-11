@@ -42,27 +42,28 @@
 
 ## 2.2 Rebase onto the latest default branch
 
-Ensure the branch is current with the default branch before pushing. Prevents merge conflicts and stale-branch CI failures. (`main` below — substitute the repo's default branch.)
+Ensure the branch is current with the default branch before pushing. Prevents merge conflicts and stale-branch CI failures.
 
 **Ordering — rebase needs a clean tree.** `git rebase` refuses to run with unstaged changes (`error: cannot rebase: You have unstaged changes.`). On the normal `create` path the PR changes are still uncommitted when this phase starts — in that case run 2.3 (classify unrelated changes + stage + commit) FIRST, then return here and integrate before the 2.4 push. Run 2.2 in the listed order only when the tree is already clean (all work committed).
 
 ```bash
-git fetch origin main
-MERGE_BASE=$(git merge-base HEAD origin/main)
-ORIGIN_MAIN=$(git rev-parse origin/main)
+DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+git fetch origin "$DEFAULT_BRANCH"
+MERGE_BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
+ORIGIN_DEFAULT=$(git rev-parse "origin/$DEFAULT_BRANCH")
 
-if [ "$MERGE_BASE" != "$ORIGIN_MAIN" ]; then
-  BEHIND=$(git rev-list --count HEAD..origin/main)
-  echo "Branch is $BEHIND commit(s) behind origin/main. Rebasing..."
-  git rebase origin/main
+if [ "$MERGE_BASE" != "$ORIGIN_DEFAULT" ]; then
+  BEHIND=$(git rev-list --count HEAD.."origin/$DEFAULT_BRANCH")
+  echo "Branch is $BEHIND commit(s) behind origin/$DEFAULT_BRANCH. Rebasing..."
+  git rebase "origin/$DEFAULT_BRANCH"
 fi
 ```
 
-**Prefer `git merge origin/main` over rebase when the branch already contains a merge commit** (`git log --merges origin/main..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
+**Prefer `git merge origin/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges origin/$DEFAULT_BRANCH..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
 
 **If conflicts occur:** resolve conservatively — take both sides where independent, pause and present to the user whenever intent is unclear. `git rebase --abort` / `git merge --abort` when resolution needs judgment you don't have.
 
-**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `origin/main` (branch is current).
+**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `origin/$DEFAULT_BRANCH` (branch is current).
 
 ## 2.3 Stage and commit
 

@@ -189,9 +189,10 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 BRANCH="<headRefName>"
 CUR_BRANCH=$(git branch --show-current)
 CUR_WT=$(git rev-parse --show-toplevel)
+DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 if [ "$CUR_BRANCH" = "$BRANCH" ]; then
   # Already own the branch — no checkout; freshness check below still runs.
-  git fetch origin main
+  git fetch origin "$DEFAULT_BRANCH"
   CHECKOUT_MODE="full"
 elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
   echo "Branch $BRANCH checked out in another worktree — processing read-only"
@@ -200,18 +201,18 @@ elif [ -n "$(git status --porcelain)" ]; then
   echo "Working tree has uncommitted changes (possibly another session's WIP) — no checkout, processing read-only"
   CHECKOUT_MODE="read-only"
 else
-  git fetch origin main
+  git fetch origin "$DEFAULT_BRANCH"
   # gh pr checkout handles fork-sourced PRs (head branch not fetchable from
   # origin) and same-repo branches alike — never bare fetch/checkout by name.
   gh pr checkout "$PR_NUMBER"
   CHECKOUT_MODE="full"
 fi
 
-# Branch freshness — rebase if behind main (full mode only)
+# Branch freshness — rebase if behind the default branch (full mode only)
 if [ "$CHECKOUT_MODE" = "full" ]; then
-  if ! git merge-base --is-ancestor origin/main HEAD; then
-    echo "Branch $BRANCH is behind origin/main — rebasing"
-    if git rebase origin/main; then
+  if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
+    echo "Branch $BRANCH is behind origin/$DEFAULT_BRANCH — rebasing"
+    if git rebase "origin/$DEFAULT_BRANCH"; then
       REBASE_STATUS="rebased"
       # Bare push — the branch's upstream was configured by `gh pr checkout`
       # (fork PRs push to the HEAD repository, not the base repo's origin).
@@ -250,7 +251,7 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
 fi
 ```
 
-**Rebase conflict handling (graduated).** Check for merge commits first (`git log --merges origin/main..HEAD`) — a branch that previously merged main integrates via `git merge origin/main`, not rebase. Then:
+**Rebase conflict handling (graduated).** Check for merge commits first (`git log --merges origin/$DEFAULT_BRANCH..HEAD`) — a branch that previously merged the default branch integrates via `git merge origin/$DEFAULT_BRANCH`, not rebase. Then:
 
 - **Zero conflicts** (`REBASE_STATUS=rebased`) — rebase succeeded, force-push with lease, continue normally
 - **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt resolution immediately; on success `git rebase --continue` + bare `git push --force-with-lease` → `rebased`; if ANY file requires intent judgment, `git rebase --abort` → `conflict-aborted`. Never proceed to comment processing, parking, or the next PR with a rebase in progress
