@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "playwright",
+  "version": "0.1.0",
+  "description": "Live E2E browser automation via Microsoft's @playwright/cli — named sessions, accessibility-ref snapshots, click/fill by ref, screenshots, console and network capture, mocking, tracing, video, and auth state, with artifacts written to disk so only paths enter context, plus a vendored upstream baseline and maintainer drift-check update flow.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT AND Apache-2.0",
+  "keywords": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"]
+}
