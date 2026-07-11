@@ -39,7 +39,7 @@ test('login flow', async ({ page }) => {
 
 1. **Open and explore** — `playwright-cli open <url>` + `snapshot` to see the page
 2. **Perform the flow** — each click/fill/press emits code into stdout
-3. **Collect the emitted code** — pipe to a file with `--raw`, or just copy from the terminal
+3. **Collect the emitted code** — copy the `### Ran Playwright code` blocks from the output (do NOT use `--raw`, which strips them)
 4. **Wrap in a test** — add `test(...)` + `import` + assertions
 5. **Run to verify** — `PLAYWRIGHT_HTML_OPEN=never npx playwright test tests/e2e/login.spec.ts`
 
@@ -63,14 +63,14 @@ await expect(page.getByRole('alert')).toContainText('Saved');
 
 Taking `playwright-cli snapshot` before interacting documents page structure the test expects. If page changes later, snapshot diff tells you what drifted.
 
-### Capture raw code with `--raw`
+### Capture emitted code into a file
 
-For mechanical capture into a file:
+For mechanical capture into a file, redirect the normal output — `--raw` is the wrong mode here (it strips page status, generated code, and snapshots, returning only the result value):
 
 ```bash
-playwright-cli --raw open https://example.com > capture.log
-playwright-cli --raw click e3 >> capture.log
-# ... etc ...
+playwright-cli open https://example.com | tee -a capture.log
+playwright-cli click e3 | tee -a capture.log
+# ... then pull the code lines out of the "### Ran Playwright code" blocks
 ```
 
 Not as clean as hand-curating, but useful for rapid iteration.
