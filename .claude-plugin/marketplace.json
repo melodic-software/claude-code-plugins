@@ -98,6 +98,12 @@
       "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
     },
     {
+      "name": "context7",
+      "source": "./plugins/context7",
+      "category": "utilities",
+      "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
+    },
+    {
       "name": "docs-hygiene",
       "source": "./plugins/docs-hygiene",
       "category": "documentation",
