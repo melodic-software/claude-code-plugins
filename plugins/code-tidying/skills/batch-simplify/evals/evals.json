@@ -1,0 +1,60 @@
+{
+  "skill_name": "batch-simplify",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-48h-full-workflow",
+      "prompt": "/batch-simplify",
+      "expected_output": "Discovers files changed in the last 48h, groups them by ecosystem/project, runs a simplifier agent on each group, reports per-group results and final verification.",
+      "files": [],
+      "expectations": [
+        "Runs git log to discover changed files",
+        "Filters out non-code files (.md, .lock, data files)",
+        "Verifies files exist on disk",
+        "Groups files by project/ecosystem relatedness",
+        "Orders groups by dependency (config first, tests last)",
+        "Creates tasks for each group",
+        "Runs a simplifier agent per group",
+        "Runs ecosystem-appropriate verification after each group",
+        "Presents the final summary table"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "time-window-argument",
+      "prompt": "/batch-simplify 7d",
+      "expected_output": "Same workflow but scans 7 days of git history instead of the default 48h, normalizing the shorthand for git's approxidate parser.",
+      "files": [],
+      "expectations": [
+        "Parses '7d' as the time window argument",
+        "Normalizes the shorthand to '7 days' before passing it to git log --since",
+        "Handles a larger file count gracefully (may produce more groups)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "natural-language-trigger",
+      "prompt": "I've been working on a bunch of stuff over the past few days and forgot to run simplify after each task. Can you clean everything up?",
+      "expected_output": "Triggers the batch-simplify skill automatically from natural language and runs the full workflow with the default window.",
+      "files": [],
+      "expectations": [
+        "Skill triggers from natural language (not slash command)",
+        "Uses the default 48h time window",
+        "Produces the same grouped simplification workflow"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "deferred-items-never-dropped",
+      "prompt": "/batch-simplify branch",
+      "expected_output": "Branch-mode run where simplifier agents report deferred items; the skill consolidates them, presents them grouped by priority, and files work items rather than dropping them.",
+      "files": [],
+      "expectations": [
+        "Extracts each agent's ## Deferred section verbatim rather than paraphrasing",
+        "Consolidates duplicate cross-group concerns into single items",
+        "Presents the consolidated deferred list to the user grouped by priority",
+        "Files work items for actionable deferred concerns (tracker plugin, gh issue create, or explicit user presentation)"
+      ]
+    }
+  ]
+}
