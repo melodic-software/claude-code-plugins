@@ -158,6 +158,12 @@
       "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"]
     },
     {
+      "name": "code-tidying",
+      "source": "./plugins/code-tidying",
+      "category": "review",
+      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "maintenance", "skill"]
+    },
+    {
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "productivity",
