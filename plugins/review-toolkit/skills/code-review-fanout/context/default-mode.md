@@ -12,7 +12,7 @@ Decide whether there is anything *diffable* to review — BEFORE tier classifica
 
 ## Leaf diff target
 
-Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs"): `HEAD` for a dirty tree; the merge-base range for a clean committed branch or open PR, where `git diff HEAD` is empty and reviewers would otherwise see nothing. Instruct each surface to run the merge-base command itself — never a hardcoded `git diff HEAD`.
+Dispatched surfaces diff the **review diff base** (SKILL.md "Shared inputs") in EVERY case — `git diff <merge-base>` includes uncommitted tracked edits alongside committed branch changes, so it covers dirty trees, clean committed branches, and open PRs alike, while `git diff HEAD` on a dirty ahead-of-base branch would show only the dirty edits and drop the committed changes. Instruct each surface to run the merge-base command itself — never a hardcoded `git diff HEAD`.
 
 ## Tier classification
 
