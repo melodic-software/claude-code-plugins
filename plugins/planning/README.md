@@ -1,0 +1,53 @@
+# planning
+
+A Claude Code plugin for the **pre-implementation planning pipeline** — everything
+between a rough idea and approved, executable work. Six skills covering divergence,
+product intent, the engineering contract, design exploration, adversarial review,
+and the implementation plan itself.
+
+| Skill | Stage | What it does |
+|---|---|---|
+| `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
+| `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers — one-pager, consumer-feature, B2B-internal — with a synthesize path and a review mode. |
+| `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief — synthesizing when intent is clear, running depth-first Q&A when it isn't, or interviewing relentlessly on request. |
+| `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts plus a binary handoff gate. |
+| `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
+| `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
+
+The pipeline composes end-to-end — `brainstorm → prd → interview → design →
+architect` with `devils-advocate` attacking the plan before approval — but every
+skill also works standalone.
+
+## Works in any repo
+
+- **Reads your conventions, assumes none.** Project rules, naming conventions,
+  review checklists, domain-vocabulary files, and commit policy come from your own
+  project's `CLAUDE.md` and rules; where none exist, the skills apply standard
+  engineering defaults.
+- **Graceful degrade.** Adjacent capabilities — codebase exploration and external
+  research (`discovery`), test-design guidance (`tdd`), prototyping (`prototype`),
+  session handoff (`session-flow`) — are invoked when installed and substituted
+  with inline guidance when absent; no step blocks on a missing plugin.
+- **Self-contained assets.** Templates and reference files ship inside the plugin;
+  planning artifacts are written to your configured notes directory, never to
+  plugin-internal paths.
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install planning@melodic-software
+```
+
+## Configuration
+
+One option, prompted at enable time:
+
+| Option | Type | Default | Purpose |
+|---|---|---|---|
+| `notes_dir` | string | `.claude/notes` | Project-relative directory where planning artifacts (`PRD.md`, `PLAN.md`, design artifacts, checklists) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+
+## License
+
+MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
+melodic-software/claude-code-plugins repository.
