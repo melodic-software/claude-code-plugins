@@ -5,6 +5,7 @@ when_to_use: "live browser testing, UI smoke tests, snapshot the page, auth stat
 argument-hint: "[update] [--check|--apply]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: Bash(playwright-cli:*)
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
@@ -94,4 +95,4 @@ This skill is the browser-automation driver; it is self-contained. If your proje
 
 ## Source attribution
 
-Distilled from Microsoft's official `@playwright/cli` skill shipped inside the npm package (MIT-licensed). The reference files reshape upstream content for progressive disclosure — one topic per file — and add original Windows and orchestrator-recipe material.
+Distilled from Microsoft's official `@playwright/cli` skill shipped inside the npm package, which is licensed Apache-2.0 — the upstream license text ships at `vendor/LICENSE`. The reference files reshape upstream content for progressive disclosure — one topic per file — and add original Windows and orchestrator-recipe material.

@@ -15,7 +15,7 @@ playwright-cli -s=auth state-load auth.json
 playwright-cli -s=auth open https://app.example.com/dashboard   # already logged in
 ```
 
-**Never commit state files with real auth tokens.** Add `*.auth-state.json` and `auth.json` to `.gitignore` if used. For this repo's E2E fixtures, prefer test accounts with rotatable tokens.
+**Never commit state files with real auth tokens.** Add `*.auth-state.json` and `auth.json` to `.gitignore` if used. For your project's E2E fixtures, prefer test accounts with rotatable tokens.
 
 File format:
 

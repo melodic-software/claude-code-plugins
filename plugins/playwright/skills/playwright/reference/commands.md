@@ -1,6 +1,6 @@
 # Command reference
 
-Distilled from upstream `@playwright/cli@0.1.8` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
+Distilled from upstream `@playwright/cli@0.1.13` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
 
 ## Core interaction
 

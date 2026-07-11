@@ -74,6 +74,9 @@ defaults.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository. Upstream `@playwright/cli`
-and its bundled skill are Microsoft's, MIT-licensed.
+This plugin's original content is MIT (SPDX-License-Identifier: MIT) — see the
+LICENSE file at the root of the melodic-software/claude-code-plugins
+repository. The vendored upstream skill in `vendor/` (and the reference files
+derived from it) are Microsoft's `@playwright/cli` content, licensed
+Apache-2.0 (SPDX-License-Identifier: Apache-2.0) — the upstream license text
+ships at `skills/playwright/vendor/LICENSE`.

@@ -187,6 +187,14 @@ run_apply() {
   rm -rf "$VENDOR_DIR"
   mkdir -p "$VENDOR_DIR"
   cp -r "$upstream_dir"/. "$VENDOR_DIR"/
+  # Redistribution requires the upstream license text (Apache-2.0) to travel
+  # with the vendored content — it lives at the package root, not in the
+  # skill subdirectory.
+  if [[ -f "${TMPDIR_RUN}/package/LICENSE" ]]; then
+    cp "${TMPDIR_RUN}/package/LICENSE" "${VENDOR_DIR}/LICENSE"
+  else
+    err "upstream package ships no LICENSE file — verify redistribution terms before committing"
+  fi
   [[ -f "$lint_backup" ]] && cp "$lint_backup" "$lint_override"
   log "vendor/ replaced ($(find "$VENDOR_DIR" -type f | wc -l | tr -d ' \r') files)"
 
