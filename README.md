@@ -37,6 +37,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`book-distill`](plugins/book-distill) | Skill | Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline, updating the target skill's routing table. |
 | [`context7`](plugins/context7) | Skill | Looks up current library documentation, API references, and code examples via Context7 — a two-step resolve-then-query workflow over the `ctx7` CLI or the consumer's Context7 MCP server, plus an upstream drift-check `update` action. |
 | [`thariq-skills`](plugins/thariq-skills) | Skill | Ships Anthropic's internal skill-authoring playbook as an on-demand knowledge skill — 9 skill categories, 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger), and distribution guidance, with a vendored upstream baseline and drift-check update script. |
+| [`boris`](plugins/boris) | Skill | Ships Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) as an on-demand knowledge skill — 107 tips across 95 sections routed through topic reference files, with a vendored upstream baseline and drift-check update script. |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
