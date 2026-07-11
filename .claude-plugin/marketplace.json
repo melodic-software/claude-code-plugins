@@ -150,6 +150,12 @@
       "source": "./plugins/discovery",
       "category": "development",
       "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
+    },
+    {
+      "name": "playwright",
+      "source": "./plugins/playwright",
+      "category": "testing",
+      "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"]
     }
   ]
 }
