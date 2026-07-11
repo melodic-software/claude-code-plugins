@@ -166,30 +166,42 @@ handoff file; prompt-only: the remaining-work bullets travel inline).
 Sequence — the rails prompt from "Final step" is still emitted FIRST (transparency + manual
 fallback), then:
 
-1. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
+1. **Dirty-tree gate.** Run `git status --porcelain` in the consuming project. Background
+   sessions move into an isolated git worktree (a fresh checkout) before editing files
+   (<https://code.claude.com/docs/en/agent-view>), so uncommitted changes in this checkout would
+   NOT carry into the launched agent's edits. Dirty tree → do NOT launch: report why and fall
+   back to the standard `/clear`-then-paste instruction (same checkout, dirty state intact),
+   noting the user can commit or stash and re-run `/handoff --bg`. Exception: launch anyway when
+   the current session already runs inside a linked git worktree — isolation is skipped there per
+   the same page.
+2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
 
    ```bash
-   cd "${CLAUDE_PROJECT_DIR}" && claude --bg --name "handoff-<topic>" "$(cat <<'HANDOFF_RESUME_PROMPT_END'
+   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "handoff-<topic>" "$(cat <<'HANDOFF_RESUME_PROMPT_END'
    <resume prompt exactly as emitted between the rails>
    HANDOFF_RESUME_PROMPT_END
    )"
    ```
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
-   manages it with `claude agents`. The sentinel is deliberately unique — a bare `EOF` line
-   inside a freeform resume prompt would terminate a plain `<<'EOF'` heredoc early and silently
-   truncate the prompt. Awareness note: the prompt travels in the process argument list, so it is
-   briefly visible to other local processes (`ps`) — inherent to `claude --bg "<prompt>"`; keep
-   secrets out of resume prompts (they don't belong there on ANY path).
+   manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
+   because this launch runs from a Bash-tool subprocess, which carries
+   `CLAUDE_CODE_CHILD_SESSION=1` — nested sessions are otherwise excluded from the
+   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). The heredoc sentinel is
+   deliberately unique — a bare `EOF` line inside a freeform resume prompt would terminate a
+   plain `<<'EOF'` heredoc early and silently truncate the prompt. Awareness note: the prompt
+   travels in the process argument list, so it is briefly visible to other local processes
+   (`ps`) — inherent to `claude --bg "<prompt>"`; keep secrets out of resume prompts (they don't
+   belong there on ANY path).
 
-2. Report the launch result: the command's output, the agent name, and the `claude agents`
+3. Report the launch result: the command's output, the agent name, and the `claude agents`
    management hint. Swap the `/clear`-then-paste instruction for this report — the user no longer
    needs to paste anything.
-3. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
+4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
-4. **STOP is unchanged.** The background agent is the continuation; this session still terminates
+5. **STOP is unchanged.** The background agent is the continuation; this session still terminates
    the task per the hard rule. Do not monitor, poll, or babysit the launched agent.
 
 ## Post-write enforcement checklist
@@ -220,6 +232,8 @@ incomplete.
 
 **Either path with `--bg` (additional):**
 
+- [ ] Dirty-tree gate evaluated (`git status --porcelain` this turn); dirty tree without the
+  linked-worktree exception → no launch, reason reported, fallback to `/clear`-then-paste
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
   result reported — OR the non-zero exit reported with fallback to `/clear`-then-paste
 
