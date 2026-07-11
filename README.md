@@ -35,6 +35,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 | [`mcp-tool-audit`](plugins/mcp-tool-audit) | Skill | Audits MCP server tool definitions against MCP-spec and Anthropic tool-design criteria, returning a per-tool PASS/WARN/FAIL scorecard. Language-agnostic (Python, TypeScript, .NET). |
 | [`prototype`](plugins/prototype) | Skills | Builds throwaway code to answer a design question before committing to architecture. Ships two skills: `/prototype:logic` (an interactive terminal app over a portable state model) and `/prototype:ui` (radically different visual variants on one route). |
 | [`book-distill`](plugins/book-distill) | Skill | Distills a technical book (PDF or EPUB) into concept-organized, author-attributed skill reference files through a structured multi-session read-write pipeline, updating the target skill's routing table. |
+| [`docs-hygiene`](plugins/docs-hygiene) | Skills | Documentation-hygiene toolkit of five skills: `/docs-hygiene:compress` (flavor-trim markdown behind a semantic-diff safety net), `/docs-hygiene:declutter` (classify markdown noise, read-only), `/docs-hygiene:extract-ssot` (deduplicate repeated content into a single source of truth), `/docs-hygiene:encapsulation-audit` (detect citations into skill-private surfaces), and `/docs-hygiene:rename-references` (sweep stale references after renames). |
 
 Install one: `/plugin install <plugin-name>@melodic-software`.
 
