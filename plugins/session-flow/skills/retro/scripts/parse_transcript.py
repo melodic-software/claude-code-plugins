@@ -77,7 +77,7 @@ def parse_timestamp(ts_str: str) -> datetime | None:
 
 # Tools whose `input.file_path` is a write target. Read/Grep/Glob also have
 # file_path inputs but should not count as "files modified".
-_FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "NotebookEdit"})
+_FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
 # Truncation length for tool-rejection error snippets in the output.
 _REJECTION_SNIPPET_LEN = 200

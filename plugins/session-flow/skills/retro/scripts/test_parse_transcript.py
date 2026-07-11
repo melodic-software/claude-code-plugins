@@ -524,6 +524,29 @@ def test_notebook_edit_counts_as_file_modification(tmp_path):
     assert "analysis.ipynb" in data["files_modified"]
 
 
+def test_multi_edit_counts_as_file_modification(tmp_path):
+    """MultiEdit tool_use file_path lands in files_modified."""
+    data = _run_with_event(
+        tmp_path,
+        {
+            "type": "assistant",
+            "timestamp": "2026-03-23T18:00:00Z",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "MultiEdit",
+                        "id": "m1",
+                        "input": {"file_path": "src/app.py", "edits": []},
+                    }
+                ],
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        },
+    )
+    assert "src/app.py" in data["files_modified"]
+
+
 def test_multi_session_subagent_per_session_tagging(tmp_path):
     """Subagents from each session are tagged with session_id in the aggregate."""
     _write_assistant_event(tmp_path, "sid-a")

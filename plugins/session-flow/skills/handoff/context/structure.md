@@ -108,7 +108,9 @@ TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-me
 DIR=.claude/handoffs                       # or the consuming repo's documented location
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
 
-# Find the prior handoff (newest by timestamp) for the chain pointer.
+# Candidate prior handoff (newest by timestamp) for the chain pointer — but
+# only USE it when this session is a continuation of that handoff's task
+# (see "Chain continuity" below).
 PRIOR=$(ls -1 "$DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
 PRIOR_SID=""
 if [[ -n "$PRIOR" ]]; then
@@ -135,9 +137,16 @@ previous_session_id: <UUID>               # CONDITIONAL — omit when no prior h
 
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser). `previous_handoff` (the prior file's name, relative to the handoff directory) +
-`previous_session_id` create the backward chain pointer — emit only when a prior handoff exists.
-The first handoff has neither. Older entries lacking `session_id` cause chain-walkers to break
-cleanly at the first absent field.
+`previous_session_id` create the backward chain pointer.
+
+**Chain continuity — same task only.** Emit `previous_handoff` / `previous_session_id` ONLY when
+this session actually continued the prior handoff's work: it resumed from that handoff (the resume
+prompt loaded it), or the task/topic clearly matches. A shared handoff directory accumulates
+entries from unrelated tasks — pointing at the newest file regardless would splice unrelated
+sessions into one chain, and a later `/retro` would aggregate stale transcripts and decisions as if
+they belonged to the current work. The first handoff of a NEW task has neither field, even when
+older, unrelated handoffs exist in the directory. Older entries lacking `session_id` cause
+chain-walkers to break cleanly at the first absent field.
 
 `CLAUDE_CODE_SESSION_ID` is set in the Bash tool subprocess (Claude Code v2.1.132+). Resolve it via
 Bash — skill markdown does not template-expand env vars.
