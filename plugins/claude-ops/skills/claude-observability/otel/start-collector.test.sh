@@ -45,14 +45,14 @@ assert_contains "unknown arg reported" "$out" "unknown argument"
 out="$(bash "$SCRIPT" --dry-run 2>/dev/null)"
 rc=$?
 assert_eq "--dry-run exits 0" "0" "$rc"
-for key in "store_dir=" "config=" "binary=" "port_4318=" "action="; do
+for key in "store_dir=" "config=" "binary=" "port_4318=" "port_4317=" "action="; do
   assert_contains "--dry-run emits $key" "$out" "$key"
 done
 
-# --- 4. action= is a valid enum value (live :4318 state varies) ---
+# --- 4. action= is a valid enum value (live :4318/:4317 state varies) ---
 action_line="$(printf '%s\n' "$out" | grep '^action=' | head -1)"
 case "$action_line" in
-  action=noop-already-running | action=skip-binary-absent | action=would-spawn | action=skip-prune-in-progress)
+  action=noop-already-running | action=skip-binary-absent | action=would-spawn | action=skip-prune-in-progress | action=skip-grpc-port-in-use)
     pass "action= is a valid enum"
     ;;
   *) fail "action= is a valid enum" "valid enum value" "$action_line" ;;

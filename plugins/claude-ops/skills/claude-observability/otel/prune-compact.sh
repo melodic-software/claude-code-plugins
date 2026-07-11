@@ -61,8 +61,18 @@ compact_dropped() {
   local base="${f%.json}"
   local cold_dir="$store_dir/cold"
   local cold_file="$cold_dir/$base-$cold_ts.parquet"
-  local cold_tmp="$cold_file.tmp"
   mkdir -p "$cold_dir"
+  # Uniquify: a second prune of the same file within the same UTC second must
+  # not mv -f over an existing cold file (append-only contract — compacted
+  # history is never overwritten). A serial existence check suffices: the
+  # prune sentinel already prevents concurrent prunes. The -N suffix still
+  # matches the <base>-*.parquet glob the cc_*_cold macros read.
+  local n=2
+  while [[ -e "$cold_file" ]]; do
+    cold_file="$cold_dir/$base-$cold_ts-$n.parquet"
+    n=$((n + 1))
+  done
+  local cold_tmp="$cold_file.tmp"
   if [[ -n "${CC_OTEL_COMPACT_CMD:-}" ]]; then
     if ! "$CC_OTEL_COMPACT_CMD" "$dropped" "$cold_tmp"; then
       rm -f "$cold_tmp"

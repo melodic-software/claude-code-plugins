@@ -27,6 +27,7 @@
 set -euo pipefail
 
 readonly OTLP_HTTP_PORT=4318
+readonly OTLP_GRPC_PORT=4317
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 # shellcheck source=net-probe.sh
@@ -109,24 +110,31 @@ main() {
     shift
   done
 
-  local repo_root store_dir config bin_status port_state action sentinel
+  local repo_root store_dir config bin_status port_state grpc_port_state action sentinel
   repo_root="$(resolve_repo_root)"
   store_dir="${CC_OTEL_STORE:-$repo_root/.claude/observability/otel}"
   config="$SCRIPT_DIR/otel-collector.yaml"
   sentinel="$store_dir/.prune-in-progress"
   bin_status="$(resolve_bin)"
   port_state="$(port_status "$OTLP_HTTP_PORT")"
+  grpc_port_state="$(port_status "$OTLP_GRPC_PORT")"
 
   # prune-otel-store.sh stops the Collector to trim the store and holds an mkdir-atomic
   # sentinel (.prune-in-progress) for the duration. Refuse to respawn while it exists — a
   # respawn would reopen the file the prune is rewriting (the revival race). The prune
   # removes the sentinel and restarts the Collector itself when done.
+  #
+  # The config binds BOTH receivers (:4318 http, :4317 gRPC). :4318 listening means the
+  # Collector is presumed up (noop); :4318 free but :4317 taken means a foreign process
+  # owns the gRPC port and a spawn would die on its duplicate bind — skip and say so.
   if [[ -d "$sentinel" ]]; then
     action="skip-prune-in-progress"
   elif [[ "$port_state" == "listening" ]]; then
     action="noop-already-running"
   elif [[ "$bin_status" == "NOT_FOUND" ]]; then
     action="skip-binary-absent"
+  elif [[ "$grpc_port_state" == "listening" ]]; then
+    action="skip-grpc-port-in-use"
   else
     action="would-spawn"
   fi
@@ -135,6 +143,7 @@ main() {
   printf 'config=%s\n' "$config"
   printf 'binary=%s\n' "$bin_status"
   printf 'port_%s=%s\n' "$OTLP_HTTP_PORT" "$port_state"
+  printf 'port_%s=%s\n' "$OTLP_GRPC_PORT" "$grpc_port_state"
   printf 'action=%s\n' "$action"
 
   if [[ "$dry_run" == true ]]; then
@@ -153,6 +162,11 @@ main() {
     skip-binary-absent)
       printf 'start-collector.sh: otelcol-contrib not found (PATH / CC_OTEL_BIN / ~/.otelcol). ' >&2
       printf 'Telemetry capture is OFF until installed. Continuing (advisory).\n' >&2
+      return 0
+      ;;
+    skip-grpc-port-in-use)
+      printf 'start-collector.sh: :%s is free but :%s is taken by another process — ' "$OTLP_HTTP_PORT" "$OTLP_GRPC_PORT" >&2
+      printf 'a spawn would die on the gRPC duplicate bind. Telemetry capture is OFF. Continuing (advisory).\n' >&2
       return 0
       ;;
     would-spawn)
