@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "songwriting",
+  "version": "0.1.0",
+  "description": "Songwriting craft companion — Pat Pattison lyric-craft coaching (rhyme, meter, prosody, song form, object writing, metaphor, co-writing) and Suno AI prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "rhyme", "skill"]
+}
