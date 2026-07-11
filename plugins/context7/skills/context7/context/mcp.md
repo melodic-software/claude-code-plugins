@@ -50,7 +50,7 @@ Fall back to CLI in those cases — same backend, different transport path. If b
 
 ## Serialization and performance
 
-Claude Code serializes MCP tool calls to the same server unless the tool declares `readOnlyHint: true`. Context7's tools are read-only; observed behavior: back-to-back `resolve-library-id` + `query-docs` calls complete serially (~2s each, ~4s for the pair).
+Observed behavior (not a documented guarantee): back-to-back `resolve-library-id` + `query-docs` calls complete serially (~2s each, ~4s for the pair) — no parallelism benefit.
 
 Irrelevant in practice — you always need the `library` result before the `docs` call — so serial is correct.
 

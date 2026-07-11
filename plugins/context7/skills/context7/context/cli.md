@@ -6,7 +6,7 @@ Install, configure, command reference, flags, env vars, and Windows-specific got
 
 ```bash
 npm install -g ctx7@latest
-ctx7 --version  # 0.3.13+ as of 2026-04
+ctx7 --version  # 0.3.13 or later
 ```
 
 Fallback (no global install): `npx ctx7@latest <command>` — slower per-invocation, no PATH ceremony.

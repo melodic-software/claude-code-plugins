@@ -31,8 +31,6 @@ BASELINE_CLI_SKILL="$SNAPSHOT_DIR/cli/SKILL.md"
 UPSTREAM_FIND_DOCS="https://raw.githubusercontent.com/upstash/context7/refs/heads/master/skills/find-docs/SKILL.md"
 UPSTREAM_CLI_SKILL="https://raw.githubusercontent.com/upstash/context7/refs/heads/master/skills/context7-cli/SKILL.md"
 
-mkdir -p "$SNAPSHOT_DIR/find-docs" "$SNAPSHOT_DIR/cli"
-
 # --- prerequisite checks ---
 for cmd in npm curl diff; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -40,6 +38,8 @@ for cmd in npm curl diff; do
     exit 1
   fi
 done
+
+mkdir -p "$SNAPSHOT_DIR/find-docs" "$SNAPSHOT_DIR/cli"
 
 # Verifies ctx7 is resolvable on PATH and prints a non-empty version.
 # On success: prints version to stdout, returns 0.
@@ -152,12 +152,16 @@ check_skill_drift() {
     return 0
   fi
 
-  local diff_lines
-  diff_lines=$(diff "$baseline_lf" "$tmpfile_lf" | wc -l | tr -d ' ')
-  echo "  ↳ Drift detected ($diff_lines lines changed)"
+  local diff_output diff_lines
+  diff_output=$(diff -u "$baseline_lf" "$tmpfile_lf")
+  diff_lines=$(printf '%s\n' "$diff_output" | wc -l | tr -d ' ')
+  echo "  ↳ Drift detected ($diff_lines diff lines)"
   echo ""
   echo "  --- new upstream content (for manual review) ---"
-  diff -u "$baseline_lf" "$tmpfile_lf" | head -60
+  printf '%s\n' "$diff_output" | head -60
+  if ((diff_lines > 60)); then
+    echo "  ↳ (diff truncated to 60 of $diff_lines lines — run diff manually for full output)"
+  fi
   echo ""
 
   if [[ "$MODE" == "--refresh-baseline" ]]; then
