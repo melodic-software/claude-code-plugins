@@ -32,7 +32,8 @@ exclude = [
   # Listed per repo, not per owner, so links to public siblings stay checked.
   # Keep in sync with actual visibility: add newly created private repos here;
   # drop an entry when its repo goes public. The optional \.git arm covers
-  # HTTPS clone URLs, which end in a dot and so miss the [/#?] boundary.
+  # HTTPS clone URLs: the dot after the repo name would otherwise miss the
+  # [/#?] boundary.
   '^https?://github\.com/kyle-sexton/(dotfiles|provisioning|github-iac)(\.git)?([/#?]|$)',
   '^https?://github\.com/melodic-software/(standards|github-iac|medley)(\.git)?([/#?]|$)',
 ]
