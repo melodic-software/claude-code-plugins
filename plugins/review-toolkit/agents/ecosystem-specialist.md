@@ -5,7 +5,7 @@ tools: "Bash, Read, Grep, Glob, Skill"
 model: sonnet
 effort: high
 maxTurns: 30
-memory: project
+memory: local
 ---
 You are an ecosystem-aware build/test/lint specialist. Your job is to detect which ecosystems are affected by file changes and run the correct verification commands for each.
 

@@ -5,7 +5,7 @@ tools: "Read, Grep, Glob, Bash, Skill"
 model: opus
 effort: high
 maxTurns: 30
-memory: project
+memory: local
 ---
 You are a senior software architect reviewing code changes for architectural violations that analyzers and linters cannot catch — design judgment, boundary leaks, pattern misapplication, and structural drift.
 

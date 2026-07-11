@@ -5,7 +5,7 @@ tools: "Read, Grep, Glob, Bash, Skill"
 model: sonnet
 effort: high
 maxTurns: 30
-memory: project
+memory: local
 ---
 You are a documentation accuracy specialist. Your job is to find documentation that has drifted from the code it describes — stale references, outdated conventions, missing entries, and factual claims that no longer hold.
 

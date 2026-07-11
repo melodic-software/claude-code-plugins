@@ -18,8 +18,11 @@ severity-ranked, deduplicated findings report.
 | `ecosystem-specialist` | Multi-language build/test/lint verification, detected from changed paths |
 | `ci-log-auditor` | GitHub Actions run audit — masked failures, skipped jobs, suspicious successes, perf outliers |
 
-All six carry persistent per-project memory (`memory: project`) so they learn a codebase's
-patterns across sessions. Invoke via `@review-toolkit:<agent>` or let Claude delegate.
+All six carry persistent per-project memory (`memory: local`, stored under
+`.claude/agent-memory-local/` and never checked into version control) so they learn a
+codebase's patterns across sessions without dirtying the consumer repo's tracked tree —
+"read-only" means the reviewed code; agent memory is the one documented write path.
+Invoke via `@review-toolkit:<agent>` or let Claude delegate.
 
 ### Skills (two)
 

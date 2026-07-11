@@ -66,7 +66,7 @@ Write the ranked report to `<findings-location>/<UTC-timestamp>-<topic>.md` (`da
 Two optional orchestrator plugins from the `claude-plugins-official` marketplace add adversarial breadth. Both run on the MAIN THREAD (they fan out their own agents; a subagent cannot dependably do that). Each is a graceful enhancement, not a hard dependency:
 
 - **`pr-review-toolkit`** — `/pr-review-toolkit:review-pr`: aspect-scoped agent fan-out. Absent → this plugin's leaf agents cover most of the same dimensions; note that orchestrator breadth was skipped.
-- **`code-review`** — `/code-review:code-review`: parallel reviewers + confidence scorer for an existing PR. Absent → note the skip; a repository's own CI review bot (when present) still provides PR coverage.
+- **`code-review`** — `/code-review:code-review`: parallel reviewers + confidence scorer for an existing PR. **PR-mutation gate:** its PR mode posts findings as a PR comment, which violates the review modes' report-only contract; when the branch has an open PR, dispatch it only on explicit user opt-in ("post the review comment"), otherwise skip it and name the skip in `## Surfaces`. Absent → note the skip; a repository's own CI review bot (when present) still provides PR coverage.
 
 ## What this skill does NOT do
 
