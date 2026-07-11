@@ -47,9 +47,11 @@ Output:
         }
 
 Exit codes:
-    0 = success (or partial chain — some SIDs missing transcripts)
+    0 = success (or partial chain — some SIDs missing transcripts, but at
+        least one transcript or subagent record found)
     1 = warnings (e.g., no transcript found for the only SID but subagents exist)
-    2 = error (e.g., invalid arguments, no files at all)
+    2 = error (e.g., invalid arguments, no files at all — including a
+        multi-session parse where every SID resolves to nothing)
 """
 
 from __future__ import annotations
@@ -75,7 +77,7 @@ def parse_timestamp(ts_str: str) -> datetime | None:
 
 # Tools whose `input.file_path` is a write target. Read/Grep/Glob also have
 # file_path inputs but should not count as "files modified".
-_FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit"})
+_FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "NotebookEdit"})
 
 # Truncation length for tool-rejection error snippets in the output.
 _REJECTION_SNIPPET_LEN = 200
@@ -602,7 +604,15 @@ def build_multi_session_output(
             tagged["session_id"] = sid
             agg_subagents.append(tagged)
 
-    status = "pass" if transcripts_present == len(session_ids) else "warning"
+    if transcripts_present == len(session_ids):
+        status = "pass"
+    elif transcripts_present > 0 or agg_subagents:
+        # Genuine partial chain: some transcripts, or subagent evidence only.
+        status = "warning"
+    else:
+        # Nothing found at all — a bad base dir, stale chain, or wrong SIDs
+        # must fail loudly, not read as a successful all-zero retro.
+        status = "error"
     summary = (
         f"Multi-session retro: {len(session_ids)} chained session(s) "
         f"({transcripts_present} with transcript), "

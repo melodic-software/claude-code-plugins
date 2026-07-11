@@ -490,6 +490,40 @@ def test_multi_session_one_missing(tmp_path):
     assert output["aggregate"]["total_assistant_turns"] == 1
 
 
+def test_multi_session_all_missing_is_error(tmp_path):
+    """--sessions where every transcript is absent → status=error, exit 2."""
+    result = _run_multi(
+        ["--sessions", "sid-gone-a", "sid-gone-b", "--base", str(tmp_path)]
+    )
+    assert result.returncode == 2
+    output = json.loads(result.stdout)
+    assert output["status"] == "error"
+    assert all(s["transcript_present"] is False for s in output["sessions"])
+
+
+def test_notebook_edit_counts_as_file_modification(tmp_path):
+    """NotebookEdit tool_use file_path lands in files_modified."""
+    data = _run_with_event(
+        tmp_path,
+        {
+            "type": "assistant",
+            "timestamp": "2026-03-23T18:00:00Z",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "NotebookEdit",
+                        "id": "n1",
+                        "input": {"file_path": "analysis.ipynb", "new_source": "x"},
+                    }
+                ],
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        },
+    )
+    assert "analysis.ipynb" in data["files_modified"]
+
+
 def test_multi_session_subagent_per_session_tagging(tmp_path):
     """Subagents from each session are tagged with session_id in the aggregate."""
     _write_assistant_event(tmp_path, "sid-a")
