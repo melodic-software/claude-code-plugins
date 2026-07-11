@@ -497,20 +497,39 @@ def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
 
 
 def extract_chain_from_handoff(
-    handoff_file: Path, base_path: Path, limit: int = 10
+    handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
     """Walk handoff journal-entry chain backwards via previous_handoff / previous_session_id
     frontmatter fields. Returns ordered list of session-ids (current handoff's session_id
     first, then prior). NOTE: callers separately prepend the current $CLAUDE_CODE_SESSION_ID
     if they want it; this function only walks the chain starting from the given file.
 
-    Forward-only convention: older entries lacking session_id break the walk cleanly."""
+    Forward-only convention: older entries lacking session_id break the walk cleanly.
+    Pointer cycles are detected via visited files and break the walk; `limit` is a
+    runaway safety bound far above any real chain — hitting it emits a stderr warning
+    rather than truncating silently."""
     sids: list[str] = []
     seen: set[str] = set()
+    visited_files: set[Path] = set()
     cursor: Path | None = handoff_file
     depth = 0
 
-    while cursor and cursor.is_file() and depth < limit:
+    while cursor and cursor.is_file():
+        resolved = cursor.resolve()
+        if resolved in visited_files:
+            print(
+                f"warning: handoff chain pointer cycle at {cursor}; stopping walk",
+                file=sys.stderr,
+            )
+            break
+        visited_files.add(resolved)
+        if depth >= limit:
+            print(
+                f"warning: handoff chain longer than {limit} entries; "
+                "older sessions truncated",
+                file=sys.stderr,
+            )
+            break
 
         sid = None
         prev_handoff_rel = None

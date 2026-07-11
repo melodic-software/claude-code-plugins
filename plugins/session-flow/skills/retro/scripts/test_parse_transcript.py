@@ -524,6 +524,37 @@ def test_notebook_edit_counts_as_file_modification(tmp_path):
     assert "analysis.ipynb" in data["files_modified"]
 
 
+def test_chain_from_breaks_on_pointer_cycle(tmp_path):
+    """A previous_handoff cycle stops the walk instead of looping forever."""
+    handoffs_dir = tmp_path / ".claude" / "handoffs"
+    handoffs_dir.mkdir(parents=True)
+
+    (handoffs_dir / "20260520T100000Z-handoff-alpha.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-a\n"
+        "previous_handoff: 20260521T110000Z-handoff-beta.md\n"
+        "previous_session_id: sid-b\n---\nbody\n"
+    )
+    (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-b\n"
+        "previous_handoff: 20260520T100000Z-handoff-alpha.md\n"
+        "previous_session_id: sid-a\n---\nbody\n"
+    )
+
+    base = tmp_path / "session-data"
+    base.mkdir()
+    _write_assistant_event(base, "sid-a")
+    _write_assistant_event(base, "sid-b")
+
+    handoff_file = handoffs_dir / "20260521T110000Z-handoff-beta.md"
+    result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
+    assert result.returncode == 0, result.stderr
+    assert "cycle" in result.stderr
+    output = json.loads(result.stdout)
+    sids = [s["id"] for s in output["sessions"]]
+    assert sids.count("sid-a") == 1
+    assert sids.count("sid-b") == 1
+
+
 def test_multi_edit_counts_as_file_modification(tmp_path):
     """MultiEdit tool_use file_path lands in files_modified."""
     data = _run_with_event(
