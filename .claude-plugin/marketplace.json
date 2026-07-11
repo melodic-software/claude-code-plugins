@@ -96,6 +96,12 @@
       "source": "./plugins/book-distill",
       "category": "knowledge",
       "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
+    },
+    {
+      "name": "boris",
+      "source": "./plugins/boris",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "claude-code", "workflow", "tips", "best-practices"]
     }
   ]
 }
