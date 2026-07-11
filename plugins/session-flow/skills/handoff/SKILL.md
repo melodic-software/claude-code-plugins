@@ -166,17 +166,20 @@ handoff file; prompt-only: the remaining-work bullets travel inline).
 Sequence — the rails prompt from "Final step" is still emitted FIRST (transparency + manual
 fallback), then:
 
-1. **Dirty-tree gate.** Run `git status --porcelain` in the consuming project and IGNORE the
-   save-point file this handoff just wrote — the save-point is part of the launch, never
-   disqualifying dirty state (the background session starts in this working directory, so it
-   reads the handoff file before any edit moves it into a worktree). Background sessions move
-   into an isolated git worktree (a fresh checkout) before editing files
-   (<https://code.claude.com/docs/en/agent-view>), so OTHER uncommitted changes in this checkout
-   would NOT carry into the launched agent's edits. Any such changes → do NOT launch: report why
-   and fall back to the standard `/clear`-then-paste instruction (same checkout, dirty state
-   intact), noting the user can commit or stash and re-run `/handoff --bg`. Exception: launch
-   anyway when the current session already runs inside a linked git worktree — isolation is
-   skipped there per the same page.
+1. **Dirty-tree gate.** Run `git status --porcelain -uall` in the consuming project (`-uall`
+   lists files inside untracked directories individually; the default collapses a brand-new
+   handoff directory into one directory entry, which both defeats the exemption below and can
+   hide other dirt behind it) and IGNORE save-point files under the handoff location — the
+   just-written one AND any prior sessions' (this skill never commits them; they are
+   session-chain artifacts, part of the launch rather than disqualifying dirty state; the
+   background session starts in this working directory, so it reads the handoff file before any
+   edit moves it into a worktree). Background sessions move into an isolated git worktree (a
+   fresh checkout) before editing files (<https://code.claude.com/docs/en/agent-view>), so OTHER
+   uncommitted changes in this checkout would NOT carry into the launched agent's edits. Any
+   such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
+   instruction (same checkout, dirty state intact), noting the user can commit or stash and
+   re-run `/handoff --bg`. Exception: launch anyway when the current session already runs inside
+   a linked git worktree — isolation is skipped there per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
 
@@ -188,7 +191,10 @@ fallback), then:
    ```
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
-   manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
+   manages it with `claude agents`. The launched agent is a NEW session: it inherits none of the
+   current session's CLI configuration (e.g. `--mcp-config`, `--settings`, `--add-dir`,
+   `--plugin-dir`) — mirror onto the launch command any such flags the resumed work depends on,
+   and say so in the launch report. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
    because this launch runs from a Bash-tool subprocess, which carries
    `CLAUDE_CODE_CHILD_SESSION=1` — nested sessions are otherwise excluded from the
    `claude agents` list (<https://code.claude.com/docs/en/env-vars>). The heredoc sentinel is
@@ -235,9 +241,9 @@ incomplete.
 
 **Either path with `--bg` (additional):**
 
-- [ ] Dirty-tree gate evaluated (`git status --porcelain` this turn, ignoring the just-written
-  save-point); other uncommitted changes without the linked-worktree exception → no launch,
-  reason reported, fallback to `/clear`-then-paste
+- [ ] Dirty-tree gate evaluated (`git status --porcelain -uall` this turn, ignoring save-point
+  files under the handoff location); other uncommitted changes without the linked-worktree
+  exception → no launch, reason reported, fallback to `/clear`-then-paste
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
   result reported — OR the non-zero exit reported with fallback to `/clear`-then-paste
 
