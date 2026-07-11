@@ -180,22 +180,35 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 (`main` below — substitute the repo's default branch.)
 
 ```bash
-# Pre-check 1: is branch checked out in another worktree?
+# Pre-check 0: already on the PR branch? This session owns it — no checkout
+# needed (the current worktree also shows up in `git worktree list`, so the
+# other-worktree grep below would otherwise false-trip to read-only).
+# Pre-check 1: is the branch checked out in ANOTHER worktree?
 # Pre-check 2: does THIS worktree have uncommitted changes? They may be
 # another session's WIP — never reset/clean work this loop did not create.
 BRANCH="<headRefName>"
-if git worktree list | grep -q "\[$BRANCH\]"; then
+CUR_BRANCH=$(git branch --show-current)
+CUR_WT=$(git rev-parse --show-toplevel)
+if [ "$CUR_BRANCH" = "$BRANCH" ]; then
+  # Already own the branch — no checkout; freshness check below still runs.
+  git fetch origin main
+  CHECKOUT_MODE="full"
+elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
   echo "Branch $BRANCH checked out in another worktree — processing read-only"
   CHECKOUT_MODE="read-only"
 elif [ -n "$(git status --porcelain)" ]; then
   echo "Working tree has uncommitted changes (possibly another session's WIP) — no checkout, processing read-only"
   CHECKOUT_MODE="read-only"
 else
-  git fetch origin "$BRANCH"
   git fetch origin main
-  git checkout "$BRANCH"
+  # gh pr checkout handles fork-sourced PRs (head branch not fetchable from
+  # origin) and same-repo branches alike — never bare fetch/checkout by name.
+  gh pr checkout "$PR_NUMBER"
+  CHECKOUT_MODE="full"
+fi
 
-  # Branch freshness — rebase if behind main
+# Branch freshness — rebase if behind main (full mode only)
+if [ "$CHECKOUT_MODE" = "full" ]; then
   if ! git merge-base --is-ancestor origin/main HEAD; then
     echo "Branch $BRANCH is behind origin/main — rebasing"
     if git rebase origin/main; then
@@ -226,10 +239,11 @@ else
   # `git rebase --continue` + `git push --force-with-lease origin "$BRANCH"`,
   # then set REBASE_STATUS="rebased". Only terminal states pass this point.
 
-  if [ "$REBASE_STATUS" = "conflict-aborted" ]; then
+  # Safe fallback: ONLY the terminal success states keep full mode. A
+  # lingering conflict-attempting (resolution skipped) degrades to read-only
+  # rather than granting write access mid-rebase.
+  if [ "$REBASE_STATUS" != "rebased" ] && [ "$REBASE_STATUS" != "current" ]; then
     CHECKOUT_MODE="read-only"
-  else
-    CHECKOUT_MODE="full"
   fi
 fi
 ```
@@ -270,7 +284,7 @@ D steps operate **per-finding**, not per-comment. One comment with 5 findings = 
   - [ ] D6 — Fix if VALID → edit, `git add <files>`, commit, push
     - [ ] **verify commit pushed:** `gh api "repos/{owner}/{repo}/commits?sha=<branch>&per_page=1" --jq '.[0].sha'` — confirm the fix commit SHA on the remote
   - [ ] D7 — Post a follow-up reply citing the fix commit SHA
-    - [ ] **verify follow-up reply posted:** `gh api repos/{owner}/{repo}/issues/<N>/comments --jq '.[-1].body'` — confirm the follow-up with SHA on GitHub
+    - [ ] **verify follow-up reply posted — same surface routing as D5:** inline thread → `gh api repos/{owner}/{repo}/pulls/<N>/comments --jq '.[] | select(.in_reply_to_id == <original-id>)'`; issue-level → `gh api repos/{owner}/{repo}/issues/<N>/comments --jq '.[-1].body'` — confirm the follow-up with SHA on GitHub
   - [ ] D7.5 — Resolve review thread — **author-conditional** (canonical policy: SKILL.md D7.5), inline review comments only. Resolve ONLY threads whose OPENING comment is authored by a BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads — the human resolves their own after verifying the fix. NEVER resolve your OWN threads (any of your posting identities — same self set as §5.0.3 step 4). Skip issue-level comments (no thread). **Thread author = login of the THREAD-OPENING comment** (replying into it does not change the author). **Bot detection is API-surface-specific:** resolution runs via GraphQL (the threadId fetch), where bot authors have `author.__typename == "Bot"` and `login` omits the `[bot]` suffix; REST surfaces show the suffix. When fetching the threadId, also select `author{__typename login}` to apply the conditional in one query
     - [ ] **verify thread resolved:** query the thread node via `gh api graphql` — `isResolved` must be `true`
 - [ ] **E** — Readiness gate. Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/babysit-readiness-gate.sh" <N>` — exit 0 `READINESS_OK` is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means classification rows < source findings → decompose + classify the missing findings, then re-run. THEN confirm: all checks terminal + 2-min cooldown

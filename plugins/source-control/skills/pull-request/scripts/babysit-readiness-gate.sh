@@ -180,11 +180,23 @@ CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 # findings visible (codex r3327878326). A classification reply carries a
 # VALID/INCORRECT/UNCERTAIN token, NOT a severity/badge, so it never inflates the
 # finding count; classifications are still counted only from self bodies.
-all_bodies="$(printf '%s' "$COMMENTS" |
-  jq -r '.[] | .body // ""' 2>/dev/null)"
+non_self_bodies="$(printf '%s' "$COMMENTS" |
+  jq -r --argjson self "$SELF_JSON" '
+    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""' 2>/dev/null)"
 self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
     .[] | select((.author as $a | $self | index($a))) | .body // ""' 2>/dev/null)"
+
+# Self classification-table rows are EXCLUDED from the finding corpus: a
+# reply row like `| 1 | CRITICAL: null deref | VALID | ... |` repeats the
+# source severity word, which would otherwise mint a phantom finding
+# (findings=2 classified=1 → permanently blocked) — codex r3564159124.
+# Non-table self content (a maintainer authoring a genuine source finding)
+# still counts. The [^A-Za-z] guards keep e.g. "INVALID" rows countable.
+self_source_bodies="$(printf '%s\n' "$self_bodies" |
+  grep -vE '^[[:space:]]*\|.*[^A-Za-z](VALID|INCORRECT|UNCERTAIN)([^A-Za-z]|$)' || true)"
+all_bodies="$non_self_bodies
+$self_source_bodies"
 
 # FINDINGS: grep -o ... | grep -c . counts OCCURRENCES (one match per output
 # line), not input lines — a single line with two markers must count as two

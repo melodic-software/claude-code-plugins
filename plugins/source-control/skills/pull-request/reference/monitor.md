@@ -74,7 +74,7 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
 
      # CI check-run changes (emit on any new terminal bucket)
      cur_checks=$(gh pr checks "$PR_NUMBER" --json name,bucket \
-       --jq '.[] | select(.bucket != "pending" and .bucket != "in_progress") | "\(.name): \(.bucket)"' \
+       --jq '.[] | select(.bucket != "pending") | "\(.name): \(.bucket)"' \
        2>/dev/null | tr -d '\r' | sort || true)
      if [ "$cur_checks" != "$prev_checks" ]; then
        # gh pr checks --json bucket values are: pass|fail|pending|skipping|cancel
@@ -88,18 +88,25 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
      # New comments — ALL THREE review surfaces (issue-level, inline
      # review comments, review bodies). Watching only issues/comments
      # misses inline findings posted with no CI state change.
+     # Advance the watermark ONLY when every fetch succeeded — a transient
+     # gh failure would otherwise skip past comments that arrived during
+     # the failed poll window and never emit them.
      now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-     gh api "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts" \
-       --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' \
-       2>/dev/null | tr -d '\r' | grep --line-buffered . || true
-     gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts" \
-       --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' \
-       2>/dev/null | tr -d '\r' | grep --line-buffered . || true
+     fetch_ok=1
+     if out=$(gh api "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts" \
+       --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
+       printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
+     else fetch_ok=0; fi
+     if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts" \
+       --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' 2>/dev/null); then
+       printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
+     else fetch_ok=0; fi
      # Reviews API has no `since` param — filter client-side on submitted_at
-     gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
-       --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" \
-       2>/dev/null | tr -d '\r' | grep --line-buffered . || true
-     last_comment_ts="$now"
+     if out=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
+       --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" 2>/dev/null); then
+       printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
+     else fetch_ok=0; fi
+     [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
 
      sleep 30
    done

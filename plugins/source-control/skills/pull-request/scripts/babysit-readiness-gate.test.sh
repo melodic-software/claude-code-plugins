@@ -227,4 +227,16 @@ assert_contains "prose repetition -> classified=1" "$r" "classified=1"
 assert_contains "prose repetition under-decomposed -> blocked" "$r" "READINESS_BLOCKED reason=under-decomposed"
 assert_contains "prose repetition -> exit 1" "$r" "EXIT:1"
 
+# --- Case: self classification row repeating the severity word is NOT a finding
+# `| 1 | CRITICAL: null deref | VALID | ... |` must not mint a phantom source
+# finding (would yield findings=2 classified=1 -> permanently blocked) —
+# codex r3564159124. One source finding + one classification row => OK.
+F=$(mkjson self-row-severity '[
+  {author:"claude[bot]", body:"CRITICAL null deref in handler"},
+  {author:"me[bot]", body:"| 1 | CRITICAL: null deref | VALID | fixed abc123 |"}
+]')
+r=$(run_gate "$F")
+assert_contains "self classification row repeating severity -> findings=1" "$r" "findings=1"
+assert_contains "self classification row repeating severity -> OK" "$r" "READINESS_OK"
+
 [[ $FAILED -eq 0 ]] || exit 1

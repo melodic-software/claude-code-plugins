@@ -90,10 +90,11 @@ Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments.
 1. Check git branch — on the default branch? → "Create a worktree or branch first"
 2. Resolve PR for current branch:
    gh pr view --json state,number 2>/dev/null
-   a. exit non-zero → no PR → continue to step 3 (Phase 1 prep)
+   a. exit non-zero → no PR yet → START AT PHASE 1 (prep); skip steps 3-6
+      entirely (they all need a PR number that does not exist yet)
    b. state = MERGED → skip to Phase 4.3 (cleanup only — pull default branch, delete branch, prune)
    c. state = CLOSED → report "PR was closed without merging" and stop
-   d. state = OPEN → capture pr_number, continue to step 4
+   d. state = OPEN → capture pr_number, continue to step 3
 3. Check CI status (gh pr checks <pr_number>) — still running? → start at monitor
 5. Check for unaddressed comments → start at monitor (comments sub-phase)
 6. CI green + comments addressed → suggest merge
