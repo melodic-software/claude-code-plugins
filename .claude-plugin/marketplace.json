@@ -102,6 +102,12 @@
       "source": "./plugins/context7",
       "category": "utilities",
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
+    },
+    {
+      "name": "claude-config-audit",
+      "source": "./plugins/claude-config-audit",
+      "category": "configuration",
+      "tags": ["maintenance", "settings", "permissions", "mcp", "memory", "claude-md", "rules", "automation", "audit", "skill"]
     }
   ]
 }
