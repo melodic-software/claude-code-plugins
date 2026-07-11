@@ -41,12 +41,14 @@ gh issue list --search "<title keywords>" --state all --json number,title,state 
 
 If a potential duplicate is found (similar title), present it: "Similar issue found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-1. **Build labels array.** Every label must exist in the repo — `gh issue create` fails on unknown labels — so filter the whole set (defaults AND flag-specified) against the live label list first. Defaults: `type:chore`; `priority:p3-low` when `--priority` absent; `category:general` only when present. When a default label doesn't exist, either offer to create the universal set once (`gh label create`) or omit that label:
+1. **Build labels array.** A group default applies ONLY when no flag supplied a label for that group — `--type fix` replaces `type:chore`, `--priority p1-high` replaces `priority:p3-low`, `--category x` replaces `category:general` (one label per group). Every label must also exist in the repo — `gh issue create` fails on unknown labels — so filter the resolved set against the live label list. When a default label doesn't exist, either offer to create the universal set once (`gh label create`) or omit that label:
 
 ```bash
 EXISTING=$(gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r')
+# Resolve one label per group first (flag value wins over the group default),
+# then keep only labels that exist in the repo.
 LABELS=""
-for l in "type:chore" "priority:p3-low" "category:general" <flag-specified...>; do
+for l in "type:${TYPE:-chore}" "priority:${PRIORITY:-p3-low}" "category:${CATEGORY:-general}" <other flag-specified...>; do
   grep -qxF "$l" <<<"$EXISTING" && LABELS="$LABELS --label $l"
 done
 ```

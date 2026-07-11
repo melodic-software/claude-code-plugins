@@ -56,7 +56,9 @@ gh issue edit <N> --remove-label "status:claimed"
 ```bash
 PR_BODY=$(mktemp)
 gh pr view <PR> --json body,mergedAt --jq '.body' | tr -d '\r' > "$PR_BODY"
-KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
+# The keyword must target THIS issue — a `Closes #7` for a different issue
+# does not auto-close #<N>. The (\b) boundary keeps #4 from matching #42.
+KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #<N>\b'
 OPTOUT_REGEX='^(Refs #[0-9]+|No related issue:)'
 
 if grep -iE "$KEYWORD_REGEX" "$PR_BODY" >/dev/null; then
