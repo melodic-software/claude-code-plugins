@@ -524,6 +524,35 @@ def test_notebook_edit_counts_as_file_modification(tmp_path):
     assert "analysis.ipynb" in data["files_modified"]
 
 
+def test_chain_from_strips_inline_yaml_comments(tmp_path):
+    """Inline YAML comments in handoff frontmatter values don't corrupt the chain."""
+    handoffs_dir = tmp_path / ".claude" / "handoffs"
+    handoffs_dir.mkdir(parents=True)
+
+    (handoffs_dir / "20260520T100000Z-handoff-alpha.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-oldest  # REQUIRED\n---\nbody\n"
+    )
+    (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
+        "---\ntype: handoff\nsession_id: sid-middle  # REQUIRED\n"
+        "previous_handoff: 20260520T100000Z-handoff-alpha.md  # CONDITIONAL\n"
+        "previous_session_id: sid-oldest\n---\nbody\n"
+    )
+
+    base = tmp_path / "session-data"
+    base.mkdir()
+    _write_assistant_event(base, "sid-middle")
+    _write_assistant_event(base, "sid-oldest")
+
+    handoff_file = handoffs_dir / "20260521T110000Z-handoff-beta.md"
+    result = _run_multi(["--chain-from", str(handoff_file), "--base", str(base)])
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    sids = [s["id"] for s in output["sessions"]]
+    assert "sid-middle" in sids
+    assert "sid-oldest" in sids
+    assert all(s["transcript_present"] for s in output["sessions"])
+
+
 def test_chain_from_breaks_on_pointer_cycle(tmp_path):
     """A previous_handoff cycle stops the walk instead of looping forever."""
     handoffs_dir = tmp_path / ".claude" / "handoffs"

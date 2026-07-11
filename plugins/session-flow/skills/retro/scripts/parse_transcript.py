@@ -496,6 +496,16 @@ def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
     }
 
 
+def _frontmatter_value(line: str) -> str:
+    """Extract a scalar frontmatter value: text after the first colon, with any
+    trailing inline YAML comment (` # ...`) and surrounding quotes stripped."""
+    value = line.split(":", 1)[1].strip()
+    value = value.split(" #", 1)[0].strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        value = value[1:-1]
+    return value
+
+
 def extract_chain_from_handoff(
     handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
@@ -547,9 +557,9 @@ def extract_chain_from_handoff(
                     if not in_fm:
                         continue
                     if line.startswith("session_id:"):
-                        sid = line.split(":", 1)[1].strip()
+                        sid = _frontmatter_value(line)
                     elif line.startswith("previous_handoff:"):
-                        prev_handoff_rel = line.split(":", 1)[1].strip()
+                        prev_handoff_rel = _frontmatter_value(line)
         except OSError:
             break
 

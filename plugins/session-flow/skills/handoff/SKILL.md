@@ -158,8 +158,9 @@ incomplete.
 
 - [ ] Position located + next stage named (fresh reads this turn)
 - [ ] Handoff file written to the handoff location with frontmatter per `context/structure.md`
-- [ ] `previous_handoff` + `previous_session_id` present IF a prior handoff exists there (omitted
-  otherwise)
+- [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
+  handoff's task (chain continuity per `context/structure.md`); omitted otherwise — including when
+  the directory holds only unrelated-task handoffs
 - [ ] All seven body sections present
 - [ ] TaskList snapshot + Reconstitute sections present (OR explicit "exception: 0 active tasks")
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file; copy instruction above
