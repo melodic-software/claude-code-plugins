@@ -1,7 +1,7 @@
 ---
 name: handoff
-description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', context is heavy, or quality is degrading."
-argument-hint: "[file|prompt] [topic] (e.g., /handoff, /handoff prompt, /handoff file phase-3)"
+description: "Write a mid-session save-point for /clear-and-resume — a durable handoff file (default) or a copy-paste resume prompt when follow-ups are small. Pass --bg to hand the resume prompt to a fresh background agent instead of pasting it yourself. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', 'continue in the background', context is heavy, or quality is degrading."
+argument-hint: "[file|prompt] [topic] [--bg] (e.g., /handoff, /handoff prompt, /handoff file phase-3, /handoff --bg)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -35,13 +35,17 @@ session or machine can resume from them.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic]` — both optional, positional:
+`$ARGUMENTS` carries `[file|prompt] [topic] [--bg]` — all optional; method and topic positional:
 
 - **Method** (`file` | `prompt`) — recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (see "Choosing the path").
 - **Topic** — short kebab slug for the filename. When the first token is not a method keyword it IS
   the topic (`/handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
+- **`--bg`** — flag, recognized anywhere in the argument string; strip it before reading the
+  positionals. After the save-point is produced, launch a fresh background agent seeded with the
+  resume prompt instead of relying on the user to `/clear`-and-paste. See "Background-agent launch
+  (`--bg`)".
 
 ## Hard rule — handoff ALWAYS terminates current execution
 
@@ -54,9 +58,11 @@ having listed multiple steps, nor by the remaining work being "small".
 
 - [ ] Path chosen (full vs prompt-only) per "Choosing the path"
 - [ ] Copy/paste resume prompt emitted between two dashed rails (see "Final step")
-- [ ] `/clear`-then-paste instruction surfaced to the user
+- [ ] `/clear`-then-paste instruction surfaced to the user — with `--bg`, replaced by the launch
+  report per "Background-agent launch (`--bg`)"
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
-  session ends as far as the task is concerned
+  session ends as far as the task is concerned — `--bg` does not relax this: the background agent
+  is the continuation, and this session neither monitors nor babysits it
 
 **NOT authorization to continue (these all STOP):**
 
@@ -74,6 +80,7 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 - Mid-task, context heavy (check `/context` output or user report)
 - Quality degrading (context rot) — responses drifting, repeating, or looping
 - About to pause for hours/overnight; want a clean resume
+- Going AFK but the work should keep moving — pass `--bg` so a background agent resumes it
 - About to switch to a different task; this one isn't done
 - Last turn had an unexpected compaction
 - Sharing state with another session or machine
@@ -149,6 +156,63 @@ bullets inline between the rails instead.
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
 fresh session or `/retro` chain-walker locate the transcript later.
 
+## Background-agent launch (`--bg`)
+
+Honored ONLY when the user explicitly passed `--bg` — never self-elected, including when this
+skill is model-invoked. Composes with BOTH paths: the launched agent receives exactly the resume
+prompt that sits between the rails (full path: it follows the prompt's Read directive to the
+handoff file; prompt-only: the remaining-work bullets travel inline).
+
+Sequence — the rails prompt from "Final step" is still emitted FIRST (transparency + manual
+fallback), then:
+
+1. **Dirty-tree gate.** Run `git status --porcelain -uall` in the consuming project (`-uall`
+   lists files inside untracked directories individually; the default collapses a brand-new
+   handoff directory into one directory entry, which both defeats the exemption below and can
+   hide other dirt behind it) and IGNORE save-point files under the handoff location — the
+   just-written one AND any prior sessions' (this skill never commits them; they are
+   session-chain artifacts, part of the launch rather than disqualifying dirty state; the
+   background session starts in this working directory, so it reads the handoff file before any
+   edit moves it into a worktree). Background sessions move into an isolated git worktree (a
+   fresh checkout) before editing files (<https://code.claude.com/docs/en/agent-view>), so OTHER
+   uncommitted changes in this checkout would NOT carry into the launched agent's edits. Any
+   such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
+   instruction (same checkout, dirty state intact), noting the user can commit or stash and
+   re-run `/handoff --bg`. Exception: launch anyway when the current session already runs inside
+   a linked git worktree — isolation is skipped there per the same page.
+2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
+   `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
+
+   ```bash
+   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "handoff-<topic>" "$(cat <<'HANDOFF_RESUME_PROMPT_END'
+   <resume prompt exactly as emitted between the rails>
+   HANDOFF_RESUME_PROMPT_END
+   )"
+   ```
+
+   `claude --bg` starts the session as a background agent and returns immediately; the user
+   manages it with `claude agents`. The launched agent is a NEW session: it inherits none of the
+   current session's CLI configuration (e.g. `--mcp-config`, `--settings`, `--add-dir`,
+   `--plugin-dir`) — mirror onto the launch command any such flags the resumed work depends on,
+   and say so in the launch report. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
+   because this launch runs from a Bash-tool subprocess, which carries
+   `CLAUDE_CODE_CHILD_SESSION=1` — nested sessions are otherwise excluded from the
+   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). The heredoc sentinel is
+   deliberately unique — a bare `EOF` line inside a freeform resume prompt would terminate a
+   plain `<<'EOF'` heredoc early and silently truncate the prompt. Awareness note: the prompt
+   travels in the process argument list, so it is briefly visible to other local processes
+   (`ps`) — inherent to `claude --bg "<prompt>"`; keep secrets out of resume prompts (they don't
+   belong there on ANY path).
+
+3. Report the launch result: the command's output, the agent name, and the `claude agents`
+   management hint. Swap the `/clear`-then-paste instruction for this report — the user no longer
+   needs to paste anything.
+4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
+   predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
+   instruction. The save-point already exists; nothing is lost.
+5. **STOP is unchanged.** The background agent is the continuation; this session still terminates
+   the task per the hard rule. Do not monitor, poll, or babysit the launched agent.
+
 ## Post-write enforcement checklist
 
 Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
@@ -175,12 +239,22 @@ incomplete.
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
   enough to skip `/clear` and finish in-session"
 
+**Either path with `--bg` (additional):**
+
+- [ ] Dirty-tree gate evaluated (`git status --porcelain -uall` this turn, ignoring save-point
+  files under the handoff location); other uncommitted changes without the linked-worktree
+  exception → no launch, reason reported, fallback to `/clear`-then-paste
+- [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
+  result reported — OR the non-zero exit reported with fallback to `/clear`-then-paste
+
 ## What this skill does NOT do
 
 - **Does not commit** — handoff docs are durable task state, not source code. Commit ready code
   changes separately; describe uncommitted work in "Progress"
 - **Does not invoke `/clear`** — the user types `/clear`. The skill produces the save-point, emits
   the resume prompt, and stops
+- **Does not launch a background agent unprompted** — the `--bg` launch happens only when the user
+  passed the flag; the default exit is always the copy/paste prompt
 - **Does not continue executing the underlying task** — per the hard rule above. Prompt-only does
   NOT relax this
 - **Does not replace a contract or plan** — it captures in-flight state at any point
