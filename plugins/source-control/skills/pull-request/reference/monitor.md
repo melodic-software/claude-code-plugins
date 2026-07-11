@@ -77,8 +77,10 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
        --jq '.[] | select(.bucket != "pending" and .bucket != "in_progress") | "\(.name): \(.bucket)"' \
        2>/dev/null | tr -d '\r' | sort || true)
      if [ "$cur_checks" != "$prev_checks" ]; then
+       # gh pr checks --json bucket values are: pass|fail|pending|skipping|cancel
+       # (per the gh manual) — match those, not check-run conclusion strings.
        comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
-         grep --line-buffered -E 'failure|cancelled|timed_out|startup_failure|action_required|success|skipped' \
+         grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
          || true
        prev_checks="$cur_checks"
      fi
