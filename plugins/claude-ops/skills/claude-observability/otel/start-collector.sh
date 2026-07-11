@@ -68,6 +68,23 @@ resolve_repo_root() {
   printf '%s\n' "$root"
 }
 
+# Is a collector process running under a config file named otel-collector.yaml?
+# Mirrors the prune lifecycle helper's scoping: a bare :4318 listener is NOT
+# proof our collector is up (a stale/third-party process may own the port).
+collector_process_running() {
+  case "${OSTYPE:-}" in
+    msys* | cygwin* | win*)
+      local pids
+      pids="$(powershell.exe -NoProfile -NonInteractive -Command \
+        "Get-CimInstance Win32_Process -Filter \"Name='otelcol-contrib.exe'\" | Where-Object { \$_.CommandLine -like '*otel-collector.yaml*' } | Select-Object -ExpandProperty ProcessId" 2>/dev/null | tr -d '\r\n ')"
+      [[ -n "$pids" ]]
+      ;;
+    *)
+      pgrep -f "otelcol-contrib.*otel-collector.yaml" >/dev/null 2>&1
+      ;;
+  esac
+}
+
 # Locate otelcol-contrib. Precedence: explicit CC_OTEL_BIN override > PATH > ~/.otelcol/ probe.
 # Always returns 0 — prints the binary path, or the literal NOT_FOUND when unresolvable. (Returns
 # 0 even when unresolvable so callers capture via $() outside an if — keeps set -e effective,
@@ -130,7 +147,14 @@ main() {
   if [[ -d "$sentinel" ]]; then
     action="skip-prune-in-progress"
   elif [[ "$port_state" == "listening" ]]; then
-    action="noop-already-running"
+    # :4318 answering is only success if it is OUR collector — a stale or
+    # third-party listener would swallow CC telemetry while we report ok.
+    # shellcheck disable=SC2310  # both branches are handled; set -e suppression is intended
+    if collector_process_running; then
+      action="noop-already-running"
+    else
+      action="skip-port-conflict"
+    fi
   elif [[ "$bin_status" == "NOT_FOUND" ]]; then
     action="skip-binary-absent"
   elif [[ "$grpc_port_state" == "listening" ]]; then
@@ -162,6 +186,11 @@ main() {
     skip-binary-absent)
       printf 'start-collector.sh: otelcol-contrib not found (PATH / CC_OTEL_BIN / ~/.otelcol). ' >&2
       printf 'Telemetry capture is OFF until installed. Continuing (advisory).\n' >&2
+      return 0
+      ;;
+    skip-port-conflict)
+      printf 'start-collector.sh: :%s is answering but no otelcol-contrib running this config shape was found - ' "$OTLP_HTTP_PORT" >&2
+      printf 'another process owns the port and CC telemetry is NOT being captured. Continuing (advisory).\n' >&2
       return 0
       ;;
     skip-grpc-port-in-use)

@@ -82,15 +82,18 @@ the JSONL layers keep their own 30-day `--keep-days` window).
 ### Windows — per-user Scheduled Task (no admin)
 
 Like the Collector task, the registration carries machine-specific absolute paths, so it is
-**generated from your machine's paths** and never committed (`hardcoded-path-check` blocks
-literal machine paths in tracked files). Unlike the Collector daemon — which invokes the binary
-directly to avoid a Git Bash dependency at logon — the prune is a bash script, so the task must
-invoke `bash.exe` by full path. Daily, off-peak (minimizes overlap with the brief stop window);
-replace `<repo-root>` with your canonical checkout's absolute path:
+**generated from your machine's paths** and never committed. Unlike the Collector daemon — which
+invokes the binary directly to avoid a Git Bash dependency at logon — the prune is a bash script,
+so the task must invoke `bash.exe` by full path. The script ships inside the installed plugin and
+sources sibling helpers, so the task must point at the plugin's own directory: resolve
+`${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/prune-otel-store.sh` from a Claude Code
+session and substitute that absolute path below (`<plugin-prune-script>`). The plugin cache path
+changes on plugin updates — re-register the task after updating the plugin. Daily, off-peak
+(minimizes overlap with the brief stop window):
 
 ```text
 schtasks /create /tn "ClaudeCodeOtelPrune" /sc daily /st 04:00 /rl limited /f /tr ^
-  "\"C:\Program Files\Git\bin\bash.exe\" \"<repo-root>\.claude\skills\claude-observability\otel\prune-otel-store.sh\""
+  "\"C:\Program Files\Git\bin\bash.exe\" \"<plugin-prune-script>\""
 ```
 
 With `CC_OTEL_STORE` set (the prerequisite above) the working directory is irrelevant — every
@@ -103,6 +106,7 @@ recipe above (user env vars are the only surface the task sees).
 ### macOS / Linux — deferred (recipe)
 
 A `launchd` LaunchAgent with a `StartCalendarInterval` (daily), or a `systemd --user` timer
-(`cc-otel-prune.timer` + `.service`), or a cron entry — each running `bash
-<repo-root>/${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/prune-otel-store.sh` with `CC_OTEL_STORE` exported. Not
-implemented (Windows-first); the manual invocation above always works.
+(`cc-otel-prune.timer` + `.service`), or a cron entry — each running the installed plugin's
+`prune-otel-store.sh` (resolve via `${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/`;
+re-point after plugin updates) with `CC_OTEL_STORE` exported. Not implemented (Windows-first);
+the manual invocation above always works.

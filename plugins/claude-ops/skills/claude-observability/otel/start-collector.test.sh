@@ -52,7 +52,7 @@ done
 # --- 4. action= is a valid enum value (live :4318/:4317 state varies) ---
 action_line="$(printf '%s\n' "$out" | grep '^action=' | head -1)"
 case "$action_line" in
-  action=noop-already-running | action=skip-binary-absent | action=would-spawn | action=skip-prune-in-progress | action=skip-grpc-port-in-use)
+  action=noop-already-running | action=skip-binary-absent | action=would-spawn | action=skip-prune-in-progress | action=skip-grpc-port-in-use | action=skip-port-conflict)
     pass "action= is a valid enum"
     ;;
   *) fail "action= is a valid enum" "valid enum value" "$action_line" ;;

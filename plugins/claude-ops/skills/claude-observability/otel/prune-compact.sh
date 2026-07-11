@@ -15,10 +15,11 @@ readonly DUCKDB_MAX_OBJECT_SIZE=33554432
 sql_path() {
   local p="$1"
   if [[ "$OS_KIND" == windows ]] && command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$p"
-  else
-    printf '%s\n' "$p"
+    p="$(cygpath -m "$p")"
   fi
+  # SQL-literal safety: callers interpolate this inside '...' — double any
+  # single quote so a path like /tmp/O'Neil cannot break the literal.
+  printf '%s\n' "${p//\'/\'\'}"
 }
 
 # Verify a trimmed temp parses as newline-delimited OTLP-JSON. An empty temp (all records aged
