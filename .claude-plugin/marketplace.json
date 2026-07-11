@@ -138,6 +138,12 @@
       "source": "./plugins/claude-config-audit",
       "category": "configuration",
       "tags": ["maintenance", "settings", "permissions", "mcp", "memory", "claude-md", "rules", "automation", "audit", "skill"]
+    },
+    {
+      "name": "session-flow",
+      "source": "./plugins/session-flow",
+      "category": "productivity",
+      "tags": ["workflow", "handoff", "retro", "retrospective", "session", "orchestration", "skill"]
     }
   ]
 }
