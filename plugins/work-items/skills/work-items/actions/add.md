@@ -114,7 +114,7 @@ For non-recurring issues, omit the `[Maintenance]` prefix.
 
 Read the current file, append the new item to the `items` array, write it back. Compute `next_due` from today + cadence duration.
 
-Also add the `recurring` and `cadence:{cadence}` labels to the issue.
+Also add the `recurring` and `cadence:{cadence}` labels to the issue — route them through the same existence filter as step "Build labels array" (create the missing label once via `gh label create`, or omit it; never pass a label the repo lacks).
 
 1. Confirm: "Created **#{number}**: {title} (labels: {labels})"
 

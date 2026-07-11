@@ -26,7 +26,8 @@ gh issue list --state open --json labels,assignees --limit 500 --jq '
 1. **Check recurring due items** by reading `.github/recurring-schedule.json` (skip this step with a "no recurring schedule configured" note when the file is absent):
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg today "$(date +%Y-%m-%d)" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq --arg today "$(date +%Y-%m-%d)" '
   [.items[] | select(.next_due != null and .next_due <= $today)] | length
 '
 ```

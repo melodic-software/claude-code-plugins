@@ -25,7 +25,8 @@ gh issue list --search "<query>" --state closed --json number,title,state,labels
 1. **Search the recurring schedule** (skip when the consuming repo has no `.github/recurring-schedule.json`):
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg q "<query>" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq --arg q "<query>" '
   [.items[] | select(
     (.id | ascii_downcase | contains($q | ascii_downcase)) or
     (.title | ascii_downcase | contains($q | ascii_downcase)) or

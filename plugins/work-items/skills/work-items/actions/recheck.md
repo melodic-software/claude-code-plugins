@@ -15,7 +15,8 @@ Requires the consuming repo's `.github/recurring-schedule.json`. When the file i
 1. **Find the item in the recurring schedule:**
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg q "<query>" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq --arg q "<query>" '
   .items[] | select(.id == $q or (.title | ascii_downcase | contains($q | ascii_downcase)))
 '
 ```

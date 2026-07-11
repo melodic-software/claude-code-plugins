@@ -29,7 +29,9 @@ For each tier in the Selection Priority list above, emit the corresponding query
 - Recurring-schedule tiers →
 
   ```bash
-  cat .github/recurring-schedule.json | jq --arg today "$(date +%Y-%m-%d)" \
+  # Root the path at the project root — a relative path breaks when invoked from a subdirectory.
+  SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+  cat "$SCHEDULE" | jq --arg today "$(date +%Y-%m-%d)" \
     '[.items[] | select(.next_due != null and .next_due <where_expr> $today)] | sort_by(.next_due)'
   ```
 
@@ -70,8 +72,9 @@ Match by title prefix `[Maintenance] {schedule item title}`.
 Place a hold on the candidate to prevent concurrent agents from selecting it. This MUST happen before presenting to the user. First run in a repo: ensure the protocol's status labels exist — the hold write fails on an unknown label:
 
 ```bash
-gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r' | grep -qxF "status:considering" \
-  || { gh label create "status:considering" --description "Held by an agent evaluating the item"; gh label create "status:claimed" --description "Claimed by a work session"; }
+EXISTING=$(gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r')
+grep -qxF "status:considering" <<<"$EXISTING" || gh label create "status:considering" --description "Held by an agent evaluating the item"
+grep -qxF "status:claimed" <<<"$EXISTING" || gh label create "status:claimed" --description "Claimed by a work session"
 ```
 
 Then hold (writes):

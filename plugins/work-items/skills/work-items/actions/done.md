@@ -21,7 +21,8 @@ done <number or text match> [--summary "completion summary"] [--pr <number>] [--
 1. **Check if recurring** (skip when the consuming repo has no `.github/recurring-schedule.json`). Issues created by recurring automation have a `[Maintenance]` prefix, so strip it before comparing:
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg title "<issue title>" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq --arg title "<issue title>" '
   ($title | ltrimstr("[Maintenance] ")) as $stripped |
   [.items[] | select(.title == $stripped or .title == $title or .id == "<kebab-id>")] | length
 '

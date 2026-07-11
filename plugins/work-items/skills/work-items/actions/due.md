@@ -17,7 +17,9 @@ Requires the consuming repo's `.github/recurring-schedule.json`. When the file i
 Read `.github/recurring-schedule.json` and filter items where `next_due <= today`. Use jq for the initial filter:
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg today "$(date +%Y-%m-%d)" '
+# Root the path at the project root — a relative path breaks when invoked from a subdirectory.
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq --arg today "$(date +%Y-%m-%d)" '
   [.items[] | select(.next_due != null and .next_due <= $today)]
   | sort_by(.next_due)
   | map({id, title, cadence, last_checked, next_due})
@@ -38,7 +40,7 @@ Match by title prefix `[Maintenance]` (the convention used by recurring automati
 
 ```bash
 # List all recurring item IDs from schedule
-cat .github/recurring-schedule.json | jq -r '.items[].id'
+cat "$SCHEDULE" | jq -r '.items[].id'
 ```
 
 1. **Present:**
