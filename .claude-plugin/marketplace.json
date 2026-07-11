@@ -114,6 +114,12 @@
       "source": "./plugins/boris",
       "category": "learning",
       "tags": ["knowledge", "skill", "claude-code", "workflow", "tips", "best-practices"]
+    },
+    {
+      "name": "docs-hygiene",
+      "source": "./plugins/docs-hygiene",
+      "category": "documentation",
+      "tags": ["maintenance", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
     }
   ]
 }
