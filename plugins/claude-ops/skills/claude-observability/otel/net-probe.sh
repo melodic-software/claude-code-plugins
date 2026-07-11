@@ -20,18 +20,19 @@ port_status() {
     # (commonly set in CI / corporate networks) — that would report the proxy's
     # reachability, not the local port's.
     #
-    # Ambiguous-exit mapping leans "free" on purpose: this is an advisory
-    # ensure-running, so a false "free" only triggers a spurious spawn that loses
-    # the OS dup-bind race (harmless), whereas a false "listening" would leave the
-    # daemon DOWN all session. So ONLY a clean success (rc 0 = something answered)
-    # is "listening"; every failure (7 refused, 28 timeout, 52/56 non-HTTP, ...)
-    # maps to "free".
+    # Exit-code mapping: anything proving a TCP peer ACCEPTED the connection is
+    # "listening" even when it does not speak HTTP — rc 0 (HTTP answer),
+    # 8 (weird reply), 52 (empty reply), 56 (recv failure after connect). A
+    # non-HTTP process on the port must read as occupied, or callers publish
+    # a doomed bind onto it. Remaining ambiguity (28 timeout, and anything
+    # else) leans "free" on purpose: this is an advisory ensure-running, so a
+    # false "free" only triggers a spurious spawn that loses the OS dup-bind
+    # race, whereas a false "listening" would leave the daemon DOWN all session.
     curl --noproxy '*' -sS --max-time 2 -o /dev/null "http://127.0.0.1:${port}" 2>/dev/null || rc=$?
-    if [[ "$rc" -eq 0 ]]; then
-      printf 'listening\n'
-    else
-      printf 'free\n'
-    fi
+    case "$rc" in
+      0 | 8 | 52 | 56) printf 'listening\n' ;;
+      *) printf 'free\n' ;;
+    esac
     return 0
   fi
   # No curl: bash net-redirection. A refused localhost connect returns at once.

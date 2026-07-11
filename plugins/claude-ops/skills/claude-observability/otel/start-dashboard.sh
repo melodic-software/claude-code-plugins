@@ -160,10 +160,11 @@ main() {
       ;;
   esac
 
-  local image state ui_port_state action
+  local image state ui_port_state otlp_port_state action
   image="${CC_OTEL_DASHBOARD_IMAGE:-$DEFAULT_DASHBOARD_IMAGE}"
   state="$(container_state "$container_name")"
   ui_port_state="$(port_status "$host_ui_port")"
+  otlp_port_state="$(port_status "$host_otlp_port")"
 
   case "$state" in
     running) action="noop-already-running" ;;
@@ -171,7 +172,8 @@ main() {
     aspire-dashboard-running) action="skip-aspire-dashboard-present" ;;
     docker-absent) action="skip-docker-absent" ;;
     absent)
-      if [[ "$ui_port_state" == "listening" ]]; then
+      # docker run publishes BOTH ports; either one being bound dooms the bind.
+      if [[ "$ui_port_state" == "listening" || "$otlp_port_state" == "listening" ]]; then
         action="skip-port-in-use"
       else
         action="would-spawn"
@@ -187,6 +189,7 @@ main() {
   printf 'image=%s\n' "$image"
   printf 'ports=%s,%s\n' "$host_ui_port" "$host_otlp_port"
   printf 'port_%s=%s\n' "$host_ui_port" "$ui_port_state"
+  printf 'port_%s=%s\n' "$host_otlp_port" "$otlp_port_state"
   printf 'label_stack=%s\n' "$label_stack"
   printf 'label_component=%s\n' "$LABEL_COMPONENT"
   printf 'label_role=%s\n' "$label_role"

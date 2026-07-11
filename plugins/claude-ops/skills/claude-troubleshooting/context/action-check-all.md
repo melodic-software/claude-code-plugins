@@ -10,7 +10,8 @@ Check every registry issue against current GitHub status. Primary purpose: find 
 2. For each tracked issue, check current status via `gh issue view <number> --repo <repo> --json state,title,closedAt,stateReason`
 3. Compare current state to tracked state
 4. For newly resolved issues:
-   - Update `registry.json` status to `"fixed"`
+   - Update `registry.json`: `--status closed --closedAt <GitHub closedAt>` and re-categorize
+     to `--category fixed` (`fixed` is a category; `status` only accepts `open`/`closed`)
    - Identify what was blocked (from `blocked_work` field)
    - Identify what docs need updating (from `affected_files` field)
    - Propose a follow-up work item for each action (file with the consumer's tracker — e.g. `gh issue create` — after user confirmation):

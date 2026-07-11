@@ -24,10 +24,11 @@ duckdb -init ${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/cc-otel.sql 
 Hot + cold union pattern:
 
 ```sql
-SELECT event_name, count(*) FROM cc_logs
-UNION ALL
-SELECT event_name, count(*) FROM cc_logs_cold()
-GROUP BY 1 ORDER BY 2 DESC;
+SELECT event_name, count(*) AS n FROM (
+  SELECT event_name FROM cc_logs
+  UNION ALL
+  SELECT event_name FROM cc_logs_cold()
+) GROUP BY 1 ORDER BY n DESC;
 ```
 
 ### Common queries
