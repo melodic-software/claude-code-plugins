@@ -1,0 +1,166 @@
+# OpenTelemetry Collector (contrib) config — machine-local telemetry front door.
+#
+# Per-machine singleton daemon: every local OTLP producer connects to 127.0.0.1:4318
+# (http/protobuf) or :4317 (gRPC). That includes Claude Code itself (settings.json env)
+# AND any child process of a CC session (dotnet run/test, e2e harnesses, OTel-instrumented
+# tools) that inherits OTEL_EXPORTER_OTLP_ENDPOINT — apps with their own OTEL wiring
+# enable their OTLP exporter whenever that endpoint is set. Apps under `aspire run` are
+# unaffected: the AppHost injects its own per-resource endpoint and dashboard.
+#
+# Topology (one collector, routed audiences — per the OTel agent/per-host pattern; routing
+# connector splits by resource service.name so NOTHING is dropped):
+#
+#   producers ── OTLP :4318/:4317 ──▶ this Collector
+#      ├─ service.name == "claude-code" ──▶ CC pipelines
+#      │     ├─ file exporter → .claude/observability/otel/ (persistent store, gitignored;
+#      │     │   DuckDB SSOT via cc-otel.sql; append: true is load-bearing — default truncates
+#      │     │   on every restart; retention via external prune, not fileexporter rotation)
+#      │     └─ otlp_grpc/cc_dashboard → Aspire dashboard :18889 (UI :18888)
+#      └─ default (everything else: apps, tools) ──▶ apps pipelines
+#            └─ otlp_grpc/app_dashboard → Aspire dashboard :19889 (UI :19888)
+#               (live viewer only — app telemetry is NOT written to the CC store)
+#
+# Both dashboards are OPTIONAL in-memory live tails (viewer, not a sink): exporters
+# drop-and-continue when a dashboard is down; file capture is unaffected. Dashboard memory
+# is bounded by built-in circular-buffer caps (MaxLogCount/MaxTraceCount 10k shared,
+# MaxMetricsCount 50k per-resource — aspire.dev/dashboard/configuration); restart resets.
+# Future backends (Grafana-class, etc.) attach as additional exporters on the apps (or cc)
+# pipelines — no topology change needed.
+#
+# Dashboards are ensured at session start by the SessionStart hook (cc-telemetry-ensure.sh)
+# via detached start-dashboard.sh spawns; manual start:
+#   bash "${CLAUDE_PLUGIN_ROOT}"/skills/claude-observability/otel/start-dashboard.sh          # CC (18888)
+#   bash "${CLAUDE_PLUGIN_ROOT}"/skills/claude-observability/otel/start-dashboard.sh --role apps  # apps (19888)
+#
+# Start the Collector via the wrapper (resolves + exports an absolute CC_OTEL_STORE,
+# creates the store dir, idempotent — no-op if :4318 is already bound):
+#   bash "${CLAUDE_PLUGIN_ROOT}"/skills/claude-observability/otel/start-collector.sh
+# Hooks/CI public facade: ${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/scripts/start-collector.sh (delegates here)
+# Manual start (CC_OTEL_STORE unset) uses the repo-root-relative fallback, so run it
+# FROM THE REPO ROOT (the file exporter creates the store dir via create_directory: true):
+#   otelcol-contrib --config ${CLAUDE_PLUGIN_ROOT}/skills/claude-observability/otel/otel-collector.yaml
+# The store directory is gitignored via .claude/observability/.
+
+receivers:
+  otlp:
+    protocols:
+      # Bind IPv4 127.0.0.1 explicitly (not "localhost"): on Windows "localhost"
+      # can resolve to IPv6 ::1 first, while a CC OTLP client dialing 127.0.0.1
+      # would miss an ::1-only listener. Explicit IPv4 on both ends removes the
+      # ambiguity. CC emits to http://127.0.0.1:4318 (http/protobuf) per settings.json env.
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+connectors:
+  # Audience split — one connector per signal (a routing table's target pipelines must
+  # match the routed signal type). default_pipelines is load-bearing: without it,
+  # unmatched (non-claude-code) telemetry would be silently DROPPED, not routed.
+  routing/logs:
+    error_mode: ignore
+    default_pipelines: [logs/apps]
+    table:
+      - context: resource
+        condition: attributes["service.name"] == "claude-code"
+        pipelines: [logs/cc]
+  routing/metrics:
+    error_mode: ignore
+    default_pipelines: [metrics/apps]
+    table:
+      - context: resource
+        condition: attributes["service.name"] == "claude-code"
+        pipelines: [metrics/cc]
+  routing/traces:
+    error_mode: ignore
+    default_pipelines: [traces/apps]
+    table:
+      - context: resource
+        condition: attributes["service.name"] == "claude-code"
+        pipelines: [traces/cc]
+
+processors:
+  # memory_limiter MUST precede everything in the intake pipelines: it sheds load under
+  # memory pressure before work is routed and batched downstream.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+exporters:
+  # One file per signal — cc-otel.sql reads each via native read_json_auto
+  # (newline-delimited OTLP-JSON), so logs and metrics are NOT interleaved.
+  # Store dir is pinned via ${env:CC_OTEL_STORE} (an absolute path set by start-collector.sh,
+  # the logon daemon, or onboard) so a machine-singleton Collector writes ONE store no matter
+  # which worktree spawned it. Fallback (env unset) is repo-root-relative, matching a manual
+  # `otelcol-contrib --config ...` run from the repo root. cc-otel.sql reads the same
+  # ${env:CC_OTEL_STORE}, so queries resolve the identical store from any worktree.
+  file/logs:
+    path: ${env:CC_OTEL_STORE:-.claude/observability/otel}/cc-logs.json
+    append: true
+    create_directory: true
+  file/metrics:
+    path: ${env:CC_OTEL_STORE:-.claude/observability/otel}/cc-metrics.json
+    append: true
+    create_directory: true
+  file/traces:
+    path: ${env:CC_OTEL_STORE:-.claude/observability/otel}/cc-traces.json
+    append: true
+    create_directory: true
+  # Aspire standalone dashboards (OPTIONAL live human tails). gRPC OTLP; insecure: true
+  # because the local anonymous dashboard endpoints are plaintext (no TLS). If a dashboard
+  # is down its exporter drops-and-continues — file export is unaffected (viewer, not a sink).
+  # Host ports are published by start-dashboard.sh (NOT 4317/4318: those are this
+  # Collector's own receiver).
+  otlp_grpc/cc_dashboard:
+    endpoint: 127.0.0.1:18889
+    tls:
+      insecure: true
+  otlp_grpc/app_dashboard:
+    endpoint: 127.0.0.1:19889
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    # Intake: one pipeline per signal feeding the routing connector.
+    logs/in:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [routing/logs]
+    metrics/in:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [routing/metrics]
+    traces/in:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [routing/traces]
+    # Claude Code audience: persistent store + CC dashboard.
+    logs/cc:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [file/logs, otlp_grpc/cc_dashboard]
+    metrics/cc:
+      receivers: [routing/metrics]
+      processors: [batch]
+      exporters: [file/metrics, otlp_grpc/cc_dashboard]
+    traces/cc:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [file/traces, otlp_grpc/cc_dashboard]
+    # Apps audience (default route): live viewer only — nothing dropped, nothing persisted here.
+    logs/apps:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/app_dashboard]
+    metrics/apps:
+      receivers: [routing/metrics]
+      processors: [batch]
+      exporters: [otlp_grpc/app_dashboard]
+    traces/apps:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/app_dashboard]
