@@ -59,9 +59,15 @@ Skipping 4a is the usual reason a previous `/worktree cleanup` left husks behind
 # Orphaned directory (on disk, not in `git worktree list`): remove the husk
 rm -rf <path>
 
-# Git-tracked worktree — escalate only as far as needed:
-git worktree remove <path> \
-  || git worktree remove --force <path> \
+# Git-tracked worktree — plain removal first. It FAILS on a dirty worktree
+# specifically to prevent data loss; never blind-escalate past that.
+git worktree remove <path>
+```
+
+**Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log --branches --not --remotes --oneline | head` (unpushed commits). If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
+
+```bash
+git worktree remove --force <path> \
   || git worktree remove --force --force <path>   # second --force required for LOCKED worktrees (git-scm)
 ```
 
