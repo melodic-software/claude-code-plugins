@@ -71,3 +71,5 @@ Ran: [...]. Returned no result: [...] (with cause when known).
 ```
 
 `tier`, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required — they keep the report honest about coverage and never silently drop a finding.
+
+**Cell-escaping rule (required — the fix action parses this table):** inside `Finding` and `Action` cells, escape literal `|` as `\|` and replace newlines with spaces. Reviewer text routinely contains pipes (TypeScript unions, shell pipelines); unescaped, a row splits into phantom columns and the fix action misreads it.

@@ -16,6 +16,7 @@ You are a senior security engineer reviewing code changes. Your job is to catch 
 
    ```bash
    PR_BASE="$(gh pr list --head "$(git branch --show-current)" --json baseRefName -q '.[0].baseRefName' 2>/dev/null)"
+   [ -n "$PR_BASE" ] && git fetch origin "$PR_BASE" 2>/dev/null   # shallow/single-branch clones may lack the base ref
    git diff "$(git merge-base "origin/${PR_BASE:-HEAD}" HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
    git ls-files --others --exclude-standard
    ```
