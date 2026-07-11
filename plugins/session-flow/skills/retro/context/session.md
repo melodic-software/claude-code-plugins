@@ -23,15 +23,28 @@ Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then:
 ```bash
 PARSER="${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py"
 
-# Single-session form:
-python "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+# Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older):
+PY=""
+for c in python3 python; do
+  if command -v "$c" >/dev/null 2>&1 \
+     && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    PY="$c"; break
+  fi
+done
 
-# Multi-session form (handoff chain exists):
-NEWEST=$(ls -1 .claude/handoffs/*-handoff-*.md 2>/dev/null | sort | tail -1)
-python "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+# Single-session form:
+"$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+
+# Multi-session form (handoff chain exists). Set HANDOFF_DIR to the consuming
+# repo's documented save-point location when it declares one (see the handoff
+# skill's "Where handoffs live"); the plugin default is .claude/handoffs/.
+HANDOFF_DIR=.claude/handoffs
+NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
+"$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 ```
 
-Use `python3` when `python` is not on PATH. Requires Python 3.10+, stdlib only.
+If `PY` resolves empty (no Python 3.10+ available), skip metrics extraction and note why. The
+parser is stdlib-only.
 
 ### Script contract
 
