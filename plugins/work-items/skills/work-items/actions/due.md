@@ -36,11 +36,11 @@ gh issue list --label "recurring" --state open --json number,title --limit 50 | 
 
 Match by title prefix `[Maintenance]` (the convention used by recurring automation and `add --recurring`).
 
-1. **Check for orphaned entries.** Entries in `recurring-schedule.json` that don't have a corresponding open issue:
+1. **Check for orphaned entries.** Only DUE entries (`next_due <= today`) without a corresponding open issue are orphan-suspect — future items legitimately have no issue yet (recurring automation creates issues only when an item becomes due):
 
 ```bash
-# List all recurring item IDs from schedule
-cat "$SCHEDULE" | jq -r '.items[].id'
+# Due item IDs only — future rows are healthy without an issue
+cat "$SCHEDULE" | jq -r --arg today "$(date +%Y-%m-%d)" '.items[] | select(.next_due != null and .next_due <= $today) | .id'
 ```
 
 1. **Present:**

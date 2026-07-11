@@ -21,7 +21,13 @@ When invoked without a number, show three buckets (oldest first, one-line summar
 gh issue list --state open --json number,title,labels,updatedAt --limit 100 | tr -d '\r'
 ```
 
-Filter into buckets programmatically. Present as compact table. (Read — bare `gh`.)
+Filter buckets 1-2 from that listing. Bucket 3 needs comment-level data (`updatedAt` moves on ANY activity, not just reporter replies) — for each `status:needs-info` candidate, fetch its comments and include it only when the LAST comment author is the reporter (issue author), not the triager:
+
+```bash
+gh issue view <n> --json author,comments --jq '{reporter: .author.login, last: .comments[-1].author.login}' | tr -d '\r'
+```
+
+Present as compact table. (Reads — bare `gh`.)
 
 ## Triage workflow (with number)
 
