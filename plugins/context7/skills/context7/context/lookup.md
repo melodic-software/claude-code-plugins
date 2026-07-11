@@ -13,8 +13,8 @@ mcp__context7__resolve-library-id(libraryName: "<name>", query: "<query>")
 ```
 
 - Use the **official library name** with proper punctuation — `"Next.js"` not `"nextjs"`, `"Customer.io"` not `"customerio"`, `"Three.js"` not `"threejs"`
-- `query` argument is **required** and directly affects result ranking. Use the user's full intent as the query — disambiguates when multiple libraries share a name
-- Do NOT include sensitive information (API keys, passwords, credentials, personal data) in queries — sent to Context7's backend
+- `query` argument is **required** and directly affects result ranking. Distill the user's intent into a focused library/topic query — disambiguates when multiple libraries share a name
+- Queries are sent to Context7's backend. Never include secrets (API keys, passwords, credentials), personal data, proprietary code, pasted stack traces, or internal endpoints/identifiers — send distilled library/topic terms only
 
 ## Result fields
 
@@ -76,7 +76,7 @@ Query quality directly affects results. Be specific and include relevant details
 | Bad | `"hooks"` |
 | Bad | `"tracking"` |
 
-Use the user's full question as the query when possible. Vague one-word queries return generic results.
+Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. When the question includes a pasted stack trace, code snippet, or internal endpoint/identifier, extract only the library and topic terms — never forward the raw content (e.g. a `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`). Vague one-word queries return generic results.
 
 ## Output content types
 
@@ -102,5 +102,5 @@ Do not silently fall back to training data. Always tell the user why Context7 wa
 - Library IDs require a `/` prefix — `/facebook/react` not `facebook/react`
 - Always run `library` / `resolve-library-id` first — `ctx7 docs react "hooks"` fails without a valid ID
 - Use descriptive queries, not single words
-- Do not include sensitive information in queries
+- Do not include secrets, personal data, proprietary code, stack traces, or internal identifiers in queries — send distilled library/topic terms only
 - Do not run more than **3 lookup commands per question**. If you cannot find what you need in 3 attempts, fall back and tell the user
