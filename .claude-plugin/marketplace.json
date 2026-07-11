@@ -138,6 +138,12 @@
       "source": "./plugins/claude-config-audit",
       "category": "configuration",
       "tags": ["maintenance", "settings", "permissions", "mcp", "memory", "claude-md", "rules", "automation", "audit", "skill"]
+    },
+    {
+      "name": "work-items",
+      "source": "./plugins/work-items",
+      "category": "productivity",
+      "tags": ["work-items", "issues", "github", "tracker", "triage", "orchestration", "skill"]
     }
   ]
 }
