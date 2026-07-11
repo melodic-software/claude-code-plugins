@@ -166,14 +166,17 @@ handoff file; prompt-only: the remaining-work bullets travel inline).
 Sequence — the rails prompt from "Final step" is still emitted FIRST (transparency + manual
 fallback), then:
 
-1. **Dirty-tree gate.** Run `git status --porcelain` in the consuming project. Background
-   sessions move into an isolated git worktree (a fresh checkout) before editing files
-   (<https://code.claude.com/docs/en/agent-view>), so uncommitted changes in this checkout would
-   NOT carry into the launched agent's edits. Dirty tree → do NOT launch: report why and fall
-   back to the standard `/clear`-then-paste instruction (same checkout, dirty state intact),
-   noting the user can commit or stash and re-run `/handoff --bg`. Exception: launch anyway when
-   the current session already runs inside a linked git worktree — isolation is skipped there per
-   the same page.
+1. **Dirty-tree gate.** Run `git status --porcelain` in the consuming project and IGNORE the
+   save-point file this handoff just wrote — the save-point is part of the launch, never
+   disqualifying dirty state (the background session starts in this working directory, so it
+   reads the handoff file before any edit moves it into a worktree). Background sessions move
+   into an isolated git worktree (a fresh checkout) before editing files
+   (<https://code.claude.com/docs/en/agent-view>), so OTHER uncommitted changes in this checkout
+   would NOT carry into the launched agent's edits. Any such changes → do NOT launch: report why
+   and fall back to the standard `/clear`-then-paste instruction (same checkout, dirty state
+   intact), noting the user can commit or stash and re-run `/handoff --bg`. Exception: launch
+   anyway when the current session already runs inside a linked git worktree — isolation is
+   skipped there per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
 
@@ -232,8 +235,9 @@ incomplete.
 
 **Either path with `--bg` (additional):**
 
-- [ ] Dirty-tree gate evaluated (`git status --porcelain` this turn); dirty tree without the
-  linked-worktree exception → no launch, reason reported, fallback to `/clear`-then-paste
+- [ ] Dirty-tree gate evaluated (`git status --porcelain` this turn, ignoring the just-written
+  save-point); other uncommitted changes without the linked-worktree exception → no launch,
+  reason reported, fallback to `/clear`-then-paste
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`) and the launch
   result reported — OR the non-zero exit reported with fallback to `/clear`-then-paste
 
