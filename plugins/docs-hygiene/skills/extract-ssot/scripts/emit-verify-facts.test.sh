@@ -97,6 +97,17 @@ assert_contains "primary URL sample surfaced" "$out" ".claude/rules/gamma.md"
 assert_not_contains "no verdict emitted" "$out" "PROCEED"
 assert_not_contains "no refusal emitted" "$out" "REFUSE"
 
+# --- Dash-prefixed phrase is not parsed as a git grep option ---
+cat >>"$repo/docs/alpha.md" <<'EOF'
+Never bypass hooks with --no-verify on commits.
+EOF
+git -C "$repo" add -A
+git -C "$repo" commit -qm dash-fixture
+dash_rc=0
+dash_out="$(cd "$repo" && bash "$EMIT" --phrase "--no-verify")" || dash_rc=$?
+assert_exit "dash-prefixed phrase exits 0" 0 "$dash_rc"
+assert_contains "dash-prefixed phrase counted" "$dash_out" "Instance hit count: 1"
+
 # --- Zero-match phrase still exits 0 with zero counts ---
 zero_rc=0
 zero_out="$(cd "$repo" && bash "$EMIT" --phrase "phrase that matches nothing at all")" || zero_rc=$?

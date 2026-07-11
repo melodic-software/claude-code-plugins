@@ -125,7 +125,16 @@ EOF
 bt_out="$(bash "$DETECT" "$BT_FIXTURE")"
 assert_contains "backtick enum-list detected" "$bt_out" "Finding shape: enum-list"
 
-# --- 6. --paths-file input ----------------------------------------------------------
+# --- 6. Directory target expands to its .md files ------------------------------------
+
+DIR_FIXTURE="$TEST_TMPDIR/dir-target/nested"
+mkdir -p "$DIR_FIXTURE"
+cp "$ALL_SHAPES" "$DIR_FIXTURE/inner.md"
+dir_out="$(bash "$DETECT" "$TEST_TMPDIR/dir-target")"
+assert_contains "directory target audits nested .md" "$dir_out" "Summary file: $DIR_FIXTURE/inner.md"
+assert_contains "directory target finds shapes" "$dir_out" "Finding shape: ghost-ref"
+
+# --- 7. --paths-file input ----------------------------------------------------------
 
 PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$CLEAN" >"$PATHS"

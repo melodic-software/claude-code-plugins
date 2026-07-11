@@ -77,6 +77,20 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   fi
 fi
 
+# Expand directory targets to the .md files inside them (recursive), so
+# `detect.sh <dir>` batch-audits instead of silently skipping non-files.
+EXPANDED=()
+for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
+  if [[ -d "$target" ]]; then
+    while IFS= read -r md; do
+      EXPANDED+=("$md")
+    done < <(find "$target" -type f -name '*.md' 2>/dev/null)
+  else
+    EXPANDED+=("$target")
+  fi
+done
+TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
+
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: no markdown targets — pass file paths or edit some .md files"

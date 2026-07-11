@@ -75,11 +75,13 @@ printf 'Scope: tracked %s files\n' "$SCOPE"
 citation_regex='per [a-z0-9./_-]+\.md'
 url_regex='(code|platform)\.(claude|anthropic)\.com|tools\.ietf\.org/rfc|learn\.microsoft\.com'
 
-git grep -nF "$PHRASE" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
+# -e guards dash-prefixed phrases (e.g. a repeated CLI flag like --no-verify)
+# from being parsed as git grep options.
+git grep -nF -e "$PHRASE" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
   emit_facts 'Instance' 'Instance hit count'
-git grep -nE "$citation_regex" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
+git grep -nE -e "$citation_regex" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
   emit_facts 'Citation sample' 'Citation pattern hit count'
-git grep -nE "$url_regex" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
+git grep -nE -e "$url_regex" -- "$SCOPE" 2>/dev/null | tr -d '\r' |
   emit_facts 'Primary URL sample' 'Primary URL hit count'
 
 exit 0
