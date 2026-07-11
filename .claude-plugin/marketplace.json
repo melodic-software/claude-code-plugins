@@ -144,6 +144,12 @@
       "source": "./plugins/work-items",
       "category": "productivity",
       "tags": ["work-items", "issues", "github", "tracker", "triage", "orchestration", "skill"]
+    },
+    {
+      "name": "discovery",
+      "source": "./plugins/discovery",
+      "category": "development",
+      "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
     }
   ]
 }
