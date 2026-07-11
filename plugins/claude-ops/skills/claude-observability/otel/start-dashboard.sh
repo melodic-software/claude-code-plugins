@@ -107,10 +107,12 @@ run_dashboard_create() {
     "$CC_OTEL_DASHBOARD_RUN_CMD"
     return 0
   fi
+  # Loopback-only publish: the dashboard runs with anonymous auth and its
+  # telemetry can carry sensitive data — never expose it beyond localhost.
   docker run -d --rm \
     --name "$container_name" \
-    -p "${host_ui_port}:${CONTAINER_UI_PORT}" \
-    -p "${host_otlp_port}:${CONTAINER_OTLP_PORT}" \
+    -p "127.0.0.1:${host_ui_port}:${CONTAINER_UI_PORT}" \
+    -p "127.0.0.1:${host_otlp_port}:${CONTAINER_OTLP_PORT}" \
     -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
     --label "local.dev.container.component=${LABEL_COMPONENT}" \
     --label "local.dev.container.role=${label_role}" \
@@ -175,14 +177,16 @@ main() {
 
   case "$state" in
     running) action="noop-already-running" ;;
-    stopped) action="would-start" ;;
     aspire-dashboard-running) action="skip-aspire-dashboard-present" ;;
     docker-absent) action="skip-docker-absent" ;;
     docker-unreachable) action="skip-docker-unreachable" ;;
-    absent)
-      # docker run publishes BOTH ports; either one being bound dooms the bind.
+    stopped | absent)
+      # Both docker run AND docker start (re)bind BOTH published ports; either
+      # one being taken by a foreign process dooms the bind under set -e.
       if [[ "$ui_port_state" == "listening" || "$otlp_port_state" == "listening" ]]; then
         action="skip-port-in-use"
+      elif [[ "$state" == "stopped" ]]; then
+        action="would-start"
       else
         action="would-spawn"
       fi

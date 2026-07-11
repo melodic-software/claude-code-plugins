@@ -177,6 +177,12 @@ main() {
         return 0
       fi
       mkdir -p "$store_dir"
+      # The store can hold raw prompts and API bodies under content capture —
+      # when it lands inside a repo, a directory-local ignore-all keeps it out
+      # of accidental commits. Inert when the store dir is outside any repo.
+      if [[ ! -e "$store_dir/.gitignore" ]]; then
+        printf '*\n' >"$store_dir/.gitignore"
+      fi
       # Spawn detached from the repo root: keeps the yaml relative-store fallback correct when
       # CC_OTEL_STORE is unset; harmless when it is set (the yaml uses the absolute path). nohup
       # + redirected stdio + </dev/null detach the daemon so it outlives this script (and the

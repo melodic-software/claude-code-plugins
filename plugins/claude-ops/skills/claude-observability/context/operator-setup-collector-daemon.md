@@ -47,7 +47,7 @@ Collector's `${env:CC_OTEL_STORE}` exporter paths and `cc-otel.sql`'s `getenv('C
 views resolve the **same** store from any worktree. With it unset, the daemon would write under
 its system-directory CWD and worktree queries would read an empty repo-relative store. The store
 directory must exist before the daemon starts — the file exporter does not create parent
-directories. Set the env var and create the directory as part of machine setup.
+directories. Set the env var and create the directory as part of machine setup; when it lives inside a repo, also drop a `.gitignore` containing `*` in it (the hook-path `start-collector.sh` does this automatically) — captured telemetry can include prompt and API-body content.
 
 ### Windows — per-user Scheduled Task (no admin)
 

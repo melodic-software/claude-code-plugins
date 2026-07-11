@@ -82,7 +82,6 @@ assert_contains "unknown role reported" "$out_role" "unknown role"
 # --- 5. action enum when inspect state is controlled ---
 for pair in \
   "running:noop-already-running" \
-  "stopped:would-start" \
   "aspire-dashboard-running:skip-aspire-dashboard-present" \
   "docker-absent:skip-docker-absent" \
   "docker-unreachable:skip-docker-unreachable"; do
@@ -92,6 +91,16 @@ for pair in \
   action_line="$(printf '%s\n' "$dry_out" | grep '^action=' | head -1)"
   assert_eq "inspect $state => $expected_action" "action=$expected_action" "$action_line"
 done
+
+# --- 5b. stopped is port-aware: would-start only when both host ports are free ---
+# (docker start rebinds the published ports, so a foreign listener must skip.)
+dry_out="$(CC_OTEL_DASHBOARD_INSPECT_STATE=stopped bash "$SCRIPT" --dry-run 2>/dev/null)"
+action_line="$(printf '%s\n' "$dry_out" | grep '^action=' | head -1)"
+if printf '%s\n' "$dry_out" | grep -qE '^port_1888[89]=listening'; then
+  assert_eq "stopped + port busy => skip-port-in-use" "action=skip-port-in-use" "$action_line"
+else
+  assert_eq "stopped + ports free => would-start" "action=would-start" "$action_line"
+fi
 
 # --- 6. absent + port listening => skip-port-in-use ---
 # Force port listening by binding 18888 in a subshell if free; skip assertion if already in use.
