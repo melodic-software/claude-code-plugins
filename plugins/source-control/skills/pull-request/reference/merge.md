@@ -48,14 +48,17 @@ Detect if currently in a worktree (`git worktree list`).
 
 **If in a worktree (primary pattern — worktree reuse):**
 
-Reuse the worktree for next task by creating a new branch from latest main. Faster than remove+recreate and preserves gitignored files.
+Reuse the worktree for next task by creating a new branch from the latest default branch. Faster than remove+recreate and preserves gitignored files.
 
 ```bash
-# 1. Get latest main
-git fetch origin main
+# 0. Resolve the repo's default branch (repo-agnostic — not every repo uses main)
+DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 
-# 2. Create new branch from latest main (NOT checkout main — that's blocked)
-git checkout -b <new-type>/<new-desc> origin/main
+# 1. Get the latest default branch
+git fetch origin "$DEFAULT_BRANCH"
+
+# 2. Create new branch from it (NOT checkout of the default branch — that's blocked in a worktree)
+git checkout -b <new-type>/<new-desc> "origin/$DEFAULT_BRANCH"
 
 # 3. Delete old merged branch (squash merge needs -D not -d)
 git branch -D <old-branch>
@@ -67,8 +70,8 @@ Worktree reuse (new branch from latest default branch in the same directory) is 
 
 **If on a regular branch (not in worktree):**
 
-1. **Check for uncommitted changes BEFORE checkout** — `git status --porcelain`. If uncommitted changes exist, they will be lost on `git checkout main` (conflicting changes fail, non-conflicting changes silently carry over to main's working tree — neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files — without it, new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
-2. `git checkout main`
+1. **Check for uncommitted changes BEFORE checkout** — `git status --porcelain`. If uncommitted changes exist, they will be lost on the default-branch checkout (conflicting changes fail, non-conflicting changes silently carry over — neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files — without it, new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
+2. `git checkout "$DEFAULT_BRANCH"` (resolve via `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`)
 3. `git pull --ff-only`
 4. `git branch -D <merged-branch>`
 5. If a stash was created in step 1, inform user: "Stashed N uncommitted changes. Run `git stash list` to see them, `git stash pop` to restore on a new branch."
@@ -92,7 +95,7 @@ git branch              # merged branch should be gone, new branch active
 **Post-merge CI health check** — verify CI on main is green after merge commit lands:
 
 ```bash
-gh run list --branch main --limit 1 --json conclusion,displayTitle \
+gh run list --branch "$DEFAULT_BRANCH" --limit 1 --json conclusion,displayTitle \
   --jq '.[0] | "\(.conclusion): \(.displayTitle)"'
 ```
 

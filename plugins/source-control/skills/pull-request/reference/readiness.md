@@ -77,7 +77,7 @@ For every check run with `bucket == "fail"`:
 gh pr checks <pr_number> --json name,state,bucket --jq '.[] | select(.bucket == "fail")'
 ```
 
-- [ ] Each failure has been **investigated** (logs read via `gh run view <run-id> --log-failed`)
+- [ ] Each failure has been **investigated** — logs read via the monitor §3.1 tiered fetch chain (bundled `fetch-annotations.sh` → `fetch-failed-logs.sh` full untruncated ZIP; `gh run view <run-id> --log-failed` only as a last-resort eyeball — it truncates at the CLI display layer)
 - [ ] Each failure is **classified**: real failure (fix required) OR informational (document why safe to proceed)
 - [ ] Informational failures explicitly documented in monitoring report with exact error message
 - [ ] **No unclassified failures** — every `FAILURE` state must have an explicit disposition
