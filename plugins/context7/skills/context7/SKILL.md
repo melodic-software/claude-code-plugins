@@ -51,7 +51,7 @@ mcp__context7__resolve-library-id(libraryName: "...", query: "...")
 mcp__context7__query-docs(libraryId: "/org/project", query: "...")
 ```
 
-You MUST call `library` / `resolve-library-id` first to get a valid ID, UNLESS the user provides one in `/org/project` format. Do not run more than 3 lookup commands per question — if you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
+You MUST call `library` / `resolve-library-id` first to get a valid ID, UNLESS the user provides one in `/org/project` format. One concept per query — when a question spans several independent topics, run a separate lookup per topic. Do not run more than 3 lookup commands per topic — if you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
 
 **Do not include sensitive information** (API keys, passwords, credentials) in queries — sent to the Context7 backend.
 

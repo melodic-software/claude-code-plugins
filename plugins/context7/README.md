@@ -58,9 +58,11 @@ consumer-side settings:
 
 Lookup queries (your library question text) are sent to the Context7 backend
 (`context7.com` / `mcp.context7.com`). Don't put secrets in queries. The
-`update` action additionally fetches two public files from
-`raw.githubusercontent.com` (Upstash's reference skills) and reads the npm
-registry for the latest `ctx7` version — read-only, nothing uploaded.
+`ctx7` CLI also sends anonymous usage telemetry by default — set
+`CTX7_TELEMETRY_DISABLED=1` to opt out. The `update` action additionally
+fetches two public files from `raw.githubusercontent.com` (Upstash's
+reference skills) and reads the npm registry for the latest `ctx7` version —
+read-only, nothing uploaded.
 
 ## License
 

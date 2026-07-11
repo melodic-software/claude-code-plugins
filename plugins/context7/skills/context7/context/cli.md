@@ -72,8 +72,9 @@ Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls
 | Variable | Purpose |
 |---|---|
 | `CONTEXT7_API_KEY` | Higher rate limits + priority. Required for `ctx7 skills generate` |
+| `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
-The CLI reads no other env vars (no `CTX7_*` prefix detected in the compiled binary).
+The CLI sends anonymous usage telemetry **by default** (see the Telemetry section of Context7's CLI docs at context7.com/docs/clients/cli). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
 
 ## Windows Git Bash gotcha (REQUIRED for `docs`)
 

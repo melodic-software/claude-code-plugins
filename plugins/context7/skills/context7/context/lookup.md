@@ -78,6 +78,8 @@ Query quality directly affects results. Be specific and include relevant details
 
 Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. When the question includes a pasted stack trace, code snippet, or internal endpoint/identifier, extract only the library and topic terms — never forward the raw content (e.g. a `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`). Vague one-word queries return generic results.
 
+Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic — a combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js middleware with NextAuth session validation"`).
+
 ## Output content types
 
 Output contains two kinds of snippets:
@@ -103,4 +105,5 @@ Do not silently fall back to training data. Always tell the user why Context7 wa
 - Always run `library` / `resolve-library-id` first — `ctx7 docs react "hooks"` fails without a valid ID
 - Use descriptive queries, not single words
 - Do not include secrets, personal data, proprietary code, stack traces, or internal identifiers in queries — send distilled library/topic terms only
-- Do not run more than **3 lookup commands per question**. If you cannot find what you need in 3 attempts, fall back and tell the user
+- Do not combine independent topics into one query — one concept per lookup
+- Do not run more than **3 lookup commands per topic**. If you cannot find what you need in 3 attempts, fall back and tell the user
