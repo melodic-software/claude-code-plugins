@@ -75,8 +75,8 @@ The model's strengths and Datamuse's strengths are complementary.
 ### Invocation
 
 ```bash
-bash .claude/skills/pat-pattison/scripts/datamuse.sh <mode> <word>
-LIMIT=50 bash .claude/skills/pat-pattison/scripts/datamuse.sh near grief
+bash "${CLAUDE_PLUGIN_ROOT}/skills/pat-pattison/scripts/datamuse.sh" <mode> <word>
+LIMIT=50 bash "${CLAUDE_PLUGIN_ROOT}/skills/pat-pattison/scripts/datamuse.sh" near grief
 ```
 
 Output is TSV: `word\tscore\tnumSyllables\ttags`. Higher score = stronger match.
