@@ -102,6 +102,12 @@
       "source": "./plugins/context7",
       "category": "utilities",
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
+    },
+    {
+      "name": "work-items",
+      "source": "./plugins/work-items",
+      "category": "productivity",
+      "tags": ["work-items", "issues", "github", "tracker", "triage", "orchestration", "skill"]
     }
   ]
 }
