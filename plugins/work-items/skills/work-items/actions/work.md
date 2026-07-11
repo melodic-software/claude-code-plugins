@@ -63,7 +63,7 @@ gh issue list --label "recurring" --state open --json number,title --limit 100 |
 
 Match by title prefix `[Maintenance] {schedule item title}`.
 
-**Due-recurring tier (`next_due <= today`):** if no open issue exists, create one before claiming — issue only, using the `[Maintenance] {title}` prefix plus the `recurring` and `cadence:{cadence}` labels. Do NOT route through `add --recurring`: the item already exists in the schedule, and that flow would append a duplicate schedule entry. These items are actionable now — dead-ending without an issue to hold would strand work.
+**Due-recurring tier (`next_due <= today`):** if no open issue exists, create one before claiming — issue only, using the `[Maintenance] {title}` prefix plus the `recurring` and `cadence:{cadence}` labels (filtered through the live label list per `add.md` "Build labels array" — create the missing label or omit it). Do NOT route through `add --recurring`: the item already exists in the schedule, and that flow would append a duplicate schedule entry. These items are actionable now — dead-ending without an issue to hold would strand work.
 
 **Last-resort recurring tier (`next_due > today`):** recurring automation typically only creates issues when `next_due <= today`, so there is usually no open issue to hold. Since picking early shifts the cadence and undermines the recurrence guarantee, **skip last-resort candidates that have no open issue and advance to the next candidate**. Only hold/claim a last-resort item when an open issue already exists (e.g., created manually ahead of cadence). If every last-resort candidate is skipped for lack of an issue, report "no actionable work" to the user rather than forcing one into existence.
 
@@ -139,7 +139,8 @@ Proceed with this item? (yes / pick different / skip)
 ```bash
 # Release hold comment via PATCH (preserves audit trail)
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<HOLD_COMMENT_ID>" -f body="⏸ **Released** — hold lifted (reason: user-skip)"
-# Remove considering label
+# Remove considering label — ONLY if no other unreleased hold comments remain
+# (re-run the step-4 hold listing first; another agent may have held meanwhile)
 gh issue edit <N> --remove-label "status:considering"
 ```
 
@@ -170,7 +171,7 @@ gh issue comment <N> --body "🔒 **Claimed** by agent session
 gh issue view <N> --json assignees --jq '[.assignees[].login]' | tr -d '\r'
 ```
 
-If multiple assignees detected, the later claimant releases — remove ONLY your own assignee (`--remove-assignee`), never the issue-wide `status:claimed` label, which the winning claimant still holds — then pick next.
+If multiple assignees detected, order the collision by the claim COMMENTS (same server-assigned comment-ID ordering as holds — the assignee set itself is unordered): the claimant whose 🔒 claim comment has the higher ID is the later one and releases — remove ONLY your own assignee (`--remove-assignee`), never the issue-wide `status:claimed` label, which the winning claimant still holds — then pick next.
 
 1. **Suggest branch name.** Propose `<type>/<N>-<slug>` so PR tooling can auto-inject `Closes #N` from the branch parse. Same protocol as `start.md` "Workflow" final step (Suggest branch name) — type derivation by Conventional Commits priority, slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). See `start.md` for the full logic. Emit `git checkout -b ...` for the user unless the session has explicit branching authorization.
 

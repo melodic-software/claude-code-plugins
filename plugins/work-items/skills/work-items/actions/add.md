@@ -85,12 +85,17 @@ done
 
 1. **Create the issue** (write). If `--recurring`, prefix the title with `[Maintenance]` — the convention that enables dedup and `recheck` matching against the recurring schedule:
 
+Pass the generated body via `--body-file` (never inline `--body` — generated text can contain quotes, backticks, or `$()` that the shell would interpret):
+
 ```bash
+BODY_FILE=$(mktemp)
+# Write the composed body to $BODY_FILE with the Write tool (not shell interpolation)
 gh issue create \
   --title "[Maintenance] {title}" \
-  --body "{body}" \
+  --body-file "$BODY_FILE" \
   $LABELS \
   | tr -d '\r'
+rm -f "$BODY_FILE"
 ```
 
 For non-recurring issues, omit the `[Maintenance]` prefix.

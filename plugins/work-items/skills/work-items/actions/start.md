@@ -60,7 +60,7 @@ gh issue comment <N> --body "🔒 **Claimed** by agent session
 gh issue view <N> --json assignees --jq '[.assignees[].login]' | tr -d '\r'
 ```
 
-If multiple assignees detected, the later claimant releases — remove ONLY your own assignee, never the issue-wide `status:claimed` label the winner still holds — and picks next.
+If multiple assignees detected, order the collision by the 🔒 claim comments' server-assigned IDs (the assignee set is unordered): the higher-ID claimant is the later one and releases — remove ONLY your own assignee, never the issue-wide `status:claimed` label the winner still holds — and picks next.
 
 1. **Confirm:** "Claimed **#N**: {title}. Ready to work — follow the project's development workflow."
 
