@@ -192,6 +192,12 @@
       "source": "./plugins/source-control",
       "category": "development",
       "tags": ["delivery", "git", "github", "commit", "pull-request", "worktree", "ci", "skill"]
+    },
+    {
+      "name": "planning",
+      "source": "./plugins/planning",
+      "category": "development",
+      "tags": ["planning", "brainstorm", "prd", "interview", "design", "devils-advocate", "architect", "stress-test", "skill"]
     }
   ]
 }
