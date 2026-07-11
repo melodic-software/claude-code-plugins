@@ -102,6 +102,12 @@
       "source": "./plugins/context7",
       "category": "utilities",
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
+    },
+    {
+      "name": "discovery",
+      "source": "./plugins/discovery",
+      "category": "development",
+      "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
     }
   ]
 }
