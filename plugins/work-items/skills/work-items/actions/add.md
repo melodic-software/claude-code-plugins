@@ -56,9 +56,21 @@ done
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`../reference/agent-brief.md`](../reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
 ```markdown
-## Description
+## Context
 
-{description text}
+{what observation surfaced this issue; the cost of leaving it — from the description and --context}
+
+## Proposed work
+
+- {concrete next action derived from the description}
+
+## Acceptance criteria
+
+- [ ] {one verifiable assertion per bullet}
+
+## References
+
+- {cross-references to rules, files, prior PRs, or external docs — or "none"}
 
 ## Metadata
 
@@ -67,8 +79,6 @@ done
 | Category | {category} |
 | Area | {area or "unspecified"} |
 | Ecosystem | {ecosystem or "unspecified"} |
-
-{if --context: ## Context\n\n{context summary}}
 
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```

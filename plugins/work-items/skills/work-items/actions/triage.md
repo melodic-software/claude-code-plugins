@@ -39,7 +39,7 @@ Based on content, recommend:
 
 - **Type label** (`type:feat`, `type:fix`, `type:chore`, etc.)
 - **Priority label** (`priority:p0-critical` through `priority:p3-low`)
-- **State label** — initial recommendation from: `status:needs-info`, `status:considering`, or agent-ready (`agent-ready` meta label)
+- **State label** — initial recommendation from: `status:needs-info` or agent-ready (`agent-ready` meta label). Never apply `status:considering` during triage — that label is reserved for the hold→verify→claim protocol (an active hold with a session comment); using it as a triage state would make the issue look held and hide it from `work`/`start` selection
 
 ### 3. Reproduce (bugs only)
 
@@ -69,9 +69,9 @@ Valid state label transitions:
 
 ```text
 (unlabeled) → status:needs-triage
-status:needs-triage → status:needs-info | status:considering | agent-ready | wontfix (close)
+status:needs-triage → status:needs-info | agent-ready | ready (labels applied, no state label) | wontfix (close)
 status:needs-info → status:needs-triage (on reporter reply)
-status:considering → status:claimed | agent-ready | wontfix (close)
+status:considering → status:claimed  (hold protocol only — never set by triage)
 status:claimed → (close on completion)
 ```
 
