@@ -58,8 +58,10 @@ the AI uses on its own work. Skips are valid when NAMED with a reason.
 
 ## Action Router
 
-`/pat-pattison <action> [args]`. With no action, route on conversation
-context. Full action tables + Quick Decision Guide + Sample Invocations
+Arguments: `$ARGUMENTS`
+
+`/pat-pattison <action> [args]`. Parse `$ARGUMENTS`: first token = action,
+remainder = args. With no action, route on conversation context. Full action tables + Quick Decision Guide + Sample Invocations
 live in [action-routing](research/action-routing.md). Load that file when
 routing is ambiguous or when surfacing the menu to the user.
 
