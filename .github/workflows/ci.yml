@@ -30,7 +30,7 @@ jobs:
   # owns that documented alert-and-rerun recovery path.
   select-markdown:
     name: Select runner for markdown
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -43,7 +43,7 @@ jobs:
 
   select-typos:
     name: Select runner for typos
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -56,7 +56,7 @@ jobs:
 
   select-gitleaks:
     name: Select runner for gitleaks
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -69,7 +69,7 @@ jobs:
 
   select-editorconfig:
     name: Select runner for editorconfig
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -82,7 +82,7 @@ jobs:
 
   select-shellcheck:
     name: Select runner for shellcheck
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -95,7 +95,7 @@ jobs:
 
   select-actionlint:
     name: Select runner for actionlint
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -108,7 +108,7 @@ jobs:
 
   select-jsonschema:
     name: Select runner for jsonschema
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -121,7 +121,7 @@ jobs:
 
   select-exec-bit:
     name: Select runner for exec-bit
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -134,7 +134,7 @@ jobs:
 
   select-machine-specific-paths:
     name: Select runner for machine-specific-paths
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -147,7 +147,7 @@ jobs:
 
   select-eol-renormalize:
     name: Select runner for eol-renormalize
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -160,7 +160,7 @@ jobs:
 
   select-comment-hygiene:
     name: Select runner for comment-hygiene
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -173,7 +173,7 @@ jobs:
 
   select-hook-utils-sync:
     name: Select runner for hook-utils-sync
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -186,7 +186,7 @@ jobs:
 
   select-plugin-gate:
     name: Select runner for plugin-gate
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -208,7 +208,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint markdown
-        uses: melodic-software/ci-workflows/.github/actions/markdown@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/markdown@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           config: .markdownlint-cli2.jsonc
 
@@ -223,7 +223,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Spell-check
-        uses: melodic-software/ci-workflows/.github/actions/typos@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/typos@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           config: _typos.toml
 
@@ -238,7 +238,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Scan for secrets
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           config: .gitleaks.toml
 
@@ -253,7 +253,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check editorconfig conformance
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           config: .editorconfig-checker.json
 
@@ -268,7 +268,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint shell scripts
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           rcfile: .shellcheckrc
 
@@ -296,22 +296,22 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate marketplace manifest
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
       - name: Validate dependabot.yml
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
       - name: Validate workflows
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -331,7 +331,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify shebang files are executable
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
 
   machine-specific-paths:
     needs: select-machine-specific-paths
@@ -344,7 +344,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check for machine-specific paths
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector.
@@ -361,7 +361,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Check index-level EOL drift
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
 
   comment-hygiene:
     needs: select-comment-hygiene
@@ -374,13 +374,13 @@ jobs:
         with:
           persist-credentials: false
       - name: Scan comment hygiene
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
 
   zizmor:
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
     with:
       paths: .
 
@@ -431,7 +431,7 @@ jobs:
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-lint contract tests in this same job.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@9596686335da057de7b575ebf82ca1210768c590 # 9596686 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c34f0aa2aca9309699ec0b8c6cf94a4b76c498d6 # c34f0aa 2026-07-11
         with:
           paths: plugins/bash-lint
           rcfile: .shellcheckrc
