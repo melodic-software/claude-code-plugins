@@ -96,6 +96,12 @@
       "source": "./plugins/book-distill",
       "category": "knowledge",
       "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
+    },
+    {
+      "name": "thariq-skills",
+      "source": "./plugins/thariq-skills",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "skill-authoring", "playbook", "best-practices", "authoring"]
     }
   ]
 }
