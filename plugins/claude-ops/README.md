@@ -31,10 +31,12 @@ your own repository's context:
   `CC_OTEL_BODY_RETENTION_DAYS`). The hook-event JSONL source is read from
   `<project-root>/.claude/observability/hook-events.jsonl` only when your own
   hooks emit it; every source degrades gracefully when absent.
-- **Persistent state** lives under the plugin's own data directory
+- **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the troubleshooting issue registry
   (`registry.json`), `check-all` output, and `--write` observability reports.
-  Nothing is written into your repository.
+  By default nothing is written into your repository. Opt in for the registry
+  via the `registry_dir` option (see Configuration) to keep it git-tracked and
+  team-shared inside your repo instead.
 - **Work-item and docs integration.** Where the skills propose follow-up work
   items or cross-reference quirks/workaround docs, they use whatever tracker
   and docs your project has (e.g. `gh issue create`, your `CLAUDE.md` /
@@ -49,10 +51,17 @@ skill reports missing optional tooling instead of failing.
 
 ## Configuration
 
-This plugin has no `userConfig`. Variability is covered by the env vars above
-and conventional project-relative defaults; the bundled scripts make no
-outbound network calls except `gh`/`curl` reads of GitHub and Claude status
-pages in the troubleshooting skill.
+One `userConfig` option:
+
+- **`registry_dir`** (string, optional) — project-relative directory for the
+  claude-troubleshooting issue registry (`registry.json`). Set it to keep the
+  registry inside your repo (git-tracked, team-shared) instead of the
+  per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
+
+Remaining variability is covered by the env vars above and conventional
+project-relative defaults; the bundled scripts make no outbound network calls
+except `gh`/`curl` reads of GitHub and Claude status pages in the
+troubleshooting skill.
 
 ## License
 

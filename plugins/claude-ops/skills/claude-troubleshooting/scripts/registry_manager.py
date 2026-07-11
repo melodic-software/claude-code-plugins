@@ -675,7 +675,7 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     data_dir = (
         Path(env_dir).resolve()
         if env_dir
-        else Path.home() / ".claude" / "plugins" / "data" / "claude-ops"
+        else Path.home() / ".claude" / "plugins" / "data" / "claude-ops-melodic-software"
     )
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir

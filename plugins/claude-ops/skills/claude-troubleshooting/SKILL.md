@@ -24,11 +24,20 @@ Claude Code ships frequently. Features that worked last week may have new bugs t
 
 ## Data Files
 
-Registry state persists in the plugin data directory (survives plugin updates):
+The issue registry (`registry.json`) persists in the **registry directory**. By default this is the
+plugin's per-machine data directory (`${CLAUDE_PLUGIN_DATA}`, survives plugin updates). A consumer can
+instead keep the registry inside their repository — git-tracked and team-shared — by setting the
+`registry_dir` plugin option (project scope).
+
+**Registry location — apply to EVERY `registry_manager.py` invocation:** the configured value is
+`${user_config.registry_dir}`; the project root is `${CLAUDE_PROJECT_DIR}`.
+
+- If `${user_config.registry_dir}` is a non-empty path → pass `--data-dir "${CLAUDE_PROJECT_DIR}/${user_config.registry_dir}"` (it is project-relative; use it as-is if it is already absolute).
+- If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → OMIT `--data-dir`; the script falls back to `${CLAUDE_PLUGIN_DATA}`.
 
 | File | Purpose | Who edits |
 | --- | --- | --- |
-| `${CLAUDE_PLUGIN_DATA}/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/scan/check-all), via `scripts/registry_manager.py` |
+| `<registry-dir>/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/scan/check-all), via `scripts/registry_manager.py` — see the registry-location rule above |
 
 Read `context/registry-schema.md` for the full `registry.json` schema and field enums.
 

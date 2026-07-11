@@ -1,6 +1,6 @@
 # Registry schema (`registry.json`)
 
-Canonical shape the skill reads and writes at `${CLAUDE_PLUGIN_DATA}/registry.json`. `scripts/registry_manager.py validate` enforces required fields, category/status enums, URL prefix, ISO date fields, and duplicate-number detection.
+Canonical shape the skill reads and writes at `<registry-dir>/registry.json` (the registry directory — see the SKILL.md registry-location rule; defaults to `${CLAUDE_PLUGIN_DATA}`). `scripts/registry_manager.py validate` enforces required fields, category/status enums, URL prefix, ISO date fields, and duplicate-number detection.
 
 ```json
 {
