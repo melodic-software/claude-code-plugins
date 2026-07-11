@@ -134,6 +134,12 @@
       "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"]
     },
     {
+      "name": "claude-config-audit",
+      "source": "./plugins/claude-config-audit",
+      "category": "configuration",
+      "tags": ["maintenance", "settings", "permissions", "mcp", "memory", "claude-md", "rules", "automation", "audit", "skill"]
+    },
+    {
       "name": "discovery",
       "source": "./plugins/discovery",
       "category": "development",
