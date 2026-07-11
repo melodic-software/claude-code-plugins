@@ -126,6 +126,12 @@
       "source": "./plugins/fable-5-playbook",
       "category": "learning",
       "tags": ["knowledge", "skill", "doctrine", "playbook", "engineering-judgment", "best-practices"]
+    },
+    {
+      "name": "firecrawl",
+      "source": "./plugins/firecrawl",
+      "category": "utilities",
+      "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"]
     }
   ]
 }
