@@ -1,6 +1,6 @@
 # typos — https://github.com/crate-ci/typos
 # Config reference: https://github.com/crate-ci/typos/blob/master/docs/reference.md
-# Identifiers vs words:  https://github.com/crate-ci/typos/blob/master/docs/design.md
+# Identifiers vs words: https://github.com/crate-ci/typos/blob/master/docs/design.md
 #
 # Root-canonical policy synced verbatim to managed consumers (read-only there).
 # typos already respects .gitignore and skips binary files, so the lists below
@@ -18,8 +18,9 @@ extend-ignore-re = [
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
   # Markdown / HTML comment form of the block directive — invisible in render.
   "(?s)<!--\\s*spellchecker:off\\s*-->.*?<!--\\s*spellchecker:on\\s*-->",
-  # Braced GUID / UUID literals — opaque hex segments trip the word splitter
-  # (e.g. `ba54` -> "bash"). Matches the canonical 8-4-4-4-12 brace form.
+  # Braced GUID / UUID literals — typos skips uniform-case UUIDs natively, but
+  # a mixed-case one trips the word splitter on its hex segments (e.g. `Ba54`
+  # splits to `Ba` -> "By"). Matches the canonical 8-4-4-4-12 brace form.
   "\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\}",
 ]
 

@@ -40,9 +40,9 @@ enable=check-unassigned-uppercase
 # Suggest command -v over which — POSIX standard, more reliable.
 enable=deprecate-which
 
-# Require [[ ]] over [ ] in bash. A script that intentionally uses [ ] (for
-# POSIX-style graceful degradation) opts out per-file with
-# `# shellcheck disable=require-double-brackets`.
+# Require [[ ]] over [ ] in bash (SC2292). A script that intentionally uses
+# [ ] (for POSIX-style graceful degradation) opts out per-file with
+# `# shellcheck disable=SC2292` (disable directives take SC codes, not names).
 enable=require-double-brackets
 
 # Re-enable useless-use-of-cat — was default before 0.11.0, now optional.
