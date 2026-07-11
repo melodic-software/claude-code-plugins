@@ -179,7 +179,7 @@ Before Step 5 approval, walk the PLAN body + Handoff section and classify every 
 
 ### Step 4.7: Outcome gate (before Step 5 — verify the PLAN, not a recap)
 
-Before presenting at Step 5, check the **PLAN.md artifact** against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
+Before presenting at Step 5, persist the composed plan as a **draft** to `${user_config.notes_dir}/<topic-slug>/PLAN.md` (the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
 
 - **Every phase has ≥1 `Sanity Check`** — `grep -c "Sanity Check" PLAN.md` ≥ the phase count; a phase with no verifiable check is unshippable.
 - **Every phase carries a valid status tag** — each `### Phase N:` ends in `[TODO]` (or another valid tag); no untagged phase.
@@ -246,7 +246,7 @@ This is complementary to `/devils-advocate` — review checks completeness and c
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, write it to `${user_config.notes_dir}/<topic-slug>/PLAN.md` — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`). If the consuming project declares its own working-notes convention, that convention wins. PLAN.md is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus any exploration/research artifacts in the same directory).
+After the user approves the plan in Step 5, update the draft `${user_config.notes_dir}/<topic-slug>/PLAN.md` (persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`). If the consuming project declares its own working-notes convention, that convention wins. PLAN.md is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus any exploration/research artifacts in the same directory).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
 

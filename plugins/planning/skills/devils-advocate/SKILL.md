@@ -44,7 +44,7 @@ Not a rubber stamp. Find real issues that would cause rework, not generic warnin
 
 ## Analysis Process
 
-Run up to 3 rounds. Stop early if a round produces no new critical or high findings.
+Run the rounds below (up to 4). Stop early if a round produces no new critical or high findings — except Round 4, which runs whenever its multi-layer / multi-context trigger matches, regardless of how quiet Rounds 1-3 were.
 
 ### Round 1: Assumption Identification
 
