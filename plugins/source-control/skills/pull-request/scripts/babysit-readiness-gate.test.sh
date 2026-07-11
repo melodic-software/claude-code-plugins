@@ -213,4 +213,18 @@ F=$(mkjson adjacent '[
 r=$(run_gate "$F")
 assert_contains "adjacent words -> findings=2" "$r" "findings=2"
 
+# --- Case: prose classification repetition must NOT inflate the count --------
+# A single self reply that repeats a token in prose ("VALID — ... is valid ...
+# VALID") is NOT per-finding table rows; only `|`-prefixed table lines count,
+# one per line (codex r3564093178). Two findings + one table row + prose
+# repetition => classified=1, BLOCKED.
+F=$(mkjson prose-repeat '[
+  {author:"claude[bot]", body:"CRITICAL one. IMPORTANT two."},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |\nThe claim is VALID because the code confirms it. VALID indeed."}
+]')
+r=$(run_gate "$F")
+assert_contains "prose repetition -> classified=1" "$r" "classified=1"
+assert_contains "prose repetition under-decomposed -> blocked" "$r" "READINESS_BLOCKED reason=under-decomposed"
+assert_contains "prose repetition -> exit 1" "$r" "EXIT:1"
+
 [[ $FAILED -eq 0 ]] || exit 1

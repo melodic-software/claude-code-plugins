@@ -22,8 +22,9 @@
 #                comments — counted per match, not per line, so N findings on one
 #                line each count (else a multi-finding line under-counts and the
 #                gate false-passes)
-#   classified = OCCURRENCES of a classification token (VALID|INCORRECT|
-#                UNCERTAIN) across all SELF replies (the per-finding table rows).
+#   classified = TABLE ROWS (`|`-prefixed lines) carrying a classification
+#                token (VALID|INCORRECT|UNCERTAIN) across all SELF replies —
+#                one per line, so prose repetition never inflates the count.
 #                Word-boundary matched so "INVALID" does not count as "VALID"
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
@@ -185,14 +186,21 @@ self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
     .[] | select((.author as $a | $self | index($a))) | .body // ""' 2>/dev/null)"
 
-# grep -o ... | grep -c . counts OCCURRENCES (one match per output line), not
-# input lines — a single line with two markers must count as two findings, or
-# the gate under-counts and false-passes (the very R1 decomposition gap it gates).
-# `-w` = POSIX whole-word (portable to BSD grep); the badge URL is counted with a
-# plain `-o` grep (no `-w`) and summed in.
+# FINDINGS: grep -o ... | grep -c . counts OCCURRENCES (one match per output
+# line), not input lines — a single line with two markers must count as two
+# findings, or the gate under-counts and false-passes (the very R1
+# decomposition gap it gates). `-w` = POSIX whole-word (portable to BSD grep);
+# the badge URL is counted with a plain `-o` grep (no `-w`) and summed in.
+#
+# CLASSIFICATIONS: counted as TABLE ROWS (markdown `|`-prefixed lines carrying
+# a token), one per line — NOT free occurrences. A prose reply repeating
+# "VALID" in its evidence sentence must not count twice, or the gate
+# false-passes while findings lack per-finding rows (codex r3564093178). The
+# per-finding classification TABLE is the mandated reply format (babysit.md
+# §5.0.4), so non-table prose classifications intentionally do not count.
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
-classified=$(printf '%s\n' "$self_bodies" | grep -owE "$CLASSIFY_RE" | grep -c . || true)
+classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -cwE "$CLASSIFY_RE" || true)
 sev_words=${sev_words//[^0-9]/}
 sev_badges=${sev_badges//[^0-9]/}
 classified=${classified//[^0-9]/}
