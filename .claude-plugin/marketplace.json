@@ -104,6 +104,30 @@
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
     },
     {
+      "name": "thariq-skills",
+      "source": "./plugins/thariq-skills",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "skill-authoring", "playbook", "best-practices", "authoring"]
+    },
+    {
+      "name": "boris",
+      "source": "./plugins/boris",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "claude-code", "workflow", "tips", "best-practices"]
+    },
+    {
+      "name": "docs-hygiene",
+      "source": "./plugins/docs-hygiene",
+      "category": "documentation",
+      "tags": ["maintenance", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
+    },
+    {
+      "name": "fable-5-playbook",
+      "source": "./plugins/fable-5-playbook",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "doctrine", "playbook", "engineering-judgment", "best-practices"]
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
