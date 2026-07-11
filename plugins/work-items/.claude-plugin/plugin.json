@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "work-items",
+  "version": "0.1.0",
+  "description": "Manages GitHub Issues as a development work-item tracker: dashboard, create with a label taxonomy, concurrent-safe claim protocol, recurring-schedule checks, TODO scanning, stale-claim auditing, plan decomposition into vertical-slice issues, and structured triage.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["work-items", "issues", "github", "tracker", "triage", "orchestration"]
+}
