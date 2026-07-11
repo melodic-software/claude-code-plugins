@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
-Open PR for branch: !`gh pr list --head "$(git branch --show-current 2>/dev/null)" --json number,title 2>/dev/null || echo "unknown"`
+Open PRs (match headRefName to current branch above): !`gh pr list --json number,title,headRefName --limit 10 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
