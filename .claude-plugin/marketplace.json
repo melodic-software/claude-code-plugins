@@ -182,6 +182,12 @@
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "claude-code", "skill"]
     },
     {
+      "name": "songwriting",
+      "source": "./plugins/songwriting",
+      "category": "music",
+      "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"]
+    },
+    {
       "name": "review-toolkit",
       "source": "./plugins/review-toolkit",
       "category": "review",
