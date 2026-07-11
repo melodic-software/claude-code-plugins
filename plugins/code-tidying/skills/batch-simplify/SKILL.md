@@ -27,9 +27,9 @@ Supported formats: `24h`, `48h`, `72h`, `7d`, `2d`, `1w`. Default: `48h`.
 
 **Normalize before use:** git's `--since` approxidate parser requires `24 hours`, not `24h`. Convert before passing to `git log`:
 
-- `Nh` → `N hours` (e.g., `48h` → `48 hours`)
-- `Nd` → `N days` (e.g., `7d` → `7 days`)
-- `Nw` → `N weeks` (e.g., `1w` → `1 weeks`)
+- `<N>h` → `<N> hours` (e.g., `48h` → `48 hours`)
+- `<N>d` → `<N> days` (e.g., `7d` → `7 days`)
+- `<N>w` → `<N> weeks` (e.g., `1w` → `1 weeks`)
 
 ### Mode 2: Branch diff
 
