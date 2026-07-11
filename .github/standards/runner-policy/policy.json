@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "selectorWorkflowPaths": ["melodic-software/ci-workflows/.github/workflows/select-runner.yml"],
+  "approvedSelectorReferences": [
+    "melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c"
+  ],
+  "approvedReusableWorkflowContracts": {
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": [],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["args"],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": [],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": [],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      },
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@1d3762c2ace413db0f347048307946c46850161c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["paths"],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-latest"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["args"],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": [],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/pester.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": [
+        "run",
+        "pester-version",
+        "working-directory",
+        "sparse-checkout",
+        "sparse-checkout-cone-mode"
+      ],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["windows-2025"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": [],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      },
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+      "routing": "hosted-only",
+      "allowedInputs": ["paths"],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-24.04"]
+    }
+  },
+  "canonicalSelectorInputs": {
+    "policy": "${{ vars.CI_RUNNER_POLICY }}",
+    "self-hosted-label": "${{ vars.CI_SELF_HOSTED_LABEL }}",
+    "hosted-runner": "${{ vars.CI_HOSTED_RUNNER }}",
+    "scope": "${{ vars.CI_RUNNER_SCOPE }}",
+    "managed-runner-prefix": "${{ vars.CI_MANAGED_RUNNER_PREFIX }}",
+    "observer-client-id": "${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}"
+  },
+  "optionalCanonicalSelectorInputs": {
+    "self-hosted-labels-json": "${{ vars.CI_SELF_HOSTED_LABELS_JSON }}"
+  },
+  "canonicalSelectorSecrets": {
+    "observer-private-key": "${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}"
+  },
+  "approvedHostedRunnerLabels": ["ubuntu-24.04", "ubuntu-slim", "windows-2025"],
+  "hostedMatrixExpressions": ["${{ matrix.os }}", "${{ matrix.runner }}"],
+  "governedReusableRunnerInput": {
+    "name": "runner",
+    "expression": "${{ inputs.runner }}",
+    "default": "ubuntu-24.04"
+  },
+  "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
+  "managedLabelPatterns": [
+    "(?:^|[^a-z0-9-])(?:melodic|kyle)-ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
+  ],
+  "hostedExceptionReasons": [
+    "dependabot",
+    "docker-socket",
+    "hosted-control-plane",
+    "job-container",
+    "privileged-control-plane",
+    "publication",
+    "service-container",
+    "windows"
+  ],
+  "localCredentialActions": ["actions/create-github-app-token"]
+}
