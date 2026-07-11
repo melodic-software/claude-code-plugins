@@ -37,7 +37,7 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean the `rec
 {if --pr: Fixed in #{pr_number}}
 ```
 
-1. **Close the issue** (write). Use `--reason "not planned"` when `--not-planned` was passed:
+1. **Close the issue — unless an unmerged PR will auto-close it.** When `--pr` names an UNMERGED PR, do NOT close manually: run step 6 first to ensure the closing keyword is on the PR body, report "will auto-close when #{pr} merges", and post the completion summary as a plain comment instead. Closing now would mark the issue done before the work has actually landed. Manual close (write) applies when there is no PR, or the PR already merged without a keyword. Use `--reason "not planned"` when `--not-planned` was passed:
 
 ```bash
 gh issue close <N> --comment "Done ($(date +%Y-%m-%d)): {summary}" --reason completed

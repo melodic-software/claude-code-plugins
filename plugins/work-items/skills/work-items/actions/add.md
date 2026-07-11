@@ -41,12 +41,14 @@ gh issue list --search "<title keywords>" --state all --json number,title,state 
 
 If a potential duplicate is found (similar title), present it: "Similar issue found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-1. **Build labels array.** Start from the defaults that apply (`type:` default `chore`; `priority:p3-low` when `--priority` absent; `category:general` only when that label exists in the repo), then add each flag-specified label. Every label must exist in the repo — `gh issue create` fails on unknown labels:
+1. **Build labels array.** Every label must exist in the repo — `gh issue create` fails on unknown labels — so filter the whole set (defaults AND flag-specified) against the live label list first. Defaults: `type:chore`; `priority:p3-low` when `--priority` absent; `category:general` only when present. When a default label doesn't exist, either offer to create the universal set once (`gh label create`) or omit that label:
 
 ```bash
-LABELS="--label type:chore --label priority:p3-low"
-# + --label category:general  (only if the repo has it)
-# + each flag-specified label
+EXISTING=$(gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r')
+LABELS=""
+for l in "type:chore" "priority:p3-low" "category:general" <flag-specified...>; do
+  grep -qxF "$l" <<<"$EXISTING" && LABELS="$LABELS --label $l"
+done
 ```
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`../reference/agent-brief.md`](../reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:

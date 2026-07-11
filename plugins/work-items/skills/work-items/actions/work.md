@@ -160,7 +160,7 @@ gh issue comment <N> --body "🔒 **Claimed** by agent session
 gh issue view <N> --json assignees --jq '[.assignees[].login]' | tr -d '\r'
 ```
 
-If multiple assignees detected, the later claimant releases (remove own assignee + label, pick next).
+If multiple assignees detected, the later claimant releases — remove ONLY your own assignee (`--remove-assignee`), never the issue-wide `status:claimed` label, which the winning claimant still holds — then pick next.
 
 1. **Suggest branch name.** Propose `<type>/<N>-<slug>` so PR tooling can auto-inject `Closes #N` from the branch parse. Same protocol as `start.md` "Workflow" final step (Suggest branch name) — type derivation by Conventional Commits priority, slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). See `start.md` for the full logic. Emit `git checkout -b ...` for the user unless the session has explicit branching authorization.
 

@@ -18,15 +18,23 @@ Issues with `status:considering` label that haven't been promoted to `status:cla
 gh issue list --label "status:considering" --state open --json number,title,updatedAt --limit 50 | tr -d '\r'
 ```
 
-For each issue, check the hold's age from the hold comment's embedded epoch timestamp (`<!-- hold:<host>:<epoch> -->` — authoritative; the issue's `updatedAt` moves on ANY activity and would mask a stale hold). If older than 15 minutes (writes):
+For each issue, list the hold comments and read each hold's age from its embedded epoch timestamp (`<!-- hold:<host>:<epoch> -->` — authoritative; the issue's `updatedAt` moves on ANY activity and would mask a stale hold):
 
 ```bash
-# Remove the stale considering label
+# List hold comments with their embedded timestamps
+gh api "repos/{owner}/{repo}/issues/<N>/comments" --jq '[.[] | select(.body | startswith("<!-- hold:")) | {id, marker: (.body | split("-->")[0])}]' | tr -d '\r'
+```
+
+Release ONLY the individual hold comments older than 15 minutes via PATCH (preserves audit trail) — an issue can carry an abandoned hold AND a newer active one, and the active holder must keep its hold:
+
+```bash
+gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<STALE_COMMENT_ID>" -f body="⏸ **Released** — hold lifted (reason: stale)"
+```
+
+Remove the `status:considering` label and post the released-for-pickup comment ONLY when no unreleased hold comments remain (writes):
+
+```bash
 gh issue edit <N> --remove-label "status:considering"
-# Find stale hold comments to release
-gh api "repos/{owner}/{repo}/issues/<N>/comments" --jq '[.[] | select(.body | startswith("<!-- hold:")) | .id]' | tr -d '\r'
-# Release each stale hold comment via PATCH (preserves audit trail)
-gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<COMMENT_ID>" -f body="⏸ **Released** — hold lifted (reason: stale)"
 gh issue comment <N> --body "Released stale hold (no activity for >15min). Available for pickup."
 ```
 
