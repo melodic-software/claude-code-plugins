@@ -16,7 +16,7 @@ Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — only your final summary returns to the main session. The main session does NOT see your file reads, Glob results, or Grep output.
+You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — you do NOT see the parent conversation, and the main session does NOT see your file reads, Glob results, or Grep output; only your final summary returns.
 
 You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY file you Write is the `EXPLORE.md` artifact in Step 3. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
 
@@ -26,7 +26,7 @@ This is a forked-execution variant of `/explore`: same investigation discipline,
 
 As a fork you auto-load the project's memory (`CLAUDE.md`), but path-scoped project rules do NOT auto-load in subagent contexts. Before doing scope-relevant work, explicitly Read the consuming project's rule files relevant to `$ARGUMENTS` (its `.claude/rules/` or equivalent — architecture rules, the ecosystem conventions for the file types in scope, testing conventions when scope involves tests). Skip any that don't exist; never invent paths.
 
-If `$ARGUMENTS` is empty, infer scope from the context the main session passed.
+**Scope comes exclusively from `$ARGUMENTS`** — a forked skill does not see the parent conversation, so the caller must pass explicit scope in the invocation. If `$ARGUMENTS` is empty, run a general repository-orientation pass (project structure, build configuration, test layout) and state in both the artifact and your return summary that no scope was provided.
 
 ## Step 2 — Execute the explore workflow
 

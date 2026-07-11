@@ -18,7 +18,7 @@ Exploration reads many files; keeping that out of the main conversation is what 
 
 - **Built-in Explore subagent — context-preserving default.** For raw "where is X / how does Y work" search, delegate to a fresh Explore subagent ("use a subagent to investigate X"). Fast, read-only, context-isolated. It skips project memory (convention-blind) and does NOT run this 6-dimension workflow or write `EXPLORE.md` — pass key constraints in the prompt when conventions matter. Scale 1→N for coverage: dispatch more Explore subagents (each owning a disjoint area) until nothing relevant to the task is left undiscovered; the main session synthesizes their summaries and persists the artifact.
 - **Inline `/explore` — this structured workflow, scoped.** Stay here when ALL hold: ≤~5 known files; tight turn-by-turn iteration; findings feed a same-session edit; you need the `EXPLORE.md` artifact with project rules already loaded. Runs the full 6 dimensions in main context.
-- **`/explore-deep` — this structured workflow, forked.** For a single deep pass whose synthesis must ALSO stay off main context: a forked subagent that inherits the conversation, loads project memory, and persists `EXPLORE.md` itself before returning only a summary. Requires `CLAUDE_CODE_FORK_SUBAGENT=1`; if unset, fall back to the built-in Explore subagent or inline.
+- **`/explore-deep` — this structured workflow, forked.** For a single deep pass whose synthesis must ALSO stay off main context: a forked subagent that loads project memory and persists `EXPLORE.md` itself before returning only a summary. Pass explicit scope in the invocation arguments — a fork does not see the parent conversation. Requires `CLAUDE_CODE_FORK_SUBAGENT=1`; if unset, fall back to the built-in Explore subagent or inline.
 
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area — never split the six dimensions across agents; (3) the main session synthesizes and writes `EXPLORE.md` (built-in Explore agents cannot write it).
 
@@ -144,7 +144,7 @@ If invoked standalone, present findings directly. If invoked as part of a larger
 
 ## Outcome gate (before EXPLORE.md handoff)
 
-Before writing EXPLORE.md (or returning the summary), check the artifact against **binary criteria read off it** — not a "did I explore enough?" recap. Any FAIL → return to the named dimension and fix before handoff:
+Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus an improved prompt, not the 7-section artifact (run it only when the user opts into the EXPLORE.md persist). For all other modes: before writing EXPLORE.md (or returning the summary), check the artifact against **binary criteria read off it** — not a "did I explore enough?" recap. Any FAIL → return to the named dimension and fix before handoff:
 
 - **Every Output-format section populated with specifics** — each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap** — nothing the task plausibly depends on is silently unexplored.

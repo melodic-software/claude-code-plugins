@@ -21,7 +21,7 @@ Mandate: every accepted claim has **≥1 Tier 0/1 source PLUS ≥2 independent c
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
-Mandate: when the topic touches a library/tool/CLI/API/framework that ships releases, **one Phase 1 or Phase 2 query MUST be against the upstream changelog or release notes < 30 days old.** Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page.
+Mandate: when the topic touches a library/tool/CLI/API/framework that ships releases, **one Phase 1 or Phase 2 query MUST fetch the LATEST upstream changelog or release notes this turn** and confirm the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. The windows below bound how stale a cited doc may be before this cross-check is required — a stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
 
 **Tightening tiers:**
 
@@ -143,7 +143,9 @@ The evidence-table `Confidence` column must be set per claim:
 
 - **HIGH** — 3+ independent Tier 0/1 sources agree; recency gate passed; falsification query failed to find counter-evidence
 - **MEDIUM** — 3+ sources agree but mix of Tier 0/1 + Tier 2; OR 2 Tier 0/1 + open falsification gap; OR primary source > 30d old without changelog cross-check
-- **LOW** — fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old. **DO NOT accept LOW-confidence claims as a basis for code edits — return to Phase 4 follow-up until HIGH.**
+- **LOW** — fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
+
+Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap** — return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 
 ## Observed failure patterns
 

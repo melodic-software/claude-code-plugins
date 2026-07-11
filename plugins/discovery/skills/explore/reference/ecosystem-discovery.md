@@ -6,10 +6,12 @@ Per-ecosystem discovery primitives consumed by the explore skill's Dimensions 3�
 Sub-keys:
 
 - `test-globs` — glob patterns identifying test projects / files (Dimension 4)
+- `test-content-grep` — content regex for ecosystems that keep tests inside
+  source files, where no glob can find them (Dimension 4; only where needed)
 - `build-configs` — build / package / config files to read when exploring
   "Configuration and build state" (Dimension 5)
-- `dependency-grep` — token / regex grepped across project files to map the
-  dependency graph (Dimension 3)
+- `dependency-grep` — content regex grepped across source / project files to map
+  the dependency graph (Dimension 3)
 - `runtime-version-cmd` — command to check the installed runtime version (Dimension 6)
 
 Use only the ecosystems the consuming repo actually contains. Where the consuming
@@ -35,8 +37,8 @@ ecosystems:
 
   typescript:
     test-globs:
-      - "**/*.test.ts"
-      - "**/*.spec.ts"
+      - "**/*.test.{ts,tsx,js,jsx}"
+      - "**/*.spec.{ts,tsx,js,jsx}"
       - "**/__tests__/**"
     build-configs:
       - "package.json"
@@ -63,13 +65,15 @@ ecosystems:
     build-configs:
       - "go.mod"
       - "go.work"
-    dependency-grep: "^\\s*\"[^\"]+\"$ in import blocks"
+    # Go imports span multi-line import ( ... ) blocks; the second alternative
+    # matches the quoted module paths inside them.
+    dependency-grep: "^import |^\\s*\"[A-Za-z0-9._~/-]+\"$"
     runtime-version-cmd: "go version"
 
   rust:
     test-globs:
       - "**/tests/*.rs"
-      - "#[cfg(test)] modules in src"
+    test-content-grep: "#\\[cfg\\(test\\)\\]"
     build-configs:
       - "Cargo.toml"
       - "Cargo.lock"
