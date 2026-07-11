@@ -128,6 +128,12 @@
       "tags": ["knowledge", "skill", "doctrine", "playbook", "engineering-judgment", "best-practices"]
     },
     {
+      "name": "firecrawl",
+      "source": "./plugins/firecrawl",
+      "category": "utilities",
+      "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"]
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
