@@ -124,7 +124,7 @@ env_redact() {
   sed -E 's/(AWS_[A-Z_]*|GITHUB_[A-Z_]*|.*_TOKEN|.*_KEY|.*_SECRET|.*_PASSWORD)=[^[:space:]"]*/\1=[redacted]/gi'
 }
 
-env_input='subject contains GITHUB_TOKEN=placeholder123 in error log'
+env_input='subject contains GITHUB_TOKEN=placeholder123 in error log' # gitleaks:allow — synthetic fixture proving this very value gets redacted
 env_redacted=$(echo "$env_input" | env_redact)
 assert_contains "GITHUB_TOKEN redacted" "$env_redacted" "GITHUB_TOKEN=[redacted]"
 assert_not_contains "raw value absent" "$env_redacted" "placeholder123"
