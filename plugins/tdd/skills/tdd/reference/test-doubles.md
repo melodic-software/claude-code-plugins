@@ -123,6 +123,8 @@ When a single double serves both roles (provides canned answers AND is verified)
 
 ## SDK-Style Interfaces Over Generic Fetchers
 
+> Editorial synthesis, not from either source book.
+
 At system boundaries, prefer specific functions per external operation over one generic function with conditional logic:
 
 ```typescript
@@ -151,6 +153,8 @@ For full details: [observable-behavior-khorikov.md](observable-behavior-khorikov
 
 ## Replace, Don't Layer (Ousterhout)
 
-When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline — write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state — is owned by the improve-architecture plugin (`/improve-architecture:improve-architecture deepening`, "Replace, don't layer"). Read it there rather than re-deriving it here.
+> Editorial synthesis — draws on Ousterhout, not from either source book.
+
+When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state. If the `improve-architecture` plugin is installed, `/improve-architecture:improve-architecture` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
 
 This complements Khorikov's "observable behavior" principle: the deepened interface IS the observable behavior surface, so tests behind it are implementation-detail tests by definition.

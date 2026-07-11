@@ -33,7 +33,7 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 
 **Quick decision guide** (no file load needed):
 
-- "Should I write a test for this?" → Yes, unless it's third-party code you trust or trivial code (bottom-left quadrant)
+- "Should I write a test for this?" → Yes, unless it's third-party code you trust or trivial code (bottom-left quadrant of the 2x2 matrix: low complexity, few collaborators)
 - "Should I mock this?" → Only if it's an unmanaged dependency (message bus, SMTP). Use real instances for managed deps (database)
 - "Fake It or Obvious Implementation?" → If confident, Obvious. If surprised by red, back off to Fake It
 - "Is this test too big?" → If it needs >3 changes to work, write a smaller Child Test first
@@ -50,6 +50,7 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 
 - **Beck**: Kent Beck, *Test-Driven Development: By Example* (2003)
 - **Khorikov**: Vladimir Khorikov, *Unit Testing: Principles, Practices, and Patterns* (2020)
+- **Ousterhout** (secondary, cross-referenced only): John Ousterhout, *A Philosophy of Software Design* — cited in one editorial-synthesis section of [test-doubles.md](reference/test-doubles.md)
 
 ## Naming convention
 
