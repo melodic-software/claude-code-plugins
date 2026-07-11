@@ -20,7 +20,10 @@ Suno v5.5 (released March 26, 2026) preserved v5's prompt syntax but improved ad
 
 ## Action Router
 
-Parse `$ARGUMENTS`: first token = action, remainder = args. If empty, show this menu.
+Parse `$ARGUMENTS`: first token = action, remainder = args. If empty
+(e.g. model-invoked from a natural-language request), infer the action
+from conversation context; show this menu only when no actionable
+context exists.
 
 | Action | Purpose | Detail |
 |--------|---------|--------|
