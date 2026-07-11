@@ -224,6 +224,25 @@ assert_contains "clean wires OTEL prune (dry-run report)" "$otel_out" "cc-logs.j
 otel_after=$(lines_in "$otel_logs")
 assert_eq "clean --dry-run leaves OTEL store unchanged" "$otel_before" "$otel_after"
 
+# --- Test 10: failed-then-fixed sequence detection (data-sources.md query) ---
+retry_log="$TEST_TMPDIR/retry-events.jsonl"
+printf '%s\n' \
+  '{"ts":"2026-01-01T10:00:00Z","hook":"bash-lint","exit_code":1}' \
+  '{"ts":"2026-01-01T10:00:05Z","hook":"bash-lint","exit_code":0}' \
+  '{"ts":"2026-01-01T10:01:00Z","hook":"biome","exit_code":0}' \
+  '{"ts":"2026-01-01T10:02:00Z","hook":"bash-lint","exit_code":1}' \
+  '{"ts":"2026-01-01T10:02:05Z","hook":"bash-lint","exit_code":0}' >"$retry_log"
+retry_out=$(jq -s '
+  sort_by(.ts) as $e
+  | [range(1; $e | length)
+     | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
+     | $e[. - 1].hook]
+  | group_by(.) | map({hook: .[0], retries: length})
+  | sort_by(-.retries)
+' "$retry_log")
+assert_eq "failed-then-fixed counts bash-lint retries" \
+  "$(echo '[{"hook":"bash-lint","retries":2}]' | jq -c .)" "$(echo "$retry_out" | jq -c .)"
+
 # --- Summary ---
 TOTAL=$CASE_NUM
 PASSED=$((TOTAL - FAILED))

@@ -29,7 +29,7 @@ import os
 import sys
 import tempfile
 from collections import Counter
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -117,12 +117,20 @@ def save_registry(data_dir: Path, data: dict[str, Any]) -> None:
 # ── Lookup helpers ──────────────────────────────────────────────
 
 
-def find_by_number(
+def find_by_key(
     issues: list[dict[str, Any]],
     number: int,
-) -> dict[str, Any] | None:
-    """Exact match by issue number."""
-    return next((i for i in issues if i.get("number") == number), None)
+    repo: str | None = None,
+) -> list[dict[str, Any]]:
+    """Match by issue number, narrowed by repo when given.
+
+    GitHub issue numbers are only unique within a repo, so identity is
+    (repo, number); a bare number may legitimately match several entries.
+    """
+    matches = [i for i in issues if i.get("number") == number]
+    if repo is not None:
+        matches = [i for i in matches if i.get("repo") == repo]
+    return matches
 
 
 def _searchable_text(issue: dict[str, Any]) -> str:
@@ -177,13 +185,24 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
     if url and not url.startswith("https://github.com/"):
         errors.append(f"{prefix}: url must start with https://github.com/")
 
-    for date_field in ("last_checked", "added", "closedAt"):
+    for date_field in ("last_checked", "added"):
         val = issue.get(date_field)
         if val is not None:
             try:
                 date.fromisoformat(val)
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 errors.append(f"{prefix}: invalid date in '{date_field}': {val}")
+
+    # closedAt carries GitHub's raw timestamp (e.g. 2026-01-01T00:00:00Z);
+    # accept a bare date too.
+    closed = issue.get("closedAt")
+    if closed is not None:
+        try:
+            datetime.fromisoformat(str(closed).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            errors.append(
+                f"{prefix}: invalid date/datetime in 'closedAt': {closed}"
+            )
 
     affected = issue.get("affected_files")
     if affected is not None and not isinstance(affected, list):
@@ -265,7 +284,7 @@ def action_list(
                     checked_date = date.fromisoformat(checked)
                     if (today - checked_date).days >= stale_days:
                         stale.append(i)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     stale.append(i)
             else:
                 stale.append(i)
@@ -285,13 +304,20 @@ def action_list(
 def action_get(
     issues: list[dict[str, Any]],
     query: str,
+    repo: str | None = None,
 ) -> dict[str, Any]:
     """Find issue(s) by number or fuzzy query."""
     try:
         number = int(query)
-        issue = find_by_number(issues, number)
-        if issue:
-            return _ok("get", f"Found issue #{number}", {"issue": issue})
+        matches = find_by_key(issues, number, repo)
+        if len(matches) == 1:
+            return _ok("get", f"Found issue #{number}", {"issue": matches[0]})
+        if matches:
+            return _ok(
+                "get",
+                f"#{number} matches {len(matches)} repos — pass --repo",
+                {"issues": matches, "count": len(matches)},
+            )
         return _not_found("get", f"No issue with number {number}")
     except ValueError:
         pass
@@ -329,8 +355,8 @@ def action_add(
         return _invalid_choice("add", "category", category, VALID_CATEGORIES)
     if status not in VALID_STATUSES:
         return _invalid_choice("add", "status", status, VALID_STATUSES)
-    if find_by_number(data["issues"], number):
-        return _error("add", f"Duplicate: issue #{number} already exists")
+    if find_by_key(data["issues"], number, repo):
+        return _error("add", f"Duplicate: {repo}#{number} already exists")
 
     today = date.today().isoformat()
     new_issue: dict[str, Any] = {
@@ -358,12 +384,20 @@ def action_add(
 def action_update(
     data: dict[str, Any],
     number: int,
+    repo: str | None = None,
     **updates: Any,
 ) -> dict[str, Any]:
     """Update fields on existing issue."""
-    issue = find_by_number(data["issues"], number)
-    if not issue:
+    matches = find_by_key(data["issues"], number, repo)
+    if not matches:
         return _not_found("update", f"No issue with number {number}")
+    if len(matches) > 1:
+        repos = ", ".join(str(i.get("repo")) for i in matches)
+        return _error(
+            "update",
+            f"#{number} is ambiguous across repos ({repos}) — pass --repo",
+        )
+    issue = matches[0]
 
     if "category" in updates and updates["category"] not in VALID_CATEGORIES:
         return _invalid_choice(
@@ -390,13 +424,20 @@ def action_update(
 def action_remove(
     data: dict[str, Any],
     number: int,
+    repo: str | None = None,
 ) -> dict[str, Any]:
-    """Remove issue by number."""
-    issue = find_by_number(data["issues"], number)
-    if not issue:
+    """Remove issue by (repo, number)."""
+    matches = find_by_key(data["issues"], number, repo)
+    if not matches:
         return _not_found("remove", f"No issue with number {number}")
-
-    data["issues"] = [i for i in data["issues"] if i.get("number") != number]
+    if len(matches) > 1:
+        repos = ", ".join(str(i.get("repo")) for i in matches)
+        return _error(
+            "remove",
+            f"#{number} is ambiguous across repos ({repos}) — pass --repo",
+        )
+    issue = matches[0]
+    data["issues"] = [i for i in data["issues"] if i is not issue]
     return _ok("remove", f"Removed issue #{number}", {"removed": issue})
 
 
@@ -405,7 +446,7 @@ def action_validate(
 ) -> dict[str, Any]:
     """Validate all issues in registry."""
     all_errors: list[str] = []
-    numbers_seen: set[int] = set()
+    keys_seen: set[tuple[str, int]] = set()
 
     for idx, issue in enumerate(issues):
         errors = validate_issue(issue, idx)
@@ -413,9 +454,12 @@ def action_validate(
 
         num = issue.get("number")
         if isinstance(num, int):
-            if num in numbers_seen:
-                all_errors.append(f"issues[{idx}]: duplicate number {num}")
-            numbers_seen.add(num)
+            key = (str(issue.get("repo", "")), num)
+            if key in keys_seen:
+                all_errors.append(
+                    f"issues[{idx}]: duplicate (repo, number) {key}"
+                )
+            keys_seen.add(key)
 
     if all_errors:
         return _error(
@@ -446,7 +490,7 @@ def action_stats(
                 checked_date = date.fromisoformat(checked)
                 if (today - checked_date).days >= 7:
                     stale_count += 1
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 stale_count += 1
 
     blocking = [
@@ -507,6 +551,9 @@ def build_parser() -> argparse.ArgumentParser:
     # get
     p_get = sub.add_parser("get", help="Find issue by number or fuzzy query")
     p_get.add_argument("query", help="Issue number (int) or search text")
+    p_get.add_argument(
+        "--repo", help="owner/repo (disambiguates a bare number)"
+    )
 
     # add
     p_add = sub.add_parser("add", help="Add new issue to registry")
@@ -540,6 +587,9 @@ def build_parser() -> argparse.ArgumentParser:
     # update
     p_up = sub.add_parser("update", help="Update existing issue")
     p_up.add_argument("number", type=int, help="Issue number to update")
+    p_up.add_argument(
+        "--repo", help="owner/repo (disambiguates a bare number)"
+    )
     p_up.add_argument("--category", choices=sorted(VALID_CATEGORIES))
     p_up.add_argument("--status", choices=sorted(VALID_STATUSES))
     p_up.add_argument("--stateReason", help="Reason for closure")
@@ -567,8 +617,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # remove
-    p_rm = sub.add_parser("remove", help="Remove issue by number")
+    p_rm = sub.add_parser("remove", help="Remove issue by (repo, number)")
     p_rm.add_argument("number", type=int, help="Issue number to remove")
+    p_rm.add_argument(
+        "--repo", help="owner/repo (disambiguates a bare number)"
+    )
 
     # validate
     sub.add_parser("validate", help="Validate registry.json schema")
@@ -649,7 +702,7 @@ def main() -> None:
                 stale_days=args.stale,
             )
         case "get":
-            result = action_get(issues, args.query)
+            result = action_get(issues, args.query, repo=args.repo)
         case "add":
             result = action_add(
                 data,
@@ -685,9 +738,9 @@ def main() -> None:
                 updates["affected_files"] = _parse_csv_strings(args.affected_files)
             if args.related:
                 updates["related"] = _parse_csv_ints(args.related)
-            result = action_update(data, args.number, **updates)
+            result = action_update(data, args.number, repo=args.repo, **updates)
         case "remove":
-            result = action_remove(data, args.number)
+            result = action_remove(data, args.number, repo=args.repo)
         case "validate":
             result = action_validate(issues)
         case _:

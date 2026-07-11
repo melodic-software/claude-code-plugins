@@ -130,10 +130,11 @@ for k, v in ngrams.most_common(10):
 
 ```bash
 jq -s '
-  sort_by(.ts)
-  | [range(1; length)
-     | select(.[.-1].hook == .[.]hook and .[.-1].exit_code != 0 and .[.].exit_code == 0)
-     | .[.-1].hook] | group_by(.) | map({hook: .[0], retries: length})
+  sort_by(.ts) as $e
+  | [range(1; $e | length)
+     | select($e[. - 1].hook == $e[.].hook and $e[. - 1].exit_code != 0 and $e[.].exit_code == 0)
+     | $e[. - 1].hook]
+  | group_by(.) | map({hook: .[0], retries: length})
   | sort_by(-.retries)
 ' "$HOOK_LOG"
 ```
@@ -142,7 +143,7 @@ Pattern detection across session JSONL transcripts (`~/.claude/projects/<slug>/*
 
 ## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
 
-`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>` — bin in clear (groupable), sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: [`observability/conventions.md`](../../../rules/observability/conventions.md) "Events written by hooks". Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
+`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>` — bin in clear (groupable), sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
 
 **Per-period count + per-binary breakdown:**
 

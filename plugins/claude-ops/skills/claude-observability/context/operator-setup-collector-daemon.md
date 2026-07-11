@@ -10,16 +10,15 @@ CC session starts. Two mechanisms cooperate:
 
 1. **OS logon daemon (primary)** — starts the Collector at logon, before any terminal or CC
    session. The only mechanism that structurally cannot miss startup events.
-2. **SessionStart hook backstop** —
-   [`cc-telemetry-ensure.sh`](../../../hooks/cc-telemetry-ensure.sh) runs
-   [`../otel/start-collector.sh`](../otel/start-collector.sh) on every session start. Idempotent (no-op when
+2. **SessionStart hook backstop** — a consumer-authored SessionStart hook runs
+   [`../scripts/start-collector.sh`](../scripts/start-collector.sh) on every session start. Idempotent (no-op when
    `:4318` is already bound), so it revives a dead daemon without double-spawning a live one.
 
 ## Keeping the Aspire dashboard running (optional live tail)
 
-The standalone dashboard is **optional** — file capture works without it. The SessionStart hook
-([`cc-telemetry-ensure.sh`](../../../hooks/cc-telemetry-ensure.sh)) fire-and-forgets
-[`../otel/start-dashboard.sh`](../otel/start-dashboard.sh) on every session start (idempotent;
+The standalone dashboard is **optional** — file capture works without it. A consumer-authored
+SessionStart hook can fire-and-forget
+[`../scripts/start-dashboard.sh`](../scripts/start-dashboard.sh) on every session start (idempotent;
 skips when Docker is absent; disable per machine via `CC_TELEMETRY_DASHBOARD_ENSURE_ENABLED=false`
 in `settings.local.json` `env`), so the live telemetry UI (all three signals; in-memory,
 bounded by the dashboard's telemetry caps) is normally up without manual action. Manual

@@ -20,19 +20,32 @@ SENTINEL=""
 START_SCRIPT=""
 
 # Platform stop / running-check. Overridable via CC_OTEL_STOP_CMD / CC_OTEL_RUNNING_CMD (test seams).
+#
+# Scoped to collectors whose command line references this plugin's config file
+# name (otel-collector.yaml) — a bare image-name match would take down UNRELATED
+# otelcol-contrib processes (an app's own collector) and only restart this
+# plugin's afterwards. Residual: a third-party collector whose config happens to
+# be named otel-collector.yaml still matches; pass CC_OTEL_STOP_CMD /
+# CC_OTEL_RUNNING_CMD to scope tighter in that environment.
+readonly COLLECTOR_CMDLINE_MARK='otel-collector.yaml'
+
 default_stop() {
   if [[ "$OS_KIND" == windows ]]; then
-    MSYS_NO_PATHCONV=1 taskkill /F /IM otelcol-contrib.exe >/dev/null 2>&1 || true
+    powershell.exe -NoProfile -NonInteractive -Command \
+      "Get-CimInstance Win32_Process -Filter \"Name='otelcol-contrib.exe'\" | Where-Object { \$_.CommandLine -like '*${COLLECTOR_CMDLINE_MARK}*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }" >/dev/null 2>&1 || true
   else
-    pkill -f otelcol-contrib >/dev/null 2>&1 || true
+    pkill -f "otelcol-contrib.*${COLLECTOR_CMDLINE_MARK}" >/dev/null 2>&1 || true
   fi
 }
 
 default_running() {
   if [[ "$OS_KIND" == windows ]]; then
-    MSYS_NO_PATHCONV=1 tasklist /FI "IMAGENAME eq otelcol-contrib.exe" 2>/dev/null | grep -qi otelcol-contrib
+    local pids
+    pids="$(powershell.exe -NoProfile -NonInteractive -Command \
+      "Get-CimInstance Win32_Process -Filter \"Name='otelcol-contrib.exe'\" | Where-Object { \$_.CommandLine -like '*${COLLECTOR_CMDLINE_MARK}*' } | Select-Object -ExpandProperty ProcessId" 2>/dev/null | tr -d '\r\n ')"
+    [[ -n "$pids" ]]
   else
-    pgrep -f otelcol-contrib >/dev/null 2>&1
+    pgrep -f "otelcol-contrib.*${COLLECTOR_CMDLINE_MARK}" >/dev/null 2>&1
   fi
 }
 

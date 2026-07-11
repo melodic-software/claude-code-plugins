@@ -143,15 +143,13 @@ prune_file() {
   local tmp="${file}.tmp.$$"
   local lock="${file}.lock"
 
-  # jq exit codes: 0=success, 5=parse error on some lines (rest filtered correctly).
-  # JSONL files can accumulate malformed lines from concurrent writers or aborted
-  # processes — accept exit 5 since valid lines still made it to $tmp. Reject
-  # higher exit codes (2=invocation error, etc.) as actual failure.
+  # Only a fully clean jq pass may replace the file: on a malformed line jq
+  # STOPS reading the stream, so $tmp holds only the records before the bad
+  # line — promoting it would silently drop every valid event after it. A
+  # file with a malformed line is therefore skipped intact (any nonzero rc).
   run_jq() {
     jq -c --arg cutoff "$CUTOFF_ISO" --arg ts "$ts_field" \
       'select(.[$ts] >= $cutoff)' "$file" >"$tmp" 2>/dev/null
-    local rc=$?
-    [[ "$rc" -eq 0 || "$rc" -eq 5 ]]
   }
 
   local rc=0
