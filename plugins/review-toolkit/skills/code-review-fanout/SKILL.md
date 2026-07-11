@@ -11,7 +11,7 @@ disable-model-invocation: false
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
 Open PRs (match headRefName to current branch above): !`gh pr list --json number,title,headRefName --limit 10 2>/dev/null || echo "unknown"`
-Tracked diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
+Tracked diff size (vs merge base, same fallback chain as the review diff base): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
 
