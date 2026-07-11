@@ -64,7 +64,7 @@ ecosystems:
     globs: [".github/**/*.yml", ".github/**/*.yaml"]
     opt-in: "GitHub Actions workflows present"
     check-cmd: |
-      actionlint .github/workflows/*.yml
+      actionlint  # no args — discovers all workflow files itself (.yml and .yaml)
       # plus any schema checks the project documents (check-jsonschema against its own config files)
       # zizmor workflow-security scan when the project uses it — advisory only
     fix-cmd: null

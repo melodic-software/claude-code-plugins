@@ -37,7 +37,7 @@ ecosystems:
 
   typescript:
     enabled: true
-    globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs"]
+    globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "tsconfig*.json"]
     project-discovery: ["package.json"]
     build-cmd: "npx tsc --noEmit"  # when the project has a tsconfig; otherwise the package.json build script
     test-cmd: "the package.json test script (npm test / npx vitest run / npx jest — use what the project configures)"
