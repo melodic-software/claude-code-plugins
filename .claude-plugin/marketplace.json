@@ -180,6 +180,12 @@
       "source": "./plugins/claude-ops",
       "category": "monitoring",
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "claude-code", "skill"]
+    },
+    {
+      "name": "review-toolkit",
+      "source": "./plugins/review-toolkit",
+      "category": "review",
+      "tags": ["review", "code-review", "security", "architecture", "doc-drift", "ci-audit", "quality-gate", "fanout", "agents", "skill"]
     }
   ]
 }
