@@ -166,17 +166,22 @@ handoff file; prompt-only: the remaining-work bullets travel inline).
 Sequence — the rails prompt from "Final step" is still emitted FIRST (transparency + manual
 fallback), then:
 
-1. Launch from the consuming project's root, passing the rails prompt verbatim as one argument:
+1. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
+   `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
 
    ```bash
-   claude --bg --name "handoff-<topic>" "$(cat <<'EOF'
+   cd "${CLAUDE_PROJECT_DIR}" && claude --bg --name "handoff-<topic>" "$(cat <<'HANDOFF_RESUME_PROMPT_END'
    <resume prompt exactly as emitted between the rails>
-   EOF
+   HANDOFF_RESUME_PROMPT_END
    )"
    ```
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
-   manages it with `claude agents`.
+   manages it with `claude agents`. The sentinel is deliberately unique — a bare `EOF` line
+   inside a freeform resume prompt would terminate a plain `<<'EOF'` heredoc early and silently
+   truncate the prompt. Awareness note: the prompt travels in the process argument list, so it is
+   briefly visible to other local processes (`ps`) — inherent to `claude --bg "<prompt>"`; keep
+   secrets out of resume prompts (they don't belong there on ANY path).
 
 2. Report the launch result: the command's output, the agent name, and the `claude agents`
    management hint. Swap the `/clear`-then-paste instruction for this report — the user no longer
