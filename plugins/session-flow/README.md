@@ -35,12 +35,16 @@ Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable h
 progress, decisions, files modified, tried-and-ruled-out, next steps, TaskList snapshot) plus a
 copy-paste resume prompt — or prompt-only when follow-ups are small. Handoff files chain via
 `session_id` / `previous_handoff` frontmatter so `retro` can analyze the whole session chain. The
-skill always STOPS after emitting the save-point — continuing would defeat the purpose.
+skill always STOPS after emitting the save-point — continuing would defeat the purpose. With
+`--bg` it additionally launches a fresh background agent seeded with the resume prompt (via
+`claude --bg`, managed with `claude agents`), so the work resumes without a manual
+`/clear`-and-paste.
 
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only
 /session-flow:handoff file phase-3    # force full handoff, topic "phase-3"
+/session-flow:handoff --bg            # hand the resume prompt to a background agent
 ```
 
 ### retro
