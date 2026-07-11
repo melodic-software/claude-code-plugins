@@ -4,26 +4,34 @@ Context7 HTTP MCP server — reads the same backend as the `ctx7` CLI. This plug
 
 ## Configuration (consumer-side, optional)
 
-Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous (low-rate) usage needs no headers:
+Add to the consuming project's `.mcp.json` (or user-scope MCP config) — server entries live under the top-level `mcpServers` key. Anonymous (low-rate) usage needs no headers:
 
 ```json
-"context7": {
-  "type": "http",
-  "url": "https://mcp.context7.com/mcp"
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
 }
 ```
 
-With an API key (higher limits), add the header — but note Claude Code **fails to parse the config** when a referenced env var is unset with no default, so only use this form once `CONTEXT7_API_KEY` is actually set in your environment:
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects) — but note Claude Code **fails to parse the config** when a referenced env var is unset with no default, so only use this form once `CONTEXT7_API_KEY` is actually set in your environment:
 
 ```json
-"context7": {
-  "type": "http",
-  "url": "https://mcp.context7.com/mcp",
-  "headers": { "x-api-key": "${CONTEXT7_API_KEY}" }
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
+    }
+  }
 }
 ```
 
-`CONTEXT7_API_KEY` is the same env var the CLI reads (see [cli.md](cli.md)). MCP uses it as a header; CLI uses it as an env var. Both equivalent from a quota/auth perspective. Without the MCP server configured, every lookup in this skill works through the CLI path.
+`CONTEXT7_API_KEY` is the same env var the CLI reads (see [cli.md](cli.md)). MCP sends it as a request header; CLI reads it from the environment. Both equivalent from a quota/auth perspective. Without the MCP server configured, every lookup in this skill works through the CLI path.
 
 ## Tools exposed
 
