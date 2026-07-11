@@ -104,6 +104,12 @@
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
     },
     {
+      "name": "thariq-skills",
+      "source": "./plugins/thariq-skills",
+      "category": "learning",
+      "tags": ["knowledge", "skill", "skill-authoring", "playbook", "best-practices", "authoring"]
+    },
+    {
       "name": "work-items",
       "source": "./plugins/work-items",
       "category": "productivity",
