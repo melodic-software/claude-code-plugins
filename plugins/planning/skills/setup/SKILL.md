@@ -80,8 +80,9 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
 
 ## Output
 
-An updated project `.claude/settings.json` carrying `notes_dir`, plus a one-line summary of the value
-written, its scope, and how to re-run this setup to reconfigure. Note in the summary that `notes_dir`
+An updated `notes_dir` in the consumer's settings — the project `.claude/settings.json` by default, or the
+local overlay `.claude/settings.local.json` for a personal-only override (step 5) — plus a one-line summary
+of the value written, its scope, and how to re-run this setup to reconfigure. Note in the summary that `notes_dir`
 governs where the pipeline skills write their per-topic artifacts, and that a working-notes convention
 declared in the consuming project's own `CLAUDE.md` or rules still takes precedence over this value at
 write time.
@@ -91,5 +92,7 @@ write time.
 - Run a planning stage — that is the pipeline skills (`/planning:brainstorm`, `/planning:prd`,
   `/planning:interview`, `/planning:design`, `/planning:design-handoff`, `/planning:devils-advocate`,
   `/planning:architect`).
-- Write machine-local state — configuration lives in the consumer's tracked settings, never in the plugin
-  directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated state only).
+- Write anything into the plugin directory or the plugin data directory — configuration lives in the
+  consumer's settings (tracked `.claude/settings.json`, or `.claude/settings.local.json` for a
+  personal-only override per step 5), never in the plugin install path (`${CLAUDE_PLUGIN_DATA}` is for
+  caches and generated state only).
