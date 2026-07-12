@@ -9,7 +9,7 @@ disable-model-invocation: false
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
+Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "(unavailable)"`
 Changed files (staged+unstaged): !`git diff --name-only HEAD 2>/dev/null || echo "none"`
 
 ## Variables
@@ -35,8 +35,8 @@ active dimensions and dispatch per file.
 ## Model auto-invoke default
 
 When the model invokes this skill without explicit user authorization to auto-fix, treat the run as
-**`--review-only`**. Phases 4–7 (auto-fix) run only when the user explicitly requests fixes or omits
-`--review-only` with clear fix intent.
+**`--review-only`**. Phases 4–6 (auto-fix) and Phase 7 (retrospective) run only when the user
+explicitly requests fixes or omits `--review-only` with clear fix intent.
 
 ---
 
@@ -66,8 +66,16 @@ pass) — come from the consuming repo's tracked config, resolved additively acr
 3. `.claude/codebase-audit.local.md` (personal overlay, gitignored)
 
 The four bundled dimensions are `documentation`, `configuration`, `code-quality`, and
-`architecture`; the config may tune their globs, remove a dimension, or add custom ones. Settle
-targets by this ladder:
+`architecture`; the config may tune their globs, remove a dimension, or add custom ones.
+
+**Merge semantics when the same dimension name appears in two layers:** additive by default — the
+later layer's `primary-sources` and `verification-sources` globs UNION with the earlier layer's (not
+replace), and `example-claims` concatenate with duplicate `claim` text collapsed. A layer removes an
+inherited dimension by declaring it with empty source lists (an explicit opt-out), never by silent
+omission. This keeps a personal overlay purely additive to team config unless it deliberately zeroes a
+dimension out.
+
+Settle targets by this ladder:
 
 1. **Config present → use it.**
 2. **Absent → infer from the repo** (doc dirs, build manifests, source/test roots, CI workflows),
@@ -114,7 +122,7 @@ Discovery runs as a **parallel subagent fan-out — one agent per primary-source
 sequential pass (fresh context per file ≈ 2× claim coverage and ~4× drift caught; a single context
 skips claims as it fills — the #1 audit failure). Each agent applies the claim-extraction method
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
-the scope-fencing rules in [context/discovery-method.md](context/discovery-method.md).
+the scope-fencing rules in [`${CLAUDE_PLUGIN_ROOT}/skills/codebase-audit/context/discovery-method.md`](context/discovery-method.md).
 
 **Scope first (MANDATORY — cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before
@@ -123,8 +131,9 @@ source file costs millions of tokens.
 
 Full method — claim-extraction steps, the verify-ALL-claims-on-a-line rule,
 enumerate/scope/dispatch/collect detail, and the per-finding report format — in
-[context/discovery-method.md](context/discovery-method.md). Dimension-specific claim guidance:
-[reference/audit-checklist.md](reference/audit-checklist.md).
+[`${CLAUDE_PLUGIN_ROOT}/skills/codebase-audit/context/discovery-method.md`](context/discovery-method.md).
+Dimension-specific claim guidance:
+[`${CLAUDE_PLUGIN_ROOT}/skills/codebase-audit/reference/audit-checklist.md`](reference/audit-checklist.md).
 
 ---
 
@@ -140,10 +149,10 @@ rubber-stamps it; an independent agent re-reading the doc claim AND the actual c
 false positives and miscategorized-but-correct claims. Fence each validator to read-only (its
 findings' files + verification-sources).
 
-### External research (required, not optional)
+### External research (required when the tooling exists)
 
-Use available documentation-research tools (MCP docs servers, library-docs lookers-up, web search)
-to validate findings involving:
+When your setup provides documentation-research tools (MCP docs servers, library-docs lookers-up, web
+search), using them is REQUIRED — not optional — to validate findings involving:
 
 - **Best-practice claims** — is the documented pattern the current recommended approach?
 - **Library API claims** — does the method/class/parameter exist in the current version?
@@ -152,6 +161,10 @@ to validate findings involving:
 Cross-reference research results against the repo's conventions (loaded in Phase 0). External
 consensus matters, but repo conventions are the primary lens — a pattern unusual industry-wide may
 be intentionally chosen here.
+
+**Graceful degrade when no research tool is available:** do not skip the claim and do not guess.
+Verify whatever the local repo can confirm, then confidence-tag the externally-unverifiable part as
+`needs-review` (below) so it surfaces for human judgment rather than being asserted or dropped.
 
 ### False-positive prevention
 
@@ -169,7 +182,7 @@ cost of missing a marginal issue (catchable next run).
 
 ## Phase 3: Categorize & Present
 
-### Group findings per [reference/category-playbook.md](reference/category-playbook.md)
+### Group findings per [`${CLAUDE_PLUGIN_ROOT}/skills/codebase-audit/reference/category-playbook.md`](reference/category-playbook.md)
 
 Fix order matters — see the playbook for why: Config Drift → Missing Enforcement → Code Quality →
 Doc Drift.

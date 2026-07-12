@@ -31,7 +31,7 @@ verify each one independently. For example:
 
 ## Dimension-specific guidance
 
-Read [../reference/audit-checklist.md](../reference/audit-checklist.md) for the kinds of claims to
+Read [`${CLAUDE_PLUGIN_ROOT}/skills/codebase-audit/reference/audit-checklist.md`](../reference/audit-checklist.md) for the kinds of claims to
 watch for in each dimension. The checklist is a guide for **what to look for**, not a list to check
 off. The primary method is always: read the file, extract claims, verify each one.
 
@@ -58,16 +58,20 @@ caught vs a single sequential agent.
    returns findings + a verified-count. Use repo-relative paths only (never absolute machine
    paths — agents must audit the current worktree). Throttle in waves (≤~16 concurrent); lower-tier
    worker models are sufficient and dodge burst overload.
+
+   **Peer files a claim must be checked against are read via `verification-sources`, not the fence
+   exception.** A cross-file claim — DRY duplication across N files, a dependency-direction rule, an
+   architecture boundary — can only be validated by reading peer files, and the fence forbids the
+   *other* primary-source files. So for any dimension whose claims are cross-file (notably
+   `code-quality` and `architecture`), the config MUST list the relevant source roots and dependency
+   manifests in `verification-sources` as well (they may also be `primary-sources` — the read-only
+   exception covers the overlap). If a cross-file dimension's `verification-sources` omit the peer
+   files its claims reference, those findings are systematically missed — the setup skill wires this
+   in by default.
 4. **Collect** — aggregate per-file findings + verified counts into the Phase 2 input.
 
 Because each agent owns one file, the "complete one dimension before the next" sequencing is moot —
 there is no shared context to thin out, so dimension order does not matter.
-
-**Background / unattended variant:** the same per-file fan-out can run as a saved background workflow
-(background execution, same-session resume, rerunnable script) instead of in-session subagents — same
-discovery, different executor. Reach for the workflow form only when you want a fire-and-forget
-periodic audit you can walk away from; the in-session fan-out above is the default for an interactive
-audit you are actively driving.
 
 ## What to report
 

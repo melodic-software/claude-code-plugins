@@ -22,7 +22,8 @@
       "expectations": [
         "Presents the findings report and STOPS without applying any fixes",
         "Does not modify, edit, or write any files",
-        "Scopes the audit to the named file only, not the whole repository"
+        "Scopes the audit to the named file only, not the whole repository",
+        "Includes the required 'Verified non-issues' section even in review-only mode"
       ]
     },
     {

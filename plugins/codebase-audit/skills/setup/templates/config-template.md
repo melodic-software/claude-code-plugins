@@ -56,6 +56,8 @@ Each dimension carries:
 **verification-sources:**
 
 - <!-- test roots + the convention docs that set the quality bar -->
+- <!-- ALSO list the source roots here: a cross-file DRY/SOLID claim is validated by reading peer
+       source files, which a discovery agent can only read when they are in verification-sources -->
 
 **example-claims:**
 
@@ -71,6 +73,8 @@ Each dimension carries:
 **verification-sources:**
 
 - <!-- analyzers, architecture tests, dependency-rule enforcement -->
+- <!-- ALSO list the dependency manifests and source roots here: dependency-direction and boundary
+       claims need peer manifests readable under the same read-only fence -->
 
 **example-claims:**
 

@@ -23,9 +23,14 @@ Idempotent: re-running reads the existing config and offers updates rather than 
    - **configuration** primary-sources: build config, lint config, CI workflows, git-hook config —
      detected from what actually exists (e.g. `Directory.Build.props`, `pyproject.toml`,
      `package.json`, `.github/workflows/`, `lefthook.yml`, `.editorconfig`).
-   - **code-quality** primary-sources: source roots; verification-sources: test roots.
+   - **code-quality** primary-sources: source roots; verification-sources: test roots **plus the
+     same source roots** — a cross-file DRY/SOLID claim is validated by reading peer source files,
+     which a discovery agent can only read when they are in `verification-sources` (the fence forbids
+     the other primary-source files). Omitting them makes cross-file findings unreachable.
    - **architecture** primary-sources: dependency manifests + architecture docs;
-     verification-sources: analyzers / architecture tests where present.
+     verification-sources: analyzers / architecture tests where present **plus the dependency
+     manifests and source roots** — dependency-direction and boundary claims need peer manifests
+     readable, for the same fence reason.
 3. **Interview, one decision at a time.** Present each dimension's drafted globs with a
    recommendation; let the user accept, edit, or remove the dimension. Offer custom dimensions
    last ("anything else this repo should audit as its own lane?").
@@ -34,7 +39,7 @@ Idempotent: re-running reads the existing config and offers updates rather than 
    sentences in them. Concrete rows teach the discovery pass what drift looks like in THIS repo —
    the highest-value part of the config. The user approves or edits each row.
 5. **Write the config.** Materialize `.claude/codebase-audit.md` following the structure in
-   [templates/config-template.md](templates/config-template.md) (replace every placeholder comment
+   [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md) (replace every placeholder comment
    with real values; drop unused placeholder rows). Confirm the file is tracked, not ignored.
 6. **Offer the overlay convention.** Personal overrides go in `.claude/codebase-audit.local.md`;
    recommend the consumer add `.claude/*.local.*` to `.gitignore` if not already covered. A
