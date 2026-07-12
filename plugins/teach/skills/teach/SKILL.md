@@ -206,6 +206,6 @@ Learning artifacts persist for months; durable teaching content (references, glo
 ## What This Skill Does NOT Do
 
 - **Does not write production code** — teaches understanding, not implementation. Use the project's own implementation workflow for code changes
-- **Does not replace `/book-distill:book-distill`** — that extracts book knowledge into skill reference files; `/teach` delivers knowledge interactively to the user
+- **Does not replace `/book-distill:book-distill`** — that extracts book knowledge into skill reference files; `/teach:teach` delivers knowledge interactively to the user
 - **Does not do task-context codebase investigation** — that's for the project's code-exploration tooling; `/teach:teach codebase` is structured learning for understanding
 - **Does not auto-invoke** — `disable-model-invocation: true`. The user initiates learning sessions
