@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Datamuse API helper for /pat-pattison.
+# Datamuse API helper for /songwriting:rhyme (Pat Pattison method).
 # Free, no auth, no key. https://www.datamuse.com/api/
 #
 # Why this exists: AI rhyme/syllable/semantic recall is unreliable. Pat's
