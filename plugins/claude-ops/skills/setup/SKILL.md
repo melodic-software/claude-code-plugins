@@ -92,6 +92,10 @@ claude-troubleshooting registry — observability data locations are controlled 
   `/claude-ops:claude-troubleshooting`.
 - Configure the observability or changelog skills — the OTEL store location and retention are env-var
   driven (see the plugin README), not a `userConfig` seam.
-- Write machine-local state — configuration lives in the consumer's tracked settings, never in the plugin
-  directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for the registry and generated state
-  only).
+- Hide configuration inside the plugin — all config lives in the consumer's settings (project
+  `.claude/settings.json`, or the personal `.claude/settings.local.json` overlay when clearing a
+  local override per steps 3–4), never in the plugin install directory or its data directory
+  (`${CLAUDE_PLUGIN_DATA}` is for the registry and generated state only).
+- Edit `.claude/settings.local.json` without the consumer's go-ahead — the only time this skill touches the
+  local overlay is to clear a local `registry_dir` for the per-machine choice (step 3), and only with
+  explicit consent.
