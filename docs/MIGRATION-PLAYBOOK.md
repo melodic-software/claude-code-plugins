@@ -137,6 +137,22 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
      `docs/conventions/hook-telemetry/`; first instance:
      [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
+   - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
+     *audience* or *deployment* — a different framing, ranking lens, or branding per team / client /
+     context — add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
+     profile**; each `.claude/<plugin>/<profile-name>/` subfolder is a **named profile** that overlays
+     the default per key (the same additive semantics as the resolution rule below — a named profile
+     refines the root, absent keys fall through). A single-config consumer never nests: its files sit at
+     the root, which *is* the default profile, so growing a profile later is additive (drop a sibling
+     subfolder), never a reorg — and there is no reserved `default/`/`team/` name to collide with. Pick
+     the active profile by the convention-resolution ladder: exactly one named profile subfolder present
+     → use it; several → an `active_profile` `userConfig` scalar (seam 1) or a per-invocation
+     `--profile <name>` argument selects; none → the root default. This is a one-increment PRECEDENT-EXTENSION of the folder
+     form, for a plugin that could ever profile — ship the **folder** form, since the single-file form
+     cannot grow a profile without a file→folder reorg. Distinct from the concern-named folder above: that
+     splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
+     (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
+     [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics.** Resolve **user-global → team (project) → local overlay**,
      **additive-preferred**: a later layer adds to or refines earlier layers rather than silently
      replacing them. The first-party precedent concatenates; a plugin that genuinely must override does
