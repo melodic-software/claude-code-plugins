@@ -31,6 +31,15 @@ if [[ "${HOOK_CLEAN_DESTRUCTIVE_GUARD_ENABLED:-true}" == "false" ]]; then
   exit 0
 fi
 
+# jq parses the hook payload. Without it the guard cannot inspect the command,
+# so it goes inactive for this call — announce that on stderr rather than
+# failing open silently (exit 0 keeps the guard non-blocking per its best-effort
+# threat model; install jq to re-enable it).
+if ! command -v jq >/dev/null 2>&1; then
+  echo "clean destructive-guard: jq not found — guard inactive this call (install jq to re-enable)." >&2
+  exit 0
+fi
+
 CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [[ -n "$CMD" ]] || exit 0
 

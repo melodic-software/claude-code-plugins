@@ -42,6 +42,23 @@ clean_path_is_protected() {
   return 1
 }
 
+# Return 0 when a directory contains any protected descendant (tracked file, or
+# an untracked file/dir matching a protected class). The selective tiers rm -rf
+# whole artifact directories, so the per-target protection check above is not
+# enough on its own — a protected file nested inside an unprotected build/cache
+# dir would be deleted with it. Callers skip removing a directory this returns
+# true for. Read-only.
+clean_dir_has_protected_descendant() {
+  local repo_root="$1" dir="$2" entry
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    if clean_path_is_protected "$repo_root" "$entry"; then
+      return 0
+    fi
+  done < <(find "$dir" -mindepth 1 2>/dev/null)
+  return 1
+}
+
 # Emit `git clean -e <pattern>` args (newline-delimited: alternating `-e` and
 # pattern) for the `tree` tier's default-preserve set. SSOT patterns live in
 # cleanup-paths.sh. Flags gate the two opt-in tiers:

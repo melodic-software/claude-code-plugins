@@ -104,6 +104,13 @@ if [[ -z "$UPSTREAM" ]]; then
   exit 2
 fi
 
+# Fetch the remote the current branch actually tracks, not a hardcoded origin —
+# a branch tracking a non-origin remote would otherwise reset to stale refs. A
+# local-only upstream (branch.<name>.remote = ".") has no remote to fetch; the
+# git-remote existence guard below skips the fetch in that case.
+UPSTREAM_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
+UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-origin}"
+
 TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 IGNORED_COUNT="$(git status --ignored --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 AHEAD_COUNT="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
@@ -142,22 +149,22 @@ if [[ "$BLOCKED" == unpushed-commits* ]]; then
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  printf 'PlannedFetch: git fetch origin\n'
+  printf 'PlannedFetch: git fetch %s\n' "$UPSTREAM_REMOTE"
   printf 'PlannedReset: git reset --hard %s\n' "$UPSTREAM"
   printf 'PlannedClean: git clean -fdx%s\n' "$([[ ${#PRESERVE_ARGS[@]} -gt 0 ]] && printf ' (+%d preserve excludes)' "$(((${#PRESERVE_ARGS[@]}) / 2))")"
   if [[ "$AHEAD_COUNT" -gt 0 ]]; then
     printf 'WARNING: HEAD is %s commit(s) ahead of %s — apply needs --allow-unpushed.\n' "$AHEAD_COUNT" "$UPSTREAM"
   fi
-  if git remote get-url origin >/dev/null 2>&1; then
-    git fetch origin 2>/dev/null || true
+  if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
+    git fetch "$UPSTREAM_REMOTE" 2>/dev/null || true
   fi
   echo "--- clean preview (git clean -fdxn, default-preserve applied) ---"
   git clean -fdxn "${PRESERVE_ARGS[@]}" 2>/dev/null | head -200 || true
   exit 0
 fi
 
-if git remote get-url origin >/dev/null 2>&1; then
-  git fetch origin
+if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
+  git fetch "$UPSTREAM_REMOTE"
 fi
 git reset --hard "$UPSTREAM"
 

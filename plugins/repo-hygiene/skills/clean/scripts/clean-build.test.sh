@@ -30,6 +30,15 @@ out="$(run_build --apply)"
 assert_contains "apply removes bin" "$out" "Removed:"
 assert_file_absent "bin removed" "$TEST_TMPDIR/repo/apps/foo/bin/x.dll"
 
+# A build-output dir holding a protected descendant is preserved whole, not
+# rm -rf'd out from under the secret nested inside it.
+mkdir -p "$TEST_TMPDIR/repo/dist"
+echo secret >"$TEST_TMPDIR/repo/dist/.env"
+echo art >"$TEST_TMPDIR/repo/dist/bundle.js"
+out="$(run_build --apply)"
+assert_contains "protected-descendant dir skipped" "$out" "Skip (protected descendant):"
+assert_file_exists "nested .env preserved" "$TEST_TMPDIR/repo/dist/.env"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

@@ -95,6 +95,10 @@ plan_remove() {
     printf 'Skip (protected): %s\n' "${abs#"$REPO_ROOT"/}"
     return 0
   fi
+  if [[ -d "$abs" ]] && clean_dir_has_protected_descendant "$REPO_ROOT" "$abs"; then
+    printf 'Skip (protected descendant): %s\n' "${abs#"$REPO_ROOT"/}"
+    return 0
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf 'Planned remove: %s\n' "${abs#"$REPO_ROOT"/}"
   else
