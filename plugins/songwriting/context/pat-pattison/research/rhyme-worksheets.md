@@ -479,7 +479,7 @@ resources in later chapters.
 
 ## Skill output format
 
-When `/pat-pattison` generates a rhyme worksheet, prefer this structure:
+When `/songwriting:rhyme worksheet` generates a rhyme worksheet, prefer this structure:
 
 ```text
 Idea sketch:
