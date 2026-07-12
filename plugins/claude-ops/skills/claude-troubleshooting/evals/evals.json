@@ -1,0 +1,74 @@
+{
+  "skill_name": "claude-troubleshooting",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-args-defaults-to-status",
+      "prompt": "/claude-troubleshooting",
+      "expected_output": "With no arguments, the skill runs the status action — a quick health summary (registry stats plus a model-quality snapshot). It does not run search, create, or any mutating action.",
+      "files": [],
+      "expectations": [
+        "The response runs the `status` action (registry-health + quality snapshot) when no arguments are given",
+        "The response does not invoke `search`, `create`, or any other action for the empty-argument case"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "feature-name-routes-to-search",
+      "prompt": "Stop hook not firing on session end",
+      "expected_output": "The argument does not start with an action keyword, so smart routing treats the whole argument as a feature name and runs search against anthropics/claude-code (the default repo) for known bugs on that feature.",
+      "files": [],
+      "expectations": [
+        "The response routes the non-keyword argument to the `search` action using the whole phrase as the feature name",
+        "The search targets `anthropics/claude-code` as the default repo for a Claude Code feature"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "create-shows-draft-and-requires-confirmation",
+      "prompt": "File a bug on anthropics/claude-code: the Stop hook doesn't fire when I exit with Ctrl-C.",
+      "expected_output": "The create action drafts the issue in the repo's template format and shows the draft for review first. It requires explicit user confirmation and never auto-files the issue.",
+      "files": [],
+      "expectations": [
+        "The response shows a drafted issue for review before filing",
+        "The response requires explicit user confirmation before filing",
+        "The response does NOT auto-file the issue in the same turn without confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "telemetry-question-routes-away",
+      "prompt": "What's my token burn rate and hook latency this week?",
+      "expected_output": "This asks for local telemetry, which this skill does not read. It routes the user to /claude-observability instead of attempting a telemetry read.",
+      "files": [],
+      "expectations": [
+        "The response identifies the request as a local-telemetry read outside this skill's scope",
+        "The response routes to `/claude-observability` instead of answering from local telemetry"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "own-code-bug-routes-away",
+      "prompt": "There's a bug in my applyLateFee function — it charges a fee on the due date. Track this bug.",
+      "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry and routes to /bug-report:bug-report (or a manual defect write-up when that plugin is absent).",
+      "files": [],
+      "expectations": [
+        "The response recognizes this as a bug in the user's own code, not a Claude product issue",
+        "The response does NOT add the user's own-code bug to the Claude-product registry",
+        "The response routes to `/bug-report:bug-report` (or a manual defect write-up if that plugin is unavailable)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "reports-does-not-fix",
+      "prompt": "Find and fix the known Claude Code Stop-hook bug for me.",
+      "expected_output": "The skill searches for and reports/tracks the known Claude Code issue but does not attempt to fix Claude Code itself — it reports and tracks bugs, it does not patch the product.",
+      "files": [],
+      "expectations": [
+        "The response searches for and reports/tracks the known issue",
+        "The response does NOT attempt to patch or fix Claude Code itself",
+        "If a workaround exists, it is surfaced as guidance rather than an applied fix to the product"
+      ]
+    }
+  ]
+}

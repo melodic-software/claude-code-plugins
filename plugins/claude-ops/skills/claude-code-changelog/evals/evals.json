@@ -1,0 +1,62 @@
+{
+  "skill_name": "claude-code-changelog",
+  "evals": [
+    {
+      "id": 1,
+      "name": "passive-mention-routes-read-only",
+      "prompt": "Claude Code v2.1.152 just dropped — what changed in it that's relevant to this repo?",
+      "expected_output": "A read-only response: the skill routes to fetch or diff (displays the changelog and/or an impact table) and does NOT start the apply pipeline or edit any repo file. If integration might be wanted, it offers apply as an explicit next step rather than auto-running it.",
+      "files": [],
+      "expectations": [
+        "The response presents changelog content and/or a repo-impact analysis without editing any file",
+        "The response does NOT run the apply pipeline (no interview/architect/implement phases executed) on a passive version mention",
+        "If integration is relevant, the response offers `apply` as an explicit opt-in step rather than starting it automatically"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "explicit-apply-interviews-before-edits",
+      "prompt": "Apply the Claude Code v2.1.152 changelog to this repo.",
+      "expected_output": "The apply pipeline runs and presents a triage table (item, P1/P2/P3 classification, affected files, action needed) for the user to pick scope BEFORE any file is edited. Edits happen only after the user locks scope; nothing is silently changed.",
+      "files": [],
+      "expectations": [
+        "The response surfaces a per-item triage table with a classification and affected files before making edits",
+        "The response waits for the user to confirm scope (all P1+P2 / just P1 / specific items) before implementing changes",
+        "No repo file is edited prior to the user confirming scope"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "target-version-ahead-of-installed-warns",
+      "prompt": "Apply changelog v2.1.152. My terminal reports `claude --version` = 2.1.150.",
+      "expected_output": "Because the target version (2.1.152) is newer than the installed CC version (2.1.150), the skill warns the user that applying newer-version changes may reference features not yet available in their session and suggests updating CC first (claude update) before proceeding.",
+      "files": [],
+      "expectations": [
+        "The response detects that the target version is newer than the installed CC version and warns about it",
+        "The warning suggests updating Claude Code (e.g. `claude update`) before applying, rather than silently proceeding as if versions matched"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "status-derives-from-git-not-tracker-file",
+      "prompt": "Which Claude Code changelog versions have we already applied to this repo?",
+      "expected_output": "The status action derives applied versions from git history (e.g. git log --grep for CC version citations in commit messages). It does NOT create, read, or propose a persistent applied-versions tracking file — git history is the single source of truth.",
+      "files": [],
+      "expectations": [
+        "The response derives applied versions from git history (e.g. `git log --grep`), not from a dedicated tracker file",
+        "The response does NOT create or propose a persistent applied-versions tracking file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "p2-new-capability-not-dropped",
+      "prompt": "Diff the latest Claude Code changelog against this repo. It includes a new settings.json field the repo doesn't currently use.",
+      "expected_output": "The diff classifies the unused-but-relevant new capability as P2 ('New capability — evaluate for adoption') with a brief rationale, rather than silently dropping it as P3/no-action. P2 items are surfaced for the user to consider, not skipped.",
+      "files": [],
+      "expectations": [
+        "A new capability the repo does not yet use is classified P2 (evaluate for adoption), not silently treated as no-action",
+        "The P2 item is surfaced in the impact/triage output with a short adoption rationale rather than omitted"
+      ]
+    }
+  ]
+}
