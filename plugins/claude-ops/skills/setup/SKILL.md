@@ -88,11 +88,13 @@ assumptions.
      in `.claude/settings.local.json` (per the narrow, secret-safe handling in step 1); otherwise name the
      file and guide them to clear it there. Do not silently edit it.
 
-   The reliable primitive across all cases: to force the fallback, write `""` at the **highest-precedence
-   scope that currently holds a value** (its empty value shadows everything below it); only *remove* a key
-   when no lower scope holds a value, since removal un-shadows lower scopes. Never write `""` at a scope
-   outranked by a scope still holding a value, and do not report the registry as per-machine until the
-   *effective* value resolves to empty/unset.
+   The reliable primitive across all cases: to force the fallback repo-locally, write `""` at the **Local
+   scope if it holds a value, otherwise at Project scope**. A repo-local empty value shadows any lower-scope
+   value — including the global User default — and reads as the plugin-data fallback, **without ever
+   blanking the shared User setting** (doing so would change every other repo that relied on it). Removing a
+   key instead of writing `""` is safe only when no lower scope would then resurface, since removal
+   un-shadows lower scopes. Do not report the registry as per-machine until the *effective* value resolves
+   to empty/unset.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
