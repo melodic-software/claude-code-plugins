@@ -470,3 +470,27 @@ testing the source covers them. Plugins keep only their own black-box hook contr
 - Don't rely on any mechanism not confirmed from current docs this session — if a customization need has
   no proven native path yet, record it here as a gap and keep the workaround in the consumer's repo until
   the native mechanism is verified.
+
+## Deferred surfaces — decision record (2026-07-12)
+
+Three general-purpose surfaces in the harvest-source repo (`melodic-software/medley`) are held out of this
+wave's plugin migration deliberately, each with an explicit revisit trigger — recorded here so the deferral
+is a decision, not a silent omission. The medley side carries a thin pointer back to this record at each
+surface (the workflow-engine authoring rule, the `onboard` skill, and the `gh-bot.sh` bot-identity
+convention), so a contributor who touches a deferred surface finds the trigger without leaving that repo.
+
+- **Workflow engines** (`code-review.js`, `codebase-review.js`, `deep-research.js`,
+  `research-deep-fanout.js`, `skills-audit.js`, `skills-evals.js`, `skills-remediate.js`): not a plugin
+  component per current docs — the `Workflow` tool loads an engine script from disk and a plugin manifest
+  has no native slot to ship one, so these may be removed entirely rather than migrated. **Revisit
+  trigger:** the engines survive the next usage review (still earning their keep) → package as a plugin
+  skill that dispatches the engine through the `Workflow` tool's `scriptPath`, resolved under
+  `${CLAUDE_PLUGIN_ROOT}`, with a smoke test specced for that dispatch path before packaging.
+- **`onboard` skill:** repo-specific today — its phase gates encode this repo's exact runtime, linter, and
+  tooling pins. **Revisit trigger:** a second repo needs environment-prerequisite auditing → extract a
+  generic core through the extensibility-contract seams (the convention-resolution ladder infers or asks
+  for the per-repo pins), leaving repo specifics in tracked config rather than baked into the skill.
+- **`tools/github-auth` (`gh-bot.sh`):** hardcodes the org's bot App / installation identity. **Revisit
+  trigger:** a second repo needs bot-actor GitHub operations → parameterize org / App / installation
+  through the seams (`userConfig` scalars, `sensitive` for the key) instead of standing up a second
+  hardcoded wrapper.
