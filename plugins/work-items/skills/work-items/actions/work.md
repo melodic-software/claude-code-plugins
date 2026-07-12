@@ -61,7 +61,7 @@ For tier 1 and tier 4 (recurring candidates), cross-reference against open issue
 gh issue list --label "recurring" --state open --json number,title --limit 100 | tr -d '\r'
 ```
 
-Match by title prefix `[Maintenance] {schedule item title}`.
+Match against the FULL expected title `[Maintenance] {schedule item title}` — exact match, never a prefix or substring. A prefix match would let a shorter title (`[Maintenance] Review CI`) spuriously match a longer issue (`[Maintenance] Review CI workflow pins`), so one schedule row could be treated as already holding another row's issue and skip creating its own. This mirrors the same exact-title rule in the `due` action.
 
 **Due-recurring tier (`next_due <= today`):** if no open issue exists, create one before claiming — issue only, using the `[Maintenance] {title}` prefix plus the `recurring` and `cadence:{cadence}` labels (filtered through the live label list per `add.md` "Build labels array" — create the missing label or omit it). Do NOT route through `add --recurring`: the item already exists in the schedule, and that flow would append a duplicate schedule entry. These items are actionable now — dead-ending without an issue to hold would strand work.
 
