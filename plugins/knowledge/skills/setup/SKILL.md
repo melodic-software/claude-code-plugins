@@ -27,7 +27,10 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
    value and which scope supplies it; the interview proposes a change against that baseline. If a local
    override is present, say so explicitly — step 4 writes the *project* (team) value, which stays shadowed
    by the local override until the developer updates or removes it, so a project-scope edit alone will not
-   change what the plugin actually uses on that machine.
+   change what the plugin actually uses on that machine. Read each scope **narrowly** — query only the
+   single `pluginConfigs["knowledge@melodic-software"].options.library_dir` key (e.g. with `jq`), never
+   loading `.claude/settings.local.json` wholesale: that overlay is secret-bearing (API tokens, env
+   secrets), so do not read or echo unrelated settings content.
 2. **Infer a default before asking.** If no value is set, explore the consuming repo for an existing
    artifact/notes convention rather than guessing:
    - A working-notes or artifacts directory declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
