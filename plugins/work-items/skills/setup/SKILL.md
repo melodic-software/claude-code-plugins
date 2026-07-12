@@ -59,7 +59,8 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    Present these as a starting menu; the user keeps, edits, or drops each. Do not invent items the repo
    gives no signal for.
 3. **Interview, one decision at a time, recommendation first.** For each candidate (and any custom item
-   the user names last), settle its fields against the shape in `actions/add.md`: `id` (kebab-case),
+   the user names last), settle its fields against the shape in
+   [`../work-items/actions/add.md`](../work-items/actions/add.md): `id` (kebab-case),
    `title`, `cadence` (one of the cadence table's values), `area[]`, `category`, `triggers[]` (external
    events warranting an early recheck — e.g. "new major framework release"), `notes`, and
    `close_previous`. Present one item at a time with your recommended values marked; the user accepts
@@ -67,7 +68,7 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    setup seeds the schedule but never performs the maintenance, so it must not advance the cadence
    clock on an existing item (that is `recheck`'s job, gated on the check actually being done):
    - **New item:** seed `last_checked` to today and `next_due` to today + the cadence's day count
-     (Cadence Duration Table in `actions/add.md`).
+     (Cadence Duration Table in [`../work-items/actions/add.md`](../work-items/actions/add.md)).
    - **Existing item:** preserve its current `last_checked` and `next_due` as-is. Only recompute
      `next_due` when the user explicitly reschedules or changes the cadence — and even then never set
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
