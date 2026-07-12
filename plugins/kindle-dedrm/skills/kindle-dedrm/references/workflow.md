@@ -92,7 +92,7 @@ Run: ~/Downloads/KindleForPC-installer-2.8.70980.exe
 Verify install:
 
 ```bash
-powershell.exe -NoProfile -Command "(Get-Item 'C:\Users\${USERNAME}\AppData\Local\Amazon\Kindle\application\Kindle.exe').VersionInfo | Select-Object FileVersion"
+powershell.exe -NoProfile -Command "(Get-Item '${LOCALAPPDATA}\Amazon\Kindle\application\Kindle.exe').VersionInfo | Select-Object FileVersion"
 ```
 
 Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `references/troubleshooting.md` "Installed wrong Kindle for PC version").
@@ -164,7 +164,7 @@ Internally this:
 
 ```bash
 rm -f "${LOCALAPPDATA}/Amazon/Kindle/updates/KindleForPC-installer.exe"
-powershell.exe -NoProfile -Command "icacls 'C:\Users\${USERNAME}\AppData\Local\Amazon\Kindle\updates' /deny '${USERDOMAIN}\${USERNAME}:(W,WD,AD,WA)'"
+powershell.exe -NoProfile -Command "icacls '${LOCALAPPDATA}\Amazon\Kindle\updates' /deny '${USERDOMAIN}\${USERNAME}:(W,WD,AD,WA)'"
 ```
 
 Verify:

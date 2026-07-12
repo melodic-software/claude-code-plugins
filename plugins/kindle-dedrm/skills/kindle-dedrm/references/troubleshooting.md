@@ -122,7 +122,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 
 ```bash
 # Verify installer wasn't run yet:
-powershell.exe -NoProfile -Command "(Get-Item 'C:\Users\${USERNAME}\AppData\Local\Amazon\Kindle\application\Kindle.exe').VersionInfo.FileVersion"
+powershell.exe -NoProfile -Command "(Get-Item '${LOCALAPPDATA}\Amazon\Kindle\application\Kindle.exe').VersionInfo.FileVersion"
 # If still 2.8.0.70980, delete:
 rm -f "${LOCALAPPDATA}/Amazon/Kindle/updates/KindleForPC-installer.exe"
 ```
