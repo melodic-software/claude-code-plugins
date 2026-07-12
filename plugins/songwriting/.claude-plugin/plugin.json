@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "songwriting",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Songwriting craft companion — eight concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, meter-prosody, song-form, co-write, diagnosis, daily-practice) applying Pat Pattison's methods, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).",
   "author": {
     "name": "Melodic Software",
