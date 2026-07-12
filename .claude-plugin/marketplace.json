@@ -210,6 +210,12 @@
       "source": "./plugins/implementation",
       "category": "development",
       "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
+    },
+    {
+      "name": "repo-hygiene",
+      "source": "./plugins/repo-hygiene",
+      "category": "maintenance",
+      "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
     }
   ]
 }

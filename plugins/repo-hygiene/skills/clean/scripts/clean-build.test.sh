@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Tests for clean-build.sh
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/test-helpers.sh
+source "$SCRIPT_DIR/lib/test-helpers.sh"
+
+BUILD="$SCRIPT_DIR/clean-build.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+FAILED=0
+
+git init "$TEST_TMPDIR/repo" >/dev/null 2>&1
+git -C "$TEST_TMPDIR/repo" config user.email "t@example.com"
+git -C "$TEST_TMPDIR/repo" config user.name "Test"
+mkdir -p "$TEST_TMPDIR/repo/apps/foo/bin"
+echo dll >"$TEST_TMPDIR/repo/apps/foo/bin/x.dll"
+
+run_build() {
+  GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" \
+    bash -c "cd '$TEST_TMPDIR/repo' && bash '$BUILD' $*"
+}
+
+out="$(run_build)"
+assert_contains "dry-run plans bin" "$out" "Planned remove:"
+assert_file_exists "dry-run keeps bin" "$TEST_TMPDIR/repo/apps/foo/bin/x.dll"
+
+out="$(run_build --apply)"
+assert_contains "apply removes bin" "$out" "Removed:"
+assert_file_absent "bin removed" "$TEST_TMPDIR/repo/apps/foo/bin/x.dll"
+
+if [[ $FAILED -ne 0 ]]; then
+  echo "FAILED: $FAILED test(s)"
+  exit 1
+fi
+echo "OK: clean-build.sh tests passed"
