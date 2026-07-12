@@ -70,11 +70,17 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-4. **Confirm labels exist (optional).** The `due` / `work` actions match recurring issues by the
-   `recurring` label and `[Maintenance]` title prefix; the `cadence:{cadence}` labels are used by the
-   taxonomy. Offer to create any missing universal labels once via `gh label create`, or note their
-   absence — never assume they exist. This step files no issues; the recurring automation or a later
-   `add --recurring` creates the issues when items come due.
+4. **Ensure the `recurring` label exists — it is load-bearing, not optional.** `due` / `work`
+   enumerate open maintenance issues with `gh issue list --label "recurring"`, and `add`'s creation
+   path silently filters out labels the repo lacks — so if you write a schedule while the `recurring`
+   label is absent, the first `[Maintenance]` issue created (by automation or `add --recurring`) lands
+   without that label, is invisible to the next `due` / `work` pass, and gets duplicated or reported as
+   orphaned. When the label is missing, create it once (`gh label create recurring`) — recommend this
+   and default to it. If the user declines, tell them plainly that the schedule cannot be reconciled
+   until the label exists, and do not silently treat it as optional. The `cadence:{cadence}` labels are
+   taxonomy niceties (not required for reconciliation) — offer to create the missing ones, or note
+   their absence. This step files no issues; automation or a later `add --recurring` creates them when
+   items come due.
 5. **Write the schedule.** Read the current file (if any) and merge the accepted items into the `items`
    array, keying each edited item on the **original `id` it had when read in step 1**, not its final
    `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
