@@ -11,13 +11,16 @@ disable-model-invocation: false
 Write (or update) the consuming repo's tracked recurring-schedule config at
 `.github/recurring-schedule.json` so the `due`, `recheck`, and `work` actions resolve a real schedule
 instead of degrading to "no recurring schedule configured". This is the bulk / initial-config path;
-the per-item `add --recurring` path (which appends a single item as a side effect of filing its issue)
-stays as-is. Idempotent: re-running reads the existing file and offers updates rather than overwriting
-blind.
+the per-item `add --recurring` path (which appends a single row as a side effect of filing its work
+item) stays as-is. Idempotent: re-running reads the existing file and offers updates rather than
+overwriting blind. The schedule file is a plain tracked JSON file the skill reads and writes directly
+(Read / Write / `jq`) — it is not a tracker record, so it does not route through the work-item-tracker
+seam; only operations on the work items themselves (labels, item lookups, edits) go through the bound
+provider.
 
-The item shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
+The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work-items/actions/add.md`](../work-items/actions/add.md) (step "If
-`--recurring`" and the Cadence Duration Table). This skill produces items in that exact shape — read
+`--recurring`" and the Cadence Duration Table). This skill produces rows in that exact shape — read
 that file for the authoritative field list before writing.
 
 ## Resolving the schedule path
@@ -71,42 +74,43 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
 4. **Ensure the `recurring` label exists — it is load-bearing, not optional.** `due` / `work`
-   enumerate open maintenance issues with `gh issue list --label "recurring"`, and `add`'s creation
-   path silently filters out labels the repo lacks — so if you write a schedule while the `recurring`
-   label is absent, the first `[Maintenance]` issue created (by the recurring automation or the `work`
-   due-recurring tier) lands without that label, is invisible to the next `due` / `work` pass, and gets
-   duplicated or reported as orphaned. When the label is missing, create it once
-   (`gh label create recurring`) — recommend this and default to it. If the user declines, tell them
-   plainly that the schedule cannot be reconciled until the label exists, and do not silently treat it
-   as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for reconciliation) —
-   offer to create the missing ones, or note their absence. This step files no issues; for an item now
-   in the schedule, its `[Maintenance]` issue is created — issue only, no extra schedule row — by the
-   consuming repo's recurring automation or the `work` due-recurring tier when `next_due` arrives. Do
-   **not** point users at `add --recurring` to create it: that per-item path appends another schedule
-   entry, duplicating an already-seeded item.
+   enumerate open maintenance items by the `recurring` label (adapter: "List items", `--label
+   recurring`), and the create path filters out labels the repo lacks — so if you write a schedule while
+   the `recurring` label is absent, the first `[Maintenance]` item created (by the recurring automation
+   or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
+   pass, and gets duplicated or reported as orphaned. When the label is missing, create it once through
+   the bound provider (a provider label op — for the GitHub adapter, `gh label create recurring`; see
+   the adapter's operations reference) — recommend this and default to it. If the user declines, tell
+   them plainly that the schedule cannot be reconciled until the label exists, and do not silently treat
+   it as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for
+   reconciliation) — offer to create the missing ones, or note their absence. This step files no items;
+   for a row now in the schedule, its `[Maintenance]` item is created — item only, no extra schedule
+   row — by the consuming repo's recurring automation or the `work` due-recurring tier when `next_due`
+   arrives. Do **not** point users at `add --recurring` to create it: that per-item path appends another
+   schedule row, duplicating an already-seeded item.
 5. **Write the schedule.** Read the current file (if any) and merge the accepted items into the `items`
    array, keying each edited item on the **original `id` it had when read in step 1**, not its final
    `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
    the row whose id matches the item's origin id; append only genuinely new items (no origin row); and
    when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
-   maintenance (which would create duplicate issues). Preserve any existing items the user did not
+   maintenance (which would create duplicate items). Preserve any existing rows the user did not
    touch. Before writing, **verify both reconciliation keys are unique across the whole `items` array —
    every final `id` AND every final `title`.** `id` is the key `recheck <id>` resolves against; `title`
-   is the key `due` / `work` match issues against (`[Maintenance] {title}`). A new item or a rename that
+   is the key `due` / `work` match items against (`[Maintenance] {title}`). A new row or a rename that
    collides with a different preserved row on either key silently breaks reconciliation — a duplicate
-   `id` makes `recheck` ambiguous, and a duplicate `title` makes two rows share one open issue (or the
+   `id` makes `recheck` ambiguous, and a duplicate `title` makes two rows share one open item (or the
    second row gets skipped/claimed against the wrong maintenance). On any collision, stop and prompt the
    user to merge the two rows, replace one, or pick a unique value; never write a schedule with a
    duplicate `id` or `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is
    tracked, not ignored.
-6. **Reconcile a renamed item's open issue.** When an edit changed an existing item's `title`, its
-   live `[Maintenance] {old title}` recurring issue (if still open) no longer matches the exact-title
-   key `due` / `work` reconcile on, so the next pass would miss it and create a duplicate. For each such
-   rename, check for an open recurring issue under the old title
-   (`gh issue list --label "recurring" --search "\"[Maintenance] {old title}\"" --state open`) and, when
-   one exists, keep the key consistent: rename that issue to `[Maintenance] {new title}`
-   (`gh issue edit <N> --title ...`), or close it if the user is retiring the item. A title rename with
-   no open issue needs no reconciliation.
+6. **Reconcile a renamed row's open item.** When an edit changed an existing row's `title`, its live
+   `[Maintenance] {old title}` recurring item (if still open) no longer matches the exact-title key
+   `due` / `work` reconcile on, so the next pass would miss it and create a duplicate. For each such
+   rename, check for an open recurring item under the old title (adapter: "Search items", `--label
+   recurring`, matching `[Maintenance] {old title}`) and, when one exists, keep the key consistent:
+   rename that item to `[Maintenance] {new title}` (a provider title-edit op — GitHub adapter:
+   `gh issue edit <N> --title ...`), or close it (adapter: "Close item") if the user is retiring the
+   row. A title rename with no open item needs no reconciliation.
 
 ## Output
 
@@ -116,9 +120,9 @@ reconfigure.
 
 ## What this skill does NOT do
 
-- File issues or run a recurring check — that is `/work-items:work-items` (`add`, `due`, `recheck`,
+- File work items or run a recurring check — that is `/work-items:work-items` (`add`, `due`, `recheck`,
   `work`). Setup only writes the schedule config.
-- Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring issue;
+- Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring item;
   setup is the bulk / initial-config path that seeds or reshapes the whole schedule.
 - Write machine-local state — the schedule lives in the consumer's tracked `.github/`, never in the
   plugin directory or plugin data directory.
