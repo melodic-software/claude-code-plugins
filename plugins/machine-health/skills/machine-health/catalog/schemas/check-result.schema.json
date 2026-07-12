@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic.local/machine-health/check-result.schema.json",
+  "title": "CheckResult",
+  "description": "One JSON object emitted by each check script on stdout. Enforced by Write-HealthResult at emit time; orchestrator re-validates on receipt.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "category",
+    "commands",
+    "detail",
+    "duration_ms",
+    "error",
+    "id",
+    "needs_admin",
+    "notes",
+    "os",
+    "ran_at",
+    "ran_successfully",
+    "severity",
+    "summary",
+    "trend"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "description": "Catalog identifier (kebab-case). Matches catalog/checks.jsonc id field."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["drivers", "network", "power", "reliability", "security", "services", "storage", "updates"],
+      "description": "High-level grouping used for report layout and severity_counts aggregation."
+    },
+    "os": {
+      "type": "string",
+      "enum": ["linux", "macos", "windows"]
+    },
+    "ran_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 with offset (yyyy-MM-ddTHH:mm:sszzz)."
+    },
+    "severity": { "$ref": "#/$defs/Severity" },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "One-line human summary. Shown in at-a-glance table and per-finding heading."
+    },
+    "detail": {
+      "type": "object",
+      "description": "Check-specific structured data. Rendered verbatim into report appendix. Depth must not exceed 10 for ConvertTo-Json round-trip safety."
+    },
+    "commands": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Reproduction commands the human can paste into a PowerShell prompt to re-derive the finding."
+    },
+    "needs_admin": { "type": "boolean" },
+    "ran_successfully": {
+      "type": "boolean",
+      "description": "False when the check returned UNKNOWN due to error, timeout, missing cmdlet, or access denied."
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 90000,
+      "description": "Wall-clock milliseconds inside the check. Must not exceed the orchestrator's 90s per-check budget."
+    },
+    "trend": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "last_run": { "type": ["string", "null"] },
+        "delta": { "type": ["string", "null"] },
+        "adjusted_from": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Severity" }]
+        }
+      }
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Caveats, reason for severity adjustment, missing-cmdlet context. Never used for primary findings - that's summary."
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Populated iff ran_successfully is false. Exception message or tool error."
+    }
+  },
+  "allOf": [
+    {
+      "description": "When ran_successfully is false, severity must be UNKNOWN and error must be non-null.",
+      "if": { "properties": { "ran_successfully": { "const": false } } },
+      "then": {
+        "properties": {
+          "severity": { "const": "UNKNOWN" },
+          "error": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "Severity": {
+      "type": "string",
+      "enum": ["CRIT", "INFO", "OK", "UNKNOWN", "WARN"]
+    }
+  }
+}

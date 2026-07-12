@@ -228,6 +228,12 @@
       "source": "./plugins/teach",
       "category": "learning",
       "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
+    },
+    {
+      "name": "machine-health",
+      "source": "./plugins/machine-health",
+      "category": "monitoring",
+      "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
     }
   ]
 }
