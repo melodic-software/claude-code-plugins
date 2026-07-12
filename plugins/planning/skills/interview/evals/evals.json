@@ -1,0 +1,78 @@
+{
+  "skill_name": "interview",
+  "evals": [
+    {
+      "id": 1,
+      "name": "relentless-me-mode-one-at-a-time",
+      "prompt": "/planning:interview me — I want to add rate limiting to the public API but haven't thought through the details.",
+      "expected_output": "In me-mode the skill runs a relentless depth-first Q&A, asking ONE question per turn in inline prose (not AskUserQuestion), each question leading with a recommendation and its basis, and grounds answers in the codebase where the code already answers a question.",
+      "files": [],
+      "expectations": [
+        "Output asks one question at a time rather than batching multiple questions",
+        "Each question leads with a recommended answer and a one-line basis",
+        "Questions are asked inline in prose, not via a side-by-side AskUserQuestion card",
+        "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "auto-guard-never-folds-user-choice",
+      "prompt": "/planning:interview add a soft-delete flag to the accounts table. The intent is mostly clear — just lock the brief.",
+      "expected_output": "During synthesis, if a genuine user design decision with real tradeoffs and no codebase answer surfaces (e.g. cascade behavior for soft-deleted accounts), the skill STOPS and surfaces it as the user's to decide instead of silently folding it into the Brief as a captured assumption.",
+      "files": [],
+      "expectations": [
+        "Output does NOT silently capture a real user design choice as an assumption in the Brief",
+        "When a genuine design decision with no codebase answer surfaces, the skill stops and surfaces it (asks it, or offers to run relentless me-mode)",
+        "Output distinguishes codebase-resolvable / conventional-default decisions (which it may synthesize) from genuine user decisions (which it must not)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "lock-mode-does-not-fudge-gap",
+      "prompt": "/planning:interview lock the brief for adding webhook retries — I've told you enough.",
+      "expected_output": "In lock mode the skill synthesizes the Brief directly without Q&A, but if a true unknown surfaces mid-synthesis it STOPS and surfaces the gap rather than guessing a value to fill it.",
+      "files": [],
+      "expectations": [
+        "Output synthesizes the Brief directly rather than running a full Q&A loop",
+        "If a true unknown surfaces during synthesis, the skill stops and surfaces it rather than fabricating a value",
+        "Output does not fudge a gap to avoid interrupting the lock"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "brief-persisted-not-plan",
+      "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
+      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /architect — it produces the WHAT contract, not an implementation approach.",
+      "files": [],
+      "expectations": [
+        "Output writes a Brief with goal, constraints, and testable acceptance criteria",
+        "Output does NOT draft an implementation plan / approach (that is /architect's job)",
+        "Output recommends a next step (explore, research, or /architect) rather than starting to code"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-askuserquestion-for-dependent-questions",
+      "prompt": "/planning:interview me about the caching approach for the product catalog — the cache key depends on the eviction policy which depends on the read pattern.",
+      "expected_output": "Because these decisions are dependent (a later question's framing depends on an earlier answer), the skill asks them one at a time in prose rather than as a batched side-by-side AskUserQuestion card.",
+      "files": [],
+      "expectations": [
+        "Output asks the dependent decisions one at a time in prose",
+        "Output does NOT use a batched AskUserQuestion card for these sequential/dependent decisions",
+        "Each question still leads with a recommendation and basis"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "skips-truly-mechanical-work",
+      "prompt": "/planning:interview I need to fix a typo in a comment in utils.ts — the word 'recieve' should be 'receive'.",
+      "expected_output": "The skill recognizes this as truly mechanical (a comment typo, no behavior change) and declines to gate it with an interview, telling the user it needs no brief.",
+      "files": [],
+      "expectations": [
+        "Output identifies the task as mechanical / non-behavioral (a comment typo)",
+        "Output does NOT run a Q&A loop or produce a Brief for it",
+        "Output tells the user the task does not warrant an interview"
+      ]
+    }
+  ]
+}

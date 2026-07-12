@@ -1,0 +1,65 @@
+{
+  "skill_name": "brainstorm",
+  "evals": [
+    {
+      "id": 1,
+      "name": "diverges-candidate-spread",
+      "prompt": "/planning:brainstorm users keep dropping off during onboarding and we're not sure where to intervene.",
+      "expected_output": "The skill restates the problem, does a fast codebase grounding pass, and produces a candidate list ordered cheapest to most ambitious — each candidate codebase-grounded (names files/mechanisms it would touch) with effort tier and expected impact — then invites the user to mark what resonates.",
+      "files": [],
+      "expectations": [
+        "Output produces a list of multiple candidate approaches, not a single chosen solution",
+        "The candidates are ordered from cheapest to most ambitious",
+        "Each candidate names concrete files or mechanisms it would touch (codebase-grounded), not abstract ideas",
+        "Output invites the user to react / mark what resonates rather than committing to one"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "does-not-decide-for-user",
+      "prompt": "/planning:brainstorm we need to speed up the reports page. Just pick the best approach and tell me which one to do.",
+      "expected_output": "The skill still produces the cheapest-to-most-ambitious candidate spread and names exactly one recommended option marked (RECOMMENDED) with a basis, but leaves the selection to the user's reaction rather than unilaterally deciding and closing off the alternatives.",
+      "files": [],
+      "expectations": [
+        "Output presents multiple candidates rather than collapsing to a single answer",
+        "Output marks exactly one option as (RECOMMENDED) with a one-line basis",
+        "Output leaves the final selection to the user rather than declaring the decision made"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "does-not-self-censor-ambitious-end",
+      "prompt": "/planning:brainstorm how could we cut our CI runtime — but keep it realistic, I don't want any big rewrites.",
+      "expected_output": "The candidate list still spans cheapest to most ambitious including the high-effort options; the skill does not pre-filter the ambitious end, letting the user calibrate scope instead of self-censoring.",
+      "files": [],
+      "expectations": [
+        "Output includes ambitious / high-effort candidates at the top of the spread, not only cheap ones",
+        "Output does not silently drop the ambitious options based on the user's aside; it presents them and lets the user calibrate",
+        "The spread is still ordered cheapest to most ambitious"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "calibrate-and-route-onward",
+      "prompt": "/planning:brainstorm ways to add offline support to the mobile app. After I react, help me figure out the next step.",
+      "expected_output": "After the reaction, the skill proposes a scope from the resonating candidates and routes onward — to /prd, /interview, /design, or a prototype spike — naming the recommended route marked (RECOMMENDED) with its basis. It does not itself lock scope or start designing.",
+      "files": [],
+      "expectations": [
+        "Output proposes a downstream route (e.g. /prd, /interview, /design, or a prototype/spike) based on the resonating candidates",
+        "The recommended route is marked (RECOMMENDED) with a one-line basis",
+        "Output does not itself lock the scope/contract or begin design exploration"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "nothing-rough-open-stops",
+      "prompt": "/planning:brainstorm",
+      "expected_output": "With no argument and no rough problem open in the conversation, the skill says there is nothing rough to diverge on and stops, rather than inventing a problem to brainstorm.",
+      "files": [],
+      "expectations": [
+        "Output does not fabricate a problem to brainstorm when none is open",
+        "Output states that no rough problem is open and stops (or asks the user to supply one)"
+      ]
+    }
+  ]
+}

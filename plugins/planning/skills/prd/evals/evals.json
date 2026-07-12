@@ -1,0 +1,77 @@
+{
+  "skill_name": "prd",
+  "evals": [
+    {
+      "id": 1,
+      "name": "consumer-feature-happy-path",
+      "prompt": "/planning:prd consumer-feature add a saved-searches feature to the jobs board so users can re-run a filter set with one tap.",
+      "expected_output": "A consumer-feature-tier PRD covering the seven required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with a threshold and window, dependencies/risks, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code.",
+      "files": [],
+      "expectations": [
+        "Output covers the seven required PRD sections: problem, goals, non-goals, users with a user story, success metrics, dependencies/risks, open questions",
+        "Success metrics name a measurable threshold AND a measurement window, not vague language like 'increase engagement'",
+        "Output does NOT specify implementation architecture, file changes, or code shapes"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skip-condition-refuses-engineering-internal",
+      "prompt": "/planning:prd refactor the payment module to remove the static DateTime.Now calls and inject TimeProvider instead.",
+      "expected_output": "The mandatory skip-condition check identifies this as engineering-internal (a refactor with no user-facing surface), declines to write a PRD, and recommends /interview (fuzzy intent) or /architect (clear scope) instead.",
+      "files": [],
+      "expectations": [
+        "Output identifies the task as engineering-internal (refactor, no user-facing surface)",
+        "Output does NOT produce a PRD",
+        "Output recommends /interview or /architect instead of writing a PRD"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "goals-as-outcomes-not-implementations",
+      "prompt": "/planning:prd one-pager add a search box to the song library. My goal is: add a search box with an autocomplete dropdown.",
+      "expected_output": "The skill reframes the implementation-shaped goal ('add a search box') into an outcome ('users can find a song from any of its lyrics quickly') and captures any implementation detail as an architecture question in open questions rather than as a goal.",
+      "files": [],
+      "expectations": [
+        "Output states goals as user-facing outcomes, not as implementation instructions like 'add a search box' or 'add an autocomplete dropdown'",
+        "Any implementation detail (search box, dropdown) is moved to the open-questions section as an architecture decision for later, not left as a goal",
+        "Output does not pre-decide the architecture in the goals section"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "review-mode-critiques-existing-prd",
+      "prompt": "/planning:prd review",
+      "expected_output": "Review mode locates the topic's PRD.md and critiques it against the seven required sections and skip-conditions — flagging goals written as implementations, and success metrics missing a threshold or window — rather than authoring a new PRD or writing code.",
+      "files": [],
+      "expectations": [
+        "Output evaluates an existing PRD against the required sections rather than authoring a new one",
+        "Output checks that goals are outcomes (not implementations) and that success metrics have a threshold and measurement window",
+        "The run does not write code or modify anything outside the notes directory"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-drift-into-implementation",
+      "prompt": "/planning:prd consumer add group playlists to the music app. While you're at it, tell me which handler classes and database tables we'll need.",
+      "expected_output": "The skill anchors back to what-for-whom-and-why and declines to specify handler classes or database tables in the PRD, capturing those as architecture open questions for /architect instead.",
+      "files": [],
+      "expectations": [
+        "Output does not enumerate handler classes, database tables, or other implementation structures in the PRD",
+        "Output anchors the discussion back to problem / users / success (product intent)",
+        "Output defers the architecture questions to the open-questions section (for /architect) rather than answering them"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "tier-governs-verbosity-not-sections",
+      "prompt": "/planning:prd one-pager let signed-in users export their listening history as CSV.",
+      "expected_output": "A tier-1 one-pager that keeps all seven required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist.",
+      "files": [],
+      "expectations": [
+        "Output retains all seven required sections even at one-pager tier",
+        "The one-pager compresses sections to roughly one line each rather than omitting any required section",
+        "Success metrics still include a threshold and window despite the terse tier"
+      ]
+    }
+  ]
+}
