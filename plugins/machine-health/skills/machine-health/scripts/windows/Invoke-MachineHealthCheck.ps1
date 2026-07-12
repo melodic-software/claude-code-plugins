@@ -181,6 +181,7 @@ try {
         -HostName $hostname `
         -UserName ("$env:USERDOMAIN\$env:USERNAME") `
         -OutputBase $OutputBase `
+        -StateBase $StateBase `
         -SkillRoot $skillRoot `
         -Matrix $matrix `
         -NonElevatedCoverage $nonElevatedCoverage `

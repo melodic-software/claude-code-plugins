@@ -35,7 +35,7 @@ Banner structure:
     To run elevated:
       Open Windows Terminal as Administrator, then:
         pwsh -NoProfile -File '<skill>\scripts\windows\Invoke-MachineHealthCheck.ps1' `
-             -OutputBase '<OutputBase>'
+             -OutputBase '<OutputBase>' -StateBase '<StateBase>'
 
     Suppress this banner with -SkipBanner.
    ================================================================
@@ -48,6 +48,10 @@ function Write-ElevationBanner {
         [Parameter(Mandatory = $true)] [string] $HostName,
         [Parameter(Mandatory = $true)] [string] $UserName,
         [Parameter(Mandatory = $true)] [string] $OutputBase,
+        # Resolved state root. The elevated rerun command must pin it explicitly:
+        # an elevated terminal usually lacks CLAUDE_PLUGIN_DATA, so an unpinned
+        # rerun would fall back to OutputBase and split state across two roots.
+        [string] $StateBase,
         [Parameter(Mandatory = $true)] [string] $SkillRoot,
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
@@ -89,7 +93,11 @@ function Write-ElevationBanner {
     $lines.Add(' To run elevated:')
     $lines.Add('   Open Windows Terminal as Administrator, then:')
     $lines.Add("     pwsh -NoProfile -File '$invokeScript' \")
-    $lines.Add("          -OutputBase '$OutputBase'")
+    if ($StateBase) {
+        $lines.Add("          -OutputBase '$OutputBase' -StateBase '$StateBase'")
+    } else {
+        $lines.Add("          -OutputBase '$OutputBase'")
+    }
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
     $lines.Add($sep)
