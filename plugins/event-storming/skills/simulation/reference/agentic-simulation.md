@@ -519,7 +519,7 @@ Each persona is a SEPARATE Agent tool invocation. The facilitator orchestrates r
    c. **Emoji check:** scan for emoji Unicode characters in sticky content — if found, update the sticky via `miro_update_sticky_note` to remove emojis
    d. **Type prefix check:** scan for stickies with prefixes like "COMMAND:", "EVENT:", "🔵" — update to remove prefix, the color IS the type
    e. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs — flag as `[PHASE? Decompose this]`
-   f. **Visual checkpoint:** take a browser screenshot at every phase transition (MANDATORY, not optional)
+   f. **Visual checkpoint:** on the live-board path with a browser MCP connected, take a screenshot at every phase transition (a strong quality gate for board runs); in structured-markdown mode or with no browser MCP, skip it and verify against the markdown artifact instead
    g. **Legend overflow check:** verify legend stickies are within frame bounds visually
 4. Next round's agents read the board themselves via MCP — they don't need a facilitator summary
 5. Repeat until cool down + 100-event gate

@@ -68,7 +68,7 @@ point the tooling at wherever your copy lives (any path you choose):
 
 Run these checks BEFORE starting any simulation:
 
-- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails, inform user and get approval for curl fallback
+- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails or no Miro server is connected, route to structured-markdown mode (SKILL.md "Miro availability & graceful degradation") — do NOT fall back to a raw Miro REST/token/curl call, which would reintroduce the very dependency the markdown path exists to avoid
 - [ ] **Source material accessible** *(optional — authoring / source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, extract your copy into the temp working dir, e.g. `cd "${TMPDIR:-/tmp}" && mkdir -p eventstorming_epub && cd eventstorming_epub && unzip /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item — the simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
@@ -243,6 +243,12 @@ Rubric Score:
 
 **Previous versions (for comparison):**
 
+The real comparison baseline is your own run history in `${CLAUDE_PLUGIN_DATA}/history.jsonl`. The
+numbers below are **illustrative examples only** — author-run figures for one domain (Developer
+Conference), shipped to show the *shape* of a version-progression record. Do NOT compare a fresh run
+(or any other domain) against them, or the evaluator will report bogus regressions/progress; use them
+solely as a format template until your own history accumulates.
+
 - v3: 77 BP events (scripted), 5 DL aggregates — baseline, no agent simulation
 - v4: 103 BP events (partial) — first agent attempt
 - v5: 169 BP events, 68 PM stickies, 60 DL stickies, 8 aggregates — full agent-driven
@@ -297,9 +303,14 @@ After EVERY simulation run, answer these questions:
 
 ---
 
-## Visual Verification Checklist (MANDATORY at every phase transition)
+## Visual Verification Checklist (live-board path)
 
-Screenshots are not optional — they are a required quality gate. Take a browser screenshot via chrome-devtools MCP after EVERY phase transition and check these items:
+Screenshot verification applies **only on the live Miro-board path** and requires a browser MCP
+(e.g. chrome-devtools) — an optional surface, not a declared plugin dependency. When a browser MCP
+is connected, take a screenshot after EVERY phase transition and check the items below; it is a
+strong quality gate for board runs. When no browser MCP is available, or the run is in
+structured-markdown mode, skip screenshot capture and verify against the markdown artifact instead —
+do not block the run on an undeclared tool.
 
 | Check | What to Look For | Action if Failed |
 |-------|-----------------|------------------|

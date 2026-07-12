@@ -87,11 +87,15 @@ This document defines the repeatable process for improving the **output of a sim
 
 ---
 
-## Step 3: COMPARE — Source Material Validation
+## Step 3: COMPARE — Source Material Validation *(optional — skip if you don't have the book)*
 
-**Inputs:** Scored rubric + EPUB source
+**Inputs:** Scored rubric + (optionally) the Brandolini book. This step cross-checks a run against
+the primary source; it needs a copy of *Introducing EventStorming* (EPUB/PDF you own). If you don't
+have it, **skip Step 3 entirely** — the bundled methodology references already encode the book's
+guidance, and scoring (Step 2) plus version comparison (Step 4) run without the source. Do not stall
+the workflow waiting on the book.
 
-**Process:**
+**Process (only when you have the source):**
 For each criterion that scored Partial or Fail:
 
 1. Read the corresponding book chapter (use chapter index in simulation-evaluation.md)
