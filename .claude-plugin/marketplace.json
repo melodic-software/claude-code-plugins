@@ -92,10 +92,10 @@
       "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
     },
     {
-      "name": "book-distill",
-      "source": "./plugins/book-distill",
+      "name": "knowledge",
+      "source": "./plugins/knowledge",
       "category": "knowledge",
-      "tags": ["book", "distill", "pdf", "epub", "skill", "knowledge", "reference", "documentation"]
+      "tags": ["knowledge", "distill", "book", "pdf", "epub", "skill", "reference", "synthesis", "ingest"]
     },
     {
       "name": "context7",
@@ -247,5 +247,8 @@
       "category": "monitoring",
       "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
     }
-  ]
+  ],
+  "renames": {
+    "book-distill": "knowledge"
+  }
 }
