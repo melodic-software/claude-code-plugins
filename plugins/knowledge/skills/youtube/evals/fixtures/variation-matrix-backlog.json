@@ -1,0 +1,67 @@
+{
+  "status": "smoke-pass",
+  "note": "Follow-up 2026-06-11: staged acquire (video-only then captions-only) + progressive manual-EN transcript clean. ZLT1zkhPl2w primary: video downloads but caption ladder exhausts on host; MlQ8GZvPWJA remains slide-talk smoke.",
+  "driver_video": {
+    "id": "mixed-demo-programming",
+    "url": "https://www.youtube.com/watch?v=7zZy1QTvokM",
+    "slug": "stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
+    "status": "smoke-pass-full-e2e",
+    "selectedCount": 119,
+    "highVolume": true,
+    "densificationWindows": 3,
+    "contactSheetCount": 8,
+    "acceptance": "full goldens + synthesis + research gate"
+  },
+  "variations": [
+    {
+      "id": "code-screencast",
+      "label": "Code screencast",
+      "description": "Dense terminal/IDE footage; densification windows should fire; native 1080p escalation likely on text-dense frames.",
+      "candidate_url": "https://www.youtube.com/watch?v=7M7O-tuAkN8",
+      "slug": "using-the-chrome-mcp-server-with-copilot-7M7O-tuAkN8",
+      "selectedCount": 16,
+      "contactSheetCount": 1,
+      "highVolume": false,
+      "status": "smoke-pass",
+      "synthesis": "light-mcp"
+    },
+    {
+      "id": "slide-talk",
+      "label": "Slide talk",
+      "description": "Static/animated slides with sparse motion; phash dedup should collapse near-duplicates.",
+      "candidate_url": "https://www.youtube.com/watch?v=MlQ8GZvPWJA",
+      "slug": "cuckoo-hashing-data-structures-in-60-sec-MlQ8GZvPWJA",
+      "selectedCount": 1,
+      "contactSheetCount": 1,
+      "status": "smoke-pass",
+      "alternate_blocked": {
+        "url": "https://www.youtube.com/watch?v=ZLT1zkhPl2w",
+        "reason": "staged acquire: video OK; caption ladder exhausted on host (2026-06-11 re-run)"
+      }
+    },
+    {
+      "id": "talking-head",
+      "label": "Pure talking-head / lecture",
+      "description": "Sparse frame budget expected; densification should stay at baseline multiplier.",
+      "candidate_url": "https://www.youtube.com/watch?v=Kd0QGZMy_tA",
+      "slug": "openai-codex-in-chatgpt-in-5-minutes-Kd0QGZMy_tA",
+      "selectedCount": 46,
+      "contactSheetCount": 3,
+      "status": "smoke-pass",
+      "alternate_blocked": {
+        "url": "https://www.youtube.com/watch?v=dYAoiLhOuao",
+        "reason": "yt-dlp caption HTTP 429 on host run"
+      }
+    },
+    {
+      "id": "mixed-demo",
+      "label": "Mixed demo",
+      "description": "Alternating talking-head and screen-share; tests adaptive densification + contact-sheet triage.",
+      "candidate_url": "https://www.youtube.com/watch?v=EWZtE2i1tIw",
+      "slug": "google-jules-101-gemini-2-5-ai-agent-lea-EWZtE2i1tIw",
+      "selectedCount": 36,
+      "contactSheetCount": 3,
+      "status": "smoke-pass"
+    }
+  ]
+}
