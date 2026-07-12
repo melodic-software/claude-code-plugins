@@ -231,8 +231,14 @@ its server.
    (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json` — same token/cost
    breakdown as the MCP,
    [ccusage json-output](https://ccusage.com/guide/json-output)).
-2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it; map each secret to
-   `userConfig` `sensitive` (below).
+2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it and map each secret to
+   `userConfig` `sensitive` (below). "Useless" is a high bar — a plugin that runs in a reduced mode
+   without the server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn:
+   an `npx` command needs a `cmd /c` wrapper on Windows (#58510 below), and a bundled built server
+   whose `node_modules` live under `${CLAUDE_PLUGIN_DATA}` must set
+   `env.NODE_PATH: "${CLAUDE_PLUGIN_DATA}/node_modules"` (the persist-deps example in
+   [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
+   with `MODULE_NOT_FOUND`.
 3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill NAMES the
    dependency and the consumer provides the server in their own `.mcp.json`; the skill degrades
    gracefully or loads the tool via `ToolSearch` when present. This is the extensibility model's
@@ -269,7 +275,7 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 
 | Server | Transport | Secret | Verdict | Basis |
 |---|---|---|---|---|
-| miro | stdio (repo-built) | `MIRO_API_TOKEN` | **SHIP** → event-storming | No CLI; `/event-storming-simulation` drives a Miro board — useless without it. Generic `miro-mcp` server, no medley coupling. Bundle path below |
+| miro | stdio (repo-built) | `MIRO_API_TOKEN` | STAY | No CLI, but the event-storming plugin is **degraded-but-functional** without Miro: `/event-storming:simulation` runs structured-markdown mode by default and the plugin **explicitly ships no Miro server** (its README Requirements + the simulation preflight). Rule 3 — the consumer supplies Miro in their own `.mcp.json`; `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`) if they choose to wrap it |
 | aspire | stdio (`aspire` native) | — | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
@@ -284,17 +290,18 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
 | ref | http | `REF_API_KEY` | STAY | `/research` doc search; degraded-but-functional |
 
-**SHIP: 1 (miro). STAY: 13. DROP: 0** — every non-SHIP server has a live consumer; the three
-disabled entries are deliberate documented opt-ins, not dead servers. firecrawl already migrated to
-`firecrawl-cli` (absent from `.mcp.json`) — it confirms rule 1 rather than being a 15th row.
+**SHIP: 0. STAY: 14. DROP: 0** — no medley server clears the SHIP bar: every one is CLI-first,
+degraded-but-functional (its consumer plugin already runs without it), or infra-bound. This audit
+therefore **ratifies "no plugin ships an MCP server"** rather than adding a first exception. Every
+STAY server has a live consumer; the three disabled entries are deliberate documented opt-ins, not
+dead servers. firecrawl already migrated to `firecrawl-cli` (absent from `.mcp.json`) — it confirms
+rule 1 rather than being a 15th row.
 
-**miro SHIP — bundle path (for the retrofit).** `mcp-servers/miro/node` is a repo-built TypeScript
-server, not an npm package. Prefer bundling the built server under `${CLAUDE_PLUGIN_ROOT}` with its
-`node_modules` installed to `${CLAUDE_PLUGIN_DATA}` (the persist-deps pattern in
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference), `${CLAUDE_PLUGIN_DATA}`) and
-run it via `node <server>` — this sidesteps the Windows bare-`npx` spawn bug (#58510) that the
-publish-to-npm + `npx` route would hit. Map `MIRO_API_TOKEN` → `userConfig` `miro_api_token`
-(`sensitive`). Gated on the event-storming plugin publishing first.
+miro was the closest call and still lands STAY: the shipped event-storming plugin was built to
+degrade to structured-markdown by default and ships no server, so bundling one would auto-start a
+credentialed MCP for every event-storming session against the plugin's own default path. If a future
+plugin ever clears the SHIP bar for a repo-built server like `mcp-servers/miro/node`, bundle it per
+rule 2's `NODE_PATH` note and prefer `node <server>` over publish-to-npm + `npx` (sidesteps #58510).
 
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
