@@ -90,12 +90,15 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    the row whose id matches the item's origin id; append only genuinely new items (no origin row); and
    when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
    maintenance (which would create duplicate issues). Preserve any existing items the user did not
-   touch. Before writing, **verify every final `id` is unique** across the whole `items` array — a new
-   item, or a rename, that collides with a different preserved row would leave two rows sharing one
-   `id`, making `recheck <id>` ambiguous and letting the recurring tiers process one intended item
-   twice. On a collision, stop and prompt the user to merge the two rows, replace one, or pick a unique
-   id; never write a schedule with duplicate ids. Then write it back with the `{"items": [ ... ]}` root.
-   Confirm the file is tracked, not ignored.
+   touch. Before writing, **verify both reconciliation keys are unique across the whole `items` array —
+   every final `id` AND every final `title`.** `id` is the key `recheck <id>` resolves against; `title`
+   is the key `due` / `work` match issues against (`[Maintenance] {title}`). A new item or a rename that
+   collides with a different preserved row on either key silently breaks reconciliation — a duplicate
+   `id` makes `recheck` ambiguous, and a duplicate `title` makes two rows share one open issue (or the
+   second row gets skipped/claimed against the wrong maintenance). On any collision, stop and prompt the
+   user to merge the two rows, replace one, or pick a unique value; never write a schedule with a
+   duplicate `id` or `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is
+   tracked, not ignored.
 
 ## Output
 
