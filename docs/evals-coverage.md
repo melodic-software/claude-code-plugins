@@ -30,13 +30,13 @@ session re-checks the warrant against the live `SKILL.md` and records a skip ver
 - **Covered (partial) → backfill owed: 2 plugins** — `claude-config-audit` (2/3;
   `memory-health` uncovered) and `implementation` (6/11; `implement`, `implement-dispatch`, `build`,
   `lint`, `setup` uncovered).
-- **Warranted, uncovered → backfill owed: 15 more plugins** — see the batch table.
+- **Warranted, uncovered → backfill owed: 17 more plugins** — see the batch table.
 - **Deferred (do not backfill in this repo now): 2 plugins** — `songwriting` and `knowledge`, each
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
 - **Skip (explicit): 13 plugins** — 4 pure-reference + 9 hooks.
-- Total warranted skills owed backfill this wave: **46**, grouped into **8 one-session batches**
-  (`melodic-software/medley#1447`–`#1454`).
+- Total warranted skills owed backfill this wave: **48**, grouped into **9 one-session batches**
+  (`melodic-software/medley#1447`–`#1455`).
 
 ## Backfill batches emitted
 
@@ -54,6 +54,7 @@ schema path, and the per-skill warrant re-check instruction.
 | `melodic-software/medley#1452` | claude-ops: claude-code-changelog, claude-observability, claude-troubleshooting; prototype: logic, ui (5) | coordinate w/ claude-ops setup #1432 + hook migration #1391 (no file conflict) |
 | `melodic-software/medley#1453` | context7, firecrawl, playwright, diagnose, teach, kindle-dedrm (6) | thin single-skill plugins; proportional case counts |
 | `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | author vs current shipped behavior; owning retrofits update their eval on behavior change — simulation #1405, machine-health #1419, skill-quality #1418 |
+| `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | ecosystem-commands retrofit #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
 
 ## Deferred — author in the destination repo once separation lands
 
