@@ -1,32 +1,34 @@
-# Work-items Checklist
+# /work-items:work-items Checklist
 
-Copy the section matching the action you're running into your session task list (or the consuming project's working-notes convention). Per-action checklists below.
+Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below — copy only the section matching the action you're running.
 
 ## Action: work (most common — full workflow per item)
 
-- [ ] Claim — hold→verify→claim protocol, ending in `gh issue edit <N> --add-assignee @me`
-- [ ] Branch — `git checkout -b <type>/<N>-<short-slug>` from the default branch
-- [ ] Execute the project's development workflow (or explore → plan → implement → test → review → PR)
-- [ ] Close — `gh issue close <N> --comment '<closing rationale>'` after PR merges (or via PR body `Closes #N` auto-close)
+- [ ] Session-start reclaim — `tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` over assigned items (idempotent)
+- [ ] Claim — `tools/work-item-tracker/work-item-tracker.sh claim "<id>"` (exit 7 = lost race, pick next)
+- [ ] Branch — `git checkout -b <type>/<N>-<short-slug>` from origin/main
+- [ ] Run `/workflow` chain — copy the checklist `/workflow` emits into this slice's PLAN.md
+- [ ] Close — `/work-items:work-items done <N>` after PR merges (or via PR body `Closes #N` auto-close)
 
 ## Action: add
 
-- [ ] Pre-flight: `gh issue list --state all --search '<key-term> in:title'` — pivot if open/closed match exists
-- [ ] Compose title (`<type>: <description>`); body; labels
-- [ ] `gh issue create --title '...' --body '...' --label '...'`
-- [ ] Capture issue number for cross-reference
+- [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`) — pivot if open/closed match exists
+- [ ] Compose title (`<type>: <description>`); write the body to a temp file with the Write tool (argv-safe — never inline generated text); build labels
+- [ ] `tools/work-item-tracker/work-item-tracker.sh create-item --title '...' --body "$(cat "$BODY_FILE")" --labels '...'`
+- [ ] Capture item ID/number for cross-reference
 
 ## Action: start
 
-- [ ] Pick item — `list --label '<label>'` OR `due`
-- [ ] Claim via hold→verify→claim, ending in `gh issue edit <N> --add-assignee @me`
+- [ ] Pick item — `/work-items:work-items list --label '<label>'` OR `/work-items:work-items due`
+- [ ] Pre-check + reclaim — `tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` (idempotent; recovers a crashed session's stale lease so `claim` doesn't back off on the stale assignee)
+- [ ] Claim via `tools/work-item-tracker/work-item-tracker.sh claim "<id>"`
 - [ ] Chain to `work` action
 
 ## Action: done
 
-- [ ] Confirm the work is complete (PR merged, or no PR applies) — for recurring items use `recheck` instead
-- [ ] `gh issue close <N> --comment '<summary>'` (or rely on PR `Closes #N` auto-close); `--reason "not planned"` when closing as superseded/rejected
-- [ ] Remove `status:claimed`; comment with merge SHA + learnings pointer if applicable
+- [ ] Verify PR merged
+- [ ] `/work-items:work-items done <N>` (or rely on PR `Closes #N` auto-close)
+- [ ] Comment with merge SHA + retro pointer if applicable
 
 ## Action: stats / list / search / scan / audit
 
@@ -34,10 +36,14 @@ Copy the section matching the action you're running into your session task list 
 
 ## Action: recheck
 
-- [ ] Find the schedule item; complete the periodic check itself
-- [ ] Update `last_checked` (always) and `next_due` (only if past due)
-- [ ] Close the associated open issue with a recheck comment
+- [ ] Search items with `recheck:` body lines older than threshold
+- [ ] For each, evaluate trigger; close-with-comment OR re-open per outcome
+- [ ] Update item body with re-check timestamp
 
 ## Skip criteria
 
 - `add` pre-flight SKIPPED only in tightly-scoped automation where duplicate-risk explicitly assessed; ad-hoc invocations always pre-flight
+
+## How to use
+
+Same shape as the `/workflow` checklist template ("How to use"). Copy only the per-action section relevant to your invocation.
