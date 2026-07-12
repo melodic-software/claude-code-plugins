@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "miro": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.min.js"],
+      "env": {
+        "MIRO_API_TOKEN": "${user_config.miro_api_token}"
+      }
+    }
+  }
+}

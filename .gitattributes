@@ -42,6 +42,14 @@ packages.lock.json  -diff
 *.lock              -diff
 
 ###############################################################################
+# Generated MCP-server bundles — committed CI output (source of truth is the
+# plugin's TypeScript src/; regenerate with `npm run bundle`). Suppress noisy
+# diffs and mark generated so reviews collapse them (line endings inherit LF).
+###############################################################################
+
+plugins/*/dist/*.min.js   -diff linguist-generated
+
+###############################################################################
 # Binary — no line-ending conversion, no diff.
 ###############################################################################
 
