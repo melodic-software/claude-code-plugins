@@ -1,0 +1,77 @@
+{
+  "skill_name": "code-review-fanout",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-tier-transparency",
+      "prompt": "Fan out a review across my branch and give me the ranked findings.",
+      "expected_output": "In default mode the skill classifies the change into a lifecycle tier (small/medium/large), emits the mandatory one-line tier-transparency statement naming surfaces run and surfaces skipped, then dispatches, normalizes, and persists the ranked findings.",
+      "files": [],
+      "expectations": [
+        "Output classifies the change into a small, medium, or large tier",
+        "Output emits a single tier-transparency line naming the tier, the surfaces run, and the surfaces skipped at that tier",
+        "Output persists the ranked findings to a findings file rather than only printing them"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "run-everything-full-sweep",
+      "prompt": "Run everything — every reviewer and orchestrator you have — on this branch.",
+      "expected_output": "The run-everything mode is selected and the skill follows the full-breadth sweep (availability gate, main-thread orchestrators, leaf fan-out, normalize, persist) rather than the lifecycle-tiered default.",
+      "files": [],
+      "expectations": [
+        "Output selects the run-everything mode, not the lifecycle-tiered default",
+        "Output performs the full-breadth sweep including main-thread orchestrator plugins and leaf agents",
+        "Output normalizes the heterogeneous surface outputs and persists a single ranked findings file"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "review-mode-report-only",
+      "prompt": "Fan out a review of my branch and clean up the issues you find.",
+      "expected_output": "The review mode reports findings and persists them but mutates nothing in the working tree; applying fixes is the separate explicit fix action, which does not auto-run after a review.",
+      "files": [],
+      "expectations": [
+        "Output produces and persists findings without modifying the working tree",
+        "Output does NOT auto-apply fixes as part of the review",
+        "Output indicates that applying fixes requires the separate explicit fix action"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "untracked-only-no-spawn",
+      "prompt": "Review my changes — I have some new files I just created but haven't staged.",
+      "expected_output": "With untracked-only changes, the dispatch gate reports that only untracked files are present and that they must be `git add`-ed to be included, and spawns no reviewers — without staging the files itself.",
+      "files": [],
+      "expectations": [
+        "Output reports that only untracked files are present and must be git add-ed to be included in the review",
+        "Output spawns no reviewer subagents for this case",
+        "Output does NOT stage (git add) the untracked files on the user's behalf"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "unknown-action-diagnostic",
+      "prompt": "/review-toolkit:code-review-fanout run-evrything",
+      "expected_output": "For an unrecognized action value the skill emits one diagnostic line naming the unknown value and the available actions, then falls back to the default review — the typo is surfaced, never silently absorbed.",
+      "files": [],
+      "expectations": [
+        "Output emits a diagnostic line naming the unknown action value and listing the available actions (run-everything, fix)",
+        "Output then falls back to running the default review",
+        "Output does not silently absorb the mistyped action as if it were a valid mode"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "pr-comment-gate-opt-in",
+      "prompt": "Fan out a full review on this branch — it has an open PR.",
+      "expected_output": "The skill withholds the code-review orchestrator's PR mode (which posts findings as a PR comment and would violate the report-only contract) unless the user explicitly opts in, skipping it and naming the skip in the surfaces list instead.",
+      "files": [],
+      "expectations": [
+        "Output does NOT dispatch the code-review orchestrator's PR-comment-posting mode without explicit user opt-in",
+        "Output names the skipped PR-mutation surface in its surfaces list rather than silently omitting it",
+        "Output keeps the review report-only, posting nothing to the open PR absent an explicit opt-in"
+      ]
+    }
+  ]
+}
