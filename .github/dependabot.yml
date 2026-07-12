@@ -1,9 +1,9 @@
 # Dependabot keeps this repo's dependencies current with REVIEWED pull requests — GitHub-native,
 # no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
-# toolchain, the standards-managed runner-policy dependency root, and the hash-locked Python CI
-# toolchain. The plugin hooks still use each consuming repository's tools; these manifests exist
-# only to make this repository's validation reproducible. No auto-merge is configured, so every
-# bump is a PR that runs ci before a human merges.
+# toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
+# toolchain, and the miro plugin's bundled Node MCP server. The plugin hooks still use each
+# consuming repository's tools; these manifests exist only to make this repository's validation
+# reproducible. No auto-merge is configured, so every bump is a PR that runs ci before a human merges.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -44,6 +44,17 @@ updates:
   # updates are reviewed and cannot drift behind the materialized component.
   - package-ecosystem: npm
     directory: /.github/standards/runner-policy
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  # The miro plugin bundles a Node MCP server; its runtime + build dependencies
+  # are pinned by plugins/miro/package-lock.json and rebuilt into the committed
+  # bundle by CI, so bumps are reviewed here like any other locked manifest.
+  - package-ecosystem: npm
+    directory: /plugins/miro
     labels:
       - dependencies
     schedule:
