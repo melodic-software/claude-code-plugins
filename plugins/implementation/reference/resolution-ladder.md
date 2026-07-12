@@ -16,7 +16,8 @@ conforming to the contract's `ecosystem.schema.json`. Command keys are **opaque 
 - `check-cmd` — lint/format check, no file modification; `null` when lint does not apply
 - `fix-cmd` — auto-fix; `null` when the toolchain has no fix mode
 
-Plus `globs` (required — classify changed files), and optional `anchor`, `project-discovery`,
+Plus `globs` (required — classify changed files), and optional `enabled` (default `true`; a consumer
+sets `false` to disable an ecosystem without deleting its file), `anchor`, `project-discovery`,
 `opt-in`, `install-hint`, `gates`, `notes`. Placeholders substituted by the running skill:
 `<files>` (changed-files list scoped to this ecosystem), `<solution-or-project-file>` (resolved per
 `anchor`), `<project-dir>` (each root from `project-discovery`), `$REPO_ROOT`
@@ -39,6 +40,11 @@ Resolve each ecosystem independently, in order; stop at the first rung that yiel
    [`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`](ecosystems/). These are a
    **fallback only** — never a peer source of truth, and never written into a consumer repo outside
    the `/implementation:setup` interview or a persisted inference.
+
+**`enabled: false` → skip the ecosystem.** After resolution, an ecosystem whose resolved `enabled` is
+`false` is not run — detection skips it and it is excluded even from `all`. This is the consumer's
+opt-out; bundled defaults never set it. (A consumer overlay can also flip `enabled` back to `true`
+per-key.)
 
 **Malformed consumer file → warn and degrade to rung 2**, never a hard stop: surface the parse/schema
 error, then infer as if the file were absent. (Consuming repos SHOULD validate their own files against

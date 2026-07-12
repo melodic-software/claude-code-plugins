@@ -52,7 +52,7 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/build` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`).
+If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/build` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
 
 If the working tree is clean, fall back to the branch diff — `git diff --name-only $(git merge-base <default-branch> HEAD)..HEAD` — so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). A caller passing an explicit changed-file list (e.g. `/verify-changes`) overrides both detection paths.
 
