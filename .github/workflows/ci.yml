@@ -506,7 +506,7 @@ jobs:
           printf '%s\n%s\n' \
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
             '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-            | MIRO_API_TOKEN=ci-smoke-token timeout 60 node dist/index.min.js > smoke-out.json
+            | MIRO_API_TOKEN=ci-smoke-token timeout 10 node dist/index.min.js > smoke-out.json
           grep -q '"miro_create_board"' smoke-out.json
           rm -f smoke-out.json
 
