@@ -1,0 +1,77 @@
+{
+  "skill_name": "diagnose",
+  "evals": [
+    {
+      "id": 1,
+      "name": "observed-failure-builds-loop-first",
+      "prompt": "/diagnose:diagnose checkout times out for orders over $1,000 but works fine for small orders.",
+      "expected_output": "Starts at Phase 1 by constructing a fast, deterministic, agent-runnable pass/fail reproduction loop before hypothesising, and does not jump straight to guessing the cause.",
+      "files": [],
+      "expectations": [
+        "Begins with Phase 1 — constructing a fast, deterministic, agent-runnable reproduction signal (failing test, curl/HTTP script, harness, etc.)",
+        "Does NOT skip to proposing a fix or root cause before a reproduction loop exists",
+        "Treats the tight loop as the load-bearing artifact and gates Phase 2 on having a loop it believes in"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-loop-possible-is-the-deliverable",
+      "prompt": "/diagnose:diagnose users report the app 'sometimes feels laggy' — I have no way to reproduce it, no logs, no access to their environment, and no capture.",
+      "expected_output": "When a loop genuinely cannot be built, it stops and says so explicitly, lists what was tried, and asks for environment access or a captured artifact — rather than proceeding to hypothesise without a loop.",
+      "files": [],
+      "expectations": [
+        "Explicitly reports that a reproduction loop cannot be built with the given information",
+        "Lists the loop-construction strategies attempted and asks for environment access, a captured artifact (HAR/log/recording), or instrumentation permission",
+        "Does NOT proceed to Phase 3 hypothesising without a loop"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "multiple-falsifiable-hypotheses",
+      "prompt": "/diagnose:diagnose I already have a failing test that reproduces a null-pointer crash in the report exporter. Walk me through diagnosing the cause.",
+      "expected_output": "With a repro in hand, generates 3-5 ranked, falsifiable hypotheses each stating a prediction, grounded in real repo state, before testing any of them.",
+      "files": [],
+      "expectations": [
+        "Generates 3-5 ranked hypotheses before testing any single one",
+        "Each hypothesis is falsifiable — it states a prediction (if X is the cause, changing Y makes the bug disappear/worse)",
+        "Ranks hypotheses against real repo state (recent commits, ADRs, quirks/known-issues) rather than blind speculation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-correct-seam-is-a-finding",
+      "prompt": "/diagnose:diagnose I found and fixed the bug, but the only place a regression test would fit is a shallow unit test that can't replicate the multi-caller chain that actually triggered it.",
+      "expected_output": "Refuses to force a false-confidence test into the wrong seam; instead documents the absence of a correct seam as an architectural finding in Phase 6.",
+      "files": [],
+      "expectations": [
+        "Does NOT force a regression test into the shallow/incorrect seam that gives false confidence",
+        "Records the absence of a correct test seam as the finding — an architectural recommendation filed in Phase 6",
+        "Frames the missing seam as the codebase preventing the bug from being locked down, not as an optional nicety"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-blind-retry-as-fix",
+      "prompt": "/diagnose:diagnose the flaky integration test failed, I re-ran it, and it passed. Can we call it fixed and move on?",
+      "expected_output": "Rejects an intermittent pass as a fix — an unexplained pass means the root cause is still present; it drives toward a higher reproduction rate and a real root cause.",
+      "files": [],
+      "expectations": [
+        "Does NOT accept 'ran it again and it passed' as a fix",
+        "States that an intermittent pass means the root cause is still present",
+        "Pushes to raise the reproduction rate (loop the trigger, add stress, narrow timing) to get a debuggable signal rather than declaring done"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "cleanup-gate-removes-tagged-instrumentation",
+      "prompt": "/diagnose:diagnose I've applied the fix and my debug logs are tagged [DEBUG-a4f2]. What's left before I can call this done?",
+      "expected_output": "Enforces the Phase 6 cleanup gate: original repro no longer reproduces, regression test passes (or seam-absence is documented), all tagged instrumentation removed via a single grep, and the correct hypothesis recorded in the commit/PR.",
+      "files": [],
+      "expectations": [
+        "Requires all `[DEBUG-a4f2]` instrumentation be removed from the source under change (verified by grepping that specific tag across the changed source returning nothing) before done",
+        "Requires re-running the Phase 1 loop to confirm the original symptom no longer reproduces",
+        "Requires the correct hypothesis be recorded in the commit message / PR description for the next debugger"
+      ]
+    }
+  ]
+}
