@@ -22,7 +22,7 @@ Run lint and format checks across affected ecosystems in one command. Fills the 
 
 Use `/lint` for quick feedback during development. Use `/verify-changes` before committing.
 
-**Consumer conventions win.** When the consuming project documents its own lint commands or dispatch script, use those instead of the defaults in [reference/ecosystem-config.md](reference/ecosystem-config.md).
+**The command surface is resolved, not hardcoded.** `/lint` resolves each ecosystem's `check-cmd`/`fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — shared with `/build`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
 
 ## Arguments
 
@@ -30,7 +30,7 @@ Use `/lint` for quick feedback during development. Use `/verify-changes` before 
 
 **Ecosystem filters** (if omitted, auto-detect from changed files):
 
-Available filters come from [reference/ecosystem-config.md](reference/ecosystem-config.md); any ecosystem with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
+`/lint` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `yaml`, and `cross-cutting` (each resolved per the ladder); any with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
 
 **Mode flag:**
 
@@ -60,7 +60,7 @@ If an ecosystem filter was provided, use it. If `all`, run every applicable ecos
 
 Auto-detection algorithm:
 
-1. Load [reference/ecosystem-config.md](reference/ecosystem-config.md)
+1. Resolve each covered ecosystem's surface per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) (consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default; a malformed consumer file warns and degrades to inference, never a hard stop)
 2. For each ecosystem, match its `globs` against the changed-files list
 3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed
 
@@ -68,7 +68,7 @@ If neither detection path yields changes and no filter specified: report "No cha
 
 ### 2. Run linters per ecosystem
 
-Run each ecosystem's `check-cmd` (or `fix-cmd` with `--fix`) from the config. Honor each ecosystem's `opt-in` — skip tools the project hasn't configured.
+Run each ecosystem's resolved `check-cmd` (or `fix-cmd` with `--fix`). Honor each ecosystem's `opt-in` — skip tools the project hasn't configured.
 
 For ecosystem-specific gotchas, reference `/build` — its `context/<ecosystem>.md` files own the per-ecosystem prose detail.
 
