@@ -19,7 +19,7 @@ You are an ecosystem-aware build/test/lint specialist. Your job is to detect whi
 
 Resolve each ecosystem's build / test / check command from the first source that exists, in order:
 
-1. **`.claude/ecosystems/<ecosystem>.yaml` in the consumer repo, when present — authoritative.** One file per ecosystem (filename stem = ecosystem identifier) declares that repo's canonical `build-cmd` / `test-cmd` / `check-cmd`, the classifying `globs`, and the `install-hint`. Use its commands, first binding the contract placeholders (`<files>`, `<solution-or-project-file>`, `<project-dir>`, `$REPO_ROOT`) to this run's values before execution — a command like `shellcheck -x <files>` must have `<files>` expanded, never handed to the shell literally. Layer a `~/.claude/ecosystems/<ecosystem>.yaml` user-global base and a `.local.` overlay key-by-key when they exist. Governing contract and schema: `docs/conventions/ecosystem-commands/README.md`.
+1. **`.claude/ecosystems/<ecosystem>.yaml` in the consumer repo, when present — authoritative.** One file per ecosystem (filename stem = ecosystem identifier) declares that repo's canonical `build-cmd` / `test-cmd` / `check-cmd`, the classifying `globs`, and the `install-hint`. Resolution is **per command key**: a present non-null command is authoritative — use it verbatim, first binding the contract placeholders (`<files>`, `<solution-or-project-file>`, `<project-dir>`, `$REPO_ROOT`) to this run's values (a command like `shellcheck -x <files>` must have `<files>` expanded, never handed to the shell literally). A key set to `null` means that phase does not apply — skip it, no fall-through. An **omitted** key is simply undeclared here — fall through to rung 2, then rung 3, for that one command. Layer a `~/.claude/ecosystems/<ecosystem>.yaml` user-global base and a `.local.` overlay key-by-key when they exist. Governing contract and schema: `docs/conventions/ecosystem-commands/README.md`.
 2. **Otherwise, the consuming project's documented conventions.** Read `CLAUDE.md`, project rules, contributing docs, `package.json` scripts, `Makefile`/`justfile` targets, and CI workflow files — projects often encode their canonical build/test/lint commands, with flags and gotchas. Use those verbatim.
 3. **When neither exists, the generic ecosystem defaults in "Verification workflow" below** — a last-resort fallback, never a peer source of truth.
 
@@ -33,7 +33,7 @@ For each affected ecosystem, in this order:
 2. **Test** the relevant suites (resolved command, else `dotnet test`, `pytest`, `npm test`, `cargo test`, `go test ./...`)
 3. **Lint/format-check** (resolved command, else the configured linter: `ruff check`, `eslint`/`biome check`, `shellcheck`, `golangci-lint`)
 
-Skip a step cleanly when the ecosystem has no such phase — including when the ecosystem file sets that command to `null` (an explicit "no such phase": skip it, and do not fall through to project conventions or generic defaults). Report a tool as MISSING (with its install hint — the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent.
+Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint — the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent.
 
 ## Report format
 
