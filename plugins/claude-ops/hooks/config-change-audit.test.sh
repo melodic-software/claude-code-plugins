@@ -11,7 +11,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/claude-ops-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 
-INPUT='{"config_source":"project_settings"}'
+INPUT='{"source":"project_settings"}'
 
 TEL="$TEST_TMPDIR/tel.json"
 SINK="$(make_sink "$TEL")"
@@ -36,6 +36,6 @@ assert_file_absent "kill switch → no envelope" "$TELK"
 
 TELM="$TEST_TMPDIR/telm.json"; SINKM="$(make_sink "$TELM")"
 env HOOK_TELEMETRY_SINK="$SINKM" bash "$HOOK" <<<'{}' >/dev/null 2>&1
-assert_file_absent "missing config_source → no envelope" "$TELM"
+assert_file_absent "missing source → no envelope" "$TELM"
 
 report

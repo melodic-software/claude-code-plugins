@@ -3,7 +3,7 @@
 # Fires on user_settings|project_settings|local_settings|skills changes;
 # policy_settings is excluded upstream (cannot be blocked, low signal).
 #
-# NON-BLOCKING: exit 0 always. The subject is the config_source identifier
+# NON-BLOCKING: exit 0 always. The subject is the source identifier
 # (path-only, privacy-safe).
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
 # Kill switch: HOOK_CONFIG_CHANGE_AUDIT_ENABLED=false.
@@ -20,7 +20,7 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
-CONFIG_SOURCE=$(hook::jq_field "$INPUT" '.config_source') || exit 0
+CONFIG_SOURCE=$(hook::jq_field "$INPUT" '.source') || exit 0
 
 DATA=$(jq -nc --arg subject "$CONFIG_SOURCE" '{subject: $subject}')
 

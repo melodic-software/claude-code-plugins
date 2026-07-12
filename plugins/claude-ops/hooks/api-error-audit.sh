@@ -4,8 +4,8 @@
 # rate-limit velocity tracking (e.g. the claude-observability skill).
 #
 # ADVISORY: StopFailure output and exit code are ignored — always exit 0.
-# The subject is error_type only: error_message may carry prompt fragments or
-# session metadata, so it is never captured (privacy-safe).
+# The subject is the StopFailure `error` type only: `error_details` may carry
+# prompt fragments or session metadata, so it is never captured (privacy-safe).
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
 # Kill switch: HOOK_API_ERROR_AUDIT_ENABLED=false.
 
@@ -21,7 +21,7 @@ START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
-ERROR_TYPE=$(hook::jq_field "$INPUT" '.error_type') || exit 0
+ERROR_TYPE=$(hook::jq_field "$INPUT" '.error') || exit 0
 
 DATA=$(jq -nc --arg subject "$ERROR_TYPE" '{subject: $subject}')
 

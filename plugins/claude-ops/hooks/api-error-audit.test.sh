@@ -11,7 +11,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/claude-ops-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 
-INPUT='{"error_type":"rate_limit"}'
+INPUT='{"error":"rate_limit"}'
 
 # --- Emits the envelope when a sink is wired -------------------------------
 TEL="$TEST_TMPDIR/tel.json"
@@ -38,9 +38,9 @@ env HOOK_TELEMETRY_SINK="$SINKK" HOOK_API_ERROR_AUDIT_ENABLED=false \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_file_absent "kill switch → no envelope" "$TELK"
 
-# --- Missing error_type is a silent skip -----------------------------------
+# --- Missing error field is a silent skip ----------------------------------
 TELM="$TEST_TMPDIR/telm.json"; SINKM="$(make_sink "$TELM")"
 env HOOK_TELEMETRY_SINK="$SINKM" bash "$HOOK" <<<'{}' >/dev/null 2>&1
-assert_file_absent "missing error_type → no envelope" "$TELM"
+assert_file_absent "missing error → no envelope" "$TELM"
 
 report

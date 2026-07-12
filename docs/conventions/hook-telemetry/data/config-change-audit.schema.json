@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/config-change-audit.schema.json",
   "title": "config-change-audit telemetry data",
-  "description": "Per-hook `data` payload for the config-change-audit ConfigChange emitter. Discovered from the envelope `hook` value \"config-change-audit\". Evolves additive-only. Privacy-safe: carries the config_source identifier only (path-safe).",
+  "description": "Per-hook `data` payload for the config-change-audit ConfigChange emitter. Discovered from the envelope `hook` value \"config-change-audit\". Evolves additive-only. Privacy-safe: carries the ConfigChange `source` identifier only (never the changed file's contents).",
   "type": "object",
   "required": ["subject"],
   "additionalProperties": true,
   "properties": {
     "subject": {
       "type": "string",
-      "description": "The mutated config_source (e.g. \"user_settings\", \"project_settings\", \"local_settings\", \"skills\")."
+      "description": "The mutated configuration source from the ConfigChange `source` field (e.g. \"user_settings\", \"project_settings\", \"local_settings\", \"skills\")."
     }
   }
 }
