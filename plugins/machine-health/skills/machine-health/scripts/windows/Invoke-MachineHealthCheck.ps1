@@ -362,9 +362,10 @@ function New-UnknownCheckResult {
 # reads for wear/capacity analysis. runStamp keeps same-day reruns distinct.
 $batteryReportPath = Join-Path $logsDir "battery-report-$runStamp.html"
 
-# Ids of checks actually dispatched this run (not cadence-skipped, not
-# script-missing). Recorded to history.jsonl checks_ran as the per-check
-# last-run signal cadence selection and trend annotation read.
+# Ids of checks that produced a usable result this run (not cadence-skipped,
+# not script-missing, not a failed dispatch). Recorded to history.jsonl
+# checks_ran as the per-check last-run signal cadence selection and trend
+# annotation read.
 $ranCheckIds = [System.Collections.Generic.List[string]]::new()
 
 $checkResults = [System.Collections.Generic.List[object]]::new()
@@ -384,12 +385,15 @@ foreach ($entry in $windowsChecks) {
         continue
     }
 
-    $ranCheckIds.Add($entry.id)
     $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog -BatteryReportPath $batteryReportPath
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 
     if (-not $dispatch.ok) {
+        # Record checks_ran ONLY on a usable dispatch. A timeout / no-output /
+        # invalid-JSON result is not a real "ran" signal -- counting it would
+        # let a monthly check that failed to produce output be cadence-skipped
+        # for ~27 days instead of retried next run.
         $checkResults.Add((New-UnknownCheckResult -Entry $entry `
                     -Summary "Check did not produce a valid result ($($dispatch.reason))." `
                     -ErrorReason $dispatch.reason `
@@ -397,6 +401,7 @@ foreach ($entry in $windowsChecks) {
         Write-MachineHealthLog ("check_failed id=$($entry.id) reason=$($dispatch.reason) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")
     } else {
+        $ranCheckIds.Add($entry.id)
         $checkResults.Add($dispatch.result)
         Write-MachineHealthLog ("check_ok id=$($entry.id) severity=$($dispatch.result.severity) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")

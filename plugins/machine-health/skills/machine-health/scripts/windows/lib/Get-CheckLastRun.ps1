@@ -6,10 +6,11 @@ Return the run_id (ISO timestamp) of the most recent history entry in which a
 given check actually ran, or $null when the tail records no such run.
 
 .DESCRIPTION
-history.jsonl lines carry a `checks_ran` array -- the ids of the checks the
-orchestrator dispatched that run (cadence-skipped and script-missing checks are
-absent). This is the authoritative per-check "when did it last run" signal, used
-by two callers:
+history.jsonl lines carry a `checks_ran` array -- the ids of the checks that
+produced a usable result that run (cadence-skipped, script-missing, and
+failed-dispatch checks are absent, so a failed run does not defer the next one).
+This is the authoritative per-check "when did it last run" signal, used by two
+callers:
 
  - cadence-aware selection (Get-CheckSelection): a monthly check is due only when
    it has not run within the monthly interval.

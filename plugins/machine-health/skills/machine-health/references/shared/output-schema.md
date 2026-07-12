@@ -139,7 +139,7 @@ Compact. One line per run. Append-only — never rewrite.
 }
 ```
 
-`checks_ran` lists the ids of the checks the orchestrator dispatched this run — cadence-skipped and script-missing checks are absent. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
+`checks_ran` lists the ids of the checks that produced a usable result this run — cadence-skipped, script-missing, and failed-dispatch (timeout / no output / invalid JSON) checks are absent, so a failed run does not defer the next one. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
 
 `top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. It captures every scalar detail key of every check that ran, keyed `<check.id>.<detailKey>`; the trend engine reads one well-known key per check (`Get-TrendRelevantKey`).
 
