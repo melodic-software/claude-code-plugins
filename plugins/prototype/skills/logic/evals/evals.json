@@ -1,0 +1,63 @@
+{
+  "skill_name": "logic",
+  "evals": [
+    {
+      "id": 1,
+      "name": "state-machine-throwaway-tui",
+      "prompt": "Does this scheduling state machine handle the case where a booking is cancelled and then rescheduled to the same slot? Prototype the logic so I can drive it by hand.",
+      "expected_output": "The skill states the question at the top of the prototype, isolates the scheduling logic in a small pure module (reducer / state machine) behind a throwaway TUI that re-renders the full frame each tick, and makes it runnable in one command via the project's task runner (or, when the project has no task runner, a command documented at the top of a prototype README).",
+      "files": [],
+      "expectations": [
+        "The prototype records the question being tested at the top of the file before building anything",
+        "The scheduling logic lives in a pure module (e.g. a reducer or explicit state machine) separate from the TUI shell",
+        "The TUI re-renders the whole frame on each action (replace, not append) and lists available actions",
+        "The prototype is runnable via a single command — wired into the project's existing task runner, or documented at the top of a prototype README when the project has no task runner"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "appearance-question-routes-to-ui",
+      "prompt": "What should this settings dashboard look like? Prototype a few options.",
+      "expected_output": "This is a visual/appearance question — the wrong facet for the logic skill. It routes the user to /prototype:ui instead of building a terminal logic prototype.",
+      "files": [],
+      "expectations": [
+        "The response identifies the request as a visual/appearance question, not a logic/state question",
+        "The response routes to `/prototype:ui` rather than building a logic prototype"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-tests-added",
+      "prompt": "Prototype this discount-calc reducer, and add a test suite so we can be sure it's right.",
+      "expected_output": "The skill builds the throwaway logic prototype but declines to add a test suite — a prototype that needs tests is no longer a prototype. It notes that tests belong to the lifted production module, not the throwaway prototype.",
+      "files": [],
+      "expectations": [
+        "The response builds the logic prototype without adding a test suite for it",
+        "The response explains that a prototype needing tests is no longer a prototype (tests belong to the lifted production module)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "logic-module-stays-pure-and-portable",
+      "prompt": "Prototype whether this order-fulfillment reducer correctly blocks shipping before payment clears.",
+      "expected_output": "The logic module is kept pure — no I/O, no terminal codes, no console output used for control flow — so it stays liftable into production. The TUI is a thin shell that imports and calls the module; nothing flows from the TUI back into the logic.",
+      "files": [],
+      "expectations": [
+        "The fulfillment logic module contains no I/O, terminal codes, or console output used for control flow",
+        "The TUI imports and calls into the logic module; the module does not depend on the TUI",
+        "The response frames the logic module as liftable into production with the TUI shell discarded"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-real-database-wiring",
+      "prompt": "Prototype this inventory data model and wire it up to our real Postgres so it feels real.",
+      "expected_output": "Unless the question itself is about persistence, the skill uses an in-memory store rather than wiring the prototype to the real Postgres database, keeping it a throwaway prototype.",
+      "files": [],
+      "expectations": [
+        "The prototype uses an in-memory store rather than connecting to the real Postgres database",
+        "The response only reaches for real persistence if the question being tested is specifically about persistence"
+      ]
+    }
+  ]
+}
