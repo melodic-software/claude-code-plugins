@@ -53,6 +53,7 @@ assert_contains "dry-run preserves deps by default" "$out" "PreserveDeps: yes"
 
 # --- 3. default apply preserves secrets + deps, removes plain untracked ---
 echo ignored >"$R/.env"
+echo direnv >"$R/.envrc"
 mkdir -p "$R/node_modules"
 echo dep >"$R/node_modules/x.js"
 echo untracked >"$R/scratch.txt"
@@ -61,6 +62,7 @@ out="$(run_reset --apply 2>&1)" || true
 assert_contains "apply reports reset" "$out" "AppliedReset:"
 assert_contains "apply reports restored count" "$out" "RestoredTracked:"
 assert_file_exists "default preserves .env" "$R/.env"
+assert_file_exists "default preserves .envrc" "$R/.envrc"
 assert_file_exists "default preserves node_modules" "$R/node_modules/x.js"
 assert_file_absent "default removes plain untracked" "$R/scratch.txt"
 

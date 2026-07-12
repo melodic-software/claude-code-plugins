@@ -68,7 +68,7 @@ Three classes:
 ### Secrets / config / user data
 
 - `.azure-cli/`, `.aws/`, `.gcloud/` — cloud / CLI credential bundles
-- `.env`, `.env.*`, `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md` — local-only env / config overrides (gitignored by convention; `.env.example` IS tracked)
+- `.env`, `.env.*`, `.envrc`, `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md` — local-only env / config overrides (gitignored by convention; `.env.example` IS tracked)
 - `.vscode/`, `.idea/` — IDE user config (the regenerable `.vs/` cache IS cleanable — see caches tier)
 - `**/*.csproj.user`, `**/*.suo` — .NET IDE user state (VS debug profile, sln docstates)
 - `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/` — Codex CLI config (only `.codex/logs/` is cleanable — see caches tier)

@@ -39,6 +39,15 @@ out="$(run_build --apply)"
 assert_contains "protected-descendant dir skipped" "$out" "Skip (protected descendant):"
 assert_file_exists "nested .env preserved" "$TEST_TMPDIR/repo/dist/.env"
 
+# A build-output dir living inside a submodule is preserved — its files are
+# tracked by the submodule, not the superproject index.
+printf '[submodule "sub"]\n\tpath = deps/sub\n\turl = ./sub\n' >"$TEST_TMPDIR/repo/.gitmodules"
+mkdir -p "$TEST_TMPDIR/repo/deps/sub/build"
+echo compiled >"$TEST_TMPDIR/repo/deps/sub/build/app.js"
+out="$(run_build --apply)"
+assert_contains "submodule build dir skipped" "$out" "Skip (submodule):"
+assert_file_exists "submodule tracked file preserved" "$TEST_TMPDIR/repo/deps/sub/build/app.js"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

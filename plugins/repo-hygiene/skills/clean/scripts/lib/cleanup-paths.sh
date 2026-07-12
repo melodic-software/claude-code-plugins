@@ -104,6 +104,7 @@ CLEAN_STALE_BRANCH_DAYS=90
 CLEAN_TREE_PRESERVE_SECRETS=(
   '.env'
   '.env.*'
+  '.envrc'
   '*.local.json'
   '*.local.jsonc'
   '*.local.md'

@@ -29,7 +29,7 @@ clean_path_is_protected() {
   # express: a mid-path wildcard and anchored file-name / suffix matches.
   case "$norm" in
   *"/.claude/skills/"*"/data/"*) return 0 ;;
-  */.env | */.env.*) return 0 ;;
+  */.env | */.env.* | */.envrc) return 0 ;;
   *".local.json" | *".local.jsonc" | *".local.md") return 0 ;;
   *".csproj.user" | *".sln.docstates.suo" | *".suo") return 0 ;;
   *) ;;
@@ -56,6 +56,24 @@ clean_dir_has_protected_descendant() {
       return 0
     fi
   done < <(find "$dir" -mindepth 1 2>/dev/null)
+  return 1
+}
+
+# Return 0 when a path is a configured submodule or lives inside one. A
+# submodule's files are tracked by the submodule, not the superproject index, so
+# clean_path_is_tracked (which consults only the superproject) treats them as
+# untracked — a recursively-found build/cache dir inside a submodule would then
+# be deleted with its tracked contents. Callers skip such targets. Read-only.
+clean_path_in_submodule() {
+  local repo_root="$1" abs="$2" rel sm
+  rel="${abs//\\//}"
+  rel="${rel#"$repo_root"/}"
+  while IFS= read -r sm; do
+    [[ -z "$sm" ]] && continue
+    if [[ "$rel" == "$sm" || "$rel" == "$sm"/* ]]; then
+      return 0
+    fi
+  done < <(git -C "$repo_root" config --file "$repo_root/.gitmodules" --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
   return 1
 }
 
