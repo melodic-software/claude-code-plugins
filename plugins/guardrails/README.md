@@ -1,9 +1,8 @@
 # guardrails
 
-A Claude Code plugin bundling four **PreToolUse safety guards** that catch
-risky agent actions the moment they happen — before a write lands or a bash
-command runs. Each guard is independently toggleable, so you run exactly the
-subset you want.
+A Claude Code plugin bundling five **safety guards** that catch risky agent
+actions the moment they happen — before a write lands or a bash command runs.
+Each guard is independently toggleable, so you run exactly the subset you want.
 
 ## The guards
 
@@ -12,9 +11,10 @@ subset you want.
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
 | **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and `LEFTHOOK=0` / `LEFTHOOK_*=false` env-var prefixes (including inside compound `cd … && …` commands). |
+| **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 
-The three blocking guards feed their stderr message back to Claude as
+The four blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The advisory guard surfaces its findings the same way
 but always allows the edit.
 
@@ -37,6 +37,13 @@ but always allows the edit.
   expansion-based bypass. **This is a friction guard against accidental/casual
   bypass, not a sandbox.** (A command longer than 16 KB is not parsed and is
   blocked fail-closed.)
+- **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
+  spans before matching the executable token, so quoted prose or a commit
+  message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
+  accepted residual: a write inside a command substitution in double quotes
+  (`echo "$(python3 -c 'import pathlib …')"`) is **not** caught — the strip
+  treats the quoted span as inert. Same friction-guard, not-a-sandbox posture as
+  `block-no-verify`.
 
 ## Per-hook kill switches
 
@@ -49,6 +56,7 @@ guard without touching the others.
 | secret-pattern-detection | `HOOK_SECRET_PATTERN_DETECTION_ENABLED` |
 | hardcoded-path-check | `HOOK_HARDCODED_PATH_CHECK_ENABLED` |
 | block-no-verify | `HOOK_BLOCK_NO_VERIFY_ENABLED` |
+| block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
 | cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
 
 Set them in your settings `env` block:
