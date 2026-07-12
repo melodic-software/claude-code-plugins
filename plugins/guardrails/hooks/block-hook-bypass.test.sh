@@ -27,7 +27,12 @@ run() {
 
 # --- Core bypass forms ------------------------------------------------------
 run "cat > file (blocked)" "cat > foo.txt" 2
+run "cat >> file append (blocked)" "cat >> foo.txt" 2
 run "echo > file (blocked)" "echo hello > foo.txt" 2
+# No-space redirect forms (echo>file / echo>>file) still write a file.
+run "echo>file no space (blocked)" "echo hi>foo.txt" 2
+run "echo>>file no space append (blocked)" "echo hi>>foo.txt" 2
+run "echo>/dev/null no space (allowed)" "echo hi>/dev/null" 0
 run "python3 -c open write (blocked)" \
   "python3 -c \"open('x','w').write('a')\"" 2
 run "git status (allowed)" "git status" 0
@@ -71,6 +76,15 @@ run "uppercase ECHO > file (blocked)" "ECHO hello > foo.txt" 2
 # shellcheck disable=SC2016  # literal $(...) is the command under test, not for expansion
 run "write in command substitution (accepted floor — allowed)" \
   'echo "$(python3 -c '\''import pathlib'\'')"' 0
+
+# --- Heredoc terminator with a regex-metachar delimiter ---------------------
+# The heredoc body is stripped; the terminator must be matched LITERALLY. A
+# delimiter like EOF+ would break a `=~ "$delim"` compare (the `+` quantifies),
+# leaving the stripper stuck in-heredoc and silently swallowing the trailing
+# `cat > real.txt` bypass. Regression for that: the bypass after the heredoc
+# must still block.
+HEREDOC_METACHAR=$(printf 'cat <<%sEOF+%s\ncontent line\nEOF+\ncat > real.txt' "'" "'")
+run "heredoc metachar delim, trailing cat > bypass (blocked)" "$HEREDOC_METACHAR" 2
 
 # --- Kill switch — disabled path is a clean no-op even on a bypass ----------
 run "kill switch off → no-op despite cat > file" "cat > foo.txt" 0 \

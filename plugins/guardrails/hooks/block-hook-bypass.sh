@@ -82,12 +82,18 @@ emit_tel() {
 # (their content is data, not a command). Line-oriented so a quoted span never
 # spills its match across the command.
 strip_literals() {
-  local cmd="$1" line result="" in_heredoc=0 delim=""
+  local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   local heredoc_start_re='<<-?[[:space:]]*([^[:space:]]+)'
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((in_heredoc)); then
-      [[ "$line" =~ ^[[:space:]]*"$delim"[[:space:]]*$ ]] && in_heredoc=0
+      # Trim + literal compare, NOT `=~ "$delim"`: inside a bash regex the
+      # delimiter would be treated as a pattern, so a metachar delim (EOF+,
+      # BODY[1], …) would never match its own terminator — leaving in_heredoc
+      # set and silently swallowing every later line (a crafted-heredoc bypass).
+      trimmed="${line#"${line%%[![:space:]]*}"}"
+      trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+      [[ "$trimmed" == "$delim" ]] && in_heredoc=0
       continue
     fi
     if [[ "$line" =~ $heredoc_start_re ]]; then
@@ -110,7 +116,9 @@ EXEC_LC="${EXECUTABLE,,}"
 COMMAND_LC="${COMMAND,,}"
 
 _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]+>'
-_echo_redir='(^|[[:space:];|&()]+)echo[[:space:]]'
+# `echo` followed by whitespace OR a redirect (`echo>file`, `echo>>file` have no
+# space before `>`) — the redirect-adjacent form still writes a file.
+_echo_redir='(^|[[:space:];|&()]+)echo([[:space:]]|>>?)'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
 # stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
