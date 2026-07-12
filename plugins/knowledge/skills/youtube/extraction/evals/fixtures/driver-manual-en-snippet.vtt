@@ -1,0 +1,22 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+I just listened to Andrej Karpathy speak
+
+00:00:02.500 --> 00:00:05.000
+I just listened to Andrej Karpathy speak at AISN 2026, and I learned something
+
+00:00:04.800 --> 00:00:07.500
+at AISN 2026, and I learned something that I wasn't expecting.
+
+00:00:07.200 --> 00:00:10.000
+Almost everyone is prompting Claude wrong.
+
+00:00:37.000 --> 00:00:40.000
+>> I want to go to a car wash to wash my
+
+00:00:39.500 --> 00:00:42.500
+>> I want to go to a car wash to wash my car, and it's 50 m away. Should I drive
+
+00:00:42.000 --> 00:00:45.000
+or should I walk? And state-of-the-art models today will tell you to walk because it's so close.

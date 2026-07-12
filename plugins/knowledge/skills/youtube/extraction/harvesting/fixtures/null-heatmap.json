@@ -1,0 +1,10 @@
+{
+  "id": "abc123",
+  "title": "Talk without heatmap",
+  "description": "See https://example.com/docs for more",
+  "heatmap": null,
+  "chapters": [
+    { "start_time": 0, "title": "Intro — https://chapter.example.com" }
+  ],
+  "comments": []
+}
