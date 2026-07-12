@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 The divergence step before any scoping: unknown-knowns (criteria the user only recognizes when seen) surface cheapest at candidate-list time — finding one mid-implementation costs a re-plan. A brainstorm round also calibrates scope: reacting to a cheapest→most-ambitious spread prevents locking a scope that is too narrow (missed the high-value approach) or too wide (ambition the problem doesn't need).
 
-Distinct neighbors: `/design` Phase 1 decomposes the problem space WITHIN a design task already chosen; a proactive architecture-friction scan (e.g. `/improve-architecture:improve-architecture`, if installed) hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:ui`, if installed) builds visual variations of a chosen direction. This skill is the general, problem-shaped entry upstream of all three. Creative-domain ideation owned by a domain skill (e.g. songwriting brainstorms → `/songwriting:pat-pattison`, if installed) stays with that skill.
+Distinct neighbors: `/design` Phase 1 decomposes the problem space WITHIN a design task already chosen; a proactive architecture-friction scan (e.g. `/improve-architecture:improve-architecture`, if installed) hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:ui`, if installed) builds visual variations of a chosen direction. This skill is the general, problem-shaped entry upstream of all three. Creative-domain ideation owned by a domain skill (e.g. songwriting brainstorms → `/songwriting:workflow`, if installed) stays with that skill.
 
 ## Task
 

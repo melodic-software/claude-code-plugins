@@ -197,8 +197,8 @@ One row fix. The other four stay. Diagnose all five, change one.
 
 ## Related actions
 
-- `/pat-pattison diagnose <section>` — runs this worksheet.
-- `/pat-pattison stability` — runs the
+- `/songwriting:diagnosis diagnose <section>` — runs this worksheet.
+- `/songwriting:meter-prosody stability` — runs the
   [stable / unstable](stable-unstable-meta.md) meta-question on top of
   the five-row check.
 
