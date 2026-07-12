@@ -1,0 +1,32 @@
+{
+  "verdicts": ["keep-detail", "promote-key-frame", "duplicate", "blur", "talking-head-only", "skip"],
+  "promotionTiers": ["synthesis", "reject"],
+  "dimensions": [
+    "relevant-to-synthesis",
+    "on-screen-text",
+    "code-or-diagram",
+    "duplicate-of-neighbor",
+    "blur-or-unreadable",
+    "transcript-aligned",
+    "mislabeled-vs-filename",
+    "title-slide-only",
+    "metrics-or-diagram-readable",
+    "redundant-with-other-promotion"
+  ],
+  "synthesisPromotionBar": {
+    "minQuality": "sharp-or-soft-readable",
+    "reject": [
+      "talking-head-only",
+      "empty-or-transition",
+      "title-slide-only-without-data",
+      "unreadable-text",
+      "mislabeled-capture",
+      "duplicate-of-promoted-frame"
+    ],
+    "prefer": ["code-or-diagram", "metrics-or-diagram-readable", "demo-ui-with-claim"]
+  },
+  "rejectPolicy": {
+    "action": "delete-do-not-relocate",
+    "note": "Title slides and deck-reuse heroes belong in a separate briefing slice, not under media/key-frames/"
+  }
+}
