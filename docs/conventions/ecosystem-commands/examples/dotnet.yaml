@@ -1,0 +1,15 @@
+# Example .claude/ecosystems/dotnet.yaml — a consuming repo's .NET command surface.
+# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+globs: ["*.cs", "*.csproj", "*.sln", "*.slnx", "*.props", "*.targets"]
+anchor: "the solution file at repo root (*.slnx or *.sln); when none exists, the nearest *.csproj above the changed files"
+build-cmd: 'dotnet build "<solution-or-project-file>"'
+test-cmd: 'dotnet test "<solution-or-project-file>" --no-build'
+check-cmd: 'dotnet format "<solution-or-project-file>" --verify-no-changes'
+fix-cmd: 'dotnet format "<solution-or-project-file>"'
+install-hint: "Install .NET SDK from https://dot.net"
+gates:
+  - name: nuget-lockfile-drift
+    cmd: "dotnet restore --locked-mode"
+    trigger-globs: ["*.csproj", "Directory.Packages.props", "packages.lock.json"]
+    remediation: "Run dotnet restore --force-evaluate and commit the updated lock files."
+notes: "Run plain `dotnet test` — the --nologo flag silently breaks xUnit v3 discovery in this repo's pin."
