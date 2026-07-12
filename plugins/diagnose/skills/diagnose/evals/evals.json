@@ -68,7 +68,7 @@
       "expected_output": "Enforces the Phase 6 cleanup gate: original repro no longer reproduces, regression test passes (or seam-absence is documented), all tagged instrumentation removed via a single grep, and the correct hypothesis recorded in the commit/PR.",
       "files": [],
       "expectations": [
-        "Requires all `[DEBUG-a4f2]` instrumentation be removed (verified by `grep -r \"\\[DEBUG-\"` returning nothing) before done",
+        "Requires all `[DEBUG-a4f2]` instrumentation be removed from the source under change (verified by grepping that specific tag across the changed source returning nothing) before done",
         "Requires re-running the Phase 1 loop to confirm the original symptom no longer reproduces",
         "Requires the correct hypothesis be recorded in the commit message / PR description for the next debugger"
       ]

@@ -5,12 +5,12 @@
       "id": 1,
       "name": "topic-action-runs-mission-interview",
       "prompt": "/teach:teach topic rust-ownership",
-      "expected_output": "Routes to the topic action, creates a new workspace, and runs the mission interview (WHY, concrete goal, success criteria) before teaching — not a lecture dump.",
+      "expected_output": "Routes to the topic action (start-or-resume). For a new rust-ownership workspace it creates the workspace and runs the mission interview (WHY, goal, success criteria) before teaching; if one already exists it resumes from saved state. Either way it opens with orientation, not a lecture dump.",
       "files": [],
       "expectations": [
-        "Routes to the `topic` action and creates a workspace under the plugin data dir (not the consuming repo)",
-        "Runs the mission interview for a new workspace — asks WHY the user is learning this and what success looks like before teaching",
-        "Does not begin lecturing content before the mission is established"
+        "Routes to the `topic` action and resolves the workspace under the plugin data dir (not the consuming repo)",
+        "For a new workspace, runs the mission interview (WHY / goal / success) before teaching; for an existing one, resumes from saved state rather than re-interviewing from scratch",
+        "Does not open by lecturing content before the mission is established or prior state is loaded"
       ]
     },
     {
@@ -29,11 +29,11 @@
       "id": 3,
       "name": "primer-creates-no-workspace",
       "prompt": "/teach:teach primer color-grading — I just need enough vocabulary to direct the work now.",
-      "expected_output": "Runs the single-session primer: builds a vocabulary ladder (terms, quality axes, good-vs-bad examples, a prompt template) with NO workspace, mission interview, glossary, or learning records.",
+      "expected_output": "Runs the single-session primer with NO workspace, glossary, or learning records. It first intakes the user's starting point with one question, then builds the vocabulary ladder (terms, quality axes, good-vs-bad examples, a prompt template).",
       "files": [],
       "expectations": [
-        "Creates NO workspace directory, mission interview, glossary, or learning records for the primer",
-        "Delivers a vocabulary ladder: core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing prompt template",
+        "Creates NO workspace directory, glossary, or learning records for the primer (single-session, no persistence)",
+        "Opens by intaking the user's starting point with one question, then builds the vocabulary ladder — core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing prompt template",
         "Offers to escalate to `/teach:teach topic color-grading` for depth rather than silently starting a full workspace"
       ]
     },
