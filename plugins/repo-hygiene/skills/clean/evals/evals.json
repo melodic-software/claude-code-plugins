@@ -1,0 +1,79 @@
+{
+  "skill_name": "clean",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fresh-pull-routes-to-tree-destructive-gate",
+      "prompt": "I've got a bunch of local uncommitted junk on this branch and I just want it back to exactly what's on origin, like a fresh pull. /repo-hygiene:clean",
+      "expected_output": "Resolves intent to the destructive tree tier, runs git-tree-reset.sh in dry-run, and requires an explicit confirmation before applying — surfacing what is preserved and any unpushed-commit risk.",
+      "files": [],
+      "expectations": [
+        "Resolves the action to `tree` (not scan, caches, build, git, or all)",
+        "Runs the tree reset in --dry-run first and never invokes --apply on the first turn",
+        "Requires an explicit AskUserQuestion confirmation before running the reset with --apply",
+        "Surfaces the dry-run's PreserveDeps / PreserveSecrets / AheadCount values in the confirmation so the user sees what survives",
+        "Preserves secrets (.env*), runtime deps (node_modules/.venv), and skill data/ by default — adds no --include-deps or --include-secrets unless the user opts in"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "disk-space-routes-to-scan",
+      "prompt": "My disk is almost full — what can I reclaim in this repo?",
+      "expected_output": "Recognizes the disk-space phrasing, resolves to the read-only scan tier, and reports reclaimable space without deleting anything.",
+      "files": [],
+      "expectations": [
+        "Resolves the action to `scan`",
+        "Runs a read-only inventory (scan.sh) and performs no file deletion or mutation",
+        "Does not gate behind a confirmation prompt, since scan is read-only"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "all-never-composes-tree",
+      "prompt": "/repo-hygiene:clean all",
+      "expected_output": "Sweeps caches, build, and git tiers behind preflight and dry-run, and explicitly excludes the destructive tree reset from the all sweep.",
+      "files": [],
+      "expectations": [
+        "Runs the caches, build, and git tiers",
+        "Does NOT run the tree tier — no git reset --hard or clean -fdx is performed under all",
+        "Runs preflight plus the tier scripts in --dry-run before any --apply (no --apply on the first turn)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bare-ambiguous-presents-menu",
+      "prompt": "/repo-hygiene:clean",
+      "expected_output": "With no conversational signal to infer intent, presents the action table and asks the user to choose rather than guessing, and treats scan as the safe fallback.",
+      "files": [],
+      "expectations": [
+        "Presents the action table / menu and uses AskUserQuestion instead of guessing an action",
+        "Executes no --apply mutation before the user selects an option",
+        "Identifies `scan` as the safest fallback when intent stays unclear"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "include-secrets-separate-unrecoverable-confirmation",
+      "prompt": "Do a completely pristine reset — wipe everything including my .env files and node_modules so it's exactly like a fresh clone. /repo-hygiene:clean tree",
+      "expected_output": "Routes to tree, recognizes the request to widen deletion to secrets and deps, runs dry-run first, and demands a separate explicit confirmation for the UNRECOVERABLE secret deletion.",
+      "files": [],
+      "expectations": [
+        "Resolves to the `tree` action and recognizes the request to include secrets and runtime deps (--include-secrets / --include-deps)",
+        "Runs the dry-run first and never applies on the first turn",
+        "Requires a separate explicit confirmation for --include-secrets because deleting .env/secrets is UNRECOVERABLE"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "stale-branch-cleanup-routes-to-git-opt-in",
+      "prompt": "Can you clean up all the stale branches that have already been merged?",
+      "expected_output": "Resolves to the git tier, runs prune in dry-run, and gates any branch deletion behind explicit per-branch opt-in rather than deleting automatically.",
+      "files": [],
+      "expectations": [
+        "Resolves the action to `git`",
+        "Runs git-prune.sh in --dry-run before any --apply",
+        "Gates branch deletion behind an explicit per-branch opt-in (AskUserQuestion), never auto-deleting branches"
+      ]
+    }
+  ]
+}
