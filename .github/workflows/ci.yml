@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -19,8 +21,184 @@ concurrency:
 # local ci-status gateway aggregates every lane into the
 # single required check the org ci-gate ruleset keys on.
 jobs:
+  # Give every independently scheduled workload its own governed routing gate.
+  # In self-hosted-only mode each trusted private workload receives the exact
+  # centrally allowlisted label and queues until fleet capacity is available.
+  # A selector/configuration failure blocks its workload; it cannot silently
+  # redirect that workload to paid hosted Linux.
+  select-markdown:
+    name: Select runner for markdown
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-typos:
+    name: Select runner for typos
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-gitleaks:
+    name: Select runner for gitleaks
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-editorconfig:
+    name: Select runner for editorconfig
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-shellcheck:
+    name: Select runner for shellcheck
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-actionlint:
+    name: Select runner for actionlint
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-jsonschema:
+    name: Select runner for jsonschema
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-exec-bit:
+    name: Select runner for exec-bit
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-machine-specific-paths:
+    name: Select runner for machine-specific-paths
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-eol-renormalize:
+    name: Select runner for eol-renormalize
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-comment-hygiene:
+    name: Select runner for comment-hygiene
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-hook-utils-sync:
+    name: Select runner for hook-utils-sync
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
+  select-plugin-gate:
+    name: Select runner for plugin-gate
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
   markdown:
-    runs-on: ubuntu-latest
+    needs: select-markdown
+    if: ${{ !cancelled() && needs.select-markdown.result == 'success' }}
+    runs-on: ${{ needs.select-markdown.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -28,12 +206,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint markdown
-        uses: melodic-software/ci-workflows/.github/actions/markdown@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/markdown@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           config: .markdownlint-cli2.jsonc
 
   typos:
-    runs-on: ubuntu-latest
+    needs: select-typos
+    if: ${{ !cancelled() && needs.select-typos.result == 'success' }}
+    runs-on: ${{ needs.select-typos.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -41,12 +221,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Spell-check
-        uses: melodic-software/ci-workflows/.github/actions/typos@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/typos@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           config: _typos.toml
 
   gitleaks:
-    runs-on: ubuntu-latest
+    needs: select-gitleaks
+    if: ${{ !cancelled() && needs.select-gitleaks.result == 'success' }}
+    runs-on: ${{ needs.select-gitleaks.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -54,12 +236,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Scan for secrets
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           config: .gitleaks.toml
 
   editorconfig:
-    runs-on: ubuntu-latest
+    needs: select-editorconfig
+    if: ${{ !cancelled() && needs.select-editorconfig.result == 'success' }}
+    runs-on: ${{ needs.select-editorconfig.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -67,12 +251,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Check editorconfig conformance
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           config: .editorconfig-checker.json
 
   shellcheck:
-    runs-on: ubuntu-latest
+    needs: select-shellcheck
+    if: ${{ !cancelled() && needs.select-shellcheck.result == 'success' }}
+    runs-on: ${{ needs.select-shellcheck.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -80,12 +266,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint shell scripts
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           rcfile: .shellcheckrc
 
   actionlint:
-    runs-on: ubuntu-latest
+    needs: select-actionlint
+    if: ${{ !cancelled() && needs.select-actionlint.result == 'success' }}
+    runs-on: ${{ needs.select-actionlint.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -93,10 +281,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Lint workflows
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
 
   jsonschema:
-    runs-on: ubuntu-latest
+    needs: select-jsonschema
+    if: ${{ !cancelled() && needs.select-jsonschema.result == 'success' }}
+    runs-on: ${{ needs.select-jsonschema.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -104,30 +294,34 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate marketplace manifest
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
       - name: Validate dependabot.yml
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
       - name: Validate workflows
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/ci.yml
+            .github/workflows/claude-review.yml
             .github/workflows/link-check.yml
+            .github/workflows/pr-title.yml
 
   exec-bit:
-    runs-on: ubuntu-latest
+    needs: select-exec-bit
+    if: ${{ !cancelled() && needs.select-exec-bit.result == 'success' }}
+    runs-on: ${{ needs.select-exec-bit.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -135,10 +329,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify shebang files are executable
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
 
   machine-specific-paths:
-    runs-on: ubuntu-latest
+    needs: select-machine-specific-paths
+    if: ${{ !cancelled() && needs.select-machine-specific-paths.result == 'success' }}
+    runs-on: ${{ needs.select-machine-specific-paths.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -146,14 +342,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Check for machine-specific paths
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector.
           exclude: ':(exclude)plugins/guardrails/lib/path-detection/**'
 
   eol-renormalize:
-    runs-on: ubuntu-latest
+    needs: select-eol-renormalize
+    if: ${{ !cancelled() && needs.select-eol-renormalize.result == 'success' }}
+    runs-on: ${{ needs.select-eol-renormalize.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -161,10 +359,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Check index-level EOL drift
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
 
   comment-hygiene:
-    runs-on: ubuntu-latest
+    needs: select-comment-hygiene
+    if: ${{ !cancelled() && needs.select-comment-hygiene.result == 'success' }}
+    runs-on: ${{ needs.select-comment-hygiene.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -172,18 +372,20 @@ jobs:
         with:
           persist-credentials: false
       - name: Scan comment hygiene
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
 
   zizmor:
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@1d3762c2ace413db0f347048307946c46850161c # 1d3762c 2026-07-10
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
     with:
       paths: .
 
   hook-utils-sync:
-    runs-on: ubuntu-latest
+    needs: select-hook-utils-sync
+    if: ${{ !cancelled() && needs.select-hook-utils-sync.result == 'success' }}
+    runs-on: ${{ needs.select-hook-utils-sync.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -203,31 +405,77 @@ jobs:
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
   plugin-gate:
-    runs-on: ubuntu-latest
+    needs: select-plugin-gate
+    if: ${{ !cancelled() && needs.select-plugin-gate.result == 'success' }}
+    runs-on: ${{ needs.select-plugin-gate.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: .github/requirements-ci.txt
+      - name: Install and verify ShellCheck toolchain
+        # This canonical action also makes the exact ShellCheck version
+        # available to the later bash-lint contract tests in this same job.
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        with:
+          paths: plugins/bash-lint
+          rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate step
       # below: a validate-infra problem (e.g. the CLI needing auth) can never mask
-      # a real contract-test failure. shellcheck is preinstalled on the runner;
-      # shfmt is not, so shfmt-gated cases skip rather than fail. Biome and Ruff
-      # are installed below so biome-format/ruff-format suites execute instead of
-      # silently skipping when the binaries are absent.
-      - name: Install plugin test toolchains
+      # a real contract-test failure. shfmt is optional in both environments, so
+      # shfmt-gated cases skip rather than fail. Node, Python, ShellCheck, Biome,
+      # and Ruff are declared here so hosted and local runs exercise the same
+      # contract suites instead of inheriting different image tool inventories.
+      - name: Install locked plugin test toolchains
         run: |
-          npm install -g @biomejs/biome
-          python3 -m pip install --user ruff
+          npm ci
+          python -m pip install --user --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-ci.txt
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run plugin contract tests
         run: scripts/run-plugin-tests.sh
-      # Node.js is preinstalled on ubuntu-latest; no setup-node action needed.
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
       - name: Validate plugin and catalog manifests
         run: scripts/validate-plugins.sh
+
+  runner-policy:
+    name: Runner policy
+    # The independent enforcement path stays hosted and audits the selector
+    # wiring rather than depending on the fleet it is responsible for policing.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: .github/standards/runner-policy/package-lock.json
+      - name: Install pinned runner-policy dependencies
+        run: npm ci --prefix .github/standards/runner-policy
+      - name: Enforce runner policy
+        run: node .github/standards/runner-policy/runner-policy.mjs --root .
+        env:
+          CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
 
   ci-status:
     if: always()
@@ -245,8 +493,11 @@ jobs:
       - comment-hygiene
       - hook-utils-sync
       - plugin-gate
+      - runner-policy
       - zizmor
-    runs-on: ubuntu-latest
+    # The required gateway stays hosted so a fleet outage cannot prevent it
+    # from reporting required workload failures.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Aggregate lane results
@@ -257,8 +508,8 @@ jobs:
         run: |
           for r in $RESULTS; do
             case "$r" in
-              success|skipped) ;;
-              *) echo "A lane did not pass (result: $r)."; exit 1 ;;
+              success) ;;
+              *) echo "A required lane did not pass (result: $r)."; exit 1 ;;
             esac
           done
-          echo "All lanes passed or were skipped."
+          echo "All required lanes passed."

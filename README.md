@@ -68,6 +68,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `.claude-plugin/marketplace.json` — the marketplace catalog.
 - `plugins/` — one directory per plugin.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, and the per-plugin migration gate.
+- `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
 
 ## Official documentation
