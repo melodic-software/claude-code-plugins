@@ -104,17 +104,23 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    user to merge the two rows, replace one, or pick a unique value; never write a schedule with a
    duplicate `id` or `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is
    tracked, not ignored.
-6. **Reconcile a renamed row's open item.** When an edit changed an existing row's `title`, its live
-   `[Maintenance] {old title}` recurring item (if still open) no longer matches the exact-title key
-   `due` / `work` reconcile on, so the next pass would miss it and create a duplicate. For each such
-   rename, look for an open recurring item under the old title (adapter: "Search items", `--label
-   recurring`). Provider search is substring/prefix, not exact-title equality, so it can return a
-   longer item (`[Maintenance] Review CI workflow pins`) when the old title was `Review CI` — **filter
-   the results to the one whose title equals `[Maintenance] {old title}` exactly** before acting, and
-   never reconcile against a mere prefix/substring match. When exactly one exact match exists, keep the
-   key consistent: rename that item to `[Maintenance] {new title}` (a provider title-edit op — GitHub
-   adapter: `gh issue edit <N> --title ...`), or close it (adapter: "Close item") if the user is
-   retiring the row. A title rename with no exact-match open item needs no reconciliation.
+6. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
+   row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
+   longer carries that title, so `due` / `work` — which derive recurring candidates only from the
+   schedule, and whose frontier tiers exclude `recurring`-labeled items — will never surface it again,
+   leaving it stale outside the normal flow (a rename additionally risks a duplicate under the new
+   title). For each renamed or dropped existing row, look up its open item under the OLD title (adapter:
+   "Search items", `--label recurring`). Provider search is substring/prefix, not exact-title equality,
+   so it can return a longer item (`[Maintenance] Review CI workflow pins`) when the old title was
+   `Review CI` — **filter the results to the one whose title equals `[Maintenance] {old title}`
+   exactly** before acting, and never reconcile against a mere prefix/substring match. When exactly one
+   exact match exists:
+   - **Renamed row:** rename that item to `[Maintenance] {new title}` (a provider title-edit op —
+     GitHub adapter: `gh issue edit <N> --title ...`) to keep the reconciliation key consistent, or
+     close it (adapter: "Close item") if the user is instead retiring the item.
+   - **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
+     was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
+   A rename or drop with no exact-match open item needs no reconciliation.
 
 ## Output
 
