@@ -116,21 +116,32 @@ if [[ -f "${DOWNLOADS_DIR}/KindleForPC-installer-2.8.70980.exe" ]]; then
   fi
 fi
 
-DEDRM_ZIPS=$(ls "${DOWNLOADS_DIR}"/DeDRM_tools-v*.zip 2>/dev/null || true)
-DEDRM_DIRS=$(ls -d "${DOWNLOADS_DIR}"/DeDRM_tools-v*/ 2>/dev/null || true)
-if [[ -n "${DEDRM_ZIPS}${DEDRM_DIRS}" ]]; then
+# Glob arrays (not ls-capture): quoted array expansion survives paths with spaces,
+# and rm receives real array elements rather than eval-word-split strings.
+DEDRM_ZIPS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*.zip)
+DEDRM_DIRS=("${DOWNLOADS_DIR}"/DeDRM_tools-v*/)
+if [[ -e "${DEDRM_ZIPS[0]}" || -e "${DEDRM_DIRS[0]}" ]]; then
   if ask_yn "Delete DeDRM_tools zip + extracted dir from ${DOWNLOADS_DIR}/?"; then
-    [[ -n "${DEDRM_ZIPS}" ]] && run_or_show "rm -f ${DEDRM_ZIPS}"
-    [[ -n "${DEDRM_DIRS}" ]] && run_or_show "rm -rf ${DEDRM_DIRS}"
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      [[ -e "${DEDRM_ZIPS[0]}" ]] && echo "[DRY-RUN] would run: rm -f ${DEDRM_ZIPS[*]}"
+      [[ -e "${DEDRM_DIRS[0]}" ]] && echo "[DRY-RUN] would run: rm -rf ${DEDRM_DIRS[*]}"
+    else
+      [[ -e "${DEDRM_ZIPS[0]}" ]] && rm -f "${DEDRM_ZIPS[@]}"
+      [[ -e "${DEDRM_DIRS[0]}" ]] && rm -rf "${DEDRM_DIRS[@]}"
+    fi
   else
     echo "  skipped — DeDRM_tools archive retained"
   fi
 fi
 
-KKF_ZIPS=$(ls "${DOWNLOADS_DIR}"/Kindle_Key_Finder_*.JH.zip 2>/dev/null || true)
-if [[ -n "${KKF_ZIPS}" ]]; then
+KKF_ZIPS=("${DOWNLOADS_DIR}"/Kindle_Key_Finder_*.JH.zip)
+if [[ -e "${KKF_ZIPS[0]}" ]]; then
   if ask_yn "Delete Kindle_Key_Finder zip from ${DOWNLOADS_DIR}/?"; then
-    run_or_show "rm -f ${KKF_ZIPS}"
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      echo "[DRY-RUN] would run: rm -f ${KKF_ZIPS[*]}"
+    else
+      rm -f "${KKF_ZIPS[@]}"
+    fi
   else
     echo "  skipped — Kindle_Key_Finder zip retained"
   fi
