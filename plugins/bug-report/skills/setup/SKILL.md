@@ -31,9 +31,15 @@ terminal state here; do not persist a value the user did not choose.
 1. **Read the current value first, across every scope, in precedence order.** Look for `output_dir` under
    `pluginConfigs["bug-report@melodic-software"].options` and resolve the *effective* value the way Claude
    Code does — the full precedence, highest wins:
-   1. **Managed** (enterprise policy — delivered via server-managed settings, an MDM plist/registry key, or
-      `managed-settings.d` drop-ins, not necessarily a single queryable `managed-settings.json`) — **read-only**
-      to this skill; detect best-effort and, if a managed value is present at all, treat it as a hard blocker.
+   1. **Managed** (enterprise policy) — **read-only** to this skill. It is not a single file: it can arrive
+      from several sources (server-managed remote settings, MDM/OS policy such as a macOS plist or the
+      `HKLM`/`HKCU` `Policies\ClaudeCode` registry keys, and file-based `managed-settings.json` plus
+      `managed-settings.d/` drop-ins), and the cross-source resolution is a Claude Code internal detail — see
+      the managed tier under https://code.claude.com/docs/en/settings#settings-precedence. Do **not** try to
+      replicate that resolution: detect best-effort across whatever sources are queryable in this environment,
+      and because the whole tier is highest-precedence and unwritable, treat **any** detected managed
+      `output_dir` as a hard blocker. When managed sources cannot be reliably enumerated here (registry/MDM/
+      remote may not be readable), say so and have the administrator confirm rather than assuming none exists.
    2. **Command-line** (a session launched with `--settings`) — **read-only**; a transient session override.
    3. **Local** (`.claude/settings.local.json`).
    4. **Project** (`.claude/settings.json`).
