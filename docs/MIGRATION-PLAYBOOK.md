@@ -129,6 +129,14 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    concern) is the PRECEDENT-EXTENSION: the first-party precedent uses single files, so a plugin that
    needs a directory of config extends the shape by one increment, keeping the same overlay and
    resolution rules.
+   - **Concern-named folder for multi-plugin-consumed config.** When a tracked-config concern is
+     consumed by MORE THAN ONE plugin, name the folder by the concern, not a plugin
+     (`.claude/<concern>/**`) — plugin-naming would couple the other consumers and the consumer
+     repo's tracked files to one plugin's name, and plugin boundaries are the volatile axis across
+     restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
+     resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
+     `docs/conventions/hook-telemetry/`; first instance:
+     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
    - **Resolution + override semantics.** Resolve **user-global → team (project) → local overlay**,
      **additive-preferred**: a later layer adds to or refines earlier layers rather than silently
      replacing them. The first-party precedent concatenates; a plugin that genuinely must override does
