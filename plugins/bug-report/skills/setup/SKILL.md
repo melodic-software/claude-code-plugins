@@ -45,6 +45,10 @@ terminal state here; do not persist a value the user did not choose.
    4. **Project** (`.claude/settings.json`).
    5. **User** (`~/.claude/settings.json`).
 
+   Resolve the project and local files at the **project root** (`${CLAUDE_PROJECT_DIR}`, or the git toplevel
+   when unset), not a cwd-relative `.claude/` — running setup from a subdirectory must still read and later
+   write the project-root `.claude/settings.json`, never create a stray `<subdir>/.claude/settings.json`.
+
    Report the effective value (or "unset → reports go to the plugin data directory") and which scope supplies
    it; the interview proposes a change against that baseline. Two consequences of the full ladder that a
    Local > Project > User model misses:
@@ -71,12 +75,14 @@ terminal state here; do not persist a value the user did not choose.
    - An existing reports or docs directory a bug report would naturally join (e.g. `.bug-reports/`, `docs/`).
    - If nothing is found, recommend a repo-root-anchored `.bug-reports/`.
 
-   **Anchor the path to the repo root, not the working directory.** The value is stored verbatim and the
+   **Anchor the path to the repo root, and keep a team value portable.** The value is stored verbatim and the
    report skill resolves it relative to the *current* working directory, so a bare relative `.bug-reports/`
    lands under whatever subdirectory the session was started in — not reliably at the repo root. Recommend a
    form that resolves the same from any cwd: prefer `${CLAUDE_PROJECT_DIR}/.bug-reports` if the report skill
-   expands that token in `output_dir`, otherwise an absolute path or the repo's own declared convention. Call
-   out the cwd-relative caveat when the user accepts a bare relative value.
+   expands that token in `output_dir`. **Do not put a machine-absolute path in the team (project) value** —
+   `/home/alice/repo/.bug-reports` is clone-specific and breaks for every other teammate. If only an absolute
+   path works, store it in the developer's **local overlay** (step 4), not the shared project scope. Call out
+   the cwd-relative caveat when the user accepts a bare relative value.
 
    Present the inferred path with a recommendation and let the user accept or edit it. Keep it to this single
    knob; do not invent further options (Rule of Three).
