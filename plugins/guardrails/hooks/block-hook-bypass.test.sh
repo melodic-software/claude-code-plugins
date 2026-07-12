@@ -27,6 +27,7 @@ run() {
 
 # --- Core bypass forms ------------------------------------------------------
 run "cat > file (blocked)" "cat > foo.txt" 2
+run "cat>file no space (blocked)" "cat>foo.txt" 2
 run "cat >> file append (blocked)" "cat >> foo.txt" 2
 run "echo > file (blocked)" "echo hello > foo.txt" 2
 # No-space redirect forms (echo>file / echo>>file) still write a file.
@@ -85,6 +86,19 @@ run "write in command substitution (accepted floor — allowed)" \
 # must still block.
 HEREDOC_METACHAR=$(printf 'cat <<%sEOF+%s\ncontent line\nEOF+\ncat > real.txt' "'" "'")
 run "heredoc metachar delim, trailing cat > bypass (blocked)" "$HEREDOC_METACHAR" 2
+
+# Backslash-quoted heredoc delimiter (<<\EOF) terminates on bare EOF — the strip
+# must strip the leading backslash so the terminator matches, else it stays
+# in-heredoc and swallows the trailing bypass.
+HEREDOC_BACKSLASH=$(printf 'cat <<\\EOF\ncontent line\nEOF\ncat > real.txt')
+run "heredoc backslash delim, trailing cat > bypass (blocked)" "$HEREDOC_BACKSLASH" 2
+
+# A here-string (<<<) has no terminator — it must NOT be mistaken for a heredoc,
+# which would strand the stripper and swallow the trailing bypass.
+HERESTRING=$(printf 'read x <<< %sok%s\ncat > real.txt' '"' '"')
+run "here-string then trailing cat > bypass (blocked)" "$HERESTRING" 2
+# And a plain here-string with no bypass stays allowed.
+run "here-string alone (allowed)" "grep foo <<< \"haystack\"" 0
 
 # --- Kill switch — disabled path is a clean no-op even on a bypass ----------
 run "kill switch off → no-op despite cat > file" "cat > foo.txt" 0 \

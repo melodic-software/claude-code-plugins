@@ -83,7 +83,11 @@ emit_tel() {
 # spills its match across the command.
 strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
-  local heredoc_start_re='<<-?[[:space:]]*([^[:space:]]+)'
+  # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
+  # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
+  # swallowing every later line (a here-string bypass). The delimiter's first
+  # char is `[^[:space:]<]` for the same reason.
+  local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<][^[:space:]]*)'
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((in_heredoc)); then
@@ -97,7 +101,10 @@ strip_literals() {
       continue
     fi
     if [[ "$line" =~ $heredoc_start_re ]]; then
-      delim="${BASH_REMATCH[1]}"
+      delim="${BASH_REMATCH[2]}"
+      # `<<\EOF` backslash-quotes the delimiter (same effect as `<<'EOF'`) — the
+      # terminator line is bare `EOF`, so strip the leading backslash too.
+      delim="${delim#\\}"
       delim="${delim#\'}"
       delim="${delim%\'}"
       delim="${delim#\"}"
@@ -115,7 +122,8 @@ EXECUTABLE=$(strip_literals "$COMMAND")
 EXEC_LC="${EXECUTABLE,,}"
 COMMAND_LC="${COMMAND,,}"
 
-_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]+>'
+# `cat` immediately before a redirect, with or without a space (`cat>file`).
+_cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
 # `echo` followed by whitespace OR a redirect (`echo>file`, `echo>>file` have no
 # space before `>`) — the redirect-adjacent form still writes a file.
 _echo_redir='(^|[[:space:];|&()]+)echo([[:space:]]|>>?)'
