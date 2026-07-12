@@ -41,7 +41,7 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
 
 Path resolution rules every action MUST follow:
 
-- **`<project-slug>`** — the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of the SHA-256 of the **canonicalized** absolute project path. Canonicalize FIRST so a project opened via a symlink and via its real path map to the same workspace (`realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || echo "${CLAUDE_PROJECT_DIR}"`, e.g. macOS repos under `/private/var/…`), then hash: `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` — the fallback covers stock macOS. The basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
+- **`<project-slug>`** — **canonicalize the project path FIRST**, then derive BOTH the basename-slug and the hash from that one canonical path, so a project opened via a symlink and via its real path map to the same workspace (otherwise the alias basename would still split it — `alias-<hash>` vs `realname-<hash>`). Canonical path: `realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` (e.g. macOS repos under `/private/var/…`). Then `<project-slug>` = the **basename of the canonical path** slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` (the fallback covers stock macOS). The hash discriminator is required because the basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
 - **`<mode>`** — literally `topic` or `codebase`, matching the action that created the workspace. This level keeps the two modes independent: `/teach:teach topic auth-flow` and `/teach:teach codebase auth-flow` in the same project resolve to separate workspaces (`.../topic/auth-flow/` vs `.../codebase/auth-flow/`) instead of one seeding over the other's `MISSION.md` / `RESOURCES.md`.
 - **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
@@ -51,7 +51,7 @@ Path resolution rules every action MUST follow:
 
 ## Pre-computed Context
 
-Existing workspaces: !`ls -d "${CLAUDE_PLUGIN_DATA}"/*/*/*/ 2>/dev/null | head -20 || echo "none"`
+Existing workspaces (current project only): !`p="$(realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}")"; b="$(basename "$p" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')"; h="$(printf '%s' "$p" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"; ls -d "${CLAUDE_PLUGIN_DATA}/$b-$h"/*/*/ 2>/dev/null | head -20 || echo "none"`
 
 ## Action Router
 
