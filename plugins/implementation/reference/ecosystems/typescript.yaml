@@ -1,0 +1,11 @@
+# Bundled portable default — typescript. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/typescript.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+globs: ["*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "tsconfig*.json"]
+project-discovery: ["package.json"]
+build-cmd: "npx tsc --noEmit" # when the project has a tsconfig; otherwise the package.json build script
+test-cmd: "the package.json test script (npm test / npx vitest run / npx jest — use what the project configures)"
+check-cmd: "npx biome check ." # biome.json present; use eslint when the project configures it instead
+fix-cmd: "npx biome check --write ."
+opt-in: "biome.json → Biome; eslint config → ESLint (use whichever the project configures)"
+install-hint: "project-local devDependencies preferred; npm i -g typescript @biomejs/biome"

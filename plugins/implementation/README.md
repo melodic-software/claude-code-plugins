@@ -3,15 +3,16 @@
 A Claude Code plugin for the **implementation stage** of a disciplined dev
 workflow: execute an approved plan with incremental validation, verify
 mechanically (build/test/lint), test at every level, and prove the change
-achieved its intended outcome. Ten skills, one concern — turning plans into
+achieved its intended outcome. Eleven skills, one concern — turning plans into
 verified code.
 
 | Skill | What it does |
 |---|---|
 | `/implementation:implement` | Inline execution discipline — mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary handoffs. |
 | `/implementation:implement-dispatch` | Orchestrated execution variant — composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
-| `/implementation:build` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown); the command-table SSOT sibling skills compose. |
-| `/implementation:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it. |
+| `/implementation:build` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown); resolves each ecosystem's commands through the shared four-rung ladder. |
+| `/implementation:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it; also owns the `yaml` and `cross-cutting` lint surfaces. |
+| `/implementation:setup` | Configure the ecosystem command surface for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/build` and `/lint` resolve first. Re-runnable. |
 | `/implementation:test-write` | Test authoring discipline — vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/implementation:test-plan` | Coverage-gap analysis — classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/implementation:test-diagnose` | Failing-test diagnosis — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
@@ -21,10 +22,16 @@ verified code.
 
 ## Works in any repo
 
-- **Consumer conventions win.** Build/test/lint commands, testing structure,
-  commit conventions, working-notes locations, and runtime-affecting globs are
-  read from your own project's `CLAUDE.md` and rules; the bundled ecosystem
-  configs are portable defaults keyed to each tool's own config-file opt-in.
+- **Consumer conventions win — via the ecosystem-commands seam.** `/build` and
+  `/lint` resolve each ecosystem's build/test/lint commands through a four-rung
+  ladder: your repo's tracked `.claude/ecosystems/<ecosystem>.yaml`
+  (authoritative when present, additive over a `~/.claude/ecosystems/`
+  user-global base and a `.local.yaml` overlay) → inference → ask → the plugin's
+  bundled portable defaults. Run `/implementation:setup` to write those files
+  once. The command surface conforms to the marketplace-wide contract at
+  `docs/conventions/ecosystem-commands/README.md`
+  (schema: `ecosystem.schema.json`); testing structure, commit conventions, and
+  working-notes locations still come from your own `CLAUDE.md` and rules.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`tdd`,
   `discovery`, `session-flow`, `playwright`) and external marketplace skills are
   invoked when installed and substituted with inline guidance when absent; no

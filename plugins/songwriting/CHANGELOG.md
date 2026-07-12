@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **`setup` skill — re-runnable configuration action.** `/songwriting:setup` scaffolds project-level
+  prompt-template overrides under `songwriting/templates/pat-pattison/` from the bundled defaults and
+  confirms where craft artifacts land, satisfying the extensibility contract's "every configurable
+  plugin ships a setup action". It reads existing overrides first (idempotent), scaffolds only the
+  templates the consumer intends to customize (an override freezes that template against future
+  plugin improvements), offers to remove byte-identical overrides, and reads — never writes — the
+  consumer's own `CLAUDE.md` layout convention. Additive: no existing invocation changes.
+
 ## [0.2.0]
 
 ### Changed (breaking)

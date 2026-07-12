@@ -1,0 +1,10 @@
+# Bundled portable default — bash. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/bash.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+globs: ["*.sh", "*.bash"]
+build-cmd: null # no build step
+test-cmd: null # run the project's shell-test runner when it documents one (bats, or a *.test.sh convention)
+check-cmd: "shellcheck -x -S warning <files> && shfmt -d <files>"
+fix-cmd: "shfmt -w <files>" # shellcheck has no fix mode
+opt-in: "shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"
+install-hint: "winget install ShellCheck.ShellCheck mvdan.shfmt | brew install shellcheck shfmt"

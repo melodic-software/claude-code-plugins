@@ -1,0 +1,11 @@
+# Bundled portable default — python. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/python.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+globs: ["*.py", "pyproject.toml", "uv.lock"]
+project-discovery: ["pyproject.toml"]
+build-cmd: null # no separate build step; lint/test cover verification
+test-cmd: "uv run pytest -x -q" # plain pytest when the project doesn't use uv
+check-cmd: "uv run ruff check . --no-fix && uv run ruff format . --check"
+fix-cmd: "uv run ruff check . --fix && uv run ruff format ."
+opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])"
+install-hint: "pip install ruff uv | brew install uv ruff | winget install astral-sh.uv"
