@@ -4,73 +4,45 @@ Create a new work item with labels from the taxonomy.
 
 **Defaults applied by this action:**
 
-- **Priority** — when the `--priority` flag is absent, apply `priority:p3-low` (include it in the labels array built below).
-- **Body template** — when `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this issue, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
-- **Label taxonomy** — labels are validated against the group structure documented in [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md).
+- **Priority** — when the `--priority` flag is absent, apply `priority:p3-low`.
+- **Body template** — when `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this item, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
+- **Label taxonomy** — labels are validated against the 8-group structure documented in [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md).
 
 ## Usage
 
 ```
-add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] "Item description"
+/work-items add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] "Item description"
 ```
 
 ## Flags
 
-- `--category <name>` -- Category label. Valid values are the consuming repo's `category:` labels ([`../reference/label-taxonomy.md`](../reference/label-taxonomy.md)). Default: `general` ONLY when the repo actually has a `category:general` label (check `gh label list`); otherwise omit the category label entirely
+- `--category <name>` -- Category label. Valid values are the consuming repo's `category:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md)); default `general` only when the repo actually defines a `category:general` label, otherwise omit the category label
 - `--type <type>` -- Type label (default: `chore`). Valid: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf`
-- `--area <area>` -- Area label (the consuming repo's `area:` labels)
-- `--ecosystem <eco>` -- Ecosystem label (the consuming repo's `ecosystem:` labels)
+- `--area <area>` -- Area label — the consuming repo's `area:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md))
+- `--ecosystem <eco>` -- Ecosystem label — the consuming repo's `ecosystem:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md))
 - `--priority <p>` -- Priority label (e.g., `p0-critical`, `p1-high`, `p2-medium`, `p3-low`)
 - `--recurring` -- Mark as recurring. Requires `--cadence`
 - `--cadence <c>` -- One of: `weekly`, `biweekly`, `monthly`, `quarterly`, `semi-annual`, `annual`
-- `--context "summary"` -- Add research context to the issue body
-- `--agent-ready` -- Apply `agent-ready` meta label and use the agent-brief body template ([`../reference/agent-brief.md`](../reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for issues intended for AFK agent execution
+- `--context "summary"` -- Add research context to the item body
+- `--agent-ready` -- Apply `agent-ready` meta label and use agent-brief body template (see [`reference/agent-brief.md`](../reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for items intended for AFK agent execution
 - `--force` -- Skip duplicate check
 
 ## Workflow
 
-> **Authorization gate (BEFORE any step below).** Never file an issue on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact. An explicit user `add ...` invocation IS the authorization; model-initiated filing is not. If you only *infer* an issue should exist: draft the title + body and ASK first, or keep a local working note instead.
+> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact — those need explicit authorization. An explicit user `/work-items add ...` invocation IS the authorization; model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local `.work/<slug>/` note instead.
 
 1. Parse the item text and flags from arguments.
 
-1. **Duplicate check** (skip if `--force`) — search before creating (read — bare `gh`):
+1. **Duplicate check** (skip if `--force`) — the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-```bash
-gh issue list --search "<title keywords>" --state all --json number,title,state --limit 10 | tr -d '\r'
-```
+1. **Build labels list** (comma-separated for the seam) from the flags, e.g. `type:chore,category:general` plus any `--type`/`--category`/`--area`/`--ecosystem`/`--priority` values.
 
-If a potential duplicate is found (similar title), present it: "Similar issue found: **#N {title}** ({state}). Add anyway, merge, or skip?"
-
-1. **Build labels array.** A group default applies ONLY when no flag supplied a label for that group — `--type fix` replaces `type:chore`, `--priority p1-high` replaces `priority:p3-low`, `--category x` replaces `category:general` (one label per group). Every label must also exist in the repo — `gh issue create` fails on unknown labels — so filter the resolved set against the live label list. When a default label doesn't exist, either offer to create the universal set once (`gh label create`) or omit that label:
-
-```bash
-EXISTING=$(gh label list --limit 200 --json name --jq '.[].name' | tr -d '\r')
-# Resolve one label per group first (flag value wins over the group default),
-# then keep only labels that exist in the repo.
-LABELS=""
-for l in "type:${TYPE:-chore}" "priority:${PRIORITY:-p3-low}" "category:${CATEGORY:-general}" <other flag-specified...>; do
-  grep -qxF "$l" <<<"$EXISTING" && LABELS="$LABELS --label $l"
-done
-```
-
-1. **Build body.** If `--agent-ready`, use the agent-brief template from [`../reference/agent-brief.md`](../reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
+1. **Build body.** If `--agent-ready`, use the agent-brief template from [`reference/agent-brief.md`](../reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
 ```markdown
-## Context
+## Description
 
-{what observation surfaced this issue; the cost of leaving it — from the description and --context}
-
-## Proposed work
-
-- {concrete next action derived from the description}
-
-## Acceptance criteria
-
-- [ ] {one verifiable assertion per bullet}
-
-## References
-
-- {cross-references to rules, files, prior PRs, or external docs — or "none"}
+{description text}
 
 ## Metadata
 
@@ -80,35 +52,31 @@ done
 | Area | {area or "unspecified"} |
 | Ecosystem | {ecosystem or "unspecified"} |
 
+{if --context: ## Context\n\n{context summary}}
+
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```
 
-1. **Create the issue** (write). If `--recurring`, prefix the title with `[Maintenance]` — the convention that enables dedup and `recheck` matching against the recurring schedule:
-
-Pass the generated body via `--body-file` (never inline `--body` — generated text can contain quotes, backticks, or `$()` that the shell would interpret):
+1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). If `--recurring`, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching):
 
 ```bash
-BODY_FILE=$(mktemp)
-# Write the composed body to $BODY_FILE with the Write tool (not shell interpolation)
-gh issue create \
+tools/work-item-tracker/work-item-tracker.sh create-item \
   --title "[Maintenance] {title}" \
-  --body-file "$BODY_FILE" \
-  $LABELS \
-  | tr -d '\r'
-rm -f "$BODY_FILE"
+  --body "{body}" \
+  --labels "type:chore,category:general"
 ```
 
-For non-recurring issues, omit the `[Maintenance]` prefix.
+For non-recurring items, omit the `[Maintenance]` prefix. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
-1. **If `--recurring`:** Also add the item to the consuming repo's `.github/recurring-schedule.json` (create the file with an `{"items": []}` skeleton if the repo has opted into recurring scheduling but the file doesn't exist yet — ask first if the repo has no recurring setup at all):
+1. **If `--recurring`:** Also add the item to `.github/recurring-schedule.json`:
 
 ```json
 {
   "id": "kebab-case-id",
   "title": "Title text",
   "cadence": "quarterly",
-  "area": ["<area>"],
-  "category": "<category>",
+  "area": ["<your-area>"],
+  "category": "<your-category>",
   "triggers": [],
   "last_checked": "2026-04-08",
   "next_due": "2026-07-07",
@@ -117,9 +85,7 @@ For non-recurring issues, omit the `[Maintenance]` prefix.
 }
 ```
 
-Read the current file, append the new item to the `items` array, write it back. Compute `next_due` from today + cadence duration.
-
-Also add the `recurring` and `cadence:{cadence}` labels to the issue — route them through the same existence filter as step "Build labels array" (create the missing label once via `gh label create`, or omit it; never pass a label the repo lacks).
+Read the current file, append the new item to the `items` array, write it back. Compute `next_due` from today + cadence duration. Also add the `recurring` and `cadence:{cadence}` labels to the item.
 
 1. Confirm: "Created **#{number}**: {title} (labels: {labels})"
 
