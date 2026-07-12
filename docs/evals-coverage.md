@@ -69,20 +69,22 @@ Recorded as decisions, not silent omissions, each with a revisit trigger (playbo
   risks migrated/wasted work. **Revisit trigger:** #1402 resolves songwriting's home → author the
   evals for all 10 skills (including `setup`) in whichever repo the plugin lands (evals travel with the
   skill dir).
-- **`knowledge` (2 shipped skills: book-distill, setup; + youtube/course-digest pending)** — the
-  knowledge artifacts move to a dedicated repo (`repo(knowledge-artifacts)`
-  `melodic-software/medley#1393`, needs-human) and the skill set is still growing (youtube #1408 /
-  course-digest #1409, needs-decision). Both the home and the skill set are unsettled. **Revisit
-  trigger:** #1393 fixes the plugin's home AND #1408/#1409 land the new skills → author evals for the
-  full stable skill set in the destination.
+- **`knowledge` (book-distill, setup, and the now-shipped youtube; course-digest pending
+  `melodic-software/medley#1409`)** — the knowledge artifacts move to a dedicated repo
+  (`repo(knowledge-artifacts)` `melodic-software/medley#1393`, needs-human) and the skill set is still
+  growing. Both the home and the skill set are unsettled, so the whole plugin is deferred regardless of
+  which individual skills already carry evals (`youtube` ships one). **Revisit trigger:** #1393 fixes
+  the plugin's home → author evals for whatever skills still lack them, in the destination repo.
 
-## Future coverage — net-new skills not yet shipped
+## Future coverage — net-new skills from open retrofits
 
-The setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) each add a net-new
-`setup`/`configure` skill that does not exist yet. When each setup skill lands, add a setup eval for it
-(the `codebase-audit/setup` eval is the model — a config-writer skill is warrantable). This is a
-per-retrofit follow-on, not part of the backfill batches above. (`songwriting`'s setup skill has
-already shipped and is covered by the songwriting deferral above, not here.)
+Several open setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) add a net-new
+`setup`/`configure` skill. Evals for those are a **per-retrofit follow-on, not part of the backfill
+batches above**: the natural home for a new skill's eval is the retrofit PR that ships the skill —
+`code-tidying` #1431 already did exactly this (its `setup` shipped with an eval), and that is the
+pattern to follow. A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
+Because concurrent retrofits land continuously, treat any "not yet shipped" wording here as
+stamp-relative — re-read the tree, not this line, before acting.
 
 ## Skip — pure-reference plugins (2)
 
