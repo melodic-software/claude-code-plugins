@@ -211,6 +211,81 @@ model above already prescribe:
 This is deliberately **not** ports / adapters: there is no runtime seam to invert in a prompt medium, so
 a declared config surface, not an abstraction layer, is the extension point.
 
+## MCP servers as a plugin component — carry decision
+
+A plugin can ship MCP servers via `.mcp.json` at the plugin root (or an `mcpServers` key in
+`plugin.json`). Those servers **start automatically when the plugin is enabled**, appear as standard
+tools, and go through the same per-server approval as a project `.mcp.json`
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). So a
+plugin-shipped MCP costs a **process spawn on every session that enables the plugin**, used or not —
+tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
+spawn. That auto-start cost is why the default is **not** to ship MCP: zero marketplace plugins ship
+one today, and the discriminator below keeps it that way unless a plugin is genuinely useless without
+its server.
+
+**Uniform discriminator — apply to every server, no exemptions:**
+
+1. **CLI covers the skill's need → CLI-first.** The plugin ships the CLI; the MCP dependency is
+   dropped. Token-economics precedent (results pipe to disk instead of flooding context): context7
+   (`ctx7`), playwright (`@playwright/cli` — Microsoft-recommended, ~4× fewer tokens), firecrawl
+   (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json` — same token/cost
+   breakdown as the MCP,
+   [ccusage json-output](https://ccusage.com/guide/json-output)).
+2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it; map each secret to
+   `userConfig` `sensitive` (below).
+3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill NAMES the
+   dependency and the consumer provides the server in their own `.mcp.json`; the skill degrades
+   gracefully or loads the tool via `ToolSearch` when present. This is the extensibility model's
+   "swap the MCP server, not a pluggable abstraction" — declare the dependency, don't fork.
+4. **Medley-/infra-bound server (no general-purpose plugin, or repo-coupled identity) → STAY
+   repo-level.** Not a plugin concern.
+
+**Secrets → `userConfig` `sensitive` seam.** A SHIP maps each secret env var to a `userConfig` entry
+with `sensitive: true` (masked input, system-keychain storage), substituted as `${user_config.KEY}`
+in the plugin's `.mcp.json` `env`. Keychain storage is shared with OAuth tokens (~2 KB total) — keep
+values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` → `miro_api_token`,
+`PERPLEXITY_API_KEY` → `perplexity_api_key`, `REF_API_KEY` → `ref_api_key`, `CONTEXT7_API_KEY` →
+`context7_api_key`. Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`)
+do not map — those servers stay repo-level.
+
+**The medley launcher does not generalize.** medley's `fnm exec + tools/mcp-launcher/launcher.js`
+stack solves two medley-local problems — Windows bare-`npx` spawn failure and GUI-host Node PATH via
+`.nvmrc` pinning. A plugin-shipped stdio MCP carries **none** of it: the plugin runtime handles
+cross-platform `npx` spawn internally, and bundled assets resolve via `${CLAUDE_PLUGIN_ROOT}`
+(+ `${CLAUDE_PLUGIN_DATA}` for a built server's `node_modules`). The launcher stays medley-bound.
+
+**Decision table — medley `.mcp.json` (14 servers, audited 2026-07-12).** Verdict is *plugin-carry*,
+not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json`
+`enabledMcpjsonServers`/`disabledMcpjsonServers` at audit time.
+
+| Server | Transport | Secret | Verdict | Basis |
+|---|---|---|---|---|
+| miro | stdio (repo-built) | `MIRO_API_TOKEN` | **SHIP** → event-storming | No CLI; `/event-storming-simulation` drives a Miro board — useless without it. Generic `miro-mcp` server, no medley coupling. Bundle path below |
+| aspire | stdio (`aspire` native) | — | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
+| azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
+| azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
+| ccusage | stdio | — | STAY | Live consumer `/claude-ops:claude-observability`; CLI covers the need (rule 1) and claude-ops is multi-skill — shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
+| chrome-devtools | stdio | — | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
+| context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
+| github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR` — not repo-agnostic |
+| microsoft-learn | http | — | STAY | `/research` + .NET docs; no plugin structurally requires it; degrades to WebSearch/WebFetch |
+| nuget | stdio (`dotnet dnx`) | — | STAY | `/packages` + .NET; no dotnet/packages plugin in the locked slugs; .NET-scoped |
+| openai-developer-docs | http | — | STAY | codex/OpenAI research; degraded-but-functional |
+| perplexity | stdio | `PERPLEXITY_API_KEY` | STAY | `/research` + ai-briefing; multi-consumer, degrades gracefully — shipping would auto-spawn for all discovery sessions |
+| playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
+| ref | http | `REF_API_KEY` | STAY | `/research` doc search; degraded-but-functional |
+
+**SHIP: 1 (miro). STAY: 13. DROP: 0** — every non-SHIP server has a live consumer; the three
+disabled entries are deliberate documented opt-ins, not dead servers. firecrawl already migrated to
+`firecrawl-cli` (absent from `.mcp.json`) — it confirms rule 1 rather than being a 15th row.
+
+**miro SHIP — bundle path (for the retrofit).** `mcp-servers/miro/node` is a repo-built TypeScript
+server, not an npm package. Shipping it means either publish-to-npm + `npx`, or bundle the built
+server under `${CLAUDE_PLUGIN_ROOT}` with its `node_modules` installed to `${CLAUDE_PLUGIN_DATA}`
+(the persist-deps pattern in [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
+`${CLAUDE_PLUGIN_DATA}`), with `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`).
+Gated on the event-storming plugin publishing first.
+
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
 Catalog these per migration; they are the usual failures when an in-repo skill becomes a plugin.
