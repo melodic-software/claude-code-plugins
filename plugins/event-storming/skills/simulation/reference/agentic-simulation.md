@@ -335,7 +335,7 @@ Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{r
 **Cleanup protocol:**
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
 
-- If yes: `rm -rf {session_dir}/eventstorming-session-{id}/`
+- If yes: `rm -rf {session_dir}/` (deletes the session directory itself — `{session_dir}` already resolves to `{system_temp}/eventstorming-session-{session_id}`)
 - If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`, read-only under cache isolation) or into the consumer's project tree
 
 ---
@@ -645,7 +645,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 
 - Update the plugin data store with version metrics, board URLs, and findings (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)
 - Ask user about persona temp files: "Delete persona profiles? (Can be archived for session replay)"
-  - Delete: `rm -rf {session_dir}/eventstorming-session-{session_id}/`
+  - Delete: `rm -rf {session_dir}/`
   - Archive: copy to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (see "Cleanup protocol" above)
 - Clean up test/smoke-test boards (with user confirmation via `miro_delete_board`)
 - Optionally clean up old version boards (keep only latest, with user approval)

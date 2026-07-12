@@ -113,7 +113,7 @@ When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (C
 
 3. **Produce the BC analysis output** — a table of `# | BC Name (2-3 words) | Key Events | Primary Personas | Heuristic Evidence`, where the evidence column cites which heuristic fired (e.g. `H1: phase X→Y; H5: "Budget Approved" divergence; H6: "Ticket" means different things`).
 
-4. **Place BC labels** on the board as cyan stickies at y=3800 (below all other content), with `[BC]` prefix.
+4. **Place BC labels** on the board as cyan stickies at y=7100 (the canonical BC Labels row — bottom of board, below all other content per the Big Picture Y-Coordinate Table in `@./reference/miro-integration.md`), with `[BC]` prefix.
 
 5. **Cross-reference with arrow voting winner** — which BC does the winner scope to? Mark it as the recommended next exploration target.
 

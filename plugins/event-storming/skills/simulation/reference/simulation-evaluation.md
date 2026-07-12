@@ -274,7 +274,7 @@ After EVERY simulation run, answer these questions:
 3. Did MCP tools work? If not, was the fallback handled transparently?
 4. Were legends incrementally updated at each phase?
 5. Were ubiquitous language terms captured DURING the workshop (not added after)?
-6. Were bounded context labels added DURING Enforce Timeline (not added after)?
+6. Was bounded context discovery deferred to post-workshop analysis (labels added AFTER the workshop as the architect's homework, not prematurely during it — Brandolini Ch. 6)?
 
 ### LLM Behavioral Fidelity (the 10 tensions — see agentic-simulation.md)
 
