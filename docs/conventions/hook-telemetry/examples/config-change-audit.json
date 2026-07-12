@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T14:23:41Z",
+  "hook": "config-change-audit",
+  "hook_event": "ConfigChange",
+  "status": "ok",
+  "duration_ms": 4,
+  "data": {
+    "subject": "project_settings"
+  }
+}

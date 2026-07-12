@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T14:27:19Z",
+  "hook": "tool-failure-audit",
+  "hook_event": "PostToolUseFailure",
+  "status": "error",
+  "duration_ms": 5,
+  "data": {
+    "subject": "Bash:dotnet",
+    "tool": "Bash"
+  }
+}

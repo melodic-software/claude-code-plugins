@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/pre-compact-audit.schema.json",
+  "title": "pre-compact-audit telemetry data",
+  "description": "Per-hook `data` payload for the pre-compact-audit PreCompact emitter. Discovered from the envelope `hook` value \"pre-compact-audit\". Evolves additive-only.",
+  "type": "object",
+  "required": ["subject"],
+  "additionalProperties": true,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "The compaction trigger (\"manual\" or \"auto\")."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/api-error-audit.schema.json",
+  "title": "api-error-audit telemetry data",
+  "description": "Per-hook `data` payload for the api-error-audit StopFailure emitter. Discovered from the envelope `hook` value \"api-error-audit\". Evolves additive-only. Privacy-safe: carries the API `error_type` label only — never the error_message, which may contain prompt fragments or session metadata.",
+  "type": "object",
+  "required": ["subject"],
+  "additionalProperties": true,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "The API turn-failure error_type (e.g. \"rate_limit\", \"billing_error\", \"server_error\")."
+    }
+  }
+}

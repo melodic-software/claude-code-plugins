@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T14:22:07Z",
+  "hook": "api-error-audit",
+  "hook_event": "StopFailure",
+  "status": "error",
+  "duration_ms": 3,
+  "data": {
+    "subject": "rate_limit"
+  }
+}

@@ -158,3 +158,10 @@ producers without coordinating with them or each other.
 | `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |
 | `guardrails` plugin | `cli-flag-verify` | `data/cli-flag-verify.schema.json` |
 | `guardrails` plugin | `block-no-verify` | `data/block-no-verify.schema.json` |
+| `claude-ops` plugin | `api-error-audit` | `data/api-error-audit.schema.json` |
+| `claude-ops` plugin | `config-change-audit` | `data/config-change-audit.schema.json` |
+| `claude-ops` plugin | `instructions-loaded-audit` | `data/instructions-loaded-audit.schema.json` |
+| `claude-ops` plugin | `permission-denied-audit` | `data/permission-denied-audit.schema.json` |
+| `claude-ops` plugin | `pre-compact-audit` | `data/pre-compact-audit.schema.json` |
+| `claude-ops` plugin | `skill-usage-audit` | `data/skill-usage-audit.schema.json` |
+| `claude-ops` plugin | `tool-failure-audit` | `data/tool-failure-audit.schema.json` |
