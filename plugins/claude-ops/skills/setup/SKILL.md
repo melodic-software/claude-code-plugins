@@ -54,8 +54,12 @@ assumptions.
    so it is tracked and shared. Create the `pluginConfigs` / `options` path if absent; do not disturb
    unrelated keys. The value is stored verbatim (Claude Code does not normalize or validate a string
    option), so store it exactly as it should resolve relative to `${CLAUDE_PROJECT_DIR}`. For the
-   per-machine choice, remove any project-scope `registry_dir` that was set in a prior run (leaving it
-   truly unset), or confirm it is already absent — do not write an empty string.
+   per-machine choice, make the *effective* value unset across **all** scopes (per the precedence read in
+   step 1): remove the project-scope `registry_dir` if present, and — because a project-scope removal alone
+   does not fall back to `${CLAUDE_PLUGIN_DATA}` while a User- or Local-scope value survives — if any other
+   scope still supplies a value, name that scope and guide the consumer to remove it there (this skill
+   writes project scope; it does not silently edit the user's global or local overlay). Do not write an
+   empty string, and do not report the registry as per-machine until no scope supplies a value.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
