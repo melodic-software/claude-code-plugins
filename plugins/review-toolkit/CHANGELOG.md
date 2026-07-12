@@ -3,6 +3,15 @@
 All notable changes to the `review-toolkit` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **Skill evals for the two orchestration skills.** Rich-form `evals/evals.json` authored for
+  `quality-gate` (6 cases) and `code-review-fanout` (6 cases), each covering trigger/routing, the
+  happy path, a refusal/guardrail, and an anti-pattern the skill must not do. Additive test
+  definitions only — no behavioral change to any skill or agent.
+
 ## [0.2.0]
 
 ### Changed
