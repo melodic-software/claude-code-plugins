@@ -345,21 +345,25 @@ claude --plugin-dir ./plugins/<name>
 Reintegration (below) covers a repo that already ran an in-repo copy and now switches to the plugin. A
 **brand-new** repo adopting the marketplace for the first time follows this checklist:
 
-1. **Register the marketplace.** Interactive: the trust dialog on first `/plugin` use both registers
-   and installs enabled plugins. Headless / CI: `claude plugin marketplace add <repo>` — registering
-   does not install anything on its own.
-2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the project's
-   checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo). The
-   headless install form is `claude plugin install <plugin>@<marketplace> --scope project`.
-3. **Run each configurable plugin's setup action** to write the tracked config / `pluginConfigs`.
-   Headless, skip the interview by seeding values inline: `claude plugin install … --config KEY=VALUE`
-   (repeatable, schema-validated). Non-sensitive options land in the **user** `settings.json`
-   `pluginConfigs` regardless of the enable scope; a sensitive value passed via `--config` still routes
-   to the keychain (smoke-tests A and C).
+1. **Register the marketplace — checked in for clones.** Interactive: the trust dialog on first
+   `/plugin` use registers the marketplace and installs enabled plugins. For project-wide adoption,
+   declare the marketplace in the project's checked-in `.claude/settings.json` `extraKnownMarketplaces`
+   (headless: `claude plugin marketplace add <repo> --scope project`). A bare `claude plugin marketplace
+   add <repo>` writes to *user* settings, so a fresh clone or CI agent on another machine would carry the
+   enabled plugin but have no registered marketplace to resolve it from — mirror the Reintegration
+   cutover, which pairs both fields in the project settings.
+2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the same
+   checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
+3. **Install and seed config on one fresh install.** `--config` is accepted only on a fresh install
+   (smoke-test C), so pass every option on the install command, never a later call: `claude plugin
+   install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
+   Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
+   scope; a sensitive value still routes to the keychain (smoke-tests A and C). Interactively, install
+   prompts for scope, then each configurable plugin's setup action (or `/plugin configure`) writes the
+   tracked config.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
-   option left unset does **not** block the install; it stays advisory until set via `--config` or the
-   interactive `/plugin configure` (smoke-test C). Seed every required option at install time so the
-   plugin does not run unconfigured.
+   option left unset does **not** block the install; it stays advisory until set (smoke-test C). Seed
+   every required option on the install command so the plugin does not run unconfigured.
 
 ## Reintegration — a consumer adopts the published plugin
 
