@@ -210,6 +210,12 @@
       "source": "./plugins/implementation",
       "category": "development",
       "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
+    },
+    {
+      "name": "teach",
+      "source": "./plugins/teach",
+      "category": "learning",
+      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
     }
   ]
 }
