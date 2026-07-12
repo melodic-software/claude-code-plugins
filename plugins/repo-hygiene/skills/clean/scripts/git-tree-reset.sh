@@ -91,12 +91,6 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
-DEFAULT_BRANCH="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|^refs/remotes/origin/||' | tr -d '\r')"
-if [[ -z "$DEFAULT_BRANCH" ]] && command -v gh >/dev/null 2>&1; then
-  DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
-fi
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-
 CURRENT_BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 UPSTREAM="$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$UPSTREAM" ]]; then
@@ -110,6 +104,15 @@ fi
 # git-remote existence guard below skips the fetch in that case.
 UPSTREAM_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
 UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-origin}"
+
+# Resolve the default branch from the tracked remote's HEAD, not a hardcoded
+# origin — a repo whose default branch lives on a non-origin remote (or is not
+# named main) would otherwise slip past the default-branch guard below.
+DEFAULT_BRANCH="$(git symbolic-ref "refs/remotes/${UPSTREAM_REMOTE}/HEAD" 2>/dev/null | sed "s|^refs/remotes/${UPSTREAM_REMOTE}/||" | tr -d '\r')"
+if [[ -z "$DEFAULT_BRANCH" ]] && command -v gh >/dev/null 2>&1; then
+  DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null | tr -d '\r')"
+fi
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 
 TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 IGNORED_COUNT="$(git status --ignored --porcelain 2>/dev/null | wc -l | tr -d ' ')"
