@@ -34,12 +34,14 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
 
 ## Verdict summary
 
-- **No net-new work: 36 of 41.** All 9 hook plugins, all 5 pure-reference plugins, and 22 behavior
+- **No net-new work: 35 of 41.** All 9 hook plugins, all 4 pure-reference plugins, and 22 behavior
   plugins are contract-compliant as shipped (or their outstanding work is already owned by an
   existing issue).
-- **Net-new setup-action gap: 5** — `bug-report`, `claude-ops`, `code-tidying`, `discovery`,
-  `planning` each expose a config seam but ship no setup action. One retrofit issue filed per plugin
-  (linked under wave-2 map `melodic-software/medley#1369`).
+- **Net-new setup-action gap: 6** — `bug-report`, `claude-ops`, `code-tidying`, `discovery`,
+  `planning`, `songwriting` each expose a config seam but ship no setup action. One retrofit issue
+  filed per plugin (linked under wave-2 map `melodic-software/medley#1369`). `songwriting` was
+  reclassified from the issue's a-priori pure-reference expectation to behavior once graded against
+  the evidence (9 action skills + a template-override seam).
 - **Baked repo assumptions: 0.** No plugin bakes a consumer layout into runtime behavior. Four
   incidental `apps/`/`libs/`/`Platform.*` string hits are benign — test fixtures, eval-prompt
   examples, generic top-level-dir enumerations, and Claude-Code-behavior documentation — not runtime
@@ -73,9 +75,10 @@ MCP; contract tests are `.test.sh`, not evals.
 | desktop-notification | compliant |
 | guardrails | compliant — further in-repo hook migration into it owned by #1391 |
 
-## Pure-reference plugins (5) — no-op
+## Pure-reference plugins (4) — no-op
 
-Knowledge-only skills; no config seam, no hooks, no repo coupling. Nothing to retrofit.
+Knowledge-only single-skill plugins; each README declares "no `userConfig` … pure knowledge skill".
+No config seam, no hooks, no repo coupling. Nothing to retrofit.
 
 | Plugin | Verdict |
 |---|---|
@@ -83,15 +86,15 @@ Knowledge-only skills; no config seam, no hooks, no repo coupling. Nothing to re
 | fable-5-playbook | no-op |
 | thariq-skills | no-op |
 | tdd | no-op |
-| songwriting | no-op |
 
-## Behavior plugins (27)
+## Behavior plugins (28)
 
 | Plugin | Config seam | Setup | Ladder | MCP-carry | Evals | Verdict / owner |
 |---|---|---|---|---|---|---|
 | bug-report | `userConfig` `output_dir` | **missing** | default → plugin-data | — | present | **GAP → net-new setup issue** |
 | claude-ops | `userConfig` `registry_dir` + `.claude/observability/` | **missing** | default → plugin-data | ccusage (CLI-first) | absent → #1396 | **GAP → net-new setup issue** (coordinate with #1391's claude-ops telemetry seam) |
 | code-tidying | tracked `.claude/tidy-lanes/**` (seam 2, folder) | **missing** | ships default lanes; consumer overrides | — | present | **GAP → net-new setup issue** (scaffold project lanes) |
+| songwriting | tracked `songwriting/templates/**` override + `${CLAUDE_PROJECT_DIR}/songwriting/` output (seam 2/3) | **missing** | safe default layout + CLAUDE.md precedence; ships default templates, consumer overrides | Datamuse public API (rhyme, no secret, opt-in) | absent → #1396 | **GAP → net-new setup issue** (scaffold project template overrides). Reclassified from pure-reference: 9 action skills (`rhyme`/`co-write`/`suno`/…), not knowledge-only |
 | discovery | `userConfig` `notes_dir` | **missing** | default + CLAUDE.md precedence | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | absent → #1396 | **GAP → net-new setup issue** |
 | planning | `userConfig` `notes_dir` | **missing** | default + CLAUDE.md precedence | — | absent → #1396 | **GAP → net-new setup issue** |
 | implementation | `userConfig` `notes_dir` | missing | default + CLAUDE.md precedence | — | present | owned by #1420 (setup + ecosystem-commands) |
@@ -132,3 +135,4 @@ One `retrofit(<slug>)` issue per setup-action gap, sub-issue-linked under wave-2
 | code-tidying | melodic-software/medley#1431 |
 | discovery | melodic-software/medley#1429 |
 | planning | melodic-software/medley#1430 |
+| songwriting | melodic-software/medley#1433 |
