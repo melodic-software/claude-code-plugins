@@ -4,6 +4,10 @@
 # .claude/observability/hook-events.jsonl — the shape the claude-observability
 # skill reads ({ts, event, hook, tool, duration_ms, exit_code, subject, status}).
 #
+# Field mapping: ts<-timestamp, event<-hook_event, hook<-hook, tool<-data.tool,
+# subject<-data.subject; status translates (ok->success) and exit_code derives
+# from status (error/blocked->2, else 0), since the skill keys errors on it.
+#
 # Wire it by pointing HOOK_TELEMETRY_SINK at this script (relative path committed
 # in settings.json is the portable, team-shared form):
 #   "env": { "HOOK_TELEMETRY_SINK": "<path>/hook-telemetry-sink.sh" }
