@@ -216,6 +216,12 @@
       "source": "./plugins/codebase-audit",
       "category": "quality",
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
+    },
+    {
+      "name": "repo-hygiene",
+      "source": "./plugins/repo-hygiene",
+      "category": "maintenance",
+      "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
     }
   ]
 }
