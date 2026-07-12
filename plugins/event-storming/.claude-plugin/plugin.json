@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "event-storming",
+  "version": "0.1.0",
+  "description": "EventStorming for domain discovery — a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops driven onto a Miro board, with graceful degradation to structured-markdown output when Miro is absent).",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
+}

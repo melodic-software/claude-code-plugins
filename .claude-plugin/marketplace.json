@@ -216,6 +216,12 @@
       "source": "./plugins/codebase-audit",
       "category": "quality",
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
+    },
+    {
+      "name": "event-storming",
+      "source": "./plugins/event-storming",
+      "category": "modeling",
+      "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
     }
   ]
 }
