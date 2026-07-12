@@ -23,7 +23,7 @@ If the consuming repo has its own comment-hygiene tooling (a shared pattern libr
 git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TODO|FIXME|HACK|XXX)\b' -- ':!*.min.*' ':!*node_modules*' | tr -d '\r'
 ```
 
-- **Actionable (in scope):** bare `TODO`/`FIXME`/`HACK`/`XXX` markers describing work to do; internal tracker provenance comments (e.g. `issue #N` breadcrumbs left in code)
+- **Actionable (in scope):** bare `TODO`/`FIXME`/`HACK`/`XXX` markers describing work to do; internal tracker provenance comments (e.g. `item #N` breadcrumbs left in code)
 - **Not actionable (skip):** external upstream citations (`org/repo#issue`), structured task-list grammar in working-notes files (e.g. `[TODO]` phase tags), test fixtures that assert on the literal marker text, and the consuming repo's documented exclusion paths
 
 ## Workflow
@@ -36,10 +36,10 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 
 1. **User selects a group** (by `#`) or use `--work` to auto-select the smallest.
 
-1. **For each violation**, read context (10 lines before/after), then classify:
+1. **For each marker**, read context (10 lines before/after), then classify:
 
 - **Resolve now** — small fix; do the work, remove the marker
-- **File issue + remove marker** — significant work; create via the `add` action, remove the inline marker (do not leave `TODO` as a stand-in for the issue)
+- **File a work item + remove marker** — significant work; create via the `add` action, remove the inline marker (do not leave `TODO` as a stand-in for the item)
 - **Remove (already done)** — work completed; delete the comment
 - **False positive** — structured grammar or external upstream citation misclassified; fix the exclusion if systemic, otherwise note it in the PR
 
