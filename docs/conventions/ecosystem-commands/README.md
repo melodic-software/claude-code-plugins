@@ -113,7 +113,9 @@ documented placeholders:
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
 Consuming repos SHOULD validate their files against the schema in their own gates (a
 `check-jsonschema` hook or CI lane); plugins SHOULD fail soft — a malformed file degrades to rung 2
-of the ladder with a warning, never a hard stop.
+of the ladder with a warning, never a hard stop. Tolerant reading has a known edge: a misspelled
+key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key — repos
+that want typo protection run `check-jsonschema --no-additional-properties` in their gate.
 
 ## Task-runner deferral (recorded decision)
 

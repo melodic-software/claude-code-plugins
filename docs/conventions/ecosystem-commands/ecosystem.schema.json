@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/ecosystem-commands/ecosystem.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/ecosystem.schema.json",
   "title": "Ecosystem command surface (one file per ecosystem)",
   "description": "Schema for a consuming repository's .claude/ecosystems/<ecosystem>.yaml file. The filename stem is the ecosystem identifier (lowercase kebab-case). Command values are opaque shell strings; null means the ecosystem has no such phase. Contract: docs/conventions/ecosystem-commands/README.md.",
   "type": "object",
