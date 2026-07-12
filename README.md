@@ -70,6 +70,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, and the per-plugin migration gate.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
 - `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
+- `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
