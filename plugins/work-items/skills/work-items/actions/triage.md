@@ -1,43 +1,29 @@
-# Action: `triage`
+# Action: triage
 
-Evaluate an incoming issue through a structured state-machine workflow: gather context → recommend category/state → reproduce (bugs) → interview (if needed) → apply outcome.
+Evaluate an incoming work item through a structured state-machine workflow: gather context → recommend category/state → reproduce (bugs) → interview (if needed) → apply outcome.
 
 ## Usage
 
 ```text
-triage <number>
-triage              # shows attention view (untriaged issues)
+/work-items:work-items triage <number>
+/work-items:work-items triage              # shows attention view (untriaged items)
 ```
 
 ## Attention view (no number)
 
 When invoked without a number, show three buckets (oldest first, one-line summaries):
 
-1. **Unlabeled** — issues with zero labels
+1. **Unlabeled** — items with zero labels
 2. **`status:needs-triage`** — explicitly tagged for evaluation
 3. **`status:needs-info` with reporter activity** — reporter replied since last triage note; ready for re-evaluation
 
-```bash
-gh issue list --state open --json number,title,labels,updatedAt --limit 100 | tr -d '\r'
-```
-
-Filter buckets 1-2 from that listing. Bucket 3 needs comment-level data (`updatedAt` moves on ANY activity, not just reporter replies) — for each `status:needs-info` candidate, fetch its comments and include it only when the LAST comment author is the reporter (issue author), not the triager:
-
-```bash
-gh issue view <n> --json author,comments --jq '{reporter: .author.login, last: .comments[-1].author.login}' | tr -d '\r'
-```
-
-Present as compact table. (Reads — bare `gh`.)
+List open items and filter into buckets programmatically (adapter: "List items", bare read). Present as a compact table.
 
 ## Triage workflow (with number)
 
 ### 1. Gather context
 
-Read the issue body, comments, and any linked PRs (read — bare `gh`):
-
-```bash
-gh issue view <n> --json number,title,body,labels,assignees,comments | tr -d '\r'
-```
+Read the item body, comments, and any linked PRs (adapter: "View item", bare read).
 
 ### 2. Recommend category + state
 
@@ -45,11 +31,11 @@ Based on content, recommend:
 
 - **Type label** (`type:feat`, `type:fix`, `type:chore`, etc.)
 - **Priority label** (`priority:p0-critical` through `priority:p3-low`)
-- **State label** — initial recommendation from: `status:needs-info` or agent-ready (`agent-ready` meta label). Never apply `status:considering` during triage — that label is reserved for the hold→verify→claim protocol (an active hold with a session comment); using it as a triage state would make the issue look held and hide it from `work`/`start` selection
+- **State label** — initial recommendation from: `status:needs-info`, `status:considering`, or agent-ready (`agent-ready` meta label)
 
 ### 3. Reproduce (bugs only)
 
-For `type:fix` issues, attempt reproduction before interviewing:
+For `type:fix` items, attempt reproduction before interviewing:
 
 - Run the described steps
 - Confirm the failure mode matches the report
@@ -57,17 +43,19 @@ For `type:fix` issues, attempt reproduction before interviewing:
 
 ### 4. Interview (if needed)
 
-When the issue description is vague or missing acceptance criteria, ask focused questions one at a time — resolve the most load-bearing ambiguity first. Post questions as issue comments. Mark `status:needs-info` until the reporter responds.
+When the description is vague or missing acceptance criteria, ask focused questions one at a time — resolve the most load-bearing ambiguity first. Post questions as item comments. Mark `status:needs-info` until reporter responds.
 
 ### 5. Apply outcome
 
 | Outcome | Action |
 |---------|--------|
-| Ready for agent work | Apply labels + write agent brief ([`../reference/agent-brief.md`](../reference/agent-brief.md)) + add `agent-ready` label |
+| Ready for agent work | Apply labels + write agent brief (per [`reference/agent-brief.md`](../reference/agent-brief.md)) + add `agent-ready` label |
 | Ready for human work | Apply labels + brief summary comment |
 | Needs more info | `status:needs-info` + needs-info template comment |
 | Won't fix (enhancement) | Close with rationale comment |
 | Duplicate | Close with link to original |
+
+Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare.
 
 ## State transitions
 
@@ -75,9 +63,9 @@ Valid state label transitions:
 
 ```text
 (unlabeled) → status:needs-triage
-status:needs-triage → status:needs-info | agent-ready | ready (labels applied, no state label) | wontfix (close)
+status:needs-triage → status:needs-info | status:considering | agent-ready | wontfix (close)
 status:needs-info → status:needs-triage (on reporter reply)
-status:considering → status:claimed  (hold protocol only — never set by triage)
+status:considering → status:claimed | agent-ready | wontfix (close)
 status:claimed → (close on completion)
 ```
 
@@ -98,6 +86,6 @@ Preserves partial-triage work so reporter re-engagement does not restart from ze
 
 ## AI disclaimer
 
-When creating comments or issues during autonomous/agent triage sessions, prefix with:
+When creating comments or items during autonomous/agent triage sessions, prefix with:
 
 > *This was generated by AI during triage.*
