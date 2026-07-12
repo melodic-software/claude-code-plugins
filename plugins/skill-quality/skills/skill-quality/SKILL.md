@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
 `check-skill.sh` — seventeen checks with no model invocation, so results are reproducible in CI or a
-pre-commit hook. The `validate-evals` action checks a skill's `evals/evals.json` against the bundled
+pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema. Catches the failure that static analysis catches best: a rewrite silently dropping a
 `description` trigger phrase, which degrades auto-invocation.
 
@@ -39,8 +39,8 @@ Parse `$ARGUMENTS`:
 
 - **`check <skill-name>`** (default action) — run the static contract gate over one skill.
 - **`check`** *(no name)* — run the gate over every skill under the resolved root.
-- **`validate-evals <skill-name>`** — validate one skill's `evals/evals.json` against the schema.
-- **`validate-evals`** *(no name)* — validate every skill's `evals/evals.json` that exists.
+- **`validate-evals <skill-name>`** — validate one skill's `<skill>/evals/evals.json` against the schema.
+- **`validate-evals`** *(no name)* — validate every skill's `<skill>/evals/evals.json` that exists.
 
 ## Action: check
 
