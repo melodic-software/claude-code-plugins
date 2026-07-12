@@ -197,7 +197,7 @@
       "name": "planning",
       "source": "./plugins/planning",
       "category": "development",
-      "tags": ["planning", "brainstorm", "prd", "interview", "design", "devils-advocate", "architect", "stress-test", "skill"]
+      "tags": ["planning", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
     },
     {
       "name": "review-toolkit",
@@ -216,6 +216,12 @@
       "source": "./plugins/kindle-dedrm",
       "category": "knowledge",
       "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"]
+    },
+    {
+      "name": "codebase-audit",
+      "source": "./plugins/codebase-audit",
+      "category": "quality",
+      "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     }
   ]
 }

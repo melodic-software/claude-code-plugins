@@ -1,9 +1,9 @@
 # planning
 
 A Claude Code plugin for the **pre-implementation planning pipeline** — everything
-between a rough idea and approved, executable work. Six skills covering divergence,
-product intent, the engineering contract, design exploration, adversarial review,
-and the implementation plan itself.
+between a rough idea and approved, executable work. Seven skills covering divergence,
+product intent, the engineering contract, design exploration, the design→plan gate,
+adversarial review, and the implementation plan itself.
 
 | Skill | Stage | What it does |
 |---|---|---|
@@ -11,12 +11,13 @@ and the implementation plan itself.
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers — one-pager, consumer-feature, B2B-internal — with a synthesize path and a review mode. |
 | `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief — synthesizing when intent is clear, running depth-first Q&A when it isn't, or interviewing relentlessly on request. |
 | `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts plus a binary handoff gate. |
+| `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
 | `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
 
 The pipeline composes end-to-end — `brainstorm → prd → interview → design →
-architect` with `devils-advocate` attacking the plan before approval — but every
-skill also works standalone.
+design-handoff → architect` with `devils-advocate` attacking the plan before
+approval — but every skill also works standalone.
 
 ## Works in any repo
 
