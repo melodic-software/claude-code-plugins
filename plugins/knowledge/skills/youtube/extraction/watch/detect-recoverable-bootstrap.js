@@ -109,7 +109,7 @@ export function formatRecoverCommand(sliceDir) {
     return "";
   }
   const { workDir, framesDir, contactSheetsDir } = detection.tempSession;
-  return `node "\${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/watch/recover-watch-bootstrap.js" "${sliceDir}" "${workDir}" "${framesDir}" "${contactSheetsDir}"`;
+  return `node "\${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/recover-watch-bootstrap.js "${sliceDir}" "${workDir}" "${framesDir}" "${contactSheetsDir}"`;
 }
 
 /**
