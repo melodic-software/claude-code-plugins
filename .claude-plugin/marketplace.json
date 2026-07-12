@@ -210,6 +210,12 @@
       "source": "./plugins/implementation",
       "category": "development",
       "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
+    },
+    {
+      "name": "codebase-audit",
+      "source": "./plugins/codebase-audit",
+      "category": "quality",
+      "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     }
   ]
 }

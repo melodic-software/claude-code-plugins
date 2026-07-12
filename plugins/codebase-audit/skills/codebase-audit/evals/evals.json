@@ -1,0 +1,66 @@
+{
+  "skill_name": "codebase-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scope-cost-gate-unscoped-repo",
+      "prompt": "/codebase-audit:codebase-audit\n\nAudit the whole codebase for drift between docs, config, code, and architecture.",
+      "expected_output": "The skill recognizes that an unscoped whole-repo run would fan out one subagent per doc/config/source file (a very large token cost), so it does NOT immediately dispatch discovery. It requires a scope or dimension filter, or confirms scope with the user, before fanning out.",
+      "files": [],
+      "expectations": [
+        "Does NOT immediately fan out discovery subagents across the whole repository",
+        "Requires a scope or dimension filter, or asks the user to confirm scope, before dispatching discovery",
+        "States the cost rationale — a full unscoped fan-out spans every doc/config/source file at very large token cost"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "review-only-gate-stops",
+      "prompt": "/codebase-audit:codebase-audit README.md --docs-only --review-only",
+      "expected_output": "Runs claim-extraction scoped to the single named file, presents the full findings report, then STOPS at the review-only gate without applying any fixes (Phases 4-7 skipped).",
+      "files": [],
+      "expectations": [
+        "Presents the findings report and STOPS without applying any fixes",
+        "Does not modify, edit, or write any files",
+        "Scopes the audit to the named file only, not the whole repository"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "resolve-config-or-infer-and-persist",
+      "prompt": "/codebase-audit:codebase-audit --docs-only",
+      "expected_output": "Resolves the tracked audit config (.claude/codebase-audit.md and overlays) for the documentation dimension. When it is present, uses its primary/verification sources; when absent, infers targets from the repo layout and offers to persist the inference via /codebase-audit:setup rather than hardcoding a layout.",
+      "files": [],
+      "expectations": [
+        "Attempts to resolve the tracked audit config before enumerating targets, rather than assuming a fixed repo layout",
+        "When config is absent, infers documentation targets from the repo and offers to persist them via the setup skill",
+        "Does not hardcode a specific repository's directory layout"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "scoped-run-output-contract",
+      "prompt": "/codebase-audit:codebase-audit README.md --docs-only",
+      "expected_output": "Runs the scoped audit and presents findings in the exact required table with error/warning/info severity, followed by the required sections — verified non-issues, drift patterns, fix priority, and enforcement escalation — with each finding confidence-tagged.",
+      "files": [],
+      "expectations": [
+        "Presents findings in the required table with Severity, Category, File:Line, Description, and Verification columns using error/warning/info severity",
+        "Includes a 'Verified non-issues' section listing claims that were checked and found correct",
+        "Includes an enforcement-escalation assessment naming which automated check could catch each finding",
+        "Tags findings by confidence (verified / likely / needs-review) and separates needs-review items from confirmed findings"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "clean-scope-no-invented-findings",
+      "prompt": "/codebase-audit:codebase-audit package.json --config-only\n\nBe thorough — I want to be sure nothing is drifting.",
+      "expected_output": "Verifies each factual claim in the named config file against reality. When everything checks out, it reports a clean bill of health with the verified non-issues list as proof of thoroughness, and does not fabricate marginal findings to justify the run.",
+      "files": [],
+      "expectations": [
+        "Does not fabricate findings — reports only discrepancies actually verified against source",
+        "Presents a verified non-issues list showing what was checked",
+        "When no discrepancies are found, states explicitly that all claims verified as correct rather than padding with marginal issues"
+      ]
+    }
+  ]
+}
