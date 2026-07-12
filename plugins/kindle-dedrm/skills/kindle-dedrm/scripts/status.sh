@@ -22,7 +22,9 @@ FIREWALL_RULE_NAME="Block Kindle for PC (lock 2.8.0)"
 
 probe_kindle_version() {
   if [[ -f "${KINDLE_APP_DIR}/Kindle.exe" ]]; then
-    powershell.exe -NoProfile -Command "(Get-Item 'C:\\Users\\${USERNAME}\\AppData\\Local\\Amazon\\Kindle\\application\\Kindle.exe').VersionInfo.FileVersion" 2>/dev/null | tr -d '\r\n '
+    # shellcheck disable=SC2016
+    # ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
+    powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n '
   fi
 }
 
@@ -35,7 +37,9 @@ probe_icacls_deny() {
     echo "n/a-no-dir"
     return
   fi
-  if powershell.exe -NoProfile -Command "icacls 'C:\\Users\\${USERNAME}\\AppData\\Local\\Amazon\\Kindle\\updates'" 2>/dev/null | grep -q '(DENY)(W)'; then
+  # shellcheck disable=SC2016
+  # ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
+  if powershell.exe -NoProfile -Command 'icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates"' 2>/dev/null | grep -q '(DENY)(W)'; then
     echo "applied"
   else
     echo "absent"

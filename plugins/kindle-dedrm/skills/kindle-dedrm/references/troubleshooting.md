@@ -56,7 +56,7 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
 5. If the ICACLS deny isn't already applied, apply it now:
 
    ```bash
-   bash "${SKILL_DIR}/scripts/lock-updates.sh" apply
+   bash "${CLAUDE_PLUGIN_ROOT}/skills/kindle-dedrm/scripts/lock-updates.sh" apply
    ```
 
 ## Keyfinder fails with "Calibre is running"
@@ -130,7 +130,7 @@ rm -f "${LOCALAPPDATA}/Amazon/Kindle/updates/KindleForPC-installer.exe"
 The `sync-finalize.sh` script does this automatically. If `sync-finalize.sh` ran but the file persisted, re-run with verbose:
 
 ```bash
-bash -x "${SKILL_DIR}/scripts/sync-finalize.sh"
+bash -x "${CLAUDE_PLUGIN_ROOT}/skills/kindle-dedrm/scripts/sync-finalize.sh"
 ```
 
 ## Books fail Phase 3 import to Calibre

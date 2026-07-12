@@ -45,7 +45,7 @@ echo "  Or run this skill's wrapper from elevated pwsh:"
 echo "    pwsh -File '${SCRIPT_DIR}/firewall.ps1' -Action disable"
 echo
 
-cat <<'EOF'
+cat <<EOF
 === USER STEPS (do not skip) ===
 
 1. Confirm firewall is now disabled (see message above).

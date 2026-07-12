@@ -21,7 +21,9 @@ if powershell.exe -NoProfile -Command "Get-Process Kindle -ErrorAction SilentlyC
 fi
 
 # Step 2 — verify Kindle.exe is still 2.8.0.70980
-KINDLE_VER=$(powershell.exe -NoProfile -Command "(Get-Item 'C:\\Users\\${USERNAME}\\AppData\\Local\\Amazon\\Kindle\\application\\Kindle.exe').VersionInfo.FileVersion" 2>/dev/null | tr -d '\r\n ')
+# shellcheck disable=SC2016
+# ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
+KINDLE_VER=$(powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n ')
 if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then
   echo "[sync-finalize] WARNING: Kindle.exe version is ${KINDLE_VER}, expected 2.8.0.70980"
   echo "[sync-finalize] An auto-update may have run. See references/troubleshooting.md 'Installed wrong Kindle for PC version'."
@@ -42,13 +44,15 @@ else
   echo "[sync-finalize] no cached installer — firewall caught the update attempt"
 fi
 
-# Step 4 — clean any other unexpected files in updates/ (paranoia)
+# Step 4 — surface any other unexpected files in updates/ for the user to inspect.
+# Report only; deleting is a per-item decision the user makes (the skill's hard
+# safety rules forbid unconfirmed batch deletes), and Kindle may legitimately
+# stage manifest or in-progress files here.
 OTHER_FILES=$(find "${KINDLE_UPDATES_DIR}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
 if [[ "${OTHER_FILES}" -gt 0 ]]; then
-  echo "[sync-finalize] additional files in updates dir:"
+  echo "[sync-finalize] additional files remain in the updates dir — inspect these before deleting:"
   ls -la "${KINDLE_UPDATES_DIR}"
-  echo "[sync-finalize] manually inspect; deleting non-installer files..."
-  find "${KINDLE_UPDATES_DIR}" -mindepth 1 -delete 2>/dev/null || true
+  echo "[sync-finalize] to remove a confirmed stray installer, delete it explicitly; not auto-deleting."
 fi
 
 # Step 5 — re-enable firewall (admin required)

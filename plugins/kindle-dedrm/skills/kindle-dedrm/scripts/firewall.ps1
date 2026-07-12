@@ -45,13 +45,15 @@ function Get-Rule {
 }
 
 function Show-State {
+    # Status lines go to the host (console), not the success stream, so a caller
+    # capturing the return value ($exists = Show-State) receives only the bool.
     $rule = Get-Rule
     if (-not $rule) {
-        Write-Output '[firewall] absent'
+        Write-Host '[firewall] absent'
         return $false
     }
     $enabled = $rule.Enabled
-    Write-Output "[firewall] present, Enabled=$enabled, Action=$($rule.Action), Direction=$($rule.Direction)"
+    Write-Host "[firewall] present, Enabled=$enabled, Action=$($rule.Action), Direction=$($rule.Direction)"
     return $true
 }
 
