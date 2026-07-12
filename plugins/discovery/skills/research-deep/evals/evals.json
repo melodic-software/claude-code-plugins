@@ -1,0 +1,76 @@
+{
+  "skill_name": "research-deep",
+  "evals": [
+    {
+      "id": 1,
+      "name": "multi-topic-parallel-agents",
+      "prompt": "Research three separate things for me: (1) best practices for EF Core compiled queries, (2) whether we should adopt OpenTelemetry metrics, and (3) the current state of .NET native AOT for ASP.NET APIs.",
+      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel topic agents (one per topic, each running the full /research discipline) rather than feeding the combined blob to a single engine. Each agent writes its own sibling research-<topic>.md and the main session synthesizes RESEARCH.md.",
+      "files": [],
+      "expectations": [
+        "Output identifies that the ask contains multiple separable topics",
+        "Output dispatches one research agent per topic in parallel rather than running one engine over the combined blob",
+        "Each topic agent runs the full research discipline and writes its own sibling research-<topic>.md artifact",
+        "The main session synthesizes a combined RESEARCH.md from the per-topic artifacts"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "single-heavy-topic-dispatches-engine",
+      "prompt": "Do a deep, thorough research pass comparing Dapper vs EF Core vs raw ADO.NET for our data-access layer, covering performance, maintainability, and migration cost.",
+      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches a deep-research workflow engine when one is available, surfaces the returned summary and artifact path, and does NOT re-run the research inline in the main session.",
+      "files": [],
+      "expectations": [
+        "Output treats this single broad comparison as one heavy topic (not split into parallel agents)",
+        "Output dispatches the heaviest available tier (a deep-research workflow engine when available)",
+        "Output does NOT re-run the deep research inline in the main session after dispatching"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "forked-agent-fallback-no-engine",
+      "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
+      "expected_output": "With no workflow-engine path and a heavy task, falls back to spawning an isolated general-purpose subagent that runs the full /research discipline (not a read-only Explore agent, since Phase 3 needs tool access and the artifact must be written).",
+      "files": [],
+      "expectations": [
+        "Output falls back to a forked/isolated subagent when no workflow engine is available",
+        "The subagent is a general-purpose agent (able to use tools and write the artifact), not a read-only Explore agent",
+        "The subagent is instructed to run the full /research discipline"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "small-task-still-full-discipline",
+      "prompt": "Deep-research just one small thing: the current stable version number of Node.js LTS.",
+      "expected_output": "Recognizes a clearly-small single-fact task and runs inline (Tier 3) rather than dispatching an engine, but still applies the full /research discipline — task size never reduces depth.",
+      "files": [],
+      "expectations": [
+        "Output routes a clearly-small single-fact task to inline execution rather than an engine or parallel agents",
+        "Output still applies the full /research discipline (phases, source tiers) despite the small task size"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "dispatcher-not-inline-deep-pass",
+      "prompt": "Deep-research the security implications of enabling CORS wildcard origins across our API gateway — this is a big one.",
+      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or forked subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean; the isolation comes from the chosen tier.",
+      "files": [],
+      "expectations": [
+        "Output dispatches the heavy pass to an isolated tier rather than running it in the main context",
+        "The main-session output stays a dispatch/summary, not a full inline deep-research transcript"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "researches-does-not-decide-or-code",
+      "prompt": "Deep-research whether we should replace our custom auth with an OIDC provider, then implement the switch.",
+      "expected_output": "Dispatches the research but does not make the decision or write code — the planning step or user decides, and execution is a separate stage.",
+      "files": [],
+      "expectations": [
+        "Output performs/dispatches research about the decision rather than making it",
+        "Output does NOT write or modify code to implement the switch",
+        "Output leaves the decision and any implementation to a downstream step"
+      ]
+    }
+  ]
+}

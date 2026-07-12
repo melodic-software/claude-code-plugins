@@ -1,0 +1,78 @@
+{
+  "skill_name": "research",
+  "evals": [
+    {
+      "id": 1,
+      "name": "three-phase-happy-path",
+      "prompt": "Research current best practices for configuring connection pooling in Npgsql 8 for a high-throughput service.",
+      "expected_output": "Runs the three-phase discipline (broad, targeted+falsification, preferred-sources/tool-ecosystem), produces an evidence table tagging each claim's source tier and confidence, satisfies the recency gate by fetching the latest upstream changelog/release this turn, passes the outcome gate, and persists a RESEARCH.md artifact.",
+      "files": [],
+      "expectations": [
+        "Output runs at least three research phases (broad, then targeted, then preferred-sources/fallback)",
+        "Output presents an evidence table mapping each claim to source tier and confidence",
+        "Output satisfies the recency gate by fetching the latest upstream changelog/release this turn",
+        "Output reports an outcome-gate result and persists (or names) a RESEARCH.md artifact"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-shortcut-for-small-topic",
+      "prompt": "Quick one, don't overthink it: what's the default request timeout in the latest version of the Polly resilience library? Just tell me the number.",
+      "expected_output": "Applies the full research discipline despite the 'quick' framing — task size does not reduce phase count. It does not answer from training recall; it fetches the primary source this turn and confirms currency before stating the value.",
+      "files": [],
+      "expectations": [
+        "Output does not answer solely from training-data recall",
+        "Output still runs the full multi-phase discipline rather than a single lookup because the topic is 'small'",
+        "The stated value is backed by a primary source fetched this turn, not asserted from memory"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "mandatory-falsification-query",
+      "prompt": "Research whether Server-Sent Events is the right choice over WebSockets for a one-way live-updates feed in our web app.",
+      "expected_output": "Phase 2 includes exactly one query that attempts to FALSIFY the Phase 1 leading hypothesis, and that falsification query is recorded in the run's artifacts — without it, the run is confirmation bias by default.",
+      "files": [],
+      "expectations": [
+        "Output records a Phase 1 leading hypothesis",
+        "Phase 2 includes an explicit falsification query aimed at breaking that leading hypothesis",
+        "The falsification attempt and its result are recorded in the run's output/artifacts"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-claim-on-training-recall-alone",
+      "prompt": "Research the default retention period for AWS CloudWatch log groups and how to change it.",
+      "expected_output": "Does not accept a Tier-3 training-recall answer as a current fact. Every accepted claim carries at least one Tier 0/1 primary captured this turn plus independent corroborators; a claim that cannot reach that bar is reported as a Gap, not laundered into the answer.",
+      "files": [],
+      "expectations": [
+        "Output does not present training-data recall as a current, verified fact",
+        "Every accepted claim cites at least one primary (Tier 0/1) source fetched this turn plus independent corroboration",
+        "Any claim that cannot meet the source-tier bar is reported as a Gap rather than stated as a finding"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "researches-does-not-decide-or-code",
+      "prompt": "Research whether we should migrate our caching layer from in-memory to Redis, then go ahead and switch us over.",
+      "expected_output": "Presents verified evidence for the migration question but does not make the decision or write/modify code. The choice is left to the user or the planning step; execution is a separate stage.",
+      "files": [],
+      "expectations": [
+        "Output presents evidence about the migration rather than deciding it",
+        "Output does NOT write or modify code to perform the migration",
+        "Output leaves the decision to the user or a downstream planning/execution step"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "primary-over-blog-consensus",
+      "prompt": "Research the exact rate-limit headers returned by the GitHub REST API and their meaning — I've seen several blog posts that disagree.",
+      "expected_output": "Fetches the canonical primary (official GitHub docs) directly rather than resolving the disagreement via a synthesis tool alone. Where blog consensus contradicts the primary, the primary wins and the conflict is flagged explicitly; no claim rests on all-Tier-2 secondary sources.",
+      "files": [],
+      "expectations": [
+        "Output fetches the canonical primary source directly, not only via a search-engine result page or synthesis tool",
+        "When blog consensus contradicts the primary source, the primary wins and the conflict is flagged explicitly",
+        "No accepted claim is backed exclusively by Tier-2 secondary sources"
+      ]
+    }
+  ]
+}
