@@ -1,0 +1,53 @@
+{
+  "skill_name": "firecrawl",
+  "evals": [
+    {
+      "id": 1,
+      "name": "webfetch-block-escalates-to-scrape",
+      "prompt": "WebFetch keeps returning a 403 (Cloudflare) on https://www.example-docs.dev/guide — I need the content of that page.",
+      "expected_output": "Recognizes the anti-bot block as the trigger to escalate to firecrawl scrape, writes the result to a temp file with -o, and then Reads only the needed slice instead of streaming the whole page into context.",
+      "files": [],
+      "expectations": [
+        "Routes to `firecrawl scrape` for the blocked page (managed rotation + headless browser)",
+        "Writes the scrape output to disk with `-o /tmp/fc-<nonce>.<ext>` rather than streaming full markdown into context",
+        "Reads the saved file selectively (offset/limit) instead of dumping the entire page body into the conversation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "plain-page-stays-on-webfetch",
+      "prompt": "Fetch the text of https://example.com/about — it's a plain static page, WebFetch works fine on it.",
+      "expected_output": "Declines to spend Firecrawl credits on an unprotected page that WebFetch already handles, recommending WebFetch instead of firecrawl scrape.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke firecrawl for the plain, unprotected page",
+        "Recommends WebFetch (or the plain fetch path) because it burns no Firecrawl credits and is faster",
+        "Reserves firecrawl for the documented triggers (403/429, JS rendering, interaction, search, bulk crawl, local file parse)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "map-before-crawl-credit-discipline",
+      "prompt": "Extract every doc page under https://docs.example.com into markdown for me.",
+      "expected_output": "Treats a full-site crawl as credit-expensive and runs firecrawl map first for cheap URL discovery before deciding on a scoped crawl, rather than firing an unbounded crawl immediately.",
+      "files": [],
+      "expectations": [
+        "Runs `firecrawl map` for URL-only discovery before an expensive `firecrawl crawl`",
+        "Treats crawl credits as a shared, finite resource (scopes depth / uses --limit) rather than crawling the whole site unbounded",
+        "Writes bulk output to disk with `-o` rather than streaming it into context"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-parallel-install-via-init",
+      "prompt": "Set up firecrawl for me the easy way — just run `firecrawl init --all --browser` so everything's configured.",
+      "expected_output": "Refuses to run firecrawl init, explaining it installs a parallel firecrawl-mcp + upstream-skill copy that shadows this plugin, and instead points to env-var auth (FIRECRAWL_API_KEY) plus npm install of the CLI.",
+      "files": [],
+      "expectations": [
+        "Does NOT run `firecrawl init --all --browser`",
+        "Explains it would create a parallel MCP + skill install that duplicates and drifts from this plugin",
+        "Directs setup to `npm install -g firecrawl-cli` plus the `FIRECRAWL_API_KEY` env var, not `firecrawl login` / `firecrawl config`"
+      ]
+    }
+  ]
+}
