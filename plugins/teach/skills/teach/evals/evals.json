@@ -65,12 +65,12 @@
       "id": 6,
       "name": "no-silent-workspace-invention",
       "prompt": "/teach:teach explain closures",
-      "expected_output": "The explain action needs an active workspace; with none present, it asks whether to start one (topic/codebase) before writing, rather than silently inventing a workspace.",
+      "expected_output": "The explain action requires an active workspace to write concepts/<concept>/ into, and never silently invents one. It resolves against the live workspace state: uses the single existing workspace when exactly one exists, asks which when several exist, and asks whether to start one (topic/codebase) when none exists — so the correct behavior depends on the current workspace state rather than being a fixed branch.",
       "files": [],
       "expectations": [
         "Recognizes that `explain` requires an active workspace to write concepts/<concept>/ into",
-        "When no workspace exists, asks whether to start one (topic or codebase) before writing — never invents a workspace silently",
-        "When several workspaces exist it asks which, rather than guessing one"
+        "Never silently invents or fabricates a workspace — it resolves against the live existing workspace state before writing",
+        "Takes the branch that matches the current state: use the one existing workspace, ask which when several exist, or ask whether to start one when none exists"
       ]
     }
   ]
