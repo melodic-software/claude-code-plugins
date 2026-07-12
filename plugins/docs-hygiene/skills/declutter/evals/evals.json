@@ -1,0 +1,74 @@
+{
+  "skill_name": "declutter",
+  "evals": [
+    {
+      "id": 1,
+      "name": "classify-noise-shapes-with-tiers",
+      "prompt": "Declutter this file: read evals/fixtures/noisy-rule-snippet.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Emits a per-file tier table classifying the noise: the dated 'Empirically observed 2026-03-14' line as a citation, the `.work/net-hardening-slice/PLAN.md` reference as a ghost-ref (Tier 2), the 'Path-scoped to ... loads on Read' clause as scope-meta, and the hardcoded 'following three skills' roster as an enum-list. Each finding carries treatment guidance. No edits are applied.",
+      "files": ["evals/fixtures/noisy-rule-snippet.md"],
+      "expectations": [
+        "Output classifies findings by the skill's shape vocabulary (citation, ghost-ref, preamble, enum-list, scope-meta)",
+        "The `.work/net-hardening-slice/PLAN.md` reference is flagged as a ghost-ref",
+        "The hardcoded 'following three skills' list is flagged as an enum-list with a runtime-derivation / category-citation treatment",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "read-only-even-when-asked-to-fix",
+      "prompt": "Declutter .claude/rules/foo.md and just go ahead and strip the noise you find — remove it for me.",
+      "expected_output": "Stays read-only despite the request to edit: surfaces the findings with treatment guidance and does NOT apply Edit/Write. It explains the author applies each treatment, or points to the sibling edit-capable skills for the actual removal.",
+      "files": [],
+      "expectations": [
+        "Output does NOT edit or write the file despite the explicit request to strip noise",
+        "Output surfaces findings with treatment guidance for the author to apply",
+        "The read-only contract is honored or explicitly stated"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "slot-variable-not-flagged-as-ghost-ref",
+      "prompt": "Declutter a rule file whose body contains the schema placeholder path `.work/<slug>/PLAN.md` used to describe the working-notes convention (not a literal directory name). Classify it.",
+      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and does NOT flag it as a ghost-ref. Only concrete literal paths into ephemeral directories are ghost-refs.",
+      "files": [],
+      "expectations": [
+        "The `<slug>` placeholder path is NOT flagged as a ghost-ref",
+        "Output states that slot-variable / schema-placeholder tokens are exempt from the ghost-ref shape"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "exempt-sections-never-flagged",
+      "prompt": "Declutter a rule file that ends with a `## Cross-references` section listing sibling rules and a `## Sources` footer with dated citations. Audit the whole file.",
+      "expected_output": "Treats `## Cross-references` and `## Sources` / `## History` footers as exempt sections and does NOT flag their contents (including the dated citations that live in the Sources footer, which is exactly where the citation treatment relocates them).",
+      "files": [],
+      "expectations": [
+        "Content under `## Cross-references` is not flagged as noise",
+        "Dated citations inside a `## Sources` / `## History` footer are not flagged (the footer is the citation shape's relocation target, not noise)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "flavor-is-compress-not-declutter",
+      "prompt": "Declutter docs/wordy.md — it's full of filler like 'basically', 'really', and 'just', plus a lot of hedging. Flag all of that.",
+      "expected_output": "Does NOT classify filler / hedging / articles as any of the five declutter noise shapes — that FLAVOR is the sibling /compress's territory. It reports no noise-shape findings for the filler and routes flavor removal to /compress.",
+      "files": [],
+      "expectations": [
+        "Filler / hedging words are NOT classified under any of declutter's five noise shapes",
+        "Output routes flavor removal to /compress rather than handling it as declutter noise"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "preamble-diataxis-classification",
+      "prompt": "Declutter a data-registry reference file (a table of label slugs) that opens with a multi-paragraph 'Why this file exists' section explaining the history and motivation. How do you treat the preamble?",
+      "expected_output": "Applies the Diataxis classifier: on a Reference-quadrant file (a data table / registry) the 'Why this file exists' preamble is Tier 2 with a STRIP treatment, replacing it with a one-sentence orientation — as opposed to KEEP on an Explanation-quadrant file (rule body, ADR, convention rationale).",
+      "files": [],
+      "expectations": [
+        "Output flags the preamble on the Reference-quadrant file with a STRIP / replace-with-one-sentence treatment",
+        "Output distinguishes the Reference-quadrant STRIP from the Explanation-quadrant KEEP case"
+      ]
+    }
+  ]
+}
