@@ -23,7 +23,13 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
   (seam 3), or none needed.
 - **Setup action** — the contract requires *every plugin carrying a `userConfig` or tracked-config
   seam* to ship a re-runnable `setup`/`configure` action that interviews the consumer and writes the
-  tracked config. Present / missing / n/a (no config seam → not required).
+  tracked config. Present / missing / n/a (no config seam → not required). A **config seam** is a
+  file whose schema THIS plugin defines and the consumer authors to configure it (`userConfig`,
+  `.claude/<plugin>.md`, `tidy-lanes/`, `songwriting/templates/`, `recurring-schedule.json`) — a
+  setup action scaffolds it. Reading the consumer's **pre-existing** conventions or tool configs via
+  seam 3 (`CLAUDE.md`, `REVIEW.md`, a markdownlint config, `worktree.baseRef`,
+  `UBIQUITOUS-LANGUAGE.md`) is **not** a setup-requiring seam — there is nothing plugin-specific to
+  write.
 - **Ladder** — convention-resolution ladder compliance (config present → use; absent → infer &
   persist / ask; else safe default; no baked repo assumptions).
 - **Baked repo assumptions** — hardcoded consumer layout, `melodic-software/medley` paths, or other
@@ -34,14 +40,16 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
 
 ## Verdict summary
 
-- **No net-new work: 35 of 41.** All 9 hook plugins, all 4 pure-reference plugins, and 22 behavior
+- **No net-new work: 34 of 41.** All 9 hook plugins, all 4 pure-reference plugins, and 21 behavior
   plugins are contract-compliant as shipped (or their outstanding work is already owned by an
   existing issue).
-- **Net-new setup-action gap: 6** — `bug-report`, `claude-ops`, `code-tidying`, `discovery`,
-  `planning`, `songwriting` each expose a config seam but ship no setup action. One retrofit issue
-  filed per plugin (linked under wave-2 map `melodic-software/medley#1369`). `songwriting` was
-  reclassified from the issue's a-priori pure-reference expectation to behavior once graded against
-  the evidence (9 action skills + a template-override seam).
+- **Net-new setup-action gap: 7** — `bug-report`, `claude-ops`, `code-tidying`, `discovery`,
+  `planning`, `songwriting`, `work-items` each expose a config seam but ship no (dedicated)
+  setup action. One retrofit issue filed per plugin (linked under wave-2 map
+  `melodic-software/medley#1369`). `songwriting` was reclassified from the issue's a-priori
+  pure-reference expectation to behavior once graded against the evidence (9 action skills +
+  a template-override seam); `work-items` carries an optional `.github/recurring-schedule.json`
+  tracked seam that its per-item scaffolding does not fully substitute for a re-runnable setup.
 - **Baked repo assumptions: 0.** No plugin bakes a consumer layout into runtime behavior. Four
   incidental `apps/`/`libs/`/`Platform.*` string hits are benign — test fixtures, eval-prompt
   examples, generic top-level-dir enumerations, and Claude-Code-behavior documentation — not runtime
@@ -106,7 +114,7 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | context7 | none needed | n/a | — | ctx7 (CLI-first) | absent → #1396 | compliant |
 | firecrawl | none needed | n/a | — | firecrawl-cli (CLI-first) | absent → #1396 | compliant |
 | playwright | none needed | n/a | — | @playwright/cli (CLI-first) | absent → #1396 | compliant |
-| work-items | none needed (backend-neutral `gh`) | n/a | — | MCP-neutral (gh CLI) | present | compliant |
+| work-items | tracked `.github/recurring-schedule.json` (seam 2, optional) + backend-neutral `gh` | **partial** | `recheck` requires it; `add --recurring` scaffolds a skeleton (ask-gated); no dedicated re-runnable setup | MCP-neutral (gh CLI) | present | **GAP → net-new setup issue** (dedicated setup for the recurring schedule) |
 | event-storming | none needed | n/a | — | miro STAY (degraded-but-functional) | absent → #1396 | compliant; miro reconcile owned by #1405 |
 | review-toolkit | consumer rules (seam 3) | n/a | — | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
 | session-flow | writes `.claude/handoffs/` (default) | n/a | safe default | — | absent → #1396 | compliant |
@@ -136,3 +144,4 @@ One `retrofit(<slug>)` issue per setup-action gap, sub-issue-linked under wave-2
 | discovery | melodic-software/medley#1429 |
 | planning | melodic-software/medley#1430 |
 | songwriting | melodic-software/medley#1433 |
+| work-items | melodic-software/medley#1435 |
