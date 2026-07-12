@@ -87,7 +87,12 @@ the concrete path `--file` will now write to.
 ## What this skill does NOT do
 
 - Produce a bug report — that is `/bug-report:bug-report`. This skill only settles where `--file` writes.
-- Write machine-local state — configuration lives in the consumer's tracked settings, never in the plugin
+- Store config in the plugin — the value lives in the consumer's Claude Code settings, never in the plugin
   directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is where reports themselves land when
-  `output_dir` is unset, not where config is stored).
+  `output_dir` is unset, not where config is stored). The **set** path always writes the project (tracked,
+  team) `.claude/settings.json`. The **reset** path is the one exception that may touch a machine-local scope
+  — and only to remove an inherited value the user asked to clear: it clears `.claude/settings.local.json`
+  when the local overlay supplies the effective value, or `~/.claude/settings.json` with explicit consent when
+  user scope does, because a project-scope edit cannot reach either. It never writes machine-local state the
+  plugin itself owns.
 - Persist a value the user did not choose — unset is a valid, recommended outcome.
