@@ -212,6 +212,12 @@
       "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
     },
     {
+      "name": "kindle-dedrm",
+      "source": "./plugins/kindle-dedrm",
+      "category": "knowledge",
+      "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"]
+    },
+    {
       "name": "codebase-audit",
       "source": "./plugins/codebase-audit",
       "category": "quality",
