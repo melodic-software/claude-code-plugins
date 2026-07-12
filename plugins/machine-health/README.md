@@ -51,6 +51,18 @@ run log. No telemetry, no other network calls, no `Invoke-Expression` on externa
 /plugin install machine-health@melodic-software
 ```
 
+## Migrating from an in-repo copy
+
+If you previously ran machine-health as an in-repo skill with reports, state, and logs under one
+output base (default `Documents\MachineHealth`):
+
+1. Reports can stay put — set the `report_dir` option to the same folder (or leave unset for the
+   default, which is that folder).
+2. Move machine state into the plugin data directory so trend history and approvals carry over:
+   `<old output base>\state\` → `${CLAUDE_PLUGIN_DATA}\state\` (`history.jsonl`, `latest.json`,
+   `approvals.json`). Old logs may stay behind or move to `${CLAUDE_PLUGIN_DATA}\logs\`.
+3. `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/machine-health`.
+
 ## Configuration
 
 One plugin option: `report_dir` (directory) — where dated reports land; unset means
