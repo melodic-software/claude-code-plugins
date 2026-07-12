@@ -184,9 +184,13 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
 
+      - name: Test hygiene result aggregation
+        run: scripts/aggregate-hygiene-results.sh --self-test
+
       - name: Aggregate hygiene results
         if: always()
         env:
+          # Display names (left) are annotations; step ids (right) use underscores.
           CHECK_RESULTS: |
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
@@ -202,15 +206,7 @@ jobs:
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
-        run: |
-          failed=0
-          while IFS='=' read -r check result; do
-            if [[ "$result" != success ]]; then
-              echo "::error title=$check failed::Hygiene check finished with outcome: $result"
-              failed=1
-            fi
-          done <<< "$CHECK_RESULTS"
-          exit "$failed"
+        run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
     permissions:
