@@ -29,17 +29,17 @@
       "id": 3,
       "name": "product-bug-routes-to-troubleshooting",
       "prompt": "Is the Stop hook a known broken Claude Code bug right now? Any workarounds?",
-      "expected_output": "This is a Claude product-bug / GitHub-issue question, not a local-telemetry read. The skill routes the user to /claude-troubleshooting instead of answering from the OTEL/telemetry store.",
+      "expected_output": "This is a Claude product-bug / GitHub-issue question, not a local-telemetry read. The skill routes the user to /claude-ops:claude-troubleshooting instead of answering from the OTEL/telemetry store.",
       "files": [],
       "expectations": [
         "The response identifies the request as a Claude product-bug question rather than a local telemetry read",
-        "The response routes to `/claude-troubleshooting` instead of querying the telemetry store"
+        "The response routes to `/claude-ops:claude-troubleshooting` instead of querying the telemetry store"
       ]
     },
     {
       "id": 4,
       "name": "unknown-scope-not-guessed",
-      "prompt": "/claude-observability lastweek",
+      "prompt": "/claude-ops:claude-observability lastweek",
       "expected_output": "The scope token 'lastweek' is not a valid scope. The skill reports the unknown scope and lists the valid options (session, day, week, month, since:YYYY-MM-DD, all, clean) rather than silently guessing a nearby scope.",
       "files": [],
       "expectations": [

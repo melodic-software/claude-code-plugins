@@ -5,7 +5,7 @@
       "id": 1,
       "name": "state-machine-throwaway-tui",
       "prompt": "Does this scheduling state machine handle the case where a booking is cancelled and then rescheduled to the same slot? Prototype the logic so I can drive it by hand.",
-      "expected_output": "The skill states the question at the top of the prototype, isolates the scheduling logic in a small pure module (reducer / state machine) behind a throwaway TUI that re-renders the full frame each tick, and makes it runnable in one command via the project's task runner.",
+      "expected_output": "The skill states the question at the top of the prototype, isolates the scheduling logic in a small pure module (reducer / state machine) behind a throwaway TUI that re-renders the full frame each tick, and makes it runnable in one command via the project's task runner (or, when the project has no task runner, a command documented at the top of a prototype README).",
       "files": [],
       "expectations": [
         "The prototype records the question being tested at the top of the file before building anything",
