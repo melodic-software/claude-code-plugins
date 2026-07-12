@@ -145,9 +145,9 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      refines the root, absent keys fall through). A single-config consumer never nests: its files sit at
      the root, which *is* the default profile, so growing a profile later is additive (drop a sibling
      subfolder), never a reorg — and there is no reserved `default/`/`team/` name to collide with. Pick
-     the active profile by the convention-resolution ladder: exactly one profile folder present → use it;
-     several → an `active_profile` `userConfig` scalar (seam 1) or a per-invocation `--profile <name>`
-     argument selects; none → the root default. This is a one-increment PRECEDENT-EXTENSION of the folder
+     the active profile by the convention-resolution ladder: exactly one named profile subfolder present
+     → use it; several → an `active_profile` `userConfig` scalar (seam 1) or a per-invocation
+     `--profile <name>` argument selects; none → the root default. This is a one-increment PRECEDENT-EXTENSION of the folder
      form, for a plugin that could ever profile — ship the **folder** form, since the single-file form
      cannot grow a profile without a file→folder reorg. Distinct from the concern-named folder above: that
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
