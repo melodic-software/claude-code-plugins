@@ -3,14 +3,14 @@
 <#
 .SYNOPSIS
 Return the cached CISA Known Exploited Vulnerabilities list, refreshing if
-stale, missing, unparseable, or still a checked-in seed stub.
+stale, missing, unparsable, or still a checked-in seed stub.
 
 .DESCRIPTION
 Cache lives at catalog/cisa-kev.json relative to the skill root. Refresh policy:
 
     refresh when (ForceRefresh)
            or  (file missing)
-           or  (file unparseable)
+           or  (file unparsable)
            or  (vulnerabilities array empty -- catches the seed stub)
            or  (file mtime older than MaxAgeDays)
 

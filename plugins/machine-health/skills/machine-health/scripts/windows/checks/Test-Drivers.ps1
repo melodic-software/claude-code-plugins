@@ -26,6 +26,7 @@ function Invoke-DriversCheck {
     $id = 'drivers'
     $category = 'drivers'
     $commands = @(
+        # spellchecker:ignore-next-line
         'Get-CimInstance Win32_PnPSignedDriver | Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer'
         'pnputil /enum-drivers'
         'pnputil /enum-devices /problem  # requires admin for full output'
@@ -35,6 +36,7 @@ function Invoke-DriversCheck {
 
     try {
         # Inventory + dates come from WMI.
+        # spellchecker:ignore-next-line
         $drivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer)
 

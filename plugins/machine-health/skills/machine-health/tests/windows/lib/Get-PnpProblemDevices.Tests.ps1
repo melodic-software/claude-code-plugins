@@ -29,11 +29,13 @@ Describe 'Get-PnpProblemDevice' -Tag 'lib' {
         # our stub. The call operator dispatches to a function of the same
         # name if one is defined in scope.
         function script:pnputil {
+            # spellchecker:off
             @'
 Microsoft PnP Utility
 
 No devices match the specified filter.
 '@
+            # spellchecker:on
         }
         Mock Get-Command { [pscustomobject]@{ Name = 'pnputil' } } -ParameterFilter { $Name -eq 'pnputil' }
         $result = @(Get-PnpProblemDevice)
@@ -42,6 +44,7 @@ No devices match the specified filter.
 
     It 'parses real device blocks and skips the preamble' {
         function script:pnputil {
+            # spellchecker:off
             @'
 Microsoft PnP Utility
 
@@ -51,6 +54,7 @@ Class Name: Display
 Problem Code: 10 (CM_PROB_FAILED_START)
 Problem Status: 0xC0000001
 '@
+            # spellchecker:on
         }
         Mock Get-Command { [pscustomobject]@{ Name = 'pnputil' } } -ParameterFilter { $Name -eq 'pnputil' }
         $result = @(Get-PnpProblemDevice)

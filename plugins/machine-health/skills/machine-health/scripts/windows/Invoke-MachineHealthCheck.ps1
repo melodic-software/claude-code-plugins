@@ -533,7 +533,7 @@ try {
                 if ([DateTimeOffset]::TryParse($_.timestamp, [ref]$parsed)) {
                     $parsed -ge $runStartOffset
                 } else {
-                    Write-MachineHealthLog "urls_called_unparseable_timestamp $($_.timestamp)"
+                    Write-MachineHealthLog "urls_called_unparsable_timestamp $($_.timestamp)"
                     $false
                 }
             } |

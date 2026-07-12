@@ -134,7 +134,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             Test-Path -LiteralPath "$($script:cachePath).download" | Should -BeFalse
         }
 
-        It 'does not overwrite a good cache when the download is unparseable' {
+        It 'does not overwrite a good cache when the download is unparsable' {
             $prior = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-KEEP' }) } | ConvertTo-Json
             Set-Content -LiteralPath $script:cachePath -Value $prior -Encoding utf8
 

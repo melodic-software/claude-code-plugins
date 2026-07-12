@@ -205,6 +205,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
 - **Commands:**
 
   ```powershell
+  # spellchecker:ignore-next-line
   Get-CimInstance Win32_PnPSignedDriver |
       Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer, IsSigned
   ```

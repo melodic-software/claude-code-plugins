@@ -107,7 +107,7 @@ Describe 'Read-HistoryJsonl' -Tag 'lib' {
             $result[1].n | Should -Be 2
         }
 
-        It 'skips unparseable JSON lines and keeps the valid ones' {
+        It 'skips unparsable JSON lines and keeps the valid ones' {
             $lines = @(
                 '{"n":1}'
                 'not-json-at-all'

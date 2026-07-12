@@ -79,6 +79,7 @@ BeforeAll {
 
 Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
     BeforeAll {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             $nic = New-MockDriver -DeviceName 'Intel(R) NIC' -DriverVersion '12.0.0.0' `
                 -DriverDate (Get-Date).AddYears(-1) -IsSigned $true
@@ -121,6 +122,7 @@ Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
 Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'check' {
     BeforeAll {
         # WMI reports IsSigned=false for multiple drivers (common on dev machines).
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             $nic = New-MockDriver -DeviceName 'Intel(R) NIC' -DriverVersion '12.0.0.0' `
                 -DriverDate (Get-Date).AddYears(-1) -IsSigned $false
@@ -155,6 +157,7 @@ Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'chec
 
 Describe 'Test-Drivers -- pnputil SignerName signal' -Tag 'check' {
     It 'WARNs when a driver has an empty SignerName in pnputil output' {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             @(New-MockDriver -DeviceName 'Dodgy driver' -IsSigned $true)
         }
@@ -179,6 +182,7 @@ Describe 'Test-Drivers -- pnputil SignerName signal' -Tag 'check' {
 
 Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
     It 'CRITs when CodeIntegrity 3001 fired in the last 7 days' {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             @(New-MockDriver -DeviceName 'Any device')
         }
@@ -206,6 +210,7 @@ Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
     }
 
     It 'ignores CodeIntegrity events older than 7 days' {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             @(New-MockDriver -DeviceName 'Any device')
         }
@@ -231,6 +236,7 @@ Describe 'Test-Drivers -- CodeIntegrity events' -Tag 'check' {
 
 Describe 'Test-Drivers -- old-driver age signal' -Tag 'check' {
     It 'INFOs when a driver is older than 3 years' {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             @(
                 New-MockDriver -DeviceName 'Old RAID' -DriverDate (Get-Date).AddYears(-5) -IsSigned $true
@@ -255,6 +261,7 @@ Describe 'Test-Drivers -- old-driver age signal' -Tag 'check' {
 
 Describe 'Test-Drivers -- failure modes' -Tag 'check' {
     It 'emits UNKNOWN when Get-CimInstance fails' {
+        # spellchecker:ignore-next-line
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_PnPSignedDriver' } -MockWith {
             throw 'WMI provider failure'
         }

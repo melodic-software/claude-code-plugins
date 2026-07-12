@@ -8,6 +8,7 @@ Detect installed GPUs (NVIDIA/Intel/AMD) and surface driver version info.
 Returns an array of { vendor, model, driver_version, source } records.
 
 NVIDIA: if `nvidia-smi` is on PATH, run it to fetch driver + GPU name.
+# spellchecker:ignore-next-line
 Intel/AMD: enumerate Win32_VideoController (PnP fallback; driver date
 only). Never throws; missing vendor tooling just returns {} entries.
 
@@ -49,6 +50,7 @@ function Get-GpuDriverInfo {
         }
     }
 
+    # spellchecker:ignore-next-line
     # Intel / AMD via Win32_VideoController (PnP).
     try {
         $vcs = @(Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop)

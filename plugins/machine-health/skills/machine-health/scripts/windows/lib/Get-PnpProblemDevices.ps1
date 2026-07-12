@@ -38,6 +38,7 @@ function Get-PnpProblemDevice {
 
     # Split into device blocks. Each block starts with "Instance ID:".
     # The FIRST element of the split is always pre-"Instance ID:" preamble
+    # spellchecker:ignore-next-line
     # (banner text like "Microsoft PnP Utility" and, on healthy systems, any
     # "no devices have problems" message) -- drop it. When pnputil emits no
     # device blocks at all, the split produces a single preamble element and

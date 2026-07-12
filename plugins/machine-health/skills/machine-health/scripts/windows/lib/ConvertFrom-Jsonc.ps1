@@ -10,7 +10,7 @@ annotate fields. ConvertFrom-Json does not tolerate comments, and
 regex-based strippers fail on the common cases:
 
     "url": "https://example.com"       // this is a comment
-    "path": "C:\\Users\\<user>\\file"  // regex can mis-detect unclosed strings
+    "path": "C:\\Users\\<user>\\file"  // regex can misread unclosed strings
     /* block comment that straddles
        multiple lines */
 

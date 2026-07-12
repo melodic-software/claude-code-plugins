@@ -75,7 +75,7 @@ function Resolve-FindingTarget {
 
     if ($null -eq $FindingData) { return @() }
 
-    # Any badly-shaped finding -- unparseable JSON, or valid JSON missing
+    # Any badly-shaped finding -- unparsable JSON, or valid JSON missing
     # .detail / .stopped_auto_services -- yields an empty target list rather
     # than crashing. Property reads go through Get-PropertyValue because under
     # Set-StrictMode 3.0 a bare `$obj.detail` on an absent property throws.

@@ -5,6 +5,7 @@
 Parses `pnputil /enum-drivers` output into structured records.
 
 .DESCRIPTION
+# spellchecker:ignore-next-line
 Win32_PnPSignedDriver.IsSigned is an unreliable signal on modern
 Windows: cross-signed, attestation-signed, and test-signed drivers
 return inconsistent values, and Secure Boot blocks most genuinely-
