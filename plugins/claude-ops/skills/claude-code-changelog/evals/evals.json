@@ -28,12 +28,13 @@
     {
       "id": 3,
       "name": "target-version-ahead-of-installed-warns",
-      "prompt": "Apply changelog v2.1.152. My terminal reports `claude --version` = 2.1.150.",
-      "expected_output": "Because the target version (2.1.152) is newer than the installed CC version (2.1.150), the skill warns the user that applying newer-version changes may reference features not yet available in their session and suggests updating CC first (claude update) before proceeding.",
+      "prompt": "Apply the v2.1.152 changelog — and if my installed Claude Code is older than that, warn me before applying.",
+      "expected_output": "The apply/diff flow checks the installed Claude Code version (via `claude --version`) and compares it to the target v2.1.152, grounding the comparison in the actual installed version rather than an assumed one. If the installed version is older than the target, it warns that applying newer-version changes may reference features not yet available and suggests updating first (claude update); if the installed version is equal or newer, it proceeds without that warning.",
       "files": [],
       "expectations": [
-        "The response detects that the target version is newer than the installed CC version and warns about it",
-        "The warning suggests updating Claude Code (e.g. `claude update`) before applying, rather than silently proceeding as if versions matched"
+        "The response checks the installed Claude Code version (e.g. via `claude --version`) rather than assuming a specific installed version",
+        "If the installed version is older than the target v2.1.152, the response warns and suggests updating (e.g. `claude update`) before applying",
+        "If the installed version is equal to or newer than the target, the response proceeds without emitting the ahead-version warning"
       ]
     },
     {
