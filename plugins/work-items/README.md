@@ -16,6 +16,13 @@ you ask about work items, tracked work, or what to do next):
 /work-items:work-items triage 42
 ```
 
+## Skills
+
+| Skill | What it does |
+|---|---|
+| `/work-items:work-items` | The tracker itself — the action router below (stats, list, add, work, triage, …). |
+| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, and writes the tracked `.github/recurring-schedule.json` (re-runnable). |
+
 ## Actions
 
 | Action | What it does |
@@ -69,7 +76,8 @@ a shared bot — so the race check stays sound.
   documented in the skill's `reference/label-taxonomy.md`.
 - **Recurring schedule** (optional): a `.github/recurring-schedule.json` in the
   consuming repo enables the `due` / `recheck` actions and the recurring
-  selection tiers of `work`. Everything else works without it.
+  selection tiers of `work`. Seed or reshape it with `/work-items:setup`;
+  everything else works without it.
 
 ## Install
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "work-items",
-  "version": "0.2.0",
-  "description": "Manages development work items through a provider-neutral tracker seam (GitHub the bound adapter today): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and structured triage.",
+  "version": "0.3.0",
+  "description": "Manages development work items through a provider-neutral tracker seam (GitHub the bound adapter today): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and structured triage. The recurring-schedule seam (.github/recurring-schedule.json) is seeded and reshaped by the re-runnable setup skill.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
