@@ -40,14 +40,14 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    baseline; **never overwrite an existing consumer lane without explicit confirmation in this conversation.**
 2. **Explore the repo to draft candidate lanes.** Before asking anything, map the four bundled template
    patterns against what actually exists, and check whether either bundled lane needs a project override:
-   - **apps** (`templates/apps-lane.template.md`) — user-facing applications + their tests: web/API/CLI
-     app roots and their sibling test projects.
-   - **dependency-root** (`templates/dependency-root-lane.template.md`) — framework/library core that
-     downstream code depends on: shared/domain/core library roots.
-   - **host-wiring** (`templates/host-wiring-lane.template.md`) — hosting infrastructure, logging,
-     registration, service defaults: composition roots, DI wiring, service-default projects.
-   - **polyglot-services** (`templates/polyglot-services-lane.template.md`) — non-primary-language
-     services, MCP servers, sidecars.
+   - **apps** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/apps-lane.template.md`) — user-facing
+     applications + their tests: web/API/CLI app roots and their sibling test projects.
+   - **dependency-root** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/dependency-root-lane.template.md`) —
+     framework/library core that downstream code depends on: shared/domain/core library roots.
+   - **host-wiring** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/host-wiring-lane.template.md`) — hosting
+     infrastructure, logging, registration, service defaults: composition roots, DI wiring, service-default projects.
+   - **polyglot-services** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/polyglot-services-lane.template.md`) —
+     non-primary-language services, MCP servers, sidecars.
    - **bundled-lane override** — inspect the repo's actual tooling dirs and doc dirs; a project override
      of `shell-tooling` or `docs-prose` is warranted only when they diverge from the bundled scope globs.
    Read the actual directory names and file extensions from the repo — do not assume a stack. Skip any
@@ -57,7 +57,8 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    or drop the lane. Offer a custom lane last ("any other glob-scoped slice this repo should tidy on its
    own rotation?"). Ask about the highest-blast-radius lane first.
 4. **Fill the template placeholders from real repo values.** For each accepted lane, read the closest
-   `templates/<pattern>.template.md` in full and replace every `<placeholder>` with values drawn from this
+   `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/<pattern>.template.md` in full and replace every
+   `<placeholder>` with values drawn from this
    repo: scope globs from real directory paths, watch-for patterns tuned to the stack, lane-specific
    exclusions for this repo's unverifiable surfaces, verification commands from the project's own
    CLAUDE.md / rules / CI config (never invented), the Conventional Commits type, and preferred research
