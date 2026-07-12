@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling five **safety guards** that catch risky agent
+A Claude Code plugin bundling six **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -13,10 +13,11 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and `LEFTHOOK=0` / `LEFTHOOK_*=false` env-var prefixes (including inside compound `cd … && …` commands). |
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
+| **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
 
 The four blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The advisory guard surfaces its findings the same way
-but always allows the edit.
+actionable fix guidance. The two advisory guards surface their findings the same
+way but always allow the operation.
 
 ### Scope notes
 
@@ -58,6 +59,7 @@ guard without touching the others.
 | block-no-verify | `HOOK_BLOCK_NO_VERIFY_ENABLED` |
 | block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
 | cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
+| workflow-resilience-check | `HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED` |
 
 Set them in your settings `env` block:
 

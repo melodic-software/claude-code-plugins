@@ -1,0 +1,67 @@
+{
+  "skill_name": "design-handoff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "gate-passes-all-threads-accounted",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-all-resolved.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and, if it passes, hand off to /planning:architect.",
+      "expected_output": "The binary gate confirms every thread is RESOLVED (with recorded rationale), directional (agreed + research tag), or TAGGED-DEFERRED, so it PASSES and emits the architect-ready handoff summary sourced from the artifact — resolved decisions with rationale, deferred research tags, and dependency order.",
+      "files": ["evals/fixtures/design-threads-all-resolved.md"],
+      "expectations": [
+        "Output evaluates each thread against the artifact and reports a PASS",
+        "Output emits an /architect-ready handoff summary sourced from the artifact (resolved decisions with rationale, deferred research tags)",
+        "The summary is drawn from the artifact content, not recalled from conversation memory",
+        "Output emits a resume prompt so a fresh session can pick up at /planning:architect"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "gate-fails-unresolved-untagged-thread",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-single-gap.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and hand off if ready.",
+      "expected_output": "The gate FAILs: it names the one unresolved-and-untagged thread (stop-word/stemming configuration), does NOT hand off, and routes back to /planning:design to resolve or tag it.",
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
+      "expectations": [
+        "Output reports a FAIL rather than handing off",
+        "Output names the specific offending thread that is unresolved AND untagged (the stop-word / stemming thread)",
+        "Output routes back to /planning:design to resolve or tag the gap",
+        "Output does NOT emit an /architect-ready handoff summary"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "decided-without-rationale-is-not-resolved",
+      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-unresolved-gap.md (relative to the skill directory) as the design-threads.md, is Thread 2 ('Reindex trigger — decided') a RESOLVED thread?",
+      "expected_output": "A thread marked 'decided' without recorded rationale is NOT RESOLVED — the rationale must be in the artifact — so the skill treats it as a gap to route back rather than passing it.",
+      "files": ["evals/fixtures/design-threads-unresolved-gap.md"],
+      "expectations": [
+        "Output states that a 'decided' thread with no recorded rationale does not count as RESOLVED",
+        "Output does not accept the bare 'decided' marker as satisfying the gate",
+        "Output requires the deciding rationale to be recorded in the artifact"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "does-not-soften-fail-to-warning",
+      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-single-gap.md (relative to the skill directory), the stemming thread feels minor. Can you just warn about it and hand off anyway?",
+      "expected_output": "The skill refuses to soften the FAIL into a warning because the thread 'feels minor' — silent gaps are exactly what the binary gate exists to catch — so it FAILs and routes back rather than handing off.",
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
+      "expectations": [
+        "Output does NOT downgrade the FAIL to a warning to allow the handoff",
+        "Output holds the binary gate: an unresolved+untagged thread FAILs regardless of feeling minor",
+        "Output routes back to /planning:design rather than handing off"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-resolve-threads-itself",
+      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-single-gap.md (relative to the skill directory), the gate fails; go ahead and resolve the stemming thread for me so we can proceed.",
+      "expected_output": "The skill packages design evidence and gates; it does NOT resolve design threads itself. On a FAILed gate it routes the resolution work back to /planning:design rather than deciding the open thread.",
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
+      "expectations": [
+        "Output does NOT itself decide/resolve the open design thread",
+        "Output routes the resolution work back to /planning:design",
+        "Output keeps its role to the binary gate + handoff packaging, not design exploration"
+      ]
+    }
+  ]
+}

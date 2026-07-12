@@ -1,0 +1,77 @@
+{
+  "skill_name": "prd",
+  "evals": [
+    {
+      "id": 1,
+      "name": "consumer-feature-happy-path",
+      "prompt": "/planning:prd synthesize consumer-feature add a saved-searches feature to the jobs board so users can re-run a filter set with one tap. Primary user: active job seekers who run the same filter set repeatedly. Desired outcome: they stop re-entering filters every visit. Success metric: raise the share of returning seekers who re-run a saved filter to 30% within 30 days of launch. Non-goals: no shared/team searches and no email alerts in v1. I've told you enough — write it.",
+      "expected_output": "A consumer-feature-tier PRD synthesized from the provided context, covering the seven required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with the given threshold (30%) and window (30 days), dependencies/risks, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code. Any genuinely missing detail is noted as an open question rather than fabricated.",
+      "files": [],
+      "expectations": [
+        "Output covers the seven required PRD sections: problem, goals, non-goals, users with a user story, success metrics, dependencies/risks, open questions",
+        "Success metrics name a measurable threshold AND a measurement window, not vague language like 'increase engagement'",
+        "Output does NOT specify implementation architecture, file changes, or code shapes"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skip-condition-refuses-engineering-internal",
+      "prompt": "/planning:prd refactor the payment module to remove the static DateTime.Now calls and inject TimeProvider instead.",
+      "expected_output": "The mandatory skip-condition check identifies this as engineering-internal (a refactor with no user-facing surface), declines to write a PRD, and recommends /interview (fuzzy intent) or /architect (clear scope) instead.",
+      "files": [],
+      "expectations": [
+        "Output identifies the task as engineering-internal (refactor, no user-facing surface)",
+        "Output does NOT produce a PRD",
+        "Output recommends /interview or /architect instead of writing a PRD"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "goals-as-outcomes-not-implementations",
+      "prompt": "/planning:prd synthesize one-pager add search to the song library. Primary user: listeners browsing a large personal library. What they want: find a song fast even when they only remember a lyric. The stakeholder phrased the goal as 'add a search box with an autocomplete dropdown'. I've told you enough — write it.",
+      "expected_output": "Synthesizing from the provided context, the skill reframes the implementation-shaped goal ('add a search box with an autocomplete dropdown') into an outcome ('users can find a song from any of its lyrics quickly') and captures the search-box/dropdown implementation detail as an architecture question in open questions rather than as a goal.",
+      "files": [],
+      "expectations": [
+        "Output states goals as user-facing outcomes, not as implementation instructions like 'add a search box' or 'add an autocomplete dropdown'",
+        "Any implementation detail (search box, dropdown) is moved to the open-questions section as an architecture decision for later, not left as a goal",
+        "Output does not pre-decide the architecture in the goals section"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "review-mode-critiques-existing-prd",
+      "prompt": "/planning:prd review — here is the PRD to review:\nProblem: users can't get their data out of the app.\nGoals: add a CSV export button to the reports screen.\nUsers: analysts.\nSuccess metrics: increase the number of exports.\nThat's the whole PRD — critique it.",
+      "expected_output": "Review mode critiques the provided PRD against the seven required sections and skip-conditions — flagging that the goal is written as an implementation ('add a CSV export button') rather than an outcome, that the success metric has no threshold or measurement window, and that non-goals, user stories, dependencies/risks, and open questions are missing — rather than authoring a new PRD or writing code.",
+      "files": [],
+      "expectations": [
+        "Output evaluates an existing PRD against the required sections rather than authoring a new one",
+        "Output checks that goals are outcomes (not implementations) and that success metrics have a threshold and measurement window",
+        "The run does not write code or modify anything outside the notes directory"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-drift-into-implementation",
+      "prompt": "/planning:prd consumer add group playlists to the music app. While you're at it, tell me which handler classes and database tables we'll need.",
+      "expected_output": "The skill anchors back to what-for-whom-and-why and declines to specify handler classes or database tables in the PRD, capturing those as architecture open questions for /architect instead.",
+      "files": [],
+      "expectations": [
+        "Output does not enumerate handler classes, database tables, or other implementation structures in the PRD",
+        "Output anchors the discussion back to problem / users / success (product intent)",
+        "Output defers the architecture questions to the open-questions section (for /architect) rather than answering them"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "tier-governs-verbosity-not-sections",
+      "prompt": "/planning:prd synthesize one-pager let signed-in users export their listening history as CSV. Primary user: data-minded listeners who want their history outside the app. Success metric: 5% of signed-in users export at least once within the first 60 days. Non-goals: no scheduled/recurring exports in v1. I've told you enough — write it.",
+      "expected_output": "A tier-1 one-pager synthesized from the provided context that keeps all seven required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist. Success metrics retain the given threshold (5%) and window (60 days).",
+      "files": [],
+      "expectations": [
+        "Output retains all seven required sections even at one-pager tier",
+        "The one-pager compresses sections to roughly one line each rather than omitting any required section",
+        "Success metrics still include a threshold and window despite the terse tier"
+      ]
+    }
+  ]
+}
