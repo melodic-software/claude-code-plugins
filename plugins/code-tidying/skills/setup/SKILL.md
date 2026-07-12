@@ -56,23 +56,37 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    scope globs and the source template, marked with a recommendation; let the user accept, edit the globs,
    or drop the lane. Offer a custom lane last ("any other glob-scoped slice this repo should tidy on its
    own rotation?"). Ask about the highest-blast-radius lane first.
-4. **Fill the template placeholders from real repo values.** For each accepted lane, read the closest
-   `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/<pattern>.template.md` in full and replace every
-   `<placeholder>` with values drawn from this
-   repo: scope globs from real directory paths, watch-for patterns tuned to the stack, lane-specific
-   exclusions for this repo's unverifiable surfaces, verification commands from the project's own
-   CLAUDE.md / rules / CI config (never invented), the Conventional Commits type, and preferred research
+4. **Fill the source lane from real repo values.** For each accepted lane, read its full source in full,
+   then replace every `<placeholder>` (templates) or bundled default (overrides) with values drawn from
+   this repo. The source depends on the lane's origin:
+   - **Template-pattern lanes** (apps, dependency-root, host-wiring, polyglot-services) start from the
+     exact template filename presented in step 2 — `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/<pattern>-lane.template.md`
+     (e.g. `apps-lane.template.md`) — and every `<placeholder>` is replaced.
+   - **Bundled-lane overrides** (`shell-tooling`, `docs-prose`) have no template; start from the bundled
+     lane file `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md` and adjust its scope globs / exclusions
+     to this repo's actual layout.
+   Values to fill: scope globs from real directory paths, watch-for patterns tuned to the stack,
+   lane-specific exclusions for this repo's unverifiable surfaces, verification commands from the project's
+   own CLAUDE.md / rules / CI config (never invented), the Conventional Commits type, and preferred research
    sources. Leave no `<placeholder>` behind.
-5. **Write the lane files.** Materialize each accepted lane at `.claude/tidy-lanes/<lane>.md`. Confirm the
-   directory is tracked, not gitignored. Write only lanes the user confirmed; produce no empty scaffolds.
-6. **Offer the personal overlay.** A per-developer lane override is just another `.claude/tidy-lanes/<lane>.md`;
-   a machine-local variant belongs in a gitignored path — recommend the consumer keep any `*.local.*`
-   lane files gitignored if they want personal, untracked lanes. Team lanes stay tracked.
+5. **Write the lane files.** Materialize each accepted lane at `.claude/tidy-lanes/<lane>.md`. Write only
+   lanes the user confirmed; produce no empty scaffolds. Then verify **each written file** is actually
+   tracked, not ignored — `git check-ignore -v <file>` (or `git status --short -- <file>`) per file, since
+   a directory can be tracked while a `.gitignore` pattern still excludes an individual `.md` inside it. If
+   any lane file is ignored, surface the offending pattern and offer to fix `.gitignore` before reporting
+   success — these lanes are team-shared and must be committed to take effect.
+6. **Confirm the tracked-lane model.** `/code-tidying:tidy` resolves a lane only from
+   `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), and its catalog lists
+   `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. So every scaffolded lane is a
+   tracked, team-shared file; do not point developers at a `*.local.*` variant the tidy skill would never
+   load. A developer who wants a private lane simply keeps a normal `.claude/tidy-lanes/<lane>.md` and
+   gitignores that one path, accepting it stays local-only.
 
 ## Output
 
 Tracked `.claude/tidy-lanes/<lane>.md` file(s) in the consuming repo, plus a one-paragraph summary of which
-lanes were written, which template each came from, and how to re-run this setup to add or retune lanes.
+lanes were written, which source each came from (template or bundled lane), and how to re-run this setup
+to add or retune lanes.
 
 ## What this skill does NOT do
 
