@@ -1,0 +1,26 @@
+{
+  "name": "@melodic/youtube-extraction",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "YouTube video acquisition and transcript pipeline for the /youtube skill",
+  "scripts": {
+    "transcript": "node transcript/run-transcript.js",
+    "watch": "node watch/run-watch.js",
+    "resume": "node watch/run-resume.js",
+    "queue-claim": "node watch/queue-claim.js",
+    "harvest": "node harvesting/run-harvest.js",
+    "watching-pipeline": "node watching/run-watching-pipeline.js",
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@melodic/repo-analysis": "file:./vendor/repo-analysis",
+    "@melodic/video-digestion": "file:./vendor/video-digestion"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.2"
+  }
+}

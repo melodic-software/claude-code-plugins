@@ -1,0 +1,13 @@
+{
+  "id": "ghi789",
+  "title": "Pinned resources",
+  "description": "Main link: https://main.example.com/repo",
+  "heatmap": null,
+  "chapters": [
+    { "start_time": 120, "title": "Resources at https://chapters.example.com/list" }
+  ],
+  "comments": [
+    { "text": "Pinned: https://pinned.example.com/resources", "is_pinned": true },
+    { "text": "Thanks!", "is_pinned": false }
+  ]
+}
