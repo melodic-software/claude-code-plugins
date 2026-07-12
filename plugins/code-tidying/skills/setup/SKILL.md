@@ -65,16 +65,22 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    - **Bundled-lane overrides** (`shell-tooling`, `docs-prose`) have no template; start from the bundled
      lane file `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md` and adjust its scope globs / exclusions
      to this repo's actual layout.
+   - **Custom lanes** (accepted from step 3's "any other slice?" offer) have no dedicated source: start
+     from whichever template pattern is closest in shape to the slice and re-fill it, or — when none fits —
+     author a new lane file from scratch using the same section structure the templates use (`## Scope`,
+     `## Watch-for patterns`, `## Lane-specific extra exclusions`, `## Verification commands`,
+     `## Conventional Commits type`, `## Preferred research sources`). Never emit an ad-hoc lane missing a section.
    Values to fill: scope globs from real directory paths, watch-for patterns tuned to the stack,
    lane-specific exclusions for this repo's unverifiable surfaces, verification commands from the project's
    own CLAUDE.md / rules / CI config (never invented), the Conventional Commits type, and preferred research
    sources. Leave no `<placeholder>` behind.
 5. **Write the lane files.** Materialize each accepted lane at `.claude/tidy-lanes/<lane>.md`. Write only
    lanes the user confirmed; produce no empty scaffolds. Then verify **each written file** is actually
-   tracked, not ignored — `git check-ignore -v <file>` (or `git status --short -- <file>`) per file, since
-   a directory can be tracked while a `.gitignore` pattern still excludes an individual `.md` inside it. If
-   any lane file is ignored, surface the offending pattern and offer to fix `.gitignore` before reporting
-   success — these lanes are team-shared and must be committed to take effect.
+   tracked, not ignored — run `git check-ignore -v <file>` per file (plain `git status` hides ignored
+   paths unless `--ignored` is passed). A non-empty `check-ignore` result means a `.gitignore` pattern
+   excludes that lane; surface the matching pattern and offer to fix `.gitignore` before reporting success,
+   since a directory can be tracked while a pattern still excludes an individual `.md` inside it — these
+   lanes are team-shared and must be committed to take effect.
 6. **Confirm the tracked-lane model.** `/code-tidying:tidy` resolves a lane only from
    `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), and its catalog lists
    `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. So every scaffolded lane is a
