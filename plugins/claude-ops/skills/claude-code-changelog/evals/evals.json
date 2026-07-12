@@ -50,12 +50,14 @@
     {
       "id": 5,
       "name": "p2-new-capability-not-dropped",
-      "prompt": "Diff the latest Claude Code changelog against this repo. It includes a new settings.json field the repo doesn't currently use.",
-      "expected_output": "The diff classifies the unused-but-relevant new capability as P2 ('New capability — evaluate for adoption') with a brief rationale, rather than silently dropping it as P3/no-action. P2 items are surfaced for the user to consider, not skipped.",
+      "prompt": "Diff this pasted Claude Code changelog entry against our repo — we don't set this option anywhere yet:\n\n### v2.1.160\n- **New setting:** `settings.json` gains `autoCompactWindow` (integer) to override the autocompact token threshold per session.",
+      "expected_output": "The diff ingests the pasted changelog entry (pasted text takes priority over a live fetch, so the analysis is deterministic) and classifies the new `autoCompactWindow` setting — a capability the repo does not use — as P2 ('New capability — evaluate for adoption') with a brief rationale, rather than silently dropping it as P3/no-action. Read-only diff analysis; no edits.",
       "files": [],
       "expectations": [
-        "A new capability the repo does not yet use is classified P2 (evaluate for adoption), not silently treated as no-action",
-        "The P2 item is surfaced in the impact/triage output with a short adoption rationale rather than omitted"
+        "The response ingests the pasted changelog entry rather than fetching a live version, keeping the analysis deterministic",
+        "The pasted new setting (a capability the repo does not yet use) is classified P2 (evaluate for adoption), not silently treated as no-action",
+        "The P2 item is surfaced in the impact/triage output with a short adoption rationale rather than omitted",
+        "The diff analysis is read-only: no repo file is edited"
       ]
     }
   ]

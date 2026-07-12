@@ -9,9 +9,9 @@
       "files": [],
       "expectations": [
         "The prototype records the question being tested at the top of the file before building anything",
-        "The scheduling logic lives in a pure module (reducer or explicit state machine) separate from the TUI shell",
+        "The scheduling logic lives in a pure module (e.g. a reducer or explicit state machine) separate from the TUI shell",
         "The TUI re-renders the whole frame on each action (replace, not append) and lists available actions",
-        "The prototype is runnable via a single command wired into the project's existing task runner"
+        "The prototype is runnable via a single command — wired into the project's existing task runner, or documented at the top of a prototype README when the project has no task runner"
       ]
     },
     {
