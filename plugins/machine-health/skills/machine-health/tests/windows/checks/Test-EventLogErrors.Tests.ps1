@@ -183,6 +183,24 @@ Describe 'Test-EventLogErrors -- failure modes' -Tag 'check' {
         $result.ran_successfully | Should -BeTrue
     }
 
+    It 'treats a localized no-match error as OK via the error id, not the message' {
+        # Healthy non-English host: Get-WinEvent raises NoMatchingEventsFound but
+        # the message is localized. Matching only the English text would report
+        # UNKNOWN; the FullyQualifiedErrorId check keeps it OK.
+        Mock Get-WinEvent {
+            $ex = [System.Exception]::new('Es wurden keine Ereignisse gefunden, die den angegebenen Kriterien entsprechen.')
+            throw [System.Management.Automation.ErrorRecord]::new(
+                $ex,
+                'NoMatchingEventsFound,Microsoft.PowerShell.Commands.GetWinEventCommand',
+                [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                $null)
+        }
+
+        $result = Invoke-EventLogAsObject
+        $result.severity | Should -Be 'OK'
+        $result.ran_successfully | Should -BeTrue
+    }
+
     It 'emits UNKNOWN when Get-WinEvent fails for a non-empty reason' {
         Mock Get-WinEvent { throw 'Event log service is not running' }
 

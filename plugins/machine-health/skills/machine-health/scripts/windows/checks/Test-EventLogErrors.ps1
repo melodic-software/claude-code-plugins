@@ -60,9 +60,14 @@ try {
                 StartTime = $cutoff
             } -ErrorAction Stop)
     } catch {
-        # Get-WinEvent throws a specific exception when no events match
-        # the filter. Treat as empty result; re-throw anything else.
-        if ($_.Exception.Message -notmatch 'No events were found') {
+        # Get-WinEvent raises NoMatchingEventsFound when the filter matches
+        # nothing -- the normal path for a healthy host with a filtered query.
+        # Detect it by the locale-independent error id (the message text is
+        # localized on non-English Windows, so matching it would report a
+        # healthy localized host as UNKNOWN). Keep the English message match as
+        # a fallback; re-throw anything that is neither.
+        if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*' -and
+            $_.Exception.Message -notmatch 'No events were found') {
             throw
         }
         Write-Verbose 'Test-EventLogErrors: no events matched query.'

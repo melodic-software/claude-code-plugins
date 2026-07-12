@@ -24,7 +24,8 @@ findings triaged during publish as pre-existing behavior or deferred implementat
   `Get-WinEvent` query (`StartTime` + numeric `Level` 1,2) instead of reading the newest 500
   records then filtering — in-window errors older than the 500th-newest record are no longer
   dropped on busy hosts, and the numeric level is locale-independent (was localized
-  `LevelDisplayName`).
+  `LevelDisplayName`). The no-match error (the normal path for a healthy host) is detected by
+  its locale-independent error id, so a healthy non-English host reports OK, not UNKNOWN.
 - **Disk trend never fired.** `disk-space` now emits a scalar worst-volume `used_pct` at the top
   level of `detail` so the history flattener persists it; disk trend deltas and escalation now work.
 - **Trend object matched no schema.** `Invoke-TrendAnalysis` now emits `{ last_run, delta,
