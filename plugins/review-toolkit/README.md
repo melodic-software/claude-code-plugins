@@ -43,9 +43,9 @@ Invoke via `@review-toolkit:<agent>` or let Claude delegate.
   (`context/severity.md`) applies only where the project defines nothing.
 - **Command truth from `.claude/ecosystems/`.** `ecosystem-specialist` resolves each
   ecosystem's build/test/lint command from the consumer's `.claude/ecosystems/<ecosystem>.yaml`
-  files when present — the marketplace-wide ecosystem-commands contract
-  (`docs/conventions/ecosystem-commands/README.md`) — then your documented conventions, then its
-  own bundled generic defaults as a last resort.
+  files when present (the marketplace-wide ecosystem-commands contract,
+  `docs/conventions/ecosystem-commands/README.md`), falling back to your documented conventions,
+  then its own bundled generic defaults as a last resort.
 - **Graceful degrade.** Optional orchestrator plugins (`pr-review-toolkit`, `code-review`
   from the official marketplace) add adversarial breadth when installed; every path works
   without them.
