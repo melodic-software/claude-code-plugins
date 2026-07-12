@@ -39,8 +39,8 @@
     {
       "id": 4,
       "name": "telemetry-question-routes-away",
-      "prompt": "What's my token burn rate and hook latency this week?",
-      "expected_output": "This asks for local telemetry, which this skill does not read. It routes the user to /claude-observability instead of attempting a telemetry read.",
+      "prompt": "My token burn rate and hook latency this week — does /claude-troubleshooting report those, or is that a different tool's job?",
+      "expected_output": "This asks for local telemetry, which this skill does not read. It routes the user to /claude-observability instead of attempting a telemetry read or a GitHub bug search.",
       "files": [],
       "expectations": [
         "The response identifies the request as a local-telemetry read outside this skill's scope",
@@ -50,8 +50,8 @@
     {
       "id": 5,
       "name": "own-code-bug-routes-away",
-      "prompt": "There's a bug in my applyLateFee function — it charges a fee on the due date. Track this bug.",
-      "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry and routes to /bug-report:bug-report (or a manual defect write-up when that plugin is absent).",
+      "prompt": "I found a bug in my own app's applyLateFee billing function (not a Claude Code bug) — does /claude-troubleshooting track that, or should I file it elsewhere?",
+      "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry or search Claude repos for it, and routes to /bug-report:bug-report (or a manual defect write-up when that plugin is absent).",
       "files": [],
       "expectations": [
         "The response recognizes this as a bug in the user's own code, not a Claude product issue",
