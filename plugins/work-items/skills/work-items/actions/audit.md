@@ -71,17 +71,24 @@ gh issue comment <N> --body "Released stale claim (no activity for >24h). Availa
 
 ### 3. Orphaned Recurring Entries
 
-Skip when the consuming repo has no `.github/recurring-schedule.json`. Entries in the schedule that have no corresponding open or recently-closed issue:
+Skip when the consuming repo has no `.github/recurring-schedule.json`. Only **due** entries
+(`next_due <= today`) without a corresponding issue are orphan-suspect — a future-dated row legitimately
+has no issue yet (recurring automation, or a `setup` seed, creates the issue only when the item becomes
+due), so orphan-flagging every issue-less row would report healthy future rows as false orphans. This
+mirrors the same gate in the `due` action.
 
 ```bash
-# Get all recurring titles from schedule
-cat .github/recurring-schedule.json | jq -r '.items[].title'
+# Due entries only — future rows are healthy without an issue
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+cat "$SCHEDULE" | jq -r --arg today "$(date +%Y-%m-%d)" '
+  .items[] | select(.next_due != null and .next_due <= $today) | .title'
 
 # Get all recurring issues
 gh issue list --label "recurring" --state all --json number,title --limit 100 | tr -d '\r'
 ```
 
-Cross-reference: schedule items without a matching issue are orphaned. Note: recurring automation titles issues as `[Maintenance] {title}`, so strip the prefix when comparing against schedule titles.
+Cross-reference: a **due** schedule item with no matching issue is orphaned. Note: recurring automation
+titles issues as `[Maintenance] {title}`, so strip the prefix when comparing against schedule titles.
 
 ### 4. Unlabeled Issues
 
