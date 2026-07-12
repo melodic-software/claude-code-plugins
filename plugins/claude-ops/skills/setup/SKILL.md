@@ -49,52 +49,15 @@ assumptions.
      for Claude operational state (a `.claude/`-rooted path the repo already uses, e.g.
      `.claude/troubleshooting`), else propose one and let the consumer accept or edit it. Keep it to the
      single `registry_dir` knob; do not invent further options (Rule of Three).
-3. **Persist to project scope.** For the in-repo choice, write the chosen project-relative value to the
-   project `.claude/settings.json` at `pluginConfigs["claude-ops@melodic-software"].options.registry_dir`
-   so it is tracked and shared. Create the `pluginConfigs` / `options` path if absent; do not disturb
-   unrelated keys. The value is stored verbatim (Claude Code does not normalize or validate a string
-   option), so store it exactly as it should resolve relative to `${CLAUDE_PROJECT_DIR}`. Two checks make
-   the in-repo choice actually take effect:
-   - **Confirm no higher-precedence scope shadows it.** Under Local > Project > User, a Local-scope
-     `registry_dir` (including an empty override a prior per-machine run may have written) outranks the
-     project value just written, so claude-troubleshooting would keep using the local value and the shared
-     location would not take effect. If step 1's read shows such an override, prompt to update or clear it
-     with consent (editing only the `registry_dir` key per step 1's secret-safe handling), or state
-     explicitly in the summary that the effective location did not change until that override is removed.
-   - **Confirm the path is actually tracked.** Because this mode is presented as git-tracked and
-     team-shared, run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/<registry_dir>/registry.json"` before
-     reporting success; if it reports the path is ignored (e.g. a repo that ignores `.claude/*` except
-     selected settings files), the registry would never be committed — warn the consumer and offer to add
-     a negation/adjust the ignore rule, or to choose a tracked directory instead.
-
-   For the
-   per-machine choice, make the *effective* value resolve to the `${CLAUDE_PLUGIN_DATA}` fallback — the
-   claude-troubleshooting skill treats an empty **or** unset `registry_dir` as "use the plugin data dir".
-   Which action achieves that depends on **which scope currently supplies the effective value** (from step
-   1's read), under the **Local > Project > User** precedence:
-   - **No scope supplies a value** → already per-machine; confirm and make no change.
-   - **User scope only** (Project and Local absent) → write an **empty string** (`""`) at project scope: a
-     project value shadows the User global (Project > User), and the empty value reads as the plugin-data
-     fallback — so this repo opts out without disturbing the developer's global default for every other
-     repo. Reserve *removing* the User value for when they want to drop the default everywhere.
-   - **Project scope supplies it** (no Local override) → remove the project-scope `registry_dir`; if a User
-     value would then surface and must also be suppressed, write `""` at project scope instead.
-   - **Local scope supplies it** (`.claude/settings.local.json`) → a project-scope write **cannot** override
-     it, because Local outranks Project. The opt-out must happen in the local overlay itself: set its
-     `registry_dir` to `""`. An empty value at the top scope shadows any Project- or User-scope value and
-     reads as the plugin-data fallback; *removing* the local key instead is safe only when no Project- or
-     User-scope value would resurface — otherwise removal just exposes the lower-scope in-repo registry.
-     This is the developer's own machine-local file — with their go-ahead, edit only the `registry_dir` key
-     in `.claude/settings.local.json` (per the narrow, secret-safe handling in step 1); otherwise name the
-     file and guide them to clear it there. Do not silently edit it.
-
-   The reliable primitive across all cases: to force the fallback repo-locally, write `""` at the **Local
-   scope if it holds a value, otherwise at Project scope**. A repo-local empty value shadows any lower-scope
-   value — including the global User default — and reads as the plugin-data fallback, **without ever
-   blanking the shared User setting** (doing so would change every other repo that relied on it). Removing a
-   key instead of writing `""` is safe only when no lower scope would then resurface, since removal
-   un-shadows lower scopes. Do not report the registry as per-machine until the *effective* value resolves
-   to empty/unset.
+3. **Persist to project scope.** Write the choice to the project `.claude/settings.json` at
+   `pluginConfigs["claude-ops@melodic-software"].options.registry_dir` — the chosen project-relative
+   directory for in-repo, or clear the key (leave it unset) for per-machine. Create the `pluginConfigs` /
+   `options` path if absent; do not disturb unrelated keys; store the value verbatim (Claude Code does not
+   normalize it), relative to `${CLAUDE_PROJECT_DIR}`. Since the effective value follows the Local > Project
+   > User precedence from step 1, a project-scope write only takes effect when no higher-precedence override
+   shadows it; if one does, say so in the summary rather than reporting a change that will not take effect,
+   and offer to clear the shadowing override at its own scope (with consent — the local overlay is the
+   developer's machine-local file).
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
@@ -113,10 +76,7 @@ claude-troubleshooting registry — observability data locations are controlled 
   `/claude-ops:claude-troubleshooting`.
 - Configure the observability or changelog skills — the OTEL store location and retention are env-var
   driven (see the plugin README), not a `userConfig` seam.
-- Hide configuration inside the plugin — all config lives in the consumer's settings (project
-  `.claude/settings.json`, or the personal `.claude/settings.local.json` overlay when clearing a
-  local override per steps 3–4), never in the plugin install directory or its data directory
-  (`${CLAUDE_PLUGIN_DATA}` is for the registry and generated state only).
-- Edit `.claude/settings.local.json` without the consumer's go-ahead — the only time this skill touches the
-  local overlay is to clear a local `registry_dir` for the per-machine choice (step 3), and only with
-  explicit consent.
+- Hide configuration inside the plugin — all config lives in the consumer's settings, never in the plugin
+  install directory or its data directory (`${CLAUDE_PLUGIN_DATA}` is for the registry and generated state
+  only).
+- Edit `.claude/settings.local.json` without the consumer's go-ahead.
