@@ -31,7 +31,9 @@ terminal state here; do not persist a value the user did not choose.
 1. **Read the current value first, across every scope, in precedence order.** Look for `output_dir` under
    `pluginConfigs["bug-report@melodic-software"].options` and resolve the *effective* value the way Claude
    Code does — the full precedence, highest wins:
-   1. **Managed** (system `managed-settings.json`) — **read-only** to this skill.
+   1. **Managed** (enterprise policy — delivered via server-managed settings, an MDM plist/registry key, or
+      `managed-settings.d` drop-ins, not necessarily a single queryable `managed-settings.json`) — **read-only**
+      to this skill; detect best-effort and, if a managed value is present at all, treat it as a hard blocker.
    2. **Command-line** (a session launched with `--settings`) — **read-only**; a transient session override.
    3. **Local** (`.claude/settings.local.json`).
    4. **Project** (`.claude/settings.json`).
@@ -61,7 +63,14 @@ terminal state here; do not persist a value the user did not choose.
    - A working-notes or reports convention declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
      `.claude/rules` (that declared convention wins — surface it as the recommended value).
    - An existing reports or docs directory a bug report would naturally join (e.g. `.bug-reports/`, `docs/`).
-   - If nothing is found, recommend `.bug-reports/` at the repo root.
+   - If nothing is found, recommend a repo-root-anchored `.bug-reports/`.
+
+   **Anchor the path to the repo root, not the working directory.** The value is stored verbatim and the
+   report skill resolves it relative to the *current* working directory, so a bare relative `.bug-reports/`
+   lands under whatever subdirectory the session was started in — not reliably at the repo root. Recommend a
+   form that resolves the same from any cwd: prefer `${CLAUDE_PROJECT_DIR}/.bug-reports` if the report skill
+   expands that token in `output_dir`, otherwise an absolute path or the repo's own declared convention. Call
+   out the cwd-relative caveat when the user accepts a bare relative value.
 
    Present the inferred path with a recommendation and let the user accept or edit it. Keep it to this single
    knob; do not invent further options (Rule of Three).
@@ -70,8 +79,8 @@ terminal state here; do not persist a value the user did not choose.
      project `.claude/settings.json` to the chosen value so it is tracked and shared with the team. Create the
      `pluginConfigs` / options path if
      absent; do not disturb unrelated keys. The value is stored verbatim (Claude Code does not normalize a
-     `directory` option to absolute or validate existence), so store it exactly as it should resolve relative
-     to the working directory.
+     `directory` option to absolute or validate existence), so store exactly the anchored form chosen in
+     step 2 — the cwd-relative caveat there is why a bare relative value is discouraged.
    - **Default (uncommitted) chosen and a prior value exists:** reaching the plugin-data default means **no
      scope may hold `output_dir`** — clearing only the winning scope just reveals the next value down. Using
      the full set of value-carrying scopes from step 1:
