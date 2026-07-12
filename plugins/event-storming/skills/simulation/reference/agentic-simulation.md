@@ -623,6 +623,8 @@ After completing all formats (BP → PM → DL), place an Exploration Map on the
 
 Every simulation session follows this lifecycle. The protocol ensures clean state, prevents artifact leakage between sessions, and supports concurrent execution across different conversations.
 
+**Structured-markdown fallback mode:** when the Miro availability gate (SKILL.md "Miro availability & graceful degradation") has routed the run to structured-markdown output, SKIP every Miro-tool and board-screenshot step below — board creation, sticky placement, phase-transition screenshots (which need a browser MCP), and `miro_delete_board` teardown. In that mode the model, persona, and session-state steps still run; the board-rendering steps are replaced by appending to the markdown artifact. Only run the Miro/screenshot steps when the live-board path is active.
+
 **1. Session Setup (before any board creation):**
 
 - Generate session ID: `{domain}-{YYYYMMDD}-{random4}` (e.g., `devconf-20260321-a7f2`)
@@ -631,7 +633,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 - Domain research: 3+ web-research searches (Perplexity MCP if present, else `WebSearch`) before building persona prompts
 - Generate persona profile files (see "Persona Persistence Across Rounds" section above)
 - Record session metadata in `{session_dir}/session-meta.md`: domain, personas, board IDs (updated as boards are created)
-- Check memory for previous version boards and metrics (comparison baseline)
+- Check the plugin data store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for previous version boards and metrics (comparison baseline)
 
 **2. Session Run (the simulation itself):**
 
