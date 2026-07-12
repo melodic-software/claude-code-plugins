@@ -241,11 +241,16 @@ against the plugin you actually invoked. Then:
    `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
    treats an absent file as "not a failure", so it is a schema gate, not a presence gate).
 3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
-   <plugin>@<marketplace>`), then for each case in `<root>/<skill>/evals/evals.json` paste its `prompt`
-   into a fresh session and read the result against that case's `expected_output` / `expectations`. Cases
-   with a `files` list need those fixtures present relative to the skill directory. This is a human
-   judgment pass, not an automated pass/fail, until the deferred runner lands — at which point it becomes
-   a single command and this recipe is revised.
+   <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
+   `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and
+   reading cases from a source checkout that has drifted from it would exercise the installed plugin
+   against a different version's prompts/fixtures. To use the source evals *as* the enabled plugin
+   instead, load that source directory with `--plugin-dir` (the local copy then takes session precedence
+   — see "Local development loop" below). For each case paste its `prompt` into a fresh session and read
+   the result against that case's `expected_output` / `expectations`; cases with a `files` list need
+   those fixtures present relative to the skill directory. This is a human judgment pass, not an
+   automated pass/fail, until the deferred runner lands — at which point it becomes a single command and
+   this recipe is revised.
 
 ## Shared tools and scripts seam
 
