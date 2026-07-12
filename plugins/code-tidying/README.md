@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under a research-backed scope
 budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
-Two skills, one capability:
+Three skills, one capability:
 
 - **`/code-tidying:tidy`** — proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
@@ -17,8 +17,12 @@ Two skills, one capability:
   dependency-ordered simplification waves, with per-group verification and a
   never-drop deferred-items contract. Use it when you forgot to run
   `/simplify` after each task.
+- **`/code-tidying:setup`** — interviews the repo and scaffolds tracked
+  `.claude/tidy-lanes/<lane>.md` project lane files from the bundled templates,
+  so `tidy` resolves project-specific scope globs deterministically instead of
+  falling back to the generic bundled lanes. Re-runnable to add or retune lanes.
 
-Neither skill is `/simplify` itself: `/simplify` refines the diff you just
+Neither `tidy` nor `batch-simplify` is `/simplify` itself: `/simplify` refines the diff you just
 wrote; `batch-simplify` catches up on a window of them; `tidy` hunts drift no
 one has filed yet.
 
@@ -70,7 +74,10 @@ exclusions, and verification commands.
 
 No `userConfig`. Project-specific behavior routes through
 `.claude/tidy-lanes/` lane files and your project's own `CLAUDE.md` /
-`.claude/rules` (protected paths, verification commands).
+`.claude/rules` (protected paths, verification commands). Run
+**`/code-tidying:setup`** to interview your repo and scaffold those lane files
+from the bundled templates — it is idempotent and safe to re-run to add or
+retune lanes.
 
 ## License
 
