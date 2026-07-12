@@ -32,7 +32,16 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
    single `pluginConfigs["planning@melodic-software"].options.notes_dir` key (e.g. with `jq`), never
    loading `.claude/settings.local.json` wholesale: that overlay is secret-bearing (API tokens, env
    secrets), so do not read or echo unrelated settings content.
-2. **Infer a default before asking.** If no value is set, explore the consuming repo for an existing
+2. **Always check for convention shadowing — even when a value is set.** The planning skills honor a
+   working-notes convention declared in the consuming repo's own `CLAUDE.md`, `AGENTS.md`, or
+   `.claude/rules` *over* `notes_dir` at write time, so a stored `notes_dir` that disagrees with a declared
+   convention is a trap: setup would report/persist that value as the destination while `/planning:*`
+   actually writes to the convention path. So whenever a value is present, still inspect the repo for a
+   declared convention and, if it conflicts with the effective value, **surface the shadowing explicitly** —
+   report that the declared convention wins at write time — and offer to reconcile (align `notes_dir` to the
+   convention, or record that the divergence is intentional). Only skip this inspection when the effective
+   value already matches the declared convention (or no convention is declared).
+3. **Infer a default before asking.** If no value is set, explore the consuming repo for an existing
    working-notes convention rather than guessing:
    - A working-notes or artifacts directory declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
      `.claude/rules` (that declared convention wins — surface it as the recommended value; the planning
@@ -41,15 +50,15 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
      PRD/PLAN/design artifacts would naturally join.
    - If nothing is found, the safe default is `.claude/notes` (the plugin's declared `userConfig` default),
      one subdirectory per topic beneath it.
-3. **Interview — one decision.** Present the inferred value with a recommendation and let the user accept
+4. **Interview — one decision.** Present the inferred value with a recommendation and let the user accept
    or edit it. Keep it to the single `notes_dir` knob; do not invent further options (Rule of Three — add
    a knob only when a real repeated repo-specific need surfaces).
-4. **Persist to project scope.** Write the chosen value to the project `.claude/settings.json` at
+5. **Persist to project scope.** Write the chosen value to the project `.claude/settings.json` at
    `pluginConfigs["planning@melodic-software"].options.notes_dir` so it is tracked and shared with the
    team. Create the `pluginConfigs` / options path if absent; do not disturb unrelated keys. The value is
    stored verbatim (Claude Code does not normalize a `string` option to absolute or validate existence),
    so store it exactly as the user intends it to resolve relative to their working directory.
-5. **Offer the personal overlay.** A per-developer override goes in the local overlay
+6. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
 
