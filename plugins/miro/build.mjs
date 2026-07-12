@@ -4,7 +4,7 @@
 // the runtime artifact must ship committed. This bundles the TypeScript source and
 // all runtime dependencies into one self-contained `dist/index.min.js` — no shipped
 // `node_modules`, invoked via `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (a bundled
-// `node <server>` sidesteps the Windows bare-`npx` spawn bug, anthropics/claude-code#58510).
+// `node <server>` sidesteps the open Windows bare-`npx` spawn bug entirely).
 //
 // The source is the single source of truth; the bundle is generated output. `--check`
 // rebuilds in memory and fails on any drift from the committed artifact, so CI proves
