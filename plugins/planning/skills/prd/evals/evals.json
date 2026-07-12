@@ -40,8 +40,8 @@
     {
       "id": 4,
       "name": "review-mode-critiques-existing-prd",
-      "prompt": "/planning:prd review",
-      "expected_output": "Review mode locates the topic's PRD.md and critiques it against the seven required sections and skip-conditions — flagging goals written as implementations, and success metrics missing a threshold or window — rather than authoring a new PRD or writing code.",
+      "prompt": "/planning:prd review — here is the PRD to review:\nProblem: users can't get their data out of the app.\nGoals: add a CSV export button to the reports screen.\nUsers: analysts.\nSuccess metrics: increase the number of exports.\nThat's the whole PRD — critique it.",
+      "expected_output": "Review mode critiques the provided PRD against the seven required sections and skip-conditions — flagging that the goal is written as an implementation ('add a CSV export button') rather than an outcome, that the success metric has no threshold or measurement window, and that non-goals, user stories, dependencies/risks, and open questions are missing — rather than authoring a new PRD or writing code.",
       "files": [],
       "expectations": [
         "Output evaluates an existing PRD against the required sections rather than authoring a new one",

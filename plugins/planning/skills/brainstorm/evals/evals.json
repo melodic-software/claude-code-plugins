@@ -41,8 +41,8 @@
     {
       "id": 4,
       "name": "calibrate-and-route-onward",
-      "prompt": "/planning:brainstorm ways to add offline support to the mobile app. After I react, help me figure out the next step.",
-      "expected_output": "After the reaction, the skill proposes a scope from the resonating candidates and routes onward — to /prd, /interview, /design, or a prototype spike — naming the recommended route marked (RECOMMENDED) with its basis. It does not itself lock scope or start designing.",
+      "prompt": "/planning:brainstorm ways to add offline support to the mobile app. I've already looked over the candidate space and the two that resonate for me are an outbox/sync-queue approach and a local-first cache. From those two, propose a scope and help me figure out the next step.",
+      "expected_output": "Given the user's stated resonating candidates, the skill proposes a scope from them and routes onward — to /prd, /interview, /design, or a prototype spike — naming the recommended route marked (RECOMMENDED) with its basis. It does not itself lock scope or start designing.",
       "files": [],
       "expectations": [
         "Output proposes a downstream route (e.g. /prd, /interview, /design, or a prototype/spike) based on the resonating candidates",

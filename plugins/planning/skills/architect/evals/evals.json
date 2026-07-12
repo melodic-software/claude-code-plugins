@@ -17,8 +17,8 @@
     {
       "id": 2,
       "name": "mandatory-fresh-context-stress-test",
-      "prompt": "/planning:architect restructure how config layers merge across the monolith — a cross-cutting change touching many modules. Formulate the plan and get it ready to present.",
-      "expected_output": "Before presenting the plan, the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
+      "prompt": "/planning:architect exploration and research are done, and I explicitly accept planning without a separate /design pass (no new types or modules). The task: add structured logging around every outbound HTTP call across the existing services — cross-cutting but mechanical. Formulate the plan and get it ready to present.",
+      "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Before presenting the plan, the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
       "files": [],
       "expectations": [
         "Output dispatches a separate fresh-context reviewer / sub-agent to stress-test the plan rather than the authoring thread reviewing its own plan inline",
@@ -41,8 +41,8 @@
     {
       "id": 4,
       "name": "sanity-checks-mechanically-verifiable",
-      "prompt": "/planning:architect add a new StronglyTypedId for InvoiceId across the billing module (3 files). Write the plan with per-phase sanity checks.",
-      "expected_output": "Each phase ends with at least one Sanity Check that is mechanically verifiable — a specific grep, file-Read assertion, or build/test exit code — never vague language like 'documented appropriately' or 'behaves as expected'.",
+      "prompt": "/planning:architect exploration and research are done and I accept planning without a separate /design pass — this adds a null-guard and an error return to the existing parseInvoice function at its 3 call sites (no new types). Write the plan with per-phase sanity checks.",
+      "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Each phase ends with at least one Sanity Check that is mechanically verifiable — a specific grep, file-Read assertion, or build/test exit code — never vague language like 'documented appropriately' or 'behaves as expected'.",
       "files": [],
       "expectations": [
         "Every phase in the plan ends with at least one Sanity Check bullet",
@@ -65,8 +65,8 @@
     {
       "id": 6,
       "name": "review-action-critiques-existing-plan",
-      "prompt": "/planning:architect review",
-      "expected_output": "In review mode the skill critiques the existing plan in conversation against the plan template and the project's conventions — flagging missing sections, feasibility gaps, and whether blast radius was assessed — rather than authoring a new plan or writing code.",
+      "prompt": "/planning:architect review — here is the plan to review: 'Phase 1: add a Redis cache to the GetOrderById query handler. Phase 2: wire cache invalidation on order update.' That's the whole plan. Critique it.",
+      "expected_output": "In review mode the skill critiques the provided plan against the plan template and the project's conventions — flagging that it has no test strategy, no alternatives-considered, no risks, and no blast-radius assessment, and that neither phase carries a mechanically verifiable sanity check — rather than authoring a new plan or writing code.",
       "files": [],
       "expectations": [
         "Output evaluates an existing plan for completeness against the plan template rather than authoring a fresh plan from scratch",
