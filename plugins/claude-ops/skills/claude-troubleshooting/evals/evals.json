@@ -25,14 +25,15 @@
     },
     {
       "id": 3,
-      "name": "create-shows-draft-and-requires-confirmation",
+      "name": "create-runs-preflight-gates-before-drafting",
       "prompt": "File a bug on anthropics/claude-code: the Stop hook doesn't fire when I exit with Ctrl-C.",
-      "expected_output": "The create action drafts the issue in the repo's template format and shows the draft for review first. It requires explicit user confirmation and never auto-files the issue.",
+      "expected_output": "The create action runs its mandatory preflight gates BEFORE drafting — at minimum a duplicate search of existing open and recently-closed issues (presenting any matches and proceeding only on explicit 'no duplicates' confirmation, else suggesting a comment on the existing issue) plus the live-template fetch and version check. Only after the gates pass does it draft the issue in template format, show the draft for review, and file solely on explicit user confirmation. It never auto-files and never skips the duplicate-search gate.",
       "files": [],
       "expectations": [
-        "The response shows a drafted issue for review before filing",
-        "The response requires explicit user confirmation before filing",
-        "The response does NOT auto-file the issue in the same turn without confirmation"
+        "The response runs the mandatory preflight gates before drafting, including a duplicate search of existing issues",
+        "The response presents any duplicate matches and proceeds only after the user confirms none cover the same issue (suggesting a comment on an existing issue when a match exists)",
+        "The response drafts the issue and shows it for review only after the gates pass, not before",
+        "The response requires explicit user confirmation and does NOT auto-file the issue"
       ]
     },
     {
