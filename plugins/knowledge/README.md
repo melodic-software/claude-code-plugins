@@ -64,6 +64,13 @@ marketplace's `renames` map migrates `book-distill@melodic-software` to
 `knowledge@melodic-software` automatically on your next session; the skill is now
 invoked as `/knowledge:book-distill`.
 
+One exception: an **in-progress multi-session distillation** stores its resume
+checklist under the plugin's `${CLAUDE_PLUGIN_DATA}` directory, which is keyed by
+plugin id and is **not** migrated by `renames` (that map rewrites `enabledPlugins`
+and `pluginConfigs`, not plugin data). If you have a distillation in flight, copy
+your old `book-distill` plugin-data directory to the new `knowledge` one before
+resuming so the resume pointer survives.
+
 ## Configuration
 
 One option, prompted at enable time (or set any time with `/knowledge:setup`):

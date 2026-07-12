@@ -20,10 +20,14 @@ Idempotent: re-running reads the current value and offers an update rather than 
 Apply the convention-resolution ladder — config present → use it; absent → infer from the repo and persist;
 cannot infer → ask and offer to persist; otherwise a safe generic default (repo root `.`).
 
-1. **Read the current value first.** Look for `library_dir` under
-   `pluginConfigs["knowledge@melodic-software"].options` in the project `.claude/settings.json`, then the
-   local overlay `.claude/settings.local.json`, then the user-global `~/.claude/settings.json`. If a value
-   exists, report it and its scope; the interview proposes a change against that baseline.
+1. **Read the current value first, in precedence order.** Look for `library_dir` under
+   `pluginConfigs["knowledge@melodic-software"].options` in all three scopes and resolve the *effective*
+   value the way Claude Code does — **Local (`.claude/settings.local.json`) > Project
+   (`.claude/settings.json`) > User (`~/.claude/settings.json`)**, local winning. Report the effective
+   value and which scope supplies it; the interview proposes a change against that baseline. If a local
+   override is present, say so explicitly — step 4 writes the *project* (team) value, which stays shadowed
+   by the local override until the developer updates or removes it, so a project-scope edit alone will not
+   change what the plugin actually uses on that machine.
 2. **Infer a default before asking.** If no value is set, explore the consuming repo for an existing
    artifact/notes convention rather than guessing:
    - A working-notes or artifacts directory declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
