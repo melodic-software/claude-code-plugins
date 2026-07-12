@@ -31,11 +31,12 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 
 1. **Cross-reference with open items.** For each due recurring item, check if one already exists (adapter: "List items", `--label recurring`, bare read). Match by title prefix `[Maintenance]` (the format used by the recurring-issues automation).
 
-1. **Check for orphaned entries.** Entries in `recurring-schedule.json` with no corresponding item file or open item:
+1. **Check for orphaned entries.** Only **due** entries can be orphaned — the recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-[[ -f "$SCHEDULE" ]] && jq -r '.items[].id' "$SCHEDULE"
+[[ -f "$SCHEDULE" ]] && jq -r --arg today "$(date +%Y-%m-%d)" \
+  '.items[] | select(.next_due != null and .next_due <= $today) | .id' "$SCHEDULE"
 ```
 
 1. **Present:**

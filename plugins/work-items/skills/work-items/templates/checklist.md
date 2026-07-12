@@ -13,8 +13,8 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below �
 ## Action: add
 
 - [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`) — pivot if open/closed match exists
-- [ ] Compose title (`<type>: <description>`); body; labels
-- [ ] `tools/work-item-tracker/work-item-tracker.sh create-item --title '...' --body '...' --labels '...'`
+- [ ] Compose title (`<type>: <description>`); write the body to a temp file with the Write tool (argv-safe — never inline generated text); build labels
+- [ ] `tools/work-item-tracker/work-item-tracker.sh create-item --title '...' --body "$(cat "$BODY_FILE")" --labels '...'`
 - [ ] Capture item ID/number for cross-reference
 
 ## Action: start

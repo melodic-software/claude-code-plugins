@@ -38,7 +38,7 @@ For each tier, emit the corresponding query:
 
   ```bash
   SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-  jq --arg today "$(date +%Y-%m-%d)" \
+  [[ -f "$SCHEDULE" ]] && jq --arg today "$(date +%Y-%m-%d)" \
     '[.items[] | select(.next_due != null and .next_due <where_expr> $today)] | sort_by(.<sort-by>)' "$SCHEDULE"
   ```
 
