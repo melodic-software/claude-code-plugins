@@ -363,8 +363,7 @@ convention), so a contributor who touches a deferred surface finds the trigger w
   has no native slot to ship one, so these may be removed entirely rather than migrated. **Revisit
   trigger:** the engines survive the next usage review (still earning their keep) → package as a plugin
   skill that dispatches the engine through the `Workflow` tool's `scriptPath`, resolved under
-  `${CLAUDE_PLUGIN_ROOT}`; the smoke test for that path is specced in the extensibility-contract v2.1
-  playbook amendment.
+  `${CLAUDE_PLUGIN_ROOT}`, with a smoke test specced for that dispatch path before packaging.
 - **`onboard` skill:** repo-specific today — its phase gates encode this repo's exact runtime, linter, and
   tooling pins. **Revisit trigger:** a second repo needs environment-prerequisite auditing → extract a
   generic core through the extensibility-contract seams (the convention-resolution ladder infers or asks
