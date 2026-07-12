@@ -5,7 +5,7 @@
       "id": 1,
       "name": "existing-page-sub-shape-a",
       "prompt": "Show me a few options for what the settings page could look like.",
-      "expected_output": "Because a plausible existing /settings page exists, the skill defaults to sub-shape A: variants rendered on the same route gated by a ?variant= param (or framework equivalent), existing data fetching/auth kept above the switcher, a floating switcher with keyboard nav, and 3 structurally-different variants.",
+      "expected_output": "Assuming a typical app where a plausible existing /settings route already exists, the skill defaults to sub-shape A: variants rendered on the same route gated by a ?variant= param (or framework equivalent), existing data fetching/auth kept above the switcher, a floating switcher with keyboard nav, and 3 structurally-different variants.",
       "files": [],
       "expectations": [
         "The response defaults to sub-shape A (variants on the existing route via a `?variant=` param or framework equivalent) rather than a new throwaway route",

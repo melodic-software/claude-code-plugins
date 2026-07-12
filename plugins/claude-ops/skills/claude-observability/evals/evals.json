@@ -17,7 +17,7 @@
       "id": 2,
       "name": "clean-requires-confirmation",
       "prompt": "Clean up the OTEL store, it's getting big.",
-      "expected_output": "Because clean is a mutating action invoked by the model without --dry-run or an explicit cleanup order, the skill shows the --dry-run preview (what would be pruned) and requires explicit user confirmation before actually pruning. It does not delete store or JSONL data in this turn.",
+      "expected_output": "Because this is a casual cleanup request rather than an explicit destructive order (the user did not pass --dry-run or clearly order the prune), the skill shows the --dry-run preview (what would be pruned) and requires explicit user confirmation before actually pruning. It does not delete store or JSONL data in this turn.",
       "files": [],
       "expectations": [
         "The response shows a `--dry-run` preview of what would be pruned before deleting anything",
