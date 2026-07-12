@@ -35,6 +35,16 @@
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
+#
+# Known limitations (static, git-diff-based design):
+#   - Checks 3/8 compare the working tree against HEAD, so a trigger-phrase or
+#     vendor change that is ALREADY committed is invisible (HEAD == tree). The
+#     gate is authored for the pre-commit / uncommitted-rewrite case; a
+#     post-commit audit needs an explicit base ref.
+#   - Frontmatter is located at the first `---` fence, not strictly line 1.
+#   - A block-scalar `description: |` / `>-` is not unfolded, so checks 2/3/12
+#     see the marker rather than the text. Prefer a single-line quoted
+#     description (the listing budget encourages this anyway).
 
 set -uo pipefail
 
@@ -68,6 +78,13 @@ elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   SKILLS_ROOT="$CLAUDE_PROJECT_DIR/.claude/skills"
 else
   SKILLS_ROOT="$REPO_ROOT/.claude/skills"
+fi
+
+# Anchor a relative skills root to the project root. The setup action persists a
+# project-relative path; if the skill is invoked from a subdirectory a relative
+# root would otherwise resolve against the cwd and miss the skills.
+if [[ "$SKILLS_ROOT" != /* && ! "$SKILLS_ROOT" =~ ^[A-Za-z]:[\\/] ]]; then
+  SKILLS_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}/$SKILLS_ROOT"
 fi
 
 SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
@@ -209,11 +226,17 @@ done < <(
 if [[ "${CHECK_SKILL_SKIP_MARKDOWNLINT:-}" == "1" ]]; then
   note "markdownlint check skipped (CHECK_SKILL_SKIP_MARKDOWNLINT=1)"
 elif command -v npx >/dev/null 2>&1; then
-  if ! ML_OUT="$(npx markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
+  # --no-install: never trigger a remote fetch. A genuine lint failure emits
+  # file:line findings; a non-zero exit WITHOUT such findings means the package
+  # is unavailable (not installed / offline), which downgrades to a WARN-skip
+  # rather than a hard FAIL on an otherwise valid skill.
+  if ML_OUT="$(npx --no-install markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
+    note "markdownlint clean"
+  elif grep -qE '^\S+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:
 $(printf '%s\n' "$ML_OUT" | grep -E '^\S+:[0-9]+' | head -10)"
   else
-    note "markdownlint clean"
+    warn "markdownlint-cli2 unavailable (not installed / not resolvable) — markdownlint check skipped"
   fi
 else
   warn "npx not found — markdownlint check skipped"
@@ -238,7 +261,10 @@ fi
 
 # --- Check 8: vendor/ byte-identical vs HEAD (vendor-backed only) ----------
 
-if [[ -d "$SKILL_DIR/vendor" ]]; then
+# Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
+# staged before a pre-commit run has no prior vendor/ to preserve, so its staged
+# files must not read as "changed vs HEAD".
+if [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null; then
   if git -C "$REPO_ROOT" diff --quiet HEAD -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs HEAD"
   else

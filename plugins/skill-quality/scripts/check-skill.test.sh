@@ -127,6 +127,19 @@ else
   fail "dropped trigger phrase should fail with a trigger-drop message (rc=$rc): $out"
 fi
 
+# 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
+#    even when invoked from a subdirectory.
+mkdir -p "$TMP/subdir"
+out="$(cd "$TMP/subdir" \
+  && CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    bash "$SUT" good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
+  pass "relative skills root resolves via CLAUDE_PROJECT_DIR from a subdir"
+else
+  fail "relative skills root should resolve via CLAUDE_PROJECT_DIR (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
