@@ -214,8 +214,8 @@ If the audit finds no discrepancies, report a clean bill of health:
 - State explicitly: "No findings. All claims verified as correct."
 - Do NOT invent findings to justify the audit. A clean codebase is the goal, not a guaranteed list
   of issues.
-- Skip Phases 4-6 (nothing to fix). Proceed directly to Phase 7 (Retrospective) with scope/coverage
-  observations.
+- Skip Phases 4-6 (nothing to fix). If not `--review-only`, proceed to Phase 7 (Retrospective) with
+  scope/coverage observations.
 
 ### Review-only gate
 
