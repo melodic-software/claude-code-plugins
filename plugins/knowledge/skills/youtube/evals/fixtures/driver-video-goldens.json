@@ -1,0 +1,57 @@
+{
+  "video_id": "7zZy1QTvokM",
+  "video_slug": "stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
+  "source_url": "https://www.youtube.com/watch?v=7zZy1QTvokM",
+  "title": "Stop Prompting Claude. Use Karpathy's Method Instead.",
+  "registration": "USER-RESERVED — derived during Phase 7 from Phase 3 transcript probe; no user pre-registration received",
+  "goldens": [
+    {
+      "id": "car-wash-distance",
+      "question": "In Karpathy's car-wash example, how far is the car wash and what do state-of-the-art models incorrectly recommend?",
+      "expected_answer": "50 meters away; models recommend walking instead of driving.",
+      "evidence_source": "transcript",
+      "timestamp_sec": 37,
+      "frame_only": false
+    },
+    {
+      "id": "three-layers",
+      "question": "What are the three layers of Karpathy's method described in this video?",
+      "expected_answer": "The spec, the verifier, and the environment.",
+      "evidence_source": "both",
+      "timestamp_sec": 768,
+      "frame_only": false
+    },
+    {
+      "id": "claude-md-on-screen-sections",
+      "question": "During the on-screen CLAUDE.md walkthrough (~9:31), what four section themes does the creator highlight?",
+      "expected_answer": "How the repo works, custom skills and routing, knowledge/training-data architecture, and key working rules.",
+      "evidence_source": "frames",
+      "timestamp_sec": 571,
+      "frame_only": true
+    },
+    {
+      "id": "karpathy-focus-quote",
+      "question": "What does Karpathy say remains worth learning when intelligence gets cheap?",
+      "expected_answer": "You can outsource thinking but not understanding; the layers center on your understanding of the bigger picture.",
+      "evidence_source": "transcript",
+      "timestamp_sec": 775,
+      "frame_only": false
+    },
+    {
+      "id": "boris-feedback-loop",
+      "question": "According to Boris Cherney (cited in the video), how much does a feedback loop improve Claude output quality?",
+      "expected_answer": "Two to three times (2–3×) the quality of the final result.",
+      "evidence_source": "transcript",
+      "timestamp_sec": 495,
+      "frame_only": false
+    },
+    {
+      "id": "verification-lever",
+      "question": "What metaphor does the video use instead of Karpathy's 'ghosts' framing for why yelling at AI does not help?",
+      "expected_answer": "A robot librarian — answers only from its library; confidently wrong when a book is missing.",
+      "evidence_source": "transcript",
+      "timestamp_sec": 305,
+      "frame_only": false
+    }
+  ]
+}

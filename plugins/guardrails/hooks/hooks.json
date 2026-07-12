@@ -23,6 +23,11 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-no-verify.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-hook-bypass.sh",
+            "timeout": 10
           }
         ]
       }

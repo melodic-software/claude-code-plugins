@@ -258,6 +258,12 @@
       "source": "./plugins/ai-briefing",
       "category": "productivity",
       "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"]
+    },
+    {
+      "name": "miro",
+      "source": "./plugins/miro",
+      "category": "utilities",
+      "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"]
     }
   ],
   "renames": {

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
+  "root": true,
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["src/**/*.ts", "!**/build", "!**/dist", "!**/coverage", "!**/node_modules"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":URL:"],
+              ":BLANK_LINE:",
+              [":NODE:", ":BUN:"],
+              ":BLANK_LINE:",
+              [":PACKAGE_WITH_PROTOCOL:", ":PACKAGE:"],
+              ":BLANK_LINE:",
+              [":ALIAS:"],
+              ":BLANK_LINE:",
+              [":PATH:"]
+            ]
+          }
+        }
+      }
+    }
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "preset": "recommended",
+        "useLiteralKeys": "off"
+      },
+      "correctness": {
+        "preset": "recommended",
+        "noUnusedImports": "error",
+        "noUnresolvedImports": "error",
+        "useImportExtensions": {
+          "level": "error",
+          "options": {
+            "forceJsExtensions": true
+          }
+        }
+      },
+      "performance": "error",
+      "security": "error",
+      "style": {
+        "preset": "recommended",
+        "noNonNullAssertion": "error",
+        "useConst": "error",
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error"
+      },
+      "suspicious": {
+        "preset": "recommended",
+        "noExplicitAny": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    }
+  ]
+}
