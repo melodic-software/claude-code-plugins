@@ -706,7 +706,8 @@ $appendixSection = try {
 }
 
 $deltaLine = try {
-    Get-RunDelta -HistoryTail $historyTail -CurrentSeverityCounts $severityCounts
+    Get-RunDelta -HistoryTail $historyTail -CurrentSeverityCounts $severityCounts `
+        -SkippedCount @($selection.skipped).Count
 } catch {
     Write-MachineHealthLog "delta_compute_failed $($_.Exception.Message)"
     'see state/history.jsonl for comparison'

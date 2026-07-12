@@ -13,7 +13,9 @@ findings triaged during publish as pre-existing behavior or deferred implementat
 - **Cadence-aware check selection.** A `weekly` run now defers a `cadence: monthly` check that
   ran within the last ~4 weeks, using a per-check last-run signal (`checks_ran`, a new field on
   each `state/history.jsonl` line). `on-demand` and `first-run` still run every enabled check.
-  Monthly demotions in the catalog overlay are no longer advisory-only.
+  Monthly demotions in the catalog overlay are no longer advisory-only. The report's delta line
+  discloses how many checks were cadence-deferred, so a total-count drop from a skip is not
+  misread as a health change.
 - **Degraded Windows Update enumeration surfaces as INFO.** When PSWindowsUpdate is present but
   `Get-WUList` fails, the check reports INFO with `detail.update_enum_degraded = true` instead of
   a misleading OK "no pending updates" (the enumeration genuinely failed).
