@@ -49,7 +49,10 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
   no eval issues. General-purpose in-repo hook migration into `guardrails`/`claude-ops` is owned by
   `melodic-software/medley#1391`. Per-slug retrofits already filed:
   `#1405` (event-storming), `#1408`/`#1409` (knowledge), `#1418` (skill-quality), `#1419`
-  (machine-health), `#1420` (implementation), `#1421` (review-toolkit).
+  (machine-health — including the setup-completeness gap where its setup skill defers `report_dir`
+  to `/plugin configure` instead of interviewing/persisting it), `#1420` (implementation),
+  `#1421` (review-toolkit). knowledge and skill-quality setups, by contrast, do interview and
+  persist their `userConfig` — machine-health is the lone setup-completeness outlier.
 
 ## Hook plugins (9) — compliant
 
@@ -94,7 +97,7 @@ Knowledge-only skills; no config seam, no hooks, no repo coupling. Nothing to re
 | implementation | `userConfig` `notes_dir` | missing | default + CLAUDE.md precedence | — | present | owned by #1420 (setup + ecosystem-commands) |
 | codebase-audit | tracked `.claude/codebase-audit.md` (seam 2) | present | read-existing → interview → write | — | present | compliant (setup exemplar) |
 | knowledge | `userConfig` `library_dir` | present | infer/ask + persist | — | absent → #1396 | compliant; youtube/course-digest retrofits owned by #1408/#1409 |
-| machine-health | `userConfig` `report_dir` | present | infer/ask + persist | — | absent → #1396 | compliant; behavior fixes owned by #1419 |
+| machine-health | `userConfig` `report_dir` | partial | overlay persisted; `report_dir` deferred to `/plugin configure` | — | absent → #1396 | setup ships (catalog overlay) but does **not** interview/persist `report_dir` — completeness gap + behavior fixes owned by #1419 |
 | skill-quality | `userConfig` `skills_root` | present | infer/ask + persist | — | absent → #1396 | compliant; runner/contract work owned by #1418 |
 | claude-config-audit | consumer `.claude/**` via `CLAUDE_PROJECT_DIR` (seam 3) | n/a | reads consumer config | — | present | compliant |
 | context7 | none needed | n/a | — | ctx7 (CLI-first) | absent → #1396 | compliant |
