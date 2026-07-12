@@ -1,0 +1,77 @@
+{
+  "skill_name": "teach",
+  "evals": [
+    {
+      "id": 1,
+      "name": "topic-action-runs-mission-interview",
+      "prompt": "/teach:teach topic rust-ownership",
+      "expected_output": "Routes to the topic action (start-or-resume). For a new rust-ownership workspace it creates the workspace and runs the mission interview (WHY, goal, success criteria) before teaching; if one already exists it resumes from saved state. Either way it opens with orientation, not a lecture dump.",
+      "files": [],
+      "expectations": [
+        "Routes to the `topic` action and resolves the workspace under the plugin data dir (not the consuming repo)",
+        "For a new workspace, runs the mission interview (WHY / goal / success) before teaching; for an existing one, resumes from saved state rather than re-interviewing from scratch",
+        "Does not open by lecturing content before the mission is established or prior state is loaded"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "smart-default-detects-codebase-vs-topic",
+      "prompt": "/teach:teach the auth-flow module in this repo",
+      "expected_output": "With no explicit action and a subject naming a repo-grounded concept, resolves to codebase mode and grounds in files discovered at teach-time; if discovery finds no real grounding for the concept in this repo, it asks the user to point to the relevant area rather than inventing repo sources.",
+      "files": [],
+      "expectations": [
+        "Detects that the subject names a repo-grounded concept and resolves to `codebase` mode (not `topic`)",
+        "Discovers grounding from live repo files at teach-time (climbs for CLAUDE.md/AGENTS.md, surveys structure) rather than baked assumptions",
+        "If no real grounding for the concept is found in the repo, asks the user to point to the relevant area instead of inventing or hallucinating repo sources"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "primer-creates-no-workspace",
+      "prompt": "/teach:teach primer color-grading — I just need enough vocabulary to direct the work now.",
+      "expected_output": "Runs the single-session primer with NO workspace, glossary, or learning records. It first intakes the user's starting point with one question, then builds the vocabulary ladder (terms, quality axes, good-vs-bad examples, a prompt template).",
+      "files": [],
+      "expectations": [
+        "Creates NO workspace directory, glossary, or learning records for the primer (single-session, no persistence)",
+        "Opens by intaking the user's starting point with one question, then builds the vocabulary ladder — core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing prompt template",
+        "Offers to escalate to `/teach:teach topic color-grading` for depth rather than silently starting a full workspace"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "coach-one-question-at-a-time",
+      "prompt": "/teach:teach topic binary-search-trees — I want to understand how deletion works.",
+      "expected_output": "Adopts coach posture from the first turn: opens with a single question (the mission interview for a new workspace, or a teaching-dialog question in an active one), asks one question at a time, and never opens by lecturing the whole deletion algorithm.",
+      "files": [],
+      "expectations": [
+        "Opens with ONE question and waits, rather than front-loading a full explanation",
+        "Leads with questions before explanations, per coach-not-lecturer posture (the mission interview itself is one-question-at-a-time)",
+        "Does not dump the complete deletion algorithm in a single lecture turn"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "ground-in-primary-sources-not-recall",
+      "prompt": "/teach:teach topic react-server-components",
+      "expected_output": "For a new workspace it runs the mission interview before teaching; and whenever it teaches the Knowledge layer for this fast-moving framework, it grounds claims in primary sources fetched or files Read this turn (RESOURCES.md / official docs), never parametric recall, since library/framework facts drift.",
+      "files": [],
+      "expectations": [
+        "Respects the new-workspace flow — runs the mission interview / resource seeding before delivering Knowledge content, rather than jumping straight into framework facts",
+        "Any Knowledge-layer claim that drives a lesson is grounded in a source fetched or a file Read this turn, not training-data recall",
+        "Does not assert volatile framework facts from memory — pulls from RESOURCES.md / documentation sources for this fast-moving topic"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-silent-workspace-invention",
+      "prompt": "/teach:teach explain closures",
+      "expected_output": "The explain action requires an active workspace to write concepts/<concept>/ into, and never silently invents one. It resolves against the live workspace state: uses the single existing workspace when exactly one exists, asks which when several exist, and asks whether to start one (topic/codebase) when none exists — so the correct behavior depends on the current workspace state rather than being a fixed branch.",
+      "files": [],
+      "expectations": [
+        "Recognizes that `explain` requires an active workspace to write concepts/<concept>/ into",
+        "Never silently invents or fabricates a workspace — it resolves against the live existing workspace state before writing",
+        "Takes the branch that matches the current state: use the one existing workspace, ask which when several exist, or ask whether to start one when none exists"
+      ]
+    }
+  ]
+}
