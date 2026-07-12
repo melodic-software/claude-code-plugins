@@ -1,0 +1,8 @@
+# Example .claude/ecosystems/bash.yaml — demonstrates the <files> placeholder (changed-files list).
+# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+globs: ["*.sh", "*.bash"]
+build-cmd: null # no build step
+test-cmd: null # no shell-test runner wired in this example repo
+check-cmd: "shellcheck -x -S warning <files> && shfmt -d <files>"
+fix-cmd: "shfmt -w <files>" # shellcheck has no fix mode
+install-hint: "winget install ShellCheck.ShellCheck mvdan.shfmt | brew install shellcheck shfmt"

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/ecosystem.schema.json",
+  "title": "Ecosystem command surface (one file per ecosystem)",
+  "description": "Schema for a consuming repository's .claude/ecosystems/<ecosystem>.yaml file. The filename stem is the ecosystem identifier (lowercase kebab-case). Command values are opaque shell strings; null means the ecosystem has no such phase. Contract: docs/conventions/ecosystem-commands/README.md.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["globs"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this ecosystem applies to the repo. False disables detection without deleting the file."
+    },
+    "globs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "File glob patterns that classify changed files into this ecosystem (matched against repo-relative paths)."
+    },
+    "anchor": {
+      "type": "string",
+      "description": "How to resolve <solution-or-project-file>: the scoping anchor for ecosystems with a canonical entry point (e.g. 'the solution file at repo root (*.slnx)')."
+    },
+    "project-discovery": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "File patterns identifying per-project roots (walked for <project-dir>), e.g. ['pyproject.toml']."
+    },
+    "build-cmd": {
+      "type": ["string", "null"],
+      "description": "Build/compile verification command. Null when the ecosystem has no build step."
+    },
+    "test-cmd": {
+      "type": ["string", "null"],
+      "description": "Test command. Null when no test framework is wired."
+    },
+    "check-cmd": {
+      "type": ["string", "null"],
+      "description": "Lint/format check command (no file modification). Null when lint does not apply."
+    },
+    "fix-cmd": {
+      "type": ["string", "null"],
+      "description": "Auto-fix command. Null when the toolchain has no fix mode."
+    },
+    "opt-in": {
+      "type": "string",
+      "description": "The config file or condition whose presence signals the repo uses this toolchain (e.g. 'biome.json'). Informational for resolvers deciding applicability."
+    },
+    "install-hint": {
+      "type": "string",
+      "description": "Cross-platform install guidance shown when a required tool is missing. Missing tools report skip, never failure."
+    },
+    "gates": {
+      "type": "array",
+      "description": "Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact freshness, schema regeneration).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "cmd"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "description": "Gate identifier shown in reports." },
+          "cmd": { "type": "string", "minLength": 1, "description": "Gate command (opaque shell string)." },
+          "trigger-globs": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Run the gate only when a changed file matches; omit to run whenever the ecosystem runs."
+          },
+          "remediation": { "type": "string", "description": "Pointer shown on failure." }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form caveats a resolver should surface (trap flags, ordering constraints). Rationale belongs in the repo's own rules, not here."
+    }
+  }
+}

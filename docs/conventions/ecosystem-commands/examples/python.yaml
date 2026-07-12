@@ -1,0 +1,10 @@
+# Example .claude/ecosystems/python.yaml — a consuming repo's Python command surface.
+# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+globs: ["*.py", "pyproject.toml", "uv.lock"]
+project-discovery: ["pyproject.toml"]
+build-cmd: null # no separate build step; lint/test cover verification
+test-cmd: "uv run pytest -x -q"
+check-cmd: "uv run ruff check . --no-fix && uv run ruff format . --check"
+fix-cmd: "uv run ruff check . --fix && uv run ruff format ."
+opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])"
+install-hint: "pip install ruff uv | brew install uv ruff | winget install astral-sh.uv"

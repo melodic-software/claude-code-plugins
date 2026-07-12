@@ -1,0 +1,33 @@
+{
+  "_comment": "End-of-life dates for dev SDKs. Cross-OS: the same SDKs ship on Windows/macOS/Linux. Update when vendors publish new LTS boundaries. Source: endoflife.date + vendor official pages.",
+  "_last_updated": "2026-04-23",
+  "dotnet": {
+    "active": ["10.0", "9.0", "8.0"],
+    "eol": {
+      "8.0": "2026-11-10",
+      "9.0": "2026-05-12",
+      "10.0": "2028-11-14"
+    },
+    "lts": ["8.0", "10.0"]
+  },
+  "node": {
+    "active": ["22", "20"],
+    "eol": {
+      "18": "2025-04-30",
+      "20": "2026-04-30",
+      "22": "2027-04-30"
+    },
+    "lts": ["20", "22"]
+  },
+  "python": {
+    "active": ["3.13", "3.12", "3.11", "3.10"],
+    "eol": {
+      "3.9": "2025-10-31",
+      "3.10": "2026-10-31",
+      "3.11": "2027-10-31",
+      "3.12": "2028-10-31",
+      "3.13": "2029-10-31"
+    },
+    "lts": []
+  }
+}

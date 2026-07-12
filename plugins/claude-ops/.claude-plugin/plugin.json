@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "claude-ops",
+  "version": "0.2.0",
+  "description": "Claude Code operations toolkit of three skills: claude-observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), claude-troubleshooting (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), and claude-code-changelog (ingest Claude Code changelog entries and integrate them into the current repo).",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["claude-code", "operations", "observability", "otel", "troubleshooting", "changelog", "monitoring"],
+  "userConfig": {
+    "registry_dir": {
+      "type": "string",
+      "title": "Registry directory (project-relative)",
+      "description": "Optional project-relative directory holding the claude-troubleshooting issue registry (registry.json). Set it to keep the registry in your repo (git-tracked, team-shared) instead of the per-machine plugin data directory. Path is relative to the project root; leave unset to use ${CLAUDE_PLUGIN_DATA}."
+    }
+  }
+}
