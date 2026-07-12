@@ -52,4 +52,4 @@ Emit a resume prompt so a fresh cleared session can pick up at `/planning:archit
 
 - A thread marked "decided" without recorded rationale is NOT RESOLVED — the rationale must be in the artifact, or `/planning:architect` inherits an unexplainable decision. FAIL it back to `/planning:design` to record the why
 - Do not soften a FAIL into a warning because the offending thread "feels minor" — silent gaps are exactly what the binary gate exists to catch
-- `/planning:design` also exposes a lightweight `handoff` action for the in-session shortcut; this standalone skill is the richer gate for entering `/planning:architect` from a completed design session — both apply the same RESOLVED / directional / TAGGED-DEFERRED criteria
+- `/planning:design`'s `handoff` action is an in-session shortcut that delegates here — this skill is the single canonical gate implementation, so criteria changes land here only

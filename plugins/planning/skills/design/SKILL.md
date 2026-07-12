@@ -58,7 +58,7 @@ Parse `$ARGUMENTS` for scope and action:
 | `thread <name>` | **Deep-dive** — focus on one specific design thread |
 | `discuss` | **Discussion round** — systematic gap-finding across all artifacts |
 | `terminology` | **Naming review** — cross-cutting naming pass over the full type inventory (see "Terminology pass") |
-| `handoff` | **Handoff gate** — binary check + /architect-ready summary (see "Handoff gate") |
+| `handoff` | **Handoff gate** — in-session shortcut; delegates to `/planning:design-handoff` (see "Handoff gate") |
 
 ## Phases
 
@@ -143,11 +143,7 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 
 ## Handoff gate (`handoff` action)
 
-The binary gate before `/architect`:
-
-1. Read `design-threads.md`; **every thread must be RESOLVED, directional, or explicitly TAGGED-DEFERRED** (with rationale + research tag). Any thread that is unresolved AND untagged → FAIL: name it and route back to a discussion round
-2. On PASS, emit the /architect-ready summary: decided design (types, boundaries, topology), deferred items with tags, and any review-routing notes for planning
-3. Recommend `/architect` as the next step
+The in-session shortcut to the design→plan gate. Delegate to `/planning:design-handoff` — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the /architect-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
 
 ## Scope-specific artifacts
 
@@ -189,4 +185,5 @@ The binary gate before `/architect`:
 | `/interview` | **Before.** `/interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
 | `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/design` creates what SHOULD exist |
 | `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/design` synthesizes them. Deferred research items can run in parallel |
+| `/design-handoff` | **The gate.** Owns the design→plan gate criteria and the /architect-ready summary; this skill's `handoff` action delegates to it |
 | `/architect` | **After the handoff gate.** `/design` produces WHAT. `/architect` produces HOW (implementation plan with phases). When design artifacts exist, `/architect` consumes them instead of re-deriving design inline |
