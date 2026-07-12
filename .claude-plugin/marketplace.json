@@ -143,7 +143,7 @@
       "name": "work-items",
       "source": "./plugins/work-items",
       "category": "productivity",
-      "tags": ["work-items", "issues", "github", "tracker", "triage", "orchestration", "skill"]
+      "tags": ["work-items", "tracker", "seam", "provider-neutral", "github", "issues", "triage", "orchestration", "skill"]
     },
     {
       "name": "discovery",
