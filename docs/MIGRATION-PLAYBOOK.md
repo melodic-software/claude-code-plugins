@@ -98,9 +98,13 @@ Design a skill so its variable parts route through the table above. "If you need
 
 ## Extensibility contract v2.1 — the four seams
 
-The table above is the raw mechanism inventory; this contract is the **adopted** policy for how a
-plugin exposes consumer variability, organizing those mechanisms into four seams. Prefer an earlier
-seam; reach for a later one only when the earlier cannot carry the need. Each seam is tagged by its
+The table above is the raw mechanism inventory ordered simplest-first; this contract is the **adopted**
+policy for how a plugin exposes consumer variability, organizing those mechanisms into four seams. Each
+seam matches a *kind* of variability — typed scalar, rich prose/rules, project convention, machine
+state — not a rung on a preference ladder: choose the seam that fits the need, and within that choice
+the table's simplest-first ordering still applies. Where the table's ordering and a seam's fit point
+differently, **fit governs** — a typed token belongs in `userConfig` (seam 1) even though the table
+lists consumer `CLAUDE.md` first. Each seam is tagged by its
 authority — **[SPEC]** (documented Claude Code behavior), **[PRECEDENT]** (an official first-party
 plugin does it, not written up as a spec), or **[PRECEDENT-EXTENSION]** (a documented shape extended
 one increment past the precedent). Behavioral gaps the docs leave open are resolved empirically in the
@@ -237,7 +241,9 @@ For each skill/hook/agent being migrated:
 7. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
 8. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
    source repo (proves repo-agnosticism).
-9. **Version.** Set an explicit semver `version` in `plugin.json`.
+9. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
+   consumer depends on records the change in the plugin's changelog — see "Version pinning and update
+   delivery" above.
 10. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified

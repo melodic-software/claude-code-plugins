@@ -59,12 +59,19 @@ claude plugin list                                   # confirm smoketest enabled
 claude -p "run: env | grep CLAUDE_PLUGIN | sort" --allowedTools Bash
 ```
 
+The `claude -p … --allowedTools Bash` form asks Claude to invoke its Bash tool, so the command runs in
+Claude Code's own process environment — the same environment a skill-invoked script runs in, which is
+what makes this a valid proxy for the skill case (a skill only makes the model *decide* to run bash;
+the subprocess environment is identical).
+
 **Result.**
 
 - **A skill-invoked Bash-tool subprocess does NOT inherit `CLAUDE_PLUGIN_OPTION_*`.** With the plugin
   enabled and `plain_key` set, `env | grep CLAUDE_PLUGIN_OPTION_` returned nothing. The only plugin
-  variable present was a single `CLAUDE_PLUGIN_DATA` pointing at an unrelated plugin's data directory —
-  not the invoking plugin's, so not a dependable per-plugin signal for a skill-spawned script either.
+  variable present was a single session-level `CLAUDE_PLUGIN_DATA`, and it pointed at an unrelated
+  installed plugin's data directory, not the invoking plugin's. `${CLAUDE_PLUGIN_DATA}` resolves
+  per-plugin only inside a plugin's own declared commands; in a general Bash-tool subprocess it carries
+  one session default, so it is not a dependable per-plugin signal for a skill-spawned script either.
 - **"Plugin subprocesses" means the plugin's own declared command subprocesses** — hooks, MCP servers,
   monitors, and `command`-type components — where a current plugin is defined and `${user_config.KEY}`
   also substitutes. It does not mean arbitrary Bash tool calls the model makes while a skill runs.
@@ -93,7 +100,8 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
 - **The non-interactive configuration path is `--config KEY=VALUE`** on `claude plugin install`
   (repeatable, schema-validated, "stored via the same path as the interactive `/plugin configure`
   flow"). It applies **only on a fresh install** — `--config` is ignored once the plugin is already
-  installed (the command short-circuits "already installed"). Reconfiguring headless requires uninstall
-  then reinstall, or the interactive `/plugin configure`.
+  installed (the command short-circuits "already installed"). `claude plugin` has no `configure`
+  subcommand (verified against `claude plugin --help` on 2.1.207; `/plugin configure` is an interactive
+  slash command only), so reconfiguring headless requires uninstall then reinstall.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
