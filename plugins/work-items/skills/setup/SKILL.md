@@ -75,9 +75,14 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    taxonomy. Offer to create any missing universal labels once via `gh label create`, or note their
    absence — never assume they exist. This step files no issues; the recurring automation or a later
    `add --recurring` creates the issues when items come due.
-5. **Write the schedule.** Read the current file (if any), merge the accepted items into the `items`
-   array (replace matching `id`s, append new ones), and write it back with the `{"items": [ ... ]}`
-   root. Preserve any existing items the user did not touch. Confirm the file is tracked, not ignored.
+5. **Write the schedule.** Read the current file (if any) and merge the accepted items into the `items`
+   array, keying each edited item on the **original `id` it had when read in step 1**, not its final
+   `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
+   the row whose id matches the item's origin id; append only genuinely new items (no origin row); and
+   when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
+   maintenance (which would create duplicate issues). Preserve any existing items the user did not
+   touch, then write it back with the `{"items": [ ... ]}` root. Confirm the file is tracked, not
+   ignored.
 
 ## Output
 
