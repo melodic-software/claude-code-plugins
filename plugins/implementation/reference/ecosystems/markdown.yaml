@@ -1,0 +1,10 @@
+# Bundled portable default — markdown. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/markdown.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+globs: ["*.md"]
+build-cmd: null # lint-only ecosystem
+test-cmd: null
+check-cmd: "npx markdownlint-cli2 <files>" # when the project has a markdownlint config
+fix-cmd: "npx markdownlint-cli2 --fix <files>"
+opt-in: "a markdownlint config (.markdownlint*, .markdownlint-cli2.*)"
+install-hint: "npm i -g markdownlint-cli2"
