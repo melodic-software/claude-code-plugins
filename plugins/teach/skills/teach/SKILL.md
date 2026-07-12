@@ -41,7 +41,7 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<topic>/
 
 Path resolution rules every action MUST follow:
 
-- **`<project-slug>`** — the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of the SHA-256 of the resolved absolute project path (`printf '%s' "<resolved-project-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` — the fallback covers stock macOS). The basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
+- **`<project-slug>`** — the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of the SHA-256 of the **canonicalized** absolute project path. Canonicalize FIRST so a project opened via a symlink and via its real path map to the same workspace (`realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || echo "${CLAUDE_PROJECT_DIR}"`, e.g. macOS repos under `/private/var/…`), then hash: `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` — the fallback covers stock macOS. The basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
 - **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
 - `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
@@ -83,6 +83,14 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 - **Shape** — intake the user's starting point (one question), then build the vocabulary ladder: core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing "how to ask for what you want" prompt template.
 - **Ground per Knowledge layer** — primary sources this turn, never parametric recall.
 - **Escalate** — if the user wants depth or practice, offer `/teach topic <domain>` (full workspace).
+
+## Resume, Status, and workspace resolution
+
+`resume` and `status` operate over the workspaces under `${CLAUDE_PLUGIN_DATA}/<project-slug>/`:
+
+- **`resume [<topic>]`** — with a topic argument, resolve that workspace directly and follow "Resume (subsequent sessions)". With no argument, list the workspaces sorted by most-recently-modified (git or filesystem mtime of the workspace files) and ask the user which to resume — never silently pick one when more than one exists.
+- **`status`** — for each workspace, show the topic, the count of `learning-records/`, the current frontier concept (from the latest records), and the last-touched date (mtime). One line per workspace; no file bodies loaded.
+- **`explain <concept>` / `exercise` need an active workspace.** They write into `concepts/<concept>/` under a topic workspace. If exactly one workspace exists, use it; if several exist, ask which; if none exists, ask whether to start one (`topic` / `codebase`) before writing — never invent a workspace silently.
 
 ## Pedagogy — Three Layers
 

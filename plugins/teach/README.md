@@ -38,6 +38,9 @@ before they're taught. See the skill body for the full pedagogy.
 
 - None beyond Claude Code. For `codebase` mode, launch it from the repository you
   want to learn — the plugin reads that repo's own docs and source.
+- `topic` mode fetches documentation URLs to ground explanations in primary
+  sources; if your setup restricts `WebFetch`, allow it or seed `RESOURCES.md`
+  manually.
 
 ## Install
 
