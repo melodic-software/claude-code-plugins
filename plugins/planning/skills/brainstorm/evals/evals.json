@@ -33,7 +33,7 @@
       "expected_output": "The candidate list still spans cheapest to most ambitious including the high-effort options; the skill does not pre-filter the ambitious end, letting the user calibrate scope instead of self-censoring.",
       "files": [],
       "expectations": [
-        "Output includes ambitious / high-effort candidates at the top of the spread, not only cheap ones",
+        "Output includes ambitious / high-effort candidates at the ambitious (most-ambitious) end of the spread, not only cheap ones",
         "Output does not silently drop the ambitious options based on the user's aside; it presents them and lets the user calibrate",
         "The spread is still ordered cheapest to most ambitious"
       ]
