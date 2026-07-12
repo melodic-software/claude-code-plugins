@@ -13,7 +13,9 @@
 set -uo pipefail
 
 UPDATES_DIR_BASH="${LOCALAPPDATA}/Amazon/Kindle/updates"
-UPDATES_DIR_WIN="C:\\Users\\${USERNAME}\\AppData\\Local\\Amazon\\Kindle\\updates"
+# LOCALAPPDATA is already a native Windows path on Git Bash (C:\Users\<user>\AppData\Local),
+# so derive the icacls target from it — honors OneDrive-redirected or non-C: profiles.
+UPDATES_DIR_WIN="${LOCALAPPDATA}\\Amazon\\Kindle\\updates"
 TRUSTEE="${USERDOMAIN}\\${USERNAME}"
 
 action="${1:-check}"
