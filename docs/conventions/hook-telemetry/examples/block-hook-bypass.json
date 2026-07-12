@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T18:05:00Z",
+  "hook": "block-hook-bypass",
+  "hook_event": "PreToolUse",
+  "status": "blocked",
+  "duration_ms": 7,
+  "data": {
+    "tool": "Bash",
+    "subject": "Bash:cat",
+    "form": "cat-redirect"
+  }
+}
