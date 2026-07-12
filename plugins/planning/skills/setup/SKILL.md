@@ -22,16 +22,22 @@ Apply the convention-resolution ladder — config present → use it; absent →
 cannot infer → ask and offer to persist; otherwise the safe documented default (`.claude/notes`).
 
 1. **Read the current value first, in precedence order.** Look for `notes_dir` under
-   `pluginConfigs["planning@melodic-software"].options` in all three scopes and resolve the *effective*
-   value the way Claude Code does — **Local (`.claude/settings.local.json`) > Project
-   (`.claude/settings.json`) > User (`~/.claude/settings.json`)**, local winning. Report the effective
-   value and which scope supplies it; the interview proposes a change against that baseline. If a local
-   override is present, say so explicitly — step 4 writes the *project* (team) value, which stays shadowed
-   by the local override until the developer updates or removes it, so a project-scope edit alone will not
-   change what the plugin actually uses on that machine. Read each scope **narrowly** — query only the
-   single `pluginConfigs["planning@melodic-software"].options.notes_dir` key (e.g. with `jq`), never
-   loading `.claude/settings.local.json` wholesale: that overlay is secret-bearing (API tokens, env
-   secrets), so do not read or echo unrelated settings content.
+   `pluginConfigs["planning@melodic-software"].options` and resolve the *effective* value the way Claude
+   Code does — the documented order, highest first, is **Managed (system-level `managed-settings.json`
+   policy) > command-line `--settings` session override > Local (`.claude/settings.local.json`) > Project
+   (`.claude/settings.json`) > User (`~/.claude/settings.json`)** (see the official precedence in the
+   [Claude Code settings docs](https://code.claude.com/docs/en/settings)). Inspect each layer you can
+   access; a Managed policy or a session launched with `--settings` sits **above** Local and, if it supplies
+   `notes_dir`, wins and cannot be overridden by the project value step 5 writes — when you cannot read
+   those higher layers (managed policy is often outside the repo and OS-specific), **explicitly warn that
+   they were not considered** rather than declaring the lower value authoritative. Report the effective
+   value and which scope supplies it; the interview proposes a change against that baseline. If a Managed
+   layer or a Local override is present, say so explicitly — step 5 writes the *project* (team) value, which
+   stays shadowed by any higher-precedence layer until it is updated or removed, so a project-scope edit
+   alone will not change what the plugin actually uses on that machine. Read each scope **narrowly** —
+   query only the single `pluginConfigs["planning@melodic-software"].options.notes_dir` key (e.g. with
+   `jq`), never loading `.claude/settings.local.json` wholesale: that overlay is secret-bearing (API tokens,
+   env secrets), so do not read or echo unrelated settings content.
 2. **Always check for convention shadowing — even when a value is set.** The planning skills honor a
    working-notes convention declared in the consuming repo's own `CLAUDE.md`, `AGENTS.md`, or
    `.claude/rules` *over* `notes_dir` at write time, so a stored `notes_dir` that disagrees with a declared
