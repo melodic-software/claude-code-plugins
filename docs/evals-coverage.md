@@ -60,12 +60,14 @@ schema path, and the per-skill warrant re-check instruction.
 
 Recorded as decisions, not silent omissions, each with a revisit trigger (playbook defer-record pattern):
 
-- **`songwriting` (9 skills: co-write, daily-practice, diagnosis, meter-prosody, object-writing,
-  rhyme, song-form, suno, workflow)** — wave map `melodic-software/medley#1369` slates songwriting for a
+- **`songwriting` (10 skills: co-write, daily-practice, diagnosis, meter-prosody, object-writing,
+  rhyme, song-form, suno, workflow, and the now-shipped `setup`)** — wave map
+  `melodic-software/medley#1369` slates songwriting for a
   dedicated personal repo, and its corpus/home is under an open decision gate
-  (`melodic-software/medley#1402`, needs-human). Authoring 9 skills of evals in the marketplace now
+  (`melodic-software/medley#1402`, needs-human). Authoring 10 skills of evals in the marketplace now
   risks migrated/wasted work. **Revisit trigger:** #1402 resolves songwriting's home → author the
-  evals in whichever repo the plugin lands (evals travel with the skill dir).
+  evals for all 10 skills (including `setup`) in whichever repo the plugin lands (evals travel with the
+  skill dir).
 - **`knowledge` (2 shipped skills: book-distill, setup; + youtube/course-digest pending)** — the
   knowledge artifacts move to a dedicated repo (`repo(knowledge-artifacts)`
   `melodic-software/medley#1393`, needs-human) and the skill set is still growing (youtube #1408 /
@@ -75,10 +77,11 @@ Recorded as decisions, not silent omissions, each with a revisit trigger (playbo
 
 ## Future coverage — net-new skills not yet shipped
 
-The seven setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1433`, `#1435`) each add a
-net-new `setup`/`configure` skill that does not exist yet. When each setup skill lands, add a setup
-eval for it (the `codebase-audit/setup` eval is the model — a config-writer skill is warrantable).
-This is a per-retrofit follow-on, not part of the backfill batches above.
+The setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) each add a net-new
+`setup`/`configure` skill that does not exist yet. When each setup skill lands, add a setup eval for it
+(the `codebase-audit/setup` eval is the model — a config-writer skill is warrantable). This is a
+per-retrofit follow-on, not part of the backfill batches above. (`songwriting`'s setup skill has
+already shipped and is covered by the songwriting deferral above, not here.)
 
 ## Skip — pure-reference plugins (4)
 

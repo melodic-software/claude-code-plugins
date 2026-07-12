@@ -220,10 +220,15 @@ executes model-graded evals today** — automated eval *running* is a deferred s
 `melodic-software/medley#1418`); `skill-quality` only checks presence and schema. So a consumer
 verifies a plugin against its evals in three grounded steps:
 
-1. **Presence** — `/skill-quality:skill-quality check <skill>` (the seventeen-check static gate flags
-   a warranted skill that ships no evals; `check` is an action argument to the `skill-quality` skill).
+1. **Presence** — confirm the file `plugins/<plugin>/skills/<skill>/evals/evals.json` exists. Note the
+   limit of the static gate: `/skill-quality:skill-quality check <skill>` (`check` is an action argument
+   to the `skill-quality` skill) flags a *missing* eval file only for action-router-shaped skills — its
+   check fires on a `## Actions` heading — so a warranted non-router skill (e.g. `diagnose`) passes
+   `check` without flagging the gap. Rely on the direct file check or the coverage snapshot, not a green
+   `check`, to confirm a non-router skill's evals are present.
 2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` validates `evals/evals.json`
-   against the bundled schema (structure only — it does not run the cases).
+   against the bundled schema (structure only — it does not run the cases, and it treats an absent file
+   as "not a failure", so it is a schema gate, not a presence gate).
 3. **Exercise (manual)** — for each case, paste its `prompt` into a fresh session with the plugin
    enabled in your repo and read the result against that case's `expected_output` / `expectations`.
    Cases with a `files` list need those fixtures present relative to the skill directory. This is a
