@@ -1,7 +1,7 @@
 ---
 name: teach
 description: "Interactive multi-session learning coach for general topics or repo-grounded concepts; also a single-session domain primer (primer action). Use when: 'teach me', 'study session', 'help me learn', 'onboard me to', 'learn this codebase'. Coaches through the Knowledge-Skills-Wisdom progression with persistent per-topic learning state. Not for one-off inline questions (answer directly)."
-argument-hint: "<action> [args] (e.g., /teach topic rust-ownership, /teach codebase auth-flow, /teach primer color-grading)"
+argument-hint: "<action> [args] (e.g., /teach:teach topic rust-ownership, /teach:teach codebase auth-flow, /teach:teach primer color-grading)"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -24,7 +24,7 @@ Two modes share pedagogy but differ in source material:
 All persistent learning state lives under the plugin's own per-plugin data directory, which survives plugin updates and does not pollute the consuming repo:
 
 ```text
-${CLAUDE_PLUGIN_DATA}/<project-slug>/<topic>/
+${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/
 ├── MISSION.md               WHY the user is learning this — goal, success criteria, constraints (workspace-global)
 ├── GLOSSARY.md              durable terminology SSOT — add only when the user demonstrates understanding (global)
 ├── RESOURCES.md             curated high-trust sources (knowledge + wisdom communities) (global)
@@ -42,6 +42,7 @@ ${CLAUDE_PLUGIN_DATA}/<project-slug>/<topic>/
 Path resolution rules every action MUST follow:
 
 - **`<project-slug>`** — the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then `-` plus the first 8 hex chars of the SHA-256 of the **canonicalized** absolute project path. Canonicalize FIRST so a project opened via a symlink and via its real path map to the same workspace (`realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || echo "${CLAUDE_PROJECT_DIR}"`, e.g. macOS repos under `/private/var/…`), then hash: `printf '%s' "<canonical-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8` — the fallback covers stock macOS. The basename alone collides when two clones or worktrees share a directory name. Both `topic` and `codebase` workspaces are scoped under `<project-slug>` — topic learning becomes associated with the project you launched from.
+- **`<mode>`** — literally `topic` or `codebase`, matching the action that created the workspace. This level keeps the two modes independent: `/teach:teach topic auth-flow` and `/teach:teach codebase auth-flow` in the same project resolve to separate workspaces (`.../topic/auth-flow/` vs `.../codebase/auth-flow/`) instead of one seeding over the other's `MISSION.md` / `RESOURCES.md`.
 - **`<topic>`** and **`<concept>`** — content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
 - `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions.
@@ -50,7 +51,7 @@ Path resolution rules every action MUST follow:
 
 ## Pre-computed Context
 
-Existing workspaces: !`ls -d "${CLAUDE_PLUGIN_DATA}"/*/*/ 2>/dev/null | head -20 || echo "none"`
+Existing workspaces: !`ls -d "${CLAUDE_PLUGIN_DATA}"/*/*/*/ 2>/dev/null | head -20 || echo "none"`
 
 ## Action Router
 
@@ -82,14 +83,14 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 - **No workspace** — no `<topic>` directory, mission interview, glossary, or learning records. Output is the session conversation plus an optional self-contained HTML vocabulary ladder (vague term → precise spec, with copy-out) per "Lessons and Reference" HTML routing.
 - **Shape** — intake the user's starting point (one question), then build the vocabulary ladder: core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing "how to ask for what you want" prompt template.
 - **Ground per Knowledge layer** — primary sources this turn, never parametric recall.
-- **Escalate** — if the user wants depth or practice, offer `/teach topic <domain>` (full workspace).
+- **Escalate** — if the user wants depth or practice, offer `/teach:teach topic <domain>` (full workspace).
 
 ## Resume, Status, and workspace resolution
 
-`resume` and `status` operate over the workspaces under `${CLAUDE_PLUGIN_DATA}/<project-slug>/`:
+`resume` and `status` operate over the workspaces under `${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/` (both modes):
 
-- **`resume [<topic>]`** — with a topic argument, resolve that workspace directly and follow "Resume (subsequent sessions)". With no argument, list the workspaces sorted by most-recently-modified (git or filesystem mtime of the workspace files) and ask the user which to resume — never silently pick one when more than one exists.
-- **`status`** — for each workspace, show the topic, the count of `learning-records/`, the current frontier concept (from the latest records), and the last-touched date (mtime). One line per workspace; no file bodies loaded.
+- **`resume [<topic>]`** — with a topic argument, resolve that workspace directly (disambiguating by `<mode>` if the same topic exists in both) and follow "Resume (subsequent sessions)". With no argument, list the workspaces sorted by most-recently-modified (git or filesystem mtime of the workspace files) and ask the user which to resume — never silently pick one when more than one exists.
+- **`status`** — for each workspace, show its mode, topic, the count of `learning-records/`, the current frontier concept (from the latest records), and the last-touched date (mtime). One line per workspace; no file bodies loaded.
 - **`explain <concept>` / `exercise` need an active workspace.** They write into `concepts/<concept>/` under a topic workspace. If exactly one workspace exists, use it; if several exist, ask which; if none exists, ask whether to start one (`topic` / `codebase`) before writing — never invent a workspace silently.
 
 ## Pedagogy — Three Layers
@@ -206,5 +207,5 @@ Learning artifacts persist for months; durable teaching content (references, glo
 
 - **Does not write production code** — teaches understanding, not implementation. Use the project's own implementation workflow for code changes
 - **Does not replace `/book-distill:book-distill`** — that extracts book knowledge into skill reference files; `/teach` delivers knowledge interactively to the user
-- **Does not do task-context codebase investigation** — that's for the project's code-exploration tooling; `/teach codebase` is structured learning for understanding
+- **Does not do task-context codebase investigation** — that's for the project's code-exploration tooling; `/teach:teach codebase` is structured learning for understanding
 - **Does not auto-invoke** — `disable-model-invocation: true`. The user initiates learning sessions

@@ -5,8 +5,9 @@ multiple sessions — instead of lecturing at you. It runs a
 **Knowledge → Skills → Wisdom** progression grounded in your real goal, and keeps
 persistent per-topic learning state so each session builds on the last.
 
-Invoke it with `/teach` and an action, for example `/teach topic rust-ownership`,
-`/teach codebase auth-flow`, or `/teach primer color-grading`.
+Invoke it with `/teach:teach` and an action, for example
+`/teach:teach topic rust-ownership`, `/teach:teach codebase auth-flow`, or
+`/teach:teach primer color-grading`.
 
 ## What it does
 

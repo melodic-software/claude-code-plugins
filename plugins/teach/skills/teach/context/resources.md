@@ -39,7 +39,7 @@ RESOURCES entries double as the **rot re-verify anchor**: lessons and references
 
 ## Codebase Mode
 
-For `/teach codebase`, resources include repo-internal sources discovered per SKILL.md "Codebase mode". Record what discovery located so later sessions reuse it instead of re-deriving the repo's structure:
+For `/teach:teach codebase`, resources include repo-internal sources discovered per SKILL.md "Codebase mode". Record what discovery located so later sessions reuse it instead of re-deriving the repo's structure:
 
 ```markdown
 ## Repo Sources

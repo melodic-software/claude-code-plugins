@@ -36,7 +36,7 @@
 
 ## Codebase Mode Additions
 
-For `/teach codebase <concept>`, MISSION.md also includes:
+For `/teach:teach codebase <concept>`, MISSION.md also includes:
 
 ```markdown
 ## Repo Context

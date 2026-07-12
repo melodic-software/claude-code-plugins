@@ -47,7 +47,7 @@ Both lesson and reference default to `.md` — the durable teaching record (less
 
 **Producing the HTML:** if `/frontend-design:frontend-design` is installed, delegate the visual design to it; otherwise generate a plain, self-contained single-file page inline. Constraints in either case:
 
-- **Ephemeral placement.** Teach HTML is session output, not a tracked artifact. Write it to the workspace under `${CLAUDE_PLUGIN_DATA}/<project-slug>/<topic>/concepts/<concept>/` (or OS temp), and open it from `file://`.
+- **Ephemeral placement.** Teach HTML is session output, not a tracked artifact. Write it to the workspace under `${CLAUDE_PLUGIN_DATA}/<project-slug>/<mode>/<topic>/concepts/<concept>/` (or OS temp), and open it from `file://`.
 - **Self-contained, no remote fetch.** Vendor all CSS/JS inline so the page opens straight from disk with no network dependency.
 - **No secret leakage.** A codebase-mode lesson embedding a repo snippet must use synthetic data for exemplars; never bake a real secret value into the HTML — show a masked presence indicator if the existence of a secret must be conveyed.
 
