@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-ops",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Claude Code operations toolkit of three skills: claude-observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), claude-troubleshooting (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), and claude-code-changelog (ingest Claude Code changelog entries and integrate them into the current repo).",
   "author": {
     "name": "Melodic Software",
