@@ -1,0 +1,10 @@
+WEBVTT
+
+00:00:05.000 --> 00:00:08.000
+Welcome to module one.
+
+00:00:12.000 --> 00:00:16.000
+Today we cover dependency injection patterns.
+
+00:00:20.000 --> 00:00:24.000
+First topic: constructor injection.
