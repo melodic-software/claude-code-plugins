@@ -57,9 +57,9 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
 
 An updated project `.claude/settings.json` carrying `notes_dir`, plus a one-line summary of the value
 written, its scope, and how to re-run this setup to reconfigure. Note in the summary that `notes_dir`
-governs where every pipeline skill (`/planning:prd`, `/planning:interview`, `/planning:design`,
-`/planning:architect`) writes its per-topic artifacts, and that a working-notes convention declared in the
-consuming project's own `CLAUDE.md` or rules still takes precedence over this value at write time.
+governs where the pipeline skills write their per-topic artifacts, and that a working-notes convention
+declared in the consuming project's own `CLAUDE.md` or rules still takes precedence over this value at
+write time.
 
 ## What this skill does NOT do
 
