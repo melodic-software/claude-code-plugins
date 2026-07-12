@@ -55,17 +55,25 @@ assumptions.
    unrelated keys. The value is stored verbatim (Claude Code does not normalize or validate a string
    option), so store it exactly as it should resolve relative to `${CLAUDE_PROJECT_DIR}`. For the
    per-machine choice, make the *effective* value resolve to the `${CLAUDE_PLUGIN_DATA}` fallback — the
-   claude-troubleshooting skill treats an empty **or** unset `registry_dir` as "use the plugin data dir":
-   - If **no** higher-precedence scope supplies a value, simply remove the project-scope `registry_dir`
-     (or confirm it is already absent) so the option is unset.
-   - If a **User- or Local-scope** value is in effect (from step 1's read), the repo-local opt-out is to
-     write an **empty string** (`""`) at project scope: project precedence shadows the global value, and
-     the claude-troubleshooting skill reads an empty value as the plugin-data fallback — so this repo falls
-     back without disturbing the developer's global default for every other repo. Reserve removing the
-     User-scope value for when the consumer wants to drop the default everywhere; do not silently edit the
-     user's global or local overlay.
+   claude-troubleshooting skill treats an empty **or** unset `registry_dir` as "use the plugin data dir".
+   Which action achieves that depends on **which scope currently supplies the effective value** (from step
+   1's read), under the **Local > Project > User** precedence:
+   - **No scope supplies a value** → already per-machine; confirm and make no change.
+   - **User scope only** (Project and Local absent) → write an **empty string** (`""`) at project scope: a
+     project value shadows the User global (Project > User), and the empty value reads as the plugin-data
+     fallback — so this repo opts out without disturbing the developer's global default for every other
+     repo. Reserve *removing* the User value for when they want to drop the default everywhere.
+   - **Project scope supplies it** (no Local override) → remove the project-scope `registry_dir`; if a User
+     value would then surface and must also be suppressed, write `""` at project scope instead.
+   - **Local scope supplies it** (`.claude/settings.local.json`) → a project-scope write **cannot** override
+     it, because Local outranks Project. The opt-out must happen in the local overlay itself: set its
+     `registry_dir` to `""` or remove the key. This is the developer's own machine-local file — with their
+     go-ahead, edit only the `registry_dir` key in `.claude/settings.local.json` (per the narrow,
+     secret-safe handling in step 1); otherwise name the file and guide them to clear it there. Do not
+     silently edit it.
 
-   Either way, do not report the registry as per-machine until the effective value resolves to empty/unset.
+   Do not write an empty string at a scope that is outranked by a scope still holding a value, and do not
+   report the registry as per-machine until the *effective* value resolves to empty/unset.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
