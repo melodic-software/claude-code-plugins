@@ -7,12 +7,12 @@ This is NOT the same as:
 
 | Action | Volume | Output shape |
 |---|---|---|
-| `/pat-pattison rhyme` / `rhyme-generation` | 8-15 rhyme candidates | rhyme-list per tier |
-| `/pat-pattison variations` | 5-7 labeled line alternates | menu of polished alternates |
-| `/pat-pattison line-brainstorm` | 30-50+ across 5 columns | RAW pre-revision dump |
-| `/pat-pattison demo` | diagnosis of the line in song context | dominant-problem named |
-| `/pat-pattison audit` | pre-lock checklist on a candidate line | go / no-go signal |
-| `/pat-pattison object-writing` | timed sense-bound write | raw-image generation |
+| `/songwriting:rhyme` / `rhyme-generation` | 8-15 rhyme candidates | rhyme-list per tier |
+| `/songwriting:diagnosis variations` | 5-7 labeled line alternates | menu of polished alternates |
+| `/songwriting:co-write line-brainstorm` | 30-50+ across 5 columns | RAW pre-revision dump |
+| `/songwriting:diagnosis demo` | diagnosis of the line in song context | dominant-problem named |
+| `/songwriting:diagnosis audit` | pre-lock checklist on a candidate line | go / no-go signal |
+| `/songwriting:object-writing` | timed sense-bound write | raw-image generation |
 
 `line-brainstorm` is the *between* tool — the writer knows the line needs
 to change but doesn't know what to change. Generate MANY options, sort

@@ -1,6 +1,6 @@
 # Brainstorm Opener Template
 
-Use this when the writer enters with `/pat-pattison brainstorm` or with no
+Use this when the writer enters with `/songwriting:workflow brainstorm` or with no
 material at all. Goal: pull material before any commitment to title, form,
 or POV.
 

@@ -1,6 +1,6 @@
 # AI Response Filter — Pre-Flight Gate for Every Output
 
-**This file is mandatory.** When `/pat-pattison` skill is active — explicitly or
+**This file is mandatory.** When any `/songwriting` craft skill is active — explicitly or
 auto-routed — every AI response that suggests rhymes, writes a line, rewrites
 a lyric, critiques a draft, or coaches process MUST pass through the
 applicable section below before emission.
