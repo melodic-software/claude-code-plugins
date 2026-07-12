@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@4b4f9928a633e5badfbe281d4e60d74ab4990d86 # 99ac2f8 2026-07-11
     with:
       args: >-
         --cache
