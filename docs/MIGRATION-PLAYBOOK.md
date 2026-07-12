@@ -7,7 +7,8 @@ vet it against best practices, then publish.
 All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
 "Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
-guide). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
+Code 2.1.207). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
 ## Intent
 
@@ -87,13 +88,103 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies — the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Also exported as `CLAUDE_PLUGIN_OPTION_<KEY>`. Non-sensitive stored in `settings.json` under `pluginConfigs[<id>].options`; sensitive in the system keychain | Endpoints, toggles, tokens — consumer config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` into hook/MCP/monitor/command configs and non-sensitive values into skill/agent content; exported as `CLAUDE_PLUGIN_OPTION_<KEY>` to the plugin's own declared command subprocesses only — **not** to a Bash tool call a skill makes (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive stored in `settings.json` under `pluginConfigs[<id>].options`; sensitive in the system keychain | Endpoints, toggles, tokens — consumer config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
 
 Design a skill so its variable parts route through the table above. "If you need to customize X, set
 `userConfig` Y / add it to your project rules" — never "open an issue" or "fork the skill".
+
+## Extensibility contract v2.1 — the four seams
+
+The table above is the raw mechanism inventory; this contract is the **adopted** policy for how a
+plugin exposes consumer variability, organizing those mechanisms into four seams. Prefer an earlier
+seam; reach for a later one only when the earlier cannot carry the need. Each seam is tagged by its
+authority — **[SPEC]** (documented Claude Code behavior), **[PRECEDENT]** (an official first-party
+plugin does it, not written up as a spec), or **[PRECEDENT-EXTENSION]** (a documented shape extended
+one increment past the precedent). Behavioral gaps the docs leave open are resolved empirically in the
+[smoke-test record](extensibility-contract-smoke-tests.md).
+
+1. **Typed scalars → `userConfig` → `pluginConfigs`. [SPEC]** Declare `string` / `number` /
+   `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array — there is no
+   `string[]` type); mark a credential `sensitive` so it lands in the keychain, never `settings.json`.
+   Non-sensitive values store under `pluginConfigs[<id>].options`. Use for endpoints, toggles, tokens,
+   and single path knobs. The `directory` / `file` type is a UI hint, not a validator — a `--config`
+   value is stored verbatim with no existence check and no normalization to absolute (smoke-test A).
+2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
+   PRECEDENT-EXTENSION]** When configuration outgrows typed scalars — prose guidance, rule lists,
+   threat models, structured rulesets — read a checked-in file instead of piling on `userConfig` knobs.
+   The proven shape is a single tracked file `.claude/<plugin>.md` (Markdown, for model-facing
+   guidance) or `.claude/<plugin>.yaml` (structured rules), each with a gitignored `*.local.*` personal
+   overlay and an optional `~/.claude/<plugin>.md` user-global. The precedent is the official
+   **security-guidance** plugin (<https://code.claude.com/docs/en/security-guidance>): it reads
+   `.claude/claude-security-guidance.md` (project), `~/.claude/claude-security-guidance.md` (user), and
+   `.claude/claude-security-guidance.local.md` (gitignored personal override), loading every location
+   that exists and concatenating them. The **folder form** `.claude/<plugin>/**` (many files, one per
+   concern) is the PRECEDENT-EXTENSION: the first-party precedent uses single files, so a plugin that
+   needs a directory of config extends the shape by one increment, keeping the same overlay and
+   resolution rules.
+   - **Resolution + override semantics.** Resolve **user-global → team (project) → local overlay**,
+     **additive-preferred**: a later layer adds to or refines earlier layers rather than silently
+     replacing them. The first-party precedent concatenates; a plugin that genuinely must override does
+     so per key, never by dropping the base layer wholesale.
+   - **Recommended consumer `.gitignore`.** Ship the overlay convention with the one line the consumer
+     adds: `.claude/*.local.*` (and `.claude/<plugin>/**/*.local.*` for the folder form) — personal
+     overlays stay out of version control, team config stays tracked.
+3. **Consumer `CLAUDE.md` / `.claude/rules` steering. [SPEC]** A plugin's skill and agent components
+   run in the model's context and already read the consuming project's own rules — the default surface
+   for project conventions, naming, and policy, requiring no plugin-side wiring. (Hook scripts do not
+   see `CLAUDE.md`; they read env vars and file-based config only.)
+4. **`${CLAUDE_PLUGIN_DATA}` for machine state only. [SPEC]** The per-plugin directory that survives
+   updates — caches, installed dependencies, generated state. Never a channel for consumer
+   *configuration* (it is machine-local and untracked); configuration flows through seams 1–3.
+
+## Convention-resolution ladder
+
+The **adopted** rule for how a plugin settles a value at runtime, applied to every seam:
+
+1. Config present → use it.
+2. Absent → explore the repo and infer, then **persist the inference** into the tracked config (seam 1
+   or 2) so the next run is deterministic.
+3. Cannot infer → ask the user, and offer to persist the answer.
+4. Otherwise → a safe generic default.
+
+No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
+value, infers-and-records, or asks — never guesses silently.
+
+## Setup action — every configurable plugin ships one
+
+Every plugin that carries any `userConfig` or tracked-config seam ships a re-runnable `setup` /
+`configure` action (a skill) that interviews the consumer and writes the tracked config. It is
+idempotent — safe to re-run to reconfigure. The Thariq `config.json` first-run pattern is **rejected**
+for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGIN_ROOT}`, which is
+replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
+writes to the consumer's tracked config or to `pluginConfigs` — both persist across updates.
+
+## Shared tools and scripts seam
+
+Separate **plugin-owned** logic from **consumer-owned** extension points:
+
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`)
+  — bundled and cache-isolated, never reaching outside the plugin directory.
+- Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
+  `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
+  A plugin reaches the consumer's own scripts only through a path the consumer declared or the
+  convention the plugin documents — never a hardcoded repo structure.
+
+## Version pinning and update delivery
+
+- **A `version` bump in `plugin.json` is the only delivery vehicle.** A consumer receives a change only
+  after the plugin's semver `version` increases — the version is the update cache key, so an unbumped
+  plugin never delivers, even when its files changed (see "Shared code across plugins" below).
+- **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
+  the marketplace. There is no silent auto-push of plugin changes to a consumer.
+- **Breaking-change / changelog note per plugin.** A version bump that changes behavior a consumer
+  depends on — a renamed option, a moved config path, a removed action — records the change in the
+  plugin's own changelog (a `CHANGELOG.md` in the plugin), so a consumer updating deliberately sees
+  what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
+  security review below.
 
 ## Persistence, configuration & external integration
 
@@ -242,6 +333,27 @@ claude --plugin-dir ./plugins/<name>
   directories you control.
 - **Then ship.** Run `claude plugin validate` before opening a PR; after merge, consumers pull the
   change with `/plugin marketplace update melodic-software`, gated by the `version` bump in `plugin.json`.
+
+## Fresh-consumer onboarding
+
+Reintegration (below) covers a repo that already ran an in-repo copy and now switches to the plugin. A
+**brand-new** repo adopting the marketplace for the first time follows this checklist:
+
+1. **Register the marketplace.** Interactive: the trust dialog on first `/plugin` use both registers
+   and installs enabled plugins. Headless / CI: `claude plugin marketplace add <repo>` — registering
+   does not install anything on its own.
+2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the project's
+   checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo). The
+   headless install form is `claude plugin install <plugin>@<marketplace> --scope project`.
+3. **Run each configurable plugin's setup action** to write the tracked config / `pluginConfigs`.
+   Headless, skip the interview by seeding values inline: `claude plugin install … --config KEY=VALUE`
+   (repeatable, schema-validated). Non-sensitive options land in the **user** `settings.json`
+   `pluginConfigs` regardless of the enable scope; a sensitive value passed via `--config` still routes
+   to the keychain (smoke-tests A and C).
+4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
+   option left unset does **not** block the install; it stays advisory until set via `--config` or the
+   interactive `/plugin configure` (smoke-test C). Seed every required option at install time so the
+   plugin does not run unconfigured.
 
 ## Reintegration — a consumer adopts the published plugin
 
