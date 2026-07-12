@@ -59,12 +59,22 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
 4. **Interview — one decision.** Present the inferred value with a recommendation and let the user accept
    or edit it. Keep it to the single `notes_dir` knob; do not invent further options (Rule of Three — add
    a knob only when a real repeated repo-specific need surfaces).
-5. **Persist to project scope.** Write the chosen value to the project `.claude/settings.json` at
-   `pluginConfigs["planning@melodic-software"].options.notes_dir` so it is tracked and shared with the
-   team. Create the `pluginConfigs` / options path if absent; do not disturb unrelated keys. The value is
-   stored verbatim (Claude Code does not normalize a `string` option to absolute or validate existence),
-   so store it exactly as the user intends it to resolve relative to their working directory.
-6. **Offer the personal overlay.** A per-developer override goes in the local overlay
+5. **Persist — but only a portable value, and to the scope the user intends.** The default target is the
+   project `.claude/settings.json` at `pluginConfigs["planning@melodic-software"].options.notes_dir`, so it
+   is tracked and shared with the team. Two guards before writing there:
+   - **Never copy a personal/session value into team settings unexamined.** If the effective baseline from
+     step 1 came from a higher-precedence *personal* layer (`.claude/settings.local.json` or a `--settings`
+     session file), it may be machine-specific (e.g. an absolute path under one developer's home). Do not
+     propagate that verbatim into tracked `.claude/settings.json` — teammates would inherit an unusable
+     path while the original machine keeps its local override. Confirm the value is **portable**
+     (project-relative, no user-specific absolute segment) before a project write; if it is not, ask for a
+     portable form.
+   - **Match the scope to intent.** If the user only wants a personal override (not a team default), write
+     to the local overlay `.claude/settings.local.json` instead and skip the project write entirely.
+   Create the `pluginConfigs` / options path if absent; do not disturb unrelated keys. The value is stored
+   verbatim (Claude Code does not normalize a `string` option to absolute or validate existence), so store
+   the portable form exactly as it should resolve relative to the working directory.
+6. **Confirm the overlay convention.** A per-developer override lives in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
 
