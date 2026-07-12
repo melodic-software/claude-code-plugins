@@ -17,12 +17,12 @@
       "id": 2,
       "name": "smart-default-detects-codebase-vs-topic",
       "prompt": "/teach:teach the auth-flow module in this repo",
-      "expected_output": "With no explicit action and a subject that names a concept in the consuming repo, resolves to codebase mode and grounds learning in actually-discovered repo files rather than starting a generic topic workspace.",
+      "expected_output": "With no explicit action and a subject naming a repo-grounded concept, resolves to codebase mode and grounds in files discovered at teach-time; if discovery finds no real grounding for the concept in this repo, it asks the user to point to the relevant area rather than inventing repo sources.",
       "files": [],
       "expectations": [
         "Detects that the subject names a repo-grounded concept and resolves to `codebase` mode (not `topic`)",
-        "Discovers and grounds in actual repo files/docs (climbs for CLAUDE.md/AGENTS.md, locates the module's files) discovered at teach-time",
-        "Persists located sources into the workspace RESOURCES.md rather than re-deriving structure each session"
+        "Discovers grounding from live repo files at teach-time (climbs for CLAUDE.md/AGENTS.md, surveys structure) rather than baked assumptions",
+        "If no real grounding for the concept is found in the repo, asks the user to point to the relevant area instead of inventing or hallucinating repo sources"
       ]
     },
     {
@@ -40,25 +40,25 @@
     {
       "id": 4,
       "name": "coach-one-question-at-a-time",
-      "prompt": "/teach:teach topic binary-search-trees — teach me how deletion works.",
-      "expected_output": "Adopts coach posture: asks one question at a time, waits for the answer, and leads with questions before explanations rather than lecturing the whole deletion algorithm at once.",
+      "prompt": "/teach:teach topic binary-search-trees — I want to understand how deletion works.",
+      "expected_output": "Adopts coach posture from the first turn: opens with a single question (the mission interview for a new workspace, or a teaching-dialog question in an active one), asks one question at a time, and never opens by lecturing the whole deletion algorithm.",
       "files": [],
       "expectations": [
-        "Asks ONE question at a time and waits rather than front-loading the full explanation",
-        "Leads with a question ('what do you think happens here?') before explaining, per coach-not-lecturer posture",
+        "Opens with ONE question and waits, rather than front-loading a full explanation",
+        "Leads with questions before explanations, per coach-not-lecturer posture (the mission interview itself is one-question-at-a-time)",
         "Does not dump the complete deletion algorithm in a single lecture turn"
       ]
     },
     {
       "id": 5,
       "name": "ground-in-primary-sources-not-recall",
-      "prompt": "/teach:teach topic react-server-components — start with what they are.",
-      "expected_output": "Grounds the Knowledge layer in primary sources fetched or files Read this turn (RESOURCES.md entries, docs, official sources), not parametric recall, since library/framework facts drift.",
+      "prompt": "/teach:teach topic react-server-components",
+      "expected_output": "For a new workspace it runs the mission interview before teaching; and whenever it teaches the Knowledge layer for this fast-moving framework, it grounds claims in primary sources fetched or files Read this turn (RESOURCES.md / official docs), never parametric recall, since library/framework facts drift.",
       "files": [],
       "expectations": [
-        "Grounds a claim that drives the lesson in a source fetched or a file Read this turn, not training-data recall",
-        "For this fast-moving framework topic, pulls from RESOURCES.md / documentation sources rather than asserting from memory",
-        "Adds terms to GLOSSARY.md only after the user demonstrates understanding, not preemptively"
+        "Respects the new-workspace flow — runs the mission interview / resource seeding before delivering Knowledge content, rather than jumping straight into framework facts",
+        "Any Knowledge-layer claim that drives a lesson is grounded in a source fetched or a file Read this turn, not training-data recall",
+        "Does not assert volatile framework facts from memory — pulls from RESOURCES.md / documentation sources for this fast-moving topic"
       ]
     },
     {
