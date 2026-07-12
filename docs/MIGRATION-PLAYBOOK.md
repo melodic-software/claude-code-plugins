@@ -222,23 +222,27 @@ a declared config surface, not an abstraction layer, is the extension point.
 ## MCP servers as a plugin component — carry decision
 
 A plugin can ship MCP servers via `.mcp.json` at the plugin root (or an `mcpServers` key in
-`plugin.json`). Those servers **start automatically when the plugin is enabled**, appear as standard
-tools, and go through the same per-server approval as a project `.mcp.json`
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). So a
-plugin-shipped MCP costs a **process spawn on every session that enables the plugin**, used or not —
-tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
-spawn. That auto-start cost is why the default is **not** to ship MCP: zero marketplace plugins ship
-one today, and the discriminator below keeps it that way unless a plugin is genuinely useless without
-its server.
+`plugin.json`), across all transports — stdio, HTTP, SSE, WS
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). Those servers
+**auto-connect when the plugin is enabled** (managed through plugin install, not a second `/mcp`
+approval) and appear as standard tools. The connect cost differs by transport: a **stdio** server
+costs a **local process spawn on every session that enables the plugin**, used or not; an **HTTP/SSE/WS**
+server spawns no local process but still auto-connects (its trust prompt + tool-schema context cost).
+Tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
+stdio spawn or the connect. That auto-start cost is why the default is **not** to ship MCP: zero
+marketplace plugins ship one today, and the discriminator below keeps it that way unless a plugin is
+genuinely useless without its server.
 
 **Uniform discriminator — apply to every server, no exemptions:**
 
-1. **CLI covers the skill's need → CLI-first.** The plugin ships the CLI; the MCP dependency is
-   dropped. Token-economics precedent (results pipe to disk instead of flooding context): context7
-   (`ctx7`), playwright (`@playwright/cli` — Microsoft-recommended, ~4× fewer tokens), firecrawl
+1. **CLI covers the skill's need → CLI-first.** The plugin **depends on** the CLI (with documented
+   install/setup — the binary is on PATH, not bundled: e.g. `npm install -g ctx7`,
+   `npm install -g firecrawl-cli`, `playwright-cli`) and drops the MCP dependency; a CLI-first
+   migration MUST carry that install guidance or the plugin breaks on a machine without the CLI.
+   Token-economics precedent (results pipe to disk instead of flooding context): context7 (`ctx7`),
+   playwright (`playwright-cli` — Microsoft-recommended, ~4× fewer tokens), firecrawl
    (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json` — same token/cost
-   breakdown as the MCP,
-   [ccusage json-output](https://ccusage.com/guide/json-output)).
+   breakdown as the MCP, [ccusage json-output](https://ccusage.com/guide/json-output)).
 2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it and map each secret to
    `userConfig` `sensitive` (below). "Useless" is a high bar — a plugin that runs in a reduced mode
    without the server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn:
@@ -254,13 +258,18 @@ its server.
 4. **Medley-/infra-bound server (no general-purpose plugin, or repo-coupled identity) → STAY
    repo-level.** Not a plugin concern.
 
-**Secrets → `userConfig` `sensitive` seam.** A SHIP maps each secret env var to a `userConfig` entry
-with `sensitive: true` (masked input, system-keychain storage), substituted as `${user_config.KEY}`
-in the plugin's `.mcp.json` `env`. Keychain storage is shared with OAuth tokens (~2 KB total) — keep
-values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` → `miro_api_token`,
-`PERPLEXITY_API_KEY` → `perplexity_api_key`, `REF_API_KEY` → `ref_api_key`, `CONTEXT7_API_KEY` →
-`context7_api_key`. Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`)
-do not map — those servers stay repo-level.
+**Secrets → `userConfig` `sensitive` seam.** A SHIP declares each secret as a `userConfig` entry with
+`sensitive: true` (masked input, system-keychain storage) and substitutes it as `${user_config.KEY}`
+— but **where** it goes depends on transport: a **stdio** server takes it in `.mcp.json` `env`, while
+a **remote HTTP/SSE/WS** server takes it in `headers` / `headersHelper` (`env` only reaches a spawned
+stdio process, so an HTTP key placed in `env` never authenticates). medley's own config shows the
+split: `context7`/`ref` are HTTP and pass their key via `headers` (`x-api-key` / `x-ref-api-key`),
+whereas a stdio server like `perplexity` uses `env`. Keychain storage is shared with OAuth tokens
+(~2 KB total) — keep values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` →
+`miro_api_token` (stdio, `env`), `PERPLEXITY_API_KEY` → `perplexity_api_key` (stdio, `env`),
+`REF_API_KEY` → `ref_api_key` (HTTP, `headers`), `CONTEXT7_API_KEY` → `context7_api_key` (HTTP,
+`headers`). Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`) do not
+map — those servers stay repo-level.
 
 **The medley launcher stack — only its Node-pinning layer is medley-local.** medley's
 `fnm exec + tools/mcp-launcher/launcher.js` stack solves two problems that generalize differently:
