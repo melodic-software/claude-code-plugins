@@ -3,7 +3,6 @@ name: setup
 description: "Configure the knowledge plugin for this repository: interview the user, infer a sensible artifact-landing location from the repo layout, and persist the library_dir userConfig option. Use when: 'set up knowledge', 'configure the knowledge plugin', 'knowledge setup', 'where do knowledge artifacts land', or a knowledge skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
 ---
 
 ## Purpose
@@ -48,7 +47,9 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
 ## Output
 
 An updated project `.claude/settings.json` carrying `library_dir`, plus a one-line summary of the value
-written, its scope, and how to re-run this setup to reconfigure.
+written, its scope, and how to re-run this setup to reconfigure. Note in the summary that `library_dir`
+governs where the plugin's ingestion pipelines land synthesized artifacts — `/knowledge:book-distill`
+is unaffected, since it always writes to the target skill you name at invocation.
 
 ## What this skill does NOT do
 

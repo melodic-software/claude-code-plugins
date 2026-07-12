@@ -70,7 +70,7 @@ One option, prompted at enable time (or set any time with `/knowledge:setup`):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (repo root) | Project-relative directory in the consuming repo where synthesized knowledge artifacts land. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `library_dir` | directory | `.` (repo root) | Project-relative directory where the plugin's ingestion pipelines land synthesized artifacts. `book-distill` is unaffected — it writes to the target skill you name at invocation — so today this is a reserved seam. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
 
 `book-distill` itself writes to a **target skill** you name at invocation, so it
 needs no configuration to run; `library_dir` is the shared artifact-landing seam
