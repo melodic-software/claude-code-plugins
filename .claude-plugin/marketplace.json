@@ -252,6 +252,12 @@
       "source": "./plugins/machine-health",
       "category": "monitoring",
       "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
+    },
+    {
+      "name": "ai-briefing",
+      "source": "./plugins/ai-briefing",
+      "category": "productivity",
+      "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"]
     }
   ],
   "renames": {
