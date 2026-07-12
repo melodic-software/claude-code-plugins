@@ -217,23 +217,31 @@ must not do.
 
 **Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
 executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
-`melodic-software/medley#1418`); `skill-quality` only checks presence and schema. So a consumer
-verifies a plugin against its evals in three grounded steps:
+`melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves
+skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/skills` only — it does
+**not** discover an installed marketplace plugin's skills by plugin name. So the static checks below run
+against the plugin's **source tree**, not against a bare `/plugin install`; the exercise step is the
+part that runs against the plugin as you actually enabled it.
 
-1. **Presence** — confirm the file `plugins/<plugin>/skills/<skill>/evals/evals.json` exists. Note the
-   limit of the static gate: `/skill-quality:skill-quality check <skill>` (`check` is an action argument
-   to the `skill-quality` skill) flags a *missing* eval file only for action-router-shaped skills — its
-   check fires on a `## Actions` heading — so a warranted non-router skill (e.g. `diagnose`) passes
-   `check` without flagging the gap. Rely on the direct file check or the coverage snapshot, not a green
-   `check`, to confirm a non-router skill's evals are present.
-2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` validates `evals/evals.json`
-   against the bundled schema (structure only — it does not run the cases, and it treats an absent file
-   as "not a failure", so it is a schema gate, not a presence gate).
-3. **Exercise (manual)** — for each case, paste its `prompt` into a fresh session with the plugin
-   enabled in your repo and read the result against that case's `expected_output` / `expectations`.
-   Cases with a `files` list need those fixtures present relative to the skill directory. This is a
-   human judgment pass, not an automated pass/fail, until the deferred runner lands — at which point
-   this step becomes a single command and this recipe is revised.
+First locate the plugin's source skills directory `<root>` — either a checkout of this marketplace
+(`plugins/<plugin>/skills`) or the installed copy under
+`~/.claude/plugins/marketplaces/<marketplace>/plugins/<plugin>/skills`. Then:
+
+1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
+   partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
+   `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
+   *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
+   so a warranted non-router skill (e.g. `diagnose`) passes `check` without flagging the gap. Rely on the
+   direct file check or the coverage snapshot, not a green `check`, to confirm presence.
+2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
+   `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
+   treats an absent file as "not a failure", so it is a schema gate, not a presence gate).
+3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
+   <plugin>@<marketplace>`), then for each case in `<root>/<skill>/evals/evals.json` paste its `prompt`
+   into a fresh session and read the result against that case's `expected_output` / `expectations`. Cases
+   with a `files` list need those fixtures present relative to the skill directory. This is a human
+   judgment pass, not an automated pass/fail, until the deferred runner lands — at which point it becomes
+   a single command and this recipe is revised.
 
 ## Shared tools and scripts seam
 
