@@ -5,24 +5,25 @@ Full-text search across work items (open and closed).
 ## Usage
 
 ```
-/work-items search "<query>"
+/work-items:work-items search "<query>"
 ```
 
 ## Workflow
 
 1. **Search open + closed items** using the adapter's search path (adapter: "Search items" — bare reads; run once for `--state open` and once for `--state closed` to show whether work was already done).
 
-1. **Search recurring schedule:**
+1. **Search recurring schedule** (skip gracefully when the repo has no recurring schedule):
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg q "<query>" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+[[ -f "$SCHEDULE" ]] && jq --arg q "<query>" '
   [.items[] | select(
     (.id | ascii_downcase | contains($q | ascii_downcase)) or
     (.title | ascii_downcase | contains($q | ascii_downcase)) or
     (.notes // "" | ascii_downcase | contains($q | ascii_downcase)) or
     ([.triggers[]? // empty | ascii_downcase | contains($q | ascii_downcase)] | any)
   )]
-'
+' "$SCHEDULE"
 ```
 
 1. **Present results grouped by source:**

@@ -5,8 +5,8 @@ Evaluate an incoming work item through a structured state-machine workflow: gath
 ## Usage
 
 ```text
-/work-items triage <number>
-/work-items triage              # shows attention view (untriaged items)
+/work-items:work-items triage <number>
+/work-items:work-items triage              # shows attention view (untriaged items)
 ```
 
 ## Attention view (no number)

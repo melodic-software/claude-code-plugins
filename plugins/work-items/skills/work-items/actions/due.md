@@ -5,21 +5,26 @@ Show recurring items that are past their `next_due` date.
 ## Usage
 
 ```
-/work-items due
+/work-items:work-items due
 ```
 
 ## Workflow
 
 1. **Read the recurring schedule:**
 
-Read `.github/recurring-schedule.json` and filter items where `next_due <= today`. Use jq for the initial filter:
+Read `.github/recurring-schedule.json` and filter items where `next_due <= today`. When the file is absent, report "no recurring schedule configured" and stop. Use jq for the initial filter:
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg today "$(date +%Y-%m-%d)" '
-  [.items[] | select(.next_due != null and .next_due <= $today)]
-  | sort_by(.next_due)
-  | map({id, title, cadence, last_checked, next_due})
-'
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+if [[ -f "$SCHEDULE" ]]; then
+  jq --arg today "$(date +%Y-%m-%d)" '
+    [.items[] | select(.next_due != null and .next_due <= $today)]
+    | sort_by(.next_due)
+    | map({id, title, cadence, last_checked, next_due})
+  ' "$SCHEDULE"
+else
+  echo "no recurring schedule configured"
+fi
 ```
 
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
@@ -29,7 +34,8 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 1. **Check for orphaned entries.** Entries in `recurring-schedule.json` with no corresponding item file or open item:
 
 ```bash
-cat .github/recurring-schedule.json | jq -r '.items[].id'
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+[[ -f "$SCHEDULE" ]] && jq -r '.items[].id' "$SCHEDULE"
 ```
 
 1. **Present:**
@@ -50,7 +56,7 @@ If nothing is due: "All recurring items are current. Next due: **{item}** on **{
 
 ## Notes
 
-- Cadence is a minimum interval, not a lock. On-demand rechecks are always allowed via `/work-items recheck`.
+- Cadence is a minimum interval, not a lock. On-demand rechecks are always allowed via `/work-items:work-items recheck`.
 - The `triggers` field in each schedule item lists external events that warrant early recheck regardless of cadence.
 - When the user mentions a trigger event (e.g., ".NET 10.1 shipped"), proactively suggest relevant rechecks even if they aren't technically due yet.
 

@@ -5,7 +5,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 ## Usage
 
 ```
-/work-items decompose [source]
+/work-items:work-items decompose [source]
 ```
 
 `source` can be:
@@ -43,7 +43,7 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 
 Prefer AFK. Mark HITL only when the slice genuinely needs judgment (architectural decision, UX review, external-system access, manual QA).
 
-`needs-human` is the label that keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting `agent-ready` does NOT: the frontier filter keys on the `needs-human` label, not on the absence of `agent-ready`, so an unlabeled HITL slice would still be claimable by `/work-items work`. `agent-ready` is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants `needs-human` set AND `agent-ready` omitted.
+`needs-human` is the label that keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting `agent-ready` does NOT: the frontier filter keys on the `needs-human` label, not on the absence of `agent-ready`, so an unlabeled HITL slice would still be claimable by `/work-items:work-items work`. `agent-ready` is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants `needs-human` set AND `agent-ready` omitted.
 
 **Investigation tickets — decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside — or ahead of — build slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
@@ -86,7 +86,7 @@ Iterate one question at a time until the user approves — never publish an unap
 
 ### 4. Publish items
 
-For each approved slice, create a work item via the seam (`tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items add` is the canonical creation path). **Publish in dependency order** — blockers first — so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved slice, create a work item via the seam (`tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:work-items add` is the canonical creation path). **Publish in dependency order** — blockers first — so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # AFK slices get agent-ready (autonomous-pickup eligibility); HITL + investigation slices

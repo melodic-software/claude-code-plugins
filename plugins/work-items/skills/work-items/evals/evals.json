@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "work-auto-selects-one-item-via-seam-claim",
-      "prompt": "/work-items work",
+      "prompt": "/work-items:work-items work",
       "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it via the full 8-step workflow. The claim identity is the authenticated session user, never the bot.",
       "files": [],
       "expectations": [
@@ -33,7 +33,7 @@
     {
       "id": 3,
       "name": "decompose-vertical-slices-hitl-afk-dependency-order",
-      "prompt": "/work-items decompose",
+      "prompt": "/work-items:work-items decompose",
       "expected_output": "Reads the source (default .work/<slug>/PLAN.md phases), drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (labeled needs-human), orders by dependency, gets user approval, then publishes blockers-first via the seam create-item with native --blocked-by edges without touching the parent item.",
       "files": [],
       "expectations": [

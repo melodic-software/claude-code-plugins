@@ -1,6 +1,6 @@
 ---
 name: work-items
-description: "Manage development work items through the bound tracker (work-item-tracker seam). Actions: stats, list, add, work, start, done, due, recheck, search, scan, audit, decompose, triage. Use when: 'add a work item', 'add an issue', 'pick work', 'close a work item', 'list work items', 'what's due', 'work-item stats', 'search work items', 'scan TODOs', 'audit claims', 'break a plan into tickets', 'decompose into tickets', 'create issues from plan', 'triage', 'what needs triage', 'check overdue recurring items'. Covers codebase TODO/FIXME scanning, plan decomposition into vertical-slice tickets, stale-claim auditing, and recurring schedule checks. Not for new bug reports — use /bug-report:bug-report first (read-only report), then chain to /work-items add via --context if filing is needed."
+description: "Manage development work items through the bound tracker (work-item-tracker seam). Actions: stats, list, add, work, start, done, due, recheck, search, scan, audit, decompose, triage. Use when: 'add a work item', 'add an issue', 'pick work', 'close a work item', 'list work items', 'what's due', 'work-item stats', 'search work items', 'scan TODOs', 'audit claims', 'break a plan into tickets', 'decompose into tickets', 'create issues from plan', 'triage', 'what needs triage', 'check overdue recurring items'. Covers codebase TODO/FIXME scanning, plan decomposition into vertical-slice tickets, stale-claim auditing, and recurring schedule checks. Not for new bug reports — use /bug-report:bug-report first (read-only report), then chain to /work-items:work-items add via --context if filing is needed."
 argument-hint: "<action> [args] — actions: stats, list, add, work, start, done, due, recheck, search, scan, audit, decompose, triage (default: stats)"
 user-invocable: true
 disable-model-invocation: false
@@ -16,7 +16,7 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 **Provider-neutral over the seam.** Every tracker operation goes through the work-item-tracker seam — the skill calls `tools/work-item-tracker/work-item-tracker.sh <verb>` and the bound provider adapter executes it (contract: `tools/work-item-tracker/CONTRACT.md`). The repo's active provider is bound in `.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim, dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly. Operations without a core verb (listing with arbitrary filters, search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter their mechanics live in `tools/work-item-tracker/adapters/github/README.md`. The skill core stays provider-portable and inlines no provider commands.
 
-**Default = fix, not file.** Do NOT reflexively suggest `/work-items add` or `/work-items scan` for small / medium drift discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW items only when the work is genuinely orthogonal to the current session, large enough to need its own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and surface what was fixed in the commit message / PR description.
+**Default = fix, not file.** Do NOT reflexively suggest `/work-items:work-items add` or `/work-items:work-items scan` for small / medium drift discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW items only when the work is genuinely orthogonal to the current session, large enough to need its own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and surface what was fixed in the commit message / PR description.
 
 **Label taxonomy.** Work items use an 8-group label prefix structure — UNIVERSAL groups (work in any repo) plus REPO-SPECIFIC groups carrying this repo's concrete values. The full member list (including this repo's populated `area:` / `category:` / `ecosystem:` / `cadence:` values) lives in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
 
@@ -31,7 +31,7 @@ This skill manages **development work items** — maintenance tasks, feature req
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix — see `reference/label-taxonomy.md` |
 | Cadence | `cadence:` | repo-specific | e.g. `cadence:weekly`, `cadence:monthly` — full set in `reference/label-taxonomy.md` |
 
-**Recurring schedule.** Recurring items are defined in `.github/recurring-schedule.json` and created as items by the consuming repo's recurring-issues automation when they come due. The `/work-items recheck` action updates this schedule after completing a periodic check.
+**Recurring schedule.** Recurring items are defined in `.github/recurring-schedule.json` and created as items by the consuming repo's recurring-issues automation when they come due. The `/work-items:work-items recheck` action updates this schedule after completing a periodic check.
 
 ## Emit checklist
 
@@ -79,17 +79,17 @@ Coordination claims are race-safe at the seam (assignee + lease comment; `tools/
 
 ### With `/workflow`
 
-The project's development workflow — a `/workflow` skill, a CLAUDE.md workflow section, or team convention — applies to every item worked via `/work-items work`; the `work` action chains its full step sequence.
+The project's development workflow — a `/workflow` skill, a CLAUDE.md workflow section, or team convention — applies to every item worked via `/work-items:work-items work`; the `work` action chains its full step sequence.
 
 ### With `/retro`
 
-The retrospective skill's Phase 3 surfaces "Issue candidates" -- deferred research, discovered gaps, recurring recheck updates. Approved items use `/work-items add`. Mid-session learnings can be captured with `/retro codify`.
+The retrospective skill's Phase 3 surfaces "Issue candidates" -- deferred research, discovered gaps, recurring recheck updates. Approved items use `/work-items:work-items add`. Mid-session learnings can be captured with `/retro codify`.
 
 ### With `/pull-request`
 
-Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items start` / `/work-items work`) carries the item number forward. `/pull-request create` parses the branch name and injects the closing keyword into the PR body; the pre-create gate verifies the keyword (or an opt-out marker) is present before creating the PR. Closing-keyword shape and PR body shape are owned by `/pull-request`.
+Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items:work-items start` / `/work-items:work-items work`) carries the item number forward. `/pull-request create` parses the branch name and injects the closing keyword into the PR body; the pre-create gate verifies the keyword (or an opt-out marker) is present before creating the PR. Closing-keyword shape and PR body shape are owned by `/pull-request`.
 
-`/work-items done --pr <N>` is the belt-and-suspenders path for manual PR flows where `/pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls back to closing the item when the PR has already merged (mechanics: the GitHub adapter README "PR closing-keyword mechanics").
+`/work-items:work-items done --pr <N>` is the belt-and-suspenders path for manual PR flows where `/pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls back to closing the item when the PR has already merged (mechanics: the GitHub adapter README "PR closing-keyword mechanics").
 
 ### With autonomous agents
 
@@ -97,7 +97,7 @@ Items labeled `agent-ready` with no assignee are available for autonomous agent 
 
 ### End-of-session check
 
-At end of session, alongside `/retro`, check `/work-items due` to see if any recurring items need attention.
+At end of session, alongside `/retro`, check `/work-items:work-items due` to see if any recurring items need attention.
 
 ---
 
@@ -106,7 +106,7 @@ At end of session, alongside `/retro`, check `/work-items due` to see if any rec
 Skill-behavior failure patterns. Add to this section when new gotchas are discovered. Provider-mechanic gotchas (Windows `\r`, search-qualifier syntax, the `gh` 30-row default limit, `--add-label` vs `--label`, `--reason` values, rate limits, Issue-Forms auto-labeling) live in the bound adapter's operations reference — for GitHub, `tools/work-item-tracker/adapters/github/README.md` "Gotchas".
 
 - **Claim concurrency is the seam's job.** Claiming is race-safe at the seam (assignee + lease comment, same-identity aware) — `tools/work-item-tracker/CONTRACT.md` "Lease protocol". Reclaim runs idempotently at session start (`work` / `start`). Do not hand-roll a label-based hold protocol.
-- **Recurring schedule is in `.github/`, not the skill directory.** The schedule file is `.github/recurring-schedule.json`. It's version-controlled and shared. The consuming repo's recurring-issues automation reads it; the `/work-items recheck` action updates it.
+- **Recurring schedule is in `.github/`, not the skill directory.** The schedule file is `.github/recurring-schedule.json`. It's version-controlled and shared. The consuming repo's recurring-issues automation reads it; the `/work-items:work-items recheck` action updates it.
 
 ## What this skill does NOT do
 

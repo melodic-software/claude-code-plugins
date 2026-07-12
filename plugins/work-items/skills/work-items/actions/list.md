@@ -5,7 +5,7 @@ List work items with optional filtering.
 ## Usage
 
 ```
-/work-items list [--category <name>] [--label <name>] [--state <open|closed|all>] [--assignee <login>] [--limit <n>] [--search <query>]
+/work-items:work-items list [--category <name>] [--label <name>] [--state <open|closed|all>] [--assignee <login>] [--limit <n>] [--search <query>]
 ```
 
 ## Flags

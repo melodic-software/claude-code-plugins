@@ -5,7 +5,7 @@ Auto-select one work item and execute it, following the project's development wo
 ## Usage
 
 ```
-/work-items work
+/work-items:work-items work
 ```
 
 ## Step 0: Session-start reclaim (idempotent)
@@ -18,7 +18,7 @@ tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"
 
 ## Selection Priority
 
-`/work-items work` evaluates these tiers top-down, only falling through to the next tier when the current one yields no candidates. Tiers flagged last-resort are skipped if any prior tier already yielded a candidate.
+`/work-items:work-items work` evaluates these tiers top-down, only falling through to the next tier when the current one yields no candidates. Tiers flagged last-resort are skipped if any prior tier already yielded a candidate.
 
 1. **Due recurring items** — `recurring-schedule`, where `next_due <= today`, sorted by `next_due`. Schedule commitments take precedence over category flags; picking a recurring item early shifts its subsequent cadence and undermines the recurrence guarantee.
 
@@ -37,8 +37,9 @@ For each tier, emit the corresponding query:
 - **Recurring tiers (1, 4):** filter the schedule locally:
 
   ```bash
-  cat .github/recurring-schedule.json | jq --arg today "$(date +%Y-%m-%d)" \
-    '[.items[] | select(.next_due != null and .next_due <where_expr> $today)] | sort_by(.<sort-by>)'
+  SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+  jq --arg today "$(date +%Y-%m-%d)" \
+    '[.items[] | select(.next_due != null and .next_due <where_expr> $today)] | sort_by(.<sort-by>)' "$SCHEDULE"
   ```
 
   where `<where_expr>` is `<=` (current/overdue) or `>` (not-yet-due) per the tier's `where` field.

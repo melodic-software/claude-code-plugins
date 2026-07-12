@@ -5,7 +5,7 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 ## Usage
 
 ```
-/work-items audit
+/work-items:work-items audit
 ```
 
 ## Checks
@@ -22,10 +22,11 @@ Present each item the verb reports `reclaimed: true` (released — the `reason` 
 
 ### 2. Orphaned recurring entries
 
-Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item:
+Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule):
 
 ```bash
-cat .github/recurring-schedule.json | jq -r '.items[].title'
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+[[ -f "$SCHEDULE" ]] && jq -r '.items[].title' "$SCHEDULE"
 ```
 
 List open recurring items (adapter: "List items", `--label recurring`, `--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned. The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.
@@ -63,4 +64,4 @@ Items missing expected labels (no `type:*`, no `category:*`) and items with conf
 ## Notes
 
 - The `reclaim` verb never releases a live lease — a session actively working an item is safe.
-- Run periodically (weekly) or before `/work-items work` (which also reclaims at session start) to keep the tracker clean.
+- Run periodically (weekly) or before `/work-items:work-items work` (which also reclaims at session start) to keep the tracker clean.

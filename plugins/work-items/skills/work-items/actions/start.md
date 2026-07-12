@@ -5,7 +5,7 @@ Claim a work item through the seam (assignee + lease record).
 ## Usage
 
 ```
-/work-items start <number or text match>
+/work-items:work-items start <number or text match>
 ```
 
 ## Workflow
@@ -64,4 +64,4 @@ Claim a work item through the seam (assignee + lease record).
 
 - In GitHub Actions context, `@me` cannot resolve to a human — pass `--session-id "$GITHUB_ACTOR"` to `claim` for diagnostic attribution; the assignee is still the authenticated token identity.
 - The seam claim replaces the retired `status:considering` / `status:claimed` label hold protocol — coordination is assignee + lease, race-safe via lease-comment identity (`tools/work-item-tracker/CONTRACT.md` "Lease protocol").
-- Stale claims (expired lease, no activity) are cleared by the `reclaim` verb at session start (`/work-items audit`, `/work-items work`).
+- Stale claims (expired lease, no activity) are cleared by the `reclaim` verb at session start (`/work-items:work-items audit`, `/work-items:work-items work`).

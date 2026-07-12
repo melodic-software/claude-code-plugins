@@ -11,7 +11,7 @@ Create a new work item with labels from the taxonomy.
 ## Usage
 
 ```
-/work-items add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] "Item description"
+/work-items:work-items add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] "Item description"
 ```
 
 ## Flags
@@ -29,7 +29,7 @@ Create a new work item with labels from the taxonomy.
 
 ## Workflow
 
-> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact — those need explicit authorization. An explicit user `/work-items add ...` invocation IS the authorization; model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local `.work/<slug>/` note instead.
+> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact — those need explicit authorization. An explicit user `/work-items:work-items add ...` invocation IS the authorization; model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local `.work/<slug>/` note instead.
 
 1. Parse the item text and flags from arguments.
 
@@ -57,13 +57,17 @@ Create a new work item with labels from the taxonomy.
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```
 
-1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). If `--recurring`, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching):
+1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). If `--recurring`, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe — **never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash
+# Write the composed body to $BODY_FILE with the Write tool (not shell interpolation).
+# "$(cat "$BODY_FILE")" passes the file content as one literal argument — its contents are never re-parsed.
+BODY_FILE=$(mktemp)
 tools/work-item-tracker/work-item-tracker.sh create-item \
   --title "[Maintenance] {title}" \
-  --body "{body}" \
+  --body "$(cat "$BODY_FILE")" \
   --labels "type:chore,category:general"
+rm -f "$BODY_FILE"
 ```
 
 For non-recurring items, omit the `[Maintenance]` prefix. The emitted item object carries the new `id` (fully-qualified) and `number`.

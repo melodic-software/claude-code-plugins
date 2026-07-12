@@ -1,4 +1,4 @@
-# /work-items Checklist
+# /work-items:work-items Checklist
 
 Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below — copy only the section matching the action you're running.
 
@@ -8,7 +8,7 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below �
 - [ ] Claim — `tools/work-item-tracker/work-item-tracker.sh claim "<id>"` (exit 7 = lost race, pick next)
 - [ ] Branch — `git checkout -b <type>/<N>-<short-slug>` from origin/main
 - [ ] Run `/workflow` chain — copy the checklist `/workflow` emits into this slice's PLAN.md
-- [ ] Close — `/work-items done <N>` after PR merges (or via PR body `Closes #N` auto-close)
+- [ ] Close — `/work-items:work-items done <N>` after PR merges (or via PR body `Closes #N` auto-close)
 
 ## Action: add
 
@@ -19,7 +19,7 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below �
 
 ## Action: start
 
-- [ ] Pick item — `/work-items list --label '<label>'` OR `/work-items due`
+- [ ] Pick item — `/work-items:work-items list --label '<label>'` OR `/work-items:work-items due`
 - [ ] Pre-check + reclaim — `tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` (idempotent; recovers a crashed session's stale lease so `claim` doesn't back off on the stale assignee)
 - [ ] Claim via `tools/work-item-tracker/work-item-tracker.sh claim "<id>"`
 - [ ] Chain to `work` action
@@ -27,7 +27,7 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below �
 ## Action: done
 
 - [ ] Verify PR merged
-- [ ] `/work-items done <N>` (or rely on PR `Closes #N` auto-close)
+- [ ] `/work-items:work-items done <N>` (or rely on PR `Closes #N` auto-close)
 - [ ] Comment with merge SHA + retro pointer if applicable
 
 ## Action: stats / list / search / scan / audit

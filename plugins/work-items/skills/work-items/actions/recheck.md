@@ -5,7 +5,7 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 ## Usage
 
 ```
-/work-items recheck <text match or schedule ID>
+/work-items:work-items recheck <text match or schedule ID>
 ```
 
 ## Workflow
@@ -13,9 +13,10 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 1. **Find the item in the recurring schedule:**
 
 ```bash
-cat .github/recurring-schedule.json | jq --arg q "<query>" '
+SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+[[ -f "$SCHEDULE" ]] && jq --arg q "<query>" '
   .items[] | select(.id == $q or (.title | ascii_downcase | contains($q | ascii_downcase)))
-'
+' "$SCHEDULE"
 ```
 
 If multiple matches, present them and ask the user to clarify.
