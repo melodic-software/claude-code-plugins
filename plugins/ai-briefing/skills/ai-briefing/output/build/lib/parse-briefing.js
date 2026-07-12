@@ -2,7 +2,7 @@
 //
 // Briefing markdown shape:
 //   # AI Briefing — Meeting #N
-//   **Window:** ISO → ISO (~Nd)
+//   **Window:** ISO → ISO (~N days)
 //   **Next meeting:** YYYY-MM-DD HH:MM TZ
 //   ...
 //   ## Anthropic
@@ -145,7 +145,7 @@ const MONTHS = {
 };
 
 /** Reject implausible publish dates: more than 30 days in the future
- *  (catches "retire July 24 2026" in body text being mis-parsed as a pub date)
+ *  (catches "retire July 24 2026" in body text being misread as a pub date)
  *  or more than 5 years in the past. */
 function isReasonablePubDate(ms) {
   if (ms == null || !Number.isFinite(ms)) return false;

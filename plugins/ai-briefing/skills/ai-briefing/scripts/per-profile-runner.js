@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Per-profile runner — invokable stage CLI for the AI briefing per-profile
+// Per-profile runner — invocable stage CLI for the AI briefing per-profile
 // 6-stage state machine. The main interactive Claude Code session orchestrates
 // the loop and feeds chrome MCP captures into this CLI between stages.
 //

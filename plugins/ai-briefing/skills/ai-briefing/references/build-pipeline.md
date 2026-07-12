@@ -287,7 +287,7 @@ Default brand tokens (colors, fonts, logo paths) live in `output/build/brand.js`
 
 **Fallback path** (`/document-skills:pptx` skill): only when in-tree pipeline cannot run (Node missing, etc.). See `slide-generation.md` "Fallback skill paths" for skill-stack delegation. Default = in-tree.
 
-### Slide structure (mirrors user's Canva deck)
+### Slide structure (mirrors the source deck)
 
 1. Title slide (Engineering AI Meeting #N, Date)
 2. AI Meeting Agenda

@@ -1,6 +1,6 @@
 # Per-Profile Runner — Stage CLI Architecture (Option A)
 
-The runner is an **invokable stage library**, not an autonomous orchestrator. The main interactive Claude Code session drives the per-profile loop: it calls each subcommand between chrome MCP captures and `claude -p` subagent invocations.
+The runner is an **invocable stage library**, not an autonomous orchestrator. The main interactive Claude Code session drives the per-profile loop: it calls each subcommand between chrome MCP captures and `claude -p` subagent invocations.
 
 ## Why Option A
 

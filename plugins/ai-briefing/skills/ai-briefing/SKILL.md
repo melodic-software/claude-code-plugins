@@ -12,7 +12,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-This skill automates the full pipeline of AI news intelligence: discover → collect → deduplicate → categorize → present. It replaces a manual workflow of scrolling Twitter/X, saving URLs to Notepad, and walking through a list over Canva slides.
+This skill automates the full pipeline of AI news intelligence: discover → collect → deduplicate → categorize → present. It replaces a manual workflow of scrolling Twitter/X, saving URLs to Notepad, and walking through a list over hand-built slides.
 
 The skill is general-purpose — useful anytime for staying current on AI developments. It naturally serves meeting prep when invoked with `--since 14d`, but it's equally valuable for daily check-ins (`--since 1d`) or deep dives into a single provider (`--providers anthropic`).
 
@@ -151,8 +151,8 @@ Two homes, resolved per profile. **Machine-local state** (never tracked) lives u
 
 | File | Purpose |
 |------|---------|
-| `context/seen-items.json` _(state)_ | Dedup registry — every captured item across all runs. Includes `current_meeting_window.runs[]` audit trail. |
-| `following-list.json` _(config: profile → `seed/`)_ | Categorized X/Twitter handles in `scan_priority` buckets — the single SSOT for Wave 1 scanning. Refresh via `--refresh-following` every 4-6 weeks. Optional override maps `scroll_iterations` and `credibility_score` per handle. |
+| `context/seen-items.json` *(state)* | Dedup registry — every captured item across all runs. Includes `current_meeting_window.runs[]` audit trail. |
+| `following-list.json` *(config: profile → `seed/`)* | Categorized X/Twitter handles in `scan_priority` buckets — the single SSOT for Wave 1 scanning. Refresh via `--refresh-following` every 4-6 weeks. Optional override maps `scroll_iterations` and `credibility_score` per handle. |
 | `context/runs/<run-id>-checklist.json` | Per-run coverage checklist. Created Step 0.5, frozen Step 7. Archived; not loaded between runs. |
 | `context/runs/<run-id>-chrome.json` | Per-run chrome scan manifest. |
 | `references/providers.md` | Provider categories, account handles, query templates, changelog URLs, per-provider HIGH/MED priority table |

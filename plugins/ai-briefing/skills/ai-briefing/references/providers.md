@@ -331,7 +331,9 @@ What major AI-industry legal, regulatory, or lawsuit developments happened in th
 
 **Twitter/X handles** (refreshed 2026-05-05):
 
+<!-- spellchecker:off -->
 @karpathy, @swyx, @simonw, @Vtrivedy10, @latentspacepod, @enesakar, @nikitabier, @petergyang, @minchoi, @natbat, @beepytown, @firecrawl, @vercel, @bunjavascript, @LangChain, @LangChain_JS, @LangChain_OSS, @code, @TechCrunch, @GithubProjects, @cognition, @scale_ai, @datasetteproj, @dagster, @temporalio, @upstash, @context7ai, @augmentcode, @poolsidehq, @replit, @lovable_dev, @v0, @windsurf_ai, @*samirism, @huntlovell, @marc_krenn, @supertommy, @ColtonOrtolf, @TheCodeMan*_, @Dave_DotNet, @nickchapsas, @mjovanovictech, @gsferreira, @martinfowler, @amantinband, @dxtipshq, @dracan, @CHBernasconiC, @usebrilliant, @henrythe9ths
+<!-- spellchecker:on -->
 
 **Coding-agent vendors to track per audit 2026-05-06** (added high_signal_required candidates): @augmentcode (Auggie CLI + Remote Agent + Augment Agent — large-codebase coding agent), @cognition (Devin Terminal/Shell/Security), @poolsidehq (Laguna open-weight models), @replit (Agent + cloud), @lovable_dev (full-stack vibe code), @v0 (Vercel), @windsurf_ai (Codeium IDE).
 
