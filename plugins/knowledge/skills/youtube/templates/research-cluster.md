@@ -6,7 +6,7 @@
 
 ## Research execution
 
-- Skill invoked: `/research` | `/research-deep`
+- Research pass: {standard | deep external research}
 - Recency gate: {changelog/release checked?}
 
 ## Consensus

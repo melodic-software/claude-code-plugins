@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "YouTube video acquisition and transcript pipeline for the /youtube skill",
+  "description": "YouTube video acquisition and transcript pipeline for the knowledge plugin's youtube skill",
   "scripts": {
     "transcript": "node transcript/run-transcript.js",
     "watch": "node watch/run-watch.js",

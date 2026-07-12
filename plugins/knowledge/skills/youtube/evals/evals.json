@@ -4,23 +4,23 @@
     {
       "id": 1,
       "name": "transcript-action-active",
-      "prompt": "Run /youtube transcript https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "prompt": "Run /knowledge:youtube transcript https://www.youtube.com/watch?v=7zZy1QTvokM",
       "expected_output": "Runs transcript pipeline (no video download), writes .work/<video-slug>/transcript.txt with [M:SS] paragraphs from cleaned auto-EN captions, creates README stub, verifies yt-dlp prerequisite first.",
       "expectations": [
         "Checks pre-computed context / Prerequisites before running",
-        "Invokes node .claude/skills/youtube/extraction/transcript/run-transcript.js with the URL",
+        "Invokes run.mjs transcript/run-transcript.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs) with the URL",
         "Does NOT download video (transcript mode)",
         "Reports video slug and transcript path under .work/",
-        "Treats video claims as Tier 2/3 until /research promotes them"
+        "Treats video claims as secondary-source until external research promotes them"
       ]
     },
     {
       "id": 2,
       "name": "watch-full-pipeline",
-      "prompt": "Run /youtube watch https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "prompt": "Run /knowledge:youtube watch https://www.youtube.com/watch?v=7zZy1QTvokM",
       "expected_output": "Bootstrap via run-watch.js, execute vision two-pass, harvest links, default-on research agenda, emit repo-applicability menu under .work/<video-slug>/research/repo-applicability.md.",
       "expectations": [
-        "Invokes node .claude/skills/youtube/extraction/watch/run-watch.js",
+        "Invokes run.mjs watch/run-watch.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs)",
         "Writes watch.json phase-map and continuation-prompt.md",
         "Stops and asks when frameSelection.overCap is true",
         "Merges on-screen URLs into context/harvested-links.json",
@@ -33,10 +33,10 @@
     {
       "id": 3,
       "name": "resume-interrupted-watch",
-      "prompt": "Run /youtube resume stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
+      "prompt": "Run /knowledge:youtube resume stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
       "expected_output": "Reads watch.json, identifies next incomplete phase, refreshes continuation-prompt.md, emits copy/paste resume prompt.",
       "expectations": [
-        "Invokes node .claude/skills/youtube/extraction/watch/run-resume.js with video slug",
+        "Invokes run.mjs watch/run-resume.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs) with video slug",
         "Reports nextPhase from phase map (acquire → transcript → watching → vision → harvest → research → synthesis)",
         "Does NOT restart from acquire when later phases are complete"
       ]
@@ -57,7 +57,7 @@
     {
       "id": 6,
       "name": "queue-add-urls",
-      "prompt": "Run /youtube queue https://www.youtube.com/watch?v=7zZy1QTvokM https://youtu.be/MlQ8GZvPWJA",
+      "prompt": "Run /knowledge:youtube queue https://www.youtube.com/watch?v=7zZy1QTvokM https://youtu.be/MlQ8GZvPWJA",
       "expected_output": "Materializes .work/<watch-epic>/QUEUE.md if missing, appends two rows with video-ids, skips duplicate video-id on re-run.",
       "expectations": [
         "Creates .work/<watch-epic>/claims/ directory when materializing queue",
@@ -69,10 +69,10 @@
     {
       "id": 7,
       "name": "watch-dequeue-fifo",
-      "prompt": "With pending rows in .work/<watch-epic>/QUEUE.md, run /youtube watch",
+      "prompt": "With pending rows in .work/<watch-epic>/QUEUE.md, run /knowledge:youtube watch",
       "expected_output": "Claims first pending row via queue-claim.js, sets in_progress, bootstraps run-watch.js with that URL, releases claim on complete or failed.",
       "expectations": [
-        "Runs node .claude/skills/youtube/extraction/watch/queue-claim.js claim before editing QUEUE.md",
+        "Runs run.mjs watch/queue-claim.js claim (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs) before editing QUEUE.md",
         "Invokes run-watch.js with URL from claimed row — not a bare no-arg run-watch",
         "On claim conflict (exit 2), tries next pending row or reports queue busy",
         "Runs queue-claim.js release after row reaches complete or failed"
@@ -81,7 +81,7 @@
     {
       "id": 8,
       "name": "watch-queue-explicit-index",
-      "prompt": "Run /youtube watch 3",
+      "prompt": "Run /knowledge:youtube watch 3",
       "expected_output": "Claims only row #3 from QUEUE.md; suitable for parallel terminal B while another session runs watch 2.",
       "expectations": [
         "Claims row 3 exclusively via queue-claim.js",
@@ -92,7 +92,7 @@
     {
       "id": 9,
       "name": "queue-list-and-stale-reclaim",
-      "prompt": "Run /youtube queue list on an epic with claims/2.json older than 7 days and row 2 in_progress",
+      "prompt": "Run /knowledge:youtube queue list on an epic with claims/2.json older than 7 days and row 2 in_progress",
       "expected_output": "Lists table plus active claims; stale-check may reset abandoned in_progress rows to pending.",
       "expectations": [
         "Invokes queue-claim.js list to show active claim files",

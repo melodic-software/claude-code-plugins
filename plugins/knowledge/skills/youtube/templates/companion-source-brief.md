@@ -20,7 +20,7 @@ Fill one row per major blog H2 (add rows as needed):
 | --- | --- | --- |
 | example-section | Example H2 heading | single |
 
-Fan-out mode: `single` = one `/research-deep` subagent for the H2; `per-h3` = one subagent per `###` under that H2.
+Fan-out mode: `single` = one deep-research subagent for the H2; `per-h3` = one subagent per `###` under that H2.
 
 ## Integration checklist (watch agent)
 

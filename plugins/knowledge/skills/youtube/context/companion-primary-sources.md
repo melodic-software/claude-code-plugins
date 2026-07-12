@@ -25,7 +25,7 @@ Dedupe by `video-id` unchanged. Companion brief may exist before any `run-watch.
 1. Read `source/companion-sources.md` — section table is the fan-out SSOT.
 2. WebFetch each companion URL (full page, not surface skim).
 3. **Divide and conquer:** one subagent per major H2 section in the brief's fan-out table. Dense H2s (`Types of skills`, `Tips for making skills`) may sub-fan-out per `###` when the brief says so.
-4. Each subagent runs `/research-deep <section-topic>` (or `/research` when single-vendor) — no surface-level reads.
+4. Each subagent runs deep external research on `<section-topic>` (single-vendor topics can use a lighter research pass) — no surface-level reads.
 5. Write `source/companion-digest/<section-slug>.md` per section (claims, examples, gotchas, repo-relevant hooks).
 6. Write hub `source/companion-digest/README.md` — links all section shards + one-paragraph synthesis.
 7. Seed `source/harvested-links.json` with companion URL(s) typed `doc`, `priority: pre-watch` (create file if bootstrap has not run yet).
@@ -40,12 +40,12 @@ If `watch.json` exists with CLI phases done but `companion` not marked, run Phas
 | Phase | How companion frames the work |
 | --- | --- |
 | Claim inventory | Tag video claims with `blog-ref: <section-slug>` where applicable; blog digest = baseline |
-| Research agenda | Blog digest clusters = `done` baseline; video-only deltas get `/research` fan-out |
+| Research agenda | Blog digest clusters = `done` baseline; video-only deltas get a research fan-out |
 | Vision plan | Expect slides mirroring blog taxonomy; promote frames that **extend** blog, not duplicate (`synthesis-contract.md`) |
 | Research | Video claims cross-check blog; blog URL in `research/sources.md` as primary citation |
 | Synthesis | Menu items cite blog section + video timestamp when both apply |
 
-Trust tiers: `.claude/rules/agent-trust.md` "Three trust tiers". Repo conventions override both video and blog — surface conflicts explicitly.
+Trust tiers: apply your project's own source-trust conventions. Repo conventions override both video and blog — surface conflicts explicitly.
 
 ## Blocking criteria
 

@@ -1,6 +1,6 @@
 ---
 name: youtube
-description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Not for auth-walled course platforms — use /course-digest."
+description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Not for auth-walled course platforms — use /knowledge:course-digest."
 argument-hint: "watch <url> | watch | watch <n> | queue <url> | queue list | transcript <url> | resume <video-slug>"
 user-invocable: true
 disable-model-invocation: false
@@ -8,18 +8,20 @@ disable-model-invocation: false
 
 ## Pre-computed context
 
-youtube-extraction deps: !`{ test -d .claude/skills/youtube/extraction/node_modules && test -d tools/shared/video-digestion/node_modules && test -d tools/shared/repo-analysis/node_modules; } && echo "installed" || echo "MISSING (extraction or file:-linked shared package) — run: bash tools/bootstrap.sh"`
+youtube-extraction deps: !`[ -d "${CLAUDE_PLUGIN_DATA:-/nonexistent}/node_modules/@melodic/video-digestion" ] && echo "installed" || echo "MISSING — run setup-deps.mjs (see Prerequisites)"`
 yt-dlp: !`yt-dlp --version 2>/dev/null | head -1 || echo "MISSING — install yt-dlp (see Prerequisites)"`
 ffmpeg: !`ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (watch action only)"`
 ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (watch action only)"`
 
 # YouTube
 
-Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims via `/research` / `/research-deep`, and produce a prioritized repo-applicability menu. Video download, bulk frames, contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention.
+Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims through deeper external research, and produce a prioritized repo-applicability menu. Video download, bulk frames, contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention.
+
+Where this skill says "deeper research," use whatever external-research capability your project provides — for example the discovery plugin's `/discovery:research` / `/discovery:research-deep` when installed. Treat those as the reference implementation, not a hard dependency.
 
 ## Source discipline
 
-Video content is **Tier 2/3 secondary source** (`.claude/rules/agent-trust.md` "Three trust tiers"). Treat on-screen and spoken claims as hypotheses until promoted through `/research` or `/research-deep`. Repo conventions override video claims — surface convention conflicts explicitly; never silently adopt a video's shortcut over team rules.
+Video content is a **secondary source** (on-screen and spoken claims are hypotheses, not verified facts). Treat them as hypotheses until promoted through deeper external research, and apply your project's own source-trust conventions. Repo conventions override video claims — surface convention conflicts explicitly; never silently adopt a video's shortcut over team rules.
 
 ## Video slug derivation
 
@@ -29,7 +31,7 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 2. Cap the title portion at **40 characters**
 3. Append `-<video-id>` for uniqueness (e.g. `ai-coding-tips-7zZy1QTvokM`)
 
-Implementation: `.claude/skills/youtube/extraction/transcript/derive-video-slug.js`
+Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/derive-video-slug.js`
 
 ## Action router
 
@@ -48,7 +50,7 @@ Implementation: `.claude/skills/youtube/extraction/transcript/derive-video-slug.
 ## Transcript action
 
 ```bash
-node .claude/skills/youtube/extraction/transcript/run-transcript.js "<youtube-url>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" transcript/run-transcript.js "<youtube-url>"
 ```
 
 Pipeline:
@@ -63,7 +65,7 @@ Caption acquisition flags (see `acquisition/build-yt-dlp-args.js`): `--write-sub
 
 ## Queue action
 
-Epic queue at `.work/<watch-epic>/QUEUE.md` batches URLs before watch (canonical epic dir: `youtube-watch` — `docs/work-artifacts/work-artifact-reference.md` "Video-digest slice"). **Claim stub first, table second** — see `context/watch-queue.md`.
+Epic queue at `.work/<watch-epic>/QUEUE.md` batches URLs before watch (canonical epic dir: `youtube-watch`). **Claim stub first, table second** — see `context/watch-queue.md`.
 
 ### Materialize queue
 
@@ -73,7 +75,7 @@ On first `queue` use:
 2. Copy `templates/queue.md` → `.work/<watch-epic>/QUEUE.md` if missing
 3. **Preflight each URL** (validate + fetch title/channel — see below), then append rows with next `#` index (do not renumber existing rows)
 
-Dedupe on add: `extractVideoId` from `.claude/skills/youtube/extraction/acquisition/acquire.js` — skip URLs whose `video-id` already appears in the table.
+Dedupe on add: `extractVideoId` from `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/acquisition/acquire.js` — skip URLs whose `video-id` already appears in the table.
 
 ### Companion primary sources (optional at queue)
 
@@ -88,7 +90,7 @@ When the operator supplies companion URL(s) with queue intent, record before wat
 Run before appending so a human or agent reading the queue sees what each row is without opening the URL, and dead links never enter the queue:
 
 ```bash
-node .claude/skills/youtube/extraction/acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
 ```
 
 Routes through the same `spawnYtDlpWithAuthFallback` path as acquisition (bot-checked videos are not falsely rejected). Per-URL JSON `action`/`status` decides enqueue-vs-reject and fills the `title` + `channel` columns — full decision table in `context/watch-queue.md` "Preflight (every `queue` add)".
@@ -98,19 +100,19 @@ Routes through the same `spawnYtDlpWithAuthFallback` path as acquisition (bot-ch
 Read `QUEUE.md` and run:
 
 ```bash
-node .claude/skills/youtube/extraction/watch/queue-claim.js list
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js list
 ```
 
 Show which rows have active claim files.
 
 ### Dequeue (`watch` or `watch <n>`)
 
-1. **Stale reclaim (optional):** `node .claude/skills/youtube/extraction/watch/queue-claim.js stale-check` — reset abandoned `in_progress` rows to `pending` when claim files are older than 7 days.
+1. **Stale reclaim (optional):** `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js stale-check` — reset abandoned `in_progress` rows to `pending` when claim files are older than 7 days.
 2. **Pick row:** `watch` → first `pending` in `#` order; `watch <n>` → row `#n` must be `pending` or resumable `in_progress` you own.
 3. **Exclusive claim** (before editing `QUEUE.md`):
 
 ```bash
-node .claude/skills/youtube/extraction/watch/queue-claim.js claim <n> [--video-id <id>]
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
 ```
 
 Exit code `2` = row taken — for FIFO, try next `pending`; for `watch <n>`, stop with a clear message.
@@ -118,7 +120,7 @@ Exit code `2` = row taken — for FIFO, try next `pending`; for `watch <n>`, sto
 1. Set row `status` → `in_progress` in `QUEUE.md`.
 2. Run **Watch action** below with the row URL (or `run-resume.js` when slice exists and phases remain).
 3. On verify script exit 0 → row `complete`; on abort → `failed` + one-line `notes`.
-4. **Release claim:** `node .claude/skills/youtube/extraction/watch/queue-claim.js release <n>`
+4. **Release claim:** `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js release <n>`
 
 **Parallel terminals:** prefer `watch 2` / `watch 4` in separate sessions — not two auto-`watch` on the same row.
 
@@ -130,14 +132,14 @@ Phase-flow overview (mermaid diagram + phase summary table): `context/workflow.m
 
 When `source/companion-sources.md` exists: run Phase 0b **before** `run-watch.js`. **SSOT:** `context/companion-primary-sources.md`.
 
-WebFetch companion URL(s) → subagent fan-out per section table → `source/companion-digest/<section-slug>.md` + hub `source/companion-digest/README.md` → `mark-phase <slice-dir> companion`. No surface reads; use `/research-deep` per section. Downstream phases frame against the digest (claim inventory, research agenda, vision, synthesis).
+WebFetch companion URL(s) → subagent fan-out per section table → `source/companion-digest/<section-slug>.md` + hub `source/companion-digest/README.md` → `mark-phase <slice-dir> companion`. No surface reads; use deep external research per section. Downstream phases frame against the digest (claim inventory, research agenda, vision, synthesis).
 
 On resume: if companion unmarked, run 0b before vision even when CLI phases exist.
 
 ### CLI bootstrap (deterministic stages)
 
 ```bash
-node .claude/skills/youtube/extraction/watch/run-watch.js "<youtube-url>" [--skip-research]
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/run-watch.js "<youtube-url>" [--skip-research]
 ```
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest. Writes:
@@ -156,29 +158,28 @@ Bulk frames and contact sheets stay in `tempSession` dirs. Re-run `run-watch.js`
 Before `watch` or `resume` when frames are needed:
 
 ```bash
-cd .claude/skills/youtube/extraction && npm ci
-bash tools/bootstrap.sh
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/setup-deps.mjs"
 ```
 
-STOP if pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick. Route to `bash tools/bootstrap.sh` hints and `/onboard` Phase 5. Cloud agents without media toolchain: fail closed — do not run watch.
+STOP if pre-computed context shows MISSING for yt-dlp, ffmpeg, or ImageMagick — install them per the Prerequisites section below. Cloud agents without the media toolchain: fail closed — do not run watch.
 
 ### Execution model (subagent fan-out)
 
-After CLI bootstrap, parallelize like `/course-digest` Phase 3:
+After CLI bootstrap, parallelize like `/knowledge:course-digest` Phase 3:
 
 | Wave | Agents | Output |
 | --- | --- | --- |
 | Parallel | Transcript agent | Claims + timestamps → `research/research-agenda.md` draft |
 | Parallel | Visual agent | Contact-sheet triage → detail reads → `key-frames/visual-frames.md` + on-screen URLs |
-| Parallel | Link/repo agent | WebFetch previews + `node .claude/skills/youtube/extraction/harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
-| Sequential | Research fan-out | `/research` or `/research-deep` per claim cluster → `RESEARCH.md` + `research/findings/` |
+| Parallel | Link/repo agent | WebFetch previews + `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" harvesting/analyze-harvested-repos.js <slice-dir>` when GitHub links exist |
+| Sequential | Research fan-out | external research (standard or deep) per claim cluster → `RESEARCH.md` + `research/findings/` |
 | Sequential | Synthesis agent | `recommendations/menu.md` + `recommendations/takeaways.md` (hub: `recommendations/README.md`) |
 | Sequential | Interview handoff | `recommendations/interview.md` → offer `/interview` for POC/full-slice picks |
 
-Mark each phase in `watch.json` via `node extraction/watch/watch-state.js mark-phase <slice-dir> <phase>` after the wave completes (idempotent — re-running an already-marked phase is a no-op). Promote only via vision-gated decisions:
+Mark each phase in `watch.json` via `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>` after the wave completes (idempotent — re-running an already-marked phase is a no-op). Promote only via vision-gated decisions:
 
 ```bash
-node .claude/skills/youtube/extraction/watch/vision-gated-promote.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
 (`promote-key-frames.js` remains for ad-hoc single copies — not the completion path.)
@@ -188,7 +189,7 @@ node .claude/skills/youtube/extraction/watch/vision-gated-promote.js "<slice-dir
 After CLI bootstrap (or on resume), materialize and maintain the slice checklist:
 
 ```bash
-node .claude/skills/youtube/extraction/watch/init-watch-checklist.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/init-watch-checklist.js "<slice-dir>"
 ```
 
 Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Tick `[ ]` → `[x]` only with verification evidence (command exit code, artifact path, verify row). **Binary criteria SSOT:** `context/quality-gates.md`. **Ordered checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
@@ -223,16 +224,16 @@ After CLI bootstrap (or on resume), execute these phases in the skill session (m
 
 2. **High-volume advisory** — when `frameSelection.highVolume` is true, fan out vision subagents; do not truncate frames in temp.
 
-   **Context-cost fan-out trigger** (independent of `highVolume`) — Pass 2 accumulates a read-count: every `keep-detail` frame escalated to 1920×1080 is a full-res Read that will not be reused after the vision pass. When that count is high enough that the reads would flood main context — the "context-flooding output you won't reuse" OR-trigger per `rate-limit-aware-workflow.md` "Subagent vs inline" — route to a per-sheet vision subagent returning **only JSON** (triage rows), keeping the main watch context lean. The signal is deterministic (the skill surfaces the read-count, mirroring the `highVolume` boolean shape); the *decide-to-delegate* is the agent acting on that fact. Do not hard-force fan-out in a script — the agent may have context reasons to process inline; the skill documents the threshold, the agent routes.
+   **Context-cost fan-out trigger** (independent of `highVolume`) — Pass 2 accumulates a read-count: every `keep-detail` frame escalated to 1920×1080 is a full-res Read that will not be reused after the vision pass. When that count is high enough that the reads would flood main context — context-flooding output you won't reuse — route to a per-sheet vision subagent returning **only JSON** (triage rows), keeping the main watch context lean. The signal is deterministic (the skill surfaces the read-count, mirroring the `highVolume` boolean shape); the *decide-to-delegate* is the agent acting on that fact. Do not hard-force fan-out in a script — the agent may have context reasons to process inline; the skill documents the threshold, the agent routes.
 
 3. **Research stage (default-on)** — gate: `mark-phase <slice-dir> research` only after `check-research-complete.js` exits 0 and agenda clusters are `done` or `deferred`:
 
 ```bash
-node .claude/skills/youtube/extraction/evals/check-research-complete.js "<slice-dir>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"
 ```
 
 - `research/claim-inventory.md` must exist; draft or expand `research/research-agenda.md` with **claim clusters** mapped to inventory rows
-- Per cluster: `/research <cluster>` or `/research-deep <cluster>` when 3+ vendors/tools (template: `templates/research-cluster.md`)
+- Per cluster: standard research, or deep external research when 3+ vendors/tools (template: `templates/research-cluster.md`)
 - Write slice `RESEARCH.md` + optional `research/findings/*.md`
 - Name each shard `research/findings/<cluster-topic-slug>.md` (e.g. `complex-types.md`) — the topic, not an opaque `RA1`/`RA2` ordinal; the agenda carries cluster ordering
 - Each finding: author claim, consensus, staleness, promoted tier
@@ -244,17 +245,17 @@ node .claude/skills/youtube/extraction/evals/check-research-complete.js "<slice-
    - `recommendations/takeaways.md` — safe actions without further research
    - `recommendations/questions.md` — open questions for the user
    - Update `README.md` per `templates/readme-journey.md`
-   - **Offer an HTML view** — optionally render a self-contained HTML dashboard of the prioritized recommendations menu (markdown stays the tracked record) per `docs/conventions/html-artifacts.md` "When HTML vs markdown — decision matrix".
+   - **Offer an HTML view** — optionally render a self-contained HTML dashboard of the prioritized recommendations menu (markdown stays the tracked record); follow your project's HTML-vs-markdown convention when one exists.
    - **No auto-implement** — `/interview` → `/architect` → `/implement`
 
 2. **Interview handoff** — write `recommendations/interview.md` with menu + *"Should we go further?"*; suggest `/interview` for POC/full-slice items.
 
-3. **Phase markers** — after each skill phase, update `run-state/watch.json` via `node extraction/watch/watch-state.js mark-phase <slice-dir> <phase>`.
+3. **Phase markers** — after each skill phase, update `run-state/watch.json` via `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>`.
 
 4. **Outcome verification (before `status: complete`)** — mandatory host verify script:
 
 ```bash
-node .claude/skills/youtube/extraction/evals/check-watch-outcomes.js "<slice-dir>" --write-report
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
 ```
 
 Writes `verification/<ISO-basic>Z-watch-outcomes.md`. **Do not** mark the slice complete while this exits non-zero. Long conferences (`conference-multi-session`, ≥4h) must meet floors in `context/quality-gates.md`. Verify script `triage-agentic-required` fails `selection-signals` / missing model. Temp paths use `{tmp}` prefix (portable temp-session path serialization).
@@ -268,7 +269,7 @@ Deterministic frame-selection stages (`orchestrate-watching.js`), the standalone
 ## Resume action
 
 ```bash
-node .claude/skills/youtube/extraction/watch/run-resume.js "<video-slug>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/run-resume.js "<video-slug>"
 ```
 
 Reads `.work/<watch-epic>/<video-slug>/watch.json`, identifies the next incomplete phase (`acquire` → `transcript` → `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`, and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run `run-watch.js` before vision.
@@ -277,11 +278,11 @@ Reads `.work/<watch-epic>/<video-slug>/watch.json`, identifies the next incomple
 
 1. Update `watch.json` phase markers with timestamps
 2. Write `continuation-prompt.md` (completed phases, next phase, frame-selection state, known issues)
-3. Tell the user: *"Session state saved. Run `/youtube resume <video-slug>` to continue."*
+3. Tell the user: *"Session state saved. Run `/knowledge:youtube resume <video-slug>` to continue."*
 
 ## Output contract
 
-Per video-digest slice (`docs/work-artifacts/work-artifact-reference.md` "Video-digest slice"). This is the **single authoritative enumeration** of every produced artifact — the contract a fresh watch is graded against. `context/quality-gates.md` phase/criterion tables point at this table for the lane + staged verdict; do not re-enumerate staging there.
+Per video-digest slice. This is the **single authoritative enumeration** of every produced artifact — the contract a fresh watch is graded against. `context/quality-gates.md` phase/criterion tables point at this table for the lane + staged verdict; do not re-enumerate staging there.
 
 **KIND** — `SOURCE` (acquired / harvested input), `METADATA` (script-emitted machine state), `DELIVERABLE` (agent-authored synthesis). **Producer** — `script` (a deterministic `extraction/` writer materializes it, often from agent-authored JSON facts) or `agent` (authored inline by the watching/research/synthesis agent).
 
@@ -337,13 +338,13 @@ Observed failure modes — recovery detail in `context/gotchas.md`: YouTube bot/
 
 Verify before starting (stop and route to fix path on failure):
 
-1. **youtube-extraction deps** — `cd .claude/skills/youtube/extraction && npm install`. Managed by `tools/bootstrap.sh` Node/npm checks + session install
-2. **yt-dlp** — required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp` (Windows), `brew install yt-dlp` (macOS), `pip install -U yt-dlp` or distro package (Linux). `bash tools/bootstrap.sh` reports pass/fail. Acquisition throttling + bot-check cookie fallback: `## Gotchas`
+1. **youtube-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates); idempotent — safe to re-run, and re-run after a plugin update.
+2. **yt-dlp** — required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp` (Windows), `brew install yt-dlp` (macOS), `pip install -U yt-dlp` or distro package (Linux). Acquisition throttling + bot-check cookie fallback: `## Gotchas`
    - **JS runtime:** `--js-runtimes node` by default (`YOUTUBE_YT_DLP_JS_RUNTIMES=off` to omit)
-3. **ffmpeg** — required for `watch` only (scene-detect frame extraction). Floor 7.1+ per bootstrap
+3. **ffmpeg** — required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7** — required for `watch` only (contact sheets). `magick -version`
 
-If any prerequisite fails, stop and inform the user. Run `bash tools/bootstrap.sh` (without `--check-only`) to remediate repo-local deps; binary gaps need OS package manager installs per bootstrap hints. `/onboard` Phase 5 is the canonical fix path.
+If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies; the media binaries (yt-dlp, ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
 
 ## Eval fixtures
 
@@ -355,4 +356,4 @@ Driver video: `https://www.youtube.com/watch?v=7zZy1QTvokM` — slug `stop-promp
 | `evals/fixtures/driver-video-goldens.json` | Q&A bank (≥1 `frame_only` question) |
 | `evals/fixtures/variation-matrix-backlog.json` | Code screencast / slide talk / talking-head / mixed — backlog only |
 
-D9 starting defaults: `tools/shared/video-digestion/TUNING.md`. Retune after first host watch.
+D9 starting defaults: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/vendor/video-digestion/TUNING.md`. Retune after first host watch.
