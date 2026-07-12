@@ -16,7 +16,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 hook::check_enabled "CONFIG_CHANGE_AUDIT"
 hook::telemetry_enabled || exit 0
 
-START=$EPOCHREALTIME
+START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 

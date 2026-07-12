@@ -121,7 +121,7 @@ hook::repo_root() {
 #   INPUT=$(hook::buffer_stdin) || exit 0
 hook::buffer_stdin() {
   local input="" read_status=0 read_timeout="${HOOK_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
-  start_epoch=$EPOCHREALTIME
+  start_epoch=${EPOCHREALTIME:-}
   IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
   input=$(printf '%s' "$input" | tr -d '\r')
   [[ -n "$input" ]] || return 1

@@ -18,7 +18,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "SKILL_USAGE_AUDIT"
 
-START=$EPOCHREALTIME
+START=${EPOCHREALTIME:-}
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
