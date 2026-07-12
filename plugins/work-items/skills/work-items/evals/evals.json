@@ -4,57 +4,44 @@
     {
       "id": 1,
       "name": "empty-args-routes-to-stats-dashboard",
-      "prompt": "/work-items:work-items",
-      "expected_output": "Empty args route to the stats action (not a missing-action error). Emits the work-item dashboard: open and claimed issue counts, overdue recurring items (or a no-schedule note), and a category breakdown. Read-only — creates or modifies nothing.",
+      "prompt": "/work-items",
+      "expected_output": "Empty args route to the stats action (not a missing-action error). Emits the work-item dashboard: open and claimed counts, overdue recurring items, and a category/area breakdown. Read-only — creates or modifies nothing.",
       "files": [],
       "expectations": [
         "Routes empty `$ARGUMENTS` to the `stats` action — does NOT error on a missing/unknown action",
-        "Reports both open-issue and claimed-issue counts",
-        "Surfaces recurring items past their `next_due` date, or notes that no recurring schedule is configured when `.github/recurring-schedule.json` is absent",
-        "Includes a category breakdown of open work",
-        "Performs no write — no issue created, closed, labeled, or assigned"
+        "Reports both open-item and claimed-item counts",
+        "Surfaces recurring items past their `next_due` date (overdue)",
+        "Includes a category/area breakdown of open work",
+        "Performs no write — no item created, closed, labeled, or assigned"
       ]
     },
     {
       "id": 2,
-      "name": "work-auto-selects-one-issue-via-claim-protocol",
+      "name": "work-auto-selects-one-item-via-seam-claim",
       "prompt": "/work-items:work-items work",
-      "expected_output": "Auto-selects exactly ONE issue and acquires it through the three-phase hold->verify->claim optimistic-lock protocol before executing it via the consuming project's development workflow. The claim assignment runs on the session identity (`gh ... --add-assignee \"@me\"`), never a shared bot identity.",
+      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it via the full 8-step workflow. The claim identity is the authenticated session user, never the bot.",
       "files": [],
       "expectations": [
-        "Selects exactly ONE issue to work — never claims multiple at once",
-        "Runs the three phases in order: hold (`status:considering` + hold comment) -> verify (lowest server-assigned comment ID wins ties) -> claim (`status:claimed` + assignee)",
-        "Claim assignment uses `gh ... --add-assignee \"@me\"` on the session identity — never a shared bot identity, which would defeat the collision check",
-        "Post-claim verification handles simultaneous-promotion collisions (later claimant releases)",
-        "Executes the selected issue through the consuming project's development workflow when one is defined, else the generic explore -> plan -> implement -> test -> review -> PR sequence"
+        "Runs an idempotent session-start reclaim (`work-item-tracker.sh reclaim`) before selecting — never releases a live lease",
+        "Selects exactly ONE item to work — never claims multiple at once",
+        "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
+        "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
+        "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
+        "Executes the selected item through the 8-step workflow (/explore -> /research -> /architect -> /implement -> /test-plan -> /quality-gate -> /verify-changes outcome -> /retro)"
       ]
     },
     {
       "id": 3,
       "name": "decompose-vertical-slices-hitl-afk-dependency-order",
       "prompt": "/work-items:work-items decompose",
-      "expected_output": "Reads the source plan/PRD, drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (no agent-ready label), orders by dependency, gets user approval, then publishes blockers-first without touching the parent issue.",
+      "expected_output": "Reads the source (default .work/<slug>/PLAN.md phases), drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (labeled needs-human), orders by dependency, gets user approval, then publishes blockers-first via the seam create-item with native --blocked-by edges without touching the parent item.",
       "files": [],
       "expectations": [
         "Drafts VERTICAL tracer-bullet slices (each a complete end-to-end path through all layers), NOT horizontal single-layer slices",
-        "Classifies each slice AFK (`agent-ready` label) vs HITL (no `agent-ready` label); prefers AFK, marks HITL only for genuine human-judgment / design-review / manual-QA needs",
-        "Presents the breakdown for approval with per-slice Type + Blocked-by + scope, iterating with the user before creating anything",
-        "Publishes issues in dependency order (blockers first) so real numbers fill the Blocked-by fields",
-        "Does NOT close or modify the parent issue"
-      ]
-    },
-    {
-      "id": 4,
-      "name": "add-gates-runs-preflight-and-applies-defaults",
-      "prompt": "/work-items:work-items add \"retry logic drops the final attempt when the backoff cap is hit\" --type fix",
-      "expected_output": "Treats the explicit add invocation as authorization, runs the duplicate pre-flight search before creating, and creates ONE issue with the type label plus the default priority:p3-low, applying category:general only if that label exists in the repo.",
-      "files": [],
-      "expectations": [
-        "Treats the explicit user `add` invocation as the authorization to create (no extra confirmation demanded, no silent skip)",
-        "Runs the duplicate pre-flight (`gh issue list --search ... --state all`) BEFORE creating, and pauses to present any similar match",
-        "Creates exactly ONE issue with `--label type:fix` and the default `--label priority:p3-low` (priority flag absent)",
-        "Applies `category:general` only when the repo defines that label — never passes a label the repo lacks",
-        "Body follows the default skeleton (Context / Proposed work / Acceptance criteria / References) since `--body` was not provided"
+        "Classifies each slice AFK (`agent-ready` label) vs HITL (`needs-human` label — the label `list-frontier --autonomous` honors to exclude an item from autonomous pickup; omitting `agent-ready` alone does NOT); prefers AFK, marks HITL only for genuine human-judgment / design-review / manual-QA needs",
+        "Presents the breakdown for approval with per-slice Type + Blocked-by + scope, iterating one question at a time with the user before creating anything",
+        "Publishes items in dependency order (blockers first) via `work-item-tracker.sh create-item`, recording dependencies as native `--blocked-by` edges",
+        "Does NOT close or modify the parent item"
       ]
     }
   ]
