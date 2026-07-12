@@ -59,9 +59,17 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    the user names last), settle its fields against the shape in `actions/add.md`: `id` (kebab-case),
    `title`, `cadence` (one of the cadence table's values), `area[]`, `category`, `triggers[]` (external
    events warranting an early recheck — e.g. "new major framework release"), `notes`, and
-   `close_previous`. Compute `next_due` as today + the cadence's day count (Cadence Duration Table in
-   `actions/add.md`); set `last_checked` to today. Present one item at a time with your recommended
-   values marked; the user accepts or edits before you move on.
+   `close_previous`. Present one item at a time with your recommended values marked; the user accepts
+   or edits before you move on. Date handling depends on whether the item is new or already present —
+   setup seeds the schedule but never performs the maintenance, so it must not advance the cadence
+   clock on an existing item (that is `recheck`'s job, gated on the check actually being done):
+   - **New item:** seed `last_checked` to today and `next_due` to today + the cadence's day count
+     (Cadence Duration Table in `actions/add.md`).
+   - **Existing item:** preserve its current `last_checked` and `next_due` as-is. Only recompute
+     `next_due` when the user explicitly reschedules or changes the cadence — and even then never set
+     `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
+     already-overdue item out of the `due` / `work` recurring tiers, which both select on
+     `next_due <= today`.
 4. **Confirm labels exist (optional).** The `due` / `work` actions match recurring issues by the
    `recurring` label and `[Maintenance]` title prefix; the `cadence:{cadence}` labels are used by the
    taxonomy. Offer to create any missing universal labels once via `gh label create`, or note their
