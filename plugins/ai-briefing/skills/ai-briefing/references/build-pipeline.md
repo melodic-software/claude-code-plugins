@@ -34,7 +34,7 @@ npx playwright install chromium --only-shell      # ~120 MB, headless-only
 
 Node 20+ required (ESM imports + top-level await). On Windows / Git Bash, use `pwsh` for npx if `npx.cmd` resolution flakes.
 
-**Plugin form.** The plugin cache is read-only, so dependencies and every generated artifact live under `${CLAUDE_PLUGIN_DATA}` (keyed per profile), not beside the scripts. Run `/ai-briefing:setup` once to persist the build deps there, then invoke the build scripts from the plugin root with `NODE_PATH` pointed at the persisted modules: `NODE_PATH="${CLAUDE_PLUGIN_DATA}/deps/build/node_modules" node "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/output/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/`.
+**Plugin form.** The plugin cache is read-only and the scripts are Node ESM (which ignores `NODE_PATH`), so `/ai-briefing:setup` **stages a runnable copy** of the build tree under `${CLAUDE_PLUGIN_DATA}/runtime/build/` with `node_modules` installed as a sibling, and the build runs from there: `node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/` via the env-driven path seam. Setup re-stages on a plugin-version bump.
 
 ## Per-meeting build sequence
 

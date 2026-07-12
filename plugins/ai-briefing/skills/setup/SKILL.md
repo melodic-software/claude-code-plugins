@@ -43,23 +43,30 @@ Never write curated config into `${CLAUDE_PLUGIN_DATA}` — that is machine-loca
 
 3. **Offer branding + stack lens (optional).** If the consumer wants their own deck branding, scaffold a `brand.js` overlay (org, tagline, logo asset paths, theme) in the profile dir; drop logo assets beside it. If they want the `impact` tag, scaffold `audience.md` describing their stack. Both are optional — skip cleanly when declined.
 
-4. **Install runtime dependencies (idempotent).** Dependencies persist in `${CLAUDE_PLUGIN_DATA}` (the plugin cache is read-only). Always install the runner deps; install the heavier build deps only if the consumer wants HTML/PPTX decks.
+4. **Stage the runtime and install dependencies (idempotent).** The plugin cache is read-only, and the scripts are Node ESM — which resolves bare imports (`zod`) by walking `node_modules` up from the script file, and does **not** honor `NODE_PATH`. So a persisted `node_modules` beside the read-only scripts is unreachable. Instead, **copy the runnable tree into `${CLAUDE_PLUGIN_DATA}` and install `node_modules` as a sibling there**, then run the scripts from that copy so the standard ESM walk finds the deps. Re-stage when the plugin version changes (the data dir survives updates, so a stale copy would otherwise linger).
 
    ```bash
-   # Runner deps (zod) — required for any briefing run.
-   D="${CLAUDE_PLUGIN_DATA}/deps/scripts"; S="${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/scripts"
-   mkdir -p "$D"
-   diff -q "$S/package.json" "$D/package.json" >/dev/null 2>&1 || \
-     (cp "$S/package.json" "$S/package-lock.json" "$D/" && cd "$D" && npm install --omit=dev --no-fund --no-audit) || rm -f "$D/package.json"
+   VER=$(node -p "require('${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json').version")
+   RT="${CLAUDE_PLUGIN_DATA}/runtime"
 
-   # Build deps (playwright, pptxgenjs, …) — only for --format slides|html. Heavier (~120 MB with the browser).
-   B="${CLAUDE_PLUGIN_DATA}/deps/build"; BS="${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/output/build"
-   mkdir -p "$B"
-   diff -q "$BS/package.json" "$B/package.json" >/dev/null 2>&1 || \
-     (cp "$BS/package.json" "$BS/package-lock.json" "$B/" && cd "$B" && npm install --no-fund --no-audit && npx playwright install chromium --only-shell) || rm -f "$B/package.json"
+   # Runner tree (zod) — required for any briefing run.
+   if [ "$(cat "$RT/scripts/.version" 2>/dev/null)" != "$VER" ]; then
+     rm -rf "$RT/scripts" "$RT/seed"
+     mkdir -p "$RT"
+     cp -R "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/scripts" "$RT/scripts"
+     cp -R "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/seed"    "$RT/seed"
+     ( cd "$RT/scripts" && npm install --omit=dev --no-fund --no-audit ) && printf '%s' "$VER" > "$RT/scripts/.version"
+   fi
+
+   # Build tree (playwright, pptxgenjs, …) — only for --format slides|html. Heavier (~120 MB with the browser).
+   if [ "$(cat "$RT/build/.version" 2>/dev/null)" != "$VER" ]; then
+     rm -rf "$RT/build"
+     cp -R "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/output/build" "$RT/build"
+     ( cd "$RT/build" && npm install --no-fund --no-audit && npx playwright install chromium --only-shell ) && printf '%s' "$VER" > "$RT/build/.version"
+   fi
    ```
 
-   The `diff` guard makes re-runs a no-op unless a plugin update changed a manifest. Because the runner and build scripts are invoked from the read-only plugin cache, run them with `NODE_PATH` pointed at the persisted modules — e.g. `NODE_PATH="${CLAUDE_PLUGIN_DATA}/deps/scripts/node_modules" node "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/scripts/per-profile-runner.js" …` (bare imports like `zod` resolve via `NODE_PATH`; the scripts' own relative imports resolve inside the plugin).
+   Then invoke the runner and build scripts **from the staged copy** so `zod` resolves via the sibling `node_modules` — e.g. `node "${CLAUDE_PLUGIN_DATA}/runtime/scripts/per-profile-runner.js" …` and `node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. The scripts' own relative imports (`./lib/*`) and the bundled `seed/` / build `assets/` resolve inside the copy; run state and generated decks still write to `${CLAUDE_PLUGIN_DATA}/<profile>/` via the env-driven path seam. Re-running setup after a plugin update re-stages both trees.
 
 5. **Confirm.** Report the profile path, whether the follow-list was seeded or left intact, which optional overlays were created, and which dependency sets were installed. Point the consumer at `/ai-briefing:ai-briefing` to run their first briefing.
 
