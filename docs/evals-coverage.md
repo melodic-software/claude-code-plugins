@@ -7,10 +7,11 @@ the warrant rule and the consumer-verify recipe are policy and live in the
 This table records where each plugin stood on the stamp date and which backfill issue owns each gap.
 Empirical claims decay: a row is only true as of the stamp below.
 
-Stamped 2026-07-12, built from the per-skill eval presence read this session against the 41 plugins
+Stamped 2026-07-12, built from the per-skill eval presence read this session against the 42 plugins
 in `.claude-plugin/marketplace.json` and the class column of
 [`extensibility-contract-grading.md`](extensibility-contract-grading.md) (retrofit-audit
-`melodic-software/medley#1388`). Facts are Tier-0 — presence read from each `plugins/<p>/skills/<s>/evals/evals.json`.
+`melodic-software/medley#1388`, which graded 41 — the `miro` MCP-server plugin landed after that audit
+and is classified below). Facts are Tier-0 — presence read from each `plugins/<p>/skills/<s>/evals/evals.json`.
 Emitter: evals-backfill `melodic-software/medley#1396`.
 
 ## Warrant rule (summary)
@@ -34,7 +35,7 @@ session re-checks the warrant against the live `SKILL.md` and records a skip ver
 - **Deferred (do not backfill in this repo now): 2 plugins** — `songwriting` and `knowledge`, each
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
-- **Skip (explicit): 11 plugins** — 2 pure-reference + 9 hooks.
+- **Skip (explicit): 12 plugins** — 2 pure-reference + 9 hooks + 1 MCP-server (`miro`).
 - Total warranted skills owed backfill this wave: **51**, grouped into **10 one-session batches**
   (`melodic-software/medley#1447`–`#1455`, `#1458`).
 
@@ -107,3 +108,13 @@ not model-graded evals. Explicit skip.
 
 `actionlint`, `bash-lint`, `biome-format`, `eol-normalizer`, `markdown-formatter`,
 `powershell-format`, `ruff-format`, `desktop-notification`, `guardrails`.
+
+## Skip — MCP-server plugins (1)
+
+Bundle a stdio MCP server (`.mcp.json` + a TypeScript/Node package), not model-invoked skills — no
+`SKILL.md`, so there is no per-skill behavioral contract for a model-graded eval. Server behavior is
+guarded by the plugin's own package tests (`vitest`), not evals. Explicit skip.
+
+| Plugin | Verdict |
+|---|---|
+| miro | skip — MCP-server plugin, no skills (tests are `vitest`, not evals) |

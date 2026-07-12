@@ -223,9 +223,13 @@ skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/ski
 against the plugin's **source tree**, not against a bare `/plugin install`; the exercise step is the
 part that runs against the plugin as you actually enabled it.
 
-First locate the plugin's source skills directory `<root>` — either a checkout of this marketplace
-(`plugins/<plugin>/skills`) or the installed copy under
-`~/.claude/plugins/marketplaces/<marketplace>/plugins/<plugin>/skills`. Then:
+Steps 1-2 are **source-tree verification**: run them against a checkout of this marketplace with
+`<root>` = `plugins/<plugin>/skills`. This is the source, not necessarily the version you have
+*enabled* — installed plugins are copied to a version-keyed cache under `~/.claude/plugins/cache`
+(cache isolation; see "Cache isolation" and "Local development loop" below and the official plugins
+reference "plugin caching and file resolution"), so after a marketplace update the source `evals.json`
+can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled check because it runs
+against the plugin you actually invoked. Then:
 
 1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
    partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
