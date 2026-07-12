@@ -26,7 +26,7 @@ INPUT=$(cat)
 command -v jq >/dev/null 2>&1 || exit 0
 
 # Single jq parse + required-key guard. Emit one mapped field per line (nothing
-# when a required envelope key is missing or the input is unparseable). One line
+# when a required envelope key is missing or the input is not valid JSON). One line
 # per field — read via mapfile — so an empty field (e.g. tool) is preserved as
 # an empty element rather than collapsed, which a tab-IFS `read` would do (tab is
 # an IFS whitespace char, so consecutive tabs merge).
