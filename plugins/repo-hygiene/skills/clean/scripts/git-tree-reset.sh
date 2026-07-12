@@ -155,9 +155,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$AHEAD_COUNT" -gt 0 ]]; then
     printf 'WARNING: HEAD is %s commit(s) ahead of %s — apply needs --allow-unpushed.\n' "$AHEAD_COUNT" "$UPSTREAM"
   fi
-  if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
-    git fetch "$UPSTREAM_REMOTE" 2>/dev/null || true
-  fi
+  # Dry-run is inventory-only: never fetch (it would mutate .git remote-tracking
+  # refs and can prompt/fail on credentials before the user confirms anything).
   echo "--- clean preview (git clean -fdxn, default-preserve applied) ---"
   git clean -fdxn "${PRESERVE_ARGS[@]}" 2>/dev/null | head -200 || true
   exit 0
@@ -165,6 +164,19 @@ fi
 
 if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
   git fetch "$UPSTREAM_REMOTE"
+fi
+
+# Re-gate unpushed commits against the just-fetched upstream. The early check
+# ran against a possibly-stale tracking ref; if the upstream advanced (e.g. was
+# force-pushed) the reset would otherwise discard unpushed HEAD commits without
+# requiring --allow-unpushed.
+AHEAD_COUNT="$(git rev-list --count "${UPSTREAM}..HEAD" 2>/dev/null | tr -d ' ' || echo 0)"
+AHEAD_COUNT="${AHEAD_COUNT:-0}"
+if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
+  printf 'Blocked: unpushed-commits (%s ahead of %s after fetch — push first or pass --allow-unpushed)\n' "$AHEAD_COUNT" "$UPSTREAM"
+  printf 'AppliedReset: none\n'
+  printf 'AppliedClean: none\n'
+  exit 4
 fi
 git reset --hard "$UPSTREAM"
 

@@ -102,9 +102,7 @@ CLEAN_STALE_BRANCH_DAYS=90
 #               node_modules, so reparse-point traversal into tracked source
 #               cannot happen)
 CLEAN_TREE_PRESERVE_SECRETS=(
-  '.env'
-  '.env.*'
-  '.envrc'
+  '.env*'
   '*.local.json'
   '*.local.jsonc'
   '*.local.md'

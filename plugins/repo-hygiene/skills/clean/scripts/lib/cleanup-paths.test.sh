@@ -61,7 +61,7 @@ assert_set_contains "git gc op" "git gc --auto --quiet" "${GIT_PRUNE_OPS[@]}"
 assert_set_contains "protected branch main" "main" "${CLEAN_PROTECTED_BRANCH_EXACT[@]}"
 
 # tree preserve SSOT — secrets/deps/skilldata arrays carry the protected classes
-assert_set_contains "tree preserve .env" ".env" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
+assert_set_contains "tree preserve .env*" ".env*" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
 assert_set_contains "tree preserve *.local.json" "*.local.json" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
 assert_set_contains "tree preserve *.local.jsonc" "*.local.jsonc" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
 assert_set_contains "tree preserve *.local.md" "*.local.md" "${CLEAN_TREE_PRESERVE_SECRETS[@]}"
@@ -78,7 +78,7 @@ ALL_TREE_PRESERVE=(
   "${CLEAN_TREE_PRESERVE_SKILLDATA[@]}"
   "${CLEAN_TREE_PRESERVE_DEPS[@]}"
 )
-for needle in ".env" "*.local.json" "*.local.jsonc" ".vscode/" ".aws/" "node_modules/" ".venv/" "vendor/"; do
+for needle in ".env*" "*.local.json" "*.local.jsonc" ".vscode/" ".aws/" "node_modules/" ".venv/" "vendor/"; do
   assert_set_contains "tree-preserve covers $needle" "$needle" "${ALL_TREE_PRESERVE[@]}"
 done
 

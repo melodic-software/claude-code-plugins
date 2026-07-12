@@ -29,7 +29,7 @@ clean_path_is_protected() {
   # express: a mid-path wildcard and anchored file-name / suffix matches.
   case "$norm" in
   *"/.claude/skills/"*"/data/"*) return 0 ;;
-  */.env | */.env.* | */.envrc) return 0 ;;
+  */.env*) return 0 ;;
   *".local.json" | *".local.jsonc" | *".local.md") return 0 ;;
   *".csproj.user" | *".sln.docstates.suo" | *".suo") return 0 ;;
   *) ;;
@@ -73,7 +73,7 @@ clean_path_in_submodule() {
     if [[ "$rel" == "$sm" || "$rel" == "$sm"/* ]]; then
       return 0
     fi
-  done < <(git -C "$repo_root" config --file "$repo_root/.gitmodules" --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
+  done < <(git -C "$repo_root" config --file "$repo_root/.gitmodules" --get-regexp '\.path$' 2>/dev/null | cut -d' ' -f2- | tr -d '\r')
   return 1
 }
 
