@@ -65,7 +65,7 @@
     {
       "id": 6,
       "name": "skips-truly-mechanical-work",
-      "prompt": "/planning:interview I need to fix a typo in a comment in utils.ts — the word 'recieve' should be 'receive'.",
+      "prompt": "/planning:interview I need to fix a single spelling typo in a code comment in utils.ts — no behavior change, just correcting one misspelled word.",
       "expected_output": "The skill recognizes this as truly mechanical (a comment typo, no behavior change) and declines to gate it with an interview, telling the user it needs no brief.",
       "files": [],
       "expectations": [
