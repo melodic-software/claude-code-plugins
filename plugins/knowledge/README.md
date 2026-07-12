@@ -10,6 +10,7 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 | Skill | Invoke | What it does |
 |---|---|---|
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
+| `youtube` | `/knowledge:youtube` | Watches a single public YouTube video (transcript + visual frames), harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
 | `setup` | `/knowledge:setup` | Interviews the consumer and persists the `library_dir` config (idempotent — re-run to reconfigure). |
 
 ## What book-distill produces
