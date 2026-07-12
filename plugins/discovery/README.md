@@ -37,7 +37,8 @@ fresh session can resume planning from the artifact alone.
 
 ## Configuration
 
-One option, prompted at enable time:
+One option, prompted at enable time (or set any time with `/discovery:setup` — an idempotent interview
+that infers a landing location from your repo layout and persists it):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
