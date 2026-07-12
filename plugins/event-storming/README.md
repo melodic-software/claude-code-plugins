@@ -10,7 +10,7 @@ agentic workshop:
 | Skill | Invoke | Does |
 |---|---|---|
 | `methodology` | `/event-storming:methodology [--big-picture\|--process\|--design-level\|--patterns\|--glossary\|--notation\|--remote]` | Facilitation knowledge and reference across the three formats — notation, building blocks, patterns/anti-patterns, remote adaptations. No args runs an interactive discovery flow. |
-| `simulation` | `/event-storming:simulation [--simulate\|--process-model\|--design-level\|--evaluate\|--retrospective\|--induction\|--value\|--crc\|--ux\|--discover-bcs] [domain]` | An agentic, multi-persona EventStorming workshop driven onto a Miro board, plus per-run scoring and bounded-context discovery. |
+| `simulation` | `/event-storming:simulation [--simulate\|--process-model\|--design-level\|--evaluate\|--retrospective\|--induction\|--value\|--crc\|--ux\|--discover-bcs] [domain]` | An agentic, multi-persona EventStorming workshop that produces a structured-markdown model by default, plus per-run scoring and bounded-context discovery. A live Miro-board rendering path is available when a compatible Miro MCP server is connected (see Requirements). |
 
 ## When to use which
 
@@ -18,7 +18,9 @@ agentic workshop:
   want the format guidance, notation, and patterns at hand. It needs no external tools.
 - **simulation** *runs* the workshop for you: it spins up 4–7 siloed personas, plays every Big
   Picture phase in order, discovers bounded contexts, and lets you drill into Process Modeling and
-  Design-Level per context — placing the model on a Miro board as it goes.
+  Design-Level per context. By default it emits the model as structured markdown (event timeline,
+  persona roster, bounded-context tables); with a compatible Miro MCP server connected it renders
+  the same model onto a live Miro board instead.
 
 Each skill auto-invokes on its own trigger phrases, or you can call it directly.
 
@@ -32,16 +34,22 @@ Each skill auto-invokes on its own trigger phrases, or you can call it directly.
 ## Requirements
 
 - **methodology** — none beyond Claude Code.
-- **simulation** — a **Miro MCP server** for board placement, and a web-research surface for domain
-  context.
+- **simulation** — no hard dependency. It runs out of the box in **structured-markdown mode** (the
+  agentic workshop, emitting the model as an event timeline, persona roster, and bounded-context
+  tables). Two optional surfaces enhance it, neither bundled:
+  - A **Miro MCP server** for the live-board rendering path.
+  - A **web-research surface** for domain context.
 
-Neither dependency is bundled (a plugin does not ship a remote MCP server), and both degrade
-gracefully:
+Both optional surfaces degrade gracefully:
 
-- **Miro absent** — `simulation` detects it at preflight and offers to run in **structured-markdown
-  mode** (the same agentic workshop, emitting the model as an event timeline, persona roster, and
-  bounded-context tables instead of board stickies) or to pause while you connect Miro. Set up the
-  Miro MCP server per Miro's own docs: <https://developers.miro.com/docs/mcp-intro> and
+- **Miro** — the live-board path currently expects a Miro MCP server exposing `miro_*` tool names
+  (`miro_list_boards`, `miro_create_board`, `miro_bulk_create_sticky_notes`, …). Miro's official
+  hosted server (`mcp.miro.com`) uses a **different** tool surface (`board_create` /
+  `board_search_boards` / `layout_create`, OAuth 2.1), so the board path does **not** work against
+  it yet — reconciling the skill to Miro's official tools (and recording the remote-MCP trust
+  decision that entails) is a tracked **fast-follow**. Against any server whose tool names differ,
+  `simulation` detects the mismatch at preflight and runs in structured-markdown mode instead of
+  failing. Miro's own setup docs: <https://developers.miro.com/docs/mcp-intro> and
   <https://developers.miro.com/docs/connecting-miro-mcp-to-ai-coding-tools>.
 - **Web research absent** — the skills use the Perplexity MCP tools if present, otherwise Claude
   Code's built-in `WebSearch` / `WebFetch`; with no research surface at all they ask you for the

@@ -21,9 +21,21 @@ Two Miro MCP servers exist with different capabilities:
 | **Board reading** | Yes — list items, explore | Yes — read board/frame |
 | **Bulk ops** | No | Yes (max 20/batch) |
 
-**For EventStorming: use the community `mcp-miro` server** — sticky note creation is the core requirement.
+**For EventStorming: a server exposing sticky-note creation is the core requirement.**
 
-The official Miro MCP can be added as a complement for diagram generation (e.g., creating UML or ERD diagrams from EventStorming output).
+> **Tool-surface caveat (read before setup).** The simulation skill's live board path calls
+> `miro_*`-style tool names (`miro_list_boards`, `miro_create_board`, `miro_bulk_create_sticky_notes`,
+> `miro_list_board_items`, `miro_delete_board`). Those names match a Miro MCP server built to expose
+> them; they do **not** match Miro's official hosted server (`mcp.miro.com`), whose tools are named
+> `board_create` / `board_search_boards` / `layout_create` and which authenticates via OAuth 2.1
+> rather than a token env var. Reconciling the skill to Miro's official tool surface (and recording
+> the remote-MCP trust decision that entails) is a tracked fast-follow — until then, the board path
+> works only against a `miro_*`-exposing server, and the skill **degrades to structured-markdown
+> output** (per the availability gate) against any server whose tool names differ. Verify the exact
+> tool names and token/auth env var your chosen server actually exposes before relying on the board
+> path; the specifics below are a starting point, not a guaranteed-current contract.
+
+The official Miro MCP (`mcp.miro.com`) can be added as a complement for diagram generation (e.g., creating UML or ERD diagrams from EventStorming output).
 
 ---
 
@@ -44,23 +56,8 @@ The official Miro MCP can be added as a complement for diagram generation (e.g.,
 
 ### Step 2: Add to `.mcp.json`
 
-Add the following to your project's `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "miro": {
-      "command": "npx",
-      "args": ["-y", "@llmindset/mcp-miro"],
-      "env": {
-        "MIRO_API_TOKEN": "<your-token-here>"
-      }
-    }
-  }
-}
-```
-
-**Security note:** Store the token in `settings.local.json` or use an environment variable rather than committing the token to `.mcp.json`. For project-level setup with token isolation:
+**Never hardcode a token in `.mcp.json` — it gets committed.** Reference it through an environment
+variable (or `settings.local.json`) so the secret stays out of tracked files. Use this form:
 
 ```json
 {
@@ -76,7 +73,9 @@ Add the following to your project's `.mcp.json`:
 }
 ```
 
-Then set `MIRO_API_TOKEN` in your environment or `settings.local.json`.
+Then set `MIRO_API_TOKEN` in your shell environment or `settings.local.json` (never commit the
+literal token). Confirm the exact env-var name your chosen server reads — it varies by package (some
+community servers read `MIRO_OAUTH_TOKEN`) — per the tool-surface caveat above.
 
 ### Step 3: Restart Claude Code
 

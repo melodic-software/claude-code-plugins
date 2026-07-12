@@ -8,9 +8,15 @@ This document defines the repeatable evaluation process for EventStorming simula
 
 **Primary source:** Alberto Brandolini, "Introducing EventStorming" (Leanpub, ongoing)
 
-- EPUB: `~/Downloads/introducing_eventstorming.epub` (resolve `~` to `$HOME` on Unix or `$USERPROFILE` on Windows)
-- PDF: `~/Downloads/introducing_eventstorming.pdf`
-- Extracted EPUB: `$TMPDIR/eventstorming_epub/OEBPS/` (chap00-chap44.xhtml) — `$TMPDIR` defaults to `/tmp` on Unix, `$TEMP` on Windows
+Comparing a run against the book is a **plugin-authoring / optional** step, not a runtime
+prerequisite — a consumer running a simulation does not need the book, and every step that reads it
+is skipped when it isn't present. If you own a copy and want to run the source-comparison pass,
+point the tooling at wherever your copy lives (any path you choose):
+
+- EPUB / PDF: your local copy of the book (there is no assumed location — supply the path when you
+  run the COMPARE step)
+- Extracted EPUB working dir: `$TMPDIR/eventstorming_epub/OEBPS/` (chap00-chap44.xhtml) — `$TMPDIR`
+  defaults to `/tmp` on Unix, `$TEMP` on Windows
 
 **IMPORTANT:** EPUB file names (`chap{N}.xhtml`) do NOT match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
 
@@ -63,7 +69,7 @@ This document defines the repeatable evaluation process for EventStorming simula
 Run these checks BEFORE starting any simulation:
 
 - [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails, inform user and get approval for curl fallback
-- [ ] **Source material accessible:** Verify EPUB extraction exists at temp path. If not, extract: `cd "${TMPDIR:-/tmp}" && mkdir -p eventstorming_epub && cd eventstorming_epub && unzip ~/Downloads/introducing_eventstorming.epub`
+- [ ] **Source material accessible** *(optional — authoring / source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, extract your copy into the temp working dir, e.g. `cd "${TMPDIR:-/tmp}" && mkdir -p eventstorming_epub && cd eventstorming_epub && unzip /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item — the simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
 - [ ] **Persona count validated:** 4-7 for simulation, with three-zone knowledge (DEEP/GREY/PRETEND) defined for each

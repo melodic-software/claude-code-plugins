@@ -330,7 +330,7 @@ Define `{session_dir}` = `{system_temp}/eventstorming-session-{session_id}` and 
 When spawning an agent for Round N, include the persona's profile file content at the TOP of the prompt. The profile provides identity continuity and vocabulary consistency. After the agent completes, UPDATE the profile with what they produced in that round.
 
 **Session ID generation:**
-Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`. This namespaces the temp directory for concurrent session safety.
+Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{random4}` is four random lowercase hex characters (`0-9a-f`) — no spaces, slashes, or other path-unsafe characters, since the ID is used in filesystem paths (including the `rm -rf` cleanup). This namespaces the temp directory for concurrent session safety.
 
 **Cleanup protocol:**
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
