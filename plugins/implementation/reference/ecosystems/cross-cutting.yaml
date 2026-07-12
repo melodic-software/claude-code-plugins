@@ -1,0 +1,21 @@
+# Bundled portable default — cross-cutting (repo-wide text checks). Rung-4
+# fallback ONLY (consumer .claude/ecosystems/cross-cutting.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+# Lint-only surface: /lint runs it (alongside detected ecosystems when any text
+# file changed AND the repo opts into its tools); /build does not run it — its
+# `**` glob would otherwise match every change in build detection.
+globs: ["**"] # any text file change
+build-cmd: null
+test-cmd: null
+check-cmd: |
+  typos
+  gitleaks detect --source . --redact --no-banner --no-git
+  # editorconfig-checker — binary name varies by install method (ec / editorconfig-checker / ec-windows-amd64)
+  "$EC_BIN"
+fix-cmd: null
+opt-in: "each tool's own config at repo root (_typos.toml, .gitleaks.toml, .editorconfig-checker.json / .editorconfig)"
+install-hint: |
+  typos: winget install Crate-CI.Typos | brew install typos-cli
+  gitleaks: winget install Gitleaks.Gitleaks | brew install gitleaks
+  editorconfig-checker: winget install EditorConfig-Checker.EditorConfig-Checker | brew install editorconfig-checker
+notes: "Lint-only — owned by /lint. /build does not run this ecosystem."

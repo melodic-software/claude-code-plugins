@@ -12,22 +12,22 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-Single source of truth for ecosystem detection and build/test/lint CLI commands. Serves two roles:
+Detects affected ecosystems from changed files and runs each one's build → test → lint. Serves two roles:
 
 1. **Task skill** — `/build` runs build verification for changed files. `/build dotnet` targets one ecosystem
-2. **Reference skill** — sibling skills (`/verify-changes`, `/lint`) and any verification agents reference this for command tables instead of duplicating them
+2. **Reference skill** — sibling skills (`/verify-changes`, `/lint`) and verification agents compose this for detection and command resolution instead of baking their own tables
 
-**Consumer conventions win.** When the consuming project documents its own build/test/lint commands (in its `CLAUDE.md`, rules, or a commands reference), use those instead of the defaults in [reference/ecosystem-config.md](reference/ecosystem-config.md).
+**The command surface is resolved, not hardcoded.** Both `/build` and `/lint` resolve each ecosystem's build/test/lint commands through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md): the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
 
 ## Arguments
 
 `$ARGUMENTS` — optional ecosystem filter. If provided, run only that ecosystem. If omitted, auto-detect from changed files.
 
-Available ecosystem filters come from the per-ecosystem config in [reference/ecosystem-config.md](reference/ecosystem-config.md); any ecosystem with `enabled: true` is exposed as a filter. Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`. Literal `all` runs every enabled ecosystem.
+Available ecosystem filters are the ecosystems `/build` covers: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/build` — use `/lint` for those.
 
 ## Ecosystem detection
 
-Each enabled ecosystem in [reference/ecosystem-config.md](reference/ecosystem-config.md) declares a list of `globs` that classify changed files into that ecosystem. The skill matches `git status --porcelain` output against each ecosystem's `globs` to determine which ecosystems are affected.
+Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder — consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/build` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`; the lint-only `yaml` and `cross-cutting` surfaces are `/lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
 
 For ecosystem-specific gotchas, reference files, and primary-source detail, read the corresponding context file:
 
@@ -52,7 +52,7 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every enabled ecosystem. Otherwise, classify changed files from `git status --porcelain` against each enabled ecosystem's `globs` in [reference/ecosystem-config.md](reference/ecosystem-config.md).
+If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/build` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
 
 If the working tree is clean, fall back to the branch diff — `git diff --name-only $(git merge-base <default-branch> HEAD)..HEAD` — so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). A caller passing an explicit changed-file list (e.g. `/verify-changes`) overrides both detection paths.
 
@@ -60,9 +60,20 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 **Conversation-aware targeting**: when the conversation has been working with specific files/projects, scope the build to what was touched — don't rebuild the whole scope for a single-project change. The ecosystem config's `anchor` field provides the default scoping anchor for ecosystems with a canonical entry point; substitute a narrower project file when changes are confined to one project. For .NET specifically: use the specific `.csproj` when changes are in one project, use the solution file when changes span multiple projects or touch shared files (`.props`, `.targets`, solution file).
 
+### 1.5 Resolve each ecosystem's command surface
+
+For each affected ecosystem, resolve its command surface (`globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates`, `notes`) through the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md):
+
+1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` overlay, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
+2. Absent → infer from the repo's build files and offer to persist via `/implementation:setup`.
+3. Cannot infer → ask; offer to persist.
+4. Otherwise → the bundled default at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`.
+
+A malformed consumer file warns and degrades to rung 2 — never a hard stop.
+
 ### 2. Run checks
 
-For each affected ecosystem, read the ecosystem config for that ecosystem's `build-cmd`, `test-cmd`, and `lint-cmd`. Null commands are skipped (no build step / no test framework / lint outsourced).
+For each affected ecosystem, use the resolved `build-cmd`, `test-cmd`, and `check-cmd`. Null commands are skipped (no build step / no test framework / no lint).
 
 Substitute placeholders from the ecosystem config:
 
@@ -99,10 +110,10 @@ If any project-declared CI-parity gates fired, summarize each by name + outcome 
 
 When composing `/build` from another skill (like `/verify-changes` or `/lint`):
 
-- **To get command tables**: read [reference/ecosystem-config.md](reference/ecosystem-config.md) (or the relevant `context/<ecosystem>.md` file for gotchas and prose detail)
+- **To get command tables**: resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — consumer `.claude/ecosystems/<ecosystem>.yaml` wins, bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the fallback — or the relevant `context/<ecosystem>.md` for gotchas and prose detail
 - **To run full verification**: invoke `/build` or `/build <ecosystem>` via the Skill tool
-- **To run lint-only checks**: invoke `/lint` or `/lint <ecosystem>` (the `/lint` skill maintains its own ecosystem command config)
-- **To embed commands in agent prompts**: read [reference/ecosystem-config.md](reference/ecosystem-config.md) AND the corresponding `context/<ecosystem>.md` for gotchas
+- **To run lint-only checks**: invoke `/lint` or `/lint <ecosystem>` (it resolves through the same ladder and additionally owns the `yaml` and `cross-cutting` surfaces)
+- **To embed commands in agent prompts**: resolve per the ladder AND read the corresponding `context/<ecosystem>.md` for gotchas
 
 ## Gotchas (cross-ecosystem)
 

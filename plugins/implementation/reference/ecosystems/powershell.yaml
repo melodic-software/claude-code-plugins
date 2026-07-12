@@ -1,0 +1,10 @@
+# Bundled portable default — powershell. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/powershell.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+globs: ["*.ps1", "*.psm1"]
+build-cmd: null # no build step
+test-cmd: null # run the project's Pester suite when it documents one (Invoke-Pester)
+check-cmd: "pwsh -NoProfile -Command 'Invoke-ScriptAnalyzer -Path . -Recurse'"
+fix-cmd: null # PSScriptAnalyzer has no bulk fix mode
+opt-in: "PSScriptAnalyzerSettings.psd1 (or any PowerShell files with pwsh available)"
+install-hint: "Install-Module -Name PSScriptAnalyzer (pwsh)"
