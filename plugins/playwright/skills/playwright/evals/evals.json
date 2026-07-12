@@ -28,8 +28,8 @@
     {
       "id": 3,
       "name": "target-by-ref-not-css-selector",
-      "prompt": "/playwright:playwright — open http://localhost:3000/checkout in a named session, then click the 'Place order' button and fill the promo-code field.",
-      "expected_output": "Opens the given URL in a named session and snapshots the page, then targets the button and field by accessibility ref (e15, e37) from the snapshot rather than authoring CSS selectors, since refs survive cosmetic UI changes.",
+      "prompt": "/playwright:playwright — open http://localhost:3000/checkout in a named session, fill the promo-code field with 'SAVE10', then click the 'Place order' button.",
+      "expected_output": "Opens the given URL in a named session and snapshots the page, then targets the field and button by accessibility ref (e15, e37) from the snapshot and fills the promo code with the provided value 'SAVE10' — rather than authoring CSS selectors, since refs survive cosmetic UI changes.",
       "files": [],
       "expectations": [
         "Opens the provided URL in a named session and takes a `snapshot` before interacting",
