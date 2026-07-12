@@ -99,6 +99,14 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    user to merge the two rows, replace one, or pick a unique value; never write a schedule with a
    duplicate `id` or `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is
    tracked, not ignored.
+6. **Reconcile a renamed item's open issue.** When an edit changed an existing item's `title`, its
+   live `[Maintenance] {old title}` recurring issue (if still open) no longer matches the exact-title
+   key `due` / `work` reconcile on, so the next pass would miss it and create a duplicate. For each such
+   rename, check for an open recurring issue under the old title
+   (`gh issue list --label "recurring" --search "\"[Maintenance] {old title}\"" --state open`) and, when
+   one exists, keep the key consistent: rename that issue to `[Maintenance] {new title}`
+   (`gh issue edit <N> --title ...`), or close it if the user is retiring the item. A title rename with
+   no open issue needs no reconciliation.
 
 ## Output
 
