@@ -248,11 +248,20 @@ values small. Mapping for the credentialed servers below: `MIRO_API_TOKEN` → `
 `context7_api_key`. Infra/medley-bound secrets (`AZURE_*`, `AZURE_DEVOPS_PAT`, `GITHUB_EVENTS_SECRET`)
 do not map — those servers stay repo-level.
 
-**The medley launcher does not generalize.** medley's `fnm exec + tools/mcp-launcher/launcher.js`
-stack solves two medley-local problems — Windows bare-`npx` spawn failure and GUI-host Node PATH via
-`.nvmrc` pinning. A plugin-shipped stdio MCP carries **none** of it: the plugin runtime handles
-cross-platform `npx` spawn internally, and bundled assets resolve via `${CLAUDE_PLUGIN_ROOT}`
-(+ `${CLAUDE_PLUGIN_DATA}` for a built server's `node_modules`). The launcher stays medley-bound.
+**The medley launcher stack — only its Node-pinning layer is medley-local.** medley's
+`fnm exec + tools/mcp-launcher/launcher.js` stack solves two problems that generalize differently:
+
+- **GUI-host Node PATH via `.nvmrc` pinning — medley-local.** A plugin does not need it; bundle
+  assets via `${CLAUDE_PLUGIN_ROOT}` (+ `${CLAUDE_PLUGIN_DATA}` for a built server's `node_modules`).
+- **Windows bare-`npx` `spawn ENOENT` — a general plugin problem, still open.** Plugin-shipped stdio
+  MCPs that spawn `npx` fail on native Windows until wrapped with `cmd /c`
+  ([anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510) — OPEN; the
+  LSP spawn fix #17312 never reached the MCP spawn path). Do **not** assume the plugin runtime wraps
+  `npx` for you: a SHIP that runs `npx` must ship its own `cmd /c` wrapper, while a SHIP that runs a
+  bundled `node <server>` sidesteps the bug entirely.
+
+So the `.nvmrc`/fnm layer stays medley-bound, but the Windows-`npx` concern travels with any
+`npx`-spawning SHIP.
 
 **Decision table — medley `.mcp.json` (14 servers, audited 2026-07-12).** Verdict is *plugin-carry*,
 not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json`
@@ -280,11 +289,12 @@ disabled entries are deliberate documented opt-ins, not dead servers. firecrawl 
 `firecrawl-cli` (absent from `.mcp.json`) — it confirms rule 1 rather than being a 15th row.
 
 **miro SHIP — bundle path (for the retrofit).** `mcp-servers/miro/node` is a repo-built TypeScript
-server, not an npm package. Shipping it means either publish-to-npm + `npx`, or bundle the built
-server under `${CLAUDE_PLUGIN_ROOT}` with its `node_modules` installed to `${CLAUDE_PLUGIN_DATA}`
-(the persist-deps pattern in [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
-`${CLAUDE_PLUGIN_DATA}`), with `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`).
-Gated on the event-storming plugin publishing first.
+server, not an npm package. Prefer bundling the built server under `${CLAUDE_PLUGIN_ROOT}` with its
+`node_modules` installed to `${CLAUDE_PLUGIN_DATA}` (the persist-deps pattern in
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference), `${CLAUDE_PLUGIN_DATA}`) and
+run it via `node <server>` — this sidesteps the Windows bare-`npx` spawn bug (#58510) that the
+publish-to-npm + `npx` route would hit. Map `MIRO_API_TOKEN` → `userConfig` `miro_api_token`
+(`sensitive`). Gated on the event-storming plugin publishing first.
 
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
