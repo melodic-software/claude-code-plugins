@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic.local/machine-health/checks.schema.json",
+  "title": "CheckCatalog",
+  "description": "Schema for catalog/checks.jsonc. Enumerates every check the orchestrator may dispatch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["checks"],
+  "properties": {
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CheckEntry" }
+    }
+  },
+  "$defs": {
+    "CheckEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "added_on",
+        "category",
+        "crash_count",
+        "deprecated",
+        "enabled",
+        "id",
+        "identical_streak",
+        "needs_admin",
+        "os",
+        "script",
+        "severity_rules"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+          "description": "Stable kebab-case identifier. Must match the id emitted by the check's CheckResult."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["drivers", "network", "power", "reliability", "security", "services", "storage", "updates"]
+        },
+        "os": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["linux", "macos", "windows"]
+          }
+        },
+        "script": {
+          "type": "string",
+          "pattern": "^scripts/(linux|macos|windows)/checks/[A-Za-z0-9_-]+\\.ps1$",
+          "description": "Path relative to skill root. Orchestrator joins with the skill root to dispatch."
+        },
+        "severity_rules": {
+          "type": "string",
+          "description": "Pointer to the human-readable rubric section in references/."
+        },
+        "needs_admin": {
+          "type": "boolean",
+          "description": "Hint for UI and orchestrator logging; checks self-check and return UNKNOWN when elevation is actually required."
+        },
+        "enabled": { "type": "boolean" },
+        "deprecated": { "type": "boolean" },
+        "deprecation_reason": {
+          "type": ["string", "null"],
+          "description": "Required when deprecated is true. Captures why the check is no longer meaningful."
+        },
+        "added_on": {
+          "type": "string",
+          "format": "date",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "crash_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Consecutive unhandled failures. 3+ triggers a removal proposal."
+        },
+        "identical_streak": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Consecutive identical outputs. 4+ triggers a cadence-demotion proposal."
+        },
+        "cadence": {
+          "type": "string",
+          "enum": ["weekly", "monthly"],
+          "description": "Optional: override the default weekly cadence."
+        }
+      },
+      "allOf": [
+        {
+          "description": "When deprecated is true, deprecation_reason must be a non-empty string.",
+          "if": { "properties": { "deprecated": { "const": true } }, "required": ["deprecated"] },
+          "then": {
+            "required": ["deprecation_reason"],
+            "properties": { "deprecation_reason": { "type": "string", "minLength": 1 } }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic.local/machine-health/approvals.schema.json",
+  "title": "Approvals",
+  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Edited directly by the user or by migration on first run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["remediations", "schema_version"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Schema version for future migrations."
+    },
+    "remediations": {
+      "type": "object",
+      "description": "Keyed by remediation id as declared in references/<os>/remediation-policy.md.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["approved"],
+        "properties": {
+          "approved": {
+            "type": "boolean",
+            "description": "True enables the remediation on non-dry-run runs."
+          },
+          "approved_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "approved_by": {
+            "type": ["string", "null"],
+            "description": "Free-form identifier for audit (hostname, username, or note)."
+          },
+          "notes": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "check_overrides": {
+      "type": "object",
+      "description": "Per-check user-curated state that augments shipped defaults. Optional.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "noise_allowlist": {
+            "type": "array",
+            "description": "User-added benign-event entries for event-log-errors. Merged with the shipped allowlist.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "provider_name", "reason"],
+              "properties": {
+                "provider_name": { "type": "string" },
+                "id": { "type": "integer", "minimum": 0 },
+                "reason": { "type": "string" },
+                "added_at": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          },
+          "service_exclusions": {
+            "type": "array",
+            "description": "Service names excluded from Restart-StoppedService remediation (per-host).",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "description": "Populated on first migration from TODO.md. Removed in next major version.",
+      "additionalProperties": false,
+      "properties": {
+        "migrated_from_todo_md": { "type": "boolean" },
+        "migrated_at": { "type": "string", "format": "date-time" },
+        "source_checksum": { "type": "string" }
+      }
+    }
+  }
+}
