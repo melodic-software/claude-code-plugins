@@ -35,6 +35,7 @@ case "${1:-}" in
   usage
   exit 0
   ;;
+*) ;;
 esac
 
 format_size() {

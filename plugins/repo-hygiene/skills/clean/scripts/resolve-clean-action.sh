@@ -23,6 +23,7 @@ case "${1:-}" in
   usage
   exit 0
   ;;
+*) ;;
 esac
 
 if [[ $# -eq 0 ]]; then
@@ -86,6 +87,7 @@ if [[ -z "$canonical" ]]; then
   *stale\ branch* | *merged\ branch*)
     canonical=git
     ;;
+  *) ;;
   esac
 fi
 

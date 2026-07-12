@@ -32,6 +32,7 @@ clean_path_is_protected() {
   */.env | */.env.*) return 0 ;;
   *".local.json" | *".local.jsonc" | *".local.md") return 0 ;;
   *".csproj.user" | *".sln.docstates.suo" | *".suo") return 0 ;;
+  *) ;;
   esac
 
   for sub in "${CLEAN_PROTECTED_SUBSTRINGS[@]}"; do
@@ -85,6 +86,7 @@ clean_branch_matches_protected_pattern() {
     # shellcheck disable=SC2254
     case "$branch" in
     $pat) return 0 ;;
+    *) ;;
     esac
   done
 

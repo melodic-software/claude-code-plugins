@@ -11,8 +11,9 @@ FAILED=0
 
 assert_action() {
   local label="$1" args="$2" want="$3"
-  local out
-  out="$(bash "$RESOLVE" $args)"
+  local out argv
+  read -ra argv <<<"$args"
+  out="$(bash "$RESOLVE" "${argv[@]}")"
   assert_contains "$label" "$out" "Action: $want"
 }
 
