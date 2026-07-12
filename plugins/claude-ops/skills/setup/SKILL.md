@@ -53,7 +53,21 @@ assumptions.
    project `.claude/settings.json` at `pluginConfigs["claude-ops@melodic-software"].options.registry_dir`
    so it is tracked and shared. Create the `pluginConfigs` / `options` path if absent; do not disturb
    unrelated keys. The value is stored verbatim (Claude Code does not normalize or validate a string
-   option), so store it exactly as it should resolve relative to `${CLAUDE_PROJECT_DIR}`. For the
+   option), so store it exactly as it should resolve relative to `${CLAUDE_PROJECT_DIR}`. Two checks make
+   the in-repo choice actually take effect:
+   - **Confirm no higher-precedence scope shadows it.** Under Local > Project > User, a Local-scope
+     `registry_dir` (including an empty override a prior per-machine run may have written) outranks the
+     project value just written, so claude-troubleshooting would keep using the local value and the shared
+     location would not take effect. If step 1's read shows such an override, prompt to update or clear it
+     with consent (editing only the `registry_dir` key per step 1's secret-safe handling), or state
+     explicitly in the summary that the effective location did not change until that override is removed.
+   - **Confirm the path is actually tracked.** Because this mode is presented as git-tracked and
+     team-shared, run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/<registry_dir>/registry.json"` before
+     reporting success; if it reports the path is ignored (e.g. a repo that ignores `.claude/*` except
+     selected settings files), the registry would never be committed — warn the consumer and offer to add
+     a negation/adjust the ignore rule, or to choose a tracked directory instead.
+
+   For the
    per-machine choice, make the *effective* value resolve to the `${CLAUDE_PLUGIN_DATA}` fallback — the
    claude-troubleshooting skill treats an empty **or** unset `registry_dir` as "use the plugin data dir".
    Which action achieves that depends on **which scope currently supplies the effective value** (from step
