@@ -11,7 +11,9 @@ Stamped 2026-07-12, built from the per-skill eval presence read this session aga
 in `.claude-plugin/marketplace.json` and the class column of
 [`extensibility-contract-grading.md`](extensibility-contract-grading.md) (retrofit-audit
 `melodic-software/medley#1388`, which graded 41 — the `miro` MCP-server plugin landed after that audit
-and is classified below). Facts are Tier-0 — presence read from each `plugins/<p>/skills/<s>/evals/evals.json`.
+and is classified below). Presence was read per-skill from each `plugins/<p>/skills/<s>/evals/evals.json`;
+because sibling workers backfill concurrently, that read is accurate only at its instant — the batch
+table's Status column carries the reconciliation and the live tree is the source of truth.
 Emitter: evals-backfill `melodic-software/medley#1396`.
 
 > **Live-ledger caveat.** This is a stamp-time plan in a concurrently-backfilled marketplace, not a
@@ -33,19 +35,24 @@ session re-checks the warrant against the live `SKILL.md` and records a skip ver
 
 ## Verdict summary
 
-- **Covered (fully): 7 plugins** — every behavior skill already ships evals: `bug-report`,
+Counts below are **at stamp**; concurrent backfill has since covered many of the "owed" skills — the
+batch table's Status column carries the current reconciliation, and the live tree is authoritative.
+
+- **Covered (fully) at stamp: 7 plugins** — every behavior skill already shipped evals: `bug-report`,
   `code-tidying`, `codebase-audit`, `work-items`, `mcp-tool-audit`, `improve-architecture`,
   `repo-hygiene`.
-- **Covered (partial) → backfill owed: 2 plugins** — `claude-config-audit` (2/3;
-  `memory-health` uncovered) and `implementation` (6/11; `implement`, `implement-dispatch`, `build`,
-  `lint`, `setup` uncovered).
-- **Warranted, uncovered → backfill owed: 19 more plugins** — see the batch table.
+- **Covered (partial) at stamp: 2 plugins** — `claude-config-audit` (`memory-health` was the gap, now
+  backfilled) and `implementation` (`implement`, `implement-dispatch`, `build`, `lint`, `setup`
+  uncovered).
+- **Warranted, uncovered at stamp: 19 more plugins** — see the batch table + Status column.
 - **Deferred (do not backfill in this repo now): 2 plugins** — `songwriting` and `knowledge`, each
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
 - **Skip (explicit): 12 plugins** — 2 pure-reference + 9 hooks + 1 MCP-server (`miro`).
-- Total warranted skills owed backfill this wave: **51**, grouped into **10 one-session batches**
-  (`melodic-software/medley#1447`–`#1455`, `#1458`).
+- **51 warranted skills were identified as uncovered at stamp**, grouped into **10 one-session
+  batches** (`melodic-software/medley#1447`–`#1455`, `#1458`). Concurrent sibling backfill has since
+  covered many; **as of the latest reconciliation ~26 remain uncovered** (see the Status column below).
+  The precise number keeps falling as batches land — the live tree, not this line, is authoritative.
 
 ## Backfill batches emitted
 
@@ -53,18 +60,22 @@ One issue per batch, each sized to one agent-session, sub-issue-linked under wav
 `melodic-software/medley#1369`, `agent-ready`. Each batch issue carries the authoring recipe, the
 schema path, and the per-skill warrant re-check instruction.
 
-| Batch issue | Skills | Notes |
+The **Status** column is the reconciliation as of the latest re-scan — `DONE` = all listed skills were
+covered by concurrent sibling backfill (the issue is a no-op, close it); `PARTIAL` = some remain;
+`OPEN` = none covered yet. Status decays; re-scan the tree before acting.
+
+| Batch issue | Skills | Status (reconciled) |
 |---|---|---|
-| `melodic-software/medley#1447` | planning: architect, brainstorm, design, design-handoff, devils-advocate, interview, prd (7) | — |
-| `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep, setup; claude-config-audit: memory-health (6) | closes the claude-config-audit partial gap; per the live-ledger caveat above, several of these were backfilled concurrently — the issue tracks only what still lacks evals |
-| `melodic-software/medley#1449` | implementation: implement, implement-dispatch, build, lint, setup (5) | #1420 (ecosystem-commands + setup) CLOSED → stable; build/lint/setup author-confirm |
-| `melodic-software/medley#1450` | docs-hygiene: compress, declutter, encapsulation-audit, extract-ssot, rename-references (5) | — |
-| `melodic-software/medley#1451` | session-flow: handoff, orchestration-brief, retro, workflow; source-control: commit, pull-request, worktree (7) | — |
-| `melodic-software/medley#1452` | claude-ops: claude-code-changelog, claude-observability, claude-troubleshooting; prototype: logic, ui (5) | coordinate w/ claude-ops setup #1432 + hook migration #1391 (no file conflict) |
-| `melodic-software/medley#1453` | context7, firecrawl, playwright, diagnose, teach, kindle-dedrm (6) | thin single-skill plugins; proportional case counts |
-| `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | author vs current shipped behavior; owning retrofits update their eval on behavior change — simulation #1405, machine-health #1419, skill-quality #1418 |
-| `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | ecosystem-commands retrofit #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
-| `melodic-software/medley#1458` | boris, thariq-skills (2) | reclassified from pure-reference: each ships an `update`/`update --apply` action (routing + mutation-safety contract); scope evals to that contract, not the knowledge content |
+| `melodic-software/medley#1447` | planning: architect, brainstorm, design, design-handoff, devils-advocate, interview, prd (7) | **DONE** — all 7 backfilled concurrently |
+| `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep, setup; claude-config-audit: memory-health (6) | **PARTIAL** — only `discovery/setup` remains; the other 5 backfilled concurrently |
+| `melodic-software/medley#1449` | implementation: implement, implement-dispatch, build, lint, setup (5) | **OPEN** — #1420 (ecosystem-commands + setup) CLOSED → stable; build/lint/setup author-confirm |
+| `melodic-software/medley#1450` | docs-hygiene: compress, declutter, encapsulation-audit, extract-ssot, rename-references (5) | **OPEN** |
+| `melodic-software/medley#1451` | session-flow: handoff, orchestration-brief, retro, workflow; source-control: commit, pull-request, worktree (7) | **OPEN** |
+| `melodic-software/medley#1452` | claude-ops: claude-code-changelog, claude-observability, claude-troubleshooting; prototype: logic, ui (5) | **DONE** — all 5 backfilled concurrently |
+| `melodic-software/medley#1453` | context7, firecrawl, playwright, diagnose, teach, kindle-dedrm (6) | **DONE** — all 6 backfilled concurrently |
+| `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | **OPEN** — author vs current shipped behavior; owning retrofits update their eval on behavior change (simulation #1405, machine-health #1419, skill-quality #1418) |
+| `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | **OPEN** — #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
+| `melodic-software/medley#1458` | boris, thariq-skills (2) | **DONE** — both backfilled concurrently; reclassified from pure-reference for their `update`/`update --apply` routing + mutation-safety contract |
 
 ## Deferred — author in the destination repo once separation lands
 
