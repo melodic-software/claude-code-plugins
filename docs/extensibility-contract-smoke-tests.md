@@ -18,13 +18,21 @@ relative path resolved against?
 
 **Commands.**
 
+`--config` is applied only on a fresh install (Test C), so uninstall before each run and read the
+stored `pluginConfigs` after each:
+
 ```shell
-# existing relative paths
+# 1) existing relative paths
+claude plugin uninstall smoketest@<marketplace> --scope local
 claude plugin install smoketest@<marketplace> --scope local \
   --config req_key=hello --config some_dir=./realdir --config some_file=./realfile.txt
-# non-existent relative paths
+# then read ~/.claude/settings.json → pluginConfigs[smoketest@<marketplace>].options
+
+# 2) non-existent relative paths (uninstall first, or --config short-circuits as a no-op)
+claude plugin uninstall smoketest@<marketplace> --scope local
 claude plugin install smoketest@<marketplace> --scope local \
   --config req_key=hello --config some_dir=./does_not_exist_dir --config some_file=./does_not_exist.txt
+# then read ~/.claude/settings.json → options now show the non-existent paths, stored verbatim
 ```
 
 **Result.**
