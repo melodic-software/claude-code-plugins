@@ -35,7 +35,7 @@ session re-checks the warrant against the live `SKILL.md` and records a skip ver
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
 - **Skip (explicit): 11 plugins** — 2 pure-reference + 9 hooks.
-- Total warranted skills owed backfill this wave: **50**, grouped into **10 one-session batches**
+- Total warranted skills owed backfill this wave: **51**, grouped into **10 one-session batches**
   (`melodic-software/medley#1447`–`#1455`, `#1458`).
 
 ## Backfill batches emitted
@@ -47,7 +47,7 @@ schema path, and the per-skill warrant re-check instruction.
 | Batch issue | Skills | Notes |
 |---|---|---|
 | `melodic-software/medley#1447` | planning: architect, brainstorm, design, design-handoff, devils-advocate, interview, prd (7) | — |
-| `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep; claude-config-audit: memory-health (5) | closes the claude-config-audit partial gap |
+| `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep, setup; claude-config-audit: memory-health (6) | closes the claude-config-audit partial gap; discovery `setup` shipped via #1429 without an eval |
 | `melodic-software/medley#1449` | implementation: implement, implement-dispatch, build, lint, setup (5) | #1420 (ecosystem-commands + setup) CLOSED → stable; build/lint/setup author-confirm |
 | `melodic-software/medley#1450` | docs-hygiene: compress, declutter, encapsulation-audit, extract-ssot, rename-references (5) | — |
 | `melodic-software/medley#1451` | session-flow: handoff, orchestration-brief, retro, workflow; source-control: commit, pull-request, worktree (7) | — |
@@ -83,8 +83,10 @@ Several open setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `
 batches above**: the natural home for a new skill's eval is the retrofit PR that ships the skill —
 `code-tidying` #1431 already did exactly this (its `setup` shipped with an eval), and that is the
 pattern to follow. A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
-Because concurrent retrofits land continuously, treat any "not yet shipped" wording here as
-stamp-relative — re-read the tree, not this line, before acting.
+When a retrofit ships its setup skill *without* an eval (as `discovery` #1429 did — that skill is now
+folded into batch #1448), the gap falls back to this backfill program. Because concurrent retrofits
+land continuously, this snapshot's per-skill lists are stamp-relative: re-scan the live tree for any
+warranted skill lacking `evals/evals.json` before treating the batch set as complete.
 
 ## Skip — pure-reference plugins (2)
 
