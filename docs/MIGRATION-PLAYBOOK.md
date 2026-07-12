@@ -440,6 +440,9 @@ claude --plugin-dir ./plugins/<name>
 
 - **Edit, then `/reload-plugins`** to pick up changes without restarting — it reloads skills, agents,
   hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
+- **Multiple plugins at once** — repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
+  `--plugin-dir` also accepts a `.zip` archive (Claude Code v2.1.128+). See
+  [Create plugins](https://code.claude.com/docs/en/plugins) "Test your plugins locally".
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or

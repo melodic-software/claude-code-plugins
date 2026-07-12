@@ -67,7 +67,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 
 - `.claude-plugin/marketplace.json` — the marketplace catalog.
 - `plugins/` — one directory per plugin.
-- `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, and the per-plugin migration gate.
+- `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration gate, and the local development loop.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
 - `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
