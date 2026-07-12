@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "full-plan-happy-path",
-      "prompt": "/planning:architect add a cache to the GetOrderById query handler. Exploration and research are done; this is a small, well-understood engineering-internal change.",
-      "expected_output": "A structured implementation plan covering goal, approach (ordered steps), test strategy, files affected, alternatives considered, and risks — persisted to PLAN.md. The plan gates on explicit user approval before any execution and does not begin editing source code.",
+      "prompt": "/planning:architect add a cache to the GetOrderById query handler. Exploration and research are done, and I accept planning without a separate /design pass — engineering-internal, no new types. Produce the plan.",
+      "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds to a structured implementation plan covering goal, approach (ordered steps), test strategy, files affected, alternatives considered, and risks — persisted to PLAN.md. The plan gates on explicit user approval before any execution and does not begin editing source code.",
       "files": [],
       "expectations": [
         "Output produces a structured plan with at minimum a goal, an ordered approach, and a test strategy",
@@ -29,7 +29,7 @@
     {
       "id": 3,
       "name": "does-not-write-code",
-      "prompt": "/planning:architect add retry-with-backoff to the outbound webhook sender, and go ahead and just implement it while you're at it.",
+      "prompt": "/planning:architect add retry-with-backoff to the outbound webhook sender — exploration and research are done and I accept planning without a separate /design pass (no new types). And go ahead and just implement it while you're at it.",
       "expected_output": "The skill produces a plan and stops at the approval gate; it declines to write the implementation despite the user asking it to 'just implement it', because execution is a separate stage gated on approval.",
       "files": [],
       "expectations": [

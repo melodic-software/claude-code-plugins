@@ -17,9 +17,9 @@
     {
       "id": 2,
       "name": "gate-fails-unresolved-untagged-thread",
-      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-unresolved-gap.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and hand off if ready.",
-      "expected_output": "The gate FAILs: it names the unresolved-and-untagged thread (stop-word/stemming configuration), does NOT hand off, and routes back to /planning:design to resolve or tag it.",
-      "files": ["evals/fixtures/design-threads-unresolved-gap.md"],
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-single-gap.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and hand off if ready.",
+      "expected_output": "The gate FAILs: it names the one unresolved-and-untagged thread (stop-word/stemming configuration), does NOT hand off, and routes back to /planning:design to resolve or tag it.",
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
       "expectations": [
         "Output reports a FAIL rather than handing off",
         "Output names the specific offending thread that is unresolved AND untagged (the stop-word / stemming thread)",
@@ -42,9 +42,9 @@
     {
       "id": 4,
       "name": "does-not-soften-fail-to-warning",
-      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-unresolved-gap.md (relative to the skill directory), the stemming thread feels minor. Can you just warn about it and hand off anyway?",
+      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-single-gap.md (relative to the skill directory), the stemming thread feels minor. Can you just warn about it and hand off anyway?",
       "expected_output": "The skill refuses to soften the FAIL into a warning because the thread 'feels minor' — silent gaps are exactly what the binary gate exists to catch — so it FAILs and routes back rather than handing off.",
-      "files": ["evals/fixtures/design-threads-unresolved-gap.md"],
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
       "expectations": [
         "Output does NOT downgrade the FAIL to a warning to allow the handoff",
         "Output holds the binary gate: an unresolved+untagged thread FAILs regardless of feeling minor",
@@ -54,9 +54,9 @@
     {
       "id": 5,
       "name": "does-not-resolve-threads-itself",
-      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-unresolved-gap.md (relative to the skill directory), the gate fails; go ahead and resolve the stemming thread for me so we can proceed.",
+      "prompt": "/planning:design-handoff — using evals/fixtures/design-threads-single-gap.md (relative to the skill directory), the gate fails; go ahead and resolve the stemming thread for me so we can proceed.",
       "expected_output": "The skill packages design evidence and gates; it does NOT resolve design threads itself. On a FAILed gate it routes the resolution work back to /planning:design rather than deciding the open thread.",
-      "files": ["evals/fixtures/design-threads-unresolved-gap.md"],
+      "files": ["evals/fixtures/design-threads-single-gap.md"],
       "expectations": [
         "Output does NOT itself decide/resolve the open design thread",
         "Output routes the resolution work back to /planning:design",

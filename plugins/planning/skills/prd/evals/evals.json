@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "consumer-feature-happy-path",
-      "prompt": "/planning:prd consumer-feature add a saved-searches feature to the jobs board so users can re-run a filter set with one tap.",
-      "expected_output": "A consumer-feature-tier PRD covering the seven required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with a threshold and window, dependencies/risks, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code.",
+      "prompt": "/planning:prd synthesize consumer-feature add a saved-searches feature to the jobs board so users can re-run a filter set with one tap. Primary user: active job seekers who run the same filter set repeatedly. Desired outcome: they stop re-entering filters every visit. Success metric: raise the share of returning seekers who re-run a saved filter to 30% within 30 days of launch. Non-goals: no shared/team searches and no email alerts in v1. I've told you enough — write it.",
+      "expected_output": "A consumer-feature-tier PRD synthesized from the provided context, covering the seven required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with the given threshold (30%) and window (30 days), dependencies/risks, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code. Any genuinely missing detail is noted as an open question rather than fabricated.",
       "files": [],
       "expectations": [
         "Output covers the seven required PRD sections: problem, goals, non-goals, users with a user story, success metrics, dependencies/risks, open questions",
@@ -28,8 +28,8 @@
     {
       "id": 3,
       "name": "goals-as-outcomes-not-implementations",
-      "prompt": "/planning:prd one-pager add a search box to the song library. My goal is: add a search box with an autocomplete dropdown.",
-      "expected_output": "The skill reframes the implementation-shaped goal ('add a search box') into an outcome ('users can find a song from any of its lyrics quickly') and captures any implementation detail as an architecture question in open questions rather than as a goal.",
+      "prompt": "/planning:prd synthesize one-pager add search to the song library. Primary user: listeners browsing a large personal library. What they want: find a song fast even when they only remember a lyric. The stakeholder phrased the goal as 'add a search box with an autocomplete dropdown'. I've told you enough — write it.",
+      "expected_output": "Synthesizing from the provided context, the skill reframes the implementation-shaped goal ('add a search box with an autocomplete dropdown') into an outcome ('users can find a song from any of its lyrics quickly') and captures the search-box/dropdown implementation detail as an architecture question in open questions rather than as a goal.",
       "files": [],
       "expectations": [
         "Output states goals as user-facing outcomes, not as implementation instructions like 'add a search box' or 'add an autocomplete dropdown'",
@@ -64,8 +64,8 @@
     {
       "id": 6,
       "name": "tier-governs-verbosity-not-sections",
-      "prompt": "/planning:prd one-pager let signed-in users export their listening history as CSV.",
-      "expected_output": "A tier-1 one-pager that keeps all seven required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist.",
+      "prompt": "/planning:prd synthesize one-pager let signed-in users export their listening history as CSV. Primary user: data-minded listeners who want their history outside the app. Success metric: 5% of signed-in users export at least once within the first 60 days. Non-goals: no scheduled/recurring exports in v1. I've told you enough — write it.",
+      "expected_output": "A tier-1 one-pager synthesized from the provided context that keeps all seven required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist. Success metrics retain the given threshold (5%) and window (60 days).",
       "files": [],
       "expectations": [
         "Output retains all seven required sections even at one-pager tier",
