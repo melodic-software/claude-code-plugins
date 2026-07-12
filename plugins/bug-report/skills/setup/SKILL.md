@@ -79,10 +79,10 @@ terminal state here; do not persist a value the user did not choose.
    report skill resolves it relative to the *current* working directory, so a bare relative `.bug-reports/`
    lands under whatever subdirectory the session was started in — not reliably at the repo root. Recommend a
    form that resolves the same from any cwd: prefer `${CLAUDE_PROJECT_DIR}/.bug-reports` if the report skill
-   expands that token in `output_dir`. **Do not put a machine-absolute path in the team (project) value** —
-   `/home/alice/repo/.bug-reports` is clone-specific and breaks for every other teammate. If only an absolute
-   path works, store it in the developer's **local overlay** (step 4), not the shared project scope. Call out
-   the cwd-relative caveat when the user accepts a bare relative value.
+   expands that token in `output_dir`. **Do not put a machine-absolute path in the team (project) value** — an
+   absolute path rooted in one developer's home or checkout is clone-specific and breaks for every other
+   teammate. If only an absolute path works, store it in the developer's **local overlay** (step 4), not the
+   shared project scope. Call out the cwd-relative caveat when the user accepts a bare relative value.
 
    Present the inferred path with a recommendation and let the user accept or edit it. Keep it to this single
    knob; do not invent further options (Rule of Three).
