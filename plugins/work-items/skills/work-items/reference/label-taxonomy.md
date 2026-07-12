@@ -1,6 +1,6 @@
 # Label taxonomy
 
-The label prefix structure consumed by every action that creates, queries, or filters issues. UNIVERSAL groups work in any repo; PROJECT-SPECIFIC groups carry the consuming repo's concrete values.
+The label prefix structure consumed by every action that creates, queries, or filters work items. UNIVERSAL groups work in any repo; PROJECT-SPECIFIC groups carry the consuming repo's concrete values.
 
 When no taxonomy enforcement is desired, actions accept any label without a prefix check. By default, actions validate labels against the groups below.
 
@@ -18,11 +18,7 @@ These groups work in any repo and don't change per team.
 
 ## Project-specific groups
 
-The consuming repo defines the members of these groups to match its own architecture surface, domain categorization, and language/toolchain mix. Discover the live set:
-
-```bash
-gh label list --limit 200 --json name --jq '[.[].name | select(startswith("area:") or startswith("category:") or startswith("ecosystem:"))]' | tr -d '\r'
-```
+The consuming repo defines the members of these groups to match its own architecture surface, domain categorization, and language/toolchain mix. Discover the live set from the bound adapter's label listing (for the GitHub adapter, `tools/work-item-tracker/adapters/github/README.md` — e.g. `gh label list`).
 
 | Group | Prefix | What it encodes |
 |-------|--------|-----------------|
@@ -30,4 +26,4 @@ gh label list --limit 200 --json name --jq '[.[].name | select(startswith("area:
 | Category | `category:` | Domain categorization of the work (e.g. guardrails, testing, general) |
 | Ecosystem | `ecosystem:` | Language/toolchain (e.g. dotnet, python, typescript, bash) |
 
-When a project-specific group has no labels in the consuming repo, actions simply omit that group — no validation error. To adopt a group, create its labels once (`gh label create "area:<name>"`) and list the members in the consuming project's own rules if agents should prefer specific values.
+When a project-specific group has no labels in the consuming repo, actions simply omit that group — no validation error. To adopt a group, create its labels once through the bound adapter and list the members in the consuming project's own rules if agents should prefer specific values.

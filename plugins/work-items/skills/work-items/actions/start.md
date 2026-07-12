@@ -1,74 +1,44 @@
 # Action: `start`
 
-Claim an issue by assigning yourself and adding the `status:claimed` label.
+Claim a work item through the seam (assignee + lease record).
 
 ## Usage
 
 ```
-start <number or text match>
+/work-items:work-items start <number or text match>
 ```
 
 ## Workflow
 
-1. **Resolve the issue.** If a number is given, use it directly. If text is given, search (read — bare `gh`):
+1. **Resolve the item.** If a number is given, build its fully-qualified ID (adapter: "Resolve item ID"). If text is given, search for it (adapter: "Search items", bare read) — the search emits raw `gh` fields, so take the matched item's `number` and build its fully-qualified ID via "Resolve item ID" (the seam rejects a bare number). If multiple matches, present them and ask the user to clarify; if exactly one, proceed.
 
-```bash
-gh issue list --search "<text>" --state open --json number,title,assignees,labels --limit 10 | tr -d '\r'
-```
+1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable — `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 
-If multiple matches, present them and ask the user to clarify. If exactly one match, proceed.
+   ```bash
+   tools/work-item-tracker/work-item-tracker.sh get-item "<id>"
+   tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"
+   ```
 
-1. **Pre-check.** Verify the issue isn't already claimed or held (read — bare `gh`):
+   If the item is still assigned to another user after reclaim, its lease is live — warn: "Item `<id>` held by {assignee} (live lease). Proceed anyway? (yes / pick different)". Without the reclaim, `claim` would back off (exit 7) on the stale assignee before evaluating lease expiry.
 
-```bash
-gh issue view <N> --json assignees,labels --jq '{assignees: [.assignees[].login], claimed: [.labels[].name] | any(. == "status:claimed"), considering: [.labels[].name] | any(. == "status:considering")}' | tr -d '\r'
-```
+1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
-If assignees are non-empty OR has `status:claimed`/`status:considering` label, warn: "Issue #N is already claimed/held by {assignee}. Proceed anyway? (yes / pick different)"
+   ```bash
+   tools/work-item-tracker/work-item-tracker.sh claim "<id>"
+   ```
 
-1. **Hold.** Place a temporary hold before claiming. First run in a repo: ensure `status:considering` / `status:claimed` labels exist (see `work.md` step 3 — the hold write fails on an unknown label). Then (writes):
+   - Exit `0` — claim held; the emitted object carries `holder`, `lease_comment_id`, `acquired_at`, `ttl_hours`. Record `lease_comment_id` if you may renew later (`tools/work-item-tracker/work-item-tracker.sh renew-lease "<id>" --lease-comment-id <n>`).
+   - Exit `7` — another session won; report it and pick a different item (do NOT retry the same one).
 
-```bash
-gh issue edit <N> --add-label "status:considering"
-gh issue comment <N> --body "<!-- hold:$(hostname):$(date +%s) -->
-⏳ **Considering** — held by agent session
-- **Host:** $(hostname)
-- **Worktree:** $(git rev-parse --show-toplevel 2>/dev/null | xargs basename)
-- **Branch:** $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')
-- **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-```
+   Claim identity is the authenticated session user, never the bot (seam identity routing: `tools/work-item-tracker/CONTRACT.md` "Identity routing (GitHub adapter)").
 
-1. **Verify hold.** Check for concurrent holds (see `work.md` step 4 for the full conflict resolution protocol using comment ID ordering). If another agent holds with a lower comment ID, release your hold and warn the user.
+1. **Confirm:** "Claimed **`<id>`**: {title}. Ready to work — follow the project's development workflow."
 
-1. **Promote to claim.** The `--add-assignee "@me"` edit MUST run on the session identity (never a shared bot identity) so the post-claim collision check keeps working:
+1. **Suggest branch name.** Signal the closing-keyword link upstream so `/pull-request create` can auto-inject `Closes #N` from the branch parse. The agent NEVER runs `git checkout` itself; it emits the command for the user.
 
-```bash
-# Replace considering with claimed, add assignee, release hold comment via PATCH (preserves audit trail)
-gh issue edit <N> --remove-label "status:considering" --add-label "status:claimed" --add-assignee "@me"
-gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<HOLD_COMMENT_ID>" -f body="⏸ **Released** — hold lifted (reason: claim-promotion)"
-gh issue comment <N> --body "🔒 **Claimed** by agent session
-- **Host:** $(hostname)
-- **Worktree:** $(git rev-parse --show-toplevel 2>/dev/null | xargs basename)
-- **Branch:** $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')
-- **User:** $(gh api user --jq .login 2>/dev/null || echo 'unknown')
-- **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-```
+   **Derive `<type>`** from item labels by Conventional Commits priority — `feat > fix > refactor > docs > chore > test > build > perf`. First match wins; strip `type:` prefix. Default to `chore` if no `type:*` label present.
 
-1. **Post-claim verification** — relies on distinct claimant identities, hence the session-identity `--add-assignee "@me"` above:
-
-```bash
-gh issue view <N> --json assignees --jq '[.assignees[].login]' | tr -d '\r'
-```
-
-If multiple assignees detected, order the collision by the 🔒 claim comments' server-assigned IDs (the assignee set is unordered): the higher-ID claimant is the later one and releases — remove ONLY your own assignee, never the issue-wide `status:claimed` label the winner still holds — and picks next.
-
-1. **Confirm:** "Claimed **#N**: {title}. Ready to work — follow the project's development workflow."
-
-1. **Suggest branch name.** Propose a branch that carries the issue number so PR tooling can auto-inject `Closes #N` from the branch parse. Emit the command for the user; never switch branches without explicit authorization.
-
-   **Derive `<type>`** from issue labels by Conventional Commits priority — `feat > fix > refactor > docs > chore > test > build > perf`. First match wins; strip `type:` prefix. Default to `chore` if no `type:*` label present.
-
-   **Derive `<slug>`** from issue title: lowercase, replace non-alphanumeric runs with `-`, trim leading/trailing `-`, cap 40 chars.
+   **Derive `<slug>`** from the item title: lowercase, replace non-alphanumeric runs with `-`, trim leading/trailing `-`, cap 40 chars.
 
    **Existing-branch check first** (skip prompt if branch already correct):
 
@@ -82,17 +52,16 @@ If multiple assignees detected, order the collision by the 🔒 claim comments' 
 
    - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>` — branch matches claimed #N. No rename needed." Skip prompt. Done.
    - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
-   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no)". On `yes`, emit `git checkout -b <type>/<N>-<slug> origin/<default-branch>` for the user. On `no`, continue on the current branch — PR tooling can prompt for the closing keyword at PR time instead.
+   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes / no — orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> origin/main` for the user. On `no`, continue on current branch — `/pull-request create` falls through to its interactive Closes-keyword prompt.
 
-   **Multi-claim 3-option** — when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different issue):
+   **Multi-claim 3-option** — when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different item):
 
-   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first (never stash a shared branch's work without confirming). Emit `git checkout -b <type>/<N>-<slug> origin/<default-branch>` for the user.
-   2. **Stay on current branch and cover both in one PR** — inject `Closes #<OTHER>` + `Closes #<N>` into the PR body at PR time.
-   3. **Skip** — decide later; continue on the current branch without rename.
+   1. **Switch to `<type>/<N>-<slug>`** — WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> origin/main` for the user.
+   1. **Stay on current branch and cover both in one PR** — `/pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
+   1. **Skip** — decide later; continue on current branch without rename.
 
 ## Notes
 
-- In GitHub Actions context, replace `@me` with `$GITHUB_ACTOR`
-- The hold→verify→claim protocol uses optimistic locking via GitHub comment IDs (monotonically increasing, server-assigned). Lowest comment ID wins ties
-- If collision detected post-claim (two assignees), the second agent releases and picks next
-- Stale holds (`status:considering` >15min) are detected by the `audit` action
+- In GitHub Actions context, `@me` cannot resolve to a human — pass `--session-id "$GITHUB_ACTOR"` to `claim` for diagnostic attribution; the assignee is still the authenticated token identity.
+- The seam claim replaces the retired `status:considering` / `status:claimed` label hold protocol — coordination is assignee + lease, race-safe via lease-comment identity (`tools/work-item-tracker/CONTRACT.md` "Lease protocol").
+- Stale claims (expired lease, no activity) are cleared by the `reclaim` verb at session start (`/work-items:work-items audit`, `/work-items:work-items work`).
