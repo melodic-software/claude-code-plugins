@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "unknown-action-diagnostic",
-      "prompt": "/review-toolkit:code-review-fanout run-evrything",
+      "prompt": "/review-toolkit:code-review-fanout runall",
       "expected_output": "For an unrecognized action value the skill emits one diagnostic line naming the unknown value and the available actions, then falls back to the default review — the typo is surfaced, never silently absorbed.",
       "files": [],
       "expectations": [
