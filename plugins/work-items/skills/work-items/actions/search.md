@@ -34,7 +34,7 @@ cat .github/recurring-schedule.json | jq --arg q "<query>" '
 
 | # | Item | Labels | Assignee |
 |---|------|--------|----------|
-| 1 | #42 Fix analyzer false positive | type:fix | @kyle |
+| 1 | #42 Fix analyzer false positive | type:fix | @agent1 |
 
 ### Closed Items (X matches)
 
