@@ -130,7 +130,7 @@ Systematic gap-finding. For each round:
 3. Present findings to user for discussion
 4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
 
-Continue rounds until no new gaps surface — then run the `handoff` action for the binary gate and /architect-ready summary.
+Continue rounds until no new gaps surface — then run the `handoff` action to delegate to `/planning:design-handoff` for the binary gate and /architect-ready summary.
 
 ## Terminology pass (`terminology` action)
 
