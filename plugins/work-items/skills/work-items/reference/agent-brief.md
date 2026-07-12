@@ -27,7 +27,7 @@ Describe **what** the system should do, not **how** to implement it. The agent e
 
 The agent needs to know when it's done. Every criterion should be independently verifiable.
 
-- **Good:** "Running the test suite passes with the new validator active"
+- **Good:** "Running `dotnet test` passes with the new validator active"
 - **Bad:** "Feature should work correctly"
 
 ### Explicit scope boundaries
@@ -69,8 +69,8 @@ Be specific about edge cases and error conditions.
 
 Apply this template when:
 
-- Issue receives the `agent-ready` meta label
-- Issue is intended for AFK agent execution (scheduled agents, autonomous loops)
+- Issue receives `agent-ready` meta label
+- Issue is intended for AFK agent execution (`/schedule`, `/loop`, Codex)
 - Issue body is vague and needs structuring for autonomous execution
 
 The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it).
