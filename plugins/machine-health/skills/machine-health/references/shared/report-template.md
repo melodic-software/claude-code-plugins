@@ -1,6 +1,6 @@
 # Report template
 
-The markdown report at `<OutputBase>/reports/health-YYYY-MM-DD.md` is the primary human deliverable. Keep it scannable in the first screen and navigable for detail.
+The markdown report at `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, e.g. `health-2026-07-12T153327Z.md`) is the primary human deliverable. Keep it scannable in the first screen and navigable for detail.
 
 Placeholder tokens use `{{double-braces}}`. The orchestrator performs simple textual substitution — no templating engine required. Tokens resolving to structured content (tables, lists) are pre-rendered by the orchestrator and substituted as markdown fragments.
 

@@ -34,10 +34,10 @@ of the catalog still runs.
     // Disable a shipped check on this host
     { "id": "battery", "enabled": false },
 
-    // Record a monthly-cadence demotion for a chronically quiet check.
-    // Advisory today: the orchestrator does not yet skip monthly-cadence
-    // checks on weekly runs — the field documents the approved demotion
-    // until cadence-aware selection ships in a plugin update.
+    // Demote a chronically quiet check to monthly cadence. On a weekly run the
+    // orchestrator skips a monthly check that ran within the last ~4 weeks
+    // (per-check last run tracked in state/history.jsonl); on-demand and
+    // first-run always run every enabled check.
     { "id": "cert-expiry", "cadence": "monthly" },
 
     // Retire a check that is meaningless for this host

@@ -18,6 +18,12 @@ Pins these fixes:
 
 3. Query failure "No events were found" is handled gracefully (not an
    error -- the log simply has nothing matching the filter).
+
+4. The 7-day window is filtered in the Get-WinEvent query (StartTime), not
+   by a MaxEvents record cap that could drop in-window errors on a busy host.
+
+5. Severity is filtered on numeric Level (1=Critical, 2=Error), which is
+   locale-independent, rather than the localized LevelDisplayName.
 #>
 
 BeforeAll {
@@ -149,6 +155,22 @@ Describe 'Test-EventLogErrors -- real findings' -Tag 'check' {
 
         $result = Invoke-EventLogAsObject
         $result.severity | Should -Be 'INFO'
+    }
+}
+
+Describe 'Test-EventLogErrors -- query scopes window and level in the log query' -Tag 'check' {
+    It 'filters the 7-day window (StartTime) and numeric Level 1,2 in the query, not a record cap' {
+        Mock Get-WinEvent { @() }
+
+        Invoke-EventLogAsObject | Out-Null
+
+        Should -Invoke Get-WinEvent -Times 1 -Exactly -ParameterFilter {
+            # -FilterHashtable binds as Hashtable[]; unwrap the single entry.
+            $h = @($FilterHashtable)[0]
+            $h['LogName'] -eq 'System' -and
+            ($h['Level'] -contains 1) -and ($h['Level'] -contains 2) -and
+            $h.ContainsKey('StartTime') -and -not $h.ContainsKey('MaxEvents')
+        }
     }
 }
 

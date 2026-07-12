@@ -74,11 +74,16 @@ try {
 
     $pswuPresent = $null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)
     $pendingUpdates = @()
+    # Distinguish "module absent" (documented reboot-signals-only fallback) from
+    # "module present but the query failed" (a degraded run: we genuinely do not
+    # know whether updates are pending, so OK 'no pending updates' would lie).
+    $pswuQueryFailed = $false
     $pendingUpdatesNote = $pswuPresent ? $null : 'PSWindowsUpdate not installed -- reboot signals only.'
     if ($pswuPresent) {
         try {
             $pendingUpdates = @(Get-WUList -ErrorAction Stop)
         } catch {
+            $pswuQueryFailed = $true
             $pendingUpdatesNote = "PSWindowsUpdate present but Get-WUList failed: $($_.Exception.Message)"
         }
     }
@@ -133,6 +138,13 @@ try {
         }
     }
 
+    # A failed enumeration must not read as a clean OK. Surface it as INFO
+    # (reboot signals are still valid, so the check itself ran successfully).
+    if ($severity -eq 'OK' -and $pswuQueryFailed) {
+        $severity = 'INFO'
+        $summary = 'Update enumeration degraded (Get-WUList failed); reboot signals only.'
+    }
+
     $detail = @{
         reboot_pending          = $rebootPending
         reboot_sources          = @{
@@ -143,6 +155,7 @@ try {
         recent_hotfixes         = $recentHotfixes
         pending_update_count    = $pendingUpdates.Count
         pswindowsupdate_present = $pswuPresent
+        update_enum_degraded    = $pswuQueryFailed
         oldest_pending_days     = $null -ne $oldestPendingDays ? [int]$oldestPendingDays : $null
         hotfix_age_days         = $hotfixAgeDays
     }

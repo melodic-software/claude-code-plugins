@@ -27,9 +27,10 @@ Emitted by `scripts/<os>/checks/Test-*.ps1`. Exactly one JSON object per invocat
     "needs_admin":      { "type": "boolean" },
     "ran_successfully": { "type": "boolean", "description": "False when the check returned UNKNOWN due to error/timeout." },
     "duration_ms":      { "type": "integer", "minimum": 0 },
-    "trend":            { "type": ["object", "null"], "properties": {
-                             "last_run": { "type": "string" },
-                             "delta":    { "type": "string" }
+    "trend":            { "type": ["object", "null"], "additionalProperties": false, "properties": {
+                             "last_run":      { "type": ["string", "null"], "description": "run_id of the run this check last ran in." },
+                             "delta":         { "type": ["string", "null"] },
+                             "adjusted_from": { "type": ["string", "null"], "description": "Pre-adjustment severity when a trend rule changed it." }
                          }},
     "notes":            { "type": "string", "description": "Optional. Reason for severity adjustment, caveats, etc." },
     "error":            { "type": ["string", "null"], "description": "Populated when ran_successfully is false." }
@@ -58,7 +59,7 @@ Emitted by `scripts/<os>/checks/Test-*.ps1`. Exactly one JSON object per invocat
   "needs_admin": false,
   "ran_successfully": true,
   "duration_ms": 412,
-  "trend": { "last_run": "79% used", "delta": "+8pp" },
+  "trend": { "last_run": "2026-04-20T09:00:00-04:00", "delta": "used_pct: +8 vs prior", "adjusted_from": null },
   "notes": "Crossed 85% threshold this week."
 }
 ```
@@ -133,11 +134,14 @@ Compact. One line per run. Append-only — never rewrite.
   },
   "remediation_counts": { "attempted": 1, "succeeded": 1, "failed": 0 },
   "duration_seconds": 247,
-  "top_metrics": { "disk-space.C.used_pct": 87 }
+  "checks_ran": ["disk-space", "event-log-errors"],
+  "top_metrics": { "disk-space.used_pct": 87 }
 }
 ```
 
-`top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. Only metrics flagged as "trend-relevant" in `catalog/checks.jsonc` appear here.
+`checks_ran` lists the ids of the checks the orchestrator dispatched this run — cadence-skipped and script-missing checks are absent. It is the authoritative per-check "when did it last run" signal for cadence selection and `trend.last_run`.
+
+`top_metrics` is a small denormalization so trend queries don't rehydrate every run's full JSON. It captures every scalar detail key of every check that ran, keyed `<check.id>.<detailKey>`; the trend engine reads one well-known key per check (`Get-TrendRelevantKey`).
 
 ## Timestamp and text encoding
 

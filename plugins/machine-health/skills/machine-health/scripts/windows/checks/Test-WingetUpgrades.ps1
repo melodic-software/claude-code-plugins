@@ -4,9 +4,17 @@
 Check: winget app updates vs CISA KEV. Emits a CheckResult JSON on stdout.
 
 See references/windows/check-catalog.md#6-winget-app-updates for rubric.
+
+.PARAMETER LogPath
+Run log the KEV cache fetch appends its egress line to. The orchestrator passes
+its per-run log here so the CISA fetch lands in the same egress audit trail that
+populates urls_called; omitted, the fetch still runs but goes unlogged.
 #>
 [CmdletBinding()]
-param([switch]$Human)
+param(
+    [switch]$Human,
+    [string]$LogPath
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
@@ -79,7 +87,7 @@ try {
                 }
             }
 
-            $kev = Get-CisaKevCache -CachePath $kevPath -MaxAgeDays 7
+            $kev = Get-CisaKevCache -CachePath $kevPath -LogPath $LogPath -MaxAgeDays 7
             if ($kev -and $kev.vulnerabilities) {
                 # Index KEV entries by lowercase "vendor.product" key so each
                 # upgrade Id can be matched in O(1) instead of scanning every

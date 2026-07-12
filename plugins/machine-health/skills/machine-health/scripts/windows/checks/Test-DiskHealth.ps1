@@ -144,8 +144,10 @@ try {
     $allSeverities.AddRange($diskSeverities)
     $overallSev = Get-WorstSeverity $allSeverities.ToArray()
 
+    $worstVolumeUsedPct = $null
     $summary = if ($volumes.Count -gt 0) {
         $worstVol = $volumes | Sort-Object used_pct -Descending | Select-Object -First 1
+        $worstVolumeUsedPct = $worstVol.used_pct
         $freePct = [math]::Round(100 - $worstVol.used_pct, 1)
         "$($worstVol.drive): at $($worstVol.used_pct)% used ($freePct% free)"
     } elseif ($disks.Count -gt 0) {
@@ -157,6 +159,10 @@ try {
     $detail = @{
         volumes        = $volumes
         physical_disks = $disks
+        # Scalar worst-volume used %, hoisted out of volumes[] so the history
+        # flattener (scalars only) persists it as top_metrics 'disk-space.used_pct'
+        # -- the key Invoke-TrendAnalysis reads for disk-space trend deltas.
+        used_pct       = $worstVolumeUsedPct
     }
 
     # Non-elevated runs silently miss Get-StorageReliabilityCounter data on

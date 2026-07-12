@@ -15,6 +15,9 @@ Pins the fixes landing in Phase 5f:
 
 2. Pending-reboot signals with test isolation: tests mock Test-Path /
    Get-ItemProperty directly to simulate registry state.
+
+3. A degraded update enumeration (PSWindowsUpdate present but Get-WUList
+   throws) surfaces as INFO, not a misleading OK 'no pending updates'.
 #>
 
 BeforeAll {
@@ -137,6 +140,45 @@ Describe 'Test-WindowsUpdate -- CBS and WU reboot signals' -Tag 'check' {
         $result = Invoke-WindowsUpdateAsObject
         $result.severity | Should -Be 'INFO'
         $result.detail.reboot_sources.wu | Should -BeTrue
+    }
+}
+
+Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
+    BeforeAll {
+        # Get-WUList ships with the PSWindowsUpdate module, absent in CI/dev.
+        # Define a stub so Mock can attach; the check resolves it from this
+        # (parent) scope when invoked via `& $ScriptPath`.
+        function Get-WUList { }
+    }
+
+    It 'reports INFO (degraded), not OK, when PSWindowsUpdate is present but Get-WUList fails' {
+        Mock Get-HotFix { @() }
+        Mock Test-Path { $false }
+        Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
+            [pscustomobject]@{ PendingFileRenameOperations = @() }
+        }
+        Mock Get-Module { [pscustomobject]@{ Name = 'PSWindowsUpdate'; Version = [version]'2.2.0' } }
+        Mock Get-WUList { throw 'WUApiLib COM error 0x80240438' }
+
+        $result = Invoke-WindowsUpdateAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.detail.update_enum_degraded | Should -BeTrue
+        $result.summary | Should -Match 'degraded'
+        # The check itself ran: reboot signals are valid, so ran_successfully stays true.
+        $result.ran_successfully | Should -BeTrue
+    }
+
+    It 'stays OK when the module is absent (reboot-signals-only fallback, not degraded)' {
+        Mock Get-HotFix { @() }
+        Mock Test-Path { $false }
+        Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
+            [pscustomobject]@{ PendingFileRenameOperations = @() }
+        }
+        Mock Get-Module { $null }
+
+        $result = Invoke-WindowsUpdateAsObject
+        $result.severity | Should -Be 'OK'
+        $result.detail.update_enum_degraded | Should -BeFalse
     }
 }
 

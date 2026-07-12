@@ -108,5 +108,29 @@ function Assert-CheckResult {
         }
     }
 
+    # trend is object-or-null with additionalProperties:false in the schema.
+    # Enforce the sub-shape here so an emitter drift (e.g. a stray last_severity)
+    # fails loudly instead of silently diverging from check-result.schema.json.
+    $trend = & $getField 'trend'
+    if ($null -ne $trend) {
+        $allowedTrendKeys = @('last_run', 'delta', 'adjusted_from')
+        if ($trend -is [System.Collections.IDictionary]) {
+            $trendKeys = @($trend.Keys)
+            $adjustedFrom = if ($trend.Contains('adjusted_from')) { $trend['adjusted_from'] } else { $null }
+        } else {
+            $trendKeys = @($trend.PSObject.Properties.Name)
+            $afProp = $trend.PSObject.Properties['adjusted_from']
+            $adjustedFrom = if ($afProp) { $afProp.Value } else { $null }
+        }
+        foreach ($tk in $trendKeys) {
+            if ($tk -notin $allowedTrendKeys) {
+                throw "CheckResult.trend has unexpected key '$tk' (allowed: $($allowedTrendKeys -join ', '))$ctx."
+            }
+        }
+        if ($null -ne $adjustedFrom -and $adjustedFrom -notin $validSeverities) {
+            throw "CheckResult.trend.adjusted_from '$adjustedFrom' is not a valid severity$ctx."
+        }
+    }
+
     return $true
 }
