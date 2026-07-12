@@ -28,17 +28,31 @@ Apply the convention-resolution ladder — config present → use it; the consum
 infer a path and persist; the consumer wants the private default → ensure the key is absent. Absent is a valid
 terminal state here; do not persist a value the user did not choose.
 
-1. **Read the current value first, in precedence order.** Look for `output_dir` under
-   `pluginConfigs["bug-report@melodic-software"].options` in all three scopes and resolve the *effective*
-   value the way Claude Code does — **Local (`.claude/settings.local.json`) > Project
-   (`.claude/settings.json`) > User (`~/.claude/settings.json`)**, local winning. Report the effective value
-   (or "unset → reports go to the plugin data directory") and which scope supplies it; the interview proposes
-   a change against that baseline. If a local override is present, say so explicitly — step 3 writes the
-   *project* (team) value, which stays shadowed by the local override until the developer updates or removes
-   it, so a project-scope edit alone will not change what the plugin uses on that machine. Read each scope
-   **narrowly** — query only the single `pluginConfigs["bug-report@melodic-software"].options.output_dir` key
-   (e.g. with `jq`), never loading `.claude/settings.local.json` wholesale: that overlay is secret-bearing
-   (API tokens, env secrets), so do not read or echo unrelated settings content.
+1. **Read the current value first, across every scope, in precedence order.** Look for `output_dir` under
+   `pluginConfigs["bug-report@melodic-software"].options` and resolve the *effective* value the way Claude
+   Code does — the full precedence, highest wins:
+   1. **Managed** (system `managed-settings.json`) — **read-only** to this skill.
+   2. **Command-line** (a session launched with `--settings`) — **read-only**; a transient session override.
+   3. **Local** (`.claude/settings.local.json`).
+   4. **Project** (`.claude/settings.json`).
+   5. **User** (`~/.claude/settings.json`).
+
+   Report the effective value (or "unset → reports go to the plugin data directory") and which scope supplies
+   it; the interview proposes a change against that baseline. Two consequences of the full ladder that a
+   Local > Project > User model misses:
+   - **A higher scope shadows a write.** Step 3 writes the *project* (team) value, but a Managed,
+     command-line, or Local value above it will keep winning until that scope is changed or removed. When one
+     is present, say so explicitly — a project-scope edit alone will not change what the plugin uses in that
+     session. **Managed and command-line are read-only here** (a plugin setup cannot edit system policy or a
+     session's CLI flags): if either supplies the effective value, report it as a hard blocker and do not
+     claim any write or clear will change the `--file` destination.
+   - **A lower scope can be revealed.** Because more than one scope may hold `output_dir` at once, note every
+     scope that carries a value, not just the winning one — step 3's reset needs the full set.
+
+   Read each scope **narrowly** — query only the single
+   `pluginConfigs["bug-report@melodic-software"].options.output_dir` key (e.g. with `jq`), never loading
+   `.claude/settings.local.json` (or any settings file) wholesale: that overlay is secret-bearing (API
+   tokens, env secrets), so do not read or echo unrelated settings content.
 2. **Interview — one decision.** Ask whether `--file` bug reports should be **committed into this repo** or
    **kept in the plugin's private data directory (the default)**. Recommend the default (uncommitted) unless
    the repo already commits similar working artifacts — bug reports can name unfixed defects and are often
@@ -51,28 +65,29 @@ terminal state here; do not persist a value the user did not choose.
 
    Present the inferred path with a recommendation and let the user accept or edit it. Keep it to this single
    knob; do not invent further options (Rule of Three).
-3. **Persist or clear to project scope.** Write to (or edit) the project `.claude/settings.json`:
-   - **Repo-committed chosen:** set `pluginConfigs["bug-report@melodic-software"].options.output_dir` to the
-     chosen value so it is tracked and shared with the team. Create the `pluginConfigs` / options path if
+3. **Persist or clear.** The *set* path writes the project scope; the *clear* path may span scopes:
+   - **Repo-committed chosen:** set `pluginConfigs["bug-report@melodic-software"].options.output_dir` in the
+     project `.claude/settings.json` to the chosen value so it is tracked and shared with the team. Create the
+     `pluginConfigs` / options path if
      absent; do not disturb unrelated keys. The value is stored verbatim (Claude Code does not normalize a
      `directory` option to absolute or validate existence), so store it exactly as it should resolve relative
      to the working directory.
-   - **Default (uncommitted) chosen and a prior value exists:** clear it at the scope that *supplies the
-     effective value* (identified in step 1) — removing the project key alone is not always enough:
-     - **Project scope** supplies it → remove the project `output_dir` key and the plugin falls back to its
-       data directory. Removing the last option under this plugin leaves an empty `options` (or
-       `pluginConfigs` entry) — prune those empty containers too, and leave unrelated `pluginConfigs` entries
-       untouched.
-     - **User scope** (`~/.claude/settings.json`) supplies it → a project-scope removal does **not** reset
-       this repo, because the lower-precedence user value still resolves (Local > Project > User). Either
-       update/remove the user-scope value with the developer's explicit consent (same narrow single-key
-       edit), or, if they will not touch their global config, tell them plainly that a project-scope clear
-       cannot override the inherited user value here and name the file to edit. Never silently edit a user's
-       global settings without asking.
-     - **Local overlay** (`.claude/settings.local.json`) supplies it → clear it there (same single-key edit);
-       a project-scope removal is likewise shadowed by the local override.
+   - **Default (uncommitted) chosen and a prior value exists:** reaching the plugin-data default means **no
+     scope may hold `output_dir`** — clearing only the winning scope just reveals the next value down. Using
+     the full set of value-carrying scopes from step 1:
+     - **A read-only scope (Managed or command-line) holds a value** → it cannot be cleared here. Report that
+       the private default is unreachable until the administrator changes the managed policy (or the session
+       drops the `--settings` override), and stop — do not pretend a writable-scope edit resets it.
+     - **Otherwise clear every *writable* scope that carries a value** — Local (`.claude/settings.local.json`)
+       and Project (`.claude/settings.json`) directly; User (`~/.claude/settings.json`) only with the
+       developer's **explicit consent**, since it is their global config. For each, remove the single
+       `output_dir` key and prune the emptied `options` / `pluginConfigs` containers, leaving unrelated
+       entries untouched. Only when no writable scope holds a value does the plugin fall back to its data
+       directory.
+     - **If the user declines to clear their user-scope value**, tell them plainly that the repo will keep
+       resolving that global value and name the file to edit. Never silently edit a user's global settings.
 
-     A set-only reconfigure would trap a stale path; scope-aware clearing is part of "re-runnable".
+     A set-only reconfigure would trap a stale path; scope-complete clearing is part of "re-runnable".
    - **Default chosen and no value exists:** nothing to write — confirm the effective behavior.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
@@ -80,9 +95,10 @@ terminal state here; do not persist a value the user did not choose.
 
 ## Output
 
-An updated (or unchanged) project `.claude/settings.json`, plus a one-line summary of the effective
-`output_dir` behavior, its scope, and how to re-run this setup to reconfigure or reset to the default. State
-the concrete path `--file` will now write to.
+An updated (or unchanged) settings file in the appropriate scope(s) — project for a set, and whichever
+writable scopes carried a value for a reset — plus a one-line summary of the effective `output_dir` behavior,
+its scope, and how to re-run this setup to reconfigure or reset to the default. State the concrete path
+`--file` will now write to.
 
 ## What this skill does NOT do
 
@@ -91,8 +107,8 @@ the concrete path `--file` will now write to.
   directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is where reports themselves land when
   `output_dir` is unset, not where config is stored). The **set** path always writes the project (tracked,
   team) `.claude/settings.json`. The **reset** path is the one exception that may touch a machine-local scope
-  — and only to remove an inherited value the user asked to clear: it clears `.claude/settings.local.json`
-  when the local overlay supplies the effective value, or `~/.claude/settings.json` with explicit consent when
-  user scope does, because a project-scope edit cannot reach either. It never writes machine-local state the
-  plugin itself owns.
+  — and only to remove a value the user asked to clear: it clears `.claude/settings.local.json` when the local
+  overlay carries a value, or `~/.claude/settings.json` with explicit consent when user scope does, because a
+  project-scope edit cannot reach either. It never edits read-only Managed or command-line scopes, and never
+  writes machine-local state the plugin itself owns.
 - Persist a value the user did not choose — unset is a valid, recommended outcome.
