@@ -229,9 +229,11 @@ approval) and appear as standard tools. The connect cost differs by transport: a
 costs a **local process spawn on every session that enables the plugin**, used or not; an **HTTP/SSE/WS**
 server spawns no local process but still auto-connects (its trust prompt + tool-schema context cost).
 Tool-search deferral hides the tool *schema* from context until first use but does **not** defer the
-stdio spawn or the connect. That auto-start cost is why the default is **not** to ship MCP: zero
-marketplace plugins ship one today, and the discriminator below keeps it that way unless a plugin is
-genuinely useless without its server.
+stdio spawn or the connect. That auto-start cost is why the default is **not** to ship MCP: exactly
+one marketplace plugin ships one (`miro`, the dedicated Miro board capability — below), and the
+discriminator below keeps it rare, reserved for a plugin genuinely useless without its server. A
+credentialed SHIP additionally ships `defaultEnabled: false`, so its server does not auto-start for
+consumers who never opt in.
 
 **Uniform discriminator — apply to every server, no exemptions:**
 
@@ -244,13 +246,28 @@ genuinely useless without its server.
    (`firecrawl-cli`), ccusage (`ccusage daily|monthly|session|blocks --json` — same token/cost
    breakdown as the MCP, [ccusage json-output](https://ccusage.com/guide/json-output)).
 2. **No CLI + plugin is *useless* without the server → SHIP.** Bundle it and map each secret to
-   `userConfig` `sensitive` (below). "Useless" is a high bar — a plugin that runs in a reduced mode
-   without the server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn:
-   an `npx` command needs a `cmd /c` wrapper on Windows (#58510 below), and a bundled built server
-   whose `node_modules` live under `${CLAUDE_PLUGIN_DATA}` must set
-   `env.NODE_PATH: "${CLAUDE_PLUGIN_DATA}/node_modules"` (the persist-deps example in
-   [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
-   with `MODULE_NOT_FOUND`.
+   `userConfig` `sensitive` (below). "Useless" is a high bar met by a **dedicated** server-wrapper
+   plugin (its entire capability *is* the server); a plugin that runs in a reduced mode without the
+   server is *degraded-but-functional* (rule 3), not a SHIP. A stdio SHIP owns its spawn: an `npx`
+   command needs a `cmd /c` wrapper on Windows (#58510 below), so prefer invoking a bundled
+   `node <server>` — it sidesteps #58510 entirely. Two bundling mechanisms, ratified by the `miro`
+   SHIP (the first instance, below):
+   - **Single self-contained bundle (preferred).** An [esbuild](https://esbuild.github.io/) bundle
+     of the TypeScript source and every runtime dependency into one `dist/index.min.js` — no shipped
+     `node_modules`, so no `NODE_PATH`. The source is the source of truth; the `.min.js` is committed
+     generated output (plugin install runs no build step), and a CI lane rebuilds it from source with
+     the pinned toolchain, fails on drift, and runs the artifact over stdio so a bundle that compiles
+     but cannot serve MCP is caught in CI. `.min.` keeps the generated bundle out of the
+     text-quality lanes (typos, editorconfig).
+   - **Committed `node_modules` under `${CLAUDE_PLUGIN_DATA}` (fallback).** For a server that cannot
+     be single-file bundled, ship its `node_modules` and set
+     `env.NODE_PATH: "${CLAUDE_PLUGIN_DATA}/node_modules"` (the persist-deps example in
+     [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
+     with `MODULE_NOT_FOUND`.
+
+   A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false` — it
+   installs disabled and the consumer opts in, so enabling the marketplace does not auto-start a
+   credentialed server for users who never asked for it.
 3. **No CLI + plugin is *degraded-but-functional* without it → STAY repo-level.** The skill NAMES the
    dependency and the consumer provides the server in their own `.mcp.json`; the skill degrades
    gracefully or loads the tool via `ToolSearch` when present. This is the extensibility model's
@@ -292,7 +309,7 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 
 | Server | Transport | Secret | Verdict | Basis |
 |---|---|---|---|---|
-| miro | stdio (repo-built) | `MIRO_API_TOKEN` | STAY | No CLI, but the event-storming plugin is **degraded-but-functional** without Miro: `/event-storming:simulation` runs structured-markdown mode by default and the plugin **explicitly ships no Miro server** (its README Requirements + the simulation preflight). Rule 3 — the consumer supplies Miro in their own `.mcp.json`; `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`) if they choose to wrap it |
+| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro` (single source of truth, no copy left behind), bundled to one `dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, keychain); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
 | aspire | stdio (`aspire` native) | — | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
@@ -307,18 +324,35 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | playwright | stdio | — | STAY (CLI-first, disabled) | playwright plugin ships `@playwright/cli`; MCP disabled in medley in its favor |
 | ref | http | `REF_API_KEY` | STAY | `/research` doc search; degraded-but-functional |
 
-**SHIP: 0. STAY: 14. DROP: 0** — no medley server clears the SHIP bar: every one is CLI-first,
-degraded-but-functional (its consumer plugin already runs without it), or infra-bound. This audit
-therefore **ratifies "no plugin ships an MCP server"** rather than adding a first exception. Every
-STAY server has a live consumer; the three disabled entries are deliberate documented opt-ins, not
-dead servers. firecrawl already migrated to `firecrawl-cli` (absent from `.mcp.json`) — it confirms
-rule 1 rather than being a 15th row.
+**SHIP: 1. STAY: 13. DROP: 0** — only `miro` clears the SHIP bar, and only once reframed as its own
+dedicated plugin (rule 2). The other 13 are CLI-first, degraded-but-functional (their consumer plugin
+already runs without them), or infra-bound. Every STAY server has a live consumer; the three disabled
+entries are deliberate documented opt-ins, not dead servers. firecrawl already migrated to
+`firecrawl-cli` (absent from `.mcp.json`) — it confirms rule 1 rather than being a 15th row.
 
-miro was the closest call and still lands STAY: the shipped event-storming plugin was built to
-degrade to structured-markdown by default and ships no server, so bundling one would auto-start a
-credentialed MCP for every event-storming session against the plugin's own default path. If a future
-plugin ever clears the SHIP bar for a repo-built server like `mcp-servers/miro/node`, bundle it per
-rule 2's `NODE_PATH` note and prefer `node <server>` over publish-to-npm + `npx` (sidesteps #58510).
+miro was the closest call and initially landed STAY when weighed as event-storming's optional
+dependency. The owner's 2026-07-12 direction reframed it: the Miro board capability becomes a
+**dedicated** `miro` plugin, and a dedicated server-wrapper plugin is useless without its server
+(rule 2 → SHIP). The original STAY objection — that bundling would auto-start a credentialed MCP for
+every event-storming session — is dissolved by `defaultEnabled: false` (the plugin installs disabled;
+event-storming keeps its structured-markdown default and consumes miro only when a consumer opts in).
+The mechanism is **cutover + bundle**: relocate the server's source into the plugin (the playbook's
+reintegration end-state — the repo drops its in-repo copy), single-file esbuild bundle, `node <server>`
+over stdio — no npm/registry publish, no consumer token wall, no `npx` (#58510).
+
+**§2 first-party trust accept (miro SHIP).** Recorded here as the single SSOT per the security review:
+
+- **Vendor / provenance.** First-party — a thin wrapper (authored in-house) over Miro's official REST
+  API client (`@mirohq/miro-api`); `plugin.json` `author` = Melodic Software. Not a third-party remote
+  MCP (Miro's own `mcp.miro.com` was rejected — no board-delete tool, and a third-party remote-egress
+  acceptance the playbook denies by default).
+- **Transport.** Local `stdio` — a per-session `node dist/index.min.js` process; no listening port, no
+  auto-connect to any remote MCP host.
+- **Data egress.** Only the Miro REST calls the consumer's own tool invocations make, to
+  `api.miro.com`, authenticated by the consumer's own token. No telemetry, no other outbound network.
+- **Token scope.** `MIRO_API_TOKEN` → `userConfig` `miro_api_token`, `sensitive` (system keychain,
+  never `settings.json`); the consumer supplies and scopes it. The server exits at startup if unset.
+- **Opt-in.** `defaultEnabled: false` — installs disabled; the consumer enables it deliberately.
 
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
@@ -397,9 +431,10 @@ Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
    (`HOOK_<PLUGIN>_ENABLED`) exists.
-2. **Remote MCP servers — `.mcp.json` / inline in `plugin.json`.** **Net-new surface** — no current plugin
-   ships one. A plugin's MCP server **starts automatically when the plugin is enabled** (subject to per-server
-   approval). Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
+2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the **only** plugin that ships one
+   (local `stdio`, bundled — see its §2 trust accept above); no plugin ships a **remote** MCP server, which
+   remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
+   (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine** — a remote
    server receives whatever Claude sends and, if it returns external content, is a prompt-injection vector
    (official guidance: "Verify you trust each server before connecting it"); auth shape (header/Bearer/OAuth)

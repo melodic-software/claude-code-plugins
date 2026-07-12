@@ -252,6 +252,12 @@
       "source": "./plugins/machine-health",
       "category": "monitoring",
       "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
+    },
+    {
+      "name": "miro",
+      "source": "./plugins/miro",
+      "category": "utilities",
+      "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"]
     }
   ],
   "renames": {
