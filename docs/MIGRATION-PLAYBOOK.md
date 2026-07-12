@@ -199,7 +199,7 @@ a skill ships them only when they earn their keep.
 **Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
-from a knowledge corpus with no decision contract — `boris`, `tdd`, …) or lives in a **hook** plugin
+from a knowledge corpus with no decision contract — `fable-5-playbook`, `tdd`, …) or lives in a **hook** plugin
 (deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
 `configure` skill *is* warrantable — it makes interview and write-config decisions (the
 `codebase-audit/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish

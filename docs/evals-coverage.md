@@ -14,6 +14,14 @@ in `.claude-plugin/marketplace.json` and the class column of
 and is classified below). Facts are Tier-0 — presence read from each `plugins/<p>/skills/<s>/evals/evals.json`.
 Emitter: evals-backfill `melodic-software/medley#1396`.
 
+> **Live-ledger caveat.** This is a stamp-time plan in a concurrently-backfilled marketplace, not a
+> live ledger. Between the stamp and any read, other workers land evals — during this document's own
+> authoring, `discovery`'s `explore`/`explore-deep`/`research`/`research-deep` skills and
+> `claude-config-audit/memory-health` were backfilled by sibling work. The batch issues below therefore
+> instruct each author to re-check every listed skill against the live tree and **skip any that already
+> ship `evals/evals.json`**. Treat the per-skill lists and counts as stamp-time identification; re-scan
+> before acting.
+
 ## Warrant rule (summary)
 
 Full rule + rationale: playbook "Evals — warrant policy and consumer-verify recipe". In brief a skill
@@ -48,7 +56,7 @@ schema path, and the per-skill warrant re-check instruction.
 | Batch issue | Skills | Notes |
 |---|---|---|
 | `melodic-software/medley#1447` | planning: architect, brainstorm, design, design-handoff, devils-advocate, interview, prd (7) | — |
-| `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep, setup; claude-config-audit: memory-health (6) | closes the claude-config-audit partial gap; discovery `setup` shipped via #1429 without an eval |
+| `melodic-software/medley#1448` | discovery: setup (the other 4 discovery skills + `claude-config-audit/memory-health` were backfilled concurrently — re-verify and author only what still lacks evals) | discovery `setup` shipped via #1429 without an eval |
 | `melodic-software/medley#1449` | implementation: implement, implement-dispatch, build, lint, setup (5) | #1420 (ecosystem-commands + setup) CLOSED → stable; build/lint/setup author-confirm |
 | `melodic-software/medley#1450` | docs-hygiene: compress, declutter, encapsulation-audit, extract-ssot, rename-references (5) | — |
 | `melodic-software/medley#1451` | session-flow: handoff, orchestration-brief, retro, workflow; source-control: commit, pull-request, worktree (7) | — |
