@@ -190,6 +190,46 @@ for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGI
 replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
 writes to the consumer's tracked config or to `pluginConfigs` — both persist across updates.
 
+## Evals — warrant policy and consumer-verify recipe
+
+Evals are model-graded behavior fixtures at `plugins/<plugin>/skills/<skill>/evals/evals.json`,
+schema `plugins/skill-quality/reference/evals.schema.json`. They are **warranted, not mandatory** —
+a skill ships them only when they earn their keep.
+
+**Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
+that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
+or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
+from a knowledge corpus with no decision contract — `boris`, `tdd`, …) or lives in a **hook** plugin
+(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
+`configure` skill *is* warrantable — it makes interview and write-config decisions (the
+`codebase-audit/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
+routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
+and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
+Coverage against this rule is snapshotted per audit in
+[`evals-coverage.md`](evals-coverage.md); that doc is the point-in-time record, this section is the
+policy.
+
+**Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
+description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
+(the field may equivalently be named `assertions` — skill-creator upstream uses that name). Aim to
+cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
+must not do.
+
+**Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
+executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
+`melodic-software/medley#1418`); `skill-quality` only checks presence and schema. So a consumer
+verifies a plugin against its evals in three grounded steps:
+
+1. **Presence** — `/skill-quality:check <skill>` (the seventeen-check static gate flags a warranted
+   skill that ships no evals).
+2. **Schema** — `/skill-quality:validate-evals <skill>` validates `evals/evals.json` against the
+   bundled schema (structure only — it does not run the cases).
+3. **Exercise (manual)** — for each case, paste its `prompt` into a fresh session with the plugin
+   enabled in your repo and read the result against that case's `expected_output` / `expectations`.
+   Cases with a `files` list need those fixtures present relative to the skill directory. This is a
+   human judgment pass, not an automated pass/fail, until the deferred runner lands — at which point
+   this step becomes a single command and this recipe is revised.
+
 ## Shared tools and scripts seam
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
