@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 ## Pre-computed context
 
-youtube-extraction deps: !`[ -d "${CLAUDE_PLUGIN_DATA:-/nonexistent}/node_modules/@melodic/video-digestion" ] && echo "installed" || echo "MISSING — run setup-deps.mjs (see Prerequisites)"`
+youtube-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
 yt-dlp: !`yt-dlp --version 2>/dev/null | head -1 || echo "MISSING — install yt-dlp (see Prerequisites)"`
 ffmpeg: !`ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (watch action only)"`
 ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (watch action only)"`
