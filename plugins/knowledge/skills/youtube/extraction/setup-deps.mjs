@@ -6,14 +6,18 @@
  * ships without a committed `node_modules`; this runs once on first use and
  * again after an update whose `package.json` changed.
  *
- * Idempotent: a stored copy of the bundled manifest gates reinstalls, matching
- * the manifest-diff pattern the plugins-reference recommends. `--install-links`
- * packs the bundled `file:./vendor/*` packages as real installs so they resolve
- * from the data directory rather than a symlink back into the plugin cache.
+ * Idempotent: a stored fingerprint gates reinstalls. Because the `file:./vendor/*`
+ * packages are installed from bundled SOURCE (not fetched by version), the
+ * fingerprint hashes `package.json` AND the entire `vendor/` tree — a plugin
+ * update that changes vendored code without touching the top-level manifest must
+ * still trigger a reinstall. `--install-links` packs the vendored packages as
+ * real installs so they resolve from the data directory rather than a symlink
+ * back into the plugin cache.
  *
  * Usage: node setup-deps.mjs
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,11 +34,35 @@ if (!data) {
 
 fs.mkdirSync(data, { recursive: true });
 
-const bundledManifest = fs.readFileSync(path.join(here, "package.json"), "utf8");
-const stampPath = path.join(data, ".youtube-extraction.package.json");
+/** Fingerprint the install inputs: package.json + every file under vendor/. */
+function computeStamp() {
+  const hash = createHash("sha256");
+  const files = ["package.json"];
+  const vendorRoot = path.join(here, "vendor");
+  if (fs.existsSync(vendorRoot)) {
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const abs = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(abs);
+        else files.push(path.relative(here, abs).split(path.sep).join("/"));
+      }
+    };
+    walk(vendorRoot);
+  }
+  for (const rel of files.sort()) {
+    hash.update(rel);
+    hash.update("\0");
+    hash.update(fs.readFileSync(path.join(here, rel)));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+const stamp = computeStamp();
+const stampPath = path.join(data, ".youtube-extraction.stamp");
 const installed = fs.existsSync(path.join(data, "node_modules", "@melodic", "video-digestion"));
 
-if (installed && fs.existsSync(stampPath) && fs.readFileSync(stampPath, "utf8") === bundledManifest) {
+if (installed && fs.existsSync(stampPath) && fs.readFileSync(stampPath, "utf8") === stamp) {
   process.stdout.write("youtube extraction deps already current.\n");
   process.exit(0);
 }
@@ -55,5 +83,5 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-fs.writeFileSync(stampPath, bundledManifest);
+fs.writeFileSync(stampPath, stamp);
 process.stdout.write(`youtube extraction deps installed to ${path.join(data, "node_modules")}.\n`);
