@@ -666,7 +666,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 - **Asymmetric output is natural** — Domain Experts dump 15 events, New Hires add 5. Don't force equal output. "Some might work mostly alone, dropping the bulk of their expertise in a single strip of orange sticky notes" (Ch. 4)
 - **The facilitator breaks "committee circles"** — if agents converge too quickly on clean consistent flows, prompt them to disagree. "Discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4)
 - **No connectors / arrows** — per Brandolini (Ch. 7): "once an arrow is drawn, your brain avoids moving stickies to preserve arrows" (Sunken Cost Fallacy). In Miro, do NOT use connectors during Big Picture. Use proximity and temporal order instead
-- **Continuous source validation** — after each phase, check: "Is this how it should be done based on Brandolini's source material?" Read the relevant book chapter and compare before proceeding
+- **Continuous source validation** — after each phase, check: "Is this how it should be done?" against the bundled methodology references (`/event-storming:methodology`), which encode Brandolini's guidance. Only read the book itself if the user has supplied a copy; never block a phase waiting on the book — the bundled references are sufficient
 - **"The model is still wrong"** — the workshop output is provisional. "Some inconsistencies could only be spotted by coding and testing the model in the real world" (Ch. 9). Don't fall in love with the artifact
 
 **Convergence detection and committee-breaking (facilitator responsibility):**

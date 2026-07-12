@@ -326,7 +326,7 @@ do not block the run on an undeclared tool.
 **Screenshot naming convention:** `{format}-v{version}-{phase}.png`
 Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-cfp-management.png`
 
-**Screenshot storage:** Save to `{worktree}/screenshots/` or session temp directory.
+**Screenshot storage:** Save to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/screenshots/` or the session temp directory (`{session_dir}/screenshots/`) — never the consumer's project tree.
 
 ---
 
