@@ -240,6 +240,18 @@
       "source": "./plugins/event-storming",
       "category": "modeling",
       "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
+    },
+    {
+      "name": "skill-quality",
+      "source": "./plugins/skill-quality",
+      "category": "quality",
+      "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"]
+    },
+    {
+      "name": "machine-health",
+      "source": "./plugins/machine-health",
+      "category": "monitoring",
+      "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
     }
   ],
   "renames": {
