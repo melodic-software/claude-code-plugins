@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "clean-requires-confirmation",
-      "prompt": "Clean up the OTEL store, it's getting big.",
+      "prompt": "The OTEL store is getting pretty large — is there a safe way to trim it down?",
       "expected_output": "Because this is a casual cleanup request rather than an explicit destructive order (the user did not pass --dry-run or clearly order the prune), the skill shows the --dry-run preview (what would be pruned) and requires explicit user confirmation before actually pruning. It does not delete store or JSONL data in this turn.",
       "files": [],
       "expectations": [

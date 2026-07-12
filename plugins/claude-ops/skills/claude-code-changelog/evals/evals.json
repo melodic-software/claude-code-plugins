@@ -39,7 +39,7 @@
     {
       "id": 4,
       "name": "status-derives-from-git-not-tracker-file",
-      "prompt": "Which Claude Code changelog versions have we already applied to this repo?",
+      "prompt": "/claude-code-changelog status",
       "expected_output": "The status action derives applied versions from git history (e.g. git log --grep for CC version citations in commit messages). It does NOT create, read, or propose a persistent applied-versions tracking file — git history is the single source of truth.",
       "files": [],
       "expectations": [

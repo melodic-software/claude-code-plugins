@@ -50,7 +50,7 @@
       "id": 5,
       "name": "html-mockup-constraints",
       "prompt": "I don't have a dev server running and there's no page for this yet — just give me the fastest standalone mockup of a few pricing-page layouts I can open in my browser.",
-      "expected_output": "The skill routes to the HTML mockup substrate: one self-contained file:// page with synthetic data and an in-page switcher, a restrictive CSP meta tag that blocks remote resources, generated into a temp/gitignored scratch location (not a tracked path), with the winning-variant answer captured in markdown.",
+      "expected_output": "The skill routes to the HTML mockup substrate: one self-contained file:// page with synthetic data and an in-page switcher, a restrictive CSP meta tag that blocks remote resources, and a copy-out control to lift the chosen variant back out later, generated into a temp/gitignored scratch location (not a tracked path). It hands the page over for the user to flip through; capturing the winning variant in markdown happens later, once the user picks one.",
       "files": [],
       "expectations": [
         "The mockup is a single self-contained `file://` HTML page using synthetic data only (no real/captured values)",
