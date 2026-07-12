@@ -49,10 +49,11 @@ batch table's Status column carries the current reconciliation, and the live tre
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
 - **Skip (explicit): 12 plugins** — 2 pure-reference + 9 hooks + 1 MCP-server (`miro`).
-- **51 warranted skills were identified as uncovered at stamp**, grouped into **10 one-session
-  batches** (`melodic-software/medley#1447`–`#1455`, `#1458`). Concurrent sibling backfill has since
-  covered many; **as of the latest reconciliation ~26 remain uncovered** (see the Status column below).
-  The precise number keeps falling as batches land — the live tree, not this line, is authoritative.
+- **~54 warranted skills identified as uncovered** (51 at stamp + 3 setup skills that shipped uncovered
+  since), grouped into **11 one-session batches** (`melodic-software/medley#1447`–`#1455`, `#1458`,
+  `#1462`). Concurrent sibling backfill has since covered many; **as of the latest reconciliation ~29
+  remain uncovered** (see the Status column below). The precise number keeps moving as batches land and
+  new setup skills ship — the live tree, not this line, is authoritative.
 
 ## Backfill batches emitted
 
@@ -76,6 +77,7 @@ covered by concurrent sibling backfill (the issue is a no-op, close it); `PARTIA
 | `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | **OPEN** — author vs current shipped behavior; owning retrofits update their eval on behavior change (simulation #1405, machine-health #1419, skill-quality #1418) |
 | `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | **OPEN** — #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
 | `melodic-software/medley#1458` | boris, thariq-skills (2) | **DONE** — both backfilled concurrently; reclassified from pure-reference for their `update`/`update --apply` routing + mutation-safety contract |
+| `melodic-software/medley#1462` | setup-action skills self-scan: bug-report/setup, claude-ops/setup, work-items/setup + future landings (3) | **OPEN** — self-scanning catch-all for setup skills that shipped without evals and aren't in a family batch/deferral |
 
 ## Deferred — author in the destination repo once separation lands
 
@@ -96,17 +98,17 @@ Recorded as decisions, not silent omissions, each with a revisit trigger (playbo
   which individual skills already carry evals (`youtube` ships one). **Revisit trigger:** #1393 fixes
   the plugin's home → author evals for whatever skills still lack them, in the destination repo.
 
-## Future coverage — net-new skills from open retrofits
+## Future coverage — setup-action skills (self-scanning batch)
 
-Several open setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) add a net-new
-`setup`/`configure` skill. Evals for those are a **per-retrofit follow-on, not part of the backfill
-batches above**: the natural home for a new skill's eval is the retrofit PR that ships the skill —
-`code-tidying` #1431 already did exactly this (its `setup` shipped with an eval), and that is the
-pattern to follow. A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
-When a retrofit ships its setup skill *without* an eval (as `discovery` #1429 did — that skill is now
-folded into batch #1448), the gap falls back to this backfill program. Because concurrent retrofits
-land continuously, this snapshot's per-skill lists are stamp-relative: re-scan the live tree for any
-warranted skill lacking `evals/evals.json` before treating the batch set as complete.
+The setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) ship net-new
+`setup`/`configure` skills over time, and several have landed *without* evals. The ideal home for a new
+skill's eval is the retrofit PR that ships it — `code-tidying` #1431 did exactly this (its `setup`
+shipped with an eval) — but when a retrofit ships a setup skill uncovered, the gap falls to this
+program. To stop chasing each landing individually, **`melodic-software/medley#1462` is a self-scanning
+catch-all**: it scans `plugins/*/skills/setup/` for any setup skill lacking `evals/evals.json` and
+backfills those not already owned by a plugin-family batch (`discovery/setup` #1448,
+`implementation/setup` #1449, `machine-health`/`skill-quality` setup #1454) or deferred (`knowledge`,
+`songwriting`). A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
 
 ## Skip — pure-reference plugins (2)
 
