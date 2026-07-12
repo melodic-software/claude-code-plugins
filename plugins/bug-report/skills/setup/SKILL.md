@@ -57,10 +57,22 @@ terminal state here; do not persist a value the user did not choose.
      absent; do not disturb unrelated keys. The value is stored verbatim (Claude Code does not normalize a
      `directory` option to absolute or validate existence), so store it exactly as it should resolve relative
      to the working directory.
-   - **Default (uncommitted) chosen and a prior value exists:** **remove** the `output_dir` key so the plugin
-     falls back to its data directory. Removing the last option under this plugin leaves an empty `options`
-     (or `pluginConfigs` entry) — prune those empty containers too, and leave unrelated `pluginConfigs`
-     entries untouched. A set-only reconfigure would trap a stale path; clearing is part of "re-runnable".
+   - **Default (uncommitted) chosen and a prior value exists:** clear it at the scope that *supplies the
+     effective value* (identified in step 1) — removing the project key alone is not always enough:
+     - **Project scope** supplies it → remove the project `output_dir` key and the plugin falls back to its
+       data directory. Removing the last option under this plugin leaves an empty `options` (or
+       `pluginConfigs` entry) — prune those empty containers too, and leave unrelated `pluginConfigs` entries
+       untouched.
+     - **User scope** (`~/.claude/settings.json`) supplies it → a project-scope removal does **not** reset
+       this repo, because the lower-precedence user value still resolves (Local > Project > User). Either
+       update/remove the user-scope value with the developer's explicit consent (same narrow single-key
+       edit), or, if they will not touch their global config, tell them plainly that a project-scope clear
+       cannot override the inherited user value here and name the file to edit. Never silently edit a user's
+       global settings without asking.
+     - **Local overlay** (`.claude/settings.local.json`) supplies it → clear it there (same single-key edit);
+       a project-scope removal is likewise shadowed by the local override.
+
+     A set-only reconfigure would trap a stale path; scope-aware clearing is part of "re-runnable".
    - **Default chosen and no value exists:** nothing to write — confirm the effective behavior.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
