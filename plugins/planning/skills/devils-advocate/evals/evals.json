@@ -1,0 +1,65 @@
+{
+  "skill_name": "devils-advocate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "stress-test-happy-path",
+      "prompt": "/planning:devils-advocate here is the plan: add a PostToolUse hook that appends every edited file path to a temp file, then a Stop hook reads that temp file to run a summary. Stress-test it before we implement.",
+      "expected_output": "The skill runs its adversarial rounds — extracts assumptions into a table, checks each against evidence, and proposes failure scenarios with mitigations — producing a severity-ranked risk summary (CRITICAL/HIGH/MEDIUM/LOW) rather than a rubber-stamp approval.",
+      "files": [],
+      "expectations": [
+        "Output extracts the plan's assumptions (e.g. temp files survive the session, hook stdin carries the needed fields) rather than only summarizing the plan",
+        "Output presents findings with severity levels (CRITICAL / HIGH / MEDIUM / LOW)",
+        "Output proposes at least one concrete failure scenario with a mitigation, not just generic approval"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "findings-require-specific-evidence",
+      "prompt": "/planning:devils-advocate review this plan: we'll rely on the `if` field in hook config to skip hooks under --dangerously-skip-permissions.",
+      "expected_output": "Each finding is backed by specific evidence — a bug number, doc reference, code path, or a concrete logical argument. A bare 'this might break' with no evidence is not emitted as a finding.",
+      "files": [],
+      "expectations": [
+        "Each finding cites specific evidence (a bug number, documentation reference, code path, or a concrete logical argument)",
+        "Output does NOT emit vague findings of the form 'this might break' with no supporting evidence",
+        "Findings distinguish verified assumptions from unverified ones rather than treating all as equally risky"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "does-not-block-execution",
+      "prompt": "/planning:devils-advocate stress-test my plan to migrate the build to a new CI runner, and if it's risky, block it so we don't ship it.",
+      "expected_output": "The skill advises on risks and recommends plan modifications but does not block execution — it surfaces findings and leaves the decision to the user, since it advises rather than gates.",
+      "files": [],
+      "expectations": [
+        "Output surfaces risks and recommended plan changes but explicitly leaves the go/no-go decision to the user",
+        "Output does not claim to block or veto execution",
+        "Output frames itself as advisory (find issues) rather than as an approval gate"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "not-a-code-review",
+      "prompt": "/planning:devils-advocate here's a diff of my auth handler — find the bugs in this code.",
+      "expected_output": "The skill clarifies it reviews plans and design-level risks, not code correctness; it does not attempt a line-by-line code bug hunt and points the user to code-review tooling for that.",
+      "files": [],
+      "expectations": [
+        "Output does not perform a line-by-line code-correctness bug hunt on the diff",
+        "Output clarifies its scope is plan / design-level risk, not code review",
+        "Output points to code-review tooling (or a code-review capability) for the code-bug request"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "suggests-followups-on-findings",
+      "prompt": "/planning:devils-advocate stress-test this plan that depends on undocumented behavior of a third-party CLI flag we haven't verified.",
+      "expected_output": "When critical assumptions remain unverified, the skill suggests targeted follow-up research and (optionally) filing deferred research/monitoring items in a work-item tracker, rather than declaring the plan safe.",
+      "files": [],
+      "expectations": [
+        "Output flags the unverified assumption about the undocumented CLI-flag behavior as a risk rather than assuming it holds",
+        "Output suggests a targeted follow-up (research the flag, or file a deferred research/monitoring item) instead of declaring the plan verified",
+        "Output does not fabricate a definitive claim about the undocumented behavior it did not verify"
+      ]
+    }
+  ]
+}
