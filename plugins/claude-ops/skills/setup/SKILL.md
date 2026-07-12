@@ -67,13 +67,18 @@ assumptions.
      value would then surface and must also be suppressed, write `""` at project scope instead.
    - **Local scope supplies it** (`.claude/settings.local.json`) → a project-scope write **cannot** override
      it, because Local outranks Project. The opt-out must happen in the local overlay itself: set its
-     `registry_dir` to `""` or remove the key. This is the developer's own machine-local file — with their
-     go-ahead, edit only the `registry_dir` key in `.claude/settings.local.json` (per the narrow,
-     secret-safe handling in step 1); otherwise name the file and guide them to clear it there. Do not
-     silently edit it.
+     `registry_dir` to `""`. An empty value at the top scope shadows any Project- or User-scope value and
+     reads as the plugin-data fallback; *removing* the local key instead is safe only when no Project- or
+     User-scope value would resurface — otherwise removal just exposes the lower-scope in-repo registry.
+     This is the developer's own machine-local file — with their go-ahead, edit only the `registry_dir` key
+     in `.claude/settings.local.json` (per the narrow, secret-safe handling in step 1); otherwise name the
+     file and guide them to clear it there. Do not silently edit it.
 
-   Do not write an empty string at a scope that is outranked by a scope still holding a value, and do not
-   report the registry as per-machine until the *effective* value resolves to empty/unset.
+   The reliable primitive across all cases: to force the fallback, write `""` at the **highest-precedence
+   scope that currently holds a value** (its empty value shadows everything below it); only *remove* a key
+   when no lower scope holds a value, since removal un-shadows lower scopes. Never write `""` at a scope
+   outranked by a scope still holding a value, and do not report the registry as per-machine until the
+   *effective* value resolves to empty/unset.
 4. **Offer the personal overlay.** A per-developer override goes in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
