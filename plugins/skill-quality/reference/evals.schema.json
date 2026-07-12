@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/skill-quality/evals.schema.json",
+  "title": "Skill evaluations",
+  "description": "Schema for a skill's evals/evals.json. Supports both rich and minimal forms. Rich form adds per-case `name` (kebab-case) and `expectations` (or the upstream-named `assertions`). Both `assertions` and `expectations` are permitted as optional alternatives (skill-creator upstream uses `assertions`; rich-form skills often use `expectations`).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill_name", "evals"],
+  "properties": {
+    "skill_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Skill directory name under .claude/skills/. Matches the slug used by the slash invocation."
+    },
+    "evals": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/eval_case" }
+    }
+  },
+  "$defs": {
+    "eval_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "prompt"],
+      "properties": {
+        "id": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "minLength": 1 }
+          ],
+          "description": "Stable identifier within the skill's eval set. Integer or string."
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Input prompt for this eval case."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "Optional kebab-case identifier (rich form). Human-readable case label."
+        },
+        "expected_output": {
+          "type": "string",
+          "description": "Optional natural-language description of the expected output shape or content."
+        },
+        "files": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Optional list of fixture file paths required by this case."
+        },
+        "assertions": {
+          "type": "array",
+          "description": "Optional list of objectively-verifiable assertions (skill-creator upstream field name). Items are skill-author-defined; schema does not constrain shape."
+        },
+        "expectations": {
+          "type": "array",
+          "description": "Optional list of objectively-verifiable expectations (this repo's field name across rich-form skills). Items are skill-author-defined; schema does not constrain shape. Equivalent role to `assertions`; skill author picks one."
+        }
+      }
+    }
+  }
+}
