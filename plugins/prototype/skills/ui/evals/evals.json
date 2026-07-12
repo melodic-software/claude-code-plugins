@@ -1,0 +1,73 @@
+{
+  "skill_name": "ui",
+  "evals": [
+    {
+      "id": 1,
+      "name": "existing-page-sub-shape-a",
+      "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like.",
+      "expected_output": "Because the prompt establishes an existing /settings route, the skill defaults to sub-shape A: variants rendered on the same route gated by a ?variant= param (or framework equivalent), existing data fetching/auth kept above the switcher, a floating switcher with keyboard nav, and 3 structurally-different variants.",
+      "files": [],
+      "expectations": [
+        "The response defaults to sub-shape A (variants on the existing route via a `?variant=` param or framework equivalent) rather than a new throwaway route",
+        "Existing data fetching / params / auth are kept above the switcher; only the rendered subtree swaps per variant",
+        "The response produces multiple (default 3) variants and a floating switcher with keyboard navigation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "logic-question-routes-to-logic",
+      "prompt": "Does this reducer correctly handle the edge case where two actions arrive in the same tick? Prototype it.",
+      "expected_output": "This is a logic/state question, not an appearance question — the wrong facet for the ui skill. It routes the user to /prototype:logic instead of generating visual variants.",
+      "files": [],
+      "expectations": [
+        "The response identifies the request as a logic/state question, not an appearance question",
+        "The response routes to `/prototype:logic` rather than generating UI variants"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "variants-structurally-different",
+      "prompt": "Give me three variants of this dashboard card that are just different color themes.",
+      "expected_output": "The skill makes the variants structurally different — different layout, information hierarchy, and primary affordance — rather than three recolors of the same card. Color-only differences are flagged as a tweak, not a real UI prototype.",
+      "files": [],
+      "expectations": [
+        "The generated variants differ structurally (layout / information hierarchy / primary affordance), not only in color or copy",
+        "The response notes that color-only differences are a tweak, not a UI prototype, if the user asked for recolors"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "mutations-stubbed-read-only",
+      "prompt": "Prototype some layouts for the delete-account confirmation screen.",
+      "expected_output": "The variants are read-only: the destructive delete-account mutation is stubbed rather than wired to a real backend call. The question is 'what should this look like', not 'does the backend work'.",
+      "files": [],
+      "expectations": [
+        "The destructive delete-account mutation is stubbed, not wired to a real backend call",
+        "The prototype variants are read-only with respect to real data mutations"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "html-mockup-constraints",
+      "prompt": "I don't have a dev server running and there's no page for this yet — just give me the fastest standalone mockup of a few pricing-page layouts I can open in my browser.",
+      "expected_output": "The skill routes to the HTML mockup substrate: one self-contained file:// page with synthetic data and an in-page switcher, a restrictive CSP meta tag that blocks remote resources, and a copy-out control to lift the chosen variant back out later, generated into a temp/gitignored scratch location (not a tracked path). It hands the page over for the user to flip through; capturing the winning variant in markdown happens later, once the user picks one.",
+      "files": [],
+      "expectations": [
+        "The mockup is a single self-contained `file://` HTML page using synthetic data only (no real/captured values)",
+        "The page includes a restrictive CSP meta tag that blocks remote scripts/fonts/fetches",
+        "The mockup file is generated into a temp or gitignored scratch location, not a tracked repo path"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-direct-promotion-to-production",
+      "prompt": "Variant B is perfect — just ship it straight to production as-is.",
+      "expected_output": "The skill declines to promote the prototype variant directly to production. Variant code was written under prototype constraints (no tests, minimal error handling), so it recommends rewriting/folding it in properly rather than shipping the throwaway variant as-is.",
+      "files": [],
+      "expectations": [
+        "The response declines to promote the prototype variant directly to production as-is",
+        "The response recommends rewriting / properly folding the winner in, citing the prototype constraints (no tests, minimal error handling) the variant was written under"
+      ]
+    }
+  ]
+}
