@@ -70,10 +70,14 @@ cannot infer → ask and offer to persist; otherwise the safe documented default
      (project-relative, no user-specific absolute segment) before a project write; if it is not, ask for a
      portable form.
    - **Match the scope to intent.** If the user only wants a personal override (not a team default), write
-     to the local overlay `.claude/settings.local.json` instead and skip the project write entirely.
+     to the local overlay `.claude/settings.local.json` instead and skip the project write entirely. The
+     portability requirement above applies **only to the shared project write** — a local-only override is
+     machine-specific by nature, so store the user's value as given there (an absolute home-directory path is
+     legitimate) without rewriting it toward portability.
    Create the `pluginConfigs` / options path if absent; do not disturb unrelated keys. The value is stored
    verbatim (Claude Code does not normalize a `string` option to absolute or validate existence), so store
-   the portable form exactly as it should resolve relative to the working directory.
+   it exactly as it should resolve — the portable form for a project write, the user's given value for a
+   local-only override.
 6. **Confirm the overlay convention.** A per-developer override lives in the local overlay
    `.claude/settings.local.json` (same `pluginConfigs` path); recommend the consumer keep
    `.claude/settings.local.json` gitignored if it is not already.
