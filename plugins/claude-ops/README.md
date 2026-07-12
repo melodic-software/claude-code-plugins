@@ -3,15 +3,17 @@
 A Claude Code plugin bundling three operations skills — one cohesive capability:
 running Claude Code well over time. Observability reads what your sessions
 actually did, troubleshooting tracks what upstream has broken, and changelog
-integration keeps your repo current with what upstream has shipped.
+integration keeps your repo current with what upstream has shipped. A re-runnable
+`setup` action settles where the troubleshooting registry lives.
 
-## The three skills
+## Skills
 
 | Skill | What it does |
 |---|---|
 | `/claude-ops:claude-observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:claude-troubleshooting` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:claude-code-changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:setup` | Configures where the troubleshooting registry lives — per-machine (`${CLAUDE_PLUGIN_DATA}`, default) or in-repo git-tracked (`registry_dir`) — and persists the choice. Re-runnable and idempotent. |
 
 ## Install
 
@@ -57,6 +59,9 @@ One `userConfig` option:
   claude-troubleshooting issue registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
   per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
+
+Run `/claude-ops:setup` to make this choice interactively and persist it; it is
+re-runnable, so invoke it again any time to reconfigure.
 
 Remaining variability is covered by the env vars above and conventional
 project-relative defaults; the bundled scripts make no outbound network calls
