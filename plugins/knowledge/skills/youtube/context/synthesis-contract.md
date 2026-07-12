@@ -42,9 +42,9 @@ run-watch (metadata harvest → harvested-links.json)
 | Other downloads | `source/attachments/<kind>/` | `research/sources.md` |
 | URLs (typed) | `source/harvested-links.json` | README, RESEARCH |
 | GitHub repos | `harvested-links` + optional `harvested-repo-analysis.json` | research clusters |
-| Synthesis PNGs | `key-frames/frames/` | `key-frames-manifest.md` |
+| Synthesis PNG images | `key-frames/frames/` | `key-frames-manifest.md` |
 
-`synthesis/` is PNGs only — not markdown, decks, or link lists.
+`synthesis/` is PNG images only — not markdown, decks, or link lists.
 
 ## Verify-script stance
 

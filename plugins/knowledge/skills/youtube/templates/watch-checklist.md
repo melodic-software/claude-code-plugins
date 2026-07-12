@@ -108,7 +108,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **9.1** Host verify — Verify: `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report` exit 0
 - [ ] **9.2** `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS — Verify: all `fail` severity checks green
 - [ ] **9.3** `watch.json` `status: complete` only after 9.1 — Verify: not complete while synthesizing
-- [ ] **9.4** Vision fidelity spot-check (A+ gate) — Verify: ≥10 synthesis PNGs name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
+- [ ] **9.4** Vision fidelity spot-check (A+ gate) — Verify: ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
 
 ---
 

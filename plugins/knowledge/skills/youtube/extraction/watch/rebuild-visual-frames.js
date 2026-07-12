@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Rebuild key-frames/visual-frames.md from promoted frame PNGs + promotion-map.json.
+ * Rebuild key-frames/visual-frames.md from promoted frame PNG images + promotion-map.json.
  */
 
 import fs from "node:fs";

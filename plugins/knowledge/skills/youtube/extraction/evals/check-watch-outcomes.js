@@ -500,7 +500,7 @@ function pushPromotionChecks(checks, slice) {
         : promotionValidation.valid
           ? "valid decisions"
           : promotionValidation.errors.slice(0, 2).join("; "),
-    expected: "key-frames/promotion-decisions.json when key-frames/frames/ has PNGs",
+    expected: "key-frames/promotion-decisions.json when key-frames/frames/ has PNG images",
     severity: "fail",
   });
 

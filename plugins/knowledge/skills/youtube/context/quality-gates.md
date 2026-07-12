@@ -66,7 +66,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | `heuristic-triage-forbidden` | markdown triage requires JSON manifest | Phase 4 — do not PRNG/heuristic-fill triage log |
 | `densification-alignment` | windows with frame or gap ≥ ratio | Phase 6 — pass 3 alignment |
 | `session-visual-coverage` | every claim-inventory session has in-window promotion | Phase 6 — per-session frame |
-| `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNGs exist | Phase 6 — vision pass before copy |
+| `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6 — vision pass before copy |
 | `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6 — rename from on-screen content; content-class rejects stay agent vision |
 | `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8 — copy `templates/recommendations/` |
 | `watch-checklist-complete` | blocking ticks when `status: complete` | Phase 9 — tick 8.x + 9.1–9.4 with evidence |
@@ -80,7 +80,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 Host verify scripts prove **traceability and shape** (JSON valid, batch files on disk, semantic filename policy, promotion-map parity). They do **not** prove subagents opened contact sheets or that filenames match on-screen content.
 
-**Vision fidelity spot-check (required before claiming A+):** In a separate pass (fresh context OK), spot-check ≥10 synthesis PNGs (name ↔ content) and ≥3 contact sheets (verdicts ↔ JPG). Record notes in `watch-checklist.md` or slice README. Verify script exit 0 without spot-check = structural complete only.
+**Vision fidelity spot-check (required before claiming A+):** In a separate pass (fresh context OK), spot-check ≥10 synthesis PNG images (name ↔ content) and ≥3 contact sheets (verdicts ↔ JPG). Record notes in `watch-checklist.md` or slice README. Verify script exit 0 without spot-check = structural complete only.
 
 ## Research gate (host verify script)
 
