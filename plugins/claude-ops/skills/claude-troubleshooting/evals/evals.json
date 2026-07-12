@@ -26,7 +26,7 @@
     {
       "id": 3,
       "name": "create-runs-preflight-gates-before-drafting",
-      "prompt": "File a bug on anthropics/claude-code: the Stop hook doesn't fire when I exit with Ctrl-C.",
+      "prompt": "/claude-troubleshooting create bug \"Stop hook doesn't fire when I exit with Ctrl-C\"",
       "expected_output": "The create action runs its mandatory preflight gates BEFORE drafting — at minimum a duplicate search of existing open and recently-closed issues (presenting any matches and proceeding only on explicit 'no duplicates' confirmation, else suggesting a comment on the existing issue) plus the live-template fetch and version check. Only after the gates pass does it draft the issue in template format, show the draft for review, and file solely on explicit user confirmation. It never auto-files and never skips the duplicate-search gate.",
       "files": [],
       "expectations": [
