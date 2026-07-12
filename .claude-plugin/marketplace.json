@@ -234,6 +234,12 @@
       "source": "./plugins/repo-hygiene",
       "category": "maintenance",
       "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
+    },
+    {
+      "name": "event-storming",
+      "source": "./plugins/event-storming",
+      "category": "modeling",
+      "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
     }
   ],
   "renames": {
