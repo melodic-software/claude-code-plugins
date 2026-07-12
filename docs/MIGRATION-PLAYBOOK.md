@@ -509,8 +509,9 @@ accepted).
   concrete recurring pain that outweighs adopting an `experimental.*` component whose manifest schema may
   change between releases (and which is skipped on the hosts / telemetry-disabled configs where the
   Monitor tool is unavailable). **Revisit trigger:** monitors leave the `experimental` key AND a concrete
-  recurring in-session watch need surfaces for a shipped plugin, scoped via `when:
-  "on-skill-invoke:<skill>"` so it starts only on demand rather than at session start. Upstream:
+  recurring in-session watch need surfaces for a shipped plugin, scoped via the documented `when:
+  "on-skill-invoke:<skill-name>"` monitor field so it starts only on demand rather than at session
+  start. Upstream:
   <https://code.claude.com/docs/en/plugins-reference#monitors>,
   <https://code.claude.com/docs/en/tools-reference#monitor-tool>.
 - **`bin/`** (executables added to the Bash tool `PATH`) — **REJECT** as a marketplace-wide adoption.
