@@ -12,7 +12,7 @@ on:
     types: [checks_requested]
 
 permissions:
-  pull-requests: read
+  pull-requests: read # Allows the called validator to read the PR title.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +21,7 @@ concurrency:
 jobs:
   select-runner:
     name: Select runner for PR title
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -32,14 +32,32 @@ jobs:
     secrets:
       observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
 
-  pr-title:
-    # Preserve `pr-title / pr-title`, including in a merge queue. A selector
-    # infrastructure failure falls back to the literal reviewed hosted image;
-    # cancellation still stops downstream work.
-    if: ${{ !cancelled() }}
+  validate-pr-title:
+    # Run semantic validation only after a successful routing decision. A
+    # strict selector/configuration failure never dispatches this workload to
+    # paid hosted Linux.
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
     needs: select-runner
     permissions:
-      pull-requests: read
+      pull-requests: read # Reads the pull-request title for validation.
     uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
     with:
       runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+
+  pr-title:
+    name: pr-title / pr-title
+    needs: [select-runner, validate-pr-title]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Enforce routing and semantic validation results
+        env:
+          SELECTOR_RESULT: ${{ needs.select-runner.result }}
+          VALIDATION_RESULT: ${{ needs.validate-pr-title.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != success || "$VALIDATION_RESULT" != success ]]; then
+            echo "Required PR-title gate failed: selector=$SELECTOR_RESULT validation=$VALIDATION_RESULT"
+            exit 1
+          fi
+          echo "PR-title routing and semantic validation passed."

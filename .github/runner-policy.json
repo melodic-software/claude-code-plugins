@@ -13,7 +13,11 @@
     },
     ".github/workflows/ci.yml#ci-status": {
       "reason": "hosted-control-plane",
-      "justification": "The required-check aggregator stays hosted and gates actual workload outcomes; selector infrastructure may fail independently while workloads use their literal hosted fallback."
+      "justification": "The required-check aggregator stays hosted and gates actual workload outcomes; strict selector failures block their dependent workloads instead of redirecting them to paid hosted Linux."
+    },
+    ".github/workflows/pr-title.yml#pr-title": {
+      "reason": "hosted-control-plane",
+      "justification": "The tiny required-check gateway must emit a failed pr-title context when strict routing or semantic validation fails; the semantic workload remains governed separately."
     },
     ".github/workflows/claude-review.yml#review": {
       "reason": "privileged-control-plane",

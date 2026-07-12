@@ -1,17 +1,18 @@
 # CI runner routing
 
 This repository is private even though it publishes a public-facing plugin
-marketplace. Eligible read-only Linux validation jobs prefer the organization
-local fleet to reduce GitHub-hosted runner cost. Privileged or structurally
-incompatible work stays on explicit GitHub-hosted images.
+marketplace. Eligible read-only Linux validation jobs use the organization
+local fleet and queue there until capacity is available. Privileged,
+untrusted, or structurally incompatible work stays on explicit GitHub-hosted
+images.
 
 ## Configuration contract
 
 Workflow source contains no organization runner label, host name, or GitHub App
 identifier. GitHub IaC owns the nonsecret organization variables:
 
-- `CI_RUNNER_POLICY` (`prefer-self-hosted` or the emergency
-  `hosted-only` kill switch)
+- `CI_RUNNER_POLICY` (`self-hosted-only` or the emergency `hosted-only` kill
+  switch)
 - `CI_SELF_HOSTED_LABEL`
 - `CI_HOSTED_RUNNER`
 - `CI_RUNNER_SCOPE`
@@ -19,9 +20,11 @@ identifier. GitHub IaC owns the nonsecret organization variables:
 - `CI_RUNNER_OBSERVER_CLIENT_ID`
 
 The caller passes only `CI_RUNNER_OBSERVER_PRIVATE_KEY`, by name, to the
-reviewed selector. It never uses `secrets: inherit`. That credential belongs to
-the read-only observer App; host registration keys and controller credentials
-never enter GitHub Actions or worker containers.
+reviewed selector. It never uses `secrets: inherit`. Strict
+`self-hosted-only` routing does not mint or require that observer credential;
+the input remains explicit for the separately reviewed inventory-based policy.
+Host registration keys and controller credentials never enter GitHub Actions
+or worker containers.
 
 All callers pin
 `melodic-software/ci-workflows/.github/workflows/select-runner.yml` to the
@@ -33,38 +36,37 @@ but every executable pin update remains a reviewed pull request.
 ## Routing and failure behavior
 
 Each independently scheduled eligible job has its own selector dependency. Its
-workload uses `if: ${{ !cancelled() }}` and the exact reviewed expression
-`needs.<selector>.outputs.runner || 'ubuntu-24.04'`. The literal is a last-resort
-hosted route when selector infrastructure itself fails; it does not trust an
-unvalidated variable after that failure. The selector remains a separate, short
-GitHub-hosted job. Its two-minute workflow timeout does not limit the downstream
-workload job, which retains its own timeout.
+workload requires both `!cancelled()` and a successful selector result, then
+uses the policy-required expression
+`needs.<selector>.outputs.runner || 'ubuntu-24.04'`. The success gate is
+load-bearing: invalid strict configuration or selector infrastructure failure
+blocks the dependent workload instead of silently redirecting it to paid
+hosted Linux. The selector remains a separate, short GitHub-hosted job. Its
+two-minute workflow timeout does not limit the downstream workload job, which
+retains its own timeout.
 
-Local execution requires an exact managed label and an online, idle, ephemeral
-runner. The selector returns `ubuntu-24.04` when any safety or availability
-condition is not met, including:
-
-- `CI_RUNNER_POLICY=hosted-only`;
-- a rerun (`github.run_attempt > 1`);
-- fork pull requests, Dependabot, public repositories, and merge-queue runs;
-- missing configuration or the observer secret;
-- no idle managed runner; or
-- authentication, API, timeout, pagination, or response-validation failure.
+For `self-hosted-only`, the selector validates the exact centrally allowlisted
+managed label and returns it without querying runner inventory or minting the
+observer token. Trusted private `push`, `schedule`, `workflow_dispatch`, and
+same-repository `pull_request` workloads—including reruns—therefore stay on the
+local queue until the controller supplies capacity. The selector returns the
+reviewed hosted image for the emergency `hosted-only` policy and for security
+boundaries: public repositories, fork pull requests, Dependabot, and event
+classes outside the local allowlist, including `merge_group`.
 
 The `ci-status` required check depends only on workload lanes and requires every
 workload result to be `success`; selectors are intentionally excluded from the
-required gateway. A selector failure still runs its workload hosted through the
-cancellation-safe literal fallback, while a skipped or failed workload cannot
-produce a green gate. The
-`pr-title / pr-title` required check uses the same cancellation-safe hosted
-fallback so its required-check identity is still emitted.
+required gateway. A failed selector leaves its workload non-successful, so the
+gateway fails closed. PR-title semantic validation uses the same selector
+success gate, while a tiny hosted `pr-title / pr-title` control-plane job emits
+the existing required context and fails when selection or validation is not
+successful.
 
-Selectors are deliberately one per independent workload. Sharing one result
-would fan one idle observation into all thirteen CI lanes. GitHub exposes no
-atomic runner reservation, so selectors that observe the same runner at the
-same instant can still choose local together. The fleet enforces its capacity;
-its queue monitor alerts on the accepted rare race and the recovery is to
-cancel, then use **Re-run all jobs**, which routes the new attempt hosted.
+Selectors remain one per independent workload so every required-check edge is
+explicit and policy-auditable. In strict mode they all return the same governed
+label; the fleet, not a stale inventory snapshot, enforces concurrency. Bursts
+queue on that label, one ephemeral container accepts each job, and reruns remain
+local instead of becoming a paid recovery path.
 
 ## Hosted boundaries
 
@@ -76,11 +78,13 @@ hosted inventory:
 - `runner-policy` must audit routing independently of the fleet;
 - `ci-status` must aggregate required workload outcomes independently of the
   fleet it governs;
+- `pr-title / pr-title` must report a failed required context even when strict
+  selection prevents the semantic workload from starting;
 - `claude-review` has `pull-requests: write` and `id-token: write`; and
 - `link-check` has `issues: write`.
 
 Forks and Dependabot always execute eligible validation on GitHub-hosted
-compute, where the observer secret is unavailable. `merge_group` is included on
+compute, and the observer-token action is skipped. `merge_group` is included on
 both required-check workflows so a future merge queue receives the same
 `ci-status` and `pr-title / pr-title` contexts; those runs route hosted.
 
