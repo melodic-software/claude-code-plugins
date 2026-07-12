@@ -1,0 +1,77 @@
+{
+  "skill_name": "teach",
+  "evals": [
+    {
+      "id": 1,
+      "name": "topic-action-runs-mission-interview",
+      "prompt": "/teach:teach topic rust-ownership",
+      "expected_output": "Routes to the topic action, creates a new workspace, and runs the mission interview (WHY, concrete goal, success criteria) before teaching — not a lecture dump.",
+      "files": [],
+      "expectations": [
+        "Routes to the `topic` action and creates a workspace under the plugin data dir (not the consuming repo)",
+        "Runs the mission interview for a new workspace — asks WHY the user is learning this and what success looks like before teaching",
+        "Does not begin lecturing content before the mission is established"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "smart-default-detects-codebase-vs-topic",
+      "prompt": "/teach:teach the auth-flow module in this repo",
+      "expected_output": "With no explicit action and a subject that names a concept in the consuming repo, resolves to codebase mode and grounds learning in actually-discovered repo files rather than starting a generic topic workspace.",
+      "files": [],
+      "expectations": [
+        "Detects that the subject names a repo-grounded concept and resolves to `codebase` mode (not `topic`)",
+        "Discovers and grounds in actual repo files/docs (climbs for CLAUDE.md/AGENTS.md, locates the module's files) discovered at teach-time",
+        "Persists located sources into the workspace RESOURCES.md rather than re-deriving structure each session"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "primer-creates-no-workspace",
+      "prompt": "/teach:teach primer color-grading — I just need enough vocabulary to direct the work now.",
+      "expected_output": "Runs the single-session primer: builds a vocabulary ladder (terms, quality axes, good-vs-bad examples, a prompt template) with NO workspace, mission interview, glossary, or learning records.",
+      "files": [],
+      "expectations": [
+        "Creates NO workspace directory, mission interview, glossary, or learning records for the primer",
+        "Delivers a vocabulary ladder: core terms, the quality axes experts judge by, worked good-vs-bad examples, and a closing prompt template",
+        "Offers to escalate to `/teach:teach topic color-grading` for depth rather than silently starting a full workspace"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "coach-one-question-at-a-time",
+      "prompt": "/teach:teach topic binary-search-trees — teach me how deletion works.",
+      "expected_output": "Adopts coach posture: asks one question at a time, waits for the answer, and leads with questions before explanations rather than lecturing the whole deletion algorithm at once.",
+      "files": [],
+      "expectations": [
+        "Asks ONE question at a time and waits rather than front-loading the full explanation",
+        "Leads with a question ('what do you think happens here?') before explaining, per coach-not-lecturer posture",
+        "Does not dump the complete deletion algorithm in a single lecture turn"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "ground-in-primary-sources-not-recall",
+      "prompt": "/teach:teach topic react-server-components — start with what they are.",
+      "expected_output": "Grounds the Knowledge layer in primary sources fetched or files Read this turn (RESOURCES.md entries, docs, official sources), not parametric recall, since library/framework facts drift.",
+      "files": [],
+      "expectations": [
+        "Grounds a claim that drives the lesson in a source fetched or a file Read this turn, not training-data recall",
+        "For this fast-moving framework topic, pulls from RESOURCES.md / documentation sources rather than asserting from memory",
+        "Adds terms to GLOSSARY.md only after the user demonstrates understanding, not preemptively"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-silent-workspace-invention",
+      "prompt": "/teach:teach explain closures",
+      "expected_output": "The explain action needs an active workspace; with none present, it asks whether to start one (topic/codebase) before writing, rather than silently inventing a workspace.",
+      "files": [],
+      "expectations": [
+        "Recognizes that `explain` requires an active workspace to write concepts/<concept>/ into",
+        "When no workspace exists, asks whether to start one (topic or codebase) before writing — never invents a workspace silently",
+        "When several workspaces exist it asks which, rather than guessing one"
+      ]
+    }
+  ]
+}
