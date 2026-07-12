@@ -16,7 +16,7 @@ analysis and Pat's craft commentary, paraphrased.
 companion writers reach when asking: "how is this form actually built?" or
 "how does a deceptive verse hand off to a resolving chorus?"
 
-Load via `/pat-pattison song-forms` when a writer wants to see Pat's
+Load via `/songwriting:song-form song-forms` when a writer wants to see Pat's
 mechanism analyses, not just the form taxonomy.
 
 ## "This Bottle and Me" — Verse/Refrain (Chapter 6)

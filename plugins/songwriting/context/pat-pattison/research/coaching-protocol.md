@@ -177,11 +177,11 @@ phase. When it doesn't, the AI names what's still open.
 
 Coaching dialog routes to another action when:
 
-- Writer wants more options on a line → `/pat-pattison line-brainstorm`
-- Writer is stuck on a rhyme → `/pat-pattison rhyme-generation`
-- Writer wants to verify pre-lock → `/pat-pattison audit`
-- Writer wants alternates of a candidate → `/pat-pattison variations`
-- Writer wants form / song-shape options → `/pat-pattison song-forms`
+- Writer wants more options on a line → `/songwriting:co-write line-brainstorm`
+- Writer is stuck on a rhyme → `/songwriting:rhyme`
+- Writer wants to verify pre-lock → `/songwriting:diagnosis audit`
+- Writer wants alternates of a candidate → `/songwriting:diagnosis variations`
+- Writer wants form / song-shape options → `/songwriting:song-form song-forms`
 
 The AI names the route and asks if the writer wants to take it. The
 coaching dialog doesn't pretend to cover everything — it routes when a

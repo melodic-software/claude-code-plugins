@@ -10,8 +10,8 @@ Distinct from:
 - `brainstorm.md` — nothing yet
 - `idea-to-title.md` — seed only
 - `fragment-development.md` — single fragment
-- `/pat-pattison diagnose` — assumes a complete-ish draft; this assumes ANY stage
-- `/pat-pattison rewrite` — execute a rewrite (this file precedes that)
+- `/songwriting:diagnosis diagnose` — assumes a complete-ish draft; this assumes ANY stage
+- `/songwriting:diagnosis rewrite` — execute a rewrite (this file precedes that)
 
 ## When to load
 
