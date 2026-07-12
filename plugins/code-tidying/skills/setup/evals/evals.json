@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "infers-and-interviews-before-scaffolding",
+      "prompt": "/code-tidying:setup",
+      "expected_output": "Explores the repo to map the four bundled template patterns (apps, dependency-root, host-wiring, polyglot-services) against what actually exists, then interviews the user one lane at a time with a recommendation before writing anything. It does not write a lane file until the user confirms the lane and its scope globs.",
+      "files": [],
+      "expectations": [
+        "Explores the repo to draft candidate lanes from the bundled templates before asking",
+        "Interviews the user per lane with a recommendation, rather than scaffolding blind",
+        "Writes lane files only after the user confirms the lanes"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "idempotent-reads-existing-lanes",
+      "prompt": "/code-tidying:setup",
+      "expected_output": "When .claude/tidy-lanes/ already contains lane files, reads them, summarizes the current lanes, and proposes additions or edits against that baseline rather than overwriting them blind. It never overwrites an existing consumer lane without explicit confirmation.",
+      "files": [],
+      "expectations": [
+        "Detects and reads existing .claude/tidy-lanes/*.md before proposing changes",
+        "Summarizes the current lanes and proposes edits against that baseline",
+        "Does not overwrite an existing consumer lane without user confirmation"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "scaffolds-from-bundled-templates-tracked",
+      "prompt": "/code-tidying:setup\n\nJust scaffold sensible default lanes for this repo.",
+      "expected_output": "Fills placeholders from the bundled templates under ${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/ with real repo values and materializes tracked .claude/tidy-lanes/<lane>.md files. It does not ship or copy template files into the setup skill, and does not write configuration into the plugin directory or a plugin data directory.",
+      "files": [],
+      "expectations": [
+        "Scaffolds lane files by filling the bundled templates, not by shipping its own copies",
+        "Writes lane files to the consumer's tracked .claude/tidy-lanes/ directory",
+        "Does not write configuration into the plugin directory or plugin data directory"
+      ]
+    }
+  ]
+}
