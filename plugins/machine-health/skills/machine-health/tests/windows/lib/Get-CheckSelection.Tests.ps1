@@ -79,7 +79,7 @@ Describe 'Get-CheckSelection -- weekly run cadence gating' -Tag 'lib' {
         Get-DueId $result | Should -Contain 'cert-expiry'
     }
 
-    It 'runs a monthly check when the recorded last run is unparseable' {
+    It 'runs a monthly check when the recorded last run is unparsable' {
         $checks = @(New-Check -Id 'cert-expiry' -Cadence 'monthly')
         $hist = @(New-HistEntry -RunId 'not-a-timestamp' -ChecksRan @('cert-expiry'))
         $result = Get-CheckSelection -Checks $checks -RunMode 'weekly' -HistoryTail $hist -Now $script:Now
