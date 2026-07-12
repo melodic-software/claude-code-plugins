@@ -1,0 +1,4 @@
+{
+  "_comment": "SEED STUB ONLY. Runtime cache is per-user at %LOCALAPPDATA%\\machine-health\\cache\\cisa-kev.json (Windows) -- machine-specific state never lives in source control. This file establishes the schema and is copied to the user cache on first run; Get-CisaKevCache then detects the empty vulnerabilities array and fetches live data. Do not replace this stub with live feed content.",
+  "vulnerabilities": []
+}

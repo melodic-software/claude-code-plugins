@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "machine-health",
+  "version": "0.1.0",
+  "description": "Workstation health audit: OS-specific checks (disk, OS updates, security posture, CISA KEV correlation) run from a versioned catalog with trend-aware severity, approval-gated remediations, and dated markdown reports. Windows fully implemented; macOS/Linux scaffolded (report UNKNOWN and stop). Machine state persists in the plugin data directory; the report directory and check catalog are configurable.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"],
+  "userConfig": {
+    "report_dir": {
+      "type": "directory",
+      "title": "Report directory",
+      "description": "Directory where dated health reports (reports/health-YYYY-MM-DD.md) are written. Leave unset to use the default: Documents\\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory."
+    }
+  }
+}

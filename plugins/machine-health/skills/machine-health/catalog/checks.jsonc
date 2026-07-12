@@ -1,0 +1,231 @@
+// machine-health check catalog
+//
+// Self-maintained by the skill. Entries are OS-tagged so a single catalog serves
+// all hosts; the orchestrator filters to the current OS. Never silently remove an
+// entry -- set "deprecated": true with a rationale instead.
+//
+// Field reference:
+//   id                    - stable identifier used in reports and history
+//   category              - high-level grouping (storage, security, updates, ...)
+//   os                    - array of OS labels this check applies to
+//   script                - path (relative to skill root) of the check implementation
+//   severity_rules        - pointer to the human-readable rubric in references/
+//   needs_admin           - whether elevation is required (hint, not enforced)
+//   enabled               - false disables without deprecating
+//   deprecated            - true keeps the entry for history continuity but skips execution
+//   deprecation_reason    - required when deprecated is true
+//   added_on              - ISO date when the entry was added
+//   crash_count           - consecutive unhandled failures (3 triggers removal proposal)
+//   identical_streak      - consecutive identical outputs (4 triggers demotion proposal)
+{
+  "checks": [
+    {
+      "id": "windows-update",
+      "category": "updates",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-WindowsUpdate.ps1",
+      "severity_rules": "references/windows/check-catalog.md#1-windows-update--pending-reboot",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "disk-space",
+      "category": "storage",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-DiskHealth.ps1",
+      "severity_rules": "references/windows/check-catalog.md#2-disk-space--smart-health",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "event-log-errors",
+      "category": "reliability",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-EventLogErrors.ps1",
+      "severity_rules": "references/windows/check-catalog.md#3-event-log-critical-errors--bsods",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "services",
+      "category": "services",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-Services.ps1",
+      "severity_rules": "references/windows/check-catalog.md#4-services--startup-items",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "defender",
+      "category": "security",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-Defender.ps1",
+      "severity_rules": "references/windows/check-catalog.md#5-defender-status--threats",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "winget-upgrades",
+      "category": "updates",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-WingetUpgrades.ps1",
+      "severity_rules": "references/windows/check-catalog.md#6-winget-app-updates",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "battery",
+      "category": "power",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-Battery.ps1",
+      "severity_rules": "references/windows/check-catalog.md#7-battery--power-report",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "drivers",
+      "category": "drivers",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-Drivers.ps1",
+      "severity_rules": "references/windows/check-catalog.md#8-driver-inventory",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-22",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "reliability",
+      "category": "reliability",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-Reliability.ps1",
+      "severity_rules": "references/windows/check-catalog.md#9-reliability-monitor",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "scheduled-tasks",
+      "category": "reliability",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-ScheduledTasks.ps1",
+      "severity_rules": "references/windows/check-catalog.md#10-scheduled-tasks",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "defender-exclusions",
+      "category": "security",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-DefenderExclusions.ps1",
+      "severity_rules": "references/windows/check-catalog.md#11-defender-exclusions",
+      "needs_admin": true,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "cert-expiry",
+      "category": "security",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-CertExpiry.ps1",
+      "severity_rules": "references/windows/check-catalog.md#12-cert-expiry",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "container-disk-usage",
+      "category": "storage",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-ContainerDiskUsage.ps1",
+      "severity_rules": "references/windows/check-catalog.md#13-container-disk-usage",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "sdk-versions",
+      "category": "updates",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-SdkVersions.ps1",
+      "severity_rules": "references/windows/check-catalog.md#14-sdk-versions",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "tpm-bitlocker",
+      "category": "security",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-TpmBitLocker.ps1",
+      "severity_rules": "references/windows/check-catalog.md#15-tpm-bitlocker",
+      "needs_admin": true,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    },
+    {
+      "id": "dns-health",
+      "category": "network",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-DnsHealth.ps1",
+      "severity_rules": "references/windows/check-catalog.md#16-dns-health",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-04-23",
+      "crash_count": 0,
+      "identical_streak": 0
+    }
+  ]
+}
