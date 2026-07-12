@@ -30,13 +30,13 @@ session re-checks the warrant against the live `SKILL.md` and records a skip ver
 - **Covered (partial) → backfill owed: 2 plugins** — `claude-config-audit` (2/3;
   `memory-health` uncovered) and `implementation` (6/11; `implement`, `implement-dispatch`, `build`,
   `lint`, `setup` uncovered).
-- **Warranted, uncovered → backfill owed: 17 more plugins** — see the batch table.
+- **Warranted, uncovered → backfill owed: 19 more plugins** — see the batch table.
 - **Deferred (do not backfill in this repo now): 2 plugins** — `songwriting` and `knowledge`, each
   slated to move out of the marketplace under an open decision gate; author evals in the destination
   once separation lands.
-- **Skip (explicit): 13 plugins** — 4 pure-reference + 9 hooks.
-- Total warranted skills owed backfill this wave: **48**, grouped into **9 one-session batches**
-  (`melodic-software/medley#1447`–`#1455`).
+- **Skip (explicit): 11 plugins** — 2 pure-reference + 9 hooks.
+- Total warranted skills owed backfill this wave: **50**, grouped into **10 one-session batches**
+  (`melodic-software/medley#1447`–`#1455`, `#1458`).
 
 ## Backfill batches emitted
 
@@ -55,6 +55,7 @@ schema path, and the per-skill warrant re-check instruction.
 | `melodic-software/medley#1453` | context7, firecrawl, playwright, diagnose, teach, kindle-dedrm (6) | thin single-skill plugins; proportional case counts |
 | `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | author vs current shipped behavior; owning retrofits update their eval on behavior change — simulation #1405, machine-health #1419, skill-quality #1418 |
 | `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | ecosystem-commands retrofit #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
+| `melodic-software/medley#1458` | boris, thariq-skills (2) | reclassified from pure-reference: each ships an `update`/`update --apply` action (routing + mutation-safety contract); scope evals to that contract, not the knowledge content |
 
 ## Deferred — author in the destination repo once separation lands
 
@@ -83,16 +84,17 @@ The setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) e
 per-retrofit follow-on, not part of the backfill batches above. (`songwriting`'s setup skill has
 already shipped and is covered by the songwriting deferral above, not here.)
 
-## Skip — pure-reference plugins (4)
+## Skip — pure-reference plugins (2)
 
-Knowledge-only single-skill plugins; no decision/routing/refusal contract to guard. Explicit skip.
+Knowledge-only single-skill plugins; the only argument is knowledge navigation or a query, with no
+mutation, refusal, or external side-effect contract to guard. Explicit skip. (`boris` and
+`thariq-skills` were graded pure-reference too, but each additionally ships a mutating `update` action
+and is therefore warranted — batch #1458 above.)
 
 | Plugin / skill | Verdict |
 |---|---|
-| boris/boris | skip — pure-reference |
-| fable-5-playbook/fable-5-playbook | skip — pure-reference |
-| thariq-skills/thariq-skills | skip — pure-reference |
-| tdd/tdd | skip — pure-reference |
+| fable-5-playbook/fable-5-playbook | skip — pure-reference (`[full \| <chapter>]` is knowledge navigation, no mutation) |
+| tdd/tdd | skip — pure-reference (`[question or concept]` Q&A, no mutation) |
 
 ## Skip — hook plugins (9)
 
