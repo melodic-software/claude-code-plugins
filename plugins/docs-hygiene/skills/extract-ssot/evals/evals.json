@@ -1,0 +1,77 @@
+{
+  "skill_name": "extract-ssot",
+  "evals": [
+    {
+      "id": 1,
+      "name": "identify-on-duplication-smell",
+      "prompt": "The same 'always run the build before opening a PR' guardrail is reworded across five rule and skill files. I want a single source of truth for it.",
+      "expected_output": "Routes to the identify action (or a targeted single-cluster identify), grounding the cluster in Tier 0 grep evidence, and — because 5 instances clear the Rule of Three — proceeds toward planning an extraction into a single named home cited by exact heading.",
+      "files": [],
+      "expectations": [
+        "Output routes to the extract-ssot workflow (identify / verify / plan) rather than editing files ad hoc",
+        "Output confirms the instance count via direct (Tier 0) grep evidence, not recall",
+        "Output treats 5 instances as clearing the Rule of Three"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuse-below-rule-of-three",
+      "prompt": "This constraint appears in exactly two files. Extract it into a shared SSOT rule so it's DRY.",
+      "expected_output": "Refuses extraction: with only 2 instances the Rule of Three is not met, and premature abstraction is the dominant failure mode. It recommends leaving the content inline until a third instance appears.",
+      "files": [],
+      "expectations": [
+        "Output REFUSES the extraction at 2 instances (below the Rule of Three)",
+        "Output recommends keeping the content inline for now",
+        "Output frames premature extraction as the risk, not a benefit"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "tier0-evidence-not-recall",
+      "prompt": "I'm pretty sure the timeout guidance is duplicated all over the rules — I remember seeing it in a bunch of places. Just extract it into one rule.",
+      "expected_output": "Does not act on recall or a subagent summary as if it were proof. It promotes the claim to Tier 0 by running its own grep to confirm the actual instances and locations before planning or editing — a remembered roster is a lead list, never evidence.",
+      "files": [],
+      "expectations": [
+        "Output runs its own grep / file reads to confirm the duplication before extracting (Tier 0)",
+        "Output does NOT extract based solely on the user's recall / 'I remember seeing it'",
+        "Output treats the recalled claim as an unverified lead until grounded"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "code-cluster-out-of-scope",
+      "prompt": "The same magic string literal is repeated in four .cs source files. Use extract-ssot to DRY it up.",
+      "expected_output": "Flags the cluster but declines to apply its markdown citation contract to code: repeated code literals are extracted with language-idiomatic tooling (a constants file / shared module, IDE-rename / Roslyn), where compiler and lint catch missed call sites. The skill's HOW is markdown-specific.",
+      "files": [],
+      "expectations": [
+        "Output identifies the .cs cluster as code, out of scope for the skill's markdown citation contract",
+        "Output refers the caller to language-idiomatic extraction (constants/shared module, IDE rename / Roslyn)",
+        "Output does NOT apply a markdown 'cite by heading' contract to the code duplication"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "describe-use-expose-classification",
+      "prompt": "The install command `npm ci && npm run build` appears verbatim in the README's Getting Started section and is also referenced by a build rule. Should both cite one SSOT, or can they restate it?",
+      "expected_output": "Classifies roles: the build rule is a USE consumer and must cite the SSOT rather than recap body content, while the README is an EXPOSE surface that MAY restate the command for onboarding clarity when adjacent prose cross-references the SSOT. Contract identifiers themselves (the literal command tokens) stay inline.",
+      "files": [],
+      "expectations": [
+        "Output classifies the consumers by role (USE must cite; EXPOSE may restate)",
+        "Output allows the README (EXPOSE) to restate for onboarding clarity with a cross-reference, rather than forcing a bare citation",
+        "Output does not treat naming the literal command tokens as duplication"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "one-level-deep-no-citation-chains",
+      "prompt": "Plan an extraction where rule A.md would cite B.md, and B.md already cites C.md for the same concept. Is that fine?",
+      "expected_output": "Rejects the transitive chain: citations stay one level deep — never A -> B -> C. It consolidates so consumers cite the single canonical home directly, and notes a heading rename triggers a /rename-references sweep.",
+      "files": [],
+      "expectations": [
+        "Output rejects the multi-hop A -> B -> C citation chain (one level deep)",
+        "Output has consumers cite the single canonical SSOT directly",
+        "Output notes that a heading/identifier change requires a /rename-references sweep"
+      ]
+    }
+  ]
+}
