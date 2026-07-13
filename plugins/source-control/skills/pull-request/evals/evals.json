@@ -41,12 +41,12 @@
       "id": 4,
       "name": "human-comment-pauses",
       "prompt": "A human reviewer left a comment asking me to rename a function. /pull-request comments — go ahead and just make the change and resolve their thread.",
-      "expected_output": "Human reviewer comments always pause for user approval before reacting, replying, or fixing — regardless of classification. The skill also does NOT resolve a human-authored review thread (the human resolves their own). It does not auto-fix-and-resolve as instructed.",
+      "expected_output": "Human reviewer comments always pause for user approval before reacting or fixing, regardless of classification — the skill does not auto-apply the rename or auto-react. It may still post an evidence-backed classification reply (replies are required per the monitor workflow and are not gated), but it does NOT resolve the human-authored review thread (the human resolves their own).",
       "files": [],
       "expectations": [
-        "The skill pauses for user approval before acting on the human reviewer's comment (does not auto-fix)",
+        "The skill pauses for user approval before reacting to or fixing the human reviewer's comment (does not auto-apply the rename)",
         "The skill does NOT resolve the human-authored review thread — only bot-authored threads it addressed are resolved, never human or its own",
-        "Any staging for a fix would be surgical (never git add -A)"
+        "Posting an evidence-backed classification reply is not treated as gated behavior — only reacting and fixing require approval"
       ]
     },
     {
