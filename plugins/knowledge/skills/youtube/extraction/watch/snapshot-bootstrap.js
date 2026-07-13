@@ -34,6 +34,11 @@ export function snapshotBootstrapContactSheets(sliceDir) {
   const destDir = lanePath(absSlice, LANES.keyFrames, "contact-sheets");
   fs.mkdirSync(destDir, { recursive: true });
 
+  // These contact-sheet JPGs are local-only disaster-recovery snapshots and
+  // must never enter git — write a local ignore in case the consuming repo
+  // doesn't already ignore .work, so staging slice artifacts can't commit them.
+  fs.writeFileSync(path.join(destDir, ".gitignore"), "*.jpg\n", "utf8");
+
   const sheets = fs
     .readdirSync(contactSheetsDir)
     .filter((name) => /^sheet_\d+\.jpg$/i.test(name))

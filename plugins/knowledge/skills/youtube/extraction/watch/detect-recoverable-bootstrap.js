@@ -22,9 +22,11 @@ import { watchStatePath } from "./watch-state.js";
 function workDirComplete(workDir) {
   if (!workDir || !fs.existsSync(workDir)) return false;
   const entries = fs.readdirSync(workDir);
+  // Any `.vtt` (including the `*-orig.vtt` auto-caption) counts — recovery
+  // rebuilds transcript from it, matching resolveWorkArtifacts' fallback.
   return (
     entries.some((n) => n.endsWith(".mp4")) &&
-    entries.some((n) => n.endsWith(".vtt") && !n.includes("-orig")) &&
+    entries.some((n) => n.endsWith(".vtt")) &&
     entries.some((n) => n.endsWith(".info.json"))
   );
 }
@@ -78,16 +80,14 @@ export function detectRecoverableBootstrap(sliceDir) {
 
   const hasFrames = frameCount > 0;
   const hasSheets = sheetCount > 0;
-  const recoverable = hasFrames && hasSheets;
+  // recover-watch-bootstrap.js reads mp4/vtt/info.json from workDir and throws
+  // when they are gone, so a slice is only recoverable when workDir survives
+  // too — advertising recovery without it hands the user a command that fails.
+  const recoverable = hasFrames && hasSheets && hasWork;
 
-  let reason;
-  if (recoverable && hasWork) {
-    reason = "temp dirs have video, frames, and contact sheets";
-  } else if (recoverable) {
-    reason = "temp dirs have frames and contact sheets (transcript may exist in slice)";
-  } else {
-    reason = `insufficient temp artifacts (frames=${frameCount}, sheets=${sheetCount}, work=${hasWork})`;
-  }
+  const reason = recoverable
+    ? "temp dirs have video, frames, and contact sheets"
+    : `insufficient temp artifacts (frames=${frameCount}, sheets=${sheetCount}, work=${hasWork})`;
 
   return {
     recoverable,

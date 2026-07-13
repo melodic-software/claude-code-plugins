@@ -42,6 +42,15 @@ describe("buildYtDlpArgs", () => {
     expect(args.at(-1)).toBe(URL);
   });
 
+  it("forces --no-playlist so a playlist watch URL fetches only the one video", () => {
+    const args = buildYtDlpArgs("https://www.youtube.com/watch?v=abc&list=PL123", {
+      mode: "full",
+      outputTemplate: OUTPUT,
+      workDir: WORK_DIR,
+    });
+    expect(args).toContain("--no-playlist");
+  });
+
   it("omits caption flags in video-only mode", () => {
     const args = buildYtDlpArgs(URL, {
       mode: "video-only",

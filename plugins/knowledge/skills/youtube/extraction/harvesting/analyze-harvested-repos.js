@@ -38,6 +38,18 @@ export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
 }
 
 /**
+ * Sanitize an owner/repo segment for use as a filesystem path component.
+ * GitHub disallows Windows-reserved chars (`: * ? " < > |`), but a crafted
+ * deep link could smuggle them in and break `path.join`/`fs` on Windows.
+ *
+ * @param {string} segment
+ * @returns {string}
+ */
+export function sanitizePathSegment(segment) {
+  return segment.replace(/[^\w.-]/g, "_");
+}
+
+/**
  * @param {Array<{ url: string }>} links
  * @returns {string[]}
  */
@@ -81,8 +93,14 @@ export async function analyzeHarvestedRepos(
       const parsed = parseGitHubUrl(url);
       if (!parsed) continue;
 
-      const cloneDir = path.join(tempRoot, `${parsed.owner}-${parsed.repo}`);
-      const cloned = await clone(url, cloneDir);
+      const cloneDir = path.join(
+        tempRoot,
+        `${sanitizePathSegment(parsed.owner)}-${sanitizePathSegment(parsed.repo)}`,
+      );
+      // Clone the canonical repo URL, not the harvested deep link (e.g.
+      // `.../blob/main/README.md`), which git cannot clone.
+      const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
+      const cloned = await clone(cloneUrl, cloneDir);
       if (!cloned) continue;
 
       analyses.push({

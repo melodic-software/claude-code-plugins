@@ -38,4 +38,21 @@ describe("snapshotBootstrapContactSheets", () => {
     expect(meta.sourceDir).toMatch(/^\{tmp\}\//);
     expect(meta.sourceDir).not.toMatch(/AppData|[/\\]Temp[/\\]/);
   });
+
+  it("writes a local .gitignore excluding the snapshot JPG binaries", () => {
+    mkdirSync(join(sliceDir, "run-state"), { recursive: true });
+    writeFileSync(
+      join(sliceDir, "run-state", "watch.json"),
+      `${JSON.stringify({ tempSession: { contactSheetsDir: sheetsDir } }, null, 2)}\n`,
+      "utf8",
+    );
+
+    snapshotBootstrapContactSheets(sliceDir);
+
+    const ignore = readFileSync(
+      join(sliceDir, "key-frames", "contact-sheets", ".gitignore"),
+      "utf8",
+    );
+    expect(ignore).toContain("*.jpg");
+  });
 });

@@ -12,6 +12,9 @@ const DEFAULT_MAX_CONCURRENT = 1;
 const ABSOLUTE_MAX_CONCURRENT = 3;
 const LOCK_STALE_MS = 15 * 60 * 1000;
 const LOCK_POLL_MS = 250;
+// Refresh a held slot's mtime well inside the stale TTL so a long-running
+// acquisition is never misclassified as stale and reclaimed by a peer.
+const SLOT_HEARTBEAT_MS = 5 * 60 * 1000;
 
 /**
  * @returns {number}
@@ -70,6 +73,46 @@ async function isStaleSlot(slotPath) {
 }
 
 /**
+ * Bump a held slot's modification time to "now" so peers see it as live.
+ *
+ * @param {string} slotPath
+ * @returns {Promise<boolean>} true when the mtime was refreshed
+ */
+export async function refreshSlot(slotPath) {
+  const now = new Date();
+  try {
+    await fs.utimes(slotPath, now, now);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Start an interval that heartbeats a held slot's mtime until stopped.
+ *
+ * @param {string} slotPath
+ * @param {number} intervalMs
+ * @returns {{ stop: () => void }}
+ */
+function startSlotHeartbeat(slotPath, intervalMs) {
+  if (!intervalMs || intervalMs <= 0) {
+    return { stop() {} };
+  }
+  const timer = setInterval(() => {
+    void refreshSlot(slotPath);
+  }, intervalMs);
+  if (typeof timer.unref === "function") {
+    timer.unref();
+  }
+  return {
+    stop() {
+      clearInterval(timer);
+    },
+  };
+}
+
+/**
  * Run `fn` while holding one of `maxSlots` file-based acquire slots.
  *
  * @template T
@@ -77,13 +120,21 @@ async function isStaleSlot(slotPath) {
  * @param {object} [options]
  * @param {number} [options.maxSlots]
  * @param {typeof sleepMs} [options.sleep]
+ * @param {number|null} [options.timeoutMs] - throw if total slot-wait exceeds this; null = wait forever
+ * @param {number} [options.heartbeatMs] - interval to refresh the held slot's mtime
+ * @param {string} [options.baseDir] - lock directory (seam for tests)
  * @returns {Promise<T>}
  */
 export async function withAcquireThrottle(
   fn,
-  { maxSlots = resolveMaxConcurrentAcquires(), sleep = sleepMs } = {},
+  {
+    maxSlots = resolveMaxConcurrentAcquires(),
+    sleep = sleepMs,
+    timeoutMs = null,
+    heartbeatMs = SLOT_HEARTBEAT_MS,
+    baseDir = lockDirPath(),
+  } = {},
 ) {
-  const baseDir = lockDirPath();
   await fs.mkdir(baseDir, { recursive: true });
 
   /** @type {string[]} */
@@ -91,13 +142,17 @@ export async function withAcquireThrottle(
     path.join(baseDir, `slot-${index}`),
   );
 
+  let waitedMs = 0;
+
   // biome-ignore lint/suspicious/noUnnecessaryConditions: intentional lock poll loop
   while (true) {
     for (const slotPath of slotPaths) {
       if (await tryAcquireSlot(slotPath)) {
+        const heartbeat = startSlotHeartbeat(slotPath, heartbeatMs);
         try {
           return await fn();
         } finally {
+          heartbeat.stop();
           await releaseSlot(slotPath);
         }
       }
@@ -107,6 +162,13 @@ export async function withAcquireThrottle(
       }
     }
 
+    if (timeoutMs != null && waitedMs >= timeoutMs) {
+      throw new Error(
+        `withAcquireThrottle: timed out after ${waitedMs}ms waiting for an acquire slot (maxSlots=${maxSlots})`,
+      );
+    }
+
     await sleep(LOCK_POLL_MS);
+    waitedMs += LOCK_POLL_MS;
   }
 }

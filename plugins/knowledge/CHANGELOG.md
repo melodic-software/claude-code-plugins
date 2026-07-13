@@ -4,6 +4,32 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.2
+
+### Fixed
+
+- **YouTube extraction — crash/incorrect-output paths on normal use.** Recovery
+  (`--recover`/`resume`) now accepts an auto-caption-only `*-orig.vtt` instead of
+  throwing `Missing mp4/vtt/info.json`; `watch.json` + tempSession are persisted
+  before the long extraction phase so an interrupt there stays recoverable;
+  exact cue/densification anchor timestamps survive the second dedup pass instead
+  of being replaced by fabricated ordinals; harvested GitHub deep links are cloned
+  from the canonical `https://github.com/<owner>/<repo>` URL rather than the
+  un-cloneable deep link; the documented `companion` Phase 0b marker is accepted;
+  recovery is no longer advertised when the acquisition `workDir` is gone;
+  `--skip-research` is persisted so resume doesn't re-route into research;
+  marking the terminal `synthesis` phase sets `watch.status` to `complete` so the
+  blocking checklist is enforced; `resume` advertises the on-disk continuation-prompt
+  path; the research gate requires a `research-agenda.md`; and contact-sheet snapshots
+  write a local `.gitignore` so the JPG binaries can't be committed.
+- **YouTube extraction — hardening.** Deck/attachment fetches stream to disk under a
+  500 MB cap (byte-counted, not just `content-length`) instead of buffering the whole
+  attacker-controlled response; the acquire throttle gained an optional overall
+  `timeoutMs` and heartbeats a held slot's mtime so a long download isn't misclassified
+  as stale and reclaimed; clone paths sanitize Windows-reserved characters; acquisition
+  forces `--no-playlist`; and a passing key-frame quality-audit row now requires a
+  substantive evidence note (an omitted note no longer bypasses the gate).
+
 ## 0.5.1
 
 ### Changed
