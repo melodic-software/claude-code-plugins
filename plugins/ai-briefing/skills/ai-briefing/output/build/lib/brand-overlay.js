@@ -12,10 +12,19 @@
 //     `assets/logo.png`). They are resolved to ABSOLUTE here so the downstream
 //     build scripts' `path.resolve(buildDir, meta.logo*)` returns them
 //     unchanged (path.resolve keeps a trailing absolute segment).
+//
+// The overlay is loaded via a `data:` URL rather than a file URL so its ESM
+// `export const` parses regardless of the consumer project's package scope: a
+// profile brand.js sits under the consumer's `.claude/ai-briefing/`, where the
+// nearest package.json is the consumer's — an explicit `"type":"commonjs"`
+// there makes a file-URL import throw `SyntaxError`, and a typeless one prints a
+// MODULE_TYPELESS_PACKAGE_JSON perf warning on every build. A `data:` module is
+// always ESM. The trade-off: a data: module cannot resolve relative `import`s,
+// so brand.js must stay a pure-data overlay (org/tagline/logo strings + theme
+// tokens) — which the documented contract already requires.
 
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 const LOGO_KEYS = ["logoColor", "logoWhite"];
 
@@ -25,7 +34,9 @@ export async function resolveBrand({ defaultBrand, defaultTheme, configDir }) {
     return { brand: { ...defaultBrand }, theme: { ...defaultTheme } };
   }
 
-  const overlay = await import(pathToFileURL(overlayPath).href);
+  const source = fs.readFileSync(overlayPath, "utf-8");
+  const dataUrl = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
+  const overlay = await import(dataUrl);
   const brand = { ...defaultBrand, ...(overlay.brand ?? {}) };
   const theme = { ...defaultTheme, ...(overlay.theme ?? {}) };
 

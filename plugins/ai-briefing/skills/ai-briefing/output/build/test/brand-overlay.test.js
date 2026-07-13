@@ -103,6 +103,24 @@ test("an already-absolute profile logo path is left untouched", async () => {
   });
 });
 
+test("overlay loads under an explicit CommonJS consumer package scope", async () => {
+  // A profile brand.js lives under the consumer project, whose nearest
+  // package.json governs `.js` module type. An explicit `"type":"commonjs"`
+  // makes a file-URL import of ESM `export const` throw SyntaxError; the data:
+  // URL load is scope-independent. Pin the scope to prove the fix.
+  const overlay = `export const brand = { org: "Scoped Co" };\nexport const theme = { accent: "AABBCC" };`;
+  await withProfile(overlay, async (configDir) => {
+    await writeFile(path.join(configDir, "package.json"), '{"type":"commonjs"}', "utf-8");
+    const { brand, theme } = await resolveBrand({
+      defaultBrand: DEFAULT_BRAND,
+      defaultTheme: DEFAULT_THEME,
+      configDir,
+    });
+    assert.equal(brand.org, "Scoped Co");
+    assert.equal(theme.accent, "AABBCC");
+  });
+});
+
 test("a present-but-malformed profile brand.js surfaces the error (no silent fallback)", async () => {
   const overlay = "export const brand = { this is not valid javascript";
   await withProfile(overlay, async (configDir) => {
