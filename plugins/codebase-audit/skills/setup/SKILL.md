@@ -14,9 +14,23 @@ Idempotent: re-running reads the existing config and offers updates rather than 
 
 ## Task
 
-1. **Read existing config first.** If `.claude/codebase-audit.md` exists, load it and present a
-   short summary (dimensions present, glob counts, example-claim counts). The interview then
-   proposes changes against that baseline; nothing is dropped without the user confirming.
+1. **Read the effective config first, across all layers.** The audit config resolves as an additive merge
+   of the documented layers — user-global (`~/.claude/codebase-audit.md`) → team (`.claude/codebase-audit.md`)
+   → local overlay (`.claude/codebase-audit.local.md`) — where a later layer's globs union with (not replace)
+   the earlier layer's and example-claims concatenate, **except** that a later layer declaring a dimension with
+   empty source lists is an explicit opt-out that *removes* that inherited dimension (step 6). Load every layer
+   you can access and present a short summary of the *effective merged* result (dimensions present, glob counts,
+   example-claim counts) — honoring those opt-outs, so a dimension a higher layer deliberately zeroed out is
+   reported as removed, not as still present — and report which layer contributes what. When a local or
+   user-global layer changes the team file's effect — whether it *adds* globs or *opts a dimension out* with
+   empty source lists — **say so explicitly**, because step 5 writes only the *team* file. A team-scope edit
+   alone will not account for what a higher overlay contributes; in particular, when a local (or user-global)
+   opt-out zeroes a dimension, accepting a team-scope *re-enable* here will not restore that dimension on this
+   machine — the overlay keeps removing it — so prompt the user to also remove or update the opt-out in that
+   overlay, not just re-enable it in the team file. When a higher layer cannot be read (a user-global base is
+   often outside the repo and OS-specific), **warn that it was not considered** rather than presenting the team
+   file alone as the effective config. The interview then proposes changes against that baseline; nothing is
+   dropped without the user confirming.
 2. **Explore the repo to draft defaults.** Before asking anything, infer candidates:
    - **documentation** primary-sources: doc directories (`docs/`, `README.md`), agent-instruction
      files (`AGENTS.md`, `CLAUDE.md`), ADR directories, convention docs.
