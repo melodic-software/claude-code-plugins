@@ -16,9 +16,10 @@ permissions:
   contents: read
 
 # Rapid pushes to a PR supersede the in-flight review; only the newest head
-# is worth reviewing. head_ref scopes cancellation to the PR branch.
+# is worth reviewing. The PR number scopes cancellation to exactly one PR
+# (head_ref would collide across same-named fork branches).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
