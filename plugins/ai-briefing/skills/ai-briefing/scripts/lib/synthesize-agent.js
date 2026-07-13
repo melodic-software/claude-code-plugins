@@ -9,6 +9,8 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { BRIEFING_AGENT_MODEL } from "./models.js";
+
 export const CandidateSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),
@@ -167,6 +169,7 @@ export async function synthesize({
   replies,
   seenUrls,
   claudeBin = "claude",
+  model = BRIEFING_AGENT_MODEL,
   timeoutMs = 180_000,
   dryRun = false,
 }) {
@@ -186,7 +189,7 @@ export async function synthesize({
   try {
     const r = spawnSync(
       claudeBin,
-      ["-p", `@${promptFile}`, "--model", "claude-sonnet-4-6", "--output-format", "json"],
+      ["-p", `@${promptFile}`, "--model", model, "--output-format", "json"],
       {
         encoding: "utf-8",
         timeout: timeoutMs,

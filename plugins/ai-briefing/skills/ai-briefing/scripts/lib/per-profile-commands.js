@@ -7,6 +7,8 @@ import { AntiBot } from "./anti-bot.js";
 import { categorize as runCategorize } from "./categorize-agent.js";
 import { validateExtractorOutput } from "./chrome-extract.js";
 import { probeGrokAvailability } from "./grok-availability.js";
+import { captureProfileViaGrok, writeGrokCaptureFile } from "./grok-capture-agent.js";
+import { mergeTweetLists } from "./grok-normalize.js";
 import {
   buildOrderedHandles,
   loadFollowingList,
@@ -42,6 +44,25 @@ const cmdInit = profileCmd({ skipStateLoad: true }, async ({ flags }) => {
     }
   }
   const force = !!flags.force;
+
+  // Wave 0 Grok preload probe. Optional tooling — a missing/unsigned CLI degrades
+  // to Chrome Wave 1 (grok_degraded) unless --require-grok forces a hard failure.
+  const grokPreloadRequested = !!flags["grok-preload"];
+  let grokReady = false;
+  let grokProbe = null;
+  if (grokPreloadRequested) {
+    grokProbe = probeGrokAvailability();
+    grokReady = grokProbe.ready;
+    if (flags["require-grok"] && !grokReady) {
+      return {
+        code: 2,
+        payload: {
+          error: `--require-grok set but Grok CLI is not ready: ${grokProbe.reason ?? "unknown"}`,
+          grok: grokProbe,
+        },
+      };
+    }
+  }
 
   const existing = await RunState.findLatestInProgress(stateRoot());
   if (existing && !force) {
@@ -88,6 +109,9 @@ const cmdInit = profileCmd({ skipStateLoad: true }, async ({ flags }) => {
       delay_min_ms: 2000,
       delay_max_ms: 5000,
       dry_run: !!flags["dry-run"],
+      grok_preload_requested: grokPreloadRequested,
+      grok_preload: grokReady,
+      grok_model: flags["grok-model"] || null,
     },
   };
 
@@ -104,6 +128,7 @@ const cmdInit = profileCmd({ skipStateLoad: true }, async ({ flags }) => {
       ordered_handles: orderedHandles,
       anti_bot: master.anti_bot,
       config: master.config,
+      ...(grokPreloadRequested && !grokReady ? { grok_degraded: true } : {}),
     },
   };
 });
@@ -142,6 +167,7 @@ const cmdNextHandle = profileCmd({ includeComplete: true }, async ({ state, mast
         profile_path: next.profile_path,
         cutoff: master.cutoff,
         anti_bot: master.anti_bot,
+        grok_preload: !!master.config?.grok_preload,
         run_id: runId,
       },
     };
@@ -155,6 +181,79 @@ const cmdNextHandle = profileCmd({ includeComplete: true }, async ({ state, mast
     saveMaster: true,
   };
 });
+
+const cmdGrokCapture = profileCmd(
+  { requireIndex: true },
+  async ({ state, master, runId, profile, handle, index }) => {
+    // S0 is non-blocking: skip cleanly unless init enabled grok_preload (probe ready).
+    if (!master.config?.grok_preload) {
+      const reason = master.config?.grok_preload_requested
+        ? "grok_probe_not_ready"
+        : "grok_preload_disabled";
+      profile.stages.S0_grok_capture = { status: "skipped", reason };
+      return {
+        code: 0,
+        payload: { skipped: true, reason, handle, index, run_id: runId },
+        saveProfile: true,
+      };
+    }
+
+    const dryRun = !!master.config?.dry_run;
+    const s0Start = Date.now();
+    try {
+      const envelope = await captureProfileViaGrok({
+        handle,
+        cutoffIso: master.cutoff,
+        grokModel: master.config?.grok_model ?? undefined,
+        dryRun,
+      });
+      profile.grok_captures = { posts: envelope.posts };
+
+      let filePath = null;
+      if (!dryRun) {
+        filePath = await writeGrokCaptureFile(state.runDir, envelope.slug, {
+          handle,
+          cutoff: master.cutoff,
+          grok_model: envelope.grok_model,
+          duration_ms: envelope.duration_ms,
+          posts: envelope.posts,
+        });
+      }
+
+      profile.stages.S0_grok_capture = {
+        status: "complete",
+        post_count: envelope.posts.n,
+        duration_ms: envelope.duration_ms,
+      };
+
+      return {
+        code: 0,
+        payload: {
+          handle,
+          index,
+          post_count: envelope.posts.n,
+          duration_ms: envelope.duration_ms,
+          path: filePath,
+          skipped: false,
+          run_id: runId,
+        },
+        saveProfile: true,
+      };
+    } catch (err) {
+      // A Grok failure must never stop Chrome Wave 1 — record + skip, exit 0.
+      profile.stages.S0_grok_capture = {
+        status: "skipped",
+        reason: err.message,
+        duration_ms: Date.now() - s0Start,
+      };
+      return {
+        code: 0,
+        payload: { skipped: true, reason: err.message, handle, index, run_id: runId },
+        saveProfile: true,
+      };
+    }
+  },
+);
 
 const cmdCommitS1 = profileCmd(
   { requireIndex: true },
@@ -226,6 +325,14 @@ const cmdSynthesize = profileCmd(
     const dryRun = !!master.config?.dry_run;
     const maxRetries = master.config?.retry_s3_s4 ?? 1;
 
+    // Merge optional Wave 0 Grok captures with Chrome captures. Grok rows first so
+    // Chrome status URLs win on dedup (mergeTweetLists keeps the last write per URL).
+    const chromePosts = profile.raw_captures.posts?.tw ?? [];
+    const grokPosts = profile.grok_captures?.posts?.tw ?? [];
+    const mergedPosts = grokPosts.length
+      ? mergeTweetLists(grokPosts, chromePosts)
+      : chromePosts;
+
     const s3Start = Date.now();
     let candidates = [];
     try {
@@ -234,7 +341,7 @@ const cmdSynthesize = profileCmd(
           runSynthesize({
             handle,
             priorityBucket: priority_bucket,
-            posts: profile.raw_captures.posts?.tw ?? [],
+            posts: mergedPosts,
             replies: profile.raw_captures.replies?.tw ?? [],
             seenUrls,
             dryRun,
@@ -640,6 +747,7 @@ export function buildSubcommands() {
   return {
     init: cmdInit,
     "grok-check": cmdGrokCheck,
+    "grok-capture": cmdGrokCapture,
     "next-handle": cmdNextHandle,
     "commit-s1": cmdCommitS1,
     synthesize: cmdSynthesize,

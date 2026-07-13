@@ -314,6 +314,14 @@ function bareHandle(handle) {
   return String(handle || "").replace(LEADING_AT_REGEX, "");
 }
 
+// Escape a value for interpolation into a single-quoted JS string literal in the
+// extractor templates. Backslash first, then single-quote, so an untrusted
+// following-list handle (or a malformed cutoff) cannot break out of the literal
+// and inject script into the browser session.
+function escapeForSingleQuotedJs(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
 export function profileUrl(handle, surface = "posts") {
   if (!VALID_SURFACES.has(surface)) {
     throw new Error(`Unknown surface "${surface}" — expected posts | with_replies`);
@@ -340,7 +348,11 @@ export function buildExtractorJs({ handle, surface = "posts", cutoffIso }) {
   const url = profileUrl(handle, surface);
   const tmpl = surface === "with_replies" ? REPLIES_EXTRACTOR_TEMPLATE : POSTS_EXTRACTOR_TEMPLATE;
   const h = bareHandle(handle);
-  const js = tmpl.replace(/__CUTOFF__/g, cutoffIso).replace(/__HANDLE__/g, h);
+  // Function replacers, so a `$` in the escaped value is inserted literally and
+  // never interpreted as a replacement pattern (`$&`, `$1`, …).
+  const cutoffLiteral = escapeForSingleQuotedJs(cutoffIso);
+  const handleLiteral = escapeForSingleQuotedJs(h);
+  const js = tmpl.replace(/__CUTOFF__/g, () => cutoffLiteral).replace(/__HANDLE__/g, () => handleLiteral);
   return { js, url };
 }
 

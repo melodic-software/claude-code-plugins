@@ -18,7 +18,16 @@ import { validateDeck } from "./lib/schema.js";
 import { formatUrlDisplay } from "./lib/url-display.js";
 import { loadSlidesData, meetingsDir, shotsDir } from "./lib/paths.js";
 
-const { meta, theme, slides, providerLogos } = await loadSlidesData();
+let slidesData;
+try {
+  slidesData = await loadSlidesData();
+} catch (err) {
+  console.error(
+    `validate.js: could not load slides-data.js — run \`node emit-slides-data.js\` first to generate it.\n  (${err.message})`,
+  );
+  process.exit(1);
+}
+const { meta, theme, slides, providerLogos } = slidesData;
 const HTML = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
 const PDF = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`);
 const PPTX = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pptx`);
