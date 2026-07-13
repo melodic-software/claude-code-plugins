@@ -27,6 +27,18 @@ else
   bad "no envelope written when sink wired"
 fi
 
+# --- Quoted env-assignment value must not leak into the subject ------------
+TELQ="$TEST_TMPDIR/telq.json"; SINKQ="$(make_sink "$TELQ")"
+env HOOK_TELEMETRY_SINK="$SINKQ" \
+  bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{"command":"TOKEN=\"secret value\" curl https://x"}}' >/dev/null 2>&1
+if wait_for_sink "$TELQ"; then
+  assert_eq "quoted assignment → bare Bash subject" "Bash" "$(jq -r '.data.subject' "$TELQ")"
+  assert_absent "no value fragment leaked" "$(cat "$TELQ")" "secret"
+  assert_absent "no value fragment leaked (2)" "$(cat "$TELQ")" "value"
+else
+  bad "no envelope written for quoted-assignment command"
+fi
+
 # --- Non-Bash tool → tool name as subject ----------------------------------
 TELW="$TEST_TMPDIR/telw.json"; SINKW="$(make_sink "$TELW")"
 env HOOK_TELEMETRY_SINK="$SINKW" \

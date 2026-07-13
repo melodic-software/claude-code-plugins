@@ -156,6 +156,11 @@ hook::jq_field() {
 # Bash, returns "Bash:<first-token>" (leading sudo / VAR=val prefixes stripped,
 # basename applied) — never the full command. For any other tool, returns the
 # tool name unchanged. Carries no argument body, path, or command tail.
+#
+# Whitespace-splitting is only safe when no quoted value spans the whitespace.
+# A quoted assignment value (e.g. `TOKEN="a b" curl …`) would otherwise leak a
+# fragment of the value into the token, so any token carrying a quote aborts to a
+# bare "Bash" subject rather than risk exposing part of the value.
 #   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
 hook::extract_bash_subject() {
   local tool="$1" cmd="${2:-}"
@@ -163,13 +168,27 @@ hook::extract_bash_subject() {
     printf '%s' "$tool"
     return 0
   fi
+  # Trim leading whitespace so the first token is real.
+  cmd="${cmd#"${cmd%%[![:space:]]*}"}"
   local first_token="${cmd%%[[:space:]]*}"
   while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] \
     && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+    # A quote in the prefix token means a quoted value spans the next whitespace;
+    # we cannot tokenize it safely — bail rather than leak a value fragment.
+    if [[ "$first_token" == *[\"\']* ]]; then
+      printf '%s' "$tool"
+      return 0
+    fi
     cmd="${cmd#*[[:space:]]}"
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
     first_token="${cmd%%[[:space:]]*}"
   done
+  # The resolved command token itself must not carry a quote (e.g. a value that
+  # ended here), which would likewise be a value fragment.
+  if [[ "$first_token" == *[\"\']* ]]; then
+    printf '%s' "$tool"
+    return 0
+  fi
   first_token="${first_token##*/}"
   if [[ -n "$first_token" ]]; then
     printf 'Bash:%s' "$first_token"

@@ -34,13 +34,15 @@ else
 fi
 
 # --- Path outside the project → basename only (no directory leak) ----------
+# An absolute path that is NOT under the project root (a user-level instruction
+# file). Built from TEST_TMPDIR so no machine-specific literal is committed.
 TELB="$TEST_TMPDIR/telb.json"; SINKB="$(make_sink "$TELB")"
-OUTSIDE='/home/someuser/.claude/CLAUDE.md'
+OUTSIDE="$TEST_TMPDIR/elsewhere/private-dir/CLAUDE.md"
 env HOOK_TELEMETRY_SINK="$SINKB" CLAUDE_PROJECT_DIR="$PROJ" \
   bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$OUTSIDE" '{file_path:$fp, load_reason:"include"}')" >/dev/null 2>&1
 if wait_for_sink "$TELB"; then
   assert_eq "out-of-repo → basename subject" "CLAUDE.md:include" "$(jq -r '.data.subject' "$TELB")"
-  assert_absent "no username leaked" "$(cat "$TELB")" "someuser"
+  assert_absent "no parent dir leaked" "$(cat "$TELB")" "private-dir"
 else
   bad "no envelope written for out-of-repo path"
 fi
