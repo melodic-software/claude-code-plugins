@@ -17,6 +17,19 @@ blocker count. (`assignees` and `labels` ARE flat arrays — `| length` is corre
 closes. Frontier must count only **OPEN** blockers (`.blockedBy.nodes[] | select(.state=="OPEN")`),
 or every item whose blocker ever closed is stranded off the frontier forever.
 
+## Bootstrap labels (first use in a repo)
+
+`/wayfind` introduces its own taxonomy — `work-map`, `wayfind:research|interview|design|prototype|task`,
+`needs-human` — which a fresh consumer repo will NOT already have (unlike the type/status labels
+`/work-items` reuses). Create-if-missing them once at chart-mode entry, before the first `gh issue
+create --label` (an unknown `--label` fails the create):
+
+```shell
+for L in work-map wayfind:research wayfind:interview wayfind:design wayfind:prototype wayfind:task needs-human; do
+  gh label list --json name --jq '.[].name' | grep -qxF "$L" || gh label create "$L" --description "wayfind decision-map taxonomy"
+done
+```
+
 ## Create / extend the map
 
 ```shell
@@ -73,21 +86,28 @@ done
 
 ## Claim a frontier item (mirrors `/work-items` — one claim model across both skills)
 
-Optimistic locking via server-assigned comment IDs; the collision check relies on distinct
-claimant identities, hence session-identity `@me`:
+Optimistic locking via **claim-comment order** (the sibling's mechanism). Assignee comparison
+is NOT sufficient: two same-identity sessions both assign `@me` and resolve to one login, so
+neither can tell who won. The discriminator is the claim comment — GitHub timestamps each, and
+the earliest wins. Embed a per-session marker in the comment so you can recognize your own.
 
 ```shell
-# 1. Pre-check (read): not already claimed/assigned.
+# 1. Pre-check (read): not already claimed/assigned by someone else.
 gh issue view <item#> --json assignees,labels \
   --jq '{assignees:[.assignees[].login], claimed:([.labels[].name]|any(.=="status:claimed"))}' | tr -d '\r'
 
-# 2. Claim: assign self + label. Ensure the label exists first run (create-if-missing, like the sibling).
+# 2. Ensure the claim label exists, post a claim marker comment (embed a per-session marker),
+#    then assign self + label. @me MUST be the session identity so the timeline is honest.
 gh label list --json name --jq '.[].name' | grep -qxF status:claimed || gh label create status:claimed --description "Claimed by a work session"
+gh issue comment <item#> --body "🔒 claim: <session-marker>"
 gh issue edit <item#> --add-label status:claimed --add-assignee "@me"
 
-# 3. Post-claim collision check: re-read assignees. If >1, the higher server-ID claimant is later
-#    and releases ONLY its own assignee (never the shared status:claimed label the winner holds), then picks next.
-gh issue view <item#> --json assignees --jq '[.assignees[].login]' | tr -d '\r'
+# 3. Collision check via claim-comment ORDER (not assignees). The EARLIEST claim comment wins.
+gh issue view <item#> --json comments \
+  --jq '[.comments[] | select(.body | startswith("🔒 claim:"))] | sort_by(.createdAt) | .[0].body' | tr -d '\r'
+#    If the earliest claim comment is NOT yours (marker mismatch): back off — remove ONLY your own
+#    assignee (never the shared status:claimed label the winner holds), delete your claim comment,
+#    and pick the next frontier item.
 ```
 
 Session-start `reclaim` is idempotent: clear your own `status:claimed` + assignee on items you
