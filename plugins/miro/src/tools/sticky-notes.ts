@@ -141,7 +141,7 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_list_board_items",
-    "List items on a Miro board. Use this to discover what's on a board before modifying it. Can filter by type (sticky_note, shape, frame, text, connector, etc.). Connectors are retrieved via Miro's separate connectors endpoint — pass type 'connector' to list them (each result carries its startItem/endItem IDs). Returns item IDs, types, data, and positions.",
+    "List items on a Miro board. Use this to discover what's on a board before modifying it. Can filter by type (sticky_note, shape, frame, text, connector, etc.). Connectors are retrieved via Miro's separate connectors endpoint — pass type 'connector' to list them (each result carries startItemId/endItemId, the string IDs of the connected items). Returns item IDs, types, data, and positions.",
     {
       board_id: z.string().describe("The board ID"),
       type: z.enum(BOARD_ITEM_TYPES).optional().describe("Filter by item type"),
@@ -162,8 +162,8 @@ export function registerStickyNoteTools(
           items.push({
             id: connector.id,
             type: connector.type ?? "connector",
-            ...(connector.startItem?.id ? { startItem: connector.startItem.id } : {}),
-            ...(connector.endItem?.id ? { endItem: connector.endItem.id } : {}),
+            ...(connector.startItem?.id ? { startItemId: connector.startItem.id } : {}),
+            ...(connector.endItem?.id ? { endItemId: connector.endItem.id } : {}),
           });
           if (items.length >= limit) break;
         }
@@ -184,15 +184,15 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_delete_item",
-    "Delete an item from a Miro board. Use miro_list_board_items first to verify the item ID. For a connector, set type to 'connector' — Miro deletes connectors through a separate endpoint; the default 'item' covers sticky notes, shapes, frames, and other board items.",
+    "Delete an item from a Miro board. Use miro_list_board_items first to verify the item ID. Pass the item's type (as returned by miro_list_board_items) so connectors route to Miro's separate connector endpoint; any other type — or omitting it — deletes via the item endpoint.",
     {
       board_id: z.string().describe("The board ID"),
       item_id: z.string().describe("The item ID to delete"),
       type: z
-        .enum(["item", "connector"])
-        .default("item")
+        .enum(BOARD_ITEM_TYPES)
+        .optional()
         .describe(
-          "Kind of target. Use 'connector' to delete a connector (separate Miro endpoint); 'item' (default) for sticky notes, shapes, frames, and other board items",
+          "Item type, as returned by miro_list_board_items. 'connector' routes to Miro's separate connector-delete endpoint; every other type (sticky_note, shape, frame, …) uses the item-delete endpoint",
         ),
     },
     { destructiveHint: true, openWorldHint: true },
