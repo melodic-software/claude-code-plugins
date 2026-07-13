@@ -1,0 +1,29 @@
+{
+  "name": "ai-meeting-build",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node run.js",
+    "build:html": "node build-html.js",
+    "build:pdf": "node build-pdf.js",
+    "build:pptx": "node build-pptx.js",
+    "build:rebuild": "node run.js --skip-emit",
+    "emit": "node emit-slides-data.js",
+    "test": "node --test",
+    "validate": "node validate.js"
+  },
+  "dependencies": {
+    "date-holidays": "^3.24.4",
+    "linkinator": "^7.0.0",
+    "node-pptx-parser": "^1.0.1",
+    "playwright": "^1.59.1",
+    "pptxgenjs": "^4.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.0.0",
+    "unpdf": "^1.4.0",
+    "zod": "^4.0.0"
+  }
+}
