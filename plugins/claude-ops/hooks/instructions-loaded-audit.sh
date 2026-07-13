@@ -4,8 +4,9 @@
 # @-includes resolve (which rules actually load).
 #
 # ADVISORY: InstructionsLoaded exit code is ignored — always exit 0.
-# The subject is "<file_path>:<load_reason>" so query analysis can group loads
-# by reason without parsing extra fields.
+# The subject is "<repo-relative-file>:<load_reason>" so query analysis can group
+# loads by reason without parsing extra fields. The path is reduced to a
+# repo-relative form (or basename) — the absolute prefix is never captured.
 #
 # Write-time filter: session_start loads are deterministic (the same always-load
 # files fire every boot) and high-volume, so they are dropped by default. Opt
@@ -41,7 +42,20 @@ if [[ "$LOAD_REASON" == "session_start" &&
   exit 0
 fi
 
-SUBJECT="${FILE_PATH}:${LOAD_REASON}"
+# Privacy: InstructionsLoaded `file_path` is absolute, so logging it verbatim
+# would leak local usernames / private directory names into the shared
+# observability store. Reduce to a repo-relative path when the file is under the
+# project root, else to its basename — never the absolute prefix.
+FILE_DISP=""
+if [[ -n "$FILE_PATH" ]]; then
+  project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
+  case "$FILE_PATH" in
+  "$project_dir"/*) FILE_DISP="${FILE_PATH#"$project_dir"/}" ;;
+  *) FILE_DISP="${FILE_PATH##*/}" ;;
+  esac
+fi
+
+SUBJECT="${FILE_DISP}:${LOAD_REASON}"
 
 DATA=$(jq -nc --arg subject "$SUBJECT" '{subject: $subject}')
 

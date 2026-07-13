@@ -267,7 +267,11 @@ hook::emit_telemetry() {
   # Compute duration_ms from caller's $EPOCHREALTIME snapshot to now.
   # Both '.' and ',' separators handled; 10# prefix prevents octal misreading
   # of fractional parts with leading zeros (e.g. .045123 → 10#045123 = 45123).
-  local now=$EPOCHREALTIME
+  # EPOCHREALTIME is Bash 5.0+; on an older host it (and the caller's start
+  # snapshot) is empty. Skip telemetry fail-open rather than abort under set -u —
+  # the same silent-skip the caller's `START=${EPOCHREALTIME:-}` guard intends.
+  local now=${EPOCHREALTIME:-}
+  [[ -n "$start_epoch" && -n "$now" ]] || return 0
   local s_s="${start_epoch%[.,]*}" s_f="${start_epoch#*[.,]}"
   local e_s="${now%[.,]*}" e_f="${now#*[.,]}"
   local duration_ms=$(((e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000))

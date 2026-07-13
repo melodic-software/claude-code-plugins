@@ -9,7 +9,7 @@
   "properties": {
     "subject": {
       "type": "string",
-      "description": "\"<file_path>:<load_reason>\" for the loaded rule/instruction file, so consumers can group loads by reason (e.g. \"path_glob_match\", \"include\") without parsing extra fields. session_start loads are filtered out at the producer by default."
+      "description": "\"<repo-relative-file>:<load_reason>\" for the loaded rule/instruction file, so consumers can group loads by reason (e.g. \"path_glob_match\", \"include\") without parsing extra fields. Privacy-safe: the absolute path prefix is stripped to a repo-relative path (or basename for files outside the project root). session_start loads are filtered out at the producer by default."
     }
   }
 }
