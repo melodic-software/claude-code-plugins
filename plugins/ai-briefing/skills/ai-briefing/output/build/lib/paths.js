@@ -13,6 +13,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const BUILD_DIR = path.resolve(__dirname, "..");
 export const SKILL_ROOT = path.resolve(__dirname, "..", "..", "..");
 
+// Bundled default-profile config seed shipped with the plugin — the fallback
+// configDir() when no consumer project is present (in-repo / test runs).
+export const SEED_DIR = path.join(SKILL_ROOT, "seed");
+
 function envDir(name) {
   const v = process.env[name];
   return v && v.trim() ? v.trim() : null;
@@ -20,6 +24,17 @@ function envDir(name) {
 
 export function activeProfile() {
   return envDir("AI_BRIEFING_PROFILE") ?? "default";
+}
+
+// Tracked per-profile config directory under the consumer's project — the home
+// of the profile's brand.js overlay + logo assets. The default profile lives at
+// the folder root; a named profile overlays it in a subfolder. Mirrors
+// scripts/lib/paths.js configDir() so the build resolves the same config seam.
+export function configDir(profile = activeProfile()) {
+  const proj = envDir("CLAUDE_PROJECT_DIR");
+  if (!proj) return SEED_DIR;
+  const base = path.join(proj, ".claude", "ai-briefing");
+  return profile === "default" ? base : path.join(base, profile);
 }
 
 export function stateRoot(profile = activeProfile()) {

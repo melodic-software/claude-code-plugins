@@ -11,13 +11,9 @@ import { parseBriefing } from "./lib/parse-briefing.js";
 import { emitSlides } from "./lib/emit-slides.js";
 import { ensureProviderLogos } from "./lib/fetch-logos.js";
 import { validateDeck } from "./lib/schema.js";
-import { brand as BRAND, theme as THEME } from "./brand.js";
-import { buildOutDir, meetingsDir, slidesDataPath, stateRoot } from "./lib/paths.js";
-
-// Default brand (deck `meta` fields + `theme`) lives in ./brand.js — the single
-// concrete brand source. DO NOT redefine per run. Edit brand.js (or a profile
-// overlay) only on rebrand.
-const META_DEFAULTS = BRAND;
+import { brand as DEFAULT_BRAND, theme as DEFAULT_THEME } from "./brand.js";
+import { resolveBrand } from "./lib/brand-overlay.js";
+import { buildOutDir, configDir, meetingsDir, slidesDataPath, stateRoot } from "./lib/paths.js";
 
 const PROVIDER_LOGOS = {
   anthropic: "assets/logo-anthropic.svg",
@@ -138,6 +134,15 @@ export const slides = ${asJsLiteral(slides, 0)};
 async function main() {
   const args = parseArgs(process.argv);
 
+  // Resolve the active profile's brand.js overlay (org, tagline, logos, theme)
+  // over the engine's neutral default. Absent overlay → neutral default. Profile
+  // logo paths come back absolute so the downstream build scripts embed them.
+  const { brand: BRAND, theme: THEME } = await resolveBrand({
+    defaultBrand: DEFAULT_BRAND,
+    defaultTheme: DEFAULT_THEME,
+    configDir: configDir(),
+  });
+
   // Resolve meeting number + window from state (or args)
   const state = await readState();
   let meetingNumber = args.meetingN;
@@ -231,7 +236,7 @@ async function main() {
     meetingNumber,
     date: dateStr,
     window: windowStr,
-    org: META_DEFAULTS.org,
+    org: BRAND.org,
   };
 
   // Emit slides
@@ -239,12 +244,12 @@ async function main() {
 
   const meta = {
     meetingNumber,
-    org: META_DEFAULTS.org,
-    tagline: META_DEFAULTS.tagline,
+    org: BRAND.org,
+    tagline: BRAND.tagline,
     date: dateStr,
     window: windowStr,
-    logoColor: META_DEFAULTS.logoColor,
-    logoWhite: META_DEFAULTS.logoWhite,
+    logoColor: BRAND.logoColor,
+    logoWhite: BRAND.logoWhite,
   };
 
   // Validate before writing
