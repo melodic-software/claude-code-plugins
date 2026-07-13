@@ -859,5 +859,5 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   memory and codify nothing). Full spec — target-repo scan, relevance ranking, how integrations are
   proposed/applied — is decomposed to a dedicated `design(knowledge-integration)` issue under #1369
   per the one-session sizing rule, rather than half-built inline.
-- **Scope boundary:** songwriting-corpus EPUBs → #1402 (personal repo), not here. How existing
-  artifacts consolidate into this repo is operational — see #1393.
+- **Scope boundary:** the songwriting-corpus (Pat Pattison EPUBs) destination is owned by #1402, not
+  decided here. How existing artifacts consolidate into this repo is operational — see #1393.
