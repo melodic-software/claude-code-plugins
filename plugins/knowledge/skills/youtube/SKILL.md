@@ -47,6 +47,8 @@ Every extraction command in this skill runs through `run.mjs`, and each writes i
 
 - **Default / unset** — when `${user_config.library_dir}` is `.`, empty, or still an unexpanded token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to `${CLAUDE_PROJECT_DIR}` (then `process.cwd()`), landing artifacts at the consuming repo root.
 
+**Agent-written artifacts share the same root — do not split the slice.** Every `.work/<watch-epic>/…` path in this skill and its `context/` files is relative to this same resolved work root, not always the repo root. That includes the paths you materialize by hand — the `mkdir -p .work/<watch-epic>/claims` and `QUEUE.md` copy/append steps under **Queue action**, the `claims/*.json` stubs, and every agent-authored slice artifact in the **Output contract**. When `${user_config.library_dir}` is non-default, write them all under `${CLAUDE_PROJECT_DIR}/${user_config.library_dir}/.work/<watch-epic>/…` so the queue table, its concurrency claims, and the `--work-root` script output share one root; a split root would let `queue list` / `watch` read claims from a different directory than the table being edited. Default / unset → repo-root `.work/<watch-epic>/…` as written.
+
 The `setup-deps.mjs` install step is exempt — it installs node dependencies into `${CLAUDE_PLUGIN_DATA}`, not the work root.
 
 ## Action router

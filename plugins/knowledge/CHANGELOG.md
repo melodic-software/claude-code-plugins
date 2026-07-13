@@ -13,7 +13,9 @@ only after that version increases.
   `run.mjs --work-root <dir>`, which the launcher translates into the
   `YOUTUBE_WORK_ROOT` environment variable the scripts already read — so watch,
   transcript, and queue artifacts land under the configured directory instead of
-  always at the consuming repo root. The default (`.`) path is unchanged: no flag,
+  always at the consuming repo root. Agent-written slice artifacts (the queue table,
+  its claim stubs, and every Output-contract deliverable) anchor to the same resolved
+  root, so a non-default `library_dir` never splits a slice across two directories. The default (`.`) path is unchanged: no flag,
   `resolveWorkRoot()` keeps its `CLAUDE_PROJECT_DIR` → `process.cwd()` fallback. A
   double-quoted CLI arg was chosen over an inline `YOUTUBE_WORK_ROOT=… node` prefix
   because the latter is bash-only and fails under PowerShell.
