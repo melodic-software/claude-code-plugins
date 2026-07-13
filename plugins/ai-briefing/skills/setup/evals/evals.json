@@ -1,0 +1,43 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scaffolds-profile-and-seeds-follow-list-idempotently",
+      "prompt": "/ai-briefing:setup",
+      "expected_output": "Resolves the profile name from --profile or asks, defaulting to the root default profile, and scaffolds the profiled folder under the consumer's .claude/ai-briefing/ (or .../<name>/ for a named profile). It copies the bundled seed following-list.json only when one is absent and leaves an existing follow-list intact (offering a refresh instead), and recommends gitignoring the .claude/ai-briefing/**/*.local.* personal overlays while keeping team config tracked.",
+      "files": [],
+      "expectations": [
+        "Resolves the profile name (from --profile or by asking) defaulting to the root default profile",
+        "Scaffolds the profile under the consumer's .claude/ai-briefing/ rather than any machine-local location",
+        "Copies the seed following-list.json only when absent and leaves an existing follow-list intact",
+        "Recommends gitignoring the .claude/ai-briefing/**/*.local.* personal overlays while keeping team config tracked"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "optional-branding-and-lens-skipped-cleanly",
+      "prompt": "/ai-briefing:setup",
+      "expected_output": "Offers the optional brand.js branding overlay and the audience.md stack-lens as choices, scaffolding each into the profile directory only when the consumer wants it and skipping cleanly when declined (leaving the neutral default brand and no impact tag). Neither optional overlay is written into the plugin data directory.",
+      "files": [],
+      "expectations": [
+        "Offers brand.js and audience.md as optional overlays rather than forcing them",
+        "Scaffolds an accepted overlay into the profile directory, not the plugin data directory",
+        "Skips a declined overlay cleanly, leaving the neutral default brand and no impact tag"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "stages-runtime-deps-version-gated-not-curated-config",
+      "prompt": "/ai-briefing:setup",
+      "expected_output": "Stages the runnable script tree and installs node_modules as a sibling under ${CLAUDE_PLUGIN_DATA}/runtime, gated on the plugin version so a re-run re-stages only when the version changed (installing the heavier build tree only when slides/html output is needed). It never writes curated profile config into ${CLAUDE_PLUGIN_DATA} — that directory holds machine-local run state (seen-items, generated decks) only.",
+      "files": [],
+      "expectations": [
+        "Stages the runnable tree and installs node_modules under ${CLAUDE_PLUGIN_DATA}/runtime so ESM resolution finds the deps",
+        "Gates re-staging on the plugin version so an unchanged re-run does not reinstall",
+        "Installs the heavier build tree only when slides/html output is required",
+        "Never writes curated profile config into ${CLAUDE_PLUGIN_DATA} (machine run-state only)"
+      ]
+    }
+  ]
+}

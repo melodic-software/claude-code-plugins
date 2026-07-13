@@ -1,0 +1,44 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "infers-notes-dir-and-interviews-before-writing",
+      "prompt": "/planning:setup",
+      "expected_output": "Reads the current effective notes_dir across scopes (querying only that single key, not whole settings files) and reports the effective value and its scope. When none is set, it infers a landing location from the repo — a working-notes convention declared in CLAUDE.md/AGENTS.md/.claude/rules, else an existing notes/working-artifacts directory, else the documented .claude/notes default — and presents that single knob with a recommendation, writing nothing until the user accepts.",
+      "files": [],
+      "expectations": [
+        "Reads the effective notes_dir narrowly (only the pluginConfigs notes_dir key), never loading a settings file wholesale",
+        "Infers the value from the repo (declared working-notes convention, existing notes directory, else the .claude/notes default) rather than guessing",
+        "Presents the single notes_dir knob with a recommendation and invents no further options",
+        "Writes nothing until the user accepts the value"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "surfaces-convention-shadowing-and-idempotent",
+      "prompt": "/planning:setup",
+      "expected_output": "When notes_dir already carries a value, re-running reports it and its scope and proposes changes against that baseline rather than overwriting blind. Even with a value set, it inspects the repo for a declared working-notes convention and, when one conflicts with the effective value, surfaces the shadowing explicitly — the declared convention wins at write time — and offers to reconcile. It also flags when a higher-precedence Managed or Local layer will shadow the project value it writes.",
+      "files": [],
+      "expectations": [
+        "Reports the existing effective notes_dir and its scope before proposing changes",
+        "Inspects for a declared working-notes convention even when a value is set, and surfaces the shadowing when it conflicts (convention wins at write time)",
+        "Warns when a higher-precedence Managed or Local layer will shadow the project-scope write",
+        "Does not overwrite the existing value blind"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "persists-portable-value-to-tracked-project-not-plugin",
+      "prompt": "/planning:setup\n\nLand planning artifacts in docs/planning for the whole team.",
+      "expected_output": "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json, creating the pluginConfigs/options path without disturbing unrelated keys. It never propagates a machine-absolute or personal value into the shared team scope — routing a personal-only override to .claude/settings.local.json instead — offers the local overlay plus gitignore convention, and never writes into the plugin directory or plugin data directory.",
+      "files": [],
+      "expectations": [
+        "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json",
+        "Never propagates a machine-absolute or personal value into the shared team scope, routing a personal-only override to .claude/settings.local.json",
+        "Offers the .claude/settings.local.json personal overlay and gitignore convention",
+        "Does not write into the plugin directory or plugin data directory"
+      ]
+    }
+  ]
+}

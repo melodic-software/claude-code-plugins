@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ai-briefing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Aggregate AI-industry news via multi-wave collection (Chrome/X, Grok, Perplexity, RSS, GitHub releases), dedup, rank, and present as markdown, HTML, or PPTX decks. Ships retro/search/drift actions, a per-profile runner and build pipeline with a neutral default brand, and a named-profile seam so each audience/deployment supplies its own curated follow-list, branding, and ranking lens. Machine state (seen-items, runs, generated decks) persists per profile in the plugin data directory.",
   "author": {
     "name": "Melodic Software",

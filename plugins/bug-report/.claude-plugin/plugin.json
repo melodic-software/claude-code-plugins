@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "bug-report",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Produces a structured five-field bug report — title, steps to reproduce, expected vs actual, severity with justification, and suggested fix location — from an informal defect description. Read-only by default: it emits the report and never edits code, opens a PR, or files an issue on its own.",
   "author": {
     "name": "Melodic Software",
