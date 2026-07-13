@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "simulate-starts-with-big-picture",
-      "prompt": "--simulate online-grocery-delivery",
-      "expected_output": "Runs the full agentic EventStorming cycle for the online-grocery-delivery domain following Brandolini's transition funnel: setup (Miro preflight, domain research, 4-7 personas), then Big Picture ALWAYS first, then post-workshop bounded-context discovery and interactive progression. It does not open at Process Modeling or Design-Level.",
+      "prompt": "A Miro MCP server is connected for this session (the miro_* tools are available). --simulate online-grocery-delivery",
+      "expected_output": "With Miro available, the skill runs the full agentic EventStorming cycle for the online-grocery-delivery domain on a board (not the markdown degradation path), following Brandolini's transition funnel: setup (Miro preflight, domain research, 4-7 personas), then Big Picture ALWAYS first, then post-workshop bounded-context discovery and interactive progression. It does not open at Process Modeling or Design-Level.",
       "files": [],
       "expectations": [
         "Output begins the simulation with the Big Picture format before any Process Modeling or Design-Level work",

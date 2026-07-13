@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "trigger-runs-audit-and-reports",
-      "prompt": "Run a machine health check on my workstation.",
-      "expected_output": "The skill detects the host OS, resolves the report and state roots through the plugin config seams, loads and filters the check catalog, invokes the OS orchestrator, renders a dated markdown report under the report root, appends one line to history.jsonl, and prints CRIT/WARN (and any UNKNOWN) counts plus the report path.",
+      "prompt": "I'm on a Windows workstation. Run a machine health check.",
+      "expected_output": "On Windows (the fully-implemented OS), the skill resolves the report and state roots through the plugin config seams, loads and filters the check catalog, invokes the Windows orchestrator, renders a dated markdown report under the report root, appends one line to history.jsonl, and prints CRIT/WARN (and any UNKNOWN) counts plus the report path.",
       "files": [],
       "expectations": [
         "Output produces (or describes producing) a dated markdown health report as the primary artifact",
