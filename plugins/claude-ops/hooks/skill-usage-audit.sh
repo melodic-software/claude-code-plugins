@@ -45,14 +45,14 @@ if mkdir -p "$log_dir" 2>/dev/null; then
       --arg skill "$SKILL" \
       --arg branch "$branch" \
       --arg hook "skill-usage-audit" \
-      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, hook: $hook}'
+      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, hook: $hook, source: "tool"}'
   ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
 fi
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
   DATA=$(jq -nc --arg subject "Skill:$SKILL" --arg skill "$SKILL" \
-    '{subject: $subject, skill: $skill}')
+    '{subject: $subject, skill: $skill, source: "tool"}')
   hook::emit_telemetry "skill-usage-audit" "PostToolUse" "ok" \
     "$START" "$DATA" "${CLAUDE_PROJECT_DIR:-}"
 fi

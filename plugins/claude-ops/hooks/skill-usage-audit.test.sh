@@ -24,6 +24,7 @@ if [[ -s "$STORE" ]]; then
   assert_eq "second store event" "SkillUse" "$(jq -r '.event' "$STORE")"
   assert_eq "second store skill (slash stripped)" "research" "$(jq -r '.skill' "$STORE")"
   assert_eq "second store hook" "skill-usage-audit" "$(jq -r '.hook' "$STORE")"
+  assert_eq "second store source" "tool" "$(jq -r '.source' "$STORE")"
 else
   bad "second store not written (unconditional)"
 fi
@@ -47,6 +48,7 @@ if wait_for_sink "$TEL"; then
   assert_eq "status" "ok" "$(jq -r '.status' "$TEL")"
   assert_eq "data.subject" "Skill:research" "$(jq -r '.data.subject' "$TEL")"
   assert_eq "data.skill" "research" "$(jq -r '.data.skill' "$TEL")"
+  assert_eq "data.source" "tool" "$(jq -r '.data.source' "$TEL")"
 else
   bad "no envelope written when sink wired"
 fi

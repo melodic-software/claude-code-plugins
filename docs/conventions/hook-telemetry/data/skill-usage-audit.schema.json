@@ -2,18 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/skill-usage-audit.schema.json",
   "title": "skill-usage-audit telemetry data",
-  "description": "Per-hook `data` payload for the skill-usage-audit PostToolUse/Skill emitter. Discovered from the envelope `hook` value \"skill-usage-audit\". Evolves additive-only. Captures the skill name only — never the arguments body. Independent of the hook's bespoke skill-usage.jsonl second store.",
+  "description": "Per-hook `data` payload for the skill-usage-audit signal. Discovered from the envelope `hook` value \"skill-usage-audit\". Two producers emit it under this one `hook` id: the PostToolUse/Skill emitter (model-invoked Skill tool, `hook_event` PostToolUse) and the UserPromptExpansion emitter (user-typed slash-command / MCP-prompt, `hook_event` UserPromptExpansion); the `source` field tells them apart. Evolves additive-only. Captures the skill/command name only — never the arguments body. Independent of the hook's bespoke skill-usage.jsonl second store.",
   "type": "object",
   "required": ["subject", "skill"],
   "additionalProperties": true,
   "properties": {
     "subject": {
       "type": "string",
-      "description": "\"Skill:<name>\" for the invoked skill (leading slash stripped)."
+      "description": "\"Skill:<name>\" for the invoked skill/command (leading slash stripped)."
     },
     "skill": {
       "type": "string",
-      "description": "The invoked skill name (leading slash stripped, e.g. \"research\")."
+      "description": "The invoked skill/command name (leading slash stripped, e.g. \"research\")."
+    },
+    "source": {
+      "type": "string",
+      "description": "Which producer emitted the event: \"tool\" (model-invoked Skill tool, PostToolUse) or \"expansion\" (user-typed command, UserPromptExpansion). Optional and additive — envelopes predating this field carry no `source`."
+    },
+    "expansion_type": {
+      "type": "string",
+      "description": "Expansion kind for the `expansion` source: \"slash_command\" (skill/command) or \"mcp_prompt\". Optional — absent on the `tool` source, and absent on `expansion` events from a CC build that does not supply it."
     }
   }
 }

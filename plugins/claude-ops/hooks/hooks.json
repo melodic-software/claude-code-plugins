@@ -68,6 +68,17 @@
         ]
       }
     ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-expansion-audit.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUseFailure": [
       {
         "matcher": "Write|Edit|Bash",

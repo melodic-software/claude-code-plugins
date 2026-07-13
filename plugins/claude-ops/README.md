@@ -19,14 +19,22 @@ per-hook execution telemetry Claude Code's native OTEL cannot see.
 
 ## The audit hooks
 
-Seven advisory `*-audit` hooks emit the marketplace [hook-telemetry
-envelope](../../docs/conventions/hook-telemetry/README.md) — one JSON event per
-run carrying that hook's own `duration_ms`, outcome, and a privacy-safe subject.
-Each is independently toggleable via `HOOK_<NAME>_ENABLED=false`. The six pure
-emitters are a no-op until a consumer wires a sink (below); `skill-usage-audit`
-is the one exception — it also writes its `skill-usage.jsonl` second store
-unconditionally (disable it with `HOOK_SKILL_USAGE_AUDIT_ENABLED=false`, or
-relocate the store with the `skill_usage_dir` option).
+Seven advisory `*-audit` telemetry emitters (across eight hook scripts —
+`skill-usage-audit` has two producers, see below) emit the marketplace
+[hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md) — one
+JSON event per run carrying that hook's own `duration_ms`, outcome, and a
+privacy-safe subject. Each is independently toggleable via
+`HOOK_<NAME>_ENABLED=false`. The six pure emitters are a no-op until a consumer
+wires a sink (below); `skill-usage-audit` is the exception — both its producers
+also write the shared `skill-usage.jsonl` second store unconditionally (disable
+the whole feature with `HOOK_SKILL_USAGE_AUDIT_ENABLED=false`, or relocate the
+store with the `skill_usage_dir` option).
+
+`skill-usage-audit` is captured by two disjoint producers so both invocation
+paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
+user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
+tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
+tell the paths apart; both share the same telemetry `hook` id and second store.
 
 | Hook | Event | Emits |
 |---|---|---|
@@ -35,7 +43,8 @@ relocate the store with the `skill_usage_dir` option).
 | `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) |
 | `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject |
 | `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) |
-| `skill-usage-audit` | PostToolUse (`Skill`) | skill invocations; also writes a `skill-usage.jsonl` second store |
+| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store |
+| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store |
 | `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
 
 None captures a command body, absolute path, error message, or argument body —
