@@ -70,9 +70,10 @@ Create a new work item with labels from the taxonomy.
 1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). If `--recurring`, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe — **never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash
-# Write the composed body to $BODY_FILE with the Write tool (not shell interpolation).
-# "$(cat "$BODY_FILE")" passes the file content as one literal argument — its contents are never re-parsed.
 BODY_FILE=$(mktemp)
+# Write the composed body to "$BODY_FILE" with the Write tool NOW — before create-item —
+# not via shell interpolation. "$(cat "$BODY_FILE")" then passes the file content as one
+# literal argument the shell never re-parses.
 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item \
   --title "[Maintenance] {title}" \
   --body "$(cat "$BODY_FILE")" \

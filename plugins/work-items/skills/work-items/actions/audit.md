@@ -26,8 +26,10 @@ Entries in `.github/recurring-schedule.json` with no corresponding open or recen
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-[[ -f "$SCHEDULE" ]] && jq -r --arg today "$(date +%Y-%m-%d)" \
-  '.items[] | select(.next_due != null and .next_due <= $today) | .title' "$SCHEDULE"
+if [[ -f "$SCHEDULE" ]]; then
+  jq -r --arg today "$(date +%Y-%m-%d)" \
+    '.items[] | select(.next_due != null and .next_due <= $today) | .title' "$SCHEDULE"
+fi
 ```
 
 List open recurring items (adapter: "List items", `--label recurring`, `--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned. The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.

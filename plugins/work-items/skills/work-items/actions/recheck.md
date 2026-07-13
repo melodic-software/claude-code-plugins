@@ -14,9 +14,11 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-[[ -f "$SCHEDULE" ]] && jq --arg q "<query>" '
-  .items[] | select(.id == $q or (.title | ascii_downcase | contains($q | ascii_downcase)))
-' "$SCHEDULE"
+if [[ -f "$SCHEDULE" ]]; then
+  jq --arg q "<query>" '
+    .items[] | select(.id == $q or (.title | ascii_downcase | contains($q | ascii_downcase)))
+  ' "$SCHEDULE"
+fi
 ```
 
 If multiple matches, present them and ask the user to clarify.
