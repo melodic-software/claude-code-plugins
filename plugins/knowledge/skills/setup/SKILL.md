@@ -98,7 +98,7 @@ recorded for when the pipelines consume it — not as currently relocating artif
 ## What this skill does NOT do
 
 - Run a distillation or ingestion — that is the plugin's pipeline skills (e.g. `/knowledge:book-distill`).
-- Write machine-local state — configuration lives in the consumer's tracked settings (project
-  `.claude/settings.json`, or `.claude/settings.local.json` for a personal-only override per step 5), never
-  in the plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
-  state only).
+- Write anything into the plugin directory or the plugin data directory — configuration lives in the
+  consumer's settings (tracked project `.claude/settings.json`, or the personal `.claude/settings.local.json`
+  overlay for a personal-only override per step 5), never in the plugin install path (`${CLAUDE_PLUGIN_DATA}`
+  is for caches and generated state only).
