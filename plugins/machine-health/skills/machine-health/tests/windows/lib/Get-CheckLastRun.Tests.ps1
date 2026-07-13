@@ -44,6 +44,19 @@ Describe 'Get-CheckLastRun' -Tag 'lib' {
         Get-CheckLastRun -CheckId 'disk-space' -HistoryTail $tail | Should -Be '2026-05-08T00:00:00Z'
     }
 
+    It 'finds a check whose last run is deeper than 8 entries back (justifies the deep cadence tail)' {
+        # A monthly check deferred across many recent runs: its last actual run
+        # sits well beyond the newest 8 entries. The lookup must still find it,
+        # which is why the orchestrator loads a deep history tail for cadence.
+        $tail = @(
+            New-Entry -RunId '2026-05-01T00:00:00Z' -ChecksRan @('cert-expiry')
+        )
+        1..14 | ForEach-Object {
+            $tail += New-Entry -RunId ('2026-05-{0:d2}T00:00:00Z' -f ($_ + 1)) -ChecksRan @('disk-space')
+        }
+        Get-CheckLastRun -CheckId 'cert-expiry' -HistoryTail $tail | Should -Be '2026-05-01T00:00:00Z'
+    }
+
     It 'normalizes a datetime run_id (ConvertFrom-Json coercion) back to parseable ISO 8601' {
         # ConvertFrom-Json coerces an ISO run_id string to [datetime]; the helper
         # must re-emit ISO, not a locale-specific "MM/dd/yyyy" string that would

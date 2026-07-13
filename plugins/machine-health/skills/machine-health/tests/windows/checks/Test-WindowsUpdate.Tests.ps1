@@ -166,6 +166,9 @@ Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
         $result.summary | Should -Match 'degraded'
         # The check itself ran: reboot signals are valid, so ran_successfully stays true.
         $result.ran_successfully | Should -BeTrue
+        # pending_update_count is null (not 0) so the degraded run does not persist
+        # a false "no pending updates" into the windows-update trend metric.
+        $result.detail.pending_update_count | Should -BeNullOrEmpty
     }
 
     It 'stays OK when the module is absent (reboot-signals-only fallback, not degraded)' {

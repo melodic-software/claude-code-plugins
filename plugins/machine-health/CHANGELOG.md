@@ -15,10 +15,15 @@ findings triaged during publish as pre-existing behavior or deferred implementat
   each `state/history.jsonl` line). `on-demand` and `first-run` still run every enabled check.
   Monthly demotions in the catalog overlay are no longer advisory-only. The report's delta line
   discloses how many checks were cadence-deferred, so a total-count drop from a skip is not
-  misread as a health change.
+  misread as a health change. `checks_ran` records a check only when it produced a *successful*
+  result (a timeout, invalid output, or `ran_successfully=false` result is not counted, so a
+  monthly check that failed is retried next run rather than deferred). The history tail read for
+  cadence is deep enough that frequent reruns inside the interval do not push a monthly check's
+  last run out of view.
 - **Degraded Windows Update enumeration surfaces as INFO.** When PSWindowsUpdate is present but
   `Get-WUList` fails, the check reports INFO with `detail.update_enum_degraded = true` instead of
-  a misleading OK "no pending updates" (the enumeration genuinely failed).
+  a misleading OK "no pending updates" (the enumeration genuinely failed), and leaves
+  `pending_update_count` null (not 0) so the failure is not persisted into the update trend.
 
 ### Fixed
 
@@ -43,7 +48,8 @@ findings triaged during publish as pre-existing behavior or deferred implementat
   (`#Requires -Version 7.4`, 7.x-only syntax throughout) and removed the unreachable "degrade to
   5.1" claim and dead soft-degrade branch. The skill does not run on Windows PowerShell 5.1.
 - **Per-run report filenames.** Reports are written to `reports/health-<UTC-timestamp>.md` (one
-  file per run) so a same-day rerun no longer overwrites the earlier report.
+  file per run, millisecond precision) so a same-day — even same-second — rerun no longer
+  overwrites the earlier report.
 
 ## [0.1.0]
 

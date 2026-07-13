@@ -13,7 +13,7 @@
     "report_dir": {
       "type": "directory",
       "title": "Report directory",
-      "description": "Directory where per-run health reports (reports/health-<UTC-timestamp>.md, e.g. health-2026-07-12T153327Z.md) are written. Leave unset to use the default: Documents\\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory."
+      "description": "Directory where per-run health reports (reports/health-<UTC-timestamp>.md, e.g. health-2026-07-12T153327123Z.md) are written. Leave unset to use the default: Documents\\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory."
     }
   }
 }

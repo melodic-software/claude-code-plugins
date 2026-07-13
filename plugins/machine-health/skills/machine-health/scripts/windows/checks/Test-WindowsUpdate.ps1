@@ -153,7 +153,11 @@ try {
             pfro = $pfroPending
         }
         recent_hotfixes         = $recentHotfixes
-        pending_update_count    = $pendingUpdates.Count
+        # Null (not 0) when the enumeration was degraded: 0 would be a false
+        # "no pending updates" that the history flattener persists as the
+        # windows-update trend metric, corrupting the next run's delta. Null is
+        # skipped by the flattener, so a transient failure leaves the trend intact.
+        pending_update_count    = $pswuQueryFailed ? $null : $pendingUpdates.Count
         pswindowsupdate_present = $pswuPresent
         update_enum_degraded    = $pswuQueryFailed
         oldest_pending_days     = $null -ne $oldestPendingDays ? [int]$oldestPendingDays : $null

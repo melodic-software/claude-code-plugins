@@ -77,8 +77,10 @@ $runStart = Get-Date
 $runId = $runStart.ToString('o')
 $runDate = $runStart.ToString('yyyy-MM-dd')
 # Filesystem-safe UTC run stamp for per-run artifact names (colons are invalid
-# in Windows paths). Distinguishes multiple runs on the same calendar day.
-$runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssZ')
+# in Windows paths). Millisecond precision so two runs in the same second (a
+# scheduler retry/overlap, or a fast mostly-cadence-deferred run) still write
+# distinct report/battery filenames rather than overwriting each other.
+$runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssfffZ')
 $hostname = [System.Net.Dns]::GetHostName()
 
 # Normalize and prepare output roots. Reports are user-facing and live under
@@ -269,11 +271,17 @@ $windowsChecks = @($validatedChecks | Where-Object {
         ($_.os -contains 'windows') -and ($_.enabled) -and (-not $_.deprecated)
     })
 
-# Load history tail for trend context. Wrap in @() so a first run (no history
-# file -> the helper emits nothing, which would bind as $null) yields an empty
-# array, which the [AllowEmptyCollection()] consumers below accept.
+# Load history tail. Depth 100 (not 8) so cadence selection can still find a
+# monthly check's last run when many weekly reruns / on-demand runs fall inside
+# the ~27-day interval -- an 8-line tail would push the last actual run off the
+# window and re-run the check prematurely. Trend uses only the recent slice.
+# Wrap in @() so a first run (no history file -> the helper emits nothing, which
+# would bind as $null) yields an empty array for the [AllowEmptyCollection()]
+# consumers below.
+$historyDepth = 100
 $historyPath = Join-Path $stateDir 'history.jsonl'
-$historyTail = @(Read-HistoryJsonl -Path $historyPath -Tail 8)
+$historyTail = @(Read-HistoryJsonl -Path $historyPath -Tail $historyDepth)
+$historyRecent = @($historyTail | Select-Object -Last 8)
 
 # Cadence-aware selection: a weekly run defers monthly-cadence checks that ran
 # within the monthly interval (per-check last run from history.jsonl checks_ran).
@@ -390,10 +398,6 @@ foreach ($entry in $windowsChecks) {
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 
     if (-not $dispatch.ok) {
-        # Record checks_ran ONLY on a usable dispatch. A timeout / no-output /
-        # invalid-JSON result is not a real "ran" signal -- counting it would
-        # let a monthly check that failed to produce output be cadence-skipped
-        # for ~27 days instead of retried next run.
         $checkResults.Add((New-UnknownCheckResult -Entry $entry `
                     -Summary "Check did not produce a valid result ($($dispatch.reason))." `
                     -ErrorReason $dispatch.reason `
@@ -401,16 +405,25 @@ foreach ($entry in $windowsChecks) {
         Write-MachineHealthLog ("check_failed id=$($entry.id) reason=$($dispatch.reason) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")
     } else {
-        $ranCheckIds.Add($entry.id)
+        # Record checks_ran ONLY when the check produced a SUCCESSFUL result.
+        # A schema-valid but failed result (ran_successfully=false -- e.g. a
+        # transient error, or a cmdlet unavailable) is not a real cadence signal:
+        # counting it would defer a monthly check ~27 days on a failed run
+        # instead of retrying it next run. (Timeout / no-output / invalid-JSON
+        # dispatches already miss this branch entirely.)
+        if ($dispatch.result.ran_successfully) {
+            $ranCheckIds.Add($entry.id)
+        }
         $checkResults.Add($dispatch.result)
         Write-MachineHealthLog ("check_ok id=$($entry.id) severity=$($dispatch.result.severity) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")
     }
 }
 
-# Trend-aware severity adjustment + annotation per severity-rubric.md.
+# Trend-aware severity adjustment + annotation per severity-rubric.md. Trend
+# reads the recent slice (last ~8 runs); cadence uses the full depth above.
 try {
-    $checkResults = @(Invoke-TrendAnalysis -CheckResults $checkResults -HistoryTail $historyTail)
+    $checkResults = @(Invoke-TrendAnalysis -CheckResults $checkResults -HistoryTail $historyRecent)
 } catch {
     Write-MachineHealthLog "trend_analysis_failed $($_.Exception.Message)"
 }
