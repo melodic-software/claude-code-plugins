@@ -281,6 +281,38 @@ else
   fail "sign-first block header should be unfolded (rc=$rc): $out"
 fi
 
+# 12. A block header with a trailing `# comment` (legal YAML) is still
+#     recognized and unfolded.
+make_skill blkcmt-skill '---
+name: blkcmt-skill
+description: | # trigger notes
+  Do the thing. Use when: '"'"'comment alpha'"'"', '"'"'comment beta'"'"'.
+---
+
+## Purpose
+
+Committed baseline with a commented block header carrying two triggers.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add blkcmt-skill'
+make_skill blkcmt-skill '---
+name: blkcmt-skill
+description: | # trigger notes
+  Do the thing. Use when: '"'"'comment alpha'"'"'.
+---
+
+## Purpose
+
+Working tree drops comment beta.
+'
+out="$(run blkcmt-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'comment beta' <<<"$out"; then
+  pass "commented block header (| # ...) is recognized and unfolded"
+else
+  fail "commented block header should be unfolded (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

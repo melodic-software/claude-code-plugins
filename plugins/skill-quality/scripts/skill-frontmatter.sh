@@ -20,8 +20,9 @@ skill_frontmatter::extract() {
 }
 
 # Extract a frontmatter scalar by key (quotes stripped) from stdin. A block
-# scalar (`key: |` / `key: >`, with optional chomp/indent indicator) is unfolded
-# to its text so downstream length / trigger / phrasing checks see the content
+# scalar header (`key: |` / `key: >`, with an optional indent and/or chomp
+# indicator in either order and an optional trailing `# comment`) is unfolded to
+# its text so downstream length / trigger / phrasing checks see the content
 # rather than the `|` / `>` marker: literal (`|`) joins lines with newlines,
 # folded (`>`) with spaces.
 skill_frontmatter::field() {
@@ -30,7 +31,7 @@ skill_frontmatter::field() {
     $0 ~ "^" k ":[[:space:]]*" {
       val = $0
       sub("^" k ":[[:space:]]*", "", val)
-      if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*$/) {
+      if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*(#.*)?$/) {
         fold = (val ~ /^>/)
         out = ""; started = 0; base = -1
         while ((getline line) > 0) {
