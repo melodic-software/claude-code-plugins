@@ -190,6 +190,68 @@ for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGI
 replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
 writes to the consumer's tracked config or to `pluginConfigs` — both persist across updates.
 
+## Evals — warrant policy and consumer-verify recipe
+
+Evals are model-graded behavior fixtures at `plugins/<plugin>/skills/<skill>/evals/evals.json`,
+schema `plugins/skill-quality/reference/evals.schema.json`. They are **warranted, not mandatory** —
+a skill ships them only when they earn their keep.
+
+**Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
+that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
+or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
+from a knowledge corpus with no decision contract — `fable-5-playbook`, `tdd`, …) or lives in a **hook** plugin
+(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
+`configure` skill *is* warrantable — it makes interview and write-config decisions (the
+`codebase-audit/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
+routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
+and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
+Coverage against this rule is snapshotted per audit in
+[`evals-coverage.md`](evals-coverage.md); that doc is the point-in-time record, this section is the
+policy.
+
+**Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
+description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
+(the field may equivalently be named `assertions` — skill-creator upstream uses that name). Aim to
+cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
+must not do.
+
+**Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
+executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
+`melodic-software/medley#1418`); `skill-quality` only checks presence and schema, and it resolves
+skills under `${user_config.skills_root}` → `${CLAUDE_PROJECT_DIR}/.claude/skills` only — it does
+**not** discover an installed marketplace plugin's skills by plugin name. So the static checks below run
+against the plugin's **source tree**, not against a bare `/plugin install`; the exercise step is the
+part that runs against the plugin as you actually enabled it.
+
+Steps 1-2 are **source-tree verification**: run them against a checkout of this marketplace with
+`<root>` = `plugins/<plugin>/skills`. This is the source, not necessarily the version you have
+*enabled* — installed plugins are copied to a version-keyed cache under `~/.claude/plugins/cache`
+(cache isolation; see "Cache isolation" and "Local development loop" below and the official plugins
+reference "plugin caching and file resolution"), so after a marketplace update the source `evals.json`
+can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled check because it runs
+against the plugin you actually invoked. Then:
+
+1. **Presence** — confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
+   partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
+   `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
+   *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
+   so a warranted non-router skill (e.g. `diagnose`) passes `check` without flagging the gap. Rely on the
+   direct file check or the coverage snapshot, not a green `check`, to confirm presence.
+2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
+   `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
+   treats an absent file as "not a failure", so it is a schema gate, not a presence gate).
+3. **Exercise (manual) — the real consumer check** — enable the plugin in your repo (`/plugin install
+   <plugin>@<marketplace>`), then read the eval cases **from the copy you actually enabled**, not from
+   `<root>`: the enabled version lives in the version-keyed cache under `~/.claude/plugins/cache`, and
+   reading cases from a source checkout that has drifted from it would exercise the installed plugin
+   against a different version's prompts/fixtures. To use the source evals *as* the enabled plugin
+   instead, load that source directory with `--plugin-dir` (the local copy then takes session precedence
+   — see "Local development loop" below). For each case paste its `prompt` into a fresh session and read
+   the result against that case's `expected_output` / `expectations`; cases with a `files` list need
+   those fixtures present relative to the skill directory. This is a human judgment pass, not an
+   automated pass/fail, until the deferred runner lands — at which point it becomes a single command and
+   this recipe is revised.
+
 ## Shared tools and scripts seam
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
