@@ -4,106 +4,39 @@ This reference covers how to use Miro as a digital canvas for EventStorming work
 
 ---
 
-## MCP Server Options
+## Miro board access via the `miro` plugin
 
-Two Miro MCP servers exist with different capabilities:
+The live-board path uses the first-party **`miro` plugin** — a bundled local-stdio MCP server that
+exposes the full board lifecycle (create → populate → delete-teardown) plus connectors, frames,
+tags, and overlap detection. It is a **separate plugin from `event-storming`**: markdown is the
+default output, and the board capability is opt-in, so enabling `event-storming` does not start a
+Miro MCP server.
 
-| Feature | Official Miro MCP | Community `mcp-miro` |
-|---------|-------------------|---------------------|
-| **URL/Package** | `https://mcp.miro.com` | `@llmindset/mcp-miro` (npm) |
-| **Transport** | HTTP (streamable) | stdio (Node.js) |
-| **Auth** | OAuth 2.1 (browser flow) | Miro REST API token (env var) |
-| **Sticky notes** | No | **Yes** — create, bulk create |
-| **Shapes** | No | **Yes** |
-| **Diagrams** | Yes — flowchart, UML, ERD | No |
-| **Tables** | Yes — CRUD | No |
-| **Documents** | Yes — markdown docs | No |
-| **Board reading** | Yes — list items, explore | Yes — read board/frame |
-| **Bulk ops** | No | Yes (max 20/batch) |
+> **Remote-MCP trust (resolved).** Miro's official hosted server (`mcp.miro.com`, remote HTTP,
+> OAuth 2.1) was **rejected** as the live-board target: it has no board-delete tool (the skill's
+> teardown cannot be expressed on it) and would delegate board/workshop content egress to a
+> third-party remote MCP. The live-board path targets the first-party bundled server instead
+> (owner's own code, local stdio, no third-party remote egress). Durable accept record + rationale:
+> the marketplace repo's MCP decision table in `docs/MIGRATION-PLAYBOOK.md` — not restated here.
 
-**For EventStorming: a server exposing sticky-note creation is the core requirement.**
+### Tool namespace
 
-> **Tool-surface caveat (read before setup).** The simulation skill's live board path calls
-> `miro_*`-style tool names (`miro_list_boards`, `miro_create_board`, `miro_bulk_create_sticky_notes`,
-> `miro_list_board_items`, `miro_delete_board`). Those names match a Miro MCP server built to expose
-> them; they do **not** match Miro's official hosted server (`mcp.miro.com`), whose tools are named
-> `board_create` / `board_search_boards` / `layout_create` and which authenticates via OAuth 2.1
-> rather than a token env var. Reconciling the skill to Miro's official tool surface (and recording
-> the remote-MCP trust decision that entails) is a tracked fast-follow — until then, the board path
-> works only against a `miro_*`-exposing server, and the skill **degrades to structured-markdown
-> output** (per the availability gate) against any server whose tool names differ. Verify the exact
-> tool names and token/auth env var your chosen server actually exposes before relying on the board
-> path; the specifics below are a starting point, not a guaranteed-current contract.
+Because the server is plugin-bundled, its tools are namespaced at runtime as
+**`mcp__plugin_miro_miro__<tool>`** (e.g. `mcp__plugin_miro_miro__miro_create_board`). A bare
+`miro_*` name — or a bare-server-key `mcp__miro__…` — does **not** resolve for a plugin-bundled
+server. Every `miro_*` tool named in this skill and its reference docs denotes that plugin's tool
+under the `mcp__plugin_miro_miro__` prefix; the availability gate (SKILL.md "Miro availability &
+graceful degradation") probes the prefixed form.
 
-The official Miro MCP (`mcp.miro.com`) can be added as a complement for diagram generation (e.g., creating UML or ERD diagrams from EventStorming output).
+### Setup
 
----
-
-## Setup: Community `mcp-miro` Server
-
-### Prerequisites
-
-- Node.js installed
-- A Miro account with a board to target
-- A Miro REST API token (from Miro Developer Portal)
-
-### Step 1: Get Miro API Token
-
-1. Go to https://miro.com/app/settings/user-profile/apps
-2. Create a new app (or use existing)
-3. Generate an OAuth token with scopes: `boards:read`, `boards:write`
-4. Copy the token
-
-### Step 2: Add to `.mcp.json`
-
-**Never hardcode a token in `.mcp.json` — it gets committed.** Reference it through an environment
-variable (or `settings.local.json`) so the secret stays out of tracked files. Use this form:
-
-```json
-{
-  "mcpServers": {
-    "miro": {
-      "command": "npx",
-      "args": ["-y", "@llmindset/mcp-miro"],
-      "env": {
-        "MIRO_API_TOKEN": "${MIRO_API_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Then set `MIRO_API_TOKEN` in your shell environment or `settings.local.json` (never commit the
-literal token). Confirm the exact env-var name your chosen server reads — it varies by package (some
-community servers read `MIRO_OAUTH_TOKEN`) — per the tool-surface caveat above.
-
-### Step 3: Restart Claude Code
-
-MCP servers are loaded at session start. After adding `.mcp.json`, open a new terminal session.
-
-### Step 4: Verify
-
-In the new session, the Miro tools should appear in the tool list. Test with:
-
-```
-List my Miro boards
-```
-
----
-
-## Setup: Official Miro MCP (Optional Complement)
-
-```bash
-claude mcp add --transport http miro-official https://mcp.miro.com
-```
-
-Then authenticate:
-
-```
-/mcp auth
-```
-
-This adds diagram creation, table management, and document capabilities alongside the community server's sticky note support.
+1. **Enable the plugin:** `claude plugin enable miro` (or the `/plugin` interface). It installs
+   disabled by design.
+2. **Supply a Miro API token:** Claude Code prompts for it at enable time (masked input) and stores
+   it in the system keychain — never in `settings.json`. Get a token from
+   https://miro.com/app/settings/user-profile/apps with `boards:read` + `boards:write` scopes.
+3. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools are callable —
+   test with "List my Miro boards".
 
 ---
 
@@ -307,7 +240,7 @@ When running simulated EventStorming sessions (see `agentic-simulation.md`), age
 
 ### Bulk Creation Pattern
 
-The community MCP server supports bulk creation (up to 20 items per batch). For a simulated Chaotic Exploration phase:
+The `miro` plugin's server supports bulk creation (up to 20 items per batch) via `miro_bulk_create_sticky_notes`. For a simulated Chaotic Exploration phase:
 
 1. Ask each persona agent to generate their events as structured data
 2. Batch-create all stickies on the board
@@ -340,7 +273,5 @@ The community MCP server supports bulk creation (up to 20 items per batch). For 
 - [Miro MCP Server Overview](https://help.miro.com/hc/en-us/articles/31624028247058)
 - [Miro Developer Docs — MCP Intro](https://developers.miro.com/docs/mcp-intro)
 - [Miro Developer Docs — Connecting to Claude Code](https://developers.miro.com/docs/connecting-miro-mcp-to-ai-coding-tools)
-- [Community mcp-miro (evalstate)](https://github.com/evalstate/mcp-miro)
-- [npm @llmindset/mcp-miro](https://www.npmjs.com/package/@llmindset/mcp-miro)
 - [Miro REST API — Sticky Note Style](https://miroapp.github.io/api-clients/python/miro_api/models/sticky_note_style.html)
 - [Miro REST API — Create Sticky Note](https://developers.miro.com/reference/create-sticky-note-item)

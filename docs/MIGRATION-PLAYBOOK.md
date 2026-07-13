@@ -432,6 +432,27 @@ over stdio — no npm/registry publish, no consumer token wall, no `npx` (#58510
   never `settings.json`); the consumer supplies and scopes it. The server exits at startup if unset.
 - **Opt-in.** `defaultEnabled: false` — installs disabled; the consumer enables it deliberately.
 
+**Consuming a sibling plugin's MCP tools (first instance: `event-storming` → `miro`).** When plugin A's
+skill drives plugin B's bundled MCP server, three rules hold:
+
+- **Namespaced tool names.** A plugin-bundled server's tools are callable as
+  `mcp__plugin_<plugin>_<server>__<tool>` — for `miro`, `mcp__plugin_miro_miro__miro_create_board`
+  ([mcp reference](https://code.claude.com/docs/en/mcp)). A bare `miro_*` name, or a bare-server-key
+  `mcp__miro__…`, does **not** resolve for a plugin-bundled server. Any *declarative* reference
+  (a skill's `allowed-tools`, a permission rule, a subagent `tools` field, a hook matcher) MUST use the
+  full prefixed form; a matcher against the bare server key never fires. In model-facing prose the
+  runtime resolves the tool the model actually calls, so a skill may name tools by their bare
+  conceptual `<tool>` **provided it states once** that those names denote the provider's tools under
+  the `mcp__plugin_<plugin>_<server>__` prefix (`simulation` does this in its availability gate).
+- **Availability gate probes the prefixed form.** The consumer detects the capability by checking a
+  prefixed tool (`mcp__plugin_miro_miro__miro_list_boards`), not a bare name — otherwise the gate can
+  never fire and the consumer silently stays in its degraded default forever.
+- **Soft dependency, never bundle-or-fork.** The consumer does not bundle the provider's server nor
+  hard-depend on it: it keeps its no-server default (here structured-markdown), documents that the
+  enhanced path requires the separately-enabled provider plugin, and degrades gracefully when the
+  provider's tools are absent. This is the cross-plugin form of the "swap the MCP server, not a
+  pluggable abstraction; declare the dependency, don't fork" rule above.
+
 ## Plugin-form caveats (works in-repo, breaks as a plugin)
 
 Catalog these per migration; they are the usual failures when an in-repo skill becomes a plugin.
