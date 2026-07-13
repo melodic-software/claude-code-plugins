@@ -15,7 +15,7 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check + outcome semantics: `tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Enumerate currently-assigned items (adapter: "List items", assigned filter — rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run `reclaim` on each id — idempotent, safe to run repeatedly:
 
 ```bash
-tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"
+"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" reclaim "<id>"
 ```
 
 Present each item the verb reports `reclaimed: true` (released — the `reason` field says why); `reclaimed: false` means still-held or lease-renewed, left in place. Legacy label-based holds from before the seam are migrated by the label-reconciliation pass, not here.
@@ -26,8 +26,10 @@ Entries in `.github/recurring-schedule.json` with no corresponding open or recen
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-[[ -f "$SCHEDULE" ]] && jq -r --arg today "$(date +%Y-%m-%d)" \
-  '.items[] | select(.next_due != null and .next_due <= $today) | .title' "$SCHEDULE"
+if [[ -f "$SCHEDULE" ]]; then
+  jq -r --arg today "$(date +%Y-%m-%d)" \
+    '.items[] | select(.next_due != null and .next_due <= $today) | .title' "$SCHEDULE"
+fi
 ```
 
 List open recurring items (adapter: "List items", `--label recurring`, `--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned. The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.

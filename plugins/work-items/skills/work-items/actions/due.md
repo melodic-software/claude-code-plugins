@@ -35,8 +35,10 @@ For days-overdue computation, calculate `(today - next_due)` in days. jq lacks d
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-[[ -f "$SCHEDULE" ]] && jq -r --arg today "$(date +%Y-%m-%d)" \
-  '.items[] | select(.next_due != null and .next_due <= $today) | .id' "$SCHEDULE"
+if [[ -f "$SCHEDULE" ]]; then
+  jq -r --arg today "$(date +%Y-%m-%d)" \
+    '.items[] | select(.next_due != null and .next_due <= $today) | .id' "$SCHEDULE"
+fi
 ```
 
 1. **Present:**

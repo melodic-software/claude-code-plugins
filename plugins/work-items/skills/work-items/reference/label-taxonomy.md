@@ -13,7 +13,7 @@ These groups work in any repo and don't change per team.
 | Type | `type:` | `type:feat`, `type:fix`, `type:chore`, `type:docs`, `type:refactor`, `type:test`, `type:build`, `type:perf` (Conventional Commits) |
 | Priority | `priority:` | `priority:p0-critical`, `priority:p1-high`, `priority:p2-medium`, `priority:p3-low` |
 | Status | `status:` | `status:needs-triage`, `status:considering`, `status:claimed`, `status:blocked`, `status:needs-info` |
-| Meta | (none) | `automated`, `recurring`, `agent-ready`, `good-first-issue`, `migrated`, `stale` |
+| Meta | (none) | `automated`, `recurring`, `agent-ready`, `needs-human`, `good-first-issue`, `migrated`, `stale` |
 | Cadence | `cadence:` | `cadence:weekly`, `cadence:biweekly`, `cadence:monthly`, `cadence:quarterly`, `cadence:semi-annual`, `cadence:annual` |
 
 ## Project-specific groups

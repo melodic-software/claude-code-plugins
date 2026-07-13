@@ -93,11 +93,11 @@ For each approved slice, create a work item via the seam (`tools/work-item-track
 # get needs-human instead — the label list-frontier --autonomous actually honors to exclude
 # an item. Omitting agent-ready alone does NOT keep an HITL slice off the frontier.
 META_LABEL=$([ -n "$AFK" ] && echo "agent-ready" || echo "needs-human")
-# Write the composed slice body to $BODY_FILE with the Write tool (not shell interpolation) — plan/PRD
-# text can contain backticks or $() the shell would interpret. "$(cat "$BODY_FILE")" passes it as one
-# literal argument, never re-parsed.
 BODY_FILE=$(mktemp)
-tools/work-item-tracker/work-item-tracker.sh create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
+# Write the composed slice body to "$BODY_FILE" with the Write tool NOW — before create-item —
+# not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
+# interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
+"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
   --labels "type:<t>,area:<a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
 rm -f "$BODY_FILE"
