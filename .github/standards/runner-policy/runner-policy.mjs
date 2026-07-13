@@ -1619,20 +1619,23 @@ async function repositoryWorkflowIndex(root) {
 }
 
 function resolveRepositoryOwner(config, githubRepository) {
-  let githubOwner;
-  if (githubRepository !== undefined) {
-    if (typeof githubRepository !== "string" || !GITHUB_REPOSITORY.test(githubRepository)) {
-      throw new ConfigurationError("GITHUB_REPOSITORY evidence must be an owner/repository name");
-    }
-    githubOwner = githubRepository.slice(0, githubRepository.indexOf("/")).toLowerCase();
+  // Checked-in repositoryOwner is part of the data being audited. It may
+  // corroborate external identity, but must never grant an owner-scoped
+  // approval when GitHub/caller identity evidence is absent.
+  if (githubRepository === undefined) {
+    return undefined;
   }
+  if (typeof githubRepository !== "string" || !GITHUB_REPOSITORY.test(githubRepository)) {
+    throw new ConfigurationError("GITHUB_REPOSITORY evidence must be an owner/repository name");
+  }
+  const githubOwner = githubRepository.slice(0, githubRepository.indexOf("/")).toLowerCase();
   const configuredOwner = config.repositoryOwner?.toLowerCase();
-  if (githubOwner && configuredOwner && githubOwner !== configuredOwner) {
+  if (configuredOwner && githubOwner !== configuredOwner) {
     throw new ConfigurationError(
       `GITHUB_REPOSITORY owner evidence is ${githubOwner}, but .github/runner-policy.json declares ${configuredOwner}`,
     );
   }
-  return githubOwner ?? configuredOwner;
+  return githubOwner;
 }
 
 export async function auditRepository({
