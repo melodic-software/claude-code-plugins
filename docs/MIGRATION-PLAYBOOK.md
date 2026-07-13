@@ -851,7 +851,7 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   holds a many-source corpus at $0 where the personal 10 GiB tier would meter.
 - **`library_dir`:** the plugin's existing `directory` userConfig points synthesized artifacts at this
   repo in the consuming context; no consuming-repo name is baked into the plugin (contract v2.1 seam 1
-  + convention-resolution ladder), so the same plugin serves other consumers unchanged.
+  and the convention-resolution ladder), so the same plugin serves other consumers unchanged.
 - **Integration flow — first-class capability:** the value step is analyze-here → fit-into-any-target.
   Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invokable capability
   seam-consistent with contract v2.1), NOT a documented manual workflow (which would rely on operator
