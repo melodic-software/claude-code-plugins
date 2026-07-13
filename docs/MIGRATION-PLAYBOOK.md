@@ -853,7 +853,7 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   repo in the consuming context; no consuming-repo name is baked into the plugin (contract v2.1 seam 1
   and the convention-resolution ladder), so the same plugin serves other consumers unchanged.
 - **Integration flow — first-class capability:** the value step is analyze-here → fit-into-any-target.
-  Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invokable capability
+  Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invocable capability
   seam-consistent with contract v2.1), NOT a documented manual workflow (which would rely on operator
   memory and codify nothing). Full spec — target-repo scan, relevance ranking, how integrations are
   proposed/applied — is decomposed to a dedicated `design(knowledge-integration)` issue under #1369
