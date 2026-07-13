@@ -17,6 +17,8 @@ const FULL_SHA = /^[0-9a-f]{40}$/i;
 const REUSABLE_WORKFLOW_PATH =
   /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
 const LOCAL_REUSABLE_WORKFLOW = /^\.\/\.github\/workflows\/([A-Za-z0-9_.-]+\.ya?ml)$/;
+const REPOSITORY_OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+const GITHUB_REPOSITORY = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\/[A-Za-z0-9_.-]+$/;
 const EXACT_GITHUB_TOKEN_EXPRESSIONS = new Set([
   `\${{ secrets.GITHUB_TOKEN }}`,
   `\${{ github.token }}`,
@@ -75,6 +77,7 @@ function validatePolicy(value) {
       "schemaVersion",
       "selectorWorkflowPaths",
       "approvedSelectorReferences",
+      "approvedSelectorReferencesByRepositoryOwner",
       "approvedReusableWorkflowContracts",
       "canonicalSelectorInputs",
       "optionalCanonicalSelectorInputs",
@@ -89,8 +92,8 @@ function validatePolicy(value) {
     ],
     "policy",
   );
-  if (value.schemaVersion !== 2) {
-    throw new ConfigurationError("policy.schemaVersion must be 2");
+  if (value.schemaVersion !== 3) {
+    throw new ConfigurationError("policy.schemaVersion must be 3");
   }
   assertStringArray(value.selectorWorkflowPaths, "policy.selectorWorkflowPaths");
   if (value.selectorWorkflowPaths.some((workflow) => !REUSABLE_WORKFLOW_PATH.test(workflow))) {
@@ -113,6 +116,10 @@ function validatePolicy(value) {
   if (new Set(value.approvedSelectorReferences).size !== value.approvedSelectorReferences.length) {
     throw new ConfigurationError("policy.approvedSelectorReferences must not contain duplicates");
   }
+  assertPlainObject(
+    value.approvedSelectorReferencesByRepositoryOwner,
+    "policy.approvedSelectorReferencesByRepositoryOwner",
+  );
   assertPlainObject(
     value.approvedReusableWorkflowContracts,
     "policy.approvedReusableWorkflowContracts",
@@ -176,13 +183,45 @@ function validatePolicy(value) {
   });
 
   const selectorWorkflowPaths = new Set(value.selectorWorkflowPaths);
-  for (const reference of value.approvedSelectorReferences) {
+  const validateSelectorReference = (reference, location) => {
     const parsed = parseReusableWorkflowReference(reference);
     if (!parsed || !selectorWorkflowPaths.has(parsed.workflow) || !FULL_SHA.test(parsed.revision)) {
       throw new ConfigurationError(
-        `policy.approvedSelectorReferences entry ${JSON.stringify(reference)} must be an approved selector path pinned to a full 40-character SHA`,
+        `${location} entry ${JSON.stringify(reference)} must be an approved selector path pinned to a full 40-character SHA`,
       );
     }
+  };
+  for (const reference of value.approvedSelectorReferences) {
+    validateSelectorReference(reference, "policy.approvedSelectorReferences");
+  }
+
+  const globallyApprovedSelectorReferences = new Set(value.approvedSelectorReferences);
+  const approvedSelectorReferencesByRepositoryOwner = new Map();
+  const scopedSelectorOwnersByReference = new Map();
+  for (const [owner, references] of Object.entries(
+    value.approvedSelectorReferencesByRepositoryOwner,
+  )) {
+    if (!REPOSITORY_OWNER.test(owner) || owner !== owner.toLowerCase()) {
+      throw new ConfigurationError(
+        `policy.approvedSelectorReferencesByRepositoryOwner key ${JSON.stringify(owner)} must be a lowercase GitHub repository owner`,
+      );
+    }
+    assertStringArray(references, `policy.approvedSelectorReferencesByRepositoryOwner.${owner}`);
+    for (const reference of references) {
+      validateSelectorReference(
+        reference,
+        `policy.approvedSelectorReferencesByRepositoryOwner.${owner}`,
+      );
+      if (globallyApprovedSelectorReferences.has(reference)) {
+        throw new ConfigurationError(
+          `selector reference ${JSON.stringify(reference)} cannot be both globally and owner-scoped approved`,
+        );
+      }
+      const owners = scopedSelectorOwnersByReference.get(reference) ?? new Set();
+      owners.add(owner);
+      scopedSelectorOwnersByReference.set(reference, owners);
+    }
+    approvedSelectorReferencesByRepositoryOwner.set(owner, new Set(references));
   }
 
   const approvedReusableWorkflowContracts = new Map();
@@ -332,6 +371,8 @@ function validatePolicy(value) {
     ...value,
     selectorWorkflowPaths,
     approvedSelectorReferences: new Set(value.approvedSelectorReferences),
+    approvedSelectorReferencesByRepositoryOwner,
+    scopedSelectorOwnersByReference,
     approvedReusableWorkflowContracts,
     canonicalSelectorInputNames: new Set([
       ...Object.keys(value.canonicalSelectorInputs),
@@ -351,11 +392,21 @@ function validateRepositoryConfig(value, policy) {
   assertPlainObject(value, "repository config");
   assertExactKeys(
     value,
-    ["schemaVersion", "visibility", "selfHostedCi", "exceptions"],
+    ["schemaVersion", "repositoryOwner", "visibility", "selfHostedCi", "exceptions"],
     "repository config",
   );
   if (value.schemaVersion !== 1) {
     throw new ConfigurationError("repository config schemaVersion must be 1");
+  }
+  if (
+    Object.hasOwn(value, "repositoryOwner") &&
+    (typeof value.repositoryOwner !== "string" ||
+      !REPOSITORY_OWNER.test(value.repositoryOwner) ||
+      value.repositoryOwner !== value.repositoryOwner.toLowerCase())
+  ) {
+    throw new ConfigurationError(
+      "repository config repositoryOwner must be a lowercase GitHub repository owner",
+    );
   }
   if (!new Set(["public", "private"]).has(value.visibility)) {
     throw new ConfigurationError('repository config visibility must be "public" or "private"');
@@ -863,6 +914,16 @@ function selectorStatus(job, policy) {
     };
   }
   if (!policy.approvedSelectorReferences.has(job.uses)) {
+    const scopedOwners = policy.scopedSelectorOwnersByReference.get(job.uses);
+    if (scopedOwners) {
+      return {
+        approved: false,
+        isSelector: true,
+        reason: policy.repositoryOwner
+          ? `the selector path@SHA is not approved for repository owner ${policy.repositoryOwner}`
+          : "the selector path@SHA is owner-scoped, but trustworthy repository owner evidence is unavailable",
+      };
+    }
     return {
       approved: false,
       isSelector: true,
@@ -1557,11 +1618,29 @@ async function repositoryWorkflowIndex(root) {
   return records;
 }
 
+function resolveRepositoryOwner(config, githubRepository) {
+  let githubOwner;
+  if (githubRepository !== undefined) {
+    if (typeof githubRepository !== "string" || !GITHUB_REPOSITORY.test(githubRepository)) {
+      throw new ConfigurationError("GITHUB_REPOSITORY evidence must be an owner/repository name");
+    }
+    githubOwner = githubRepository.slice(0, githubRepository.indexOf("/")).toLowerCase();
+  }
+  const configuredOwner = config.repositoryOwner?.toLowerCase();
+  if (githubOwner && configuredOwner && githubOwner !== configuredOwner) {
+    throw new ConfigurationError(
+      `GITHUB_REPOSITORY owner evidence is ${githubOwner}, but .github/runner-policy.json declares ${configuredOwner}`,
+    );
+  }
+  return githubOwner ?? configuredOwner;
+}
+
 export async function auditRepository({
   root = process.cwd(),
   configPath = DEFAULT_CONFIG_PATH,
   policyPath = DEFAULT_POLICY_PATH,
   repositoryVisibility,
+  githubRepository,
 } = {}) {
   const resolvedRoot = path.resolve(root);
   const resolvedConfig = path.isAbsolute(configPath)
@@ -1570,10 +1649,10 @@ export async function auditRepository({
   const resolvedPolicy = path.isAbsolute(policyPath)
     ? policyPath
     : path.join(resolvedRoot, policyPath);
-  const policy = validatePolicy(await readJson(resolvedPolicy, "runner policy"));
+  const basePolicy = validatePolicy(await readJson(resolvedPolicy, "runner policy"));
   const config = validateRepositoryConfig(
     await readJson(resolvedConfig, "repository runner config"),
-    policy,
+    basePolicy,
   );
   if (repositoryVisibility) {
     if (!new Set(["public", "private"]).has(repositoryVisibility)) {
@@ -1585,6 +1664,15 @@ export async function auditRepository({
       );
     }
   }
+  const repositoryOwner = resolveRepositoryOwner(config, githubRepository);
+  const policy = {
+    ...basePolicy,
+    repositoryOwner,
+    approvedSelectorReferences: new Set([
+      ...basePolicy.approvedSelectorReferences,
+      ...(basePolicy.approvedSelectorReferencesByRepositoryOwner.get(repositoryOwner) ?? []),
+    ]),
+  };
   const findings = [];
   const consumedExceptions = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
@@ -1831,6 +1919,7 @@ function parseArguments(argv) {
     configPath: DEFAULT_CONFIG_PATH,
     policyPath: DEFAULT_POLICY_PATH,
     repositoryVisibility: process.env.CI_REPOSITORY_VISIBILITY,
+    githubRepository: process.env.GITHUB_REPOSITORY,
     json: argv.includes("--json"),
   };
   for (let index = 0; index < argv.length; index += 1) {
