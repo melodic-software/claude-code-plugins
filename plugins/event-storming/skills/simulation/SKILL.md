@@ -49,9 +49,10 @@ plugin's tool under the `mcp__plugin_miro_miro__` prefix.
      Every phase that would place stickies instead appends to the markdown artifact. The
      facilitation logic, personas, phase ordering, and rubric scoring are identical; only the
      rendering surface changes. Persist the artifact under `${CLAUDE_PLUGIN_DATA}/sessions/`.
-  2. **Enable the `miro` plugin, then retry:** point the user at the `miro` plugin — enable it
-     (`claude plugin enable miro` or the `/plugin` interface) and supply a Miro API token (stored in
-     the keychain) — and stop until its tools are available. See the README.
+  2. **Install + enable the `miro` plugin, then retry:** a fresh user has only `event-storming` — the
+     `miro` plugin must be installed from the marketplace first (`claude plugin install miro@melodic-software`),
+     then enabled (`claude plugin enable miro` or the `/plugin` interface) with a Miro API token
+     (stored in the keychain). Stop until its tools are available. Full setup: `reference/miro-integration.md`.
 
 Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--crc`,
 `--discover-bcs` with a board URL) require Miro — if it's absent, say so and offer path 2, since

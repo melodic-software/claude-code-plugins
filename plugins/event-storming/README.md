@@ -43,8 +43,9 @@ Each skill auto-invokes on its own trigger phrases, or you can call it directly.
 Both optional surfaces degrade gracefully:
 
 - **Miro** — the live-board path uses the first-party **`miro` plugin**: a bundled local-stdio MCP
-  server, enabled separately (`claude plugin enable miro`) with a Miro API token stored in the
-  keychain. Its tools are namespaced `mcp__plugin_miro_miro__*`. With the plugin absent (or its
+  server that a fresh consumer must **install from this marketplace and then enable**
+  (`claude plugin install miro@melodic-software`, then `claude plugin enable miro`) with a Miro API
+  token stored in the keychain. Its tools are namespaced `mcp__plugin_miro_miro__*`. With the plugin absent (or its
   tools unavailable), `simulation` detects it at preflight and runs in structured-markdown mode
   instead of failing. Miro's official hosted server (`mcp.miro.com`) was evaluated and **rejected**
   as the target (no board-delete tool for teardown; third-party remote egress) — trust record in the
