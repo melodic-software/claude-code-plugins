@@ -8,7 +8,8 @@ import { captureProfileViaGrok } from "./lib/grok-capture-agent.js";
 import { createTestReporter } from "./lib/terminal.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { ok, printResults } = createTestReporter();
+const reporter = createTestReporter();
+const { ok } = reporter;
 
 async function testDryRun() {
   const r = await captureProfileViaGrok({
@@ -56,5 +57,5 @@ async function testGrokCheck() {
 await testDryRun();
 await testRunnerSubcommandDryRun();
 await testGrokCheck();
-const failCount = printResults("grok-capture-agent.test.js");
-process.exit(failCount > 0 ? 1 : 0);
+reporter.printResults();
+process.exit(reporter.fail > 0 ? 1 : 0);
