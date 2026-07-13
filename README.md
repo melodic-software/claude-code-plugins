@@ -1,6 +1,6 @@
 # Melodic Software — Claude Code plugins
 
-A public [Claude Code](https://code.claude.com/docs) plugin marketplace of reusable, repo-agnostic
+A private [Claude Code](https://code.claude.com/docs) plugin marketplace of reusable, repo-agnostic
 skills, hooks, and agents. Each plugin is designed to work in any repository and to be customized by
 consumers without editing the plugin itself.
 
