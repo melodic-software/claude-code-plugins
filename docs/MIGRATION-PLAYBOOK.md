@@ -651,6 +651,26 @@ out), reintegrating one plugin makes it consume one plugin while still running t
 state. Flip a repo from source to consumer deliberately, not incidentally, and ideally once the repo's
 ported plugins can move together.
 
+**Cross-surface caveat — a repo-built `stdio` MCP server declared on more than the Claude Code surface.**
+The checklist above assumes a hook plugin, whose only consumer is Claude Code. A marketplace plugin is
+Claude-Code-only, so **a marketplace-plugin cutover replaces the Claude Code surface only.** A repo-built
+`stdio` MCP server, however, is often declared on additional surfaces — Cursor (`.cursor/mcp.json`), Codex
+(`.codex/config.toml`), Claude Desktop (a `tools/desktop-mcp` installer) — none of which can consume a
+Claude Code marketplace plugin. When such a server also has **no npx/registry publish** (the playbook's
+`stdio` (repo-built), "No CLI" class), those other surfaces have no path to the plugin at all, so deleting
+the in-repo build strands the server on every non-CC surface. Compounding this, the MCP-parity CI gates
+enforce **exact equality** across `.mcp.json` / `.cursor/mcp.json` / `.codex/config.toml` — removing the
+server from only the CC surface breaks parity. So **resolve cross-surface consumption before deleting the
+in-repo server**, picking one:
+
+- **Clean-delete** — confirm (with the owner) the other surfaces do not need the server, then remove its
+  entry from **all** surfaces at once. Parity stays trivially satisfied and no new machinery is needed.
+- **Parity exemption** — keep the in-repo server for Cursor/Codex/Desktop while only the CC surface adopts
+  the plugin; this requires an exemption in the parity gates (an `.mcp.json`-only removal otherwise fails
+  them) plus a follow-up track for a genuine cross-surface distribution.
+- **Defer** — hold the cutover until the server has a cross-surface distribution path (e.g. repoint the
+  other surfaces at the plugin's on-disk bundle, or a shared build), then re-scope.
+
 ## Shared code across plugins — decision record (2026-07-04)
 
 Decided when four plugins carried byte-identical `hooks/hook-utils.sh` copies — the Rule-of-Three
