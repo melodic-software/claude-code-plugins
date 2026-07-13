@@ -1,0 +1,66 @@
+{
+  "skill_name": "handoff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "durable-handoff-then-stop",
+      "prompt": "We're mid-way through a three-phase refactor and the context is getting heavy — I've finished phase 1 and I'm partway into phase 2. Handoff so I can /clear and resume fresh.",
+      "expected_output": "A durable handoff file written to the repo's handoff location (default .claude/handoffs/<TS>-handoff-<topic>.md) capturing task, progress, decisions, and what was tried, followed by a copy-paste resume prompt between two dashed rails that @-references the file. The skill then STOPS — it does not keep executing phase 2.",
+      "files": [],
+      "expectations": [
+        "A durable handoff file is written (default location .claude/handoffs/, or the consuming repo's documented save-point convention)",
+        "A copy-paste resume prompt is emitted between two dashed U+2500 rails, not a markdown --- fence, and it @-references the handoff file rather than inlining its detail",
+        "A plain '/clear, then copy everything between the dashed lines' instruction sits above the top rail",
+        "The skill STOPS after emitting the save-point — it does not continue executing the underlying refactor task in this session"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "prompt-only-small-followups",
+      "prompt": "/handoff prompt — the only thing left is to rename two variables and re-run the linter, no dead ends worth recording.",
+      "expected_output": "A prompt-only save-point: a self-contained resume prompt between dashed rails carrying the small remaining-work bullets inline, with no durable file written. The skill still STOPS.",
+      "files": [],
+      "expectations": [
+        "No durable handoff file is written — the resume prompt carries the remaining-work bullets inline",
+        "The self-contained resume prompt is emitted between two dashed U+2500 rails with the copy instruction above the top rail",
+        "The skill STOPS after emitting the prompt — 'small enough' does not mean 'finish it in-session'"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "multi-step-pipeline-still-stops",
+      "prompt": "Handoff, then run the tests, then open the PR.",
+      "expected_output": "The skill treats naming /handoff as a /clear boundary, not a waiver: it produces the save-point (the resume prompt names the next stage, e.g. run tests then open the PR) and STOPS. The listed steps run in the FRESH session after /clear, not now.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT continue on to run tests or open a PR in this session",
+        "The save-point / resume prompt is produced, pointing at the next unfinished stage",
+        "The skill STOPS — a multi-step pipeline naming /handoff names a /clear boundary, not authorization to keep executing"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-bg-flag-no-background-launch",
+      "prompt": "handoff — I'm heading out, context is heavy.",
+      "expected_output": "Because --bg was not passed, the skill does NOT launch a background agent. The default exit is the copy/paste resume prompt with the /clear-then-paste instruction; background launch is honored only when the user explicitly passes --bg.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT launch a background agent (no claude --bg invocation) because --bg was not passed",
+        "The default exit is the copy/paste resume prompt with a /clear-then-paste instruction",
+        "The skill does not self-elect background launch even though the user is going AFK"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "bg-dirty-tree-falls-back",
+      "prompt": "/handoff --bg — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task.)",
+      "expected_output": "The dirty-tree gate detects unrelated uncommitted changes (outside save-point files under the handoff location) and does NOT launch the background agent — those edits would not carry into the isolated worktree. It reports why and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run.",
+      "files": [],
+      "expectations": [
+        "The skill runs the dirty-tree gate (git status --porcelain) and ignores only save-point files under the handoff location, not the unrelated src/other-feature.ts edits",
+        "It does NOT launch the background agent because unrelated uncommitted changes are present (and it is not already inside a linked worktree)",
+        "It reports the reason and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /handoff --bg"
+      ]
+    }
+  ]
+}
