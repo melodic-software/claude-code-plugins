@@ -17,10 +17,17 @@
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
 #   3. <git-root>/.claude/skills (default)
 #
+# Base ref for the git-backed diff checks (3, 8, 9):
+#   CHECK_SKILL_BASE_REF (default HEAD). These checks diff the WORKING TREE
+#   against this ref, so the default catches an uncommitted rewrite. For a
+#   post-commit audit (where HEAD == tree hides an already-committed change),
+#   run on a clean tree with CHECK_SKILL_BASE_REF pointing before the change
+#   (e.g. HEAD^ or a merge-base).
+#
 # Checks:
 #   1. Frontmatter parses; name + description present
 #   2. description + when_to_use <= 1536 chars (listing-truncation guard)
-#   3. Trigger-keyword preservation vs `git show HEAD:` (skipped for new skills)
+#   3. Trigger-keyword preservation vs the base ref (skipped for new skills)
 #   4. SKILL.md < 500 lines (hard cap)
 #   5. Backtick-cited skill-internal supporting files resolve
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
@@ -29,22 +36,25 @@
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. SKILL.md <= 200 lines soft target (WARN; progressive disclosure)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
-#  12. description carries "Use when" trigger phrasing (WARN)
+#  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
 #  14. Action-router-shaped skill ships evals/evals.json (WARN)
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
 #
-# Known limitations (static, git-diff-based design):
-#   - Checks 3/8 compare the working tree against HEAD, so a trigger-phrase or
-#     vendor change that is ALREADY committed is invisible (HEAD == tree). The
-#     gate is authored for the pre-commit / uncommitted-rewrite case; a
-#     post-commit audit needs an explicit base ref.
-#   - Frontmatter is located at the first `---` fence, not strictly line 1.
-#   - A block-scalar `description: |` / `>-` is not unfolded, so checks 2/3/12
-#     see the marker rather than the text. Prefer a single-line quoted
-#     description (the listing budget encourages this anyway).
+# Notes (static, git-diff-based design):
+#   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
+#     HEAD). The default catches an uncommitted rewrite; a post-commit audit
+#     sets the base ref before the change and runs on a clean tree (see above).
+#   - Frontmatter must open with `---` on line 1; content before the fence is
+#     not treated as frontmatter.
+#   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12,
+#     so they see the text rather than the marker. A single-line quoted
+#     description is still preferred (the listing budget encourages this).
+#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers.
+#     An unquoted `Use when:` list is not tracked; check 12 warns so those
+#     triggers get quoted and covered.
 
 set -uo pipefail
 
@@ -67,6 +77,15 @@ fi
 
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
+
+# Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
+# HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
+BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
+if [[ "$BASE_REF" != "HEAD" ]] \
+  && ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
+  printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
+  exit 2
+fi
 
 SKILL_NAME="${1:?Usage: check-skill.sh <skill-name>}"
 
@@ -160,22 +179,22 @@ fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------
 
-if git -C "$REPO_ROOT" cat-file -e "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null; then
-  HEAD_FM_3="$(git -C "$REPO_ROOT" show "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
-  HEAD_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$HEAD_FM_3")")"
-  HEAD_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$HEAD_FM_3")")"
-  HEAD_TRIG="$(printf '%s\n%s\n' "$HEAD_DESC" "$HEAD_WTU" | skill_frontmatter::extract_triggers)"
+if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  BASE_FM_3="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+  BASE_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$BASE_FM_3")")"
+  BASE_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$BASE_FM_3")")"
+  BASE_TRIG="$(printf '%s\n%s\n' "$BASE_DESC" "$BASE_WTU" | skill_frontmatter::extract_triggers)"
   CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
-  if [[ -n "$HEAD_TRIG" ]]; then
-    MISSING="$(comm -23 <(printf '%s\n' "$HEAD_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
+  if [[ -n "$BASE_TRIG" ]]; then
+    MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
-      err "dropped trigger keyword(s) vs HEAD (auto-invocation regression): $(printf '%s' "$MISSING" | tr '\n' ' ')"
+      err "dropped trigger keyword(s) vs $BASE_REF (auto-invocation regression): $(printf '%s' "$MISSING" | tr '\n' ' ')"
     else
-      note "all $(printf '%s\n' "$HEAD_TRIG" | grep -c .) HEAD trigger phrase(s) preserved"
+      note "all $(printf '%s\n' "$BASE_TRIG" | grep -c .) base-ref trigger phrase(s) preserved"
     fi
   fi
 else
-  note "no HEAD version (new skill) — keyword-preservation check skipped"
+  note "no $BASE_REF version (new skill) — keyword-preservation check skipped"
 fi
 
 # --- Check 4: SKILL.md < LINE_HARD_CAP lines -------------------------------
@@ -264,22 +283,22 @@ fi
 # Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
 # staged before a pre-commit run has no prior vendor/ to preserve, so its staged
 # files must not read as "changed vs HEAD".
-if [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null; then
-  if git -C "$REPO_ROOT" diff --quiet HEAD -- "$SKILL_REL/vendor/" 2>/dev/null; then
-    note "vendor/ unchanged vs HEAD"
+if [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
+    note "vendor/ unchanged vs $BASE_REF"
   else
-    err "vendor/ changed vs HEAD — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/"
+    err "vendor/ changed vs $BASE_REF — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/"
   fi
 fi
 
 # --- Check 9: stale-tracking metadata keys preserved vs HEAD ---------------
 
-if git -C "$REPO_ROOT" cat-file -e "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null; then
-  HEAD_FM="$(git -C "$REPO_ROOT" show "HEAD:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
   for key in upstream-version synced upstream-sha; do
-    if grep -qE "^[[:space:]]*$key:" <<<"$HEAD_FM"; then
+    if grep -qE "^[[:space:]]*$key:" <<<"$BASE_FM"; then
       grep -qE "^[[:space:]]*$key:" <<<"$FRONTMATTER" \
-        || err "metadata key '$key' present at HEAD but dropped (stale-tracking metadata for a vendored skill)"
+        || err "metadata key '$key' present at $BASE_REF but dropped (stale-tracking metadata for a vendored skill)"
     fi
   done
 fi
@@ -301,8 +320,12 @@ fi
 
 # --- Check 12: description carries trigger phrasing --------------------------
 
-if [[ -n "$CUR_DESC" ]] && ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU"; then
-  warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
+if [[ -n "$CUR_DESC" ]]; then
+  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU"; then
+    warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
+  elif [[ -z "$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
+    warn "'Use when:' triggers are not single-quoted — drop-regression protection (check 3) tracks only 'quoted' phrases; single-quote each trigger phrase to cover it"
+  fi
 fi
 
 # --- Check 13: no committed cache/build artifacts ----------------------------

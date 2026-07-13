@@ -37,7 +37,7 @@ make_skill() {
 
 good_body='---
 name: good-skill
-description: "Do a thing. Use when: you need a thing done."
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
 ---
 
 ## Purpose
@@ -138,6 +138,115 @@ if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
   pass "relative skills root resolves via CLAUDE_PROJECT_DIR from a subdir"
 else
   fail "relative skills root should resolve via CLAUDE_PROJECT_DIR (rc=$rc): $out"
+fi
+
+# 7. Content before the opening `---` fence is not frontmatter (check 1 fails).
+make_skill preamble-skill 'Stray preamble before the fence.
+---
+name: preamble-skill
+description: "Thing. Use when: '"'"'x trigger'"'"'."
+---
+
+## Purpose
+
+Frontmatter does not open on line 1.
+'
+out="$(run preamble-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'no YAML frontmatter' <<<"$out"; then
+  pass "content before the --- fence is not treated as frontmatter"
+else
+  fail "preamble before fence should fail check 1 (rc=$rc): $out"
+fi
+
+# 8. A block-scalar `description: |` is unfolded, so a trigger phrase dropped
+#    from inside the block is still caught by check 3.
+make_skill blk-skill '---
+name: blk-skill
+description: |
+  Do the thing. Use when: '"'"'block alpha'"'"', '"'"'block beta'"'"'.
+---
+
+## Purpose
+
+Committed baseline with a block-scalar description carrying two triggers.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add blk-skill'
+make_skill blk-skill '---
+name: blk-skill
+description: |
+  Do the thing. Use when: '"'"'block alpha'"'"'.
+---
+
+## Purpose
+
+Working tree drops the block beta trigger.
+'
+out="$(run blk-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'block beta' <<<"$out"; then
+  pass "block-scalar description is unfolded (trigger drop caught inside |)"
+else
+  fail "block-scalar trigger drop should be caught (rc=$rc): $out"
+fi
+
+# 9. An unquoted `Use when:` list warns (drop-protection gap surfaced) but passes.
+make_skill unq-skill '---
+name: unq-skill
+description: "Do the thing. Use when: you need it, or someone asks."
+---
+
+## Purpose
+
+Unquoted Use-when triggers.
+
+## Gotchas
+
+None known.
+'
+out="$(run unq-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'not single-quoted' <<<"$out"; then
+  pass "unquoted Use-when triggers warn (drop-protection gap surfaced)"
+else
+  fail "unquoted triggers should warn without failing (rc=$rc): $out"
+fi
+
+# 10. CHECK_SKILL_BASE_REF catches an ALREADY-COMMITTED trigger drop that the
+#     default working-tree-vs-HEAD comparison misses (HEAD == tree).
+make_skill baseref-skill '---
+name: baseref-skill
+description: "Thing. Use when: '"'"'ref alpha'"'"', '"'"'ref beta'"'"'."
+---
+
+## Purpose
+
+First commit carries two triggers.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'baseref v1'
+make_skill baseref-skill '---
+name: baseref-skill
+description: "Thing. Use when: '"'"'ref alpha'"'"'."
+---
+
+## Purpose
+
+Second commit drops ref beta — now committed, so HEAD == tree.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'baseref v2 drops beta'
+run baseref-skill >/dev/null 2>&1
+rc_head=$?
+out_base="$(cd "$TMP" \
+  && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
+    bash "$SUT" baseref-skill 2>&1)"
+rc_base=$?
+if [[ $rc_head -eq 0 ]] && [[ $rc_base -eq 1 ]] && grep -q 'ref beta' <<<"$out_base"; then
+  pass "post-commit base ref catches a committed trigger drop that HEAD misses"
+else
+  fail "base-ref audit should catch a committed drop HEAD misses (rc_head=$rc_head rc_base=$rc_base): $out_base"
 fi
 
 if [[ $fails -ne 0 ]]; then
