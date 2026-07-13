@@ -13,14 +13,22 @@ export const stickyNoteSchema = z.object({
     .enum(STICKY_NOTE_SHAPES)
     .default("square")
     .describe("Sticky note shape. Use rectangle for Read Models, External Systems, Pivotal Events"),
-  x: z.number().describe("X position"),
-  y: z.number().describe("Y position"),
+  x: z
+    .number()
+    .describe(
+      "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
+    ),
+  y: z
+    .number()
+    .describe(
+      "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
+    ),
 });
 
 export function registerBulkTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_bulk_create_sticky_notes",
-    "Create multiple sticky notes at once (max 20 per call). Use this instead of miro_create_sticky_note when placing many notes — faster and rate-limit aware. Returns the count and IDs of created items.",
+    "Create multiple sticky notes at once (max 20 per call). Use this instead of miro_create_sticky_note when placing many notes — faster and rate-limit aware. Notes are created sequentially with no rollback: if a later note fails, the earlier ones remain on the board. Returns the count and IDs of created items.",
     {
       board_id: z.string().describe("The board ID"),
       sticky_notes: z
@@ -28,7 +36,12 @@ export function registerBulkTools(server: McpServer, api: MiroApi): void {
         .min(1)
         .max(20)
         .describe("Array of sticky notes to create (max 20)"),
-      parent_id: z.string().optional().describe("Parent frame ID to place all stickies inside"),
+      parent_id: z
+        .string()
+        .optional()
+        .describe(
+          "Parent frame ID to place all stickies inside. When set, each note's x/y is interpreted relative to the frame's top-left corner, not the board center",
+        ),
     },
     { destructiveHint: false, openWorldHint: true },
     async ({ board_id, sticky_notes, parent_id }) => {

@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { errorResponse, jsonResponse } from "../response.js";
 
-const TAG_COLORS = [
+// The Miro create-tag API accepts exactly these fillColor values.
+// Ref: https://developers.miro.com/reference/create-tag
+export const TAG_COLORS = [
   "red",
   "light_green",
   "cyan",
@@ -17,7 +19,7 @@ const TAG_COLORS = [
   "violet",
   "dark_green",
   "dark_blue",
-  "orange",
+  "black",
 ] as const;
 
 export function registerTagTools(server: McpServer, api: MiroApi): void {

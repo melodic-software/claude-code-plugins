@@ -72,10 +72,25 @@ export function registerStickyNoteTools(
       board_id: z.string().describe("The board ID"),
       content: z.string().describe("Text content for the sticky note"),
       color: z.enum(STICKY_NOTE_COLORS).default("light_yellow").describe("Fill color"),
-      x: z.number().default(0).describe("X position on the board"),
-      y: z.number().default(0).describe("Y position on the board"),
+      x: z
+        .number()
+        .default(0)
+        .describe(
+          "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
+        ),
+      y: z
+        .number()
+        .default(0)
+        .describe(
+          "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set",
+        ),
       shape: z.enum(STICKY_NOTE_SHAPES).default("square").describe("Sticky note shape"),
-      parent_id: z.string().optional().describe("Parent frame ID to place the sticky inside"),
+      parent_id: z
+        .string()
+        .optional()
+        .describe(
+          "Parent frame ID to place the sticky inside. When set, x/y are interpreted relative to the frame's top-left corner, not the board center",
+        ),
     },
     { destructiveHint: false, openWorldHint: true },
     async ({ board_id, content, color, x, y, shape, parent_id }) => {
@@ -126,7 +141,7 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_list_board_items",
-    "List items on a Miro board. Use this to discover what's on a board before modifying it. Can filter by type (sticky_note, shape, frame, text, connector, etc.). Returns item IDs, types, data, and positions.",
+    "List items on a Miro board. Use this to discover what's on a board before modifying it. Can filter by type (sticky_note, shape, frame, text, connector, etc.). Connectors are retrieved via Miro's separate connectors endpoint — pass type 'connector' to list them (each result carries its startItem/endItem IDs). Returns item IDs, types, data, and positions.",
     {
       board_id: z.string().describe("The board ID"),
       type: z.enum(BOARD_ITEM_TYPES).optional().describe("Filter by item type"),
@@ -141,14 +156,27 @@ export function registerStickyNoteTools(
     async ({ board_id, type, limit }) => {
       const board = await api.getBoard(board_id);
       const items: Array<Record<string, unknown>> = [];
-      for await (const item of board.getAllItems({ type })) {
-        items.push({
-          id: item.id,
-          type: item.type,
-          ...(item.data && typeof item.data === "object" ? { data: item.data } : {}),
-          ...(item.position ? { position: item.position } : {}),
-        });
-        if (items.length >= limit) break;
+      if (type === "connector") {
+        // Connectors are not returned by the items endpoint; Miro exposes them separately.
+        for await (const connector of board.getAllConnectors()) {
+          items.push({
+            id: connector.id,
+            type: connector.type ?? "connector",
+            ...(connector.startItem?.id ? { startItem: connector.startItem.id } : {}),
+            ...(connector.endItem?.id ? { endItem: connector.endItem.id } : {}),
+          });
+          if (items.length >= limit) break;
+        }
+      } else {
+        for await (const item of board.getAllItems({ type })) {
+          items.push({
+            id: item.id,
+            type: item.type,
+            ...(item.data && typeof item.data === "object" ? { data: item.data } : {}),
+            ...(item.position ? { position: item.position } : {}),
+          });
+          if (items.length >= limit) break;
+        }
       }
       return jsonResponse(items);
     },
@@ -156,14 +184,24 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_delete_item",
-    "Delete an item from a Miro board. Use miro_list_board_items first to verify the item ID. Works for any item type (sticky notes, frames, connectors, etc.).",
+    "Delete an item from a Miro board. Use miro_list_board_items first to verify the item ID. For a connector, set type to 'connector' — Miro deletes connectors through a separate endpoint; the default 'item' covers sticky notes, shapes, frames, and other board items.",
     {
       board_id: z.string().describe("The board ID"),
       item_id: z.string().describe("The item ID to delete"),
+      type: z
+        .enum(["item", "connector"])
+        .default("item")
+        .describe(
+          "Kind of target. Use 'connector' to delete a connector (separate Miro endpoint); 'item' (default) for sticky notes, shapes, frames, and other board items",
+        ),
     },
     { destructiveHint: true, openWorldHint: true },
-    async ({ board_id, item_id }) => {
-      await lowLevel.deleteItem(board_id, item_id);
+    async ({ board_id, item_id, type }) => {
+      if (type === "connector") {
+        await lowLevel.deleteConnector(board_id, item_id);
+      } else {
+        await lowLevel.deleteItem(board_id, item_id);
+      }
       return jsonResponse({ id: item_id, status: "deleted" });
     },
   );
