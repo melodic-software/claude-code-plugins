@@ -849,16 +849,23 @@ the wave's codification requirement puts convention decisions in tracked docs, n
   follow-up content PR to the repo, not governed in IaC. Cost basis (verified 2026-07-13): metered
   LFS is $0.07/GiB-mo storage + $0.0875/GiB bandwidth over the free tier; the Team 250 GiB free tier
   holds a many-source corpus at $0 where the personal 10 GiB tier would meter.
-- **`library_dir`:** the plugin's existing `directory` userConfig points synthesized artifacts at this
-  repo in the consuming context; no consuming-repo name is baked into the plugin (contract v2.1 seam 1
-  and the convention-resolution ladder), so the same plugin serves other consumers unchanged.
+- **`library_dir`:** the plugin's existing `directory` userConfig points *pipeline-synthesized* artifacts
+  at this repo in the consuming context; no consuming-repo name is baked into the plugin (contract v2.1
+  seam 1 and the convention-resolution ladder), so the same plugin serves other consumers unchanged.
+  **`book-distill` is the documented exception** — it does NOT write to `library_dir`; it writes
+  reference files into the target skill under `${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`
+  (its SKILL.md). So `library_dir` is exercised by the youtube / course-digest pipelines, both deferred
+  (#1408 / #1409) — configuring `library_dir` for this repo delivers value only once one of them lands.
 - **Integration flow — first-class capability:** the value step is analyze-here → fit-into-any-target.
   Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invocable capability
   seam-consistent with contract v2.1), NOT a documented manual workflow (which would rely on operator
   memory and codify nothing). Full spec — target-repo scan, relevance ranking, how integrations are
   proposed/applied — is decomposed to a dedicated `design(knowledge-integration)` issue under #1369
   per the one-session sizing rule, rather than half-built inline.
-- **Migration scope (into the new repo):** book-distill outputs only for now. The youtube (#1408) and
-  course-digest (#1409) artifact bodies stay with their still-open retrofits and move when those land;
-  the songwriting-corpus EPUBs belong to #1402 (personal repo), not here. Avoids pre-migrating media
-  coupled to unlanded pipelines.
+- **Migration scope (into the new repo):** book-distill outputs only for now — and because book-distill
+  bypasses `library_dir` (above), those outputs reach `knowledge-artifacts` by running the distill
+  session *with this repo as the consuming project* (the target skill lives here), NOT by pointing
+  `library_dir` at it. The youtube (#1408) and course-digest (#1409) artifact bodies — the ones that DO
+  flow through `library_dir` — stay with their still-open retrofits and move when those land, which is
+  also when the `library_dir` repo config earns its keep; the songwriting-corpus EPUBs belong to #1402
+  (personal repo), not here. Avoids pre-migrating media coupled to unlanded pipelines.
