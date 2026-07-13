@@ -39,7 +39,7 @@ State what is out of scope. Prevents gold-plating or assumptions about adjacent 
 ```markdown
 ## Agent Brief
 
-**Type:** bug / feat / chore / refactor (per `type:` label taxonomy)
+**Type:** Bug / Feature / Task (the issue's type — native Issue Type on org repos, `type:` label on personal / non-org repos)
 **Summary:** one-line description of what needs to happen
 
 **Current behavior:**

@@ -74,17 +74,19 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-4. **Ensure the `recurring` label exists — it is load-bearing, not optional.** `due` / `work`
+4. **Check the `recurring` label is present — it is load-bearing, not optional.** `due` / `work`
    enumerate open maintenance items by the `recurring` label (adapter: "List items", `--label
    recurring`), and the create path filters out labels the repo lacks — so if you write a schedule while
    the `recurring` label is absent, the first `[Maintenance]` item created (by the recurring automation
    or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
-   pass, and gets duplicated or reported as orphaned. When the label is missing, create it once through
-   the bound provider (a provider label op — for the GitHub adapter, `gh label create recurring`; see
-   the adapter's operations reference) — recommend this and default to it. If the user declines, tell
-   them plainly that the schedule cannot be reconciled until the label exists, and do not silently treat
-   it as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for
-   reconciliation) — offer to create the missing ones, or note their absence. This step files no items;
+   pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's label listing
+   (for the GitHub adapter, `gh label list`). **Labels are provisioned by the label-as-code SSOT
+   (`melodic-software/github-iac`), the sole writer — never `gh label create` them ad hoc** (an
+   out-of-band label is pruned on the next `pulumi up`). When `recurring` is missing, tell the user
+   plainly that the schedule cannot be reconciled until the label is added via a github-iac PR (or, for
+   a `ManagedLabels: false` opt-out repo, through the repo's own provisioning); do not silently treat it
+   as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for reconciliation) —
+   note their absence the same way if they are missing. This step files no items;
    for a row now in the schedule, its `[Maintenance]` item is created — item only, no extra schedule
    row — by the consuming repo's recurring automation or the `work` due-recurring tier when `next_due`
    arrives. Do **not** point users at `add --recurring` to create it: that per-item path appends another

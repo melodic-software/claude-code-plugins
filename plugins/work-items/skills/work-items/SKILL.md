@@ -18,18 +18,18 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 **Default = fix, not file.** Do NOT reflexively suggest `/work-items:work-items add` or `/work-items:work-items scan` for small / medium drift discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW items only when the work is genuinely orthogonal to the current session, large enough to need its own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and surface what was fixed in the commit message / PR description.
 
-**Label taxonomy.** Work items use an 8-group label prefix structure — UNIVERSAL groups (work in any repo) plus REPO-SPECIFIC groups carrying this repo's concrete values. The full member list (including this repo's populated `area:` / `category:` / `ecosystem:` / `cadence:` values) lives in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
+**Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: on org repos the universal axes are owned by the label-as-code SSOT (`melodic-software/github-iac`, the sole writer) and discovered live (`gh label list`); the **type axis is a native GitHub Issue Type** (`Bug`/`Feature`/`Task`), not a label, on org repos. The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
 
-| Group | Prefix | Scope | Examples |
-|-------|--------|-------|----------|
-| Type | `type:` | universal | `type:feat`, `type:fix`, `type:chore`, `type:docs`, `type:refactor`, `type:test`, `type:build`, `type:perf` (Conventional Commits) |
-| Priority | `priority:` | universal | `priority:p0-critical` through `priority:p3-low` |
-| Status | `status:` | universal | `status:needs-triage`, `status:considering`, `status:claimed`, `status:blocked`, `status:needs-info` |
+| Axis | Mechanism | Scope | What it encodes |
+|------|-----------|-------|-----------------|
+| Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task` — the kind of issue; commit-type granularity stays at the commit layer |
+| Priority | `priority:` | universal | urgency — members from the live set / github-iac |
+| Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`, `needs-triage`); claim = assignee + lease, blocked = native edge (neither is a label) |
 | Meta | (none) | universal | `automated`, `recurring`, `agent-ready`, `needs-human`, `good-first-issue`, `migrated`, `stale` |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface — see `reference/label-taxonomy.md` |
 | Category | `category:` | repo-specific | the consuming repo's domain categorization — see `reference/label-taxonomy.md` |
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix — see `reference/label-taxonomy.md` |
-| Cadence | `cadence:` | repo-specific | e.g. `cadence:weekly`, `cadence:monthly` — full set in `reference/label-taxonomy.md` |
+| Cadence | `cadence:` | repo-specific | e.g. `cadence:weekly`, `cadence:monthly` — members from the live set |
 
 **Recurring schedule.** Recurring items are defined in `.github/recurring-schedule.json` and created as items by the consuming repo's recurring-issues automation when they come due. The `/work-items:work-items recheck` action updates this schedule after completing a periodic check.
 

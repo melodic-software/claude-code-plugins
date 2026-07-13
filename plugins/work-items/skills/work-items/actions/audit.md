@@ -36,7 +36,7 @@ List open recurring items (adapter: "List items", `--label recurring`, `--state 
 
 ### 3. Unlabeled items + label conflicts
 
-Items missing expected labels (no `type:*`, no `category:*`) and items with conflicting labels (e.g. two `priority:*`) surface via the hygiene projections in the bound adapter's operations reference (GitHub: `tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads).
+Items missing their **type** classification (org repos: no native Issue Type set; personal / non-org repos: no `type:*` label), missing an expected `category:*` label, or carrying conflicting labels (e.g. two `priority:*`) surface via the hygiene projections in the bound adapter's operations reference (GitHub: `tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads). On org repos the type axis is a native Issue Type, so absence of a `type:*` label is **not** a defect — read the native type field for the presence check.
 
 ## Output
 
@@ -53,10 +53,10 @@ Items missing expected labels (no `type:*`, no `category:*`) and items with conf
 |---|--------------|--------|
 | 1 | Review biome.json | No matching item |
 
-### Unlabeled Items
+### Unclassified Items
 | # | Item | Missing |
 |---|------|---------|
-| 1 | #55 Something | No type:* label |
+| 1 | #55 Something | No issue type set |
 
 ### Label Conflicts
 (none found)

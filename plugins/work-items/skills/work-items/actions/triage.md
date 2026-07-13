@@ -29,13 +29,13 @@ Read the item body, comments, and any linked PRs (adapter: "View item", bare rea
 
 Based on content, recommend:
 
-- **Type label** (`type:feat`, `type:fix`, `type:chore`, etc.)
+- **Type** — the native GitHub Issue Type (`Bug` / `Feature` / `Task`) on org repos, set through the seam; on personal / non-org repos, a `type:` label instead
 - **Priority label** (`priority:p0-critical` through `priority:p3-low`)
-- **State label** — initial recommendation from: `status:needs-info`, `status:considering`, or agent-ready (`agent-ready` meta label)
+- **State label** — initial recommendation from: `status:needs-info`, `status:ready`, or agent-ready (`agent-ready` meta label)
 
 ### 3. Reproduce (bugs only)
 
-For `type:fix` items, attempt reproduction before interviewing:
+For **Bug** items, attempt reproduction before interviewing:
 
 - Run the described steps
 - Confirm the failure mode matches the report
@@ -63,11 +63,13 @@ Valid state label transitions:
 
 ```text
 (unlabeled) → status:needs-triage
-status:needs-triage → status:needs-info | status:considering | agent-ready | wontfix (close)
+status:needs-triage → status:needs-info | status:ready | agent-ready | wontfix (close)
 status:needs-info → status:needs-triage (on reporter reply)
-status:considering → status:claimed | agent-ready | wontfix (close)
-status:claimed → (close on completion)
+status:ready → claimed (assignee + lease via the seam — not a label) | agent-ready | wontfix (close)
+claimed (assignee + lease) → (close on completion)
 ```
+
+Claiming is coordination state, not a label — it is the seam's assignee + lease (`start` action, `tools/work-item-tracker/CONTRACT.md` "Lease protocol"); `blocked` is a native `blocked-by` edge, not a `status:` label.
 
 ## Needs-info template
 

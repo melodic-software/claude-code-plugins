@@ -100,8 +100,8 @@ an interactive session — do not fabricate a map.
    non-interactive session, further filter OUT `needs-human` items; if that empties the
    frontier, STOP with a truthful "all remaining decisions need a human" — never resolve a
    HITL item by standing in for the human.
-3. **Pick one and claim it** (sibling claim model — `status:claimed` label + `@me` assignee +
-   comment-ID collision check; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
+3. **Pick one and claim it** (sibling claim model — `@me` assignee + claim-comment lease with
+   comment-order collision check, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
 4. **Route by type** — invoke the target skill directly; its own Q&A supplies the HITL loop:
 
    | Type label | Mode | Routes to |

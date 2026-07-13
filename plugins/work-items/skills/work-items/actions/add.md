@@ -17,7 +17,7 @@ Create a new work item with labels from the taxonomy.
 ## Flags
 
 - `--category <name>` -- Category label. Valid values are the consuming repo's `category:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md)); default `general` only when the repo actually defines a `category:general` label, otherwise omit the category label
-- `--type <type>` -- Type label (default: `chore`). Valid: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf`
+- `--type <type>` -- The issue's type (default: `task`). Accepts the commit-style inputs `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf` and maps them to the coarse issue type: `fix` → **Bug**, `feat` → **Feature**, everything else → **Task**. On **org repos** the type is a **native GitHub Issue Type** set through the seam (not a `type:` label); on **personal / non-org repos** (no native Issue Types) it becomes a coarse `type: bug`/`type: feature`/`type: task` label instead
 - `--area <area>` -- Area label — the consuming repo's `area:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md))
 - `--ecosystem <eco>` -- Ecosystem label — the consuming repo's `ecosystem:` labels (see [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md))
 - `--priority <p>` -- Priority label (e.g., `p0-critical`, `p1-high`, `p2-medium`, `p3-low`)
@@ -35,7 +35,9 @@ Create a new work item with labels from the taxonomy.
 
 1. **Duplicate check** (skip if `--force`) — the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-1. **Build labels list** `{labels}` (comma-separated for the seam) from the flags. Start from the group defaults `type:chore,priority:p3-low,category:general` and replace each group's default with any supplied `--type`/`--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the `agent-ready` meta label so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
+1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label — it is not part of `{labels}`. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead — append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
+
+1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. Start from the group defaults `priority:p3-low,category:general` and replace each group's default with any supplied `--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the `agent-ready` meta label so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`reference/agent-brief.md`](../reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
@@ -67,7 +69,7 @@ Create a new work item with labels from the taxonomy.
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```
 
-1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step) — if the user declines the new schedule or it cannot be written, create the item **non-recurring** (drop the `[Maintenance]` prefix and the `recurring`/`cadence:` labels) or abort; never create a `[Maintenance]` item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe — **never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
+1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). On org repos pass the resolved native Issue Type via the seam's `--type` passthrough (the adapter maps `Bug`/`Feature`/`Task` to the native GitHub Issue Type); on personal / non-org repos the type instead rode into `{labels}` in the resolve step, so omit `--type`. **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step) — if the user declines the new schedule or it cannot be written, create the item **non-recurring** (drop the `[Maintenance]` prefix and the `recurring`/`cadence:` labels) or abort; never create a `[Maintenance]` item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe — **never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash
 BODY_FILE=$(mktemp)
@@ -77,7 +79,8 @@ BODY_FILE=$(mktemp)
 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item \
   --title "[Maintenance] {title}" \
   --body "$(cat "$BODY_FILE")" \
-  --labels "{labels}"
+  --type "{type}" \
+  --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it — the type is already a type: label in {labels}
 rm -f "$BODY_FILE"
 ```
 
@@ -102,7 +105,7 @@ For non-recurring items, omit the `[Maintenance]` prefix. The emitted item objec
 
 Read the current file, append the new item to the `items` array, write it back. Compute `next_due` from today + cadence duration. Also add the `recurring` and `cadence:{cadence}` labels to the item.
 
-1. Confirm: "Created **#{number}**: {title} (labels: {labels})"
+1. Confirm: "Created **#{number}**: {title} (type: {type}, labels: {labels})"
 
 ## Cadence Duration Table
 
