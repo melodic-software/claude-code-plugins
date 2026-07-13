@@ -97,9 +97,10 @@ BODY_FILE=$(mktemp)
 # Write the composed slice body to "$BODY_FILE" with the Write tool NOW — before create-item —
 # not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
 # interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
+# --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
   --type "<Bug|Feature|Task>" \
-  --labels "area:<a>,$META_LABEL" \    # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
+  --labels "area:<a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
 rm -f "$BODY_FILE"
 ```
