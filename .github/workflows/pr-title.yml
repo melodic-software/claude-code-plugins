@@ -22,7 +22,7 @@ concurrency:
 jobs:
   select-runner:
     name: Select runner for PR title
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@c2654182bc2d78f7909795df78304d482aa69226 # 3415de3 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -41,7 +41,7 @@ jobs:
     needs: select-runner
     permissions:
       pull-requests: read # Reads the pull-request title for validation.
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
     with:
       runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
 
