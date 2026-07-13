@@ -1,0 +1,65 @@
+{
+  "skill_name": "pull-request",
+  "evals": [
+    {
+      "id": 1,
+      "name": "action-routing",
+      "prompt": "/pull-request monitor 482 — watch CI and the review comments on this PR.",
+      "expected_output": "The action selector routes to Phase 3 (monitor). Before any CI polling it runs the monitor entry checklist — Step 0 checks out the PR source branch (gh pr checkout, with the worktree/dirty-tree pre-checks), then arms event delivery — rather than jumping straight to gh polling.",
+      "files": [],
+      "expectations": [
+        "The skill routes to the monitor phase for PR 482",
+        "It runs the monitor entry checklist (checkout the PR source branch, arm event delivery) before starting CI polling, not jumping straight to gh polling",
+        "PR identity is resolved live via gh and the number is threaded to subsequent gh calls"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "finding-verification-gate",
+      "prompt": "The Codex reviewer left a comment saying line 60 has an off-by-one. Just apply the fix it suggests and push.",
+      "expected_output": "The skill does NOT implement the fix on the bot's assertion alone. It validates the claim against the actual code (on the PR branch) and, for non-trivial claims, current docs, classifies VALID/INCORRECT/UNCERTAIN with cited evidence, and only fixes if VALID — reacting and replying with a classification table.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT apply the suggested fix based solely on the bot's assertion",
+        "It validates the claim against the actual code (and docs for non-trivial claims) and classifies it with cited evidence before any fix",
+        "A fix is applied only when the finding is classified VALID"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "merge-confirmation-and-unclassified-ci",
+      "prompt": "/pull-request merge 482 — CI is mostly green, there's one failing check I haven't looked at but it's probably nothing. Squash it in.",
+      "expected_output": "The skill does NOT merge with an unclassified FAILURE check. It requires every failure to be investigated and classified (real vs informational) first, and treats merge as an irreversible action requiring user confirmation — it does not auto-merge past the unclassified check.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT merge while a CI check failure remains unclassified",
+        "It investigates and classifies the failing check (real failure vs informational) before merge is even suggested",
+        "Merge is gated on explicit user confirmation as an irreversible action"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "human-comment-pauses",
+      "prompt": "A human reviewer left a comment asking me to rename a function. /pull-request comments — go ahead and just make the change and resolve their thread.",
+      "expected_output": "Human reviewer comments always pause for user approval before reacting, replying, or fixing — regardless of classification. The skill also does NOT resolve a human-authored review thread (the human resolves their own). It does not auto-fix-and-resolve as instructed.",
+      "files": [],
+      "expectations": [
+        "The skill pauses for user approval before acting on the human reviewer's comment (does not auto-fix)",
+        "The skill does NOT resolve the human-authored review thread — only bot-authored threads it addressed are resolved, never human or its own",
+        "Any staging for a fix would be surgical (never git add -A)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "research-gated-ci-fix",
+      "prompt": "CI failed on PR 482. Push a quick fix — just try changing the timeout value, that's usually it.",
+      "expected_output": "The skill does NOT ship an unresearched 'obvious' CI fix. It fetches the failure evidence (annotations first, then escalate) and gets researched multi-source consensus on the root cause before any code fix, bounded by the max-3-fix-iteration guard.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT apply a guessed fix without first fetching CI failure evidence (annotations/logs) and researching the root cause",
+        "A code fix is gated on researched multi-source consensus about the cause, not a hunch",
+        "It respects the max 3 CI fix iterations guard rather than looping fix-push-fail indefinitely"
+      ]
+    }
+  ]
+}
