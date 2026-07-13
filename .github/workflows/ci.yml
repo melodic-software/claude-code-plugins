@@ -22,52 +22,15 @@ concurrency:
 # local ci-status gateway aggregates every lane into the
 # single required check the org ci-gate ruleset keys on.
 jobs:
-  # Give each independently scheduled workload one governed routing gate.
-  # The short hygiene checks share one checkout and one ephemeral worker to
-  # avoid runner-registration churn. A selector/configuration failure blocks
-  # the complete workload; it cannot silently redirect to paid hosted Linux.
-  select-hygiene:
-    name: Select runner for hygiene
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
-  select-hook-utils-sync:
-    name: Select runner for hook-utils-sync
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
-  select-plugin-gate:
-    name: Select runner for plugin-gate
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
-  select-miro-plugin:
-    name: Select runner for miro-plugin
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
+  # One governed routing gate feeds every lane in this workflow: the liveness
+  # selector makes one routing decision per workflow instead of fanning out
+  # identical preflights. The short hygiene checks still share one checkout and
+  # one ephemeral worker to avoid runner-registration churn. A
+  # selector/configuration failure blocks the complete workload; it cannot
+  # silently redirect to paid hosted Linux.
+  select-runner:
+    name: Select runner
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -79,9 +42,9 @@ jobs:
       observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
 
   hygiene:
-    needs: select-hygiene
-    if: ${{ !cancelled() && needs.select-hygiene.result == 'success' }}
-    runs-on: ${{ needs.select-hygiene.outputs.runner || 'ubuntu-24.04' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -210,20 +173,20 @@ jobs:
         run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
-    needs: select-hygiene
-    if: ${{ !cancelled() && needs.select-hygiene.result == 'success' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
     uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-12
     with:
-      runner: ${{ needs.select-hygiene.outputs.runner || 'ubuntu-24.04' }}
+      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
       paths: .
 
   hook-utils-sync:
-    needs: select-hook-utils-sync
-    if: ${{ !cancelled() && needs.select-hook-utils-sync.result == 'success' }}
-    runs-on: ${{ needs.select-hook-utils-sync.outputs.runner || 'ubuntu-24.04' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -243,9 +206,9 @@ jobs:
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
   plugin-gate:
-    needs: select-plugin-gate
-    if: ${{ !cancelled() && needs.select-plugin-gate.result == 'success' }}
-    runs-on: ${{ needs.select-plugin-gate.outputs.runner || 'ubuntu-24.04' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -295,9 +258,9 @@ jobs:
   # and fails on any drift, then runs the bundle over stdio so a build that
   # compiles but cannot serve MCP is caught here, not on a consumer's machine.
   miro-plugin:
-    needs: select-miro-plugin
-    if: ${{ !cancelled() && needs.select-miro-plugin.result == 'success' }}
-    runs-on: ${{ needs.select-miro-plugin.outputs.runner || 'ubuntu-24.04' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -337,9 +300,9 @@ jobs:
 
   runner-policy:
     name: Runner policy
-    needs: select-hygiene
-    if: ${{ !cancelled() && needs.select-hygiene.result == 'success' }}
-    runs-on: ${{ needs.select-hygiene.outputs.runner || 'ubuntu-24.04' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     permissions:
       contents: read

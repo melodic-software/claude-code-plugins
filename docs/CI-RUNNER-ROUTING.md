@@ -35,15 +35,15 @@ but every executable pin update remains a reviewed pull request.
 
 ## Routing and failure behavior
 
-Each independently scheduled eligible job has its own selector dependency. Its
-workload requires both `!cancelled()` and a successful selector result, then
-uses the policy-required expression
-`needs.<selector>.outputs.runner || 'ubuntu-24.04'`. The success gate is
+Each workflow runs a single selector preflight shared by every eligible job it
+schedules. Each workload requires both `!cancelled()` and a successful selector
+result, then uses the policy-required expression
+`needs.select-runner.outputs.runner || 'ubuntu-24.04'`. The success gate is
 load-bearing: invalid strict configuration or selector infrastructure failure
-blocks the dependent workload instead of silently redirecting it to paid
-hosted Linux. The selector remains a separate, short GitHub-hosted job. Its
-two-minute workflow timeout does not limit the downstream workload job, which
-retains its own timeout.
+blocks the dependent workloads instead of silently redirecting them to paid
+hosted Linux. The selector remains a separate, short preflight job. Its
+two-minute workflow timeout does not limit the downstream workload jobs, which
+retain their own timeouts.
 
 For `self-hosted-only`, the selector validates the exact centrally allowlisted
 managed label and returns it without querying runner inventory or minting the
@@ -62,11 +62,14 @@ success gate, while a tiny hosted `pr-title / pr-title` control-plane job emits
 the existing required context and fails when selection or validation is not
 successful.
 
-Selectors remain one per independent workload so every required-check edge is
-explicit and policy-auditable. In strict mode they all return the same governed
-label; the fleet, not a stale inventory snapshot, enforces concurrency. Bursts
-queue on that label, one ephemeral container accepts each job, and reruns remain
-local instead of becoming a paid recovery path.
+One selector preflight per workflow makes the routing decision once instead of
+fanning out identical jobs, and every required-check edge still passes through
+the same explicit, policy-auditable selector gate. In strict mode it returns
+the same governed label for every lane; the fleet, not a stale inventory
+snapshot, enforces concurrency. Bursts queue on that label, one ephemeral
+container accepts each job, and a re-run reuses the prior attempt's successful
+selector output, so reruns remain local instead of becoming a paid recovery
+path.
 
 ## Hosted boundaries
 
