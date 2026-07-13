@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "implementation",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Disciplined implementation stage: execute approved plans inline or via orchestrated workers, run polyglot build/test/lint verification, author and diagnose tests, drive live E2E checks, and prove changes achieved their intended outcome — with measurable-improvement claims verified against planning-time baselines.",
   "author": {
     "name": "Melodic Software",

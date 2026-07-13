@@ -1,13 +1,15 @@
 # planning
 
 A Claude Code plugin for the **pre-implementation planning pipeline** — everything
-between a rough idea and approved, executable work. Seven pipeline skills covering
-divergence, product intent, the engineering contract, design exploration, the
-design→plan gate, adversarial review, and the implementation plan itself — plus a
-re-runnable `setup` action that settles where artifacts land in the consuming repo.
+between a rough idea and approved, executable work. Eight pipeline skills covering
+charting a too-big, foggy effort as a decision map, divergence, product intent, the
+engineering contract, design exploration, the design→plan gate, adversarial review,
+and the implementation plan itself — plus a re-runnable `setup` action that settles
+where artifacts land in the consuming repo.
 
 | Skill | Stage | What it does |
 |---|---|---|
+| `/planning:wayfind` | Chart | Charts a too-big-AND-foggy effort as a shared decision map on the work-item tracker, then works its frontier one decision at a time — routing each to the right skill — until the fog clears and a Brief / PRD / PLAN can be handed onward. Upstream of the whole pipeline. |
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers — one-pager, consumer-feature, B2B-internal — with a synthesize path and a review mode. |
 | `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief — synthesizing when intent is clear, running depth-first Q&A when it isn't, or interviewing relentlessly on request. |
@@ -17,7 +19,8 @@ re-runnable `setup` action that settles where artifacts land in the consuming re
 | `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | Interviews the consumer and persists the `notes_dir` config that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
 
-The pipeline composes end-to-end — `brainstorm → prd → interview → design →
+The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
+is too big to hold at once, then `brainstorm → prd → interview → design →
 design-handoff → architect` with `devils-advocate` attacking the plan before
 approval — but every skill also works standalone.
 

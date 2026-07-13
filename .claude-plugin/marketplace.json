@@ -197,7 +197,7 @@
       "name": "planning",
       "source": "./plugins/planning",
       "category": "development",
-      "tags": ["planning", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
+      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
     },
     {
       "name": "review-toolkit",

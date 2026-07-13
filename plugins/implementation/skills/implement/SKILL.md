@@ -75,6 +75,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 - **Build fails** → fix immediately. Don't add more code on top of broken code
 - **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
 - **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan — route back to the planning skill (`/planning:architect review` when installed) rather than expanding scope silently
+- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:wayfind` to the user — it charts the fog as a decision map upstream of the plan. Guide, never auto-switch
 
 ### Commit discipline
 
