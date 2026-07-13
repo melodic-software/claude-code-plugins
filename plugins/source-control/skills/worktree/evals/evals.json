@@ -17,7 +17,7 @@
       "id": 2,
       "name": "cleanup-emits-branch-delete-not-inline",
       "prompt": "/worktree cleanup — remove the stale worktrees and delete their branches.",
-      "expected_output": "Cleanup removes stale/orphaned worktrees but does NOT run the branch deletion inline: it emits the git branch -D commands (and the self-worktree removal) for the USER to run — a worktree can't delete itself, branch deletion is destructive, and the project's hooks may block it mid-session. -D (not -d) is used because squash-merge changes the SHA.",
+      "expected_output": "Cleanup removes stale/orphaned worktrees but does NOT run the branch deletion inline: it emits the git branch -D commands for the USER to run — branch deletion is destructive and the project's hooks may block it mid-session. If the active worktree is itself a cleanup candidate, its removal is emitted too (a worktree can't delete itself), but not when the current checkout is not a target. -D (not -d) is used because squash-merge changes the SHA.",
       "files": [],
       "expectations": [
         "The skill does NOT run git branch -D inline — it emits the branch-deletion command(s) for the user to run",

@@ -5,11 +5,12 @@
       "id": 1,
       "name": "action-routing",
       "prompt": "/pull-request monitor 482 — watch CI and the review comments on this PR.",
-      "expected_output": "The action selector routes to Phase 3 (monitor). Before any CI polling it runs the monitor entry checklist — Step 0 checks out the PR source branch (gh pr checkout, with the worktree/dirty-tree pre-checks), then arms event delivery — rather than jumping straight to gh polling.",
+      "expected_output": "The action selector routes to Phase 3 (monitor). Before any CI polling it runs the monitor entry checklist — Step 0 checks out the PR source branch (gh pr checkout, with the worktree/dirty-tree pre-checks) and, in an interactive session not already on the PR branch, confirms the target branch with the user before the mechanical switch even though PR 482 was named — then arms event delivery, rather than jumping straight to gh polling.",
       "files": [],
       "expectations": [
         "The skill routes to the monitor phase for PR 482",
         "It runs the monitor entry checklist (checkout the PR source branch, arm event delivery) before starting CI polling, not jumping straight to gh polling",
+        "In an interactive session not already on the PR branch, it confirms the target branch with the user before re-pointing the worktree — naming PR 482 does not waive the target-branch confirmation gate",
         "PR identity is resolved live via gh and the number is threaded to subsequent gh calls"
       ]
     },
