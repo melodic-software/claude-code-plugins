@@ -21,8 +21,10 @@ export const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
 /**
  * Stream a WHATWG response body to disk, aborting past `maxBytes`. Enforces the
  * cap on the actual byte count (a missing/lying `content-length` cannot bypass
- * it) and removes the partial file on failure so a truncated download never
- * masquerades as a complete attachment.
+ * it). Writes to a `.partial` sidecar and renames on success, so a mid-stream
+ * failure (including the cap firing after headers passed) removes only the
+ * partial — a previously-fetched attachment at `destPath` survives a failed
+ * retry, preserving the old buffered implementation's idempotency.
  *
  * @param {ReadableStream} webStream
  * @param {string} destPath
@@ -41,10 +43,12 @@ async function streamToFileWithCap(webStream, destPath, maxBytes) {
       callback(null, chunk);
     },
   });
+  const partialPath = `${destPath}.partial`;
   try {
-    await pipeline(Readable.fromWeb(webStream), cap, fs.createWriteStream(destPath));
+    await pipeline(Readable.fromWeb(webStream), cap, fs.createWriteStream(partialPath));
+    fs.renameSync(partialPath, destPath);
   } catch (error) {
-    fs.rmSync(destPath, { force: true });
+    fs.rmSync(partialPath, { force: true });
     throw error;
   }
 }

@@ -92,6 +92,30 @@ describe("fetchDeckAttachments", () => {
     expect(leftovers).toEqual([]);
   });
 
+  it("preserves a previously-fetched attachment when a retry stream fails", async () => {
+    writeLinks([{ type: "attachment", url: "https://example.com/spec.pdf" }]);
+    const destPath = path.join(
+      sliceDir,
+      "source",
+      "attachments",
+      "attachment",
+      "spec.pdf",
+    );
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    fs.writeFileSync(destPath, "previously-good-content");
+
+    // Retry that overruns the cap mid-stream — must not clobber the good file.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => fakeResponse(Buffer.from("x".repeat(100)))),
+    );
+
+    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10 });
+
+    expect(result.fetched).toHaveLength(0);
+    expect(fs.readFileSync(destPath, "utf8")).toBe("previously-good-content");
+  });
+
   it("skips a non-ok HTTP response", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/missing.pdf" }]);
     vi.stubGlobal(
