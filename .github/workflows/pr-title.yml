@@ -40,7 +40,7 @@ jobs:
     needs: select-runner
     permissions:
       pull-requests: read # Reads the pull-request title for validation.
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # 99ac2f8 2026-07-11
     with:
       runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
 
