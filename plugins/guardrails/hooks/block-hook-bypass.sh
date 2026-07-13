@@ -109,7 +109,11 @@ strip_literals() {
       delim="${delim%\'}"
       delim="${delim#\"}"
       delim="${delim%\"}"
-      line="${line%%<<*}"
+      # Drop only the heredoc operator + delimiter token, keeping the text before
+      # `<<` AND any text after the delimiter on the opener line — a trailing
+      # stdout redirect (`cat <<EOF > file`) must still reach the redirect scan
+      # rather than being truncated away with the body.
+      line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
     line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
