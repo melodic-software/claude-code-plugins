@@ -19,6 +19,9 @@ Pins the Batch 1 hotfix landing:
 
 3. Wrapper returning upgrades=$null surfaces the specific wrapper error
    (not a generic "winget not available").
+
+4. The check forwards its -LogPath to Get-CisaKevCache so the CISA fetch
+   lands in the run's egress audit trail (urls_called).
 #>
 
 BeforeAll {
@@ -278,6 +281,19 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         $result = Invoke-WingetUpgradesAsObject
         $result.severity | Should -Be 'INFO'
         $result.notes | Should -Match 'KEV'
+    }
+}
+
+Describe 'Test-WingetUpgrades -- egress log threading' -Tag 'check' {
+    It 'forwards its -LogPath to Get-CisaKevCache so the KEV fetch is logged' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
+        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+
+        & $script:ScriptPath -LogPath 'C:\run\run-2026-07-12.log' | Out-Null
+
+        Should -Invoke Get-CisaKevCache -Times 1 -ParameterFilter {
+            $LogPath -eq 'C:\run\run-2026-07-12.log'
+        }
     }
 }
 

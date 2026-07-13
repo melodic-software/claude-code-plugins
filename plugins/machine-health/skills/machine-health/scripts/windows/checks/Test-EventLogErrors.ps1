@@ -16,7 +16,7 @@ $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'event-log-errors'
 $category = 'reliability'
 $commands = @(
-    "Get-WinEvent -LogName System -MaxEvents 500 | Where-Object { `$_.LevelDisplayName -in 'Error','Critical' }"
+    "Get-WinEvent -FilterHashtable @{ LogName='System'; Level=1,2; StartTime=(Get-Date).AddDays(-7) }"
     "Get-WinEvent -FilterHashtable @{ LogName='System'; ProviderName='Microsoft-Windows-Kernel-Power'; Id=41 }"
 )
 
@@ -48,21 +48,33 @@ try {
 
     $events = @()
     try {
-        $events = Get-WinEvent -LogName System -MaxEvents 500 -ErrorAction Stop |
-            Where-Object { $_.LevelDisplayName -in 'Error', 'Critical' }
+        # Filter the 7-day window AND severity inside the query. A MaxEvents 500
+        # cap read the newest 500 records of ALL levels first, so on a busy host
+        # Error/Critical events older than the 500th-newest record fell outside
+        # the window silently. Numeric Level (1=Critical, 2=Error) is locale-
+        # independent; LevelDisplayName ('Error'/'Critical') is translated on
+        # non-English Windows and would match nothing there.
+        $events = @(Get-WinEvent -FilterHashtable @{
+                LogName   = 'System'
+                Level     = 1, 2
+                StartTime = $cutoff
+            } -ErrorAction Stop)
     } catch {
-        # Get-WinEvent throws a specific exception when no events match
-        # the filter. Treat as empty result; re-throw anything else.
-        if ($_.Exception.Message -notmatch 'No events were found') {
+        # Get-WinEvent raises NoMatchingEventsFound when the filter matches
+        # nothing -- the normal path for a healthy host with a filtered query.
+        # Detect it by the locale-independent error id (the message text is
+        # localized on non-English Windows, so matching it would report a
+        # healthy localized host as UNKNOWN). Keep the English message match as
+        # a fallback; re-throw anything that is neither.
+        if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*' -and
+            $_.Exception.Message -notmatch 'No events were found') {
             throw
         }
         Write-Verbose 'Test-EventLogErrors: no events matched query.'
     }
 
-    $windowEvents = @($events | Where-Object { $_.TimeCreated -ge $cutoff })
-
-    $noiseEvents = @($windowEvents | Where-Object { Test-IsNoiseEvent -Event $_ })
-    $signalEvents = @($windowEvents | Where-Object { -not (Test-IsNoiseEvent -Event $_) })
+    $noiseEvents = @($events | Where-Object { Test-IsNoiseEvent -Event $_ })
+    $signalEvents = @($events | Where-Object { -not (Test-IsNoiseEvent -Event $_) })
 
     $bugCheckEvents = @($signalEvents | Where-Object {
             $_.ProviderName -eq 'Microsoft-Windows-WER-SystemErrorReporting' -or

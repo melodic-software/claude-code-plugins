@@ -34,10 +34,10 @@ Other runtime parameters the caller passes (via slash-command arguments, schedul
 ## OS detection and routing
 
 ```text
-# Detect current OS
-if    (PowerShell 7+)  use $IsWindows / $IsMacOS / $IsLinux
-elseif (Windows PS 5.1) $IsWindows is absent — infer from $env:OS == 'Windows_NT'
-else                    shell: uname -s -> Darwin|Linux
+# Detect current OS (the skill requires PowerShell 7.4+; launch pwsh, not
+# Windows PowerShell 5.1, which cannot run the checks)
+if   (PowerShell 7.4+)  use $IsWindows / $IsMacOS / $IsLinux
+else                    non-PowerShell shell: uname -s -> Darwin|Linux
 
 # Load references (shared first, then OS-specific)
 Read references/shared/severity-rubric.md
@@ -63,12 +63,12 @@ Routing table:
 
 ## High-level procedure
 
-1. **Verify preconditions.** PowerShell version (target 7.x; degrade gracefully on 5.1). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1` — never prompt for UAC.
+1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1` — never prompt for UAC.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `references/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
 3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas — but checks remain stateless themselves.
 4. **Invoke the OS orchestrator.** Pass `OutputBase`, `StateBase`, and `RunMode`. The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies trend-aware severity adjustments, and — on non-dry runs — dispatches authorized remediations with before/after logging.
 5. **Receive the structured result.** Run discovery per `references/shared/discovery-guide.md` — propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay); anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
-6. **Render the markdown report** from `references/shared/report-template.md` into `<OutputBase>/reports/health-YYYY-MM-DD.md`.
+6. **Render the markdown report** from `references/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 
    When the severity spread or trend deltas would read better visually, also offer a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch) — the markdown `.md` report stays the durable record.
 7. **Update state.** Write `<StateBase>/state/latest.json`. Append one compact line to `<StateBase>/state/history.jsonl` — the trend source of truth.

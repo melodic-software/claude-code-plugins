@@ -62,4 +62,32 @@ Describe 'Get-RunDelta' -Tag 'lib' {
         $delta = Get-RunDelta -HistoryTail @($oldest, $newest) -CurrentSeverityCounts $current
         $delta | Should -Match 'no change vs 2026-04-23'
     }
+
+    It 'discloses cadence-deferred checks so a skip-driven total drop is not read as a health delta' {
+        # Prior run counted a check (OK) that this weekly run cadence-deferred, so
+        # the OK total drops purely from the skip -- disclose it rather than imply
+        # health changed.
+        $prior = [pscustomobject]@{
+            run_id          = '2026-04-22T00:00:00-04:00'
+            severity_counts = [pscustomobject]@{
+                security = [pscustomobject]@{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
+            }
+        }
+        $current = @{ security = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
+        $delta = Get-RunDelta -HistoryTail @($prior) -CurrentSeverityCounts $current -SkippedCount 1
+        $delta | Should -Match 'OK -1'
+        $delta | Should -Match '1 cadence-deferred check not compared'
+    }
+
+    It 'adds no disclosure when nothing was cadence-deferred' {
+        $prior = [pscustomobject]@{
+            run_id          = '2026-04-22T00:00:00-04:00'
+            severity_counts = [pscustomobject]@{
+                storage = [pscustomobject]@{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
+            }
+        }
+        $current = @{ storage = @{ OK = 1; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 } }
+        $delta = Get-RunDelta -HistoryTail @($prior) -CurrentSeverityCounts $current -SkippedCount 0
+        $delta | Should -Not -Match 'cadence-deferred'
+    }
 }

@@ -26,7 +26,13 @@ function Get-RunDelta {
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
         [object[]] $HistoryTail,
-        [Parameter(Mandatory = $true)] $CurrentSeverityCounts
+        [Parameter(Mandatory = $true)] $CurrentSeverityCounts,
+        # Checks the current run cadence-deferred. They ran in the prior run (so
+        # they inflate its totals) but not this one, which would otherwise read
+        # as a spurious severity delta. History is category-grained (no per-check
+        # severity), so the deferred checks cannot be subtracted from the prior
+        # totals exactly -- disclose the count instead of implying a health change.
+        [int] $SkippedCount = 0
     )
 
     if ($HistoryTail.Count -eq 0) {
@@ -69,8 +75,15 @@ function Get-RunDelta {
 
     if ($deltas.Count -eq 0) {
         $priorDate = $prior.run_id ? ($prior.run_id -split 'T')[0] : 'prior run'
-        return "no change vs $priorDate"
+        $base = "no change vs $priorDate"
+    } else {
+        $base = ($deltas -join ', ')
     }
 
-    return ($deltas -join ', ')
+    if ($SkippedCount -gt 0) {
+        $noun = $SkippedCount -eq 1 ? 'check' : 'checks'
+        $base = "$base ($SkippedCount cadence-deferred $noun not compared)"
+    }
+
+    return $base
 }

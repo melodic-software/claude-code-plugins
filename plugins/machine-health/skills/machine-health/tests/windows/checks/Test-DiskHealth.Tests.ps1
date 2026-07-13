@@ -17,6 +17,9 @@ Pins these fixes:
    hardcoded 55/65 C was too warm for some consumer SSDs and too cold for
    server-grade NVMe. Fallback to the old thresholds only when the drive
    does not expose TemperatureMax.
+
+3. The worst-volume used_pct is emitted as a top-level scalar in detail so
+   the history flattener (scalars only) persists it for disk trend deltas.
 #>
 
 BeforeAll {
@@ -140,6 +143,32 @@ Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {
             $result = Invoke-DiskHealthAsObject
             $result.severity | Should -Be 'CRIT'
         }
+    }
+}
+
+Describe 'Test-DiskHealth -- trend scalar' -Tag 'check' {
+    BeforeAll {
+        Mock Get-PhysicalDisk -RemoveParameterType Usage, HealthStatus {
+            @(New-MockPhysicalDisk -HealthStatus Healthy)
+        }
+        Mock Get-PhysicalDiskReliability { New-MockReliabilityCounter -Temperature 40 -TemperatureMax 70 }
+    }
+
+    It 'hoists the worst-volume used_pct to a top-level scalar for history flattening' {
+        Mock Get-Volume {
+            @(
+                (New-MockVolume -DriveLetter C -SizeGB 500 -FreeGB 50)    # 90% used
+                (New-MockVolume -DriveLetter D -SizeGB 1000 -FreeGB 800)  # 20% used
+            )
+        }
+        $result = Invoke-DiskHealthAsObject
+        $result.detail.used_pct | Should -Be 90
+    }
+
+    It 'leaves used_pct null when no lettered volumes are present' {
+        Mock Get-Volume { @() }
+        $result = Invoke-DiskHealthAsObject
+        $result.detail.used_pct | Should -BeNullOrEmpty
     }
 }
 
