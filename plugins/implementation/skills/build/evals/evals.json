@@ -47,7 +47,7 @@
       "expectations": [
         "Runs only the six /build-covered ecosystems (dotnet, python, typescript, bash, powershell, markdown)",
         "Does NOT run the `yaml` surface for the workflow file — that is /lint-only",
-        "Does NOT run the `cross-cutting` surface (its `**` glob is never matched by /build); points the user to /lint for those"
+        "Does NOT run the `cross-cutting` surface — its `**` glob is never matched by /build (both `yaml` and `cross-cutting` are /lint-only surfaces)"
       ]
     },
     {

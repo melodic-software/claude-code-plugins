@@ -5,7 +5,7 @@
       "id": 1,
       "name": "bugfix-mode-incremental-cadence",
       "prompt": "There's a bug in the login flow — expired tokens are being accepted. Fix it.",
-      "expected_output": "Detects Bugfix execution mode from the 'fix' signal and consults the bugfix context guidance, runs the Step 1 prerequisite check (plan/branch/dirty-tree) before the first edit, then executes with the incremental cadence: one logical block, build check, test, commit at green — not the whole change before any validation.",
+      "expected_output": "Fires as a model-invoked skill from the natural-language 'fix' signal (no explicit /implementation:implement prefix). Detects Bugfix execution mode and consults the bugfix context guidance, runs the Step 1 prerequisite check (plan/branch/dirty-tree) before the first edit, then executes with the incremental cadence: one logical block, build check, test, commit at green — not the whole change before any validation.",
       "files": [],
       "expectations": [
         "Selects Bugfix execution mode from the 'fix' signal rather than asking when the mode is unambiguous",
