@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, and agents.",
+  "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, agents, and MCP servers.",
   "plugins": [
     {
       "name": "markdown-formatter",
