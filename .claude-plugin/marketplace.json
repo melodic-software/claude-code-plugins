@@ -95,7 +95,7 @@
       "name": "knowledge",
       "source": "./plugins/knowledge",
       "category": "knowledge",
-      "tags": ["knowledge", "distill", "book", "pdf", "epub", "skill", "reference", "synthesis", "ingest"]
+      "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"]
     },
     {
       "name": "context7",
