@@ -829,6 +829,39 @@ accepted).
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
 
+## Knowledge-artifacts consuming repo + integration flow — decision record (2026-07-13)
+
+The `knowledge` plugin's ingest artifacts (transcripts, keyframes, source media, syntheses) get a
+single dedicated consuming home rather than living in any one product repo, so a session can analyze
+the whole corpus and fit relevant findings into *any* target repo. Decided with the owner in an
+interview session against medley EPIC #1273 / wave-2 map #1369 (issue #1393); recorded here because
+the wave's codification requirement puts convention decisions in tracked docs, not issue comments.
+
+- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Org (Team plan: 250 GiB free
+  Git LFS storage + bandwidth) over the personal Pro account (10 GiB) precisely because source media
+  is retained — see below. Created pure-IaC via the `melodic-software/github-iac` governed registry
+  (no ad-hoc `gh`, no import/drift window); the repo comes into being at the Pulumi deploy.
+- **Media retention + LFS:** retain source video, keyframes, and any input useful for re-scraping or a
+  fresh analysis — the corpus is the durable substrate for re-runnable synthesis, not just derived
+  text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
+  mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
+  `Repository` resource (verified against the provider schema) → it is content-side, landing via a
+  follow-up content PR to the repo, not governed in IaC. Cost basis (verified 2026-07-13): metered
+  LFS is $0.07/GiB-mo storage + $0.0875/GiB bandwidth over the free tier; the Team 250 GiB free tier
+  holds a many-source corpus at $0 where the personal 10 GiB tier would meter.
+- **Artifact landing:** no consuming-repo name is baked into the plugin (contract v2.1 seam 1 + the
+  convention-resolution ladder), so it serves any consumer unchanged. Which pipeline lands where — and
+  which honor `library_dir` vs write elsewhere — is fast-moving plugin-seam state; the `knowledge`
+  plugin's own skill docs are the SSOT, not recapped here.
+- **Integration flow — first-class capability:** the value step is analyze-here → fit-into-any-target.
+  Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invocable capability
+  seam-consistent with contract v2.1), NOT a documented manual workflow (which would rely on operator
+  memory and codify nothing). Full spec — target-repo scan, relevance ranking, how integrations are
+  proposed/applied — is decomposed to a dedicated `design(knowledge-integration)` issue under #1369
+  per the one-session sizing rule, rather than half-built inline.
+- **Scope boundary:** the songwriting-corpus (Pat Pattison EPUBs) destination is owned by #1402, not
+  decided here. How existing artifacts consolidate into this repo is operational — see #1393.
+
 ## `skill-quality` retrofit scope — decision record (2026-07-13)
 
 The `skill-quality` plugin shipped only the generic static contract checker (`check-skill.sh`, seventeen
