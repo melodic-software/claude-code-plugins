@@ -21,7 +21,7 @@
       "files": [],
       "expectations": [
         "The skill does NOT run git branch -D inline — it emits the branch-deletion command(s) for the user to run",
-        "It emits (rather than executes inline) the removal of the worktree the session currently occupies, since a worktree cannot delete itself",
+        "If the active worktree is itself one of the cleanup candidates, its removal is emitted for the user to run (a worktree cannot delete itself) rather than executed inline; self-removal is not emitted when the current checkout is not a target",
         "Branch deletion uses -D (not -d), and the reasoning cites squash-merge changing the SHA / destructiveness / hooks"
       ]
     },
