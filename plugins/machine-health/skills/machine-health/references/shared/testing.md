@@ -4,7 +4,7 @@ Pester v5 is the authoritative test framework. This document governs test conven
 
 ## Prerequisites
 
-- **pwsh 7.4+** - tests target PowerShell 7. Skill scripts themselves remain PS 5.1-compatible (`#Requires -Version 5.1`), but tests assume modern pwsh.
+- **pwsh 7.4+** - both the tests and the skill scripts require PowerShell 7.4+ (`#Requires -Version 7.4`); the orchestrator and checks use 7.x-only syntax, so Windows PowerShell 5.1 is not supported.
 - **Pester 5.x** - install via `Install-Module Pester -MinimumVersion 5.7 -Scope CurrentUser -Force` (check with `Get-Module Pester -ListAvailable`).
 - **PSScriptAnalyzer** - tests should pass `Invoke-ScriptAnalyzer` clean when the consuming repo lints PowerShell.
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T14:25:03Z",
+  "hook": "permission-denied-audit",
+  "hook_event": "PermissionDenied",
+  "status": "blocked",
+  "duration_ms": 5,
+  "data": {
+    "subject": "Bash:git",
+    "tool": "Bash"
+  }
+}

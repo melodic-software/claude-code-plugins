@@ -74,11 +74,16 @@ try {
 
     $pswuPresent = $null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)
     $pendingUpdates = @()
+    # Distinguish "module absent" (documented reboot-signals-only fallback) from
+    # "module present but the query failed" (a degraded run: we genuinely do not
+    # know whether updates are pending, so OK 'no pending updates' would lie).
+    $pswuQueryFailed = $false
     $pendingUpdatesNote = $pswuPresent ? $null : 'PSWindowsUpdate not installed -- reboot signals only.'
     if ($pswuPresent) {
         try {
             $pendingUpdates = @(Get-WUList -ErrorAction Stop)
         } catch {
+            $pswuQueryFailed = $true
             $pendingUpdatesNote = "PSWindowsUpdate present but Get-WUList failed: $($_.Exception.Message)"
         }
     }
@@ -133,6 +138,13 @@ try {
         }
     }
 
+    # A failed enumeration must not read as a clean OK. Surface it as INFO
+    # (reboot signals are still valid, so the check itself ran successfully).
+    if ($severity -eq 'OK' -and $pswuQueryFailed) {
+        $severity = 'INFO'
+        $summary = 'Update enumeration degraded (Get-WUList failed); reboot signals only.'
+    }
+
     $detail = @{
         reboot_pending          = $rebootPending
         reboot_sources          = @{
@@ -141,8 +153,13 @@ try {
             pfro = $pfroPending
         }
         recent_hotfixes         = $recentHotfixes
-        pending_update_count    = $pendingUpdates.Count
+        # Null (not 0) when the enumeration was degraded: 0 would be a false
+        # "no pending updates" that the history flattener persists as the
+        # windows-update trend metric, corrupting the next run's delta. Null is
+        # skipped by the flattener, so a transient failure leaves the trend intact.
+        pending_update_count    = $pswuQueryFailed ? $null : $pendingUpdates.Count
         pswindowsupdate_present = $pswuPresent
+        update_enum_degraded    = $pswuQueryFailed
         oldest_pending_days     = $null -ne $oldestPendingDays ? [int]$oldestPendingDays : $null
         hotfix_age_days         = $hotfixAgeDays
     }

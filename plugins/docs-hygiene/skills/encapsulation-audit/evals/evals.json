@@ -1,0 +1,75 @@
+{
+  "skill_name": "encapsulation-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "detect-routes-and-tables-violations",
+      "prompt": "Audit encapsulation across the repo — who is reaching into skill internals?",
+      "expected_output": "Runs the detect action: executes the detection grep, classifies each raw hit legal-vs-illegal via the filter taxonomy, and emits a violations table (File / Line / Cite / Suggested path A|B) plus a summary count. One action per response.",
+      "files": [],
+      "expectations": [
+        "Output runs the detect action and produces a violations table with a suggested remediation path (A or B) per hit",
+        "Raw hits are classified through the filter taxonomy rather than every grep hit being reported as illegal",
+        "Output is scoped to detect only, not fix or file-issues in the same response"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "single-violation-still-flagged",
+      "prompt": "The detector found exactly one external citation reaching into a skill's private subdirectory. It's only one place — is that worth flagging?",
+      "expected_output": "Flags the single violation. Encapsulation violations are single-instance matters — the Rule of Three does NOT gate them, and 'it's only one place' is the single-violation-tolerance anti-pattern the skill guards against. Each cite is a binary contract break.",
+      "files": [],
+      "expectations": [
+        "Output flags the single violation rather than dismissing it as below a threshold",
+        "Output states that the Rule of Three does not gate encapsulation (single-instance matter)",
+        "Output does not treat 'only one place' as a reason to tolerate the violation"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "filter-taxonomy-legal-hits",
+      "prompt": "The detect grep returned two hits: (a) `.claude/skills/compress/SKILL.md` citing `.claude/skills/compress/context/flavor-vs-content-matrix.md`, and (b) a path under `~/.claude/plugins/cache/docs-hygiene/...`. Classify them.",
+      "expected_output": "Classifies both as legal, not violations: (a) is self-citation (intra-skill progressive disclosure) and (b) is plugin-cache (upstream territory / foreign contract). Neither survives the filter taxonomy as illegal.",
+      "files": [],
+      "expectations": [
+        "The self-citation (skill citing its own private path) is classified legal, not a violation",
+        "The `~/.claude/plugins/cache/...` hit is classified legal (plugin-cache filter)",
+        "Neither hit is reported as an illegal violation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "path-b-missing-action-files-and-stops",
+      "prompt": "A rule file reaches into a skill's private body because it wants the skill's behavior, but the skill has no public action that covers the use case. Remediate it.",
+      "expected_output": "Chooses Path B (route via /skill invocation) but, finding the needed public action does NOT exist, surfaces the gap as a side note, files a tracking work item for the missing action, and leaves a `# TODO(encapsulation-audit): missing /<skill> <action>` marker — it does NOT silently inline a workaround that hides the violation from future audits.",
+      "files": [],
+      "expectations": [
+        "Output identifies this as a Path B (wants behavior) case, not Path A (wants data)",
+        "On the missing action it files a tracking work item and leaves a TODO(encapsulation-audit) marker rather than fixing it silently",
+        "Output does NOT inline a workaround that would hide the violation from later audits"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "scripts-entry-surface-is-legal",
+      "prompt": "A CI workflow path-cites `.claude/skills/extract-ssot/scripts/detect.sh` directly. Is that an encapsulation violation?",
+      "expected_output": "No — a skill's `scripts/` is its declared entry surface, so harness / CI / hooks may path-cite entry scripts directly. The inbound audit treats `<X>/scripts/...` cites as legal (like data files and a bare SKILL.md path) and does not flag it.",
+      "files": [],
+      "expectations": [
+        "Output classifies the `scripts/` entry-script cite as legal, not a violation",
+        "Output cites the scripts/ entry-surface carve-out as the reason"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "duplication-routes-to-extract-ssot",
+      "prompt": "I found the same paragraph of content duplicated across three skill bodies. Can encapsulation-audit consolidate it?",
+      "expected_output": "Routes away: content duplication / Rule-of-Three clusters are the sibling /extract-ssot's concern, not encapsulation-audit's. This skill detects citations into private surfaces, not repeated content.",
+      "files": [],
+      "expectations": [
+        "Output routes content-duplication consolidation to /extract-ssot",
+        "Output does NOT treat cross-file duplication as an encapsulation violation"
+      ]
+    }
+  ]
+}

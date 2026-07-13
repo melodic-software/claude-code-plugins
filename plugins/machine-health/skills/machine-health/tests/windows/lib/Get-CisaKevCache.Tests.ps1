@@ -173,5 +173,33 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             $logContent | Should -Match 'egress FAIL'
             $logContent | Should -Match 'TLS handshake failed'
         }
+
+        It 'writes a GET line Read-EgressLog can parse (single timestamp, canonical shape)' {
+            Mock Invoke-WebRequest {
+                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0007' }) } | ConvertTo-Json
+                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
+            } -ParameterFilter { $OutFile -like '*.download' }
+
+            Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath | Out-Null
+
+            # The bug: a self-prepended timestamp produced "<ts> <ts> egress GET ..."
+            # which Read-EgressLog could not parse, so the CISA fetch escaped
+            # urls_called despite the allowlist-audit guarantee.
+            $get = @(Read-EgressLog -LogPath $script:logPath | Where-Object { $_.kind -eq 'GET' })
+            $get.Count | Should -BeGreaterOrEqual 1
+            $get[0].uri | Should -Match 'cisa\.gov'
+            { [datetimeoffset]::Parse($get[0].timestamp) } | Should -Not -Throw
+        }
+
+        It 'writes a FAIL line Read-EgressLog can parse when the fetch throws' {
+            Mock Invoke-WebRequest { throw 'TLS handshake failed' }
+
+            Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath `
+                -WarningAction SilentlyContinue | Out-Null
+
+            $fail = @(Read-EgressLog -LogPath $script:logPath | Where-Object { $_.kind -eq 'FAIL' })
+            $fail.Count | Should -BeGreaterOrEqual 1
+            $fail[0].uri | Should -Match 'cisa\.gov'
+        }
     }
 }

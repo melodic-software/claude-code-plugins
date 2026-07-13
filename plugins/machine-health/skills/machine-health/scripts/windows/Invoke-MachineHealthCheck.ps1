@@ -5,8 +5,9 @@ machine-health orchestrator for Windows. Dispatches catalog checks, applies tren
 severity adjustments, runs authorized remediations, writes run state, and renders the report.
 
 .DESCRIPTION
-Primary target: PowerShell 7.x. Degrades to 5.1 where possible; checks that require newer
-cmdlets return UNKNOWN cleanly on 5.1.
+Requires PowerShell 7.4+ (enforced by the #Requires above; the orchestrator and checks use
+7.x-only syntax). Individual checks that need a still-newer cmdlet return UNKNOWN cleanly
+rather than aborting the run.
 
 Responsibilities (per SKILL.md High-level procedure):
  1. Verify preconditions (PS version, output writable, elevation recorded).
@@ -69,10 +70,17 @@ $libRoot = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libRoot 'ConvertTo-AppendixMarkdown.ps1')
 . (Join-Path $libRoot 'Invoke-FindingCorrelation.ps1')
 . (Join-Path $libRoot 'Merge-CatalogOverlay.ps1')
+. (Join-Path $libRoot 'Get-CheckSelection.ps1')
+. (Join-Path $libRoot 'Get-CheckArgument.ps1')
 
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
 $runDate = $runStart.ToString('yyyy-MM-dd')
+# Filesystem-safe UTC run stamp for per-run artifact names (colons are invalid
+# in Windows paths). Millisecond precision so two runs in the same second (a
+# scheduler retry/overlap, or a fast mostly-cadence-deferred run) still write
+# distinct report/battery filenames rather than overwriting each other.
+$runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssfffZ')
 $hostname = [System.Net.Dns]::GetHostName()
 
 # Normalize and prepare output roots. Reports are user-facing and live under
@@ -150,12 +158,6 @@ if (Test-Path -LiteralPath $seedKevPath) {
 $effectiveDry = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
 if ($effectiveDry -and -not $DryRun.IsPresent) {
     Write-MachineHealthLog 'dry_run forced by RunMode=first-run'
-}
-
-# Precondition: PowerShell version
-$psMajor = $PSVersionTable.PSVersion.Major
-if ($psMajor -lt 7) {
-    Write-MachineHealthLog "ps_version_degrade detected=$($PSVersionTable.PSVersion) (primary target is 7.x)"
 }
 
 $elevated = Test-IsElevated
@@ -269,9 +271,27 @@ $windowsChecks = @($validatedChecks | Where-Object {
         ($_.os -contains 'windows') -and ($_.enabled) -and (-not $_.deprecated)
     })
 
-# Load history tail for trend context
+# Load history tail. Depth 100 (not 8) so cadence selection can still find a
+# monthly check's last run when many weekly reruns / on-demand runs fall inside
+# the ~27-day interval -- an 8-line tail would push the last actual run off the
+# window and re-run the check prematurely. Trend uses only the recent slice.
+# Wrap in @() so a first run (no history file -> the helper emits nothing, which
+# would bind as $null) yields an empty array for the [AllowEmptyCollection()]
+# consumers below.
+$historyDepth = 100
 $historyPath = Join-Path $stateDir 'history.jsonl'
-$historyTail = Read-HistoryJsonl -Path $historyPath -Tail 8
+$historyTail = @(Read-HistoryJsonl -Path $historyPath -Tail $historyDepth)
+$historyRecent = @($historyTail | Select-Object -Last 8)
+
+# Cadence-aware selection: a weekly run defers monthly-cadence checks that ran
+# within the monthly interval (per-check last run from history.jsonl checks_ran).
+# on-demand / first-run run everything.
+$selection = Get-CheckSelection -Checks $windowsChecks -RunMode $RunMode -HistoryTail $historyTail -Now $runStart
+foreach ($sk in @($selection.skipped)) {
+    Write-MachineHealthLog ("check_skipped id=$($sk.id) reason=cadence cadence=$($sk.cadence) " +
+        "last_run=$($sk.last_run) elapsed_days=$($sk.elapsed_days)")
+}
+$windowsChecks = @($selection.due)
 
 # Dispatch checks with 90s timeout per check
 function Invoke-CheckWithTimeout {
@@ -282,10 +302,16 @@ function Invoke-CheckWithTimeout {
         Justification = 'Parameter passed via -ArgumentList is bound via param block.')]
     param(
         [Parameter(Mandatory = $true)] [string] $ScriptPath,
-        [int] $TimeoutSec = 90
+        [int] $TimeoutSec = 90,
+        [hashtable] $Arguments = @{}
     )
     $jobSw = [System.Diagnostics.Stopwatch]::StartNew()
-    $job = Start-Job -ScriptBlock { param($ScriptToRun) & $ScriptToRun } -ArgumentList $ScriptPath
+    # Splat per-check arguments across the job boundary. -ArgumentList serializes
+    # the hashtable; @ArgMap binds it to the check's named params. An empty map
+    # (the common case) runs the check argument-less.
+    $job = Start-Job -ScriptBlock {
+        param($ScriptToRun, $ArgMap) & $ScriptToRun @ArgMap
+    } -ArgumentList $ScriptPath, $Arguments
     $completed = Wait-Job -Job $job -Timeout $TimeoutSec
     $jobSw.Stop()
     if (-not $completed) {
@@ -340,6 +366,16 @@ function New-UnknownCheckResult {
     }
 }
 
+# Per-run battery report path -- a run-scoped file the battery check writes and
+# reads for wear/capacity analysis. runStamp keeps same-day reruns distinct.
+$batteryReportPath = Join-Path $logsDir "battery-report-$runStamp.html"
+
+# Ids of checks that produced a usable result this run (not cadence-skipped,
+# not script-missing, not a failed dispatch). Recorded to history.jsonl
+# checks_ran as the per-check last-run signal cadence selection and trend
+# annotation read.
+$ranCheckIds = [System.Collections.Generic.List[string]]::new()
+
 $checkResults = [System.Collections.Generic.List[object]]::new()
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
@@ -357,8 +393,9 @@ foreach ($entry in $windowsChecks) {
         continue
     }
 
+    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog -BatteryReportPath $batteryReportPath
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
-    $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90
+    $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 
     if (-not $dispatch.ok) {
         $checkResults.Add((New-UnknownCheckResult -Entry $entry `
@@ -368,15 +405,25 @@ foreach ($entry in $windowsChecks) {
         Write-MachineHealthLog ("check_failed id=$($entry.id) reason=$($dispatch.reason) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")
     } else {
+        # Record checks_ran ONLY when the check produced a SUCCESSFUL result.
+        # A schema-valid but failed result (ran_successfully=false -- e.g. a
+        # transient error, or a cmdlet unavailable) is not a real cadence signal:
+        # counting it would defer a monthly check ~27 days on a failed run
+        # instead of retrying it next run. (Timeout / no-output / invalid-JSON
+        # dispatches already miss this branch entirely.)
+        if ($dispatch.result.ran_successfully) {
+            $ranCheckIds.Add($entry.id)
+        }
         $checkResults.Add($dispatch.result)
         Write-MachineHealthLog ("check_ok id=$($entry.id) severity=$($dispatch.result.severity) " +
             "elapsed_ms=$($dispatch.elapsed_ms)")
     }
 }
 
-# Trend-aware severity adjustment + annotation per severity-rubric.md.
+# Trend-aware severity adjustment + annotation per severity-rubric.md. Trend
+# reads the recent slice (last ~8 runs); cadence uses the full depth above.
 try {
-    $checkResults = @(Invoke-TrendAnalysis -CheckResults $checkResults -HistoryTail $historyTail)
+    $checkResults = @(Invoke-TrendAnalysis -CheckResults $checkResults -HistoryTail $historyRecent)
 } catch {
     Write-MachineHealthLog "trend_analysis_failed $($_.Exception.Message)"
 }
@@ -577,6 +624,7 @@ $historyLine = [ordered]@{
     severity_counts    = $severityCounts
     remediation_counts = $remediationCounts
     duration_seconds   = $durationSeconds
+    checks_ran         = @($ranCheckIds)
     top_metrics        = $topMetrics
 }
 $historyJson = $historyLine | ConvertTo-Json -Depth 10 -Compress
@@ -585,7 +633,9 @@ Write-MachineHealthLog "appended_history path=$historyPath"
 
 # Report render (minimal but template-driven)
 $templatePath = Join-Path $skillRoot 'references\shared\report-template.md'
-$reportPath = Join-Path $reportsDir "health-$runDate.md"
+# Per-run (not per-day) filename: a same-day rerun must not overwrite the
+# earlier report, since each run also writes a distinct history entry.
+$reportPath = Join-Path $reportsDir "health-$runStamp.md"
 
 $totalBySeverity = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
 foreach ($r in $checkResults) { $totalBySeverity[$r.severity]++ }
@@ -674,7 +724,8 @@ $appendixSection = try {
 }
 
 $deltaLine = try {
-    Get-RunDelta -HistoryTail $historyTail -CurrentSeverityCounts $severityCounts
+    Get-RunDelta -HistoryTail $historyTail -CurrentSeverityCounts $severityCounts `
+        -SkippedCount @($selection.skipped).Count
 } catch {
     Write-MachineHealthLog "delta_compute_failed $($_.Exception.Message)"
     'see state/history.jsonl for comparison'

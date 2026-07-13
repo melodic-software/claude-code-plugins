@@ -8,8 +8,10 @@ references/shared/severity-rubric.md.
 .DESCRIPTION
 For each current check result:
 
- 1. Look up the most recent severity for this check.id in the history tail.
- 2. Attach a `trend` field: { last_run, last_severity, delta }.
+ 1. Look up the most recent run in which this check.id ran (history tail).
+ 2. Attach a `trend` field: { last_run, delta, adjusted_from } -- the shape
+    catalog/schemas/check-result.schema.json fixes (additionalProperties:false).
+    adjusted_from carries the pre-adjustment severity when step 3 upgrades.
  3. Apply one severity adjustment per the rubric:
        - Upgrade one level on WARN whose trend-relevant metric is worsening
          week-over-week (metric increase >= +5 percentage points for
@@ -26,6 +28,8 @@ to notes.
 
 Neutrally named: cross-OS algorithm.
 #>
+
+. (Join-Path $PSScriptRoot 'Get-CheckLastRun.ps1')
 
 function Invoke-TrendAnalysis {
     [CmdletBinding()]
@@ -48,28 +52,12 @@ function Invoke-TrendAnalysis {
     foreach ($r in $CheckResults) {
         $relevantKey = Get-TrendRelevantKey -CheckId $r.id
 
-        # Extract this check's severity history from the tail (file order:
-        # oldest -> newest, since Read-HistoryJsonl uses Get-Content -Tail).
-        $priorSeverities = [System.Collections.Generic.List[string]]::new()
+        # Extract this check's trend-relevant metric history from the tail
+        # (file order: oldest -> newest, since Read-HistoryJsonl uses
+        # Get-Content -Tail). top_metrics keys are "<check.id>.<detailKey>"
+        # per output-schema.md.
         $priorMetricValues = [System.Collections.Generic.List[object]]::new()
-
         foreach ($h in $HistoryTail) {
-            # severity_counts is grouped by category, not by check.id. We
-            # approximate "prior severity for this check" by the category's
-            # severity distribution (best-effort without a per-check index).
-            # Precision: when category had exactly one check matching $r.id,
-            # the category severity IS the check severity. When multiple
-            # checks share a category, we lose fidelity -- accepted v1
-            # trade-off (changing history schema is a separate migration).
-            if ($h.PSObject.Properties['severity_counts']) {
-                $catBucket = $h.severity_counts.PSObject.Properties[$r.category]
-                if ($catBucket) {
-                    $priorSeverities.Add((Get-DominantSeverity -Bucket $catBucket.Value))
-                }
-            }
-
-            # top_metrics lookup: keys are "<check.id>.<detailKey>" per
-            # output-schema.md. Fetch one well-known metric per check.
             if ($relevantKey -and $h.PSObject.Properties['top_metrics']) {
                 $fullKey = "$($r.id).$relevantKey"
                 if ($h.top_metrics.PSObject.Properties[$fullKey]) {
@@ -78,11 +66,14 @@ function Invoke-TrendAnalysis {
             }
         }
 
-        # Read-HistoryJsonl returns oldest -> newest. The most recent prior
-        # run is the LAST element, not [0]. With >=2 entries using [0] would
-        # compare today against stale data (potentially days old).
-        $lastSeverity = $priorSeverities.Count -gt 0 ? $priorSeverities[-1] : $null
+        # The most recent prior run is the LAST element, not [0]. With >=2
+        # entries using [0] would compare today against stale data.
         $lastMetric = $priorMetricValues.Count -gt 0 ? $priorMetricValues[-1] : $null
+
+        # last_run is the run in which this check actually ran (per-check, from
+        # checks_ran) -- NOT "the most recent run overall", which diverges once
+        # cadence lets a monthly check skip a run.
+        $lastRun = Get-CheckLastRun -CheckId $r.id -HistoryTail $HistoryTail
 
         # Attach trend annotation.
         $deltaText = $null
@@ -99,43 +90,33 @@ function Invoke-TrendAnalysis {
             $deltaText = "$($relevantKey): $sign$delta vs prior"
         }
 
-        $trend = [ordered]@{
-            last_severity = $lastSeverity
-            delta         = $deltaText
-        }
-
-        # Add-Member -Force creates the property if absent or overwrites if present.
-        $r | Add-Member -NotePropertyName trend -NotePropertyValue $trend -Force
-
         # Severity adjustment: upgrade WARN -> CRIT when metric worsens
         # (positive delta for used_pct, negative delta for fullCapacityPct).
         # First-crossing INFO/WARN intentionally not downgraded -- first crossing
-        # is exactly what those severities are meant to surface.
+        # is exactly what those severities are meant to surface. adjusted_from
+        # records the pre-adjustment severity when an upgrade fires.
+        $adjustedFrom = $null
         if ($r.severity -eq 'WARN' -and $null -ne $deltaText) {
             $upgrade = Test-WorseningTrend -CheckId $r.id -CurrentValue $currentValue -PriorValue $lastMetric
             if ($upgrade) {
+                $adjustedFrom = $r.severity
                 $r.severity = 'CRIT'
                 $note = "trend upgrade: $deltaText"
                 $r.notes = $r.notes ? "$($r.notes); $note" : $note
             }
         }
+
+        $trend = [ordered]@{
+            last_run      = $lastRun
+            delta         = $deltaText
+            adjusted_from = $adjustedFrom
+        }
+
+        # Add-Member -Force creates the property if absent or overwrites if present.
+        $r | Add-Member -NotePropertyName trend -NotePropertyValue $trend -Force
     }
 
     return $CheckResults
-}
-
-function Get-DominantSeverity {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param([Parameter(Mandatory = $true)] $Bucket)
-
-    # Bucket is an object like { OK=1; INFO=0; WARN=0; CRIT=0; UNKNOWN=0 }.
-    foreach ($sev in @('CRIT', 'WARN', 'INFO', 'UNKNOWN', 'OK')) {
-        if ($Bucket.PSObject.Properties[$sev] -and $Bucket.$sev -gt 0) {
-            return $sev
-        }
-    }
-    return 'OK'
 }
 
 function Get-TrendRelevantKey {

@@ -1,0 +1,11 @@
+# Installed dependencies — persisted at runtime under ${CLAUDE_PLUGIN_DATA}, never committed.
+node_modules/
+
+# Runtime state written when the engine runs in-repo (no plugin data dir): per-profile
+# run artifacts, generated decks, emitted slide data, validation screenshots.
+skills/ai-briefing/context/runs/
+skills/ai-briefing/context/seen-items.json
+skills/ai-briefing/output/meetings/
+skills/ai-briefing/output/build/slides-data.js
+skills/ai-briefing/output/build/shots/
+skills/ai-briefing/scripts/.tmp-captures-*.json

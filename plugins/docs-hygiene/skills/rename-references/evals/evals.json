@@ -1,0 +1,77 @@
+{
+  "skill_name": "rename-references",
+  "evals": [
+    {
+      "id": 1,
+      "name": "audit-sweep-on-rename",
+      "prompt": "I renamed the skill /verify to /verify-changes. Find every stale reference.",
+      "expected_output": "Runs an audit sweep with the full pattern library (not a single token grep), triages hits into Certain / Chain-context / Ambiguous buckets, and reports them read-only. Old=`/verify`, new=`/verify-changes` parsed from the prose.",
+      "files": [],
+      "expectations": [
+        "Output runs the full pattern-library sweep, not a single `/verify` token grep",
+        "Hits are triaged into the Certain / Chain-context / Ambiguous buckets",
+        "The audit is read-only (no edits applied in this audit invocation)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-trust-single-pattern-clean",
+      "prompt": "I ran `grep -r '/verify' .` and it came back with zero matches after my rename. That means the rename is clean, right?",
+      "expected_output": "Warns that a single-pattern grep returning clean is exactly the bug this skill exists to prevent — references survive in chain prose, comma-lists, numbered table rows, and frontmatter forms that token-only grep misses. It runs the full pattern library / audit rather than trusting the clean single-grep.",
+      "files": [],
+      "expectations": [
+        "Output does NOT accept the zero-match single grep as proof the rename is clean",
+        "Output names syntactic forms (chain prose, comma-lists, numbered rows, frontmatter) that a token grep misses",
+        "Output recommends running the full pattern library / audit"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "english-verb-forces-ambiguous-confirm",
+      "prompt": "Apply a rename of the skill `test` to `test e2e` across the repo.",
+      "expected_output": "Forces the bare `test` token into the Ambiguous bucket (English-verb blocklist) regardless of regex position and confirms each match with surrounding context rather than auto-applying — bare 'test' collides with ordinary English usage. It applies the most-specific match first to avoid double-editing the substring expansion.",
+      "files": [],
+      "expectations": [
+        "The bare `test` token is routed to the Ambiguous bucket and confirmed per-match, not auto-applied",
+        "Output cites the English-verb collision as the reason for mandatory confirmation",
+        "Output does not blindly replace every `test` occurrence in prose"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "re-sweep-until-zero-new-form-learned",
+      "prompt": "You applied the /verify to /verify-changes rename. The re-sweep still finds one match in a frontmatter glob form the pattern library didn't have. What now?",
+      "expected_output": "Does not declare done: re-sweep must reach count == 0. The new syntactic form is a pattern-library gap — it adds the form to the pattern registry, re-iterates the sweep, and does NOT silently apply or ignore the straggler.",
+      "files": [],
+      "expectations": [
+        "Output does NOT declare the rename complete while the re-sweep count is non-zero",
+        "Output treats the new form as a pattern-library gap to add, then re-sweeps",
+        "Output does not silently apply or drop the remaining match"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refuse-framework-migration",
+      "prompt": "Use rename-references to migrate our test project from xUnit v2 to xUnit v3 — update all the APIs.",
+      "expected_output": "Declines: framework version migrations are a behavioral upgrade, not a text rename, and are out of scope. It points to dedicated migration tooling and clarifies the skill handles documentation / config / identifier-string renames, not AST-level or API migrations.",
+      "files": [],
+      "expectations": [
+        "Output declines the framework migration as out of scope",
+        "Output distinguishes a behavioral/API migration from a text-string rename",
+        "Output points to dedicated migration tooling instead of running its sweep"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "plan-doc-auto-excluded",
+      "prompt": "Apply the /verify to /verify-changes rename. Note the active plan doc PLAN.md documents this very rename and mentions both names on purpose.",
+      "expected_output": "Auto-excludes the rename-documenting plan doc from the sweep — both old and new names appear there by design, and editing it would break the migration narrative. Apply mode rejects `--include-plan-docs`; the plan doc is left untouched.",
+      "files": [],
+      "expectations": [
+        "The active rename-documenting plan doc is auto-excluded and left unedited",
+        "Output explains both names appear in the plan doc by design (self-reference)",
+        "Output does not rewrite the plan doc's occurrences of the old name"
+      ]
+    }
+  ]
+}

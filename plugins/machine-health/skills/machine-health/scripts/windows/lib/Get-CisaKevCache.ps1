@@ -27,7 +27,11 @@ Downloads to a temp file first, then validates JSON and atomically replaces
 the cache. Partial/corrupt downloads do not clobber a previously-good cache.
 #>
 
-. (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
+# Egress lines go through the canonical Write-EgressLogLine so they carry a
+# single timestamp in the exact "<ts> egress <kind> <uri>" shape Read-EgressLog
+# parses -- hand-rolling the line here previously double-stamped it (the writer
+# adds its own timestamp) and broke urls_called ingestion.
+. (Join-Path $PSScriptRoot 'Invoke-AllowlistedWeb.ps1')
 
 $script:CisaKevUrl = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'
 
@@ -89,8 +93,7 @@ function Invoke-KevFetch {
         $FallbackCache
     )
 
-    $stamp = (Get-Date).ToString('o')
-    Write-MachineHealthLog -LogPath $LogPath -Message "$stamp egress GET $script:CisaKevUrl"
+    Write-EgressLogLine -LogPath $LogPath -Kind 'GET' -Uri $script:CisaKevUrl
 
     $tempPath = "$CachePath.download"
     try {
@@ -112,9 +115,8 @@ function Invoke-KevFetch {
         Move-Item -LiteralPath $tempPath -Destination $CachePath -Force
         return $downloaded
     } catch {
-        $failStamp = (Get-Date).ToString('o')
-        Write-MachineHealthLog -LogPath $LogPath `
-            -Message "$failStamp egress FAIL $script:CisaKevUrl - $($_.Exception.Message)"
+        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $script:CisaKevUrl `
+            -Message $_.Exception.Message
         Write-Warning "Get-CisaKevCache: fetch failed; keeping prior cache. $($_.Exception.Message)"
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-07-12T14:28:55Z",
+  "hook": "skill-usage-audit",
+  "hook_event": "PostToolUse",
+  "status": "ok",
+  "duration_ms": 6,
+  "data": {
+    "subject": "Skill:research",
+    "skill": "research"
+  }
+}

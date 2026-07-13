@@ -1,17 +1,76 @@
 # claude-ops
 
-A Claude Code plugin bundling three operations skills — one cohesive capability:
-running Claude Code well over time. Observability reads what your sessions
-actually did, troubleshooting tracks what upstream has broken, and changelog
-integration keeps your repo current with what upstream has shipped.
+A Claude Code plugin for running Claude Code well over time — one cohesive
+capability across four skills and a family of telemetry-emitter hooks.
+Observability reads what your sessions actually did, troubleshooting tracks what
+upstream has broken, changelog integration keeps your repo current with what
+upstream has shipped, a re-runnable `setup` action settles where the
+troubleshooting registry lives, and the `*-audit` hooks feed observability with
+per-hook execution telemetry Claude Code's native OTEL cannot see.
 
-## The three skills
+## Skills
 
 | Skill | What it does |
 |---|---|
 | `/claude-ops:claude-observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:claude-troubleshooting` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:claude-code-changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:setup` | Configures where the troubleshooting registry lives — per-machine (`${CLAUDE_PLUGIN_DATA}`, default) or in-repo git-tracked (`registry_dir`) — and persists the choice. Re-runnable and idempotent. |
+
+## The audit hooks
+
+Seven advisory `*-audit` hooks emit the marketplace [hook-telemetry
+envelope](../../docs/conventions/hook-telemetry/README.md) — one JSON event per
+run carrying that hook's own `duration_ms`, outcome, and a privacy-safe subject.
+Each is independently toggleable via `HOOK_<NAME>_ENABLED=false`. The six pure
+emitters are a no-op until a consumer wires a sink (below); `skill-usage-audit`
+is the one exception — it also writes its `skill-usage.jsonl` second store
+unconditionally (disable it with `HOOK_SKILL_USAGE_AUDIT_ENABLED=false`, or
+relocate the store with the `skill_usage_dir` option).
+
+| Hook | Event | Emits |
+|---|---|---|
+| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) |
+| `config-change-audit` | ConfigChange | the mutated `config_source` |
+| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) |
+| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject |
+| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) |
+| `skill-usage-audit` | PostToolUse (`Skill`) | skill invocations; also writes a `skill-usage.jsonl` second store |
+| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
+
+None captures a command body, absolute path, error message, or argument body —
+only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
+the repo-relative path of the loaded rule file.
+
+### Wiring the reference sink
+
+A migrated emitter is inert without a consumer. `hooks/hook-telemetry-sink.sh`
+is a **reference** sink: it reads an envelope on stdin and appends one line to
+`<project-root>/.claude/observability/hook-events.jsonl` — exactly the shape the
+`claude-observability` skill reads.
+
+Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
+resolution time**. A *relative* value resolves against the **consuming repo
+root**, not the plugin cache — so the marketplace-installed copy under
+`${CLAUDE_PLUGIN_ROOT}` is **not** reachable by a relative path (and Claude Code
+injects `settings.json` `env` values literally, with no `${CLAUDE_PLUGIN_ROOT}`
+expansion). Two workable forms:
+
+- **Copy the reference sink into your repo** (e.g. `.claude/hooks/hook-telemetry-sink.sh`)
+  and wire that repo-relative path — the portable, team-shared, clone-safe form:
+
+  ```json
+  { "env": { "HOOK_TELEMETRY_SINK": ".claude/hooks/hook-telemetry-sink.sh" } }
+  ```
+
+- **Or** point at an **absolute** path to the installed sink under your plugin
+  cache — per-machine, and it moves on each plugin update, so it is not
+  clone-portable.
+
+Any envelope producer (this plugin's hooks, guardrails, the formatters) then
+flows into the same store. The sink is fire-and-forget and best-effort — a slow
+or absent sink silently drops the event; it is for observability, not
+audit-of-record.
 
 ## Install
 
@@ -51,12 +110,19 @@ skill reports missing optional tooling instead of failing.
 
 ## Configuration
 
-One `userConfig` option:
+Two `userConfig` options:
 
 - **`registry_dir`** (string, optional) — project-relative directory for the
   claude-troubleshooting issue registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
   per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
+- **`skill_usage_dir`** (string, optional) — project-relative directory where
+  `skill-usage-audit` writes its `skill-usage.jsonl` second store (the
+  "measuring skills" record, separate from the telemetry envelope); leave unset
+  to use `.claude/observability`.
+
+Run `/claude-ops:setup` to make this choice interactively and persist it; it is
+re-runnable, so invoke it again any time to reconfigure.
 
 Remaining variability is covered by the env vars above and conventional
 project-relative defaults; the bundled scripts make no outbound network calls

@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **Re-runnable `setup` skill for the recurring-schedule seam.** `/work-items:setup` interviews the
+  consumer, infers candidate recurring items from the repo layout (dependency manifests, lint config,
+  CI workflows, security surfaces), and writes the tracked `.github/recurring-schedule.json` — the
+  bulk / initial-config path complementing the per-item `add --recurring`. Idempotent: re-run to
+  reconfigure. Seeds new rows with today-based dates but never advances an existing row's cadence
+  clock (that stays `recheck`'s job), ensures the load-bearing `recurring` label exists, guards `id`
+  and `title` uniqueness (both reconciliation keys), and reconciles a renamed row's still-open
+  `[Maintenance]` item.
+
+### Fixed
+
+- `due` and `work` now match a due recurring item's tracker item by the **full** `[Maintenance]
+  {title}`, exact — never a bare prefix or substring — so a shorter title cannot spuriously match a
+  longer item's record.
+
 ## [0.2.0]
 
 Re-plumbed onto the provider-neutral work-item-tracker seam. The skill is now backend-agnostic; GitHub

@@ -1,9 +1,10 @@
 # planning
 
 A Claude Code plugin for the **pre-implementation planning pipeline** — everything
-between a rough idea and approved, executable work. Seven skills covering divergence,
-product intent, the engineering contract, design exploration, the design→plan gate,
-adversarial review, and the implementation plan itself.
+between a rough idea and approved, executable work. Seven pipeline skills covering
+divergence, product intent, the engineering contract, design exploration, the
+design→plan gate, adversarial review, and the implementation plan itself — plus a
+re-runnable `setup` action that settles where artifacts land in the consuming repo.
 
 | Skill | Stage | What it does |
 |---|---|---|
@@ -14,6 +15,7 @@ adversarial review, and the implementation plan itself.
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
 | `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
+| `/planning:setup` | Configuration | Interviews the consumer and persists the `notes_dir` config that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
 
 The pipeline composes end-to-end — `brainstorm → prd → interview → design →
 design-handoff → architect` with `devils-advocate` attacking the plan before
@@ -42,7 +44,7 @@ approval — but every skill also works standalone.
 
 ## Configuration
 
-One option, prompted at enable time:
+One option, prompted at enable time (or set any time with `/planning:setup`):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|

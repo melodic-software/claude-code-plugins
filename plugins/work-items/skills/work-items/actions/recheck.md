@@ -40,7 +40,7 @@ Read the current file, find the matched item, then:
 - If `next_due <= today`: set `next_due` to today + cadence days
 - If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
 
-1. **Close the associated item** (if one exists). Search for open items with the `recurring` label matching the item's title (adapter: "Search items", `label:recurring` + the `[Maintenance]` title, bare read). If found, close it with a recheck comment (adapter: "Close item"), reason `completed`, comment "Rechecked YYYY-MM-DD. Next due: <next_due>.".
+1. **Close the associated item** (if one exists). Search for open items with the `recurring` label (adapter: "Search items", `label:recurring` + the `[Maintenance]` title, bare read). Provider search is substring/prefix, not exact-title equality, so **filter the results to the item whose title equals `[Maintenance] {title}` exactly** before closing — otherwise a shorter title (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment "Rechecked YYYY-MM-DD. Next due: <next_due>.".
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
 

@@ -1,0 +1,78 @@
+{
+  "skill_name": "compress",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-compress-preserves-content",
+      "prompt": "Compress this doc: read evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory and tighten it. Drop the flavor but keep everything load-bearing.",
+      "expected_output": "Runs the default action: snapshot, mechanical compression backend (caveman or in-session Edit), a separate semantic-diff pass, revert of any semantic loss, then markdownlint. Filler ('basically', 'really', 'just', 'honestly', 'perhaps') is cut; the zero-warnings directive, the `MAX_UPLOAD_MB=25` value, and the 25 MB rejection threshold are preserved verbatim.",
+      "files": ["evals/fixtures/verbose-onboarding-snippet.md"],
+      "expectations": [
+        "Output removes filler/hedging words (e.g. 'basically', 'really', 'just', 'honestly', 'perhaps')",
+        "The literal `MAX_UPLOAD_MB=25` and the 25 MB rejection threshold are preserved, not dropped or altered",
+        "The 'warnings are treated as errors / block the merge' directive is preserved as content, not cut as flavor",
+        "The run includes a semantic-diff verification step and a markdownlint check, not just a raw edit"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "audit-is-read-only",
+      "prompt": "/compress audit docs/",
+      "expected_output": "Runs the audit action only: a read-only dry-run that classifies each target SKIP / COMPRESS / UNCERTAIN with an expected-yield estimate. No file is edited and no semantic-diff subagent is dispatched.",
+      "files": [],
+      "expectations": [
+        "The run classifies targets as SKIP / COMPRESS / UNCERTAIN rather than editing them",
+        "No file is modified (audit is read-only)",
+        "No semantic-diff subagent is dispatched (dispatch is default-action only, not audit)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "semantic-diff-is-separate-not-self-audit",
+      "prompt": "Compress the prose in docs/architecture/overview.md. It's long and wordy.",
+      "expected_output": "After producing the condensed edits, a SEPARATE fresh-context semantic-diff pass compares original vs condensed and reverts every SEMANTIC LOSS and AMBIGUITY finding. The model that produced the edits does not grade its own output, and the verifier does not re-add words to 'preserve clarity'.",
+      "files": [],
+      "expectations": [
+        "The semantic-diff verification is described as a separate fresh-context pass, not a self-review by the editing model",
+        "SEMANTIC LOSS and AMBIGUITY findings are reverted, not merely noted",
+        "The verifier is not used to re-expand or re-add removed words"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "sub-3-percent-reverts-without-force",
+      "prompt": "Compress CLAUDE.md — it's already pretty tight but see if there's anything to cut.",
+      "expected_output": "An already-disciplined always-loaded instruction file yields under 3% with zero semantic loss, so the default `<3% AND 0 semantic-loss -> REVERT` rule trips and the change is reverted. The run notes that `--force` would be required to keep a sub-3% diff.",
+      "files": [],
+      "expectations": [
+        "A sub-3%, zero-semantic-loss result is reverted rather than shipped under the default rule",
+        "Output states that `--force` is the way to keep an intentional sub-3% diff",
+        "Output does not silently ship a below-threshold change as if it were a normal compression"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refuse-code-file-target",
+      "prompt": "Compress apps/billing/src/fees.ts — trim the verbose comments and dead code.",
+      "expected_output": "Declines: the methodology is markdown-specific and code / code-comment compression is out of scope. It does not run the compression pipeline on the TypeScript file and points to code-focused tooling instead.",
+      "files": [],
+      "expectations": [
+        "Output declines to compress the code file, citing markdown-only scope",
+        "Output does NOT run the flavor-vs-content compression pipeline on the `.ts` source",
+        "Output does not treat code-comment trimming as in scope"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "ssot-relocation-not-flavor",
+      "prompt": "Compress docs/guide.md. One paragraph restates the full label taxonomy that already lives in .claude/rules/labels.md — collapse it down to a citation while you're compressing.",
+      "expected_output": "Recognizes that collapsing a passage which recaps a cited single source of truth is content RELOCATION, not flavor removal — the semantic-diff net would see the words gone from THIS file and revert them as semantic loss, blind to the SSOT. It treats the relocation as a manual editorial pass (verifying the SSOT actually holds the detail first), or routes multi-file duplication to /extract-ssot, rather than silently deleting the paragraph as flavor.",
+      "files": [],
+      "expectations": [
+        "Output distinguishes content relocation (recap of a cited SSOT) from flavor removal",
+        "Output does NOT silently delete the recap paragraph as if it were flavor that the semantic-diff pass would allow",
+        "Output routes the dedup to a manual editorial pass or to /extract-ssot rather than handling it as ordinary compression"
+      ]
+    }
+  ]
+}

@@ -19,7 +19,7 @@ pretending coverage.
 
 Each run dispatches the enabled catalog checks (90s per-check timeout, 15m total budget), collects
 schema-validated JSON results, adjusts severity against the last 8 weeks of history, correlates
-related findings, and renders `reports/health-YYYY-MM-DD.md` with CRIT/WARN/INFO/OK/UNKNOWN
+related findings, and renders `reports/health-<UTC-timestamp>.md` with CRIT/WARN/INFO/OK/UNKNOWN
 sections, reproduction commands, and trend deltas. State is append-only (`history.jsonl`);
 elevation is never prompted for — admin-gated checks return UNKNOWN with a `needs_admin` marker.
 
@@ -31,7 +31,7 @@ default to **not approved**, and only run when explicitly approved in the machin
 
 | Location | Contents |
 |---|---|
-| Report directory (`report_dir` option; default `Documents\MachineHealth`) | `reports/health-YYYY-MM-DD.md` |
+| Report directory (`report_dir` option; default `Documents\MachineHealth`) | `reports/health-<UTC-timestamp>.md` |
 | Plugin data directory (`${CLAUDE_PLUGIN_DATA}`, survives updates) | `state/` (history, latest snapshot, approvals), `logs/` (run + remediation + egress logs), `catalog/checks.local.jsonc` (machine overlay), custom check scripts, `TODO.md` proposals |
 | `%LOCALAPPDATA%\machine-health\cache` | CISA KEV feed cache (refreshed weekly) |
 
