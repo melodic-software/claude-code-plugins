@@ -35,7 +35,7 @@
       "expectations": [
         "Resolves commands via the ladder with the consumer's `.claude/ecosystems/dotnet.yaml` taking precedence (rung 1)",
         "Uses the bundled portable default only as the rung-4 fallback when no consumer file is present",
-        "A malformed consumer file degrades to inference with a warning rather than hard-stopping"
+        "Runs the consumer's declared test-cmd, not the bundled default's"
       ]
     },
     {
@@ -60,6 +60,18 @@
         "Falls back to the branch diff vs the default-branch merge-base when the working tree is clean",
         "Classifies and verifies the checkpoint-committed changes rather than reporting nothing to do",
         "Only reports 'No changes found' when neither the working tree nor the branch diff yields changes and no ecosystem argument was given"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "malformed-consumer-config-degrades-not-hard-stops",
+      "prompt": "/implementation:build dotnet — the repo's tracked `.claude/ecosystems/dotnet.yaml` exists but is malformed (invalid YAML / missing required keys).",
+      "expected_output": "A malformed consumer ecosystem file warns and degrades to inference (rung 2) rather than hard-stopping — the ladder is tolerant, so a bad consumer file never aborts the build; it still resolves a command surface and runs.",
+      "files": [],
+      "expectations": [
+        "Warns that the consumer `.claude/ecosystems/dotnet.yaml` is malformed rather than silently ignoring it",
+        "Degrades to inference (rung 2) to resolve the command surface instead of hard-stopping",
+        "Does NOT abort the run with a hard error because the consumer file is malformed"
       ]
     }
   ]
