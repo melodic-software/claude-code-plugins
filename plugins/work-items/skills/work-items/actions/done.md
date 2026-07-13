@@ -1,34 +1,38 @@
 # Action: `done`
 
-Close an issue with a completion comment.
+Close a work item with a completion comment.
 
 ## Usage
 
 ```
-done <number or text match> [--summary "completion summary"] [--pr <number>] [--not-planned]
+/work-items:work-items done <number or text match> [--summary "completion summary"] [--pr <number>] [--not-planned]
 ```
 
 ## Flags
 
 - `--summary "text"` -- Completion summary (required -- will prompt if missing)
 - `--pr <number>` -- Link the closing PR
-- `--not-planned` -- Close as "not planned" instead of "completed" (for issues decided against or superseded)
+- `--not-planned` -- Close as "not planned" instead of "completed" (for items decided against or superseded)
 
 ## Workflow
 
-1. **Resolve the issue.** If a number is given, use it directly. If text, search open issues.
+1. **Resolve the item.** If a number is given, use it directly. If text, search open items (adapter: "Search items").
 
-1. **Check if recurring** (skip when the consuming repo has no `.github/recurring-schedule.json`). Issues created by recurring automation have a `[Maintenance]` prefix, so strip it before comparing:
+1. **Check if recurring.** Read `.github/recurring-schedule.json` and check if the item's title matches any recurring item. Items created by the recurring-issues automation have a `[Maintenance]` prefix, so strip it before comparing. Skip gracefully when the repo has no recurring schedule:
 
 ```bash
 SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
-cat "$SCHEDULE" | jq --arg title "<issue title>" '
-  ($title | ltrimstr("[Maintenance] ")) as $stripped |
-  [.items[] | select(.title == $stripped or .title == $title or .id == "<kebab-id>")] | length
-'
+if [[ -f "$SCHEDULE" ]]; then
+  jq --arg title "<item title>" '
+    ($title | ltrimstr("[Maintenance] ")) as $stripped |
+    [.items[] | select(.title == $stripped or .title == $title or .id == "<kebab-id>")] | length
+  ' "$SCHEDULE"
+else
+  echo 0  # no recurring schedule configured
+fi
 ```
 
-If it's a recurring item, warn: "This is a recurring item. Did you mean the `recheck` action instead?" Proceed only if the user confirms.
+If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-items:work-items recheck` instead?" Proceed only if the user confirms.
 
 1. **Build the closing comment:**
 
@@ -38,55 +42,18 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean the `rec
 {if --pr: Fixed in #{pr_number}}
 ```
 
-1. **Close the issue — unless an unmerged PR will auto-close it.** When `--pr` names an UNMERGED PR, do NOT close manually: run step 6 first to ensure the closing keyword is on the PR body, report "will auto-close when #{pr} merges", and post the completion summary as a plain comment instead. Closing now would mark the issue done before the work has actually landed. Manual close (write) applies when there is no PR, or the PR already merged without a keyword. Use `--reason "not planned"` when `--not-planned` was passed:
+1. **Close the item** (adapter: "Close item" — WRITE via the adapter's identity policy), passing the closing comment and `--reason completed` (or `not planned` for `--not-planned`).
 
-```bash
-gh issue close <N> --comment "Done ($(date +%Y-%m-%d)): {summary}" --reason completed
-# with --not-planned:
-gh issue close <N> --comment "Closing ($(date +%Y-%m-%d)): {summary}" --reason "not planned"
-```
+   The seam claim is a lease (assignee + lease comment), not a label — closing removes the item from the frontier, so no `status:*` label cleanup is part of this flow (the retired `status:claimed` label is handled by the label-reconciliation migration, not here).
 
-1. **Clean up claim labels** (write):
+1. **Belt-and-suspenders: verify PR body keyword presence.** Primary path is the `/pull-request create` §2.4.2 pre-create gate (covers all 9 closing keywords + opt-out markers). This step fires when `/work-items:work-items done` is invoked WITHOUT having gone through `/pull-request create` (rare — manual close path). Only runs when `--pr` is provided.
 
-```bash
-gh issue edit <N> --remove-label "status:claimed"
-```
-
-1. **Belt-and-suspenders: verify PR body keyword presence.** This step fires when `done` is invoked for a manual PR flow (no PR tooling injected a closing keyword). Only runs when `--pr` is provided:
-
-```bash
-PR_BODY=$(mktemp)
-gh pr view <PR> --json body,mergedAt --jq '.body' | tr -d '\r' > "$PR_BODY"
-# Both regexes must target THIS issue — a `Closes #7` / `Refs #7` for a
-# different issue says nothing about #<N>. The (\b) boundary keeps #4 from
-# matching #42.
-KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #<N>\b'
-OPTOUT_REGEX='^(Refs #<N>\b|No related issue:)'
-
-if grep -iE "$KEYWORD_REGEX" "$PR_BODY" >/dev/null; then
-  :  # keyword present — auto-close will fire on merge
-elif grep -E "$OPTOUT_REGEX" "$PR_BODY" >/dev/null; then
-  :  # explicit opt-out — leave PR body alone
-else
-  # PR body lacks keyword AND lacks opt-out. Behavior depends on merge state.
-  MERGED_AT=$(gh pr view <PR> --json mergedAt --jq '.mergedAt')
-  if [[ -z "$MERGED_AT" || "$MERGED_AT" == "null" ]]; then
-    # Unmerged — read-modify-write the PR body to prepend `Closes #<N>`
-    # (`--body-file` REPLACES, never appends). Write op.
-    printf '%s\n\n%s\n' "Closes #<N>" "$(cat "$PR_BODY")" | gh pr edit <PR> --body-file -
-  fi
-  # Merged — keyword can no longer auto-fire. Step 4's `gh issue close <N>`
-  # is the only remaining path.
-fi
-rm -f "$PR_BODY"
-```
-
-If keyword present → GitHub auto-closes the issue on merge (the structural path). If absent on an unmerged PR → read-modify-write injects `Closes #<N>` at top of body. If absent on a merged PR → step 4's manual `gh issue close` is the only remaining path; keyword can no longer auto-fire.
+   Apply the read-modify-write keyword check + prepend from the adapter "PR closing-keyword mechanics" section: if the (unmerged) PR body carries neither a closing keyword nor an opt-out marker, prepend `Closes #<N>`; if merged, the keyword can no longer auto-fire and Step 4's close is the only path.
 
 1. **Confirm:** "Closed **#N**: {title}. Summary: {summary}"
 
 ## Notes
 
-- Always require a completion summary. Summaries are institutional memory of what was decided/learned
-- If no `--summary` provided, ask for one before closing
-- The `--reason` flag accepts `completed` (default) or `not planned`. Use `not planned` for issues that were decided against, superseded, or no longer relevant
+- Always require a completion summary. Summaries are institutional memory of what was decided/learned.
+- If no `--summary` provided, ask for one before closing.
+- The `done` action closes with `completed` (default), or `not planned` when `--not-planned` is given — for items decided against, superseded, or no longer relevant.
