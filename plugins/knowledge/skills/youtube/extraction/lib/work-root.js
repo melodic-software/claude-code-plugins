@@ -7,8 +7,9 @@
  * repo. The base is resolved from the environment instead, honoring the
  * knowledge plugin's `library_dir` seam:
  *
- * 1. `YOUTUBE_WORK_ROOT` — explicit override the invoking skill exports from the
- *    resolved `library_dir` (when it is not the repo-root default).
+ * 1. `YOUTUBE_WORK_ROOT` — explicit override the invoking skill wires in from the
+ *    resolved `library_dir` (when it is not the repo-root default) by passing
+ *    `run.mjs --work-root <dir>`, which sets this var for the extraction child.
  * 2. `CLAUDE_PROJECT_DIR` — the consuming project root the harness provides.
  * 3. `process.cwd()` — fallback when invoked directly from the project root.
  *
