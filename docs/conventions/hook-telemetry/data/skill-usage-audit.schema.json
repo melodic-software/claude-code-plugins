@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/skill-usage-audit.schema.json",
+  "title": "skill-usage-audit telemetry data",
+  "description": "Per-hook `data` payload for the skill-usage-audit PostToolUse/Skill emitter. Discovered from the envelope `hook` value \"skill-usage-audit\". Evolves additive-only. Captures the skill name only — never the arguments body. Independent of the hook's bespoke skill-usage.jsonl second store.",
+  "type": "object",
+  "required": ["subject", "skill"],
+  "additionalProperties": true,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "\"Skill:<name>\" for the invoked skill (leading slash stripped)."
+    },
+    "skill": {
+      "type": "string",
+      "description": "The invoked skill name (leading slash stripped, e.g. \"research\")."
+    }
+  }
+}

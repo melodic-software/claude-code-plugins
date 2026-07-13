@@ -111,6 +111,109 @@ hook::repo_root() {
   printf '%s' "$root"
 }
 
+# Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
+# late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
+# on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the
+# read timed out before a complete JSON payload arrived (caller may block).
+# Bound is HOOK_STDIN_READ_TIMEOUT seconds (default 2). jq (when present)
+# distinguishes a truncated read from a genuinely small-but-complete payload; a
+# missing/broken jq (exit 127) fails open like absent jq.
+#   INPUT=$(hook::buffer_stdin) || exit 0
+hook::buffer_stdin() {
+  local input="" read_status=0 read_timeout="${HOOK_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
+  start_epoch=${EPOCHREALTIME:-}
+  IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
+  input=$(printf '%s' "$input" | tr -d '\r')
+  [[ -n "$input" ]] || return 1
+  local jq_rc=0
+  if [[ "$read_status" -ne 0 ]] && command -v jq >/dev/null 2>&1; then
+    jq -e . >/dev/null 2>&1 <<<"$input" || jq_rc=$?
+  fi
+  if [[ "$read_status" -ne 0 && "$jq_rc" -ne 0 && "$jq_rc" -ne 127 ]]; then
+    elapsed_ms=$(awk -v start="$start_epoch" -v end="$EPOCHREALTIME" 'BEGIN { printf "%.0f", (end - start) * 1000 }')
+    timeout_ms=$(awk -v timeout="$read_timeout" 'BEGIN { printf "%.0f", timeout * 1000 }')
+    if [[ "$elapsed_ms" =~ ^[0-9]+$ && "$timeout_ms" =~ ^[0-9]+$ ]] \
+      && ((elapsed_ms + 100 >= timeout_ms)); then
+      echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
+      return 2
+    fi
+    return 1
+  fi
+  printf '%s' "$input"
+}
+
+# Extract a single jq field from a buffered input string. CR-stripped. Returns 1
+# when the field is empty or jq fails, so the caller can skip.
+#   FIELD=$(hook::jq_field "$INPUT" '.tool_input.file_path') || exit 0
+hook::jq_field() {
+  local field
+  field=$(jq -r "(${2} // empty)"' | gsub("\r";"")' <<<"$1" 2>/dev/null)
+  [[ -n "$field" ]] || return 1
+  printf '%s' "$field"
+}
+
+# Reduce a tool + optional Bash command to a privacy-safe subject label. For
+# Bash, returns "Bash:<first-token>" (leading sudo / VAR=val prefixes stripped,
+# basename applied) — never the full command. For any other tool, returns the
+# tool name unchanged. Carries no argument body, path, or command tail.
+#
+# Whitespace-splitting is only safe when no quoted value spans the whitespace.
+# A quoted assignment value (e.g. `TOKEN="a b" curl …`) would otherwise leak a
+# fragment of the value into the token, so any token carrying a quote aborts to a
+# bare "Bash" subject rather than risk exposing part of the value.
+#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
+hook::extract_bash_subject() {
+  local tool="$1" cmd="${2:-}"
+  if [[ "$tool" != "Bash" ]]; then
+    printf '%s' "$tool"
+    return 0
+  fi
+  # Trim leading whitespace so the first token is real.
+  cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+  local first_token="${cmd%%[[:space:]]*}"
+  while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] \
+    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+    # A quote in the prefix token means a quoted value spans the next whitespace;
+    # we cannot tokenize it safely — bail rather than leak a value fragment.
+    if [[ "$first_token" == *[\"\']* ]]; then
+      printf '%s' "$tool"
+      return 0
+    fi
+    cmd="${cmd#*[[:space:]]}"
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    first_token="${cmd%%[[:space:]]*}"
+  done
+  # The resolved command token itself must not carry a quote (e.g. a value that
+  # ended here), which would likewise be a value fragment.
+  if [[ "$first_token" == *[\"\']* ]]; then
+    printf '%s' "$tool"
+    return 0
+  fi
+  first_token="${first_token##*/}"
+  if [[ -n "$first_token" ]]; then
+    printf 'Bash:%s' "$first_token"
+  else
+    printf '%s' "$tool"
+  fi
+}
+
+# Append one line to a JSONL file, serialized under an flock advisory lock when
+# flock is present (bounded 2s wait; a lost race drops the line rather than
+# blocking) and a best-effort bare append otherwise. Fire-and-forget: never
+# fails the caller. Used by audit hooks that maintain a bespoke second store.
+#   hook::append_jsonl <file> <line>
+hook::append_jsonl() {
+  local file="$1" line="$2"
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -w 2 9 || exit 0
+      printf '%s\n' "$line" >>"$file"
+    ) 9>"${file}.lock" 2>/dev/null
+  else
+    printf '%s\n' "$line" >>"$file" 2>/dev/null
+  fi
+}
+
 # Per-hook stdout context accumulator. ctx_reset at entry, ctx_append per line,
 # ctx_flush once at exit with the hook event name.
 _HOOK_CTX_BUFFER=""
@@ -183,7 +286,11 @@ hook::emit_telemetry() {
   # Compute duration_ms from caller's $EPOCHREALTIME snapshot to now.
   # Both '.' and ',' separators handled; 10# prefix prevents octal misreading
   # of fractional parts with leading zeros (e.g. .045123 → 10#045123 = 45123).
-  local now=$EPOCHREALTIME
+  # EPOCHREALTIME is Bash 5.0+; on an older host it (and the caller's start
+  # snapshot) is empty. Skip telemetry fail-open rather than abort under set -u —
+  # the same silent-skip the caller's `START=${EPOCHREALTIME:-}` guard intends.
+  local now=${EPOCHREALTIME:-}
+  [[ -n "$start_epoch" && -n "$now" ]] || return 0
   local s_s="${start_epoch%[.,]*}" s_f="${start_epoch#*[.,]}"
   local e_s="${now%[.,]*}" e_f="${now#*[.,]}"
   local duration_ms=$(((e_s * 1000000 + 10#$e_f - s_s * 1000000 - 10#$s_f) / 1000))

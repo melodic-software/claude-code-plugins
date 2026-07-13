@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/instructions-loaded-audit.schema.json",
+  "title": "instructions-loaded-audit telemetry data",
+  "description": "Per-hook `data` payload for the instructions-loaded-audit InstructionsLoaded emitter. Discovered from the envelope `hook` value \"instructions-loaded-audit\". Evolves additive-only.",
+  "type": "object",
+  "required": ["subject"],
+  "additionalProperties": true,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "\"<repo-relative-file>:<load_reason>\" for the loaded rule/instruction file, so consumers can group loads by reason (e.g. \"path_glob_match\", \"include\") without parsing extra fields. Privacy-safe: the absolute path prefix is stripped to a repo-relative path (or basename for files outside the project root). session_start loads are filtered out at the producer by default."
+    }
+  }
+}

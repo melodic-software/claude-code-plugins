@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/permission-denied-audit.schema.json",
+  "title": "permission-denied-audit telemetry data",
+  "description": "Per-hook `data` payload for the permission-denied-audit PermissionDenied emitter. Discovered from the envelope `hook` value \"permission-denied-audit\". Evolves additive-only. Privacy-safe: never carries the full command, file path, or tool_input body.",
+  "type": "object",
+  "required": ["subject", "tool"],
+  "additionalProperties": true,
+  "properties": {
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe denial subject: \"Bash:<first-token>\" for Bash (e.g. \"Bash:git\"), otherwise the tool name only."
+    },
+    "tool": {
+      "type": "string",
+      "description": "The denied Claude Code tool_name (e.g. \"Bash\", \"Write\", \"Edit\")."
+    }
+  }
+}
