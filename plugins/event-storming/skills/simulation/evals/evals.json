@@ -66,12 +66,12 @@
       "id": 6,
       "name": "no-domain-defaults-to-developer-conference",
       "prompt": "--simulate",
-      "expected_output": "With no domain argument, the skill either confirms running a full --simulate cycle defaulting the domain to 'Developer Conference', or offers to read facilitation reference instead (/event-storming:methodology). It does not silently invent an unrelated domain.",
+      "expected_output": "With a mode but no domain argument, the skill defaults the domain to 'Developer Conference'. It then honors the Miro preflight: with Miro connected it proceeds with the on-board run; with Miro absent it offers structured-markdown mode or connect-and-retry per the availability gate. Either way it defaults the domain rather than inventing a different one.",
       "files": [],
       "expectations": [
-        "Output uses 'Developer Conference' as the default domain when none is supplied (or explicitly names it as the default)",
+        "Output defaults the domain to 'Developer Conference' when none is supplied (or explicitly names it as the default)",
         "Output does not fabricate some other arbitrary domain as if the user had specified it",
-        "Output may offer the methodology reference path as an alternative to running the simulation"
+        "Output honors the Miro preflight — proceeding on-board when Miro is available, or offering the structured-markdown / connect-and-retry degradation when Miro is absent — rather than assuming an unconditional board run"
       ]
     }
   ]
