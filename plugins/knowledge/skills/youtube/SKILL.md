@@ -33,6 +33,22 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/derive-video-slug.js`
 
+## Artifact landing (work root)
+
+Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's `library_dir` seam (`pluginConfigs["knowledge@melodic-software"].options.library_dir`, substituted into this skill's content as `${user_config.library_dir}`):
+
+- **Non-default** — when `${user_config.library_dir}` is a non-empty value other than the repo-root default `.` (and not an unexpanded `${user_config.library_dir}` token), pass it as a **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" <script.js> [args…]
+  ```
+
+  `run.mjs` forwards it to the extraction child as `YOUTUBE_WORK_ROOT` (a double-quoted CLI arg is cross-platform; an inline `YOUTUBE_WORK_ROOT=… node` prefix is bash-only and fails under PowerShell). When `library_dir` is already absolute, pass it directly and drop the `${CLAUDE_PROJECT_DIR}/` prefix. This applies to **all** the run-script sites below — `run-transcript.js`, `preflight-metadata.js`, `queue-claim.js`, `run-watch.js`, `watch-state.js`, `vision-gated-promote.js`, `init-watch-checklist.js`, `analyze-harvested-repos.js`, `check-research-complete.js`, `check-watch-outcomes.js`, and `run-resume.js` — not only the first.
+
+- **Default / unset** — when `${user_config.library_dir}` is `.`, empty, or still an unexpanded token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to `${CLAUDE_PROJECT_DIR}` (then `process.cwd()`), landing artifacts at the consuming repo root.
+
+The `setup-deps.mjs` install step is exempt — it installs node dependencies into `${CLAUDE_PLUGIN_DATA}`, not the work root.
+
 ## Action router
 
 | Action | Status | Behavior |

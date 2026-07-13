@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.4.0
+
+### Changed
+
+- **`youtube` skill now honors the `library_dir` seam.** The invoking skill wires a
+  non-default `library_dir` into the extraction pipeline by passing
+  `run.mjs --work-root <dir>`, which the launcher translates into the
+  `YOUTUBE_WORK_ROOT` environment variable the scripts already read — so watch,
+  transcript, and queue artifacts land under the configured directory instead of
+  always at the consuming repo root. The default (`.`) path is unchanged: no flag,
+  `resolveWorkRoot()` keeps its `CLAUDE_PROJECT_DIR` → `process.cwd()` fallback. A
+  double-quoted CLI arg was chosen over an inline `YOUTUBE_WORK_ROOT=… node` prefix
+  because the latter is bash-only and fails under PowerShell.
+- **`setup` Output** now states that `library_dir` governs where youtube artifacts
+  land, restoring the stronger wording softened while the seam was unwired
+  (`book-distill` remains the documented exception).
+
 ## 0.2.0
 
 ### Added

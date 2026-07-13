@@ -89,11 +89,11 @@ local overlay `.claude/settings.local.json` for a personal-only override (step 5
 of the value written, its scope, and how to re-run this setup to reconfigure. Note in the summary that
 `library_dir` is the destination seam the knowledge plugin declares for where synthesized artifacts should
 land, and that it is meant to track any working-notes/artifacts convention the consuming project declares in
-its own `CLAUDE.md` or rules — setup keeps the two aligned. Be accurate about current reach so the user is not
-misled: `/knowledge:book-distill` ignores `library_dir` (it writes to the target skill you name at
-invocation), and the `/knowledge:youtube` pipeline does not yet honor a non-default `library_dir` (its work
-root falls back to the consuming project root), so when a non-default value is persisted, report it as
-recorded for when the pipelines consume it — not as currently relocating artifacts.
+its own `CLAUDE.md` or rules — setup keeps the two aligned. Be accurate about reach so the user is not
+misled: `library_dir` governs where `/knowledge:youtube` artifacts land — its watch, transcript, and queue
+output lands under the configured directory (the skill wires the resolved value in as the pipeline's work
+root before writing). `/knowledge:book-distill` is the exception: it ignores `library_dir` and writes to the
+target skill you name at invocation, so a non-default value does not relocate distilled book output.
 
 ## What this skill does NOT do
 
