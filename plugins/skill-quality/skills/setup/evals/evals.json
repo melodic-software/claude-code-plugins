@@ -5,24 +5,24 @@
       "id": 1,
       "name": "conventional-location-persists-nothing",
       "prompt": "Set up skill-quality for this repo. My skills are at .claude/skills like normal.",
-      "expected_output": "The skill detects that skills live at the conventional ${CLAUDE_PROJECT_DIR}/.claude/skills (which holds skill subdirectories), reports that the default already resolves there, and persists NOTHING — no config is needed. It then confirms by pointing at a check run.",
+      "expected_output": "When ${CLAUDE_PROJECT_DIR}/.claude/skills exists and holds skill subdirectories, the skill confirms the conventional default resolves there and persists NOTHING — no config is needed. If that directory is not actually present, it reports/searches and proposes a candidate rather than persisting the default blindly. Either way it does not write a skills_root option for a location that is (or would be) the conventional default.",
       "files": [],
       "expectations": [
-        "Output detects the conventional .claude/skills location and confirms it resolves by default",
-        "Output persists no configuration because the default already works",
-        "Output does not write a skills_root option or env override for a location that is already the default"
+        "When the conventional .claude/skills directory exists with skill subdirectories, output confirms it resolves by default and persists nothing",
+        "Output does not write a skills_root option or env override for a location that is already the conventional default",
+        "If the conventional directory is absent, output reports/searches and proposes a candidate rather than confirming or persisting the default blindly"
       ]
     },
     {
       "id": 2,
       "name": "non-default-location-confirm-then-persist",
       "prompt": "Our skills live under packages/agent/skills, not .claude/skills. Configure skill-quality to find them.",
-      "expected_output": "The skill proposes packages/agent/skills, confirms with the user in one decision, then persists the non-default path to the plugin's skills_root option (pluginConfigs[\"skill-quality@melodic-software\"].options.skills_root, path relative to project root) or the CHECK_SKILL_SKILLS_ROOT env override, and verifies with a check run.",
+      "expected_output": "The skill confirms the non-default location with the user in one decision, then persists the confirmed path to the plugin's skills_root option (pluginConfigs[\"skill-quality@melodic-software\"].options.skills_root, relative to project root) or the CHECK_SKILL_SKILLS_ROOT env override, and runs a check to verify. If packages/agent/skills does not actually exist / enumerates no skills, the verification reports the root as missing or unverified rather than treating the configuration as confirmed-good.",
       "files": [],
       "expectations": [
-        "Output proposes/confirms the non-default skills location with the user before persisting",
+        "Output confirms the non-default skills location with the user before persisting",
         "Output persists the confirmed non-default path to the plugin skills_root option (or the CHECK_SKILL_SKILLS_ROOT env override)",
-        "Output verifies the result by running the checker against the confirmed root"
+        "Output verifies by running the checker against the confirmed root, and if that root is absent / enumerates no skills it reports it as missing or unverified rather than claiming a verified configuration"
       ]
     },
     {
