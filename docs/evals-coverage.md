@@ -77,7 +77,7 @@ covered by concurrent sibling backfill (the issue is a no-op, close it); `PARTIA
 | `melodic-software/medley#1454` | event-storming: methodology, simulation; machine-health: machine-health, setup; skill-quality: skill-quality, setup (6) | **OPEN** — author vs current shipped behavior; owning retrofits update their eval on behavior change (simulation #1405, machine-health #1419, skill-quality #1418) |
 | `melodic-software/medley#1455` | review-toolkit: quality-gate, code-review-fanout (2) | **OPEN** — #1421 CLOSED → stable; the six reviewer agents are not skills and carry no `evals/` slot |
 | `melodic-software/medley#1458` | boris, thariq-skills (2) | **DONE** — both backfilled concurrently; reclassified from pure-reference for their `update`/`update --apply` routing + mutation-safety contract |
-| `melodic-software/medley#1462` | setup-action skills self-scan: bug-report/setup, claude-ops/setup, work-items/setup + future landings (3) | **OPEN** — self-scanning catch-all for setup skills that shipped without evals and aren't in a family batch/deferral |
+| `melodic-software/medley#1462` | setup-action skills self-scan: bug-report/setup, claude-ops/setup, work-items/setup, ai-briefing/setup + future landings (4) | **DONE** — all four backfilled; `ai-briefing/setup` caught by the scan as a post-filing landing (uncovered, no family-batch/retrofit owner — #1457 covers behavior fixes, not its eval — not deferred) |
 
 ## Deferred — author in the destination repo once separation lands
 
@@ -109,6 +109,8 @@ catch-all**: it scans `plugins/*/skills/setup/` for any setup skill lacking `eva
 backfills those not already owned by a plugin-family batch (`discovery/setup` #1448,
 `implementation/setup` #1449, `machine-health`/`skill-quality` setup #1454) or deferred (`knowledge`,
 `songwriting`). A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
+Its first pass covered `bug-report/setup`, `claude-ops/setup`, `work-items/setup`, and `ai-briefing/setup`
+(the last caught as a post-filing landing — a scaffold/dep-install setup with no other eval owner).
 
 ## Skip — pure-reference plugins (2)
 
