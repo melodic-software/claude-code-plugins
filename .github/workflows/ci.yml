@@ -4,14 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
-  merge_group:
-    types: [checks_requested]
 
 permissions:
   contents: read
 
+# The PR number scopes cancellation to exactly one PR (head_ref would collide
+# across same-named fork branches); push runs fall back to the unique run_id,
+# so default-branch runs are never cancelled.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 # Quality lanes run the ci-workflows composite actions / reusable workflows

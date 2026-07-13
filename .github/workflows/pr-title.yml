@@ -8,14 +8,15 @@ name: pr-title
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
-  merge_group:
-    types: [checks_requested]
 
 permissions:
   pull-requests: read # Allows the called validator to read the PR title.
 
+# The PR number scopes cancellation to exactly one PR — head_ref would collide
+# across same-named fork branches (this workflow only runs on pull_request
+# events; run_id is a safety fallback that never cancels).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:

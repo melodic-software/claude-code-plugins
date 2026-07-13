@@ -16,6 +16,7 @@ updates:
       - dependencies
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     commit-message:
       prefix: build
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
@@ -37,8 +38,17 @@ updates:
       - dependencies
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    # Batch minor + patch bumps into one reviewed PR; majors stay individual.
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The standards-distributed runner policy has its own package manifest and
   # lockfile. Keep this as an independent dependency root so policy parser
   # updates are reviewed and cannot drift behind the materialized component.
@@ -48,8 +58,16 @@ updates:
       - dependencies
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The miro plugin bundles a Node MCP server; its runtime + build dependencies
   # are pinned by plugins/miro/package-lock.json and rebuilt into the committed
   # bundle by CI, so bumps are reviewed here like any other locked manifest.
@@ -59,8 +77,16 @@ updates:
       - dependencies
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
   # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip
@@ -69,5 +95,6 @@ updates:
       - dependencies
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
     cooldown:
       default-days: 7
