@@ -29,13 +29,13 @@
     {
       "id": 3,
       "name": "absent-evals-is-not-a-failure",
-      "prompt": "validate-evals a skill that ships no evals/evals.json file",
-      "expected_output": "The skill reports that the skill ships no evals and treats this as NOT a failure — evals are warranted, not mandatory. It does not emit a schema-validation failure for the missing file.",
+      "prompt": "When validate-evals is run on a skill that exists but ships no evals/evals.json file, is that a validation failure, and what should it report?",
+      "expected_output": "It is NOT a failure. For an existing skill with no evals/evals.json, validate-evals reports that the skill ships no evals and treats it as not-a-failure (evals are warranted, not mandatory) rather than emitting a schema-validation error.",
       "files": [],
       "expectations": [
-        "Output reports the absence of an evals file as 'ships no evals', explicitly not a failure",
-        "Output does NOT report a schema validation failure or error for the missing file",
-        "Output reflects the warranted-not-mandatory policy for evals"
+        "Output states that an existing skill without an evals/evals.json file is NOT a validation failure",
+        "Output does NOT characterize the missing evals file as a schema validation failure or error",
+        "Output reflects the warranted-not-mandatory policy (validate-evals reports 'ships no evals' rather than failing)"
       ]
     },
     {
