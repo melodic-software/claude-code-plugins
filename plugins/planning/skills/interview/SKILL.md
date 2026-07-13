@@ -1,6 +1,6 @@
 ---
 name: interview
-description: "Lock a task contract before building: goal, constraints, acceptance criteria, and named assumptions written into a PLAN.md Brief — synthesizing directly when intent is clear, running depth-first Q&A when gaps remain, or interviewing relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous ('interview me', 'lock the brief', 'spec this task'); skip for typo/lint-only mechanical work."
+description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea — one question at a time, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs depth-first Q&A when gaps remain, or grills relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous, or on explicit request ('interview me', 'grill me', 'lock the brief', 'spec this task'); skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
@@ -24,7 +24,9 @@ The **pre-clarity** stage — upstream of exploration, research, and `/architect
 
 **Supportive, not adversarial.** `/devils-advocate` attacks an existing artifact after the fact. `/interview` walks alongside the user to extract a clear contract from the start.
 
-**Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same PLAN.md Brief section. The default action **auto-detects** which mode fits and routes accordingly.
+**Domain-routed.** The interview loop is universal — it grills any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/architect`; a general decision drives to a shared understanding and ends there. The domain is detected from context (repo, working directory, the problem itself), never asked — and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "grill me on this decision").
+
+**Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain — a PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly.
 
 **Cost framing**: every clarification round-trip skipped is time and tokens saved. Auto-detect removes redundant Q&A; explicit `lock` skips Q&A entirely when the user has already given the answer.
 
@@ -121,6 +123,8 @@ If a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **sta
 
 Survey output: one paragraph "Here is what I see in the repo." Then route per action.
 
+**Classify the domain** from what the survey shows — *engineering* (a code repo, a build or behavior-change task, a technical subject) or *general* (a decision or idea with no build surface). This is inferred, never asked; when genuinely ambiguous, lean engineering inside a code repo, else general — and honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
+
 ### Step 1.5 — Auto-detect (default action only)
 
 For `auto`: classify intent against `context/loop.md` "Step 1.5 — Auto-detect" criteria. Three outcomes:
@@ -156,13 +160,15 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/architect` fills it.
 
+**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — instead of the build-Brief template, to the same externalized location (consumer convention wins), or inline when the user wants no artifact. The `## Brief`/`## Plan` structure is the engineering shape; do not force it onto a general decision.
+
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to a sibling `history.md` before rewriting — never silently overwrite.
 
 Section schema: write the literal `## Brief` template — TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions — per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". Each **Deferred question** carries an **arbiter tag** (`/architect` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints) — load-bearing; loop.md covers when to use which.
 
 ### Step 5 — Hand off
 
-After writing the Brief into PLAN.md, recommend the next step per task shape:
+Route the handoff by what the session produced. **A general (non-engineering) session is terminal** — it produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief — recommend the next step per task shape:
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if installed — it reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
