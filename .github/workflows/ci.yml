@@ -27,7 +27,7 @@ jobs:
   # the complete workload; it cannot silently redirect to paid hosted Linux.
   select-hygiene:
     name: Select runner for hygiene
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -40,7 +40,7 @@ jobs:
 
   select-hook-utils-sync:
     name: Select runner for hook-utils-sync
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -53,7 +53,7 @@ jobs:
 
   select-plugin-gate:
     name: Select runner for plugin-gate
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -66,7 +66,7 @@ jobs:
 
   select-miro-plugin:
     name: Select runner for miro-plugin
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -209,11 +209,14 @@ jobs:
         run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
+    needs: select-hygiene
+    if: ${{ !cancelled() && needs.select-hygiene.result == 'success' }}
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-12
     with:
+      runner: ${{ needs.select-hygiene.outputs.runner || 'ubuntu-24.04' }}
       paths: .
 
   hook-utils-sync:
@@ -333,9 +336,9 @@ jobs:
 
   runner-policy:
     name: Runner policy
-    # The independent enforcement path stays hosted and audits the selector
-    # wiring rather than depending on the fleet it is responsible for policing.
-    runs-on: ubuntu-24.04
+    needs: select-hygiene
+    if: ${{ !cancelled() && needs.select-hygiene.result == 'success' }}
+    runs-on: ${{ needs.select-hygiene.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -366,8 +369,9 @@ jobs:
       - miro-plugin
       - runner-policy
       - zizmor
-    # The required gateway stays hosted so a fleet outage cannot prevent it
-    # from reporting required workload failures.
+    # The required gateway remains independent of selector/fleet health so a
+    # failed route materializes as a failing required check, never a skipped
+    # check that GitHub could treat as successful.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
