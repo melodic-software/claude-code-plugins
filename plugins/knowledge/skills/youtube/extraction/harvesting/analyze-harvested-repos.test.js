@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { filterGitHubUrls } from "./analyze-harvested-repos.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  analyzeHarvestedRepos,
+  filterGitHubUrls,
+  sanitizePathSegment,
+} from "./analyze-harvested-repos.js";
 
 describe("filterGitHubUrls", () => {
   it("should keep unique GitHub URLs only", () => {
@@ -13,5 +21,47 @@ describe("filterGitHubUrls", () => {
       "https://github.com/org/repo",
       "https://github.com/org/repo.git",
     ]);
+  });
+});
+
+describe("sanitizePathSegment", () => {
+  it("replaces Windows-reserved and path-breaking chars with underscores", () => {
+    expect(sanitizePathSegment('a:b*c?d"e<f>g|h')).toBe("a_b_c_d_e_f_g_h");
+  });
+
+  it("preserves word chars, dots, and hyphens", () => {
+    expect(sanitizePathSegment("Org-Name.v2")).toBe("Org-Name.v2");
+  });
+});
+
+describe("analyzeHarvestedRepos clone target", () => {
+  /** @type {string} */
+  let sliceDir;
+
+  beforeEach(() => {
+    sliceDir = fs.mkdtempSync(path.join(os.tmpdir(), "harvested-repos-test-"));
+    fs.mkdirSync(path.join(sliceDir, "source"), { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(sliceDir, { recursive: true, force: true });
+  });
+
+  it("clones the canonical repo URL built from parsed parts, not the harvested deep link", async () => {
+    fs.writeFileSync(
+      path.join(sliceDir, "source", "harvested-links.json"),
+      JSON.stringify([{ url: "https://github.com/melodic-software/medley/blob/main/README.md" }]),
+    );
+
+    /** @type {string[]} */
+    const clonedUrls = [];
+    await analyzeHarvestedRepos(sliceDir, {
+      clone: async (url) => {
+        clonedUrls.push(url);
+        return false; // skip structure detection; only the clone target matters here
+      },
+    });
+
+    expect(clonedUrls).toEqual(["https://github.com/melodic-software/medley"]);
   });
 });

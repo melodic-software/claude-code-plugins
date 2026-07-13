@@ -85,5 +85,9 @@ that line before editing, since it may be an illustrative example path rather th
   exits 2 (env error).
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on the other sixteen.
-- Trigger-keyword preservation compares against `HEAD`, so a brand-new skill (no committed version)
-  skips check 3 — that is expected, not a silent pass.
+- Trigger-keyword preservation compares the working tree against `HEAD` by default, so a brand-new skill
+  (no committed version) skips check 3 — that is expected, not a silent pass. For a post-commit audit
+  (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
+  ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
+- Trigger-drop protection tracks single-quoted `'phrase'` triggers. An unquoted `Use when:` list is not
+  tracked by check 3; check 12 warns so those phrases get quoted and covered.

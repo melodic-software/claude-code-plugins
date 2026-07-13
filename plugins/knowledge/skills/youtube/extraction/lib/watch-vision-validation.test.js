@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { forbiddenSynthesisFileNameReason } from "./synthesis-filename.js";
 import {
   validatePromotionDecisions,
+  validateQualityAudit,
   validateTriageBatchFiles,
   validateTriageSheet,
 } from "./watch-vision-validation.js";
@@ -85,6 +86,42 @@ describe("validatePromotionDecisions", () => {
           session: "opening",
         },
       ],
+    });
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("validateQualityAudit note enforcement", () => {
+  const reviewedAt = "2026-01-01T00:00:00.000Z";
+
+  it("rejects a passing row with the note omitted", () => {
+    const errors = validateQualityAudit({
+      reviewedAt,
+      files: [{ name: "demo.png", pass: true }],
+    });
+    expect(errors).toContain("files[0].note must be substantive (min 20 chars, not stub token)");
+  });
+
+  it("rejects a passing row with a stub note", () => {
+    const errors = validateQualityAudit({
+      reviewedAt,
+      files: [{ name: "demo.png", pass: true, note: "ok" }],
+    });
+    expect(errors).toContain("files[0].note must be substantive (min 20 chars, not stub token)");
+  });
+
+  it("accepts a passing row with a substantive note", () => {
+    const errors = validateQualityAudit({
+      reviewedAt,
+      files: [{ name: "demo.png", pass: true, note: "Sharp architecture diagram with legible labels" }],
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("does not require a note on a failing row", () => {
+    const errors = validateQualityAudit({
+      reviewedAt,
+      files: [{ name: "demo.png", pass: false }],
     });
     expect(errors).toEqual([]);
   });

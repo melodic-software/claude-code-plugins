@@ -134,7 +134,7 @@ export class RunState {
         title: item.title,
         provider: item.bucket,
         tier: item.tier,
-        source_type: "twitter",
+        source_type: item.source_type ?? "twitter",
         first_seen: new Date().toISOString().substring(0, 10),
         confidence: "high",
         run_id: this.runId,

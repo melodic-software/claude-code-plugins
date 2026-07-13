@@ -104,6 +104,7 @@ export async function runWatchCli(argv) {
     });
     state.tempSession = tempSession;
     state.status = "acquiring";
+    state.skipResearch = skipResearch;
     state = markPhaseComplete(state, "acquire", {
       videoDownloaded: Boolean(artifacts.videoPath),
       captionRung: caption.rung,
@@ -129,6 +130,12 @@ export async function runWatchCli(argv) {
       endSec: cue.endSec,
       text: cue.text,
     }));
+
+    // Persist state + tempSession before the long extraction phase so an
+    // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
+    // detectRecoverableBootstrap can discover (it requires the file to exist).
+    state.status = "watching";
+    await writeWatchState(sliceDir, state);
 
     const watching = await orchestrateWatching({
       videoPath: artifacts.videoPath,
@@ -167,6 +174,12 @@ export async function runWatchCli(argv) {
     const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
     await fs.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
     state = markPhaseComplete(state, "harvest", { linkCount: harvestedLinks.length });
+
+    // Record the skip in the phase map so resume (which derives nextPhase from
+    // watch.json alone) advances past research instead of re-routing into it.
+    if (skipResearch) {
+      state = markPhaseComplete(state, "research", { skipped: true });
+    }
 
     await writeWatchState(sliceDir, state);
     const continuationPrompt = await writeContinuationPrompt(sliceDir, state);

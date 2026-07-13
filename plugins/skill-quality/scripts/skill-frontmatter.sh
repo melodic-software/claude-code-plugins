@@ -9,20 +9,49 @@ fi
 SKILL_FRONTMATTER_LIB_LOADED=1
 
 # Extract YAML frontmatter (between first two --- fences) from stdin.
+# The opening fence MUST be line 1 — content before it is not frontmatter, so a
+# stray `---` further down cannot be mistaken for the block's start.
 skill_frontmatter::extract() {
   awk '
+    NR == 1 && $0 !~ /^---[[:space:]]*$/ { exit }
     /^---[[:space:]]*$/ { fence++; if (fence == 1) next; if (fence >= 2) exit }
     fence == 1 { print }
   '
 }
 
-# Extract a single-line frontmatter scalar by key (quotes stripped) from stdin.
+# Extract a frontmatter scalar by key (quotes stripped) from stdin. A block
+# scalar header (`key: |` / `key: >`, with an optional indent and/or chomp
+# indicator in either order and an optional trailing `# comment`) is unfolded to
+# its text so downstream length / trigger / phrasing checks see the content
+# rather than the `|` / `>` marker: literal (`|`) joins lines with newlines,
+# folded (`>`) with spaces.
 skill_frontmatter::field() {
   local key="$1"
   awk -v k="$key" '
     $0 ~ "^" k ":[[:space:]]*" {
-      sub("^" k ":[[:space:]]*", "")
-      print
+      val = $0
+      sub("^" k ":[[:space:]]*", "", val)
+      if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*(#.*)?$/) {
+        # Text capture for the checks (not a full YAML parser): a frontmatter
+        # key sits at column 0, so every indented line is block content and the
+        # first column-0 line is the next key. Collecting on that boundary
+        # ignores the indent indicator entirely, so an explicit indent smaller
+        # than the first content line cannot drop later lines. Leading indent is
+        # stripped per line (irrelevant to length / trigger / phrasing checks).
+        fold = (val ~ /^>/)
+        out = ""; started = 0
+        while ((getline line) > 0) {
+          if (line ~ /^[[:space:]]*$/) { if (started) out = out (fold ? " " : "\n"); continue }
+          if (line !~ /^[[:space:]]/) break
+          sub(/^[[:space:]]+/, "", line)
+          if (started) out = out (fold ? " " : "\n")
+          out = out line
+          started = 1
+        }
+        print out
+        exit
+      }
+      print val
       exit
     }
   '

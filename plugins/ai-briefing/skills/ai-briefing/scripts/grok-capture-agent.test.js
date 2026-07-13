@@ -8,7 +8,8 @@ import { captureProfileViaGrok } from "./lib/grok-capture-agent.js";
 import { createTestReporter } from "./lib/terminal.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { ok, printResults } = createTestReporter();
+const reporter = createTestReporter();
+const { ok } = reporter;
 
 async function testDryRun() {
   const r = await captureProfileViaGrok({
@@ -16,8 +17,8 @@ async function testDryRun() {
     cutoffIso: "2026-06-01T00:00:00.000Z",
     dryRun: true,
   });
-  ok(r.posts.n === 0, "dry-run returns empty posts");
-  ok(r.slug === "xai", "slugifies handle");
+  ok("dry-run returns empty posts", r.posts.n === 0);
+  ok("slugifies handle", r.slug === "xai");
 }
 
 async function testRunnerSubcommandDryRun() {
@@ -35,10 +36,10 @@ async function testRunnerSubcommandDryRun() {
     ],
     { encoding: "utf-8", cwd: __dirname },
   );
-  ok(r.status === 0, `init exit 0 (got ${r.status})`);
+  ok(`init exit 0 (got ${r.status})`, r.status === 0);
   const json = JSON.parse(r.stdout.trim().split("\n").pop());
-  ok(typeof json.config.grok_preload === "boolean", "grok_preload boolean in config");
-  ok(json.config.grok_preload_requested === true, "grok_preload_requested tracked");
+  ok("grok_preload boolean in config", typeof json.config.grok_preload === "boolean");
+  ok("grok_preload_requested tracked", json.config.grok_preload_requested === true);
 }
 
 async function testGrokCheck() {
@@ -47,14 +48,14 @@ async function testGrokCheck() {
     encoding: "utf-8",
     cwd: __dirname,
   });
-  ok(r.status === 0, "grok-check exit 0");
+  ok("grok-check exit 0", r.status === 0);
   const json = JSON.parse(r.stdout.trim());
-  ok(typeof json.ready === "boolean", "grok-check has ready");
-  ok(json.required_for_briefing === false, "grok not required for briefing");
+  ok("grok-check has ready", typeof json.ready === "boolean");
+  ok("grok not required for briefing", json.required_for_briefing === false);
 }
 
 await testDryRun();
 await testRunnerSubcommandDryRun();
 await testGrokCheck();
-const failCount = printResults("grok-capture-agent.test.js");
-process.exit(failCount > 0 ? 1 : 0);
+reporter.printResults();
+process.exit(reporter.fail > 0 ? 1 : 0);

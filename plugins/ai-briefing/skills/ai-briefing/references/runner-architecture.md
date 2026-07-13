@@ -77,11 +77,9 @@ Probe Grok Build install/auth on the host. Optional tooling — briefing never r
 
 **stdout:** `{ready, reason, bin, version, required_for_briefing: false, ...}`
 
-#### `grok-capture --index=N [--resume=<run-id>]` — NOT YET WIRED
+#### `grok-capture --index=N [--resume=<run-id>]`
 
-**Deferred:** this subcommand is documented and its library (`grok-capture-agent.js` / `grok-capture-spawn.js`) exists, but it is **not registered in the runner's `buildSubcommands()` dispatch in this release**, so invoking it returns "Unknown subcommand". A follow-up wires it. Until then, run without `--grok-preload`; Chrome Wave 1 is the full path. Intended behavior once wired:
-
-Wave 0 — host headless `grok -p` X preload for one profile. Requires `init --grok-preload` with successful probe (`config.grok_preload: true`). When disabled or capture fails, records `S0_grok_capture: skipped` (non-blocking). Default spawn timeout: 300s (`DEFAULT_GROK_CAPTURE_TIMEOUT_MS` in `grok-capture-agent.js`). Output: `context/runs/<run-id>/grok-captures/<slug>.json` + `profile.grok_captures`. S3 merges with Chrome captures (Chrome URLs win on dedup).
+Wave 0 — host headless `grok -p` X preload for one profile. Requires `init --grok-preload` with successful probe (`config.grok_preload: true`); otherwise records `S0_grok_capture: skipped` and returns `{skipped: true}` (non-blocking). A capture error is also non-blocking — it records `skipped` with the error reason and exits 0 so Chrome Wave 1 proceeds. Default spawn timeout: 300s (`DEFAULT_GROK_CAPTURE_TIMEOUT_MS` in `grok-capture-agent.js`). Output: `context/runs/<run-id>/grok-captures/<slug>.json` + `profile.grok_captures`. S3 merges with Chrome captures (Chrome URLs win on dedup).
 
 **stdout:** `{handle, index, post_count, duration_ms, path?, skipped?, reason?, run_id}`
 
