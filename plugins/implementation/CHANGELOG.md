@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **Rich-form evals for five skills.** `evals/evals.json` ships for `implement`, `implement-dispatch`,
+  `build`, `lint`, and `setup` — the skills' judgment-bearing contracts (mode/orchestration routing,
+  divergence and scope-fence guardrails, skip-not-FAIL and consumer-config-precedence behavior, and the
+  config-writer's interview/write-scope discipline) are now covered by objectively-verifiable cases,
+  modeled on the `bug-report` rich-form exemplar and validated against
+  `plugins/skill-quality/reference/evals.schema.json`. Evals are a shipped component, so this minor bump
+  is their delivery vehicle; no behavioral change to the skills themselves.
+
 ## [0.2.0]
 
 ### Changed

@@ -1,0 +1,79 @@
+{
+  "skill_name": "implement",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bugfix-mode-incremental-cadence",
+      "prompt": "There's a bug in the login flow — expired tokens are being accepted. Fix it.",
+      "expected_output": "Detects Bugfix execution mode from the 'fix' signal and consults the bugfix context guidance, runs the Step 1 prerequisite check (plan/branch/dirty-tree) before the first edit, then executes with the incremental cadence: one logical block, build check, test, commit at green — not the whole change before any validation.",
+      "files": [],
+      "expectations": [
+        "Selects Bugfix execution mode from the 'fix' signal rather than asking when the mode is unambiguous",
+        "Runs the Step 1 prerequisite check (approved plan, correct branch, clean-enough tree) before writing code",
+        "Executes incrementally — validates (build/test) after a logical block instead of implementing the entire change before any validation",
+        "Commits at a green checkpoint rather than leaving the fix uncommitted or committing a red state"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "branch-check-stops-on-default-branch",
+      "prompt": "/implementation:implement feature — start building the new export endpoint. (Assume the working session is currently on the `main` branch in a PR-based repo.)",
+      "expected_output": "The Step 1 prerequisite check detects the session is on the default branch in a feature-branch workflow and stops to create a feature branch (git checkout -b, or /source-control:worktree when installed) BEFORE the first edit — it does not begin editing on main.",
+      "files": [],
+      "expectations": [
+        "Detects that the current branch is the default branch (main/master) in a feature-branch workflow",
+        "Creates or directs creation of a feature branch before the first code edit, rather than editing on the default branch",
+        "Does NOT proceed to write code on the default branch and leave branch creation for later"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "major-divergence-routes-back-to-planning",
+      "prompt": "/implementation:implement — I approved a plan that assumed the vendor SDK exposes a streaming API, but partway through it's clear the SDK only supports batch calls, so the whole approach doesn't fit. Keep going and make it work.",
+      "expected_output": "Recognizes this as major divergence (a fundamental plan assumption was wrong), STOPS writing code rather than forcing workarounds, runs external research for alternative approaches first, then routes back to the planning skill (/planning:architect review when installed) so the user can approve the new direction — it does not silently push through with hacks.",
+      "files": [],
+      "expectations": [
+        "Classifies the wrong SDK-capability assumption as major divergence, not a minor inline fixup",
+        "STOPS writing code instead of pushing through with workarounds/hacks to force the original plan to fit",
+        "Runs external research for alternatives before re-planning, then routes back to the planning skill for the user to approve the new direction",
+        "Does NOT silently expand scope or improvise a new design without surfacing it to the user"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-declares-impossible-without-alternatives",
+      "prompt": "/implementation:implement — I tried wiring the webhook two ways and both failed, so this integration is impossible. Confirm that and stop.",
+      "expected_output": "Does not accept 'impossible' after only two attempts. It presents the two failures as a progress update, not a conclusion, and researches one level deeper (GitHub issues for workaround flags, bypass options, alternative APIs) before escalating — it never declares the task impossible without exhausting alternatives.",
+      "files": [],
+      "expectations": [
+        "Does NOT declare the integration impossible on the basis of two failed attempts",
+        "Frames the two failures as a progress update and researches deeper (workaround flags, bypass options, alternative APIs) before concluding",
+        "Only escalates 'cannot be done' after alternatives are exhausted, not as the default response to early failure"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "over-correction-guard-on-pushback",
+      "prompt": "/implementation:implement — at this phase boundary you proposed three follow-up actions (two are plan work-items, one you surfaced from an anomaly mid-implementation). I don't like where this is going — drop it.",
+      "expected_output": "Applies the over-correction guard: with pushback on multiple (>=2) proposed actions it does NOT silently drop all of them. It asks per-category with AskUserQuestion (drop all N / only the invented item / specific items), and it keeps invented follow-ups separated from plan-anticipated work rather than batching them.",
+      "files": [],
+      "expectations": [
+        "Does NOT silently drop all proposed actions in response to the ambiguous 'drop it' pushback",
+        "Asks a per-category clarifying question (drop all / only invented / specific items) via AskUserQuestion before dropping anything",
+        "Keeps the invented/anomaly-surfaced action classified separately from the plan work-items rather than batching them into one undifferentiated proposal"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "autonomous-run-chains-to-implement-dispatch",
+      "prompt": "/implementation:implement — execute the approved plan. This is an autonomous goal-loop run with no human in the turn cycle and the plan routes phases to worker subagents.",
+      "expected_output": "Detects orchestration mode (autonomous run / worker-routed phases) and, after the Step 1 prerequisite check passes, chains to /implement-dispatch via the Skill tool for those phases instead of running the inline Step 2 cadence — but Step 1's branch/plan/dirty-tree preflight still runs.",
+      "files": [],
+      "expectations": [
+        "Detects orchestration mode from the autonomous / worker-routed signal rather than defaulting to inline execution",
+        "Chains to /implement-dispatch (via the Skill tool) for the worker-routed phases instead of editing inline",
+        "Still runs the Step 1 prerequisite preflight (branch/plan/dirty-tree) even in the orchestrated path — dispatch does not skip it"
+      ]
+    }
+  ]
+}

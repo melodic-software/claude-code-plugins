@@ -1,0 +1,80 @@
+{
+  "skill_name": "implement-dispatch",
+  "evals": [
+    {
+      "id": 1,
+      "name": "autonomous-dispatches-even-when-plan-is-all-main-window",
+      "prompt": "/implementation:implement-dispatch — execute the approved plan. This is an autonomous goal-loop run with no human in the turn cycle; the plan's routing table lists every phase as main-window.",
+      "expected_output": "Detects autonomous orchestration mode and dispatches scope-fenced workers per phase anyway — orchestrated cadence is the default in autonomous mode even when the plan routes all-main-window, so it synthesizes per-phase worker rows rather than doing volume edits from the orchestrator, capping concurrent dispatch at 3-5 workers.",
+      "files": [],
+      "expectations": [
+        "Detects autonomous mode from the goal-loop / no-human-in-cycle signal",
+        "Dispatches workers per phase even though the routing table is all main-window — synthesizes worker rows rather than editing inline",
+        "Does NOT perform the volume edits itself from the orchestrator window in autonomous mode",
+        "Caps concurrent dispatch at roughly 3-5 workers per wave"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "interactive-all-main-window-hands-back-to-implement",
+      "prompt": "/implementation:implement-dispatch — this is an interactive session with me reviewing each turn, and the approved plan has no routing table (all phases are main-window).",
+      "expected_output": "In interactive mode with no worker rows in the routing table, hands execution back to /implement's classic inline cadence instead of dispatching workers — dispatch is only for worker-routed phases here.",
+      "files": [],
+      "expectations": [
+        "Detects interactive mode (human reviewing each turn) rather than autonomous",
+        "Hands back to /implement classic inline cadence because the routing table is absent / all main-window",
+        "Does NOT force worker dispatch onto an interactive all-main-window plan"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verifies-worker-return-against-direct-evidence",
+      "prompt": "/implementation:implement-dispatch phase-2 — the worker for phase 2 reported back: 'Done, all files updated and the build is green.' Accept the phase and move on.",
+      "expected_output": "Treats the worker return as synthesis, not ground truth: promotes its claims to direct evidence (diff read, grep, file Read) and runs /build itself main-side before accepting the edits — it never accepts the worker's green claim as the build signal.",
+      "files": [],
+      "expectations": [
+        "Does NOT accept the worker's 'build is green' claim as the authoritative build signal",
+        "Verifies the worker's claims against direct evidence (reads the diff / greps / reads files) before building on them",
+        "Runs /build itself from the main window rather than trusting the worker's report"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "brief-carries-scope-fence-and-divergence-clause",
+      "prompt": "/implementation:implement-dispatch phase-1 — compose the brief and dispatch the worker for phase 1.",
+      "expected_output": "The composed brief carries an explicit scope fence (enumerated ALLOWED and FORBIDDEN files/actions), the verbatim divergence-escalation clause instructing the worker to STOP and report if an assumption proves wrong or it must touch anything FORBIDDEN, the touched project invariants, and the phase acceptance criteria — before dispatching.",
+      "files": [],
+      "expectations": [
+        "The brief enumerates an explicit scope fence: ALLOWED vs FORBIDDEN files/actions",
+        "The brief includes the verbatim divergence-escalation clause (STOP and report on a wrong assumption or a FORBIDDEN touch — do not improvise)",
+        "The brief includes the phase's acceptance criteria and the project invariants the task touches",
+        "The scope fence and clause are present before dispatch, not added after the worker returns"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "non-interactive-moderate-divergence-takes-conservative-option",
+      "prompt": "/implementation:implement-dispatch — autonomous run, no human to escalate to. A worker hit a moderate divergence: the plan named a config key that turned out slightly different, and it's asking how to proceed.",
+      "expected_output": "In a non-interactive run, moderate divergence does not deadlock the run: it picks the conservative option (truest to the plan's intent, smallest blast radius), logs it to a DEVIATIONS.md beside the plan artifact, and keeps going. Major divergence would still STOP even autonomously.",
+      "files": [],
+      "expectations": [
+        "Does NOT deadlock the autonomous run waiting for a human on a moderate divergence",
+        "Picks the conservative option (closest to plan intent, smallest blast radius) for the moderate divergence",
+        "Logs the deviation to a DEVIATIONS.md beside the plan artifact (what was planned, what was done, why, blast radius)",
+        "Reserves a hard STOP for major divergence (a fundamental assumption wrong), not this moderate one"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "autonomous-fresh-context-verifier-before-done",
+      "prompt": "/implementation:implement-dispatch — autonomous run. Phase 3's workers have returned and their acceptance criteria look met; mark the phase DONE.",
+      "expected_output": "In autonomous mode, before marking the phase [DONE] it dispatches a fresh-context verifier subagent that checks the phase's acceptance criteria against the actual diff — a separate agent, never the producing context auditing itself — and surfaces that result in the response before ending the turn. It still runs the full Step 4 phase-boundary ritual.",
+      "files": [],
+      "expectations": [
+        "Dispatches a separate fresh-context verifier subagent before marking the phase DONE (not the producing context self-auditing)",
+        "The verifier checks acceptance criteria against the actual diff, and its result is surfaced in the response before the turn ends",
+        "Runs the full /implement Step 4 phase-boundary ritual (plan marks, handoff, status, commit, resume prompt) regardless of resident-vs-clear"
+      ]
+    }
+  ]
+}
