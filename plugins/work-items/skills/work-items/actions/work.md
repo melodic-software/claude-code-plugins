@@ -13,7 +13,7 @@ Auto-select one work item and execute it, following the project's development wo
 Before selecting, clear stale claims left by crashed or abandoned sessions (an idempotent entry step). Enumerate currently-assigned items (adapter: "List items", assigned filter — the rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run the seam `reclaim` verb on each id — idempotent; outcome + activity-check semantics per `tools/work-item-tracker/CONTRACT.md` "Lease protocol".
 
 ```bash
-tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"
+"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" reclaim "<id>"
 ```
 
 ## Selection Priority
@@ -47,7 +47,7 @@ For each tier, emit the corresponding query:
 - **Frontier tiers (2, 3):** the seam derives the frontier (open ∧ `blocked_by_count == 0` ∧ unassigned); filter its output by the tier's category/recurring criteria core-side:
 
   ```bash
-  tools/work-item-tracker/work-item-tracker.sh list-frontier --autonomous
+  "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" list-frontier --autonomous
   ```
 
   `--autonomous` additionally excludes `needs-human` items. Tier 2 keeps only `category:guardrails` non-recurring; tier 3 keeps the rest. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
@@ -88,7 +88,7 @@ On user confirmation ("yes"):
 1. **Claim via the seam** — the atomic, race-safe acquisition (assign `@me` → lease → back off on a foreign earlier lease):
 
    ```bash
-   tools/work-item-tracker/work-item-tracker.sh claim "<id>"
+   "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" claim "<id>"
    ```
 
    `<id>` MUST be fully-qualified (`claim` rejects a bare number): frontier candidates (tiers 2/3) already carry it from `list-frontier`; a recurring candidate matched to an open item by `number` (Step 2) is first qualified via adapter "Resolve item ID". Exit `0` → claim held. Exit `7` → another session won: advance to the next candidate (do NOT retry the same item). Claim identity is the authenticated session user, never the bot.

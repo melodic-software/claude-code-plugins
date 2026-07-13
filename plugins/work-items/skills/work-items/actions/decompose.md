@@ -97,7 +97,7 @@ META_LABEL=$([ -n "$AFK" ] && echo "agent-ready" || echo "needs-human")
 # text can contain backticks or $() the shell would interpret. "$(cat "$BODY_FILE")" passes it as one
 # literal argument, never re-parsed.
 BODY_FILE=$(mktemp)
-tools/work-item-tracker/work-item-tracker.sh create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
+"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
   --labels "type:<t>,area:<a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
 rm -f "$BODY_FILE"

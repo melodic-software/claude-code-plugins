@@ -35,14 +35,26 @@ Create a new work item with labels from the taxonomy.
 
 1. **Duplicate check** (skip if `--force`) — the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
-1. **Build labels list** `{labels}` (comma-separated for the seam) from the flags. Start from the group defaults `type:chore,priority:p3-low,category:general` and replace each group's default with any supplied `--type`/`--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. A default that the consuming repo doesn't define is omitted rather than passed.
+1. **Build labels list** `{labels}` (comma-separated for the seam) from the flags. Start from the group defaults `type:chore,priority:p3-low,category:general` and replace each group's default with any supplied `--type`/`--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the `agent-ready` meta label so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`reference/agent-brief.md`](../reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
 ```markdown
-## Description
+## Context
 
-{description text}
+{what observation surfaced this item; the cost of leaving it — from the description and --context}
+
+## Proposed work
+
+- {concrete next action derived from the description}
+
+## Acceptance criteria
+
+- [ ] {one verifiable assertion per bullet}
+
+## References
+
+- {cross-references to rules, files, prior PRs, or external docs — or "none"}
 
 ## Metadata
 
@@ -51,8 +63,6 @@ Create a new work item with labels from the taxonomy.
 | Category | {category} |
 | Area | {area or "unspecified"} |
 | Ecosystem | {ecosystem or "unspecified"} |
-
-{if --context: ## Context\n\n{context summary}}
 
 {if --recurring: ## Recurring\n\nCadence: {cadence}\nTriggers: {triggers or "none configured"}}
 ```
@@ -63,7 +73,7 @@ Create a new work item with labels from the taxonomy.
 # Write the composed body to $BODY_FILE with the Write tool (not shell interpolation).
 # "$(cat "$BODY_FILE")" passes the file content as one literal argument — its contents are never re-parsed.
 BODY_FILE=$(mktemp)
-tools/work-item-tracker/work-item-tracker.sh create-item \
+"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item \
   --title "[Maintenance] {title}" \
   --body "$(cat "$BODY_FILE")" \
   --labels "{labels}"
@@ -72,7 +82,7 @@ rm -f "$BODY_FILE"
 
 For non-recurring items, omit the `[Maintenance]` prefix. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
-1. **If `--recurring`:** Also add the item to `.github/recurring-schedule.json`:
+1. **If `--recurring`:** Also add the item to the consuming repo's `.github/recurring-schedule.json`. When the file does not exist yet, create it with an `{"items": []}` skeleton before appending (ask first if the repo has no recurring setup at all — without the schedule, `due`/`recheck` will never see the item):
 
 ```json
 {

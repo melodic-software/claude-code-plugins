@@ -29,7 +29,7 @@ fi
 
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
 
-1. **Cross-reference with open items.** For each due recurring item, check if one already exists (adapter: "List items", `--label recurring`, bare read). Match by title prefix `[Maintenance]` (the format used by the recurring-issues automation).
+1. **Cross-reference with open items.** For each due recurring item, check if one already exists (adapter: "List items", `--label recurring`, bare read). Match on the FULL expected title `[Maintenance] {schedule item title}` — never the bare `[Maintenance]` prefix alone, or with more than one open maintenance item any one would satisfy every due row (wrong item reported, orphans missed).
 
 1. **Check for orphaned entries.** Only **due** entries can be orphaned — the recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 

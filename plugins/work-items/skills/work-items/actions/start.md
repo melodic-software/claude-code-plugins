@@ -15,8 +15,9 @@ Claim a work item through the seam (assignee + lease record).
 1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable — `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 
    ```bash
-   tools/work-item-tracker/work-item-tracker.sh get-item "<id>"
-   tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"
+   TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   "$TRACKER" get-item "<id>"
+   "$TRACKER" reclaim "<id>"
    ```
 
    If the item is still assigned to another user after reclaim, its lease is live — warn: "Item `<id>` held by {assignee} (live lease). Proceed anyway? (yes / pick different)". Without the reclaim, `claim` would back off (exit 7) on the stale assignee before evaluating lease expiry.
@@ -24,7 +25,7 @@ Claim a work item through the seam (assignee + lease record).
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash
-   tools/work-item-tracker/work-item-tracker.sh claim "<id>"
+   "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" claim "<id>"
    ```
 
    - Exit `0` — claim held; the emitted object carries `holder`, `lease_comment_id`, `acquired_at`, `ttl_hours`. Record `lease_comment_id` if you may renew later (`tools/work-item-tracker/work-item-tracker.sh renew-lease "<id>" --lease-comment-id <n>`).

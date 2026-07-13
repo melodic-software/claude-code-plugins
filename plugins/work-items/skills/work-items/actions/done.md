@@ -42,7 +42,7 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-i
 {if --pr: Fixed in #{pr_number}}
 ```
 
-1. **Close the item** (adapter: "Close item" — WRITE via the adapter's identity policy), passing the closing comment and `--reason completed` (or `not planned` for `--not-planned`).
+1. **Close the item — unless an unmerged `--pr` will auto-close it.** When `--pr` names an UNMERGED PR, do NOT close manually: run the keyword step below first so `Closes #<N>` is on the PR body, then post the completion comment as a plain comment (adapter: "Comment on item") and report "will auto-close when #{pr} merges". Closing now would mark the item done before the work has landed — a failed or abandoned PR would leave it wrongly closed. Close directly (adapter: "Close item" — WRITE via the adapter's identity policy), passing the closing comment and `--reason completed` (or `not planned` for `--not-planned`), ONLY when there is no `--pr` or the named PR has already merged.
 
    The seam claim is a lease (assignee + lease comment), not a label — closing removes the item from the frontier, so no `status:*` label cleanup is part of this flow (the retired `status:claimed` label is handled by the label-reconciliation migration, not here).
 
