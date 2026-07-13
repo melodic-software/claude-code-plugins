@@ -57,7 +57,7 @@
       "expected_output": "The dirty-tree gate detects unrelated uncommitted changes (outside save-point files under the handoff location) and does NOT launch the background agent — those edits would not carry into the isolated worktree. It reports why and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run.",
       "files": [],
       "expectations": [
-        "The skill runs the dirty-tree gate (git status --porcelain) and ignores only save-point files under the handoff location, not the unrelated src/other-feature.ts edits",
+        "The skill runs the dirty-tree gate with git status --porcelain -uall (the -uall is required — default porcelain collapses untracked directories and can hide unrelated dirt behind the exempt handoff directory) and ignores only save-point files under the handoff location, not the unrelated src/other-feature.ts edits",
         "It does NOT launch the background agent because unrelated uncommitted changes are present (and it is not already inside a linked worktree)",
         "It reports the reason and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /handoff --bg"
       ]
