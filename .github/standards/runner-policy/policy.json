@@ -92,6 +92,13 @@
       "allowedInputs": ["runner"],
       "allowedSecrets": {}
     },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@51012e2c7b8bf74bc26e08c6446b488254a8770f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
+    },
     "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["dry-run", "targets"],
