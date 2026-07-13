@@ -87,10 +87,10 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
 An updated `library_dir` in the consumer's settings — the project `.claude/settings.json` by default, or the
 local overlay `.claude/settings.local.json` for a personal-only override (step 5) — plus a one-line summary
 of the value written, its scope, and how to re-run this setup to reconfigure. Note in the summary that
-`library_dir` governs where the plugin's ingestion pipelines land synthesized artifacts — `/knowledge:book-distill`
-is unaffected, since it always writes to the target skill you name at invocation — and that `library_dir` is
-meant to track any working-notes/artifacts convention the consuming project declares in its own `CLAUDE.md` or
-rules (setup keeps the two aligned; the pipelines themselves resolve `library_dir` directly at write time).
+`library_dir` is the persisted seam for where the plugin's ingestion pipelines are configured to land
+synthesized artifacts, and that it is meant to track any working-notes/artifacts convention the consuming
+project declares in its own `CLAUDE.md` or rules — setup keeps the two aligned. `/knowledge:book-distill` is
+unaffected either way, since it always writes to the target skill you name at invocation.
 
 ## What this skill does NOT do
 

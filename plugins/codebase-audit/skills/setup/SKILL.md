@@ -17,9 +17,11 @@ Idempotent: re-running reads the existing config and offers updates rather than 
 1. **Read the effective config first, across all layers.** The audit config resolves as an additive merge
    of the documented layers — user-global (`~/.claude/codebase-audit.md`) → team (`.claude/codebase-audit.md`)
    → local overlay (`.claude/codebase-audit.local.md`) — where a later layer's globs union with (not replace)
-   the earlier layer's and example-claims concatenate (step 6). Load every layer you can access and present a
-   short summary of the *effective merged* result (dimensions present, glob counts, example-claim counts),
-   reporting which layer contributes what. When a local or user-global layer adds to the team file, **say so
+   the earlier layer's and example-claims concatenate, **except** that a later layer declaring a dimension with
+   empty source lists is an explicit opt-out that *removes* that inherited dimension (step 6). Load every layer
+   you can access and present a short summary of the *effective merged* result (dimensions present, glob counts,
+   example-claim counts) — honoring those opt-outs, so a dimension a higher layer deliberately zeroed out is
+   reported as removed, not as still present — and report which layer contributes what. When a local or user-global layer adds to the team file, **say so
    explicitly** — step 5 writes the *team* file, so a team-scope edit alone will not account for what a local
    or user-global overlay contributes to what the audit actually runs on that machine. When a higher layer
    cannot be read (a user-global base is often outside the repo and OS-specific), **warn that it was not
