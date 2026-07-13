@@ -15,8 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@melodic/repo-analysis": "file:./vendor/repo-analysis",
-    "@melodic/video-digestion": "file:./vendor/video-digestion"
+    "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
+    "@melodic/video-digestion": "file:../../../vendor/video-digestion"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

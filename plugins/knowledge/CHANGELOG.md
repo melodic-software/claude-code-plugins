@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.1
+
+### Changed
+
+- **Vendored shared libraries deduplicated to one plugin-wide copy.** `@melodic/repo-analysis`
+  and `@melodic/video-digestion` were vendored separately under both
+  `skills/youtube/extraction/vendor/` and `skills/course-digest/extraction/vendor/`. They now
+  live once at the plugin root (`vendor/`); each skill's `extraction/package.json` links it via
+  `file:../../../vendor/*` and each `setup-deps.mjs` fingerprints the shared tree. Runtime install
+  into `${CLAUDE_PLUGIN_DATA}` is unchanged. Internal restructure — no consumer-facing behavior
+  change; the version bump delivers the moved source (and the new install fingerprint) to consumers.
+
 ## 0.5.0
 
 ### Added

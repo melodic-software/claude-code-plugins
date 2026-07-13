@@ -18,8 +18,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@melodic/repo-analysis": "file:./vendor/repo-analysis",
-    "@melodic/video-digestion": "file:./vendor/video-digestion",
+    "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
+    "@melodic/video-digestion": "file:../../../vendor/video-digestion",
     "playwright": "^1.52.0"
   },
   "devDependencies": {

@@ -707,6 +707,38 @@ The lib's unit tests live beside the source as one consolidated suite (`lib/hook
 run by the same CI lane) rather than as per-plugin copies — byte-identity of the copies means
 testing the source covers them. Plugins keep only their own black-box hook contract tests.
 
+### Vendored Node packages — the `file:` + `--install-links` convention
+
+Shared **Node** source (not a shell lib) is vendored as a plain package tree and consumed through
+npm's `file:` link, because a cache-isolated plugin cannot reference a package outside its own
+directory:
+
+- The vendored package is a self-contained runtime-source copy (its own test suite, build config,
+  and `node_modules` omitted). A consumer `package.json` depends on it with `"@scope/name":
+  "file:<relative-path>"`.
+- The skill's `setup-deps.mjs` installs it into `${CLAUDE_PLUGIN_DATA}` with
+  `npm install --omit=dev --install-links <package-dir>` — `--install-links` packs the `file:`
+  package as a real install (copied source) rather than a symlink back into the plugin cache, so it
+  survives cache isolation. Install is idempotent: a stored fingerprint hashes `package.json` **and
+  the entire vendored tree** (the packages install from source, not by version, so a source change
+  with no manifest bump must still reinstall).
+- Runtime resolves bare specifiers (`@scope/name/subpath`) from `${CLAUDE_PLUGIN_DATA}/node_modules`
+  via an ESM resolve-hook (`run.mjs` → `register-hook.mjs`/`resolve-hook.mjs`), never a hardcoded
+  path into the plugin cache.
+
+### Intra-plugin sharing — one committed copy, no sync script
+
+When the second consumer is **another skill in the same plugin** (not another plugin), the
+cross-plugin machinery collapses: put the vendored source once at the plugin root (`vendor/`), and
+point every consuming skill's `file:` link and `setup-deps.mjs` fingerprint at that single copy
+(`file:../../../vendor/*` from `skills/<skill>/extraction/`). No `sync-*.sh` propagation and no
+byte-drift CI gate are needed — there is only one committed copy, so nothing can drift. The
+invariant that **replaces** the byte-drift gate is delivery-by-version: editing the shared source
+obligates a plugin `version` bump, since the version is the update cache key. (`knowledge`'s
+`repo-analysis` + `video-digestion`, shared by its `youtube` and `course-digest` skills, is the
+reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
+needs the same source.
+
 ## What to wait on / avoid for now
 
 - Don't pre-build cross-plugin `dependencies` graphs until two plugins genuinely share a need.

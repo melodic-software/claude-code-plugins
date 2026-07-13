@@ -115,7 +115,7 @@ extraction/
     browser.js                # Shared Playwright launch, cookie injection, auth age check
     validators.js             # extraction validators
     config.js                 # platformConfig validation, adapter resolution
-  # shared kernel + transcript: @melodic/video-digestion (vendored under extraction/vendor/)
+  # shared kernel + transcript: @melodic/video-digestion (vendored plugin-wide under ../../vendor/)
   extract-course.js           # Orchestrator only — delegates to adapter + lib
   discover-resources.js       # Discovery tool — uses adapter.detectResources()
   download-resources.js       # Download lesson resources (ZIPs, PDFs) from resources.json

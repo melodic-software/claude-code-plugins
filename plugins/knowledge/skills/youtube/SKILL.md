@@ -374,4 +374,4 @@ Driver video: `https://www.youtube.com/watch?v=7zZy1QTvokM` — slug `stop-promp
 | `evals/fixtures/driver-video-goldens.json` | Q&A bank (≥1 `frame_only` question) |
 | `evals/fixtures/variation-matrix-backlog.json` | Code screencast / slide talk / talking-head / mixed — backlog only |
 
-D9 starting defaults: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/vendor/video-digestion/TUNING.md`. Retune after first host watch.
+D9 starting defaults: `${CLAUDE_PLUGIN_ROOT}/vendor/video-digestion/TUNING.md`. Retune after first host watch.
