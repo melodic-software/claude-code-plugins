@@ -85,9 +85,12 @@ strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
-  # swallowing every later line (a here-string bypass). The delimiter's first
-  # char is `[^[:space:]<]` for the same reason.
-  local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<][^[:space:]]*)'
+  # swallowing every later line (a here-string bypass). The delimiter body
+  # excludes `<` for the same reason, and `>` so a redirect glued to the
+  # delimiter (`cat <<EOF>file`) terminates the token — bash ends the delimiter
+  # word at `>`, so the `>file` is a real redirect that must reach the scan
+  # instead of being swallowed into a bogus `EOF>file` delimiter.
+  local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((in_heredoc)); then
@@ -109,7 +112,11 @@ strip_literals() {
       delim="${delim%\'}"
       delim="${delim#\"}"
       delim="${delim%\"}"
-      line="${line%%<<*}"
+      # Drop only the heredoc operator + delimiter token, keeping the text before
+      # `<<` AND any text after the delimiter on the opener line — a trailing
+      # stdout redirect (`cat <<EOF > file`) must still reach the redirect scan
+      # rather than being truncated away with the body.
+      line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
     line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')

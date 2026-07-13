@@ -93,6 +93,28 @@ run "heredoc metachar delim, trailing cat > bypass (blocked)" "$HEREDOC_METACHAR
 HEREDOC_BACKSLASH=$(printf 'cat <<\\EOF\ncontent line\nEOF\ncat > real.txt')
 run "heredoc backslash delim, trailing cat > bypass (blocked)" "$HEREDOC_BACKSLASH" 2
 
+# A stdout redirect ON the heredoc opener line (`cat <<EOF > file`) is a real
+# file-write bypass. The strip must drop only the heredoc operator + delimiter,
+# keeping the trailing `> file` so the redirect scan still fires — truncating
+# everything after `<<` would leak this form (exit 0).
+HEREDOC_OPENER_REDIR=$(printf 'cat <<EOF > real.txt\ncontent line\nEOF')
+run "heredoc opener stdout redirect (blocked)" "$HEREDOC_OPENER_REDIR" 2
+# A plain heredoc with NO redirect on the opener stays allowed.
+HEREDOC_NO_REDIR=$(printf 'cat <<EOF | cat\ncontent line\nEOF')
+run "heredoc opener, no redirect (allowed)" "$HEREDOC_NO_REDIR" 0
+# Redirect GLUED to the delimiter (no space): bash ends the delimiter word at
+# `>`, so `cat <<EOF>real.txt` is a real stdout redirect. The delimiter capture
+# must stop at `>` (not greedily swallow `EOF>real.txt`) so the `>` survives.
+HEREDOC_GLUED_REDIR=$(printf 'cat <<EOF>real.txt\ncontent line\nEOF')
+run "heredoc opener redirect glued to delimiter (blocked)" "$HEREDOC_GLUED_REDIR" 2
+# Tab-stripping opener form (`<<-EOF`): the `<<-?` regex + fix cover it.
+HEREDOC_TAB_STRIP=$(printf 'cat <<-EOF > real.txt\ncontent line\nEOF')
+run "heredoc tab-strip opener redirect (blocked)" "$HEREDOC_TAB_STRIP" 2
+# Quoted delimiter (`<<'EOF'`): BASH_REMATCH[0] is `<<'EOF'`; the suffix scan
+# still preserves the trailing redirect.
+HEREDOC_QUOTED_DELIM=$(printf "cat <<'EOF' > real.txt\ncontent line\nEOF")
+run "heredoc quoted-delimiter opener redirect (blocked)" "$HEREDOC_QUOTED_DELIM" 2
+
 # A here-string (<<<) has no terminator — it must NOT be mistaken for a heredoc,
 # which would strand the stripper and swallow the trailing bypass.
 HERESTRING=$(printf 'read x <<< %sok%s\ncat > real.txt' '"' '"')
