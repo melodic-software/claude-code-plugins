@@ -4,6 +4,42 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.0
+
+### Added
+
+- **`course-digest` skill** (`/knowledge:course-digest`) — extract and synthesize
+  online video courses (Dometrain, Teachable) into repo-applicable recommendations:
+  browser-automation transcript + frame extraction, code-companion analysis, and
+  multi-modal synthesis. Actions: full pipeline, `extract`, `analyze`, `status`,
+  `resume`, `continue`.
+- Bundled `extraction/` node pipeline for the course-digest skill, with the two
+  shared libraries (`@melodic/repo-analysis`, `@melodic/video-digestion`) vendored
+  under `extraction/vendor/`. Dependencies install into `${CLAUDE_PLUGIN_DATA}` via
+  `skills/course-digest/extraction/setup-deps.mjs`, which also provisions Playwright's
+  Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright` (idempotent; re-run after a
+  plugin update). ffmpeg and ImageMagick remain OS-level installs the skill's
+  Prerequisites section documents.
+
+### Changed
+
+- **Credential model** — course-platform login uses the user's own shell env vars
+  (`COURSE_*`/`TEACHABLE_*`, prefix driven by `platformConfig.authEnvPrefix`) with an
+  interactive manual-login fallback. Session cookies persist under
+  `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` (out of the consumer repo),
+  keyed per platform.
+
+### Notes
+
+- The course-digest pipeline is ESM and shares the youtube skill's launcher shape
+  (`run.mjs` ESM resolve hook so bundled deps resolve from `${CLAUDE_PLUGIN_DATA}`);
+  `run.mjs` additionally pins `PLAYWRIGHT_BROWSERS_PATH` to the data directory so the
+  browser binary resolves regardless of cwd.
+- Manual login (`node:readline` + headed browser) may not function under headless
+  plugin execution; env-var + cookie-reuse carry the skill regardless.
+- `repo-analysis` and `video-digestion` are now vendored by both the youtube and
+  course-digest skills. Deduplication of the two copies is tracked separately.
+
 ## 0.4.0
 
 ### Changed
@@ -22,6 +58,14 @@ only after that version increases.
 - **`setup` Output** now states that `library_dir` governs where youtube artifacts
   land, restoring the stronger wording softened while the seam was unwired
   (`book-distill` remains the documented exception).
+
+## 0.3.0
+
+### Changed
+
+- **`setup` skill** — retrofit `library_dir` precedence resolution and portability
+  hardening so synthesized artifacts land at the configured library directory in the
+  consuming repo.
 
 ## 0.2.0
 
