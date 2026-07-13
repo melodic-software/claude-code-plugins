@@ -64,13 +64,13 @@
     {
       "id": 6,
       "name": "outside-git-repo-is-env-error-not-silent-pass",
-      "prompt": "Run the skill-quality check when the skills directory is not inside a git repository. What happens?",
-      "expected_output": "Several checks read git show HEAD: / git ls-files, so outside a git repo the script exits 2 (environment error) rather than silently passing. The skill reports the environment error rather than claiming a clean PASS.",
+      "prompt": "Run the skill-quality check from a working directory that is not inside any git repository. What happens?",
+      "expected_output": "The checker resolves the repo root via `git rev-parse --show-toplevel` BEFORE it resolves the skills root, so invoking it from outside any git repository finds no toplevel and the script exits 2 with an environment error ('not in a git repo') rather than silently passing. The skill reports the environment error, not a clean PASS.",
       "files": [],
       "expectations": [
-        "Output explains the check reports an environment error (exit 2) outside a git repository",
-        "Output does NOT characterize the run as a clean PASS when git is unavailable",
-        "Output attributes the requirement to checks that read git history (git show HEAD / git ls-files)"
+        "Output explains the checker exits 2 (environment error) when it is invoked from outside any git repository",
+        "Output does NOT characterize the run as a clean PASS when it is run outside a git repo",
+        "Output attributes the exit-2 gate to the git repo-root detection that runs before skills-root resolution, not to a skills directory merely living outside the repo"
       ]
     }
   ]
