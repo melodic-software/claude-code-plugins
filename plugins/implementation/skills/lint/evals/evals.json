@@ -41,11 +41,11 @@
     {
       "id": 4,
       "name": "missing-tool-skips-file-outside-ecosystem-silent",
-      "prompt": "/implementation:lint — the diff includes a .png image and some markdown, but markdownlint is not installed.",
-      "expected_output": "Reports the markdown ecosystem as `skip` with the install-hint (tool missing is a skip, never a FAIL), and silently ignores the .png (a file outside any ecosystem produces no noise) — it does not fail the run for either.",
+      "prompt": "/implementation:lint — the repo has a markdownlint config (the markdown surface is opted in), and the diff includes a .png image plus some markdown, but the markdownlint tool is not on PATH.",
+      "expected_output": "Because the markdown surface is opted in (config present) but the tool is missing, reports the markdown ecosystem as `skip` with the install-hint (tool missing is a skip, never a FAIL), and silently ignores the .png (a file outside any ecosystem produces no noise) — it does not fail the run for either.",
       "files": [],
       "expectations": [
-        "Reports the ecosystem as `skip` with its install-hint when the linter tool is missing from PATH — not FAIL",
+        "Reports the (opted-in) markdown ecosystem as `skip` with its install-hint when the markdownlint tool is missing from PATH — not FAIL",
         "Silently skips the .png file (outside any ecosystem) without emitting a warning or failure for it",
         "Does not fail the overall run because of the missing tool or the unclassified binary file"
       ]
