@@ -313,6 +313,40 @@ else
   fail "commented block header should be unfolded (rc=$rc): $out"
 fi
 
+# 13. A block whose first content line is MORE indented than a later line
+#     (e.g. under an explicit `|2`) still captures the later line's triggers —
+#     the column-0 boundary is used, not the first line's indent.
+make_skill blkindent-skill '---
+name: blkindent-skill
+description: |2
+    Deeply indented first line. Use when: '"'"'indent alpha'"'"'.
+  Shallower valid line. Use when: '"'"'indent beta'"'"'.
+---
+
+## Purpose
+
+Baseline with triggers on lines of differing indent under an explicit indicator.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add blkindent-skill'
+make_skill blkindent-skill '---
+name: blkindent-skill
+description: |2
+    Deeply indented first line. Use when: '"'"'indent alpha'"'"'.
+---
+
+## Purpose
+
+Working tree drops the shallower line carrying indent beta.
+'
+out="$(run blkindent-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'indent beta' <<<"$out"; then
+  pass "block content past a more-indented first line is captured (indent indicator honored)"
+else
+  fail "trigger on a less-indented block line should be tracked (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

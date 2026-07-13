@@ -32,15 +32,20 @@ skill_frontmatter::field() {
       val = $0
       sub("^" k ":[[:space:]]*", "", val)
       if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*(#.*)?$/) {
+        # Text capture for the checks (not a full YAML parser): a frontmatter
+        # key sits at column 0, so every indented line is block content and the
+        # first column-0 line is the next key. Collecting on that boundary
+        # ignores the indent indicator entirely, so an explicit indent smaller
+        # than the first content line cannot drop later lines. Leading indent is
+        # stripped per line (irrelevant to length / trigger / phrasing checks).
         fold = (val ~ /^>/)
-        out = ""; started = 0; base = -1
+        out = ""; started = 0
         while ((getline line) > 0) {
           if (line ~ /^[[:space:]]*$/) { if (started) out = out (fold ? " " : "\n"); continue }
-          match(line, /^[[:space:]]*/); ind = RLENGTH
-          if (base < 0) base = ind
-          if (ind < base) break
+          if (line !~ /^[[:space:]]/) break
+          sub(/^[[:space:]]+/, "", line)
           if (started) out = out (fold ? " " : "\n")
-          out = out substr(line, base + 1)
+          out = out line
           started = 1
         }
         print out
