@@ -26,7 +26,7 @@ const { api, lowLevel } = createMiroClients();
 
 registerBoardTools(server, api, lowLevel);
 registerStickyNoteTools(server, api, lowLevel);
-registerFrameTools(server, api, lowLevel);
+registerFrameTools(server, api);
 registerTagTools(server, api);
 registerConnectorTools(server, lowLevel);
 registerBulkTools(server, api);

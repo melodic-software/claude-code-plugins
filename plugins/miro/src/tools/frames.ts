@@ -1,15 +1,11 @@
-import type { MiroApi, MiroLowlevelApi } from "@mirohq/miro-api";
+import type { MiroApi } from "@mirohq/miro-api";
 // biome-ignore lint/correctness/noUnresolvedImports: SDK 1.29 uses wildcard subpath exports (./*) which Biome cannot resolve; both tsc and Node runtime resolve correctly.
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { jsonResponse } from "../response.js";
+import { errorResponse, jsonResponse } from "../response.js";
 
-export function registerFrameTools(
-  server: McpServer,
-  api: MiroApi,
-  lowLevel: MiroLowlevelApi,
-): void {
+export function registerFrameTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_create_frame",
     "Create a frame on a Miro board. Use this to define layout zones that group child items (sticky notes, shapes). Use the returned frame ID as parent_id when creating sticky notes inside it.",
@@ -45,18 +41,29 @@ export function registerFrameTools(
     {
       board_id: z.string().describe("The board ID"),
       frame_id: z.string().describe("The frame item ID"),
-      limit: z.number().min(1).max(50).default(50).describe("Max items to return per page"),
+      limit: z
+        .number()
+        .min(1)
+        .max(1000)
+        .default(50)
+        .describe("Max items to return (the SDK auto-paginates beyond a single API page)"),
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ board_id, frame_id, limit }) => {
-      const result = await lowLevel.getItemsWithinFrame(board_id, frame_id, {
-        limit: limit.toString(),
-      });
-      const items = (result.body?.data ?? []).map((item) => ({
-        id: item.id,
-        type: item.type,
-        position: item.position,
-      }));
+      const board = await api.getBoard(board_id);
+      const frame = await board.getItem(frame_id);
+      if (!("getAllItems" in frame) || typeof frame.getAllItems !== "function") {
+        return errorResponse(`Item ${frame_id} is not a frame. Only frames contain child items.`);
+      }
+      const items: Array<Record<string, unknown>> = [];
+      for await (const item of frame.getAllItems()) {
+        items.push({
+          id: item.id,
+          type: item.type,
+          ...(item.position ? { position: item.position } : {}),
+        });
+        if (items.length >= limit) break;
+      }
       return jsonResponse(items);
     },
   );

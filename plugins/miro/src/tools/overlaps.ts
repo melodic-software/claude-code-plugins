@@ -55,7 +55,7 @@ function truncate(s: string): string {
 export function registerOverlapTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_detect_overlaps",
-    "Detect overlapping sticky notes on a Miro board. Returns all pairs of stickies whose centers are closer than the threshold on both axes. Sticky notes are ~199px wide, so the default threshold of 195px catches items that visually overlap.",
+    "Detect overlapping sticky notes on a Miro board. Returns all pairs of stickies whose centers are closer than the threshold on both axes. Square sticky notes are ~199px wide, so the default threshold of 195px catches items that visually overlap. Rectangle stickies are wider (~350px); raise the threshold on rectangle-heavy boards so their overlaps are not missed.",
     {
       board_id: z.string().describe("The board ID"),
       threshold: z
