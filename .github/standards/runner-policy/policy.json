@@ -8,7 +8,8 @@
   ],
   "approvedSelectorReferencesByRepositoryOwner": {
     "melodic-software": [
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595"
     ]
   },
   "approvedReusableWorkflowContracts": {
