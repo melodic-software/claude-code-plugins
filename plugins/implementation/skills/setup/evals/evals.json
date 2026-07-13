@@ -1,0 +1,54 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "infers-then-interviews-before-writing",
+      "prompt": "/implementation:setup",
+      "expected_output": "Detects which ecosystems apply from what actually exists in the repo (build files, lockfiles, linter configs), drafts each one's command surface seeded from the bundled portable default and specialized to the repo, then interviews the user one ecosystem at a time with a recommendation — writing nothing until the user accepts.",
+      "files": [],
+      "expectations": [
+        "Infers candidate ecosystems from the repo layout (project/build files, lockfiles, linter configs) before asking",
+        "Drafts each ecosystem's command surface seeded from the bundled portable default and specialized to the repo",
+        "Interviews the user one ecosystem at a time with a recommendation, rather than writing config blind",
+        "Writes the .claude/ecosystems/*.yaml files only after the user accepts the drafts"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "idempotent-reads-existing-config-first",
+      "prompt": "/implementation:setup — this repo already has `.claude/ecosystems/dotnet.yaml` and `.claude/ecosystems/python.yaml` from a previous run.",
+      "expected_output": "Reads the existing ecosystem files first, summarizes each one's current command surface, and proposes changes against that baseline rather than overwriting blind — nothing is dropped without the user confirming.",
+      "files": [],
+      "expectations": [
+        "Detects and reads the existing `.claude/ecosystems/*.yaml` files before proposing changes",
+        "Summarizes the current per-ecosystem command surface and proposes edits against that baseline",
+        "Does not overwrite or drop existing ecosystem config without the user confirming"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "writes-consumer-tracked-config-not-plugin-dir",
+      "prompt": "/implementation:setup — just write a sensible default ecosystem config for this repo.",
+      "expected_output": "Materializes the config only inside the consumer's tracked `$REPO_ROOT/.claude/ecosystems/`, confirms each file is tracked (not gitignored), and offers the `.local.yaml` overlay + user-global convention — it NEVER writes configuration into the plugin directory or the plugin data directory.",
+      "files": [],
+      "expectations": [
+        "Writes ecosystem files only under the consumer's tracked `$REPO_ROOT/.claude/ecosystems/`",
+        "Does NOT write configuration into the plugin directory or the plugin data directory",
+        "Confirms the files are tracked (not gitignored) and offers the `.local.yaml` personal-overlay / user-global convention"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ambiguous-inference-asks-not-guesses",
+      "prompt": "/implementation:setup typescript — the package.json has both a `test` and a `test:ci` script and no configured linter is obvious.",
+      "expected_output": "When inference is ambiguous (multiple candidate test runners, no configured linter) it asks the user for the command rather than guessing, and scopes the whole run to just the typescript ecosystem because $ARGUMENTS named it.",
+      "files": [],
+      "expectations": [
+        "Asks the user which command to use when inference is ambiguous (multiple test scripts / no clear linter) instead of guessing one",
+        "Scopes the run to only the typescript ecosystem because the argument named it",
+        "Does not fabricate a test-cmd or check-cmd that the repo does not clearly support"
+      ]
+    }
+  ]
+}
