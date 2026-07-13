@@ -28,7 +28,7 @@ courses/<platform>/<slug>/
         notes.md                 # Lesson notes (if platform provides them)
         code-snippets.md         # Code extracted from lesson (inline code blocks)
         resources.json           # Download URLs, article links, PDF links (Teachable adapter)
-        screenshots/             # Key frames as PNGs
+        screenshots/             # Key frames as PNG files
           001-slide-intro.png    # Zero-padded, descriptive suffix
           002-code-example.png
       02-what-will-you-learn/

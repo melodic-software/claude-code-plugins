@@ -148,7 +148,7 @@ Module summaries note their context level: `[transcript-only]`, `[transcript+fra
 
 ### Phase 3 modalities (`[full-context]` requires all three)
 
-Synthesis combines three modalities — transcript (`transcript.md`), visual frames (PNGs + `manifest.json`), and companion code (`code/repo/<section>/`). Each module gets parallel agents (transcript + visual + code exploration), then a synthesis pass. Full modality table + multi-agent approach: [context/workflow.md](context/workflow.md) Phase 3.
+Synthesis combines three modalities — transcript (`transcript.md`), visual frames (PNG files + `manifest.json`), and companion code (`code/repo/<section>/`). Each module gets parallel agents (transcript + visual + code exploration), then a synthesis pass. Full modality table + multi-agent approach: [context/workflow.md](context/workflow.md) Phase 3.
 
 Multi-modal extraction gaps beyond these three (code OCR from frames, slide-text extraction, audio re-transcription) are evaluated with priority and effort in [context/multimodal-evaluation.md](context/multimodal-evaluation.md).
 
@@ -156,7 +156,7 @@ Multi-modal extraction gaps beyond these three (code OCR from frames, slide-text
 
 Dedup phase (`classify-frames.js --phase dedup`) **reports** near-duplicates but does NOT
 delete frame files. Actual frame curation happens in `generate-manifests.js` which sets
-`keep: true/false` per frame. Frame PNGs remain on disk — manifests define which frames to use
+`keep: true/false` per frame. Frame PNG files remain on disk — manifests define which frames to use
 during synthesis.
 
 ### Phase tracking
@@ -217,6 +217,6 @@ Generated course output lands under the invoking project's `library_dir` seam (o
 **Critical rules:**
 
 - No video or audio files — transcripts and screenshots capture the content
-- Screenshots are PNGs — keep small (resize to 1280px wide max)
+- Screenshots are PNG files — keep small (resize to 1280px wide max)
 - Save progress incrementally — never buffer an entire course in memory
 - Each course is self-contained under its own slug directory

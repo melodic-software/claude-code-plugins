@@ -98,10 +98,10 @@ async function captureCanvasFrame(hotmartFrame, seekTime, maxWidth) {
         v.currentTime = time;
         await new Promise((resolve) => {
           const handler = () => {
-            v.removeEventListener("seeked", handler);
+            v.removeEventListener("seeked", handler); // spellchecker:disable-line
             resolve();
           };
-          v.addEventListener("seeked", handler);
+          v.addEventListener("seeked", handler); // spellchecker:disable-line
           setTimeout(resolve, 3000);
         });
         await new Promise((r) => setTimeout(r, 200));
@@ -523,7 +523,7 @@ export function getHlsUrl(page) {
  *
  * @param {import('playwright').Page} page
  * @param {number} duration — video duration in seconds
- * @param {string} outputDir — directory to write frame PNGs
+ * @param {string} outputDir — directory to write frame PNG files
  * @param {object} [options]
  * @param {number} [options.intervalSec=15]
  * @param {number} [options.maxWidth=1280]

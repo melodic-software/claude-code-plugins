@@ -8,7 +8,7 @@ Produced by Task 23 (Session 7, 2026-04-01).
 | Modality | Source | Processing | Used in Summaries |
 |----------|--------|-----------|-------------------|
 | Text transcripts | Dometrain DOM panel | Timestamped markdown | Yes |
-| Video frames | ffmpeg scene detection + interval | Raw PNGs, contact sheets, dedup | No (TDD has 992 frames, MCP has 0) |
+| Video frames | ffmpeg scene detection + interval | Raw PNG files, contact sheets, dedup | No (TDD has 992 frames, MCP has 0) |
 | Audio | Not extracted | None | No |
 | Code from video | Not extracted | None | No |
 | Slide text | Not extracted | None | No |
@@ -26,7 +26,7 @@ captures information absent from transcripts. LLMs outperform Tesseract (~95% vs
 cost more.
 
 **Solution**: Run Tesseract OCR (with image preprocessing) on existing 992 TDD course frames.
-For higher accuracy on specific frames, Claude's vision can read PNGs directly during
+For higher accuracy on specific frames, Claude's vision can read PNG files directly during
 summarization phase.
 
 **Recommended approach**: Hybrid two-pass — Tesseract on all frames (free, fast), then

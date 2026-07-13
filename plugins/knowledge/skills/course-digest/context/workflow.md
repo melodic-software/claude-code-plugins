@@ -174,7 +174,7 @@ the instructor says, what's shown on screen, what the actual code does.
 | Modality | Source | What it captures |
 |----------|--------|-----------------|
 | Audio/transcript | `transcript.md` per lesson | Instructor explanations, arguments, verbal emphasis, things said but not shown |
-| Visual/frames | Frame PNGs + `manifest.json` | Code on screen, architecture diagrams, slides, terminal output, UI demos |
+| Visual/frames | Frame PNG files + `manifest.json` | Code on screen, architecture diagrams, slides, terminal output, UI demos |
 | Code/repo | `code/repo/<section>/` source files | Actual implementation patterns, DI setup, project structure, what the code DOES vs what the instructor SAYS it does |
 
 **Multi-agent approach per module:**
@@ -183,7 +183,7 @@ Each module gets parallel agents, then a synthesis pass:
 
 1. **Transcript agent** — reads all `transcript.md` files for the module. Extracts concepts,
    arguments, anti-patterns, tools mentioned, lesson structure
-2. **Visual agent** — views actual frame images (PNGs from `screenshots/`) and contact sheets.
+2. **Visual agent** — views actual frame images (PNG files from `screenshots/`) and contact sheets.
    Reads code shown on screen, identifies architecture diagrams, captures visual content not
    described in the transcript. Use Read tool on images for multimodal analysis
 3. **Code exploration agent(s)** — reads actual source files from matching `code/repo/`
