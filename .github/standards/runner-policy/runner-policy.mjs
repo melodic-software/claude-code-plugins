@@ -201,7 +201,14 @@ function validatePolicy(value) {
     assertPlainObject(contract, `reusable workflow contract ${reference}`);
     assertExactKeys(
       contract,
-      ["routing", "runnerInput", "allowedInputs", "allowedSecrets", "fixedRunsOn"],
+      [
+        "routing",
+        "runnerInput",
+        "selectorResultInput",
+        "allowedInputs",
+        "allowedSecrets",
+        "fixedRunsOn",
+      ],
       `reusable workflow contract ${reference}`,
     );
     if (!new Set(["hosted-only", "runner-input"]).has(contract.routing)) {
@@ -233,6 +240,22 @@ function validatePolicy(value) {
           `reusable workflow contract ${reference}.allowedInputs must include ${contract.runnerInput}`,
         );
       }
+      if (Object.hasOwn(contract, "selectorResultInput")) {
+        if (
+          typeof contract.selectorResultInput !== "string" ||
+          !/^[A-Za-z][A-Za-z0-9_-]*$/.test(contract.selectorResultInput) ||
+          contract.selectorResultInput === contract.runnerInput
+        ) {
+          throw new ConfigurationError(
+            `reusable workflow contract ${reference}.selectorResultInput must be a canonical input name distinct from runnerInput`,
+          );
+        }
+        if (!contract.allowedInputs.includes(contract.selectorResultInput)) {
+          throw new ConfigurationError(
+            `reusable workflow contract ${reference}.allowedInputs must include ${contract.selectorResultInput}`,
+          );
+        }
+      }
       if (Object.hasOwn(contract, "fixedRunsOn")) {
         throw new ConfigurationError(
           `runner-input reusable workflow contract ${reference} cannot declare fixedRunsOn`,
@@ -242,6 +265,11 @@ function validatePolicy(value) {
       if (Object.hasOwn(contract, "runnerInput")) {
         throw new ConfigurationError(
           `hosted-only reusable workflow contract ${reference} cannot declare runnerInput`,
+        );
+      }
+      if (Object.hasOwn(contract, "selectorResultInput")) {
+        throw new ConfigurationError(
+          `hosted-only reusable workflow contract ${reference} cannot declare selectorResultInput`,
         );
       }
       assertStringArray(
@@ -260,6 +288,9 @@ function validatePolicy(value) {
     approvedReusableWorkflowContracts.set(reference, {
       routing: contract.routing,
       ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
+      ...(contract.selectorResultInput
+        ? { selectorResultInput: contract.selectorResultInput }
+        : {}),
       allowedInputs: new Set(contract.allowedInputs),
       allowedSecrets: contract.allowedSecrets,
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
@@ -945,7 +976,7 @@ function reusableWorkflowStatus(job, policy) {
   return { isReusable: true, approved: true, contract };
 }
 
-function routeStatus(jobId, target, job, jobs, policy) {
+function routeStatus(jobId, target, job, jobs, policy, reusableContract) {
   const match = RUNNER_OUTPUT.exec(target);
   const configuredDefault = policy.governedReusableRunnerInput.default;
   if (!match || match.groups.fallback !== configuredDefault) {
@@ -979,11 +1010,38 @@ function routeStatus(jobId, target, job, jobs, policy) {
   if (!status.approved) {
     return { attempted: true, approved: false, reason: status.reason };
   }
-  const condition = cancellationSafeConditionStatus(job.if);
+  const condition = reusableContract?.selectorResultInput
+    ? failClosedSelectorConditionStatus(job, selectorId, reusableContract.selectorResultInput)
+    : cancellationSafeConditionStatus(job.if);
   if (!condition.approved) {
     return { attempted: true, approved: false, reason: condition.reason };
   }
   return { attempted: true, approved: true, selectorId };
+}
+
+function failClosedSelectorConditionStatus(job, selectorId, selectorResultInput) {
+  const prerequisites = normalizeNeeds(job.needs);
+  if (prerequisites.length !== 1 || prerequisites[0] !== selectorId) {
+    return {
+      approved: false,
+      reason: `fail-closed selector-result reporters must declare exactly needs: ${selectorId} so the reported result covers every prerequisite`,
+    };
+  }
+  const alwaysCondition = `\${{ always() }}`;
+  if (job.if !== alwaysCondition) {
+    return {
+      approved: false,
+      reason: `fail-closed selector-result reporters must declare exactly if: ${alwaysCondition} so every prerequisite outcome materializes the required check`,
+    };
+  }
+  const expectedResult = `\${{ needs.${selectorId}.result }}`;
+  if (job.with?.[selectorResultInput] !== expectedResult) {
+    return {
+      approved: false,
+      reason: `fail-closed selector-result reporters must pass ${selectorResultInput}: ${expectedResult}`,
+    };
+  }
+  return { approved: true };
 }
 
 function cancellationSafeConditionStatus(value) {
@@ -1158,6 +1216,19 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
   if (!local.approved && reusable.isReusable && !reusable.approved) {
     return { approved: false, kind: "invalid", reason: reusable.reason };
   }
+  if (
+    !local.approved &&
+    reusable.approved &&
+    reusable.contract.selectorResultInput &&
+    workflowCallDeclaration(workflow) !== undefined
+  ) {
+    return {
+      approved: false,
+      kind: "invalid",
+      reason:
+        "repository-local reusable workflows cannot wrap a selector-result reporting contract; the selector-owning workflow must call that reviewed contract directly",
+    };
+  }
   if (!local.approved && reusable.approved && reusable.contract.routing === "hosted-only") {
     return { approved: true, kind: "hosted-reusable" };
   }
@@ -1174,7 +1245,14 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     };
   }
 
-  const route = routeStatus(jobId, target, job, jobs, policy);
+  const route = routeStatus(
+    jobId,
+    target,
+    job,
+    jobs,
+    policy,
+    !local.approved && reusable.approved ? reusable.contract : undefined,
+  );
   if (route.approved) {
     return { approved: true, kind: "selector-output", route };
   }
