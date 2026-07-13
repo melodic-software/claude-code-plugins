@@ -1,0 +1,78 @@
+{
+  "skill_name": "methodology",
+  "evals": [
+    {
+      "id": 1,
+      "name": "recommend-big-picture-for-domain-discovery",
+      "prompt": "I want to explore our whole insurance-claims business, figure out what we don't understand yet, and find the natural bounded contexts. Where do we start with EventStorming?",
+      "expected_output": "Interactive discovery: the skill identifies the goal as whole-domain exploration and recommends starting with Big Picture (Brandolini's transition funnel almost always starts there), then points the user at the reference path (/event-storming:methodology --big-picture) for facilitation guidance and the agentic path (/event-storming:simulation) to run it as a multi-persona simulation. It does not dump all seven formats.",
+      "files": [],
+      "expectations": [
+        "Output recommends starting with the Big Picture format for whole-domain exploration and bounded-context discovery",
+        "The recommendation is framed as starting broad (Brandolini's transition funnel / 'almost always start with Big Picture'), not jumping straight to Design-Level or Process Modeling",
+        "Output distinguishes the reference path (/event-storming:methodology --big-picture) from the agentic simulation path (/event-storming:simulation)",
+        "Output does not dump the full catalog of all formats as an undifferentiated information dump"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "agentic-request-routes-to-simulation",
+      "prompt": "Run an agentic multi-persona EventStorming simulation of a developer-conference domain on a Miro board for me.",
+      "expected_output": "The skill recognizes this is a request to RUN an agentic simulation, not to read facilitation reference, and routes the user to /event-storming:simulation rather than executing the multi-persona simulation itself.",
+      "files": [],
+      "expectations": [
+        "Output routes the user to /event-storming:simulation for the agentic multi-persona run",
+        "Output does NOT itself execute an agentic multi-persona simulation or start placing stickies on a Miro board",
+        "Output makes the reference-vs-agentic distinction clear (this skill is facilitation knowledge; simulation is the agentic driver)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "miro-absent-skips-board-discovery-no-error",
+      "prompt": "Let's do some EventStorming.",
+      "expected_output": "Invoked with no format filter and no Miro MCP server available (no miro_list_boards tool). Per the Miro availability gate, the skill skips board discovery entirely and proceeds to goal identification instead of erroring. Reference-mode guidance stays fully available without Miro.",
+      "files": [],
+      "expectations": [
+        "Output does not error or abort because Miro tools are unavailable",
+        "Output skips the existing-board discovery step and proceeds to identifying the user's goal",
+        "Output does not claim reference/facilitation guidance is blocked by the missing Miro server"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "brandolini-wins-on-source-conflict",
+      "prompt": "I read a practitioner blog (Paul Rayner / Bourgau) that says you should enforce the timeline BEFORE chaotic exploration. That contradicts what I remember of Brandolini's ordering. Which sequence should the methodology follow?",
+      "expected_output": "The skill applies the source-authority hierarchy: Brandolini's book is canonical, secondary practitioner sources are enrichments tagged [BOURGAU]/[SUPPLEMENTED], and when they conflict Brandolini wins. It does not silently adopt the secondary ordering as the canonical sequence.",
+      "files": [],
+      "expectations": [
+        "Output treats Brandolini's book as the canonical source and resolves the conflict in Brandolini's favor",
+        "Output does NOT adopt the secondary practitioner ordering as the canonical/prescribed sequence",
+        "Output characterizes the secondary source as an enrichment/interpretation (e.g. tagged BOURGAU or SUPPLEMENTED), not a replacement for canonical content"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "notation-reference-no-interactive-flow",
+      "prompt": "--notation",
+      "expected_output": "A notation quick-reference: the color-to-element mapping (orange domain event, blue command, lilac policy, yellow actor/read model, pink external system, magenta hot spot, green opportunity, pale-yellow aggregate). This is reference output — it does not launch the no-args interactive discovery flow and needs no Miro server.",
+      "files": [],
+      "expectations": [
+        "Output provides the color-to-building-block notation mapping (at minimum orange = domain event and blue = command/action)",
+        "Output does NOT launch the interactive discovery question flow (goal identification, domain scoping)",
+        "Output does not require or block on a Miro server for this reference request"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-args-asks-rather-than-dumps",
+      "prompt": "help me with eventstorming, i'm not really sure what i need",
+      "expected_output": "With no format filter and an unsure user, the skill runs interactive discovery — it asks clarifying questions (new vs existing system, understand-problem vs design-solution, how many perspectives) to narrow the goal rather than dumping all format reference at once, then recommends a format (defaulting toward Big Picture per the transition funnel).",
+      "files": [],
+      "expectations": [
+        "Output asks the user one or more clarifying questions to narrow the goal instead of emitting all format reference material at once",
+        "Output does not commit to a specific format before establishing the user's goal",
+        "When it does converge, it biases toward starting with Big Picture per Brandolini's transition funnel"
+      ]
+    }
+  ]
+}

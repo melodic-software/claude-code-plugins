@@ -1,0 +1,77 @@
+{
+  "skill_name": "skill-quality",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-default-action",
+      "prompt": "check my-skill",
+      "expected_output": "Runs the default check action: resolves the skills root (user_config.skills_root, else ${CLAUDE_PROJECT_DIR}/.claude/skills), runs the bundled check-skill.sh over my-skill, and reports PASS/FAIL from the exit code with any FAIL: lines surfaced verbatim and WARN: lines grouped after.",
+      "files": [],
+      "expectations": [
+        "Output runs the static contract gate (check-skill.sh) against the named skill",
+        "Output reports a PASS or FAIL verdict derived from the script exit code",
+        "Output surfaces FAIL lines verbatim and separates advisory WARN lines from failures"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "validate-evals-routes-to-schema-check",
+      "prompt": "validate-evals my-skill",
+      "expected_output": "Routes to the validate-evals action: locates <skills-root>/my-skill/evals/evals.json and validates it against the bundled schema (via a JSON-schema validator if available, else a structural check that skill_name and a non-empty evals array are present and each case has id + prompt), reporting each violation with its JSON path or confirming conformance.",
+      "files": [],
+      "expectations": [
+        "Output runs the validate-evals (schema) path, not the static contract gate",
+        "Output validates evals.json against the bundled schema and reports conformance or per-violation JSON paths",
+        "Output does not attempt to run the eval cases (it is a schema/structure check, not a model-graded run)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "absent-evals-is-not-a-failure",
+      "prompt": "validate-evals a skill that ships no evals/evals.json file",
+      "expected_output": "The skill reports that the skill ships no evals and treats this as NOT a failure — evals are warranted, not mandatory. It does not emit a schema-validation failure for the missing file.",
+      "files": [],
+      "expectations": [
+        "Output reports the absence of an evals file as 'ships no evals', explicitly not a failure",
+        "Output does NOT report a schema validation failure or error for the missing file",
+        "Output reflects the warranted-not-mandatory policy for evals"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "surface-fail-verbatim-hand-verify-ref",
+      "prompt": "The check on skill X returned a broken-internal-ref FAIL pointing at SKILL.md:42. Interpret it and fix it.",
+      "expected_output": "The skill surfaces the FAIL line verbatim rather than re-deriving its meaning, and for a broken-internal-ref FAIL it hand-verifies SKILL.md:42 first — because that line may be an illustrative example path rather than a real broken reference — before editing anything.",
+      "files": [],
+      "expectations": [
+        "Output surfaces/relies on the verbatim FAIL message rather than paraphrasing or re-deriving its meaning",
+        "Output hand-verifies the cited SKILL.md line before editing, acknowledging it could be an illustrative example path rather than a real broken ref",
+        "Output does not blindly rewrite the reference without first checking the cited line"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "not-for-authoring-new-skills",
+      "prompt": "Use skill-quality to write me a brand-new skill for parsing CSV files.",
+      "expected_output": "The skill declines: it is a static QA gate (check / validate-evals), not a skill-authoring tool. It routes the user to skill authoring (e.g. skill-creator) rather than generating a new SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Output does NOT author a new skill / SKILL.md",
+        "Output states that skill-quality is a QA/validation gate, not an authoring tool",
+        "Output redirects the user to an appropriate skill-authoring path"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "outside-git-repo-is-env-error-not-silent-pass",
+      "prompt": "Run the skill-quality check when the skills directory is not inside a git repository. What happens?",
+      "expected_output": "Several checks read git show HEAD: / git ls-files, so outside a git repo the script exits 2 (environment error) rather than silently passing. The skill reports the environment error rather than claiming a clean PASS.",
+      "files": [],
+      "expectations": [
+        "Output explains the check reports an environment error (exit 2) outside a git repository",
+        "Output does NOT characterize the run as a clean PASS when git is unavailable",
+        "Output attributes the requirement to checks that read git history (git show HEAD / git ls-files)"
+      ]
+    }
+  ]
+}

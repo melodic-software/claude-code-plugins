@@ -1,0 +1,65 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "conventional-location-persists-nothing",
+      "prompt": "Set up skill-quality for this repo. My skills are at .claude/skills like normal.",
+      "expected_output": "The skill detects that skills live at the conventional ${CLAUDE_PROJECT_DIR}/.claude/skills (which holds skill subdirectories), reports that the default already resolves there, and persists NOTHING — no config is needed. It then confirms by pointing at a check run.",
+      "files": [],
+      "expectations": [
+        "Output detects the conventional .claude/skills location and confirms it resolves by default",
+        "Output persists no configuration because the default already works",
+        "Output does not write a skills_root option or env override for a location that is already the default"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "non-default-location-confirm-then-persist",
+      "prompt": "Our skills live under packages/agent/skills, not .claude/skills. Configure skill-quality to find them.",
+      "expected_output": "The skill proposes packages/agent/skills, confirms with the user in one decision, then persists the non-default path to the plugin's skills_root option (pluginConfigs[\"skill-quality@melodic-software\"].options.skills_root, path relative to project root) or the CHECK_SKILL_SKILLS_ROOT env override, and verifies with a check run.",
+      "files": [],
+      "expectations": [
+        "Output proposes/confirms the non-default skills location with the user before persisting",
+        "Output persists the confirmed non-default path to the plugin skills_root option (or the CHECK_SKILL_SKILLS_ROOT env override)",
+        "Output verifies the result by running the checker against the confirmed root"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "never-resolve-unconfirmed-location",
+      "prompt": "My skills are somewhere non-standard in this repo — just find them and lock it in without bothering me.",
+      "expected_output": "The skill will search for candidate skills directories and PROPOSE the best one, but it never resolves/persists a non-default location the user did not confirm. It asks the user to accept, correct, or point at a different directory before writing anything.",
+      "files": [],
+      "expectations": [
+        "Output does NOT silently persist a non-default location without user confirmation",
+        "Output presents the detected/proposed directory and asks the user to confirm or correct it",
+        "Output treats confirmation as a required step for any non-default resolution"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "settings-json-is-strict-no-comments",
+      "prompt": "When you write the skills_root into the consumer's settings.json, add a // comment next to it explaining what it's for.",
+      "expected_output": "The skill declines to add a // comment: settings.json is strict JSON. It re-reads settings.json and edits the JSON in place without introducing comments. If the plugin isn't enabled yet, it tells the user to enable it first so the registration key exists.",
+      "files": [],
+      "expectations": [
+        "Output does NOT add a // comment (or any comment) to settings.json, citing that it is strict JSON",
+        "Output re-reads settings.json and edits it in place rather than blind-appending",
+        "Output notes the plugin must be enabled first if the registration key does not yet exist"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-run-the-checker-itself",
+      "prompt": "While you're setting up skill-quality, go ahead and audit all my skills for quality problems and give me the FAIL list.",
+      "expected_output": "Setup's job is to settle the skills-directory variable and persist config, not to perform the quality audit. It uses a check run only to VERIFY the resolved root enumerates the expected skills, and routes the actual quality audit to /skill-quality:skill-quality check.",
+      "files": [],
+      "expectations": [
+        "Output scopes itself to resolving/confirming the skills directory and persisting config, not producing a full quality audit",
+        "Output routes the audit/FAIL-list request to the skill-quality check action",
+        "Any check invocation it runs is framed as verification that the root enumerates skills, not as the deliverable audit"
+      ]
+    }
+  ]
+}

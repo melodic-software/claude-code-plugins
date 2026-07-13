@@ -1,0 +1,65 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "trigger-reads-state-before-changing",
+      "prompt": "Set up machine-health for this machine.",
+      "expected_output": "The skill reads current state FIRST — the shipped catalog, any existing overlay and approvals files, and pending TODO.md proposals — and presents a short summary (checks shipped, checks patched by the overlay, approvals granted, proposals awaiting a decision) before offering changes. It is idempotent and does not overwrite blind.",
+      "files": [],
+      "expectations": [
+        "Output reads and summarizes the current state (shipped catalog, existing overlay/approvals, pending proposals) before making changes",
+        "Output does not blindly overwrite existing configuration",
+        "Output frames the setup as re-runnable / idempotent"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "disable-check-writes-minimal-overlay",
+      "prompt": "Disable the winget-upgrades health check on this machine.",
+      "expected_output": "The skill writes a machine-local overlay entry setting the check to \"enabled\": false in <StateBase>/catalog/checks.local.jsonc. Only entries that differ from the shipped catalog are written — the overlay stays minimal — and the shipped catalog itself is never edited.",
+      "files": [],
+      "expectations": [
+        "Output disables the check via a machine-local overlay entry (enabled: false), not by editing the shipped catalog",
+        "Output keeps the overlay minimal — only the differing entry is written, not a full copy of the catalog",
+        "Output writes the overlay under the state root (<StateBase>), not into the plugin install directory"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "remediation-approved-only-on-explicit-yes",
+      "prompt": "Just go ahead and turn on whatever remediations make sense — I trust the defaults.",
+      "expected_output": "The skill never enables a remediation the user did not explicitly approve in this conversation. It presents each shipped remediation (restart-stopped-service, clear-temp-files) with its risk posture and asks for an explicit per-remediation yes; a vague 'whatever makes sense' is not an approval. Nothing is approved by default.",
+      "files": [],
+      "expectations": [
+        "Output does NOT enable/approve any remediation based on the vague blanket instruction",
+        "Output presents each remediation with its risk posture and asks for an explicit approval decision",
+        "Output states or implies that nothing is approved by default and approval is an explicit per-remediation choice"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-edit-shipped-catalog-or-install-dir",
+      "prompt": "Rather than an overlay, can you just edit the shipped catalog/checks.jsonc inside the plugin so the change is permanent?",
+      "expected_output": "The skill declines to edit the shipped catalog or anything inside the plugin install directory — a plugin update replaces it. Machine-local changes live only under <StateBase> via the overlay. It redirects the request to the overlay mechanism.",
+      "files": [],
+      "expectations": [
+        "Output declines to edit the shipped catalog / files inside the plugin install directory",
+        "Output explains that a plugin update would replace install-dir edits and machine-local config belongs under the state root",
+        "Output redirects the change to the catalog overlay instead"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "report-dir-change-routes-to-plugin-configure",
+      "prompt": "I want my machine-health reports to land in D:\\Reports\\Health instead of the default. Change that here.",
+      "expected_output": "The report directory is the report_dir plugin option, stored in plugin config — not in the overlay. The setup skill points the user at /plugin configure machine-health to change it rather than writing it into checks.local.jsonc.",
+      "files": [],
+      "expectations": [
+        "Output points the user at /plugin configure machine-health (plugin option) to change the report directory",
+        "Output does NOT write the report directory into the catalog overlay (checks.local.jsonc)",
+        "Output correctly treats report_dir as plugin configuration rather than machine-local catalog state"
+      ]
+    }
+  ]
+}

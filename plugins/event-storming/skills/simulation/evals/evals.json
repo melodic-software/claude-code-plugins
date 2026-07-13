@@ -1,0 +1,78 @@
+{
+  "skill_name": "simulation",
+  "evals": [
+    {
+      "id": 1,
+      "name": "simulate-starts-with-big-picture",
+      "prompt": "--simulate online-grocery-delivery",
+      "expected_output": "Runs the full agentic EventStorming cycle for the online-grocery-delivery domain following Brandolini's transition funnel: setup (Miro preflight, domain research, 4-7 personas), then Big Picture ALWAYS first, then post-workshop bounded-context discovery and interactive progression. It does not open at Process Modeling or Design-Level.",
+      "files": [],
+      "expectations": [
+        "Output begins the simulation with the Big Picture format before any Process Modeling or Design-Level work",
+        "Output sets up multiple personas (roughly 4-7) rather than modeling from a single voice",
+        "Output does not skip straight to Process Modeling or Design-Level as the opening format"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "miro-absent-offers-markdown-mode",
+      "prompt": "--simulate developer-conference",
+      "expected_output": "Invoked with no Miro MCP server available. The skill does NOT fail; it tells the user Miro isn't connected and offers two paths — structured-markdown mode (default/recommended: same agentic workshop, model emitted as ordered event timeline / persona roster / BC tables / hot-spot lists) or connect-Miro-then-retry. The facilitation logic is unchanged; only the rendering surface differs.",
+      "files": [],
+      "expectations": [
+        "Output does not fail or abort solely because the Miro server is absent",
+        "Output offers a structured-markdown fallback that runs the same multi-persona workshop and emits the model as markdown",
+        "Output presents the markdown path as the default/recommended option and connecting Miro as the alternative",
+        "Output does not silently pretend it placed stickies on a board that does not exist"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "existing-board-mode-requires-miro",
+      "prompt": "--discover-bcs https://miro.com/app/board/abc123",
+      "expected_output": "This mode reads an EXISTING Big Picture board. With no Miro server available there is no board to read, so the skill says so and offers the connect-Miro path rather than degrading to markdown (unlike --simulate, there is no in-session model to render).",
+      "files": [],
+      "expectations": [
+        "Output states that this board-reading mode requires a Miro server because there is an existing board to read",
+        "Output does not fall back to structured-markdown mode for this read-existing-board request",
+        "Output points the user at connecting the Miro MCP server to proceed"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-auto-advance-formats",
+      "prompt": "During a --simulate run you have finished the Big Picture workshop and run bounded-context discovery for a logistics domain. Three bounded contexts were found. What happens next?",
+      "expected_output": "The skill presents the arrow-voting winner and the discovered bounded contexts, then uses AskUserQuestion to let the user choose which BC to Process Model next. It never auto-advances from Big Picture to Process Modeling to Design-Level — the user chooses each step.",
+      "files": [],
+      "expectations": [
+        "Output presents the discovered bounded contexts and asks the user which one to explore next",
+        "Output does NOT automatically proceed into Process Modeling or Design-Level without the user selecting the next step",
+        "Output frames format progression as user-driven, one step at a time"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "state-persists-outside-install-dir",
+      "prompt": "Where should a --simulate run write its session archive, board URLs, and version-comparison metrics?",
+      "expected_output": "Generated state is persisted under ${CLAUDE_PLUGIN_DATA}/ (session archives under sessions/<session-id>/, baselines to a history file). It is never written inside the plugin's own installed directory (${CLAUDE_PLUGIN_ROOT} is read-only under cache isolation) nor into the consumer's project tree.",
+      "files": [],
+      "expectations": [
+        "Output directs generated state to ${CLAUDE_PLUGIN_DATA}/ (the per-plugin data directory that survives updates)",
+        "Output explicitly avoids writing generated state inside the plugin install directory (${CLAUDE_PLUGIN_ROOT})",
+        "Output does not write session state into the consumer's project/repository tree"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-domain-defaults-to-developer-conference",
+      "prompt": "--simulate",
+      "expected_output": "With no domain argument, the skill either confirms running a full --simulate cycle defaulting the domain to 'Developer Conference', or offers to read facilitation reference instead (/event-storming:methodology). It does not silently invent an unrelated domain.",
+      "files": [],
+      "expectations": [
+        "Output uses 'Developer Conference' as the default domain when none is supplied (or explicitly names it as the default)",
+        "Output does not fabricate some other arbitrary domain as if the user had specified it",
+        "Output may offer the methodology reference path as an alternative to running the simulation"
+      ]
+    }
+  ]
+}
