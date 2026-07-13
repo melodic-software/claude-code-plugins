@@ -11,6 +11,8 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { BRIEFING_AGENT_MODEL } from "./models.js";
+
 export const VALID_BUCKETS = [
   "anthropic",
   "openai",
@@ -115,7 +117,7 @@ function parseClaudeOutput(stdout) {
 
 export async function categorize(
   candidates,
-  { claudeBin = "claude", timeoutMs = 120_000, dryRun = false } = {},
+  { claudeBin = "claude", model = BRIEFING_AGENT_MODEL, timeoutMs = 120_000, dryRun = false } = {},
 ) {
   if (dryRun) return [];
   if (!candidates || candidates.length === 0) return [];
@@ -130,7 +132,7 @@ export async function categorize(
   try {
     const r = spawnSync(
       claudeBin,
-      ["-p", `@${promptFile}`, "--model", "claude-sonnet-4-6", "--output-format", "json"],
+      ["-p", `@${promptFile}`, "--model", model, "--output-format", "json"],
       {
         encoding: "utf-8",
         timeout: timeoutMs,

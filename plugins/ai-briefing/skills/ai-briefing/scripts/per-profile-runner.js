@@ -38,6 +38,8 @@ function printUsage() {
 Subcommands:
   init [--scope=<all|all-non-skip|high|test>] [--cutoff=<ISO>]
        [--anti-bot-cap=N] [--with-replies-medium] [--no-replies] [--dry-run] [--force]
+       [--grok-preload] [--grok-model=<slug>] [--require-grok]
+  grok-capture --index=N [--resume=<run-id>]   Wave 0 headless grok -p X preload (non-blocking; skips unless init enabled grok_preload)
   next-handle [--resume=<run-id>]
   commit-s1 --index=N --captures=<file> [--resume=<run-id>]
   synthesize --index=N [--resume=<run-id>]
