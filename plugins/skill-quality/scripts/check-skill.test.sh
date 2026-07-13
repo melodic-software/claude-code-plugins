@@ -249,6 +249,38 @@ else
   fail "base-ref audit should catch a committed drop HEAD misses (rc_head=$rc_head rc_base=$rc_base): $out_base"
 fi
 
+# 11. A block header with the chomp indicator BEFORE the indent indicator
+#     (`|-2`, a legal YAML order) is still recognized and unfolded.
+make_skill blkord-skill '---
+name: blkord-skill
+description: |-2
+  Do the thing. Use when: '"'"'order alpha'"'"', '"'"'order beta'"'"'.
+---
+
+## Purpose
+
+Committed baseline with a sign-first block header carrying two triggers.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add blkord-skill'
+make_skill blkord-skill '---
+name: blkord-skill
+description: |-2
+  Do the thing. Use when: '"'"'order alpha'"'"'.
+---
+
+## Purpose
+
+Working tree drops order beta.
+'
+out="$(run blkord-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'order beta' <<<"$out"; then
+  pass "sign-first block header (|-2) is recognized and unfolded"
+else
+  fail "sign-first block header should be unfolded (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

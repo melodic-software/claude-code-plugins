@@ -30,7 +30,7 @@ skill_frontmatter::field() {
     $0 ~ "^" k ":[[:space:]]*" {
       val = $0
       sub("^" k ":[[:space:]]*", "", val)
-      if (val ~ /^[|>][0-9]*[+-]?[[:space:]]*$/) {
+      if (val ~ /^[|>]([0-9][+-]?|[+-][0-9]?)?[[:space:]]*$/) {
         fold = (val ~ /^>/)
         out = ""; started = 0; base = -1
         while ((getline line) > 0) {
