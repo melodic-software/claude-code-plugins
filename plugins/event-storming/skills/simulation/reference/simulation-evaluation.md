@@ -121,7 +121,7 @@ Run these checks BEFORE starting any simulation:
 | Narrator relay race | Ch. 4 | Different narrators for different segments | Check agent invocations per segment | High |
 | Natural language paragraphs | Ch. 4 (walking + speaking) | Connected narrative, not bullet lists | Read the narrative outputs | High |
 | [STUMBLE] markers | Ch. 4 (body feels weird) | 3+ gaps identified where story doesn't flow | Count [STUMBLE] markers | High |
-| New events from walk-through | Ch. 4 (30-40% additional) | 15-25 new events; target 30-40% of existing count | Count new events at y=1900 | High |
+| New events from walk-through | Ch. 4 (30-40% additional) | 15-25 new events; target 30-40% of existing count | Count new events on the Walk-through row (see the Big Picture Y-Coordinate Table in `miro-integration.md`) | High |
 | Reverse narrative executed | Ch. 4 | 3+ terminal events traced backward | Check reverse narrative outputs | High |
 
 ### Big Picture: Value Exploration

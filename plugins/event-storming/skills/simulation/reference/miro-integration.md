@@ -125,12 +125,17 @@ Miro uses x,y coordinates with (0,0) at canvas center. Sticky notes are ~199px w
 
 ### Big Picture Y-Coordinate Table (v13+)
 
+**Single source of truth for Big Picture y-coordinates.** `agentic-simulation.md` and
+`simulation-evaluation.md` reference this table rather than restating values. Every gap between
+adjacent rows is ≥250px (the vertical-spacing minimum above); the header stack is anchored so
+Persona 1 sits at the `y=0` timeline baseline.
+
 | Element | y | Notes |
 |---------|---|-------|
-| External Systems (light_pink, rectangle) | -800 | Top of board, 400px horizontal spacing |
-| Pivotal Events (dark_blue, rectangle) | -600 | Above persona rows |
-| People/Actors (yellow, square) | -400 | 300px horizontal spacing |
-| Divergence Markers (red) | -200 | Just above event rows |
+| External Systems (light_pink, rectangle) | -1000 | Top of board, 400px horizontal spacing |
+| Pivotal Events (dark_blue, rectangle) | -750 | Above persona rows |
+| People/Actors (yellow, square) | -500 | 300px horizontal spacing |
+| Divergence Markers (red) | -250 | Just above event rows |
 | Persona 1 events | 0 | Primary event row |
 | Persona 2 events | 500 | 500px spacing between personas |
 | Persona 3 events | 1000 | |
@@ -138,7 +143,7 @@ Miro uses x,y coordinates with (0,0) at canvas center. Sticky notes are ~199px w
 | Persona 5 events | 2000 | |
 | Persona 6 events | 2500 | |
 | Persona 7 events | 3000 | |
-| Persona 8 (Beneficiary — MANDATORY) | 3500 | Per agentic-simulation.md |
+| Persona 8 (Beneficiary — MANDATORY) | 3500 | Mandatory beneficiary row |
 | Walk-through new events | 4200 | |
 | [STUMBLE] markers | 4500 | 300px below walk-through |
 | Reverse narrative events | 4800 | |
