@@ -23,7 +23,7 @@ module's purpose without traversing the whole import graph.
    candidate with a before/after diagram, a recommendation badge, and a
    dependency-category badge. Alongside it, writes a durable machine-readable
    candidate list that survives the session.
-3. **Interview the selected candidate.** Once you pick one, walks the design tree
+3. **Interview the selected candidate.** Once you pick one, walks the decision tree
    — constraints, dependencies, the shape of the deepened module, what sits
    behind the seam, which tests survive — and records the agreed shape for a
    planning step to consume.

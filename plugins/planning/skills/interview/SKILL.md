@@ -69,7 +69,7 @@ Tone is collaborative but opinionated. You are not interrogating; you are helpin
 
 `me` is the **relentless interview** — drive EVERY *consequential* branch of the decision tree to a *decision*. No question cap (some plans need three, some fifty; the escape hatch is the user saying "wrap up", never a counter). Relentless is not exhausting: every question leads with a recommendation, so most answers are a one-tap "correct".
 
-**Canonical framing** (what `me` means, in one breath): *interview relentlessly about every aspect of the plan until you reach a shared understanding; walk down each branch of the design tree, resolving dependencies between decisions one-by-one; for each question, provide your recommended answer; ask the questions one at a time; and if a question can be answered by exploring the codebase, explore the codebase instead of asking.*
+**Canonical framing** (what `me` means, in one breath): *interview relentlessly about every aspect of the task until you reach a shared understanding; walk down each branch of the decision tree, resolving dependencies between decisions one-by-one; for each question, provide your recommended answer; ask the questions one at a time; and if a question can be answered by exploring the environment (filesystem, tools, etc.), explore the environment instead of asking.*
 
 **Ask inline, ONE question per turn — NOT `AskUserQuestion`.** Shape:
 
@@ -102,7 +102,12 @@ For EVERY question, propose an answer grounded in observed codebase state. User 
 
 ### Domain-aware behaviors
 
-When the task touches domain concepts, three behaviors activate during Q&A: **glossary challenge** (when the user uses a domain term two ways, or a term collides with an existing definition, probe it), **domain scenario exploration** (invent edge cases that probe concept boundaries — "what happens when a Customer cancels half an Order?"), and **inline vocabulary update** (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one).
+When the task touches domain concepts, these behaviors activate during Q&A:
+
+- **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
+- **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
+- **inline vocabulary update** — write resolved terms to the project's domain-vocabulary file immediately, if it keeps one. Keep that file pure: terms and tight *what it IS* definitions, project-specific terms only — never a spec, scratchpad, or implementation detail. When several words name one concept, pick one canonical term and record the rejected synonyms so usage converges (follow the file's own convention; a readable `Avoid:` line if it has none). Discover the file and its shape by climbing to it — never prescribe a filename or format
+- **ADR, offered sparingly** — propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer — never prescribe a location or format
 
 ## The interview loop
 
