@@ -253,6 +253,81 @@ describe("mark-phase CLI (idempotent)", () => {
   });
 });
 
+describe("companion phase (optional side-marker)", () => {
+  function seededStore() {
+    const sliceDir = "/tmp/slice";
+    const state = sampleTalk();
+    const store = new Map([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
+    const readFile = vi.fn(async (p) => {
+      const value = store.get(p);
+      if (value === undefined) throw new Error("ENOENT");
+      return value;
+    });
+    const writeFile = vi.fn(async (p, data) => {
+      store.set(p, data);
+    });
+    const mkdir = vi.fn(async () => {});
+    return { sliceDir, store, readFile, writeFile, mkdir };
+  }
+
+  it("accepts mark-phase companion", async () => {
+    const { sliceDir, store, readFile, writeFile, mkdir } = seededStore();
+    const code = await runMarkPhase(sliceDir, "companion", { readFile, writeFile, mkdir });
+    expect(code).toBe(0);
+    const persisted = JSON.parse(store.get(watchStatePath(sliceDir)));
+    expect(persisted.phases.companion).not.toBeNull();
+  });
+
+  it("does not appear in the sequential next-phase walk", () => {
+    let state = sampleTalk();
+    // A no-companion watch that completed acquire..harvest must advance to research,
+    // never stall on an unmarked optional companion slot.
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    expect(state.phases.companion).toBeNull();
+    expect(findNextPhase(state.phases)).toBe("research");
+  });
+});
+
+describe("terminal phase completes the slice", () => {
+  it("flips status to complete when synthesis is marked", async () => {
+    const sliceDir = "/tmp/slice";
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    const store = new Map([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
+    const readFile = vi.fn(async (p) => store.get(p));
+    const writeFile = vi.fn(async (p, data) => store.set(p, data));
+    const mkdir = vi.fn(async () => {});
+
+    await runMarkPhase(sliceDir, "synthesis", { readFile, writeFile, mkdir });
+
+    expect(JSON.parse(store.get(watchStatePath(sliceDir))).status).toBe("complete");
+  });
+});
+
+describe("skip-research phase map (resume routing)", () => {
+  it("advances past research to synthesis when research is marked skipped", () => {
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    state = markPhaseComplete(state, "research", { skipped: true });
+    expect(findNextPhase(state.phases)).toBe("synthesis");
+  });
+
+  it("annotates a skipped research phase in the continuation prompt", () => {
+    let state = { ...sampleTalk(), skipResearch: true };
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    state = markPhaseComplete(state, "research", { skipped: true });
+    expect(buildContinuationPrompt(state)).toContain("research (skipped)");
+  });
+});
+
 describe("watch state persistence (real filesystem)", () => {
   it("creates the run-state lane dir when writing into a fresh slice", async () => {
     // Regression: a fresh slice has no run-state/ subdir; the live watch ENOENT'd on

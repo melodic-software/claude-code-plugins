@@ -28,6 +28,7 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {PhaseRecord|null} watching
  * @property {PhaseRecord|null} vision
  * @property {PhaseRecord|null} harvest
+ * @property {PhaseRecord|null} companion - optional Phase 0b digest of source/companion-sources.md
  * @property {PhaseRecord|null} research
  * @property {PhaseRecord|null} synthesis
  */
@@ -40,6 +41,7 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {string} title
  * @property {'pending'|'acquiring'|'watching'|'vision'|'researching'|'synthesizing'|'complete'} status
  * @property {WatchPhases} phases
+ * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
  * @property {number} [frameSelection.softCap]
@@ -81,6 +83,7 @@ export function createWatchState({ videoId, videoSlug, sourceUrl, title }) {
       watching: null,
       vision: null,
       harvest: null,
+      companion: null,
       research: null,
       synthesis: null,
     },
@@ -141,7 +144,9 @@ export function buildContinuationPrompt(state) {
   const next = findNextPhase(state.phases);
   const completed = Object.entries(state.phases)
     .filter(([, value]) => value !== null)
-    .map(([name]) => name);
+    .map(([name, value]) =>
+      /** @type {PhaseRecord} */ (value)?.metrics?.skipped ? `${name} (skipped)` : name,
+    );
 
   return `# Continue /youtube watch — ${state.title}
 
@@ -242,13 +247,19 @@ export async function writeContinuationPrompt(
   return prompt;
 }
 
-/** Phases that may be marked via the CLI — guards against typo'd phase keys. */
+/**
+ * Phases that may be marked via the CLI — guards against typo'd phase keys.
+ * `companion` is an optional Phase 0b side-marker (not in the sequential
+ * {@link findNextPhase} order): markable when `source/companion-sources.md`
+ * exists, absent from the next-phase walk so a no-companion watch is unaffected.
+ */
 const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
   "acquire",
   "transcript",
   "watching",
   "vision",
   "harvest",
+  "companion",
   "research",
   "synthesis",
 ]);
@@ -284,7 +295,13 @@ export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir
     return 0;
   }
 
-  const next = markPhaseComplete(state, phase);
+  let next = markPhaseComplete(state, phase);
+  // Marking the terminal phase closes the slice: flip status to "complete" so
+  // validateWatchChecklistForCompleteSlice enforces the blocking checklist
+  // (it skips unless status === "complete").
+  if (phase === "synthesis") {
+    next = { ...next, status: "complete" };
+  }
   await writeWatchState(sliceDir, next, writeFile, mkdir);
   writeStdout(`mark-phase: ${phase} marked complete\n`);
   return 0;

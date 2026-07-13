@@ -18,6 +18,7 @@ import {
 } from "./detect-recoverable-bootstrap.js";
 import {
   buildContinuationPrompt,
+  continuationPromptPath,
   findNextPhase,
   readWatchState,
   writeContinuationPrompt,
@@ -54,7 +55,7 @@ export async function runResumeCli(argv) {
         status: state.status,
         nextPhase,
         frameSelection: state.frameSelection ?? null,
-        continuationPromptPath: path.join(sliceDir, "continuation-prompt.md"),
+        continuationPromptPath: continuationPromptPath(sliceDir),
         continuationPrompt,
         recoverableBootstrap: recovery.recoverable,
         recoverCommand: recovery.recoverable ? formatRecoverCommand(sliceDir) : null,

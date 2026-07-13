@@ -303,7 +303,10 @@ export function validateQualityAudit(doc) {
     if (typeof f.pass !== "boolean") {
       errors.push(`files[${i}].pass must be boolean`);
     }
-    if (f.pass === true && typeof f.note === "string" && isStubQualityAuditNote(f.note)) {
+    // A passing row must carry a substantive note: an omitted note (not a
+    // string) or a stub/short one both fail — this is the evidence the gate
+    // exists to enforce exactly when pass=true claims review happened.
+    if (f.pass === true && (typeof f.note !== "string" || isStubQualityAuditNote(f.note))) {
       errors.push(`files[${i}].note must be substantive (min 20 chars, not stub token)`);
     }
   }

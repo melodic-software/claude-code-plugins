@@ -110,6 +110,20 @@ export async function orchestrateWatching(
   const mergedPaths = mergedCandidates.map((frame) => frame.path);
   const dedupResult = await runDedup(mergedPaths, {}, { log });
 
+  // The deduplicator reconstructs frames from bare paths with timestampSec=null,
+  // dropping the exact cue/densification anchor times. Re-attach them by path so
+  // assignFrameTimestamps only fabricates ordinals for the truly-unknown frames.
+  const knownTimestampByPath = new Map(
+    mergedCandidates
+      .filter((frame) => frame.timestampSec != null)
+      .map((frame) => [frame.path, frame.timestampSec]),
+  );
+  for (const frame of dedupResult.unique) {
+    if (frame.timestampSec == null && knownTimestampByPath.has(frame.path)) {
+      frame.timestampSec = knownTimestampByPath.get(frame.path);
+    }
+  }
+
   assignFrameTimestamps(dedupResult.unique, durationSec);
 
   const scored = dedupResult.unique.map((frame, index) => {

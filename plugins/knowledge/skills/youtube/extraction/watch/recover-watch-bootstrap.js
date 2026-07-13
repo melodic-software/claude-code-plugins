@@ -88,10 +88,15 @@ function loadExistingContactSheets(contactSheetsDir, batches) {
  * @param {string} workDir
  * @returns {{ videoPath: string, vttPath: string, infoPath: string }}
  */
-function resolveWorkArtifacts(workDir) {
+export function resolveWorkArtifacts(workDir) {
   const entries = fs.readdirSync(workDir);
   const videoPath = entries.find((name) => name.endsWith(".mp4"));
-  const vttPath = entries.find((name) => name.endsWith(".vtt") && !name.includes("-orig"));
+  // Prefer a manual/cleaned caption, but fall back to the `*-orig.vtt` the
+  // caption ladder keeps for auto-caption-only videos — the original
+  // acquisition used it, so recovery must accept it too.
+  const vttPath =
+    entries.find((name) => name.endsWith(".vtt") && !name.includes("-orig")) ??
+    entries.find((name) => name.endsWith(".vtt"));
   const infoPath = entries.find((name) => name.endsWith(".info.json"));
   if (!videoPath || !vttPath || !infoPath) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);

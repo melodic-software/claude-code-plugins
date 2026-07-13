@@ -92,6 +92,10 @@ export function buildYtDlpArgs(
   /** @type {string[]} */
   const args = [
     "--no-progress",
+    // A watch URL copied from a playlist carries `&list=…`; without this,
+    // yt-dlp would fetch every playlist entry into the same workDir and
+    // resolve artifacts for the wrong video (preflight already forces it).
+    "--no-playlist",
     "--paths",
     `temp:${workDir}`,
     "-o",

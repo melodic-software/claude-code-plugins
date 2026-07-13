@@ -7,11 +7,51 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+
+/** Default cap on a single fetched attachment; links come from attacker-controlled video descriptions. */
+export const MAX_ATTACHMENT_BYTES = 500 * 1024 * 1024;
+
+/**
+ * Stream a WHATWG response body to disk, aborting past `maxBytes`. Enforces the
+ * cap on the actual byte count (a missing/lying `content-length` cannot bypass
+ * it). Writes to a `.partial` sidecar and renames on success, so a mid-stream
+ * failure (including the cap firing after headers passed) removes only the
+ * partial — a previously-fetched attachment at `destPath` survives a failed
+ * retry, preserving the old buffered implementation's idempotency.
+ *
+ * @param {ReadableStream} webStream
+ * @param {string} destPath
+ * @param {number} maxBytes
+ * @returns {Promise<void>}
+ */
+async function streamToFileWithCap(webStream, destPath, maxBytes) {
+  let bytes = 0;
+  const cap = new Transform({
+    transform(chunk, _encoding, callback) {
+      bytes += chunk.length;
+      if (bytes > maxBytes) {
+        callback(new Error(`response exceeded ${maxBytes} bytes`));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+  const partialPath = `${destPath}.partial`;
+  try {
+    await pipeline(Readable.fromWeb(webStream), cap, fs.createWriteStream(partialPath));
+    fs.renameSync(partialPath, destPath);
+  } catch (error) {
+    fs.rmSync(partialPath, { force: true });
+    throw error;
+  }
+}
 
 /**
  * @param {string} url
@@ -29,10 +69,13 @@ function slugFromUrl(url) {
 
 /**
  * @param {string} sliceDir
- * @param {{ dryRun?: boolean }} [options]
+ * @param {{ dryRun?: boolean, maxBytes?: number }} [options]
  * @returns {Promise<{ fetched: string[], skipped: string[] }>}
  */
-export async function fetchDeckAttachments(sliceDir, { dryRun = false } = {}) {
+export async function fetchDeckAttachments(
+  sliceDir,
+  { dryRun = false, maxBytes = MAX_ATTACHMENT_BYTES } = {},
+) {
   const absSlice = path.resolve(sliceDir);
   const linksPath = lanePath(absSlice, LANES.source, "harvested-links.json");
   if (!fs.existsSync(linksPath)) {
@@ -75,8 +118,16 @@ export async function fetchDeckAttachments(sliceDir, { dryRun = false } = {}) {
         skipped.push(`${url}: HTTP ${response.status}`);
         continue;
       }
-      const buffer = Buffer.from(await response.arrayBuffer());
-      fs.writeFileSync(destPath, buffer);
+      const declaredLen = Number(response.headers.get("content-length") ?? 0);
+      if (declaredLen > maxBytes) {
+        skipped.push(`${url}: too large (content-length ${declaredLen} > ${maxBytes})`);
+        continue;
+      }
+      if (!response.body) {
+        skipped.push(`${url}: empty response body`);
+        continue;
+      }
+      await streamToFileWithCap(response.body, destPath, maxBytes);
       fetched.push(destPath);
     } catch (error) {
       skipped.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
