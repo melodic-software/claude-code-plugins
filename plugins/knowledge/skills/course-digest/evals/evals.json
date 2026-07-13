@@ -1,0 +1,82 @@
+{
+  "skill_name": "course-digest",
+  "evals": [
+    {
+      "id": 1,
+      "name": "status-read-only-inventory",
+      "prompt": "/knowledge:course-digest status",
+      "expected_output": "A read-only inventory of every course under the configured library directory, each with its completion state derived from the course.json phase markers. No browser session opens and no extraction, synthesis, or analysis work begins.",
+      "files": [],
+      "expectations": [
+        "Reports each digested course's completion state by reading the `phases` object in its `course.json` (non-null phases = completed)",
+        "Does NOT launch browser automation (claude-in-chrome / Playwright) or begin any extraction",
+        "Does NOT run Phase 3-5 synthesis or analysis — status is a pure inventory action",
+        "Identifies courses by slug rather than by a hardcoded filesystem path"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "youtube-url-routes-to-youtube-skill",
+      "prompt": "Can you digest this for me? https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "expected_output": "The skill declines to run the course pipeline and routes the user to /knowledge:youtube, because a single public YouTube video is out of scope for course-digest (which targets multi-lesson course platforms like Dometrain/Teachable).",
+      "files": [],
+      "expectations": [
+        "Recognizes the URL is a single public YouTube video, not a supported course-platform URL",
+        "Routes the user to `/knowledge:youtube` instead of running the course-digest pipeline",
+        "Does NOT begin Phase 1 discovery or launch extraction for the YouTube URL"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "full-pipeline-phase1-mandatory-gate",
+      "prompt": "/knowledge:course-digest https://dometrain.com/course/getting-started-with-model-context-protocol/",
+      "expected_output": "Prerequisites are verified first; on success Phase 1 discovers the course structure, then the run STOPS at the mandatory checkpoint to present the module/lesson list and ask which modules to process before any lesson extraction begins. Instructor is read from the landing page, and Phase 2 extraction is sequential.",
+      "files": [],
+      "expectations": [
+        "Verifies prerequisites (extraction deps, Playwright browsers, ffmpeg, ImageMagick, claude-in-chrome MCP) before starting, and stops to inform the user if any prerequisite fails",
+        "After Phase 1 discovery, STOPS and presents the module/lesson list and asks which modules to process (or confirm 'all') before extracting — the only mandatory user-interaction gate",
+        "Extracts the instructor name from the course landing page (JSON-LD author or 'Meet Your Instructor'), never guessing",
+        "Treats Phase 2 lesson extraction as strictly sequential — does not parallelize browser navigation across lessons (bot-detection constraint)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "analyze-action-skips-extraction",
+      "prompt": "/knowledge:course-digest analyze mcp-getting-started-charlesworth",
+      "expected_output": "The analyze action runs Phases 3-5 only against already-extracted content — it does not re-navigate the browser or re-extract lessons. Synthesis proceeds only after confirming all context (transcripts + frames + code repo) is gathered, and each module summary is tagged with its context-level marker.",
+      "files": [],
+      "expectations": [
+        "Runs Phases 3-5 (synthesize, analyze, recommend) only — does NOT re-run Phase 1-2 browser extraction for an already-extracted course",
+        "Confirms all context (transcripts, frames, code repo) is gathered before beginning Phase 3 synthesis (critical ordering rule)",
+        "Tags each module summary with a context-level marker: `[transcript-only]`, `[transcript+frames]`, or `[full-context]`"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "synthesis-and-deliverable-output-shape",
+      "prompt": "The extraction for tdd-csharp-ferreira is done — transcripts, frames, and the companion code repo are all in place. Synthesize it and tell me what applies to our repo.",
+      "expected_output": "Phase 3 synthesizes each module across all three modalities (transcript, frames, code repo), surfacing and classifying discrepancies between what the instructor says, shows, and codes. Phase 5 produces both repo-candidates.md and action-items.md, categorized per the analysis template, mapped to THIS repository's .NET/modular-monolith stack.",
+      "files": [],
+      "expectations": [
+        "Phase 3 synthesizes across all three modalities (transcript, visual frames, code repo) rather than summarizing transcripts alone",
+        "Surfaces discrepancies between what the instructor says, what frames show, and what the code does, classifying each as post-publication update / recording-time bug / intentional simplification",
+        "Produces BOTH `repo-candidates.md` AND `action-items.md` as the Phase 5 deliverables",
+        "Categorizes recommendations per the analysis template (e.g. already-implemented vs high/medium priority candidates; CLAUDE.md/rule, skill, architecture, testing, CI/CD, and /work-items buckets)",
+        "Frames recommendations against THIS repository's stack and conventions, not generically"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "adoption-requires-freshness-verification",
+      "prompt": "The action-items.md for the MCP course looks great — go ahead and apply the top CLAUDE.md rule candidate and the package-version recommendation to our repo.",
+      "expected_output": "Before integrating any action item, the skill runs /explore on the relevant codebase area and /research (or nuget version lookup) on the referenced library/pattern, since course content is a starting point for research, not a final answer. Recommendations found to be outdated are flagged STALE rather than silently adopted.",
+      "files": [],
+      "expectations": [
+        "Runs `/explore` on the relevant codebase area to verify current state before adopting the action item",
+        "Runs `/research` (or a live version lookup such as nuget latest-version) on the referenced library/pattern to confirm currency before adoption",
+        "Flags any recommendation that research reveals is outdated with a ⚠ STALE marker instead of adopting it silently",
+        "Does NOT integrate the course recommendation into repo files without first completing verification"
+      ]
+    }
+  ]
+}

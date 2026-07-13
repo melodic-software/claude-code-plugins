@@ -1,0 +1,30 @@
+{
+  "name": "@melodic/course-extraction",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Extraction tools for the course-digest skill",
+  "scripts": {
+    "extract": "node extract-course.js",
+    "extract:frames": "node extract-course.js --extract-frames",
+    "extract:metadata": "node extract-course.js --metadata-only",
+    "discover": "node discover-resources.js",
+    "validate": "node validate-extraction.js",
+    "analyze-repo": "node analyze-code-repo.js",
+    "classify": "node classify-frames.js",
+    "manifests": "node generate-manifests.js",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@melodic/repo-analysis": "file:./vendor/repo-analysis",
+    "@melodic/video-digestion": "file:./vendor/video-digestion",
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.2"
+  }
+}
