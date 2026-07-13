@@ -110,9 +110,11 @@ gh issue edit <item#> --add-assignee "@me"
 gh issue view <item#> --json comments \
   --jq '[.comments[] | select(.body | startswith("🔒 claim:"))] | sort_by(.createdAt) | .[0].body' | tr -d '\r'
 #    If the earliest claim comment is NOT yours (marker mismatch): back off — delete your claim
-#    comment and pick the next frontier item. Do NOT clear the assignee: a same-identity `@me`
-#    collision means the assignee slot is shared with the winner, so removing it would also
-#    un-claim their item and let it re-enter the frontier out from under them.
+#    comment. Re-read assignees (step 1's command): if another login besides your own is present
+#    (a foreign race — the winner assigned under a different identity), remove ONLY your own
+#    assignee. If you are the item's sole assignee, leave it: a same-identity `@me` collision
+#    means that slot is shared with the winner, so removing it would also un-claim their item and
+#    let it re-enter the frontier out from under them. Either way, pick the next frontier item.
 ```
 
 Session-start `reclaim` is idempotent: clear your own assignee (and claim comment) on items you
