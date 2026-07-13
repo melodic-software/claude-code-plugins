@@ -37,7 +37,7 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below â€
 ## Action: recheck
 
 - [ ] Find the schedule item in `.github/recurring-schedule.json` (by ID or title); complete the periodic check itself
-- [ ] Update `last_checked` to today (always); advance `next_due` only when it is past due
+- [ ] Update `last_checked` to today (always); advance `next_due` when it is due today or past due (`next_due <= today`)
 - [ ] Close the associated open `[Maintenance]` item with a recheck comment (next due date)
 
 ## Skip criteria
