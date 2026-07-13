@@ -828,3 +828,37 @@ accepted).
   need for custom subagent-row data during orchestration, not a presentation preference. Upstream:
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
+
+## Knowledge-artifacts consuming repo + integration flow — decision record (2026-07-13)
+
+The `knowledge` plugin's ingest artifacts (transcripts, keyframes, source media, syntheses) get a
+single dedicated consuming home rather than living in any one product repo, so a session can analyze
+the whole corpus and fit relevant findings into *any* target repo. Decided with the owner in an
+interview session against medley EPIC #1273 / wave-2 map #1369 (issue #1393); recorded here because
+the wave's codification requirement puts convention decisions in tracked docs, not issue comments.
+
+- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Org (Team plan: 250 GiB free
+  Git LFS storage + bandwidth) over the personal Pro account (10 GiB) precisely because source media
+  is retained — see below. Created pure-IaC via the `melodic-software/github-iac` governed registry
+  (no ad-hoc `gh`, no import/drift window); the repo comes into being at the Pulumi deploy.
+- **Media retention + LFS:** retain source video, keyframes, and any input useful for re-scraping or a
+  fresh analysis — the corpus is the durable substrate for re-runnable synthesis, not just derived
+  text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
+  mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
+  `Repository` resource (verified against the provider schema) → it is content-side, landing via a
+  follow-up content PR to the repo, not governed in IaC. Cost basis (verified 2026-07-13): metered
+  LFS is $0.07/GiB-mo storage + $0.0875/GiB bandwidth over the free tier; the Team 250 GiB free tier
+  holds a many-source corpus at $0 where the personal 10 GiB tier would meter.
+- **`library_dir`:** the plugin's existing `directory` userConfig points synthesized artifacts at this
+  repo in the consuming context; no consuming-repo name is baked into the plugin (contract v2.1 seam 1
+  + convention-resolution ladder), so the same plugin serves other consumers unchanged.
+- **Integration flow — first-class capability:** the value step is analyze-here → fit-into-any-target.
+  Shape decided = a knowledge-plugin **`apply`/`integrate` skill** (a repeatable, invokable capability
+  seam-consistent with contract v2.1), NOT a documented manual workflow (which would rely on operator
+  memory and codify nothing). Full spec — target-repo scan, relevance ranking, how integrations are
+  proposed/applied — is decomposed to a dedicated `design(knowledge-integration)` issue under #1369
+  per the one-session sizing rule, rather than half-built inline.
+- **Migration scope (into the new repo):** book-distill outputs only for now. The youtube (#1408) and
+  course-digest (#1409) artifact bodies stay with their still-open retrofits and move when those land;
+  the songwriting-corpus EPUBs belong to #1402 (personal repo), not here. Avoids pre-migrating media
+  coupled to unlanded pipelines.
