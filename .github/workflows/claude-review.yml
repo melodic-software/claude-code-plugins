@@ -17,6 +17,9 @@ permissions:
 
 jobs:
   review:
+    # Privileged review remains hosted by policy. Skip it while strict local-only
+    # emergency routing is active; prefer-self-hosted restores the hosted lane.
+    if: ${{ vars.CI_RUNNER_POLICY != 'self-hosted-only' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment

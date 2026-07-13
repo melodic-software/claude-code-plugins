@@ -1,23 +1,12 @@
 {
   "schemaVersion": 1,
+  "repositoryOwner": "melodic-software",
   "visibility": "private",
   "selfHostedCi": true,
   "exceptions": {
-    ".github/workflows/ci.yml#zizmor": {
-      "reason": "docker-socket",
-      "justification": "The reviewed zizmor reusable workflow invokes a container action, while local workers deliberately receive no Docker socket."
-    },
-    ".github/workflows/ci.yml#runner-policy": {
-      "reason": "hosted-control-plane",
-      "justification": "The policy enforcement path must remain independent of the fleet and able to report invalid local routing."
-    },
     ".github/workflows/ci.yml#ci-status": {
       "reason": "hosted-control-plane",
-      "justification": "The required-check aggregator stays hosted and gates actual workload outcomes; strict selector failures block their dependent workloads instead of redirecting them to paid hosted Linux."
-    },
-    ".github/workflows/pr-title.yml#pr-title": {
-      "reason": "hosted-control-plane",
-      "justification": "The tiny required-check gateway must emit a failed pr-title context when strict routing or semantic validation fails; the semantic workload remains governed separately."
+      "justification": "The required CI gateway remains independent of selector and fleet health so route failures cannot become successful skipped checks."
     },
     ".github/workflows/claude-review.yml#review": {
       "reason": "privileged-control-plane",
@@ -26,6 +15,10 @@
     ".github/workflows/link-check.yml#link-check": {
       "reason": "privileged-control-plane",
       "justification": "The scheduled link checker can create or update repository issues and therefore remains on GitHub-hosted compute."
+    },
+    ".github/workflows/pr-title.yml#pr-title": {
+      "reason": "hosted-control-plane",
+      "justification": "The required PR-title gateway remains independent of selector and fleet health so route failures cannot become successful skipped checks."
     }
   }
 }

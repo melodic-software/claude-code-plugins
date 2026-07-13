@@ -21,7 +21,7 @@ concurrency:
 jobs:
   select-runner:
     name: Select runner for PR title
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3cb83c9502da0b210c335785e250023508c4b8e3 # 3cb83c9 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-13
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -48,6 +48,8 @@ jobs:
     name: pr-title / pr-title
     needs: [select-runner, validate-pr-title]
     if: ${{ always() && !cancelled() }}
+    # This fail-closed required gateway must report selector failure even when
+    # the local fleet cannot accept the validation workload.
     runs-on: ubuntu-24.04
     permissions: {}
     steps:

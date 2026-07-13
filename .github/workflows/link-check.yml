@@ -14,6 +14,9 @@ permissions:
 
 jobs:
   link-check:
+    # This issue-writing advisory lane remains hosted by policy and is paused
+    # while strict local-only emergency routing is active.
+    if: ${{ vars.CI_RUNNER_POLICY != 'self-hosted-only' }}
     # issues: write is scoped to this job (least privilege) — only the called
     # workflow files the rolling tracking issue.
     permissions:
