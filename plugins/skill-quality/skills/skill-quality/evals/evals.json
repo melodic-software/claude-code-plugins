@@ -40,13 +40,13 @@
     {
       "id": 4,
       "name": "surface-fail-verbatim-hand-verify-ref",
-      "prompt": "The check on skill X returned a broken-internal-ref FAIL pointing at SKILL.md:42. Interpret it and fix it.",
-      "expected_output": "The skill surfaces the FAIL line verbatim rather than re-deriving its meaning, and for a broken-internal-ref FAIL it hand-verifies SKILL.md:42 first — because that line may be an illustrative example path rather than a real broken reference — before editing anything.",
+      "prompt": "The skill-quality check on skill X returned this line: `FAIL: broken skill-internal ref: reference/big-picture.md (no such file under the skill dir; cited at SKILL.md:42 — hand-verify the line before fixing, may be an illustrative example)`. Interpret it and decide what to do.",
+      "expected_output": "The skill surfaces the FAIL line verbatim rather than re-deriving its meaning, and before editing it hand-verifies SKILL.md:42 — the cited reference may be an illustrative example path rather than a real broken reference — instead of blindly rewriting or deleting reference/big-picture.md.",
       "files": [],
       "expectations": [
-        "Output surfaces/relies on the verbatim FAIL message rather than paraphrasing or re-deriving its meaning",
-        "Output hand-verifies the cited SKILL.md line before editing, acknowledging it could be an illustrative example path rather than a real broken ref",
-        "Output does not blindly rewrite the reference without first checking the cited line"
+        "Output surfaces the FAIL line verbatim (the exact 'FAIL: broken skill-internal ref: ...' text) rather than only paraphrasing or re-deriving its meaning",
+        "Output hand-verifies the cited SKILL.md:42 line before editing, acknowledging it could be an illustrative example path rather than a real broken ref",
+        "Output does not blindly rewrite or delete reference/big-picture.md without first checking the cited line"
       ]
     },
     {
