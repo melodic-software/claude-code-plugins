@@ -4,14 +4,14 @@
     {
       "id": 1,
       "name": "trigger-runs-audit-and-reports",
-      "prompt": "I'm on a Windows workstation. Run a machine health check.",
-      "expected_output": "On Windows (the fully-implemented OS), the skill resolves the report and state roots through the plugin config seams, loads and filters the check catalog, invokes the Windows orchestrator, renders a dated markdown report under the report root, appends one line to history.jsonl, and prints CRIT/WARN (and any UNKNOWN) counts plus the report path.",
+      "prompt": "I'm on a Windows workstation with PowerShell 7.4+ installed and the report and state directories writable. Run a machine health check.",
+      "expected_output": "With the Windows prerequisites met (PowerShell 7.4+, writable report/state roots), the skill resolves those roots through the plugin config seams, loads and filters the check catalog, invokes the Windows orchestrator, renders a dated markdown report under the report root, appends one line to history.jsonl, and prints CRIT/WARN (and any UNKNOWN) counts plus the report path. Were a prerequisite genuinely unmet, it would report that precondition failure rather than fabricate a report.",
       "files": [],
       "expectations": [
-        "Output produces (or describes producing) a dated markdown health report as the primary artifact",
+        "Given the stated Windows + PowerShell 7.4+ prerequisites, output invokes the Windows audit path and produces a dated markdown health report as the primary artifact",
         "Output summarizes findings by severity (CRIT/WARN, and calls out UNKNOWN findings if present)",
         "Output resolves report/state locations via the plugin config seams rather than writing into the plugin install directory",
-        "Output updates append-only history state (history.jsonl) as part of the run"
+        "Output updates append-only history state (history.jsonl) on a successful run, and does not fabricate a report if a prerequisite is actually unmet"
       ]
     },
     {

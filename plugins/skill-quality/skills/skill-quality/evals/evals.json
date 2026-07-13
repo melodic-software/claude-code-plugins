@@ -5,24 +5,25 @@
       "id": 1,
       "name": "check-is-default-action",
       "prompt": "check my-skill",
-      "expected_output": "Runs the default check action: resolves the skills root (user_config.skills_root, else ${CLAUDE_PROJECT_DIR}/.claude/skills), runs the bundled check-skill.sh over my-skill, and reports PASS/FAIL from the exit code with any FAIL: lines surfaced verbatim and WARN: lines grouped after.",
+      "expected_output": "Routes to the default check action: resolves the skills root (user_config.skills_root, else ${CLAUDE_PROJECT_DIR}/.claude/skills) and runs the bundled check-skill.sh over my-skill, reporting PASS/FAIL from the exit code with FAIL: lines surfaced verbatim and WARN: lines grouped after. If the resolved skills root or the my-skill directory does not exist, it reports that (and may offer /skill-quality:setup) rather than fabricating a PASS.",
       "files": [],
       "expectations": [
-        "Output runs the static contract gate (check-skill.sh) against the named skill",
-        "Output reports a PASS or FAIL verdict derived from the script exit code",
-        "Output surfaces FAIL lines verbatim and separates advisory WARN lines from failures"
+        "Output routes to the static contract gate (the check action / check-skill.sh) for the named skill, not another action",
+        "When the skill and its skills root exist, output reports a PASS or FAIL verdict from the script exit code, surfacing FAIL lines verbatim and separating advisory WARN lines",
+        "When the skills root or the my-skill directory is absent, output reports the missing directory (optionally offering /skill-quality:setup) rather than fabricating check results"
       ]
     },
     {
       "id": 2,
       "name": "validate-evals-routes-to-schema-check",
       "prompt": "validate-evals my-skill",
-      "expected_output": "Routes to the validate-evals action: locates <skills-root>/my-skill/evals/evals.json and validates it against the bundled schema (via a JSON-schema validator if available, else a structural check that skill_name and a non-empty evals array are present and each case has id + prompt), reporting each violation with its JSON path or confirming conformance.",
+      "expected_output": "Routes to the validate-evals action: locates <skills-root>/my-skill/evals/evals.json and validates it against the bundled schema (via a JSON-schema validator if available, else a structural check that skill_name and a non-empty evals array are present and each case has id + prompt), reporting each violation with its JSON path or confirming conformance. If that skill or its evals file does not exist, it reports the file is absent (evals are warranted, not mandatory) rather than inventing a validation result.",
       "files": [],
       "expectations": [
         "Output runs the validate-evals (schema) path, not the static contract gate",
-        "Output validates evals.json against the bundled schema and reports conformance or per-violation JSON paths",
-        "Output does not attempt to run the eval cases (it is a schema/structure check, not a model-graded run)"
+        "When the evals file exists, output validates it against the bundled schema and reports conformance or per-violation JSON paths",
+        "Output does not attempt to run the eval cases (it is a schema/structure check, not a model-graded run)",
+        "When my-skill or its evals/evals.json is absent, output reports the file is absent rather than fabricating a validation pass or failure"
       ]
     },
     {
