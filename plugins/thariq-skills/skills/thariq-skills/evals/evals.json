@@ -1,0 +1,42 @@
+{
+  "skill_name": "thariq-skills",
+  "evals": [
+    {
+      "id": 1,
+      "name": "knowledge-query-routes-to-playbook",
+      "prompt": "How should I structure a SKILL.md file for a skill with several reference topics?",
+      "expected_output": "A skill-authoring answer sourced from the playbook content (progressive disclosure: SKILL.md hub + spoke files). The skill serves its distilled body and does NOT invoke the update action, run scripts/update.sh, or read vendor/SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Output answers from the skill-authoring playbook content (e.g. hub SKILL.md dispatches, spoke files do the work / progressive disclosure)",
+        "The run does NOT invoke the update action or run scripts/update.sh",
+        "The run does NOT read vendor/SKILL.md for this plain knowledge query"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "update-check-is-read-only",
+      "prompt": "/thariq-skills:thariq-skills update",
+      "expected_output": "A read-only drift check produced by running scripts/update.sh (--check is the default). It reports drift status and modifies no files — no vendor sync or frontmatter bump.",
+      "files": [],
+      "expectations": [
+        "The run dispatches to scripts/update.sh in check mode (--check default)",
+        "The run reports drift status without modifying any file",
+        "The run does NOT sync vendor/SKILL.md or bump frontmatter metadata"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "update-apply-syncs-vendor-only",
+      "prompt": "/thariq-skills:thariq-skills update --apply",
+      "expected_output": "Runs scripts/update.sh --apply, which syncs vendor/SKILL.md plus the SKILL.md frontmatter metadata. Integrating upstream deltas into the distilled body stays a manual, reviewed step — the skill does not silently auto-integrate.",
+      "files": [],
+      "expectations": [
+        "The run dispatches to scripts/update.sh --apply",
+        "The sync scope is limited to vendor/SKILL.md plus SKILL.md frontmatter metadata",
+        "The run does NOT silently rewrite the distilled SKILL.md body to integrate the upstream delta",
+        "Output surfaces distilled-body integration as a manual, reviewed follow-up step (advisory contract)"
+      ]
+    }
+  ]
+}

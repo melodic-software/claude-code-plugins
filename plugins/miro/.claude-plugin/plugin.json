@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "miro",
+  "version": "0.1.0",
+  "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"],
+  "defaultEnabled": false,
+  "userConfig": {
+    "miro_api_token": {
+      "type": "string",
+      "title": "Miro API token",
+      "description": "Miro REST API token from https://miro.com/app/settings/user-profile/apps. Required — the bundled MCP server exits at startup without it. Stored in the system keychain, never settings.json.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}
