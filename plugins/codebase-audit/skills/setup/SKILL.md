@@ -14,8 +14,16 @@ Idempotent: re-running reads the existing config and offers updates rather than 
 
 ## Task
 
-1. **Read existing config first.** If `.claude/codebase-audit.md` exists, load it and present a
-   short summary (dimensions present, glob counts, example-claim counts). The interview then
+1. **Read the effective config first, across all layers.** The audit config resolves as an additive merge
+   of the documented layers — user-global (`~/.claude/codebase-audit.md`) → team (`.claude/codebase-audit.md`)
+   → local overlay (`.claude/codebase-audit.local.md`) — where a later layer's globs union with (not replace)
+   the earlier layer's and example-claims concatenate (step 6). Load every layer you can access and present a
+   short summary of the *effective merged* result (dimensions present, glob counts, example-claim counts),
+   reporting which layer contributes what. When a local or user-global layer adds to the team file, **say so
+   explicitly** — step 5 writes the *team* file, so a team-scope edit alone will not account for what a local
+   or user-global overlay contributes to what the audit actually runs on that machine. When a higher layer
+   cannot be read (a user-global base is often outside the repo and OS-specific), **warn that it was not
+   considered** rather than presenting the team file alone as the effective config. The interview then
    proposes changes against that baseline; nothing is dropped without the user confirming.
 2. **Explore the repo to draft defaults.** Before asking anything, infer candidates:
    - **documentation** primary-sources: doc directories (`docs/`, `README.md`), agent-instruction
