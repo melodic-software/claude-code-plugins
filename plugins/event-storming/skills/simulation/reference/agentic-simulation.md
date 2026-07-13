@@ -529,7 +529,7 @@ Each persona is a SEPARATE Agent tool invocation. The facilitator orchestrates r
 
 1. Create board with `miro_create_board`
 2. Create Legend frame — but only show Domain Events initially (add to legend incrementally as phases progress)
-3. Create a timeline frame sized to encompass the full flow — **measure the expected width** (events × 400px + buffer) and set frame width accordingly. Check frame dimensions after each round and resize if content overflows
+3. **Do NOT create a timeline frame.** A frame sized to the flow must grow every round, and frames created or resized after their content render on top and hide it (frame z-order gotcha in `miro-integration.md`). Rely on coordinate-based organization; the static Legend frame is the only frame.
 4. Set x=0 as the timeline start, flowing right
 
 **Round 1: Chaotic Exploration (EVENTS ONLY — orange stickies)**
@@ -694,8 +694,8 @@ This is NOT a separate "contradiction round" — Brandolini explicitly warns aga
 **Steps:**
 
 1. Facilitator selects sorting strategy based on domain characteristics
-2. **Place temporal milestones/pivotal events ABOVE the events** (negative y, e.g., y=-500) — these act as section headers, consistent with Brandolini's "colored tape" at the top of the wall
-3. Identifies 4-5 **Pivotal Events** — mark with dark_blue stickies at y=-400
+2. **Place temporal milestones/pivotal events ABOVE the persona event rows** (negative y) — these act as section headers, consistent with Brandolini's "colored tape" at the top of the wall
+3. Identifies 4-5 **Pivotal Events** — mark with dark_blue stickies on the Pivotal Events row (see the Big Picture Y-Coordinate Table in `miro-integration.md`)
 4. **Physically sort events into timeline zones** using `miro_update_sticky_note` to reposition each event to the correct x-zone under its milestone. Group events by milestone, maintain persona y-offsets within each zone. This is the digital equivalent of physically moving stickies along the paper roll
 5. Places duplicates and near-duplicates NEXT TO each other (NEVER merge them) — these are bounded context SIGNALS. Place a hot spot between them: `[DIVERGENCE] Organizer says "X" vs Speaker says "Y" — different context?`
 6. **Hot spots during enforcement are FACILITATOR-ONLY** — do NOT prompt personas for problems yet. "An explicit call for problems too early creates a flood with low signal-to-noise ratio" (Brandolini). The facilitator observes inconsistencies during sorting and marks them
@@ -728,7 +728,7 @@ Run a facilitator step-back after Round 2 (not just after Round 4). Early step-b
 - Use "people" not "actors/users/roles/personas" — fuzzy definition for inclusion (Brandolini Ch. 4: "I prefer to use the term people")
 - External system fuzzy definition: **"whatever we can put the blame on"** (Ch. 4). This may include non-software things: "Bad Luck," "Europe," "Brexit," "GDPR" — all legitimate
 - Facilitator provides each persona with the sorted timeline, then prompts: "Looking at this timeline, who are the KEY PEOPLE involved in your area? What EXTERNAL SYSTEMS do you depend on or blame?"
-- Place people above the flow (y=-250), external systems below (y=+450)
+- Place people on the People/Actors row and external systems on the External Systems row — both ABOVE the persona event rows, per the Big Picture Y-Coordinate Table in `miro-integration.md` (external systems sit at the top of the board, not below the flow)
 - **Trigger the "Is this a person or a system?" conversation** — Brandolini highlights this as an interesting question that reveals ownership attitudes (Ch. 4). Prompt agents: "Is [thing X] a person or a system? Who owns it?"
 - This triggers MORE events — "mundane activities that occur on the boundaries" (Ch. 4). Target: significantly more new events than v7's 14
 - **Be alert for sarcastic complaints** — "I am usually alert for spontaneous comments (usually sarcastic complaints) that we should capture with Hot Spots" (Ch. 4). Prompt agents: "Any complaints about working with these systems?"
@@ -815,7 +815,7 @@ Create a NEW Miro board. This is a different workshop with different participant
 
 1. Create board titled "Process Modeling — [Selected Problem/Process]"
 2. Create Legend frame showing "The Picture That Explains Everything": Actor → ReadModel → Command → System → Event → Policy → Command...
-3. Create timeline frame. Carry over relevant events from Big Picture as starting context
+3. Carry over relevant events from Big Picture as starting context. **Do NOT create a growing timeline frame** (frame z-order gotcha in `miro-integration.md`) — use coordinate-based organization; the static Legend frame is the only frame
 4. **Critical: display the color grammar visibly** — "there must be a lilac between an orange and the blue"
 
 **Personas:** Reduce to 3-5 from Big Picture. Keep Domain Expert, add Developer, keep one business role. Drop broad stakeholders.
@@ -902,37 +902,29 @@ Continue to additional BCs ONLY on explicit user opt-in that acknowledges it exc
 
 ### Spacing and Frame Management
 
-Use these tested values (see `miro-integration.md` for details):
+Big Picture y-coordinates follow the canonical **Big Picture Y-Coordinate Table** in
+`miro-integration.md` — it is the single source of truth. Do not restate coordinate values here.
 
-- **400px horizontal** between flow items on the sorted timeline
-- **250px vertical** between layers (actors above, alternatives below)
+Layout invariants for the agentic run:
 
-**Chaotic Exploration y-offsets (Round 1):**
-Each persona gets a distinct row to simulate people working in different areas of the wall:
+- **Each persona is assigned one event row** from the canonical table (Persona 1 at the `y=0`
+  timeline baseline, e.g. Domain Expert → Persona 1, Developer → Persona 2, Operations → Persona 3,
+  …). **Personas keep that row across both Chaotic Exploration (Round 1) and Enforce Timeline
+  (Round 2+)** — sorting moves stickies along x into milestone zones, never off their persona row.
+  During Chaotic Exploration, x values spread across the timeline width, roughly chronological but
+  not sorted — chaos is expected.
+- **Header rows sit above the persona rows** (External Systems, Pivotal Events, People/Actors,
+  Divergence Markers) and **post-timeline content sits below** (walk-through, reverse narrative,
+  value created/destroyed, UL terms, problems, opportunities, arrow votes, BC labels) — all per the
+  canonical table.
+- **400px horizontal** between flow items; **≥250px vertical** between adjacent rows
+  (`miro-integration.md` "Positioning Strategy (Tested Values)").
 
-- Persona 1 (e.g., Domain Expert): y=0
-- Persona 2 (e.g., Developer): y=250
-- Persona 3 (e.g., Operations): y=500
-- Persona 4 (e.g., End User): y=750
-- Persona 5 (e.g., New Hire): y=1000
-X values spread across the timeline width, roughly chronological but not sorted — chaos is expected.
-
-**Sorted Timeline y-layout (Round 2+):**
-
-- People/actors (yellow): y=-250 (above the flow)
-- Hot spots (red): y=-250 (above related events, next to actors)
-- **Main flow** (events, commands, policies): y=0
-- Alternative outcomes (unhappy paths): y=+250 (below happy path)
-- External systems (pink): y=+450 (below)
-- Opportunities (green): y=+450 (below, next to systems)
-
-**Critical: manage frame dimensions actively.**
-
-- Calculate expected width: `(number_of_events × 400) + 1000px buffer`
-- After each round, read the board and check if stickies overflow the frame — resize if needed
-- The frame should encompass ALL content including hot spots above and opportunities/systems below
-- Typical frame height: 1400px minimum (to fit from y=-250 actors to y=+650 systems with padding)
-- **Place a copy of the legend near the sorted timeline** (not just near the chaotic dump) so users don't have to scroll back
+**Do NOT create or resize timeline frames.** A frame sized to the growing flow must be resized each
+round, and frames created or recreated after their content render on top and hide it (frame z-order
+gotcha in `miro-integration.md`). Use coordinate-based organization; the static Legend frame is the
+only frame. **Place a copy of the legend near the sorted timeline** (not just near the chaotic dump)
+so users don't have to scroll back.
 
 ### Attribution
 
