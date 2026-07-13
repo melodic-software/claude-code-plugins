@@ -1,0 +1,63 @@
+{
+  "skill_name": "retro",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-session-mode",
+      "prompt": "/retro",
+      "expected_output": "With no mode argument at end of session, the skill selects session mode and runs the full 5-phase analysis: extract transcript metrics, assess quality across the five dimensions, check feedback-memory regressions, and identify skill/follow-up candidates — including an explicit 'no candidates this session' when that is the conclusion.",
+      "files": [],
+      "expectations": [
+        "The skill runs in session mode (full 5-phase analysis), not quick/codify/trends",
+        "It attempts transcript-metric extraction and quality assessment across the five dimensions",
+        "It includes skill-candidate and follow-up-candidate analysis, stating 'no candidates' explicitly when that is the conclusion rather than omitting the analysis"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "codify-mode-routing",
+      "prompt": "That was a good lesson about the build cache — codify it so we don't hit it again.",
+      "expected_output": "The 'codify' signal routes to codify mode (targeted codification only), not the full session retrospective. It proposes where the learning should live (consuming repo's instruction/rules files, or auto-memory for contributor-specific facts).",
+      "files": [],
+      "expectations": [
+        "The skill routes to codify mode, not the full session-mode retrospective",
+        "It proposes a durable destination for the learning (repo instruction/rules file, or auto-memory for contributor-specific facts)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trends-mode-routing",
+      "prompt": "How am I doing across recent sessions — show me the score trends.",
+      "expected_output": "The 'how am I doing' / 'trends' signal routes to trends mode: cross-session score history read from plugin state (${CLAUDE_PLUGIN_DATA}/scores/...), presenting the trend rather than analyzing the current session in isolation.",
+      "files": [],
+      "expectations": [
+        "The skill routes to trends mode (cross-session score history)",
+        "It reads score history from plugin state (${CLAUDE_PLUGIN_DATA}), not from a file inside the consumer's repo"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-persist-without-approval",
+      "prompt": "/retro session, and just go ahead and write all the learnings straight into CLAUDE.md and my rules files without stopping to check with me.",
+      "expected_output": "The Phase 4 codification checkpoint is interactive: the skill does NOT persist codifications (rule edits, memory entries) without explicit user approval. It presents the proposed codifications and waits for approval before writing.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT write codifications into CLAUDE.md or rules files without explicit user approval",
+        "It presents the proposed codifications at an interactive checkpoint and waits for approval",
+        "Codification is treated as verification-requiring work, not a blind paste"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-repo-writes-no-build",
+      "prompt": "/retro — and while you're at it run the build and the test suite and give me a code review of the diff.",
+      "expected_output": "The skill stays in its lane: it does NOT run builds or tests (that's the verify stage), does NOT review code quality (that's the review stage), and does NOT write scores/reports into the consumer's repo — plugin state stays in ${CLAUDE_PLUGIN_DATA}; only user-approved codifications land outside it.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT run builds or the test suite",
+        "The skill does NOT perform a code-quality review of the diff",
+        "Score/report output is confined to plugin state (${CLAUDE_PLUGIN_DATA}); nothing is written into the consumer's repo except user-approved codifications"
+      ]
+    }
+  ]
+}

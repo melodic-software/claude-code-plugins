@@ -1,0 +1,61 @@
+{
+  "skill_name": "workflow",
+  "evals": [
+    {
+      "id": 1,
+      "name": "detect-position-suggest-next",
+      "prompt": "What step am I on? I've read the relevant code and written a plan the team approved, but haven't started coding.",
+      "expected_output": "Default mode shows the compact stage overview, detects the current position from evidence (explore done, plan written and approved → stage 3 satisfied), and suggests the next stage (implement) with rationale — routing to the consuming repo's implement skill if one exists, otherwise inline.",
+      "files": [],
+      "expectations": [
+        "The skill detects the current position as post-plan (explore + plan done) and suggests implement as the next stage",
+        "Stage completion is grounded in the described artifacts (a written, approved plan), not assumed",
+        "It routes to the consuming repo's stage skill if one exists, otherwise describes the inline work"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "pre-pr-checklist-mode",
+      "prompt": "/workflow pre-pr — I think I'm about ready to open a PR.",
+      "expected_output": "The pre-pr argument loads the pre-PR sequence checklist (context/pre-pr.md), which orders verification evidence BEFORE PR creation — not the default position-detection overview.",
+      "files": [],
+      "expectations": [
+        "The skill enters pre-PR mode and presents the pre-PR sequence as an ordered checklist",
+        "The sequence places verification/evidence before opening the PR, not after"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "never-invent-skill-names",
+      "prompt": "I'm ready to explore the codebase for this feature — route me to the right stage.",
+      "expected_output": "The skill suggests the explore stage but only names a stage skill that actually exists in the consuming repo (its skill listing / CLAUDE.md). If no explore skill exists, it describes inline exploration work per the stage definition rather than inventing a skill name.",
+      "files": [],
+      "expectations": [
+        "The skill does not invent or assume a stage skill name — it names one only if it actually exists in the consuming repo",
+        "If no matching stage skill exists, it degrades gracefully to describing the inline stage work"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "verify-from-artifact-not-vibes",
+      "prompt": "I mentioned earlier that tests are basically fine, so mark the test stage done and move me to review.",
+      "expected_output": "The skill does NOT mark the test stage done from a conversational mention. It requires verifying the stage from its artifact or output (green test run) before advancing, and says so rather than advancing on vibes.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT mark the test stage complete based only on the user's conversational assertion",
+        "It requires evidence (an artifact or actual test output) that the stage produced its result before suggesting the next stage"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "rigor-size-independent",
+      "prompt": "It's just a one-line config change — can I skip straight to the PR and skip all the workflow stages?",
+      "expected_output": "The skill applies size-independent verification rigor: a one-line config change gets the same verification rigor as a multi-file feature. It does not authorize skipping the verify stage / pre-PR sequence just because the change is small.",
+      "files": [],
+      "expectations": [
+        "The skill states that verification rigor is size-independent — a one-line change still gets verified",
+        "It does NOT green-light skipping the verify stage or pre-PR sequence merely because the change is small"
+      ]
+    }
+  ]
+}

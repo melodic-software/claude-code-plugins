@@ -1,0 +1,64 @@
+{
+  "skill_name": "worktree",
+  "evals": [
+    {
+      "id": 1,
+      "name": "create-routing-enterworktree-last",
+      "prompt": "/worktree create feat/payment-retry — set me up an isolated worktree for this feature.",
+      "expected_output": "The create action validates the name against the EnterWorktree schema constraints, explains the setup, and calls EnterWorktree(name: ...) as its FINAL action — nothing executes after that call because the working directory and session state transition on it.",
+      "files": [],
+      "expectations": [
+        "The skill validates the worktree/branch name before creating",
+        "EnterWorktree is called as the final action of the invocation — no steps are scheduled to run after it",
+        "It does not attempt post-EnterWorktree work in the same turn"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "cleanup-emits-branch-delete-not-inline",
+      "prompt": "/worktree cleanup — remove the stale worktrees and delete their branches.",
+      "expected_output": "Cleanup removes stale/orphaned worktrees but does NOT run the branch deletion inline: it emits the git branch -D commands for the USER to run — branch deletion is destructive and the project's hooks may block it mid-session. If the active worktree is itself a cleanup candidate, its removal is emitted too (a worktree can't delete itself), but not when the current checkout is not a target. -D (not -d) is used because squash-merge changes the SHA.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT run git branch -D inline — it emits the branch-deletion command(s) for the user to run",
+        "If the active worktree is itself one of the cleanup candidates, its removal is emitted for the user to run (a worktree cannot delete itself) rather than executed inline; self-removal is not emitted when the current checkout is not a target",
+        "Branch deletion uses -D (not -d), and the reasoning cites squash-merge changing the SHA / destructiveness / hooks"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "cleanup-file-lock-and-stderr-safety",
+      "prompt": "/worktree cleanup on Windows — one of the stale worktrees has a build server running against it.",
+      "expected_output": "Before git worktree remove --force, the skill releases OS file locks (stops the build server / worktree-rooted daemons for THAT worktree only, never another live worktree's processes). It does not swallow removal stderr (no 2>/dev/null) so a failed removal surfaces as an honest husk report rather than a false success.",
+      "files": [],
+      "expectations": [
+        "The skill releases OS file locks (stops the build server / worktree-rooted daemons) before git worktree remove --force, scoped to the target worktree only",
+        "It does NOT suppress removal stderr (no 2>/dev/null) so failed removals surface honestly",
+        "It never stops another live worktree's processes"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "not-pr-lifecycle",
+      "prompt": "/worktree — this branch is done, push it and open and merge the PR for me.",
+      "expected_output": "The worktree skill does NOT push, create, merge, or close PRs, and does NOT commit or stage code. It directs the user to /pull-request for the PR back-half (and /commit for the commit mechanic) rather than performing those actions.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT push, create, merge, or close a PR",
+        "The skill does NOT commit or stage code",
+        "It routes the PR lifecycle work to /pull-request (and commit work to /commit)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "default-on-main-guides-isolation",
+      "prompt": "/worktree — (currently checked out on the default branch, about to start a new feature)",
+      "expected_output": "The smart-default action detects it is on the default branch and guides the user to create a branch (git checkout -b <type>/<description>) or /worktree create for parallel-session isolation — surfacing the project's branch-naming convention rather than enforcing one.",
+      "files": [],
+      "expectations": [
+        "The skill detects it is on the default branch and guides toward creating a branch or worktree before writing code",
+        "It suggests the project's branch-naming convention (default <type>/<kebab-description>) as guidance, not a hard-enforced gate"
+      ]
+    }
+  ]
+}

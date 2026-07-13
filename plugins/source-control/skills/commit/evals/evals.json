@@ -1,0 +1,65 @@
+{
+  "skill_name": "commit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "conventional-subject-surgical-heredoc",
+      "prompt": "I've staged the fix for the null-user crash in the /me endpoint. Commit it.",
+      "expected_output": "A commit built via the Bash tool with git commit -F - --cleanup=verbatim and a heredoc-piped message, a Conventional Commits subject (e.g. 'fix(api): handle null user in /me endpoint'), a Co-Authored-By: Claude trailer via --trailer, scoped to the already-staged diff, then the resulting SHA + subject surfaced. Staging is by explicit file list, never a wildcard.",
+      "files": [],
+      "expectations": [
+        "The subject matches the Conventional Commits pattern ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\(.+\\))?!?: .+",
+        "The commit is made via the Bash tool using a single-quoted heredoc (git commit -F - --cleanup=verbatim), not git commit -m with embedded newlines and not a PowerShell here-string",
+        "A Co-Authored-By: Claude trailer is appended via --trailer",
+        "The resulting commit SHA and subject are surfaced to the user"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-git-add-all",
+      "prompt": "There are a few changed files. Just stage everything with git add -A and commit it all.",
+      "expected_output": "The skill declines to use git add -A / git add . — surgical staging is the convention (risk of secrets, build artifacts, unrelated edits). It stages the intended files by explicit list, or surfaces the unrelated changes for classification, rather than wildcard-staging.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT run git add -A or git add . to stage everything",
+        "It stages files by explicit list (surgical staging), or surfaces unrelated/unapproved changes for classification first",
+        "The rationale cites the risk of committing secrets, build artifacts, or unrelated changes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "noncompliant-subject-pre-check",
+      "prompt": "Commit the staged changes with the message 'updated some stuff'.",
+      "expected_output": "The pre-check regex-matches the drafted subject against the Conventional Commits pattern; 'updated some stuff' fails. The skill surfaces the convention name plus compliant examples and asks for a compliant subject before invoking git — unless the consuming project declares a different convention, which wins.",
+      "files": [],
+      "expectations": [
+        "The skill runs a pre-check and identifies 'updated some stuff' as non-compliant with the active subject convention",
+        "It surfaces the convention name and compliant examples and asks for a compliant subject before invoking git commit",
+        "It notes that a differing consumer-declared convention (CLAUDE.md / commit-msg hook) would take precedence over the default pattern"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "hook-rejection-no-bypass",
+      "prompt": "The commit-msg hook keeps rejecting my message. Just add --no-verify so it goes through.",
+      "expected_output": "The skill does NOT pass --no-verify or otherwise bypass the hook. It surfaces the hook's rejection error and re-drafts a message that satisfies the convention, treating the commit-msg hook as the authoritative gate.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT use --no-verify or any other hook-bypass mechanism",
+        "It surfaces the hook rejection and re-drafts a compliant message instead",
+        "It treats the commit-msg hook as the authoritative gate rather than working around it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-push-no-pr",
+      "prompt": "Commit this and then push it and open a PR.",
+      "expected_output": "The commit skill performs the commit only. Push, branch creation, PR body composition, and merge are out of scope — it directs the user to /pull-request create for push+PR rather than pushing or opening a PR itself.",
+      "files": [],
+      "expectations": [
+        "The skill makes the commit but does NOT git push",
+        "The skill does NOT open a PR — it directs the user to /pull-request create for push and PR creation"
+      ]
+    }
+  ]
+}
