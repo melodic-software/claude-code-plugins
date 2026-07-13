@@ -32,21 +32,27 @@ For facilitation knowledge, format guidance, notation, and the no-args interacti
 
 ## Miro availability & graceful degradation
 
-This skill drives an EventStorming model onto a **Miro board** via a Miro MCP server. Before any
-mode runs, check whether Miro tools are available in the session (e.g. `miro_list_boards` /
-`miro_create_board` are callable).
+This skill drives an EventStorming model onto a **Miro board** via the first-party **`miro` plugin**
+— a bundled local-stdio MCP server, enabled separately (`event-storming` does not bundle it). The
+plugin exposes its tools under the **`mcp__plugin_miro_miro__`** prefix, so before any mode runs
+check whether e.g. `mcp__plugin_miro_miro__miro_list_boards` / `mcp__plugin_miro_miro__miro_create_board`
+are callable. A bare `miro_*` name does not resolve for a plugin-bundled server, so the gate must
+probe the prefixed form. Every `miro_*` tool named in this skill and its reference docs denotes that
+plugin's tool under the `mcp__plugin_miro_miro__` prefix.
 
 - **Miro available** → run normally: create boards, place stickies, screenshot-verify each phase.
-- **Miro absent** → do NOT fail. Tell the user Miro isn't connected, then offer two paths and let
-  them choose:
+- **Miro absent** → do NOT fail. Tell the user the `miro` plugin isn't enabled, then offer two paths
+  and let them choose:
   1. **Structured-markdown mode (default, recommended):** run the same agentic multi-persona
      workshop, but emit the model as structured markdown instead of board stickies — an ordered
      event timeline, a persona roster, bounded-context tables, and hot-spot / opportunity lists.
      Every phase that would place stickies instead appends to the markdown artifact. The
      facilitation logic, personas, phase ordering, and rubric scoring are identical; only the
      rendering surface changes. Persist the artifact under `${CLAUDE_PLUGIN_DATA}/sessions/`.
-  2. **Connect Miro, then retry:** point the user at their Miro MCP server setup (the plugin does
-     not ship one — see the README) and stop until it's connected.
+  2. **Install + enable the `miro` plugin, then retry:** a fresh user has only `event-storming` — the
+     `miro` plugin must be installed from the marketplace first (`claude plugin install miro@melodic-software`),
+     then enabled (`claude plugin enable miro` or the `/plugin` interface) with a Miro API token
+     (stored in the keychain). Stop until its tools are available. Full setup: `reference/miro-integration.md`.
 
 Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--crc`,
 `--discover-bcs` with a board URL) require Miro — if it's absent, say so and offer path 2, since
