@@ -15,6 +15,12 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes to a PR supersede the in-flight review; only the newest head
+# is worth reviewing. head_ref scopes cancellation to the PR branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   review:
     # Privileged review remains hosted by policy. Skip it while strict local-only
