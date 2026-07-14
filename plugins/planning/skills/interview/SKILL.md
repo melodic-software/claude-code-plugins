@@ -24,7 +24,7 @@ The **pre-clarity** stage — upstream of exploration, research, and `/architect
 
 **Supportive, not adversarial.** `/devils-advocate` attacks an existing artifact after the fact. `/interview` walks alongside the user to extract a clear contract from the start.
 
-**Domain-routed.** The interview loop is universal — it grills any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/architect`; a general decision drives to a shared understanding and ends there. The domain is detected from context (repo, working directory, the problem itself), never asked — and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "grill me on this decision").
+**Domain-routed.** The interview loop is universal — it grills any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/architect`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface — the problem itself decides, with repo and working directory as context that never suffices alone — never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "grill me on this decision").
 
 **Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain — a PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly.
 
@@ -119,11 +119,13 @@ Five steps. Step 1 (Survey) runs every action. Step 1.5 (Auto-detect) runs on `a
 
 Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, check `${user_config.notes_dir}/<topic-slug>/` for prior PLAN.md / exploration / research artifacts.
 
-If a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to a sibling `history.md` in the topic directory before rewriting).
+Survey output: one paragraph "Here is what I see in the repo."
 
-Survey output: one paragraph "Here is what I see in the repo." Then route per action.
+**Classify the domain** from what the survey shows — *engineering* (a build or behavior-change task, or a technical subject that yields a build artifact) or *general* (a decision or idea with no build surface). The deciding signal is the **task/build surface itself**, not the working directory: a general decision raised from inside a code repo is still general, and the engineering machinery must never engage on cwd alone. Repo/cwd is context that breaks the tie only when the task surface is genuinely indeterminate — then lean engineering inside a code repo, else general. This is inferred, never asked; honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
 
-**Classify the domain** from what the survey shows — *engineering* (a code repo, a build or behavior-change task, a technical subject) or *general* (a decision or idea with no build surface). This is inferred, never asked; when genuinely ambiguous, lean engineering inside a code repo, else general — and honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
+**Engineering sessions only** — if a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to a sibling `history.md` in the topic directory before rewriting). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
+
+Then route per action.
 
 ### Step 1.5 — Auto-detect (default action only)
 
