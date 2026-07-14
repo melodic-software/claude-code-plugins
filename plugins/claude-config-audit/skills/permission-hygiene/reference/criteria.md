@@ -27,8 +27,9 @@ Findings are printed as `<severity> [<check>] <source>: <detail>`.
 **What**: An `allowed-tools` or `permissions.allow` entry matching an action class Claude Code drops on
 entering auto mode — blanket `Bash(*)` / `PowerShell(*)` / bare `Bash` / bare `PowerShell`, a
 wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `Bash(sh -c*)`), a
-package-manager runner (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`, `Bash(pnpm dlx *)`, …), or a
-script-glob command (`Bash(*.py:*)`).
+package-manager runner (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`, `Bash(pnpm dlx *)`, …), a
+script-glob command (`Bash(*.py:*)`), or an `Agent` allow rule (bare `Agent` or scoped `Agent(...)` —
+both dropped categorically, with no narrow carry-over form).
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
 (`Bash(npm test)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not flagged — matching the
@@ -42,7 +43,8 @@ via an interpreter (`Bash(bash <fixed-path>:*)`) is flagged as the same authorin
 where the doc's dropped-category wording does not clearly reach it; the fix (a bare PATH command) is
 the same. See convention anti-pattern 1.
 
-**Recommend**: expose the helper as a bare command on PATH and allow the bare name narrowly.
+**Recommend**: expose the helper as a bare command on PATH and allow the bare name narrowly. An
+`Agent` rule has no bare-PATH analog — remove or re-scope it, or run outside auto mode.
 
 ## P2: Hardcoded absolute machine/user path [error]
 

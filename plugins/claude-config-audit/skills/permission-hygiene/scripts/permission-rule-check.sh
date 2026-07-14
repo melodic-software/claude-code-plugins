@@ -7,8 +7,9 @@
 #   P1  interpreter-wildcard / blanket allow rules that Claude Code DROPS on
 #       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
 #       interpreters like Bash(python*), package-manager run wildcards,
-#       script-glob interpreters like Bash(*.py:*)). Narrow rules such as
-#       Bash(npm test) carry over and are NOT flagged.
+#       script-glob interpreters like Bash(*.py:*), and Agent allow rules —
+#       both bare Agent and Agent(...), which auto mode drops categorically).
+#       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
 #   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
 #       match the command string literally — no ~, $HOME, or env expansion — so
 #       an absolute path breaks on other machines/usernames and leaks a
@@ -137,6 +138,19 @@ scan_bare_tool() {
   done
 }
 
+scan_agent() {
+  # scan_agent <text> <source-label> — flag any `Agent` allow rule, whether bare
+  # `Agent` or scoped `Agent(...)`. Unlike Bash/PowerShell, a scoped Agent rule
+  # is NOT a narrow carry-over: auto mode drops all Agent allow rules
+  # categorically, and Agent has no bare-PATH-command analog to re-scope to. The
+  # trailing boundary is `[^[:alnum:]_]` (includes `(`) so the parenthesized form
+  # is caught too; the leading `_` exclusion keeps `mcp__x__Agent` from matching.
+  local text="$1" src="$2"
+  if printf '%s\n' "$text" | grep -qE "(^|[^[:alnum:]_])Agent([^[:alnum:]_]|\$)"; then
+    emit warning P1 "$src" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
+  fi
+}
+
 # --- Frontmatter allowed-tools scan ------------------------------------------
 # allowed-tools value + its block-list continuation lines, from the leading
 # --- frontmatter block only.
@@ -163,6 +177,7 @@ while IFS= read -r file; do
   rel="${file#"$ROOT"/}"
   scan_rule "$at" "$rel allowed-tools"
   scan_bare_tool "$at" "$rel allowed-tools"
+  scan_agent "$at" "$rel allowed-tools"
 done < <(
   find "$ROOT" -type f \( \
     -name 'SKILL.md' \
@@ -179,6 +194,7 @@ scan_settings_allow() {
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     scan_bare_tool "$rule" "$label"
+    scan_agent "$rule" "$label"
     scan_rule "$rule" "$label"
     # Trailing tr strips CR: jq emits CRLF on Windows, which would otherwise
     # leave a \r on each rule and pollute the token the scans above match.

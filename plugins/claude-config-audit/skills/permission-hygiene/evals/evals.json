@@ -60,6 +60,18 @@
         "Output produces the audit and per-finding recommendations instead",
         "Output notes the operative rule and rule rewrites are operator actions"
       ]
+    },
+    {
+      "id": 6,
+      "name": "agent-allow-rule-flagged",
+      "prompt": "I added \"Agent\" and \"Agent(code-reviewer)\" to permissions.allow so my sub-agent runs without prompts in auto mode. Are those grants going to work?",
+      "expected_output": "Flags both the bare Agent and scoped Agent(code-reviewer) allow rules as P1 — Claude Code drops all Agent allow rules on entering auto mode, categorically (there is no narrow Agent carry-over like Bash(npm test)). Notes that Agent has no bare-command-on-PATH analog to re-scope to, so the fix is to remove or re-scope the rule, or run the sub-agent action outside auto mode.",
+      "files": [],
+      "expectations": [
+        "Output flags both bare Agent and scoped Agent(...) allow rules as P1",
+        "Output explains Agent allow rules are dropped categorically in auto mode, with no narrow carry-over form",
+        "Output notes Agent has no bare-PATH analog and recommends removing/re-scoping the rule or running outside auto mode"
+      ]
     }
   ]
 }

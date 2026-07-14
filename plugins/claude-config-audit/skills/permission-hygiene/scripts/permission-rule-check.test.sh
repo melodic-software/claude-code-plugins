@@ -68,7 +68,7 @@ D2="$TEST_TMPDIR/p1"
 mkdir -p "$D2/.claude"
 jq -n '{permissions:{allow:[
   "Bash(*)","PowerShell(*)","Bash(python*)","Bash(node *)","Bash(sh -c*)",
-  "Bash(npx *)","Bash(*.py:*)","Bash"
+  "Bash(npx *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)"
 ]}}' >"$D2/.claude/settings.json"
 rc=0
 OUT=$(run "$D2") || rc=$?
@@ -81,7 +81,19 @@ assert_contains "flags package-manager runner npx *" "$OUT" "Bash(npx *)"
 assert_contains "flags script-glob interpreter *.py:*" "$OUT" "Bash(*.py:*)"
 assert_contains "flags PowerShell(*)" "$OUT" "PowerShell(*)"
 assert_contains "flags bare Bash allow" "$OUT" "bare 'Bash'"
+assert_contains "flags Agent allow rule" "$OUT" "Agent allow rules are dropped"
 assert_contains "P1 findings tagged" "$OUT" "[P1]"
+
+# --- Case 2b: scoped Agent(...) is flagged (no other detector covers it) -----
+# Unlike Bash(npm test), a scoped Agent rule is NOT a narrow carry-over: auto
+# mode drops all Agent allow rules, so the parenthesized form must flag too.
+D2B="$TEST_TMPDIR/agent-scoped"
+mkdir -p "$D2B/.claude"
+jq -n '{permissions:{allow:["Agent(code-reviewer)"]}}' >"$D2B/.claude/settings.json"
+OUT=$(run "$D2B")
+assert_contains "flags scoped Agent(code-reviewer)" "$OUT" "Agent allow rules are dropped"
+assert_contains "scoped Agent finding tagged P1" "$OUT" "[P1]"
+assert_eq "scoped Agent produces exactly one finding" "1" "$(run "$D2B" --count)"
 
 # --- Case 3: narrow rules carry over — NOT flagged --------------------------
 D3="$TEST_TMPDIR/narrow"
@@ -147,10 +159,20 @@ allowed-tools: Bash
 ---
 body
 EOF
+mkdir -p "$D6/.claude/skills/agent"
+cat >"$D6/.claude/skills/agent/SKILL.md" <<'EOF'
+---
+name: agent
+allowed-tools:
+  - Agent(code-reviewer)
+---
+body
+EOF
 OUT=$(run "$D6")
 assert_contains "flags interpreter in skill frontmatter" "$OUT" "skills/bad/SKILL.md allowed-tools"
 assert_contains "flags interpreter in agent frontmatter" "$OUT" "agents/runner.md allowed-tools"
 assert_contains "flags bare Bash in skill frontmatter" "$OUT" "skills/bare/SKILL.md allowed-tools: bare 'Bash'"
+assert_contains "flags Agent rule in skill frontmatter" "$OUT" "skills/agent/SKILL.md allowed-tools: Agent allow rules are dropped"
 assert_not_contains "does NOT flag narrow git/npm skill" "$OUT" "skills/good/SKILL.md"
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------

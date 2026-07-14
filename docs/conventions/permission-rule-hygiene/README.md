@@ -50,6 +50,10 @@ runner (`npx`, `uvx`, `pipx run`, `pnpm dlx`, …), silently grants nothing unde
 then depends entirely on the classifier. Empirically, a guarded merge helper granted this way was
 denied even when invoked bare.
 
+`Agent` allow rules (both bare `Agent` and scoped `Agent(...)`) are dropped the same way, and are
+flagged too — but unlike a shell helper they have no bare-command-on-PATH analog to re-scope to.
+Remove or re-scope the rule, or run the sub-agent action outside auto mode.
+
 ## Anti-pattern 2 — hardcoded absolute machine/user paths
 
 Bash permission rules match the command string **literally**. Per
