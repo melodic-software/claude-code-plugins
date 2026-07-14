@@ -51,6 +51,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Lint markdown
         id: markdown
         continue-on-error: true
@@ -71,6 +72,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/gitleaks@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           config: .gitleaks.toml
+          scan-mode: git
+          redact: true
 
       - name: Check editorconfig conformance
         id: editorconfig
