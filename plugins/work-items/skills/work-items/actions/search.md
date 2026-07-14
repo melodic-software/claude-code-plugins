@@ -33,9 +33,9 @@ SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurr
 
 ### Open Items (X matches)
 
-| # | Item | Labels | Assignee |
-|---|------|--------|----------|
-| 1 | #42 Fix analyzer false positive | type:fix | @agent1 |
+| # | Item | Type | Labels | Assignee |
+|---|------|------|--------|----------|
+| 1 | #42 Fix analyzer false positive | Bug | area: analyzers | @agent1 |
 
 ### Closed Items (X matches)
 

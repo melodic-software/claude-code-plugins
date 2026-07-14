@@ -24,10 +24,10 @@ List work items with optional filtering.
 1. Parse the result and present as a condensed table:
 
 ```markdown
-| # | Item | Labels | Assignee | Updated |
-|---|------|--------|----------|---------|
-| 1 | #42 Fix <thing> | type:fix, area:<your-area> | @user | 2d ago |
-| 2 | #38 Review <config> | type:chore, category:<your-category> | -- | 5d ago |
+| # | Item | Type | Labels | Assignee | Updated |
+|---|------|------|--------|----------|---------|
+| 1 | #42 Fix <thing> | Bug | area: <your-area>, priority:p1-high | @user | 2d ago |
+| 2 | #38 Review <config> | Task | area: <your-area> | -- | 5d ago |
 ```
 
 The `#` column is a sequential index for this listing. When the user references an item by `#`, match it to the item in the most recent listing.

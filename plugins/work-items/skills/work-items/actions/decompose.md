@@ -97,8 +97,10 @@ BODY_FILE=$(mktemp)
 # Write the composed slice body to "$BODY_FILE" with the Write tool NOW — before create-item —
 # not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
 # interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
+# --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
 "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
-  --labels "type:<t>,area:<a>,$META_LABEL" \
+  --type "<Bug|Feature|Task>" \
+  --labels "area: <a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
 rm -f "$BODY_FILE"
 ```
@@ -128,7 +130,7 @@ Concise description of this vertical slice. Describe end-to-end behavior, not la
 Or "None — can start immediately" if no blockers.
 ```
 
-Apply labels per taxonomy: `type:` from slice nature, `area:` from affected module, `agent-ready` for AFK slices, `needs-human` for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
+Classify per taxonomy: the **issue type** from the slice nature — `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else) — set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; `agent-ready` for AFK slices, `needs-human` for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
 
 **Do NOT close or modify any parent item** — decomposition creates children, doesn't replace the parent.
 

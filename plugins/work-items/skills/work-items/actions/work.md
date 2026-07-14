@@ -22,7 +22,7 @@ Before selecting, clear stale claims left by crashed or abandoned sessions (an i
 
 1. **Due recurring items** — `recurring-schedule`, where `next_due <= today`, sorted by `next_due`. Schedule commitments take precedence over category flags; picking a recurring item early shifts its subsequent cadence and undermines the recurrence guarantee.
 
-2. **Non-recurring guardrails items** — the frontier (open ∧ unblocked ∧ unassigned) filtered to `category:guardrails` (when the repo uses that category), non-recurring. Force multipliers — each one completed makes ALL future autonomous work more reliable. Within this tier, prefer: enforcement mechanisms (CI/CD gates, architecture tests, hooks) > tool validation > research/planning.
+2. **Non-recurring guardrails items** — the frontier (open ∧ unblocked ∧ unassigned) filtered to `area: guardrails` (when the repo defines that area), non-recurring. Force multipliers — each one completed makes ALL future autonomous work more reliable. Within this tier, prefer: enforcement mechanisms (CI/CD gates, architecture tests, hooks) > tool validation > research/planning.
 
 3. **Highest-impact non-recurring unassigned items** — the remaining frontier, non-recurring, oldest-first. Select based on: items that unblock others, items in smaller categories, shorter well-scoped items over sprawling research epics.
 
@@ -52,7 +52,7 @@ For each tier, emit the corresponding query:
   "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" list-frontier --autonomous
   ```
 
-  `--autonomous` additionally excludes `needs-human` items. Tier 2 keeps only `category:guardrails` non-recurring; tier 3 keeps the rest. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
+  `--autonomous` additionally excludes `needs-human` items. Tier 2 keeps only `area: guardrails` non-recurring; tier 3 keeps the rest. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
 
 Tiers flagged `last-resort: true` are skipped if any prior tier yielded a candidate.
 
@@ -70,7 +70,7 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 
 ```
 **Auto-selected (<tier-name>):** #42 Fix <thing>
-Labels: type:fix, category:<your-category>, area:<your-area>
+Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
 Proceed with this item? (yes / pick different / skip)
 ```
@@ -95,7 +95,7 @@ On user confirmation ("yes"):
 
    `<id>` MUST be fully-qualified (`claim` rejects a bare number): frontier candidates (tiers 2/3) already carry it from `list-frontier`; a recurring candidate matched to an open item by `number` (Step 2) is first qualified via adapter "Resolve item ID". Exit `0` → claim held. Exit `7` → another session won: advance to the next candidate (do NOT retry the same item). Claim identity is the authenticated session user, never the bot.
 
-1. **Suggest branch name.** Propose `<type>/<N>-<slug>` so `/pull-request create` can auto-inject `Closes #N` from the branch parse. Same protocol as `start.md` "Workflow" final step — type derivation by Conventional Commits priority, slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). Agent emits `git checkout -b ...` for the user; never executes itself.
+1. **Suggest branch name.** Propose `<type>/<N>-<slug>` so `/pull-request create` can auto-inject `Closes #N` from the branch parse. Same protocol as `start.md` "Workflow" final step — branch `<type>` vocabulary derived from the item's issue type (native Issue Type preferred, `type:*` label fallback), slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). Agent emits `git checkout -b ...` for the user; never executes itself.
 
 1. **Execute the project's development workflow:** the agent MUST follow every step — no shortcuts, no skipping research, no surface-level execution. When the consuming project defines a workflow (a workflow skill, a CLAUDE.md workflow section, or team convention), follow every step of it and read the project's rules for the item's domain first; otherwise follow the generic sequence: explore → plan → implement → test → review → PR.
 

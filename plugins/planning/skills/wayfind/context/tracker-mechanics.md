@@ -19,14 +19,18 @@ or every item whose blocker ever closed is stranded off the frontier forever.
 
 ## Bootstrap labels (first use in a repo)
 
-`/wayfind` introduces its own taxonomy — `work-map`, `wayfind:research|interview|design|prototype|task`,
-`needs-human` — which a fresh consumer repo will NOT already have (unlike the type/status labels
-`/work-items` reuses). Create-if-missing them once at chart-mode entry, before the first `gh issue
-create --label` (an unknown `--label` fails the create):
+`/wayfind` uses its own taxonomy — `work-map`, `wayfind:research|interview|design|prototype|task`,
+`needs-human`. These labels are provisioned by the label-as-code SSOT (`melodic-software/github-iac`,
+the **sole writer**), never created ad hoc — an out-of-band `gh label create` is pruned on the next
+`pulumi up`. At chart-mode entry, **verify** the taxonomy is present (an unknown `--label` fails the
+`gh issue create`); if any are missing, stop and have them added via a github-iac PR (or, for a
+`ManagedLabels: false` opt-out repo, the repo's own provisioning) — do not create them locally:
 
 ```shell
+# Presence check only — never create. Report any missing labels for github-iac to provision.
+have=$(gh label list --json name --jq '.[].name')
 for L in work-map wayfind:research wayfind:interview wayfind:design wayfind:prototype wayfind:task needs-human; do
-  gh label list --json name --jq '.[].name' | grep -qxF "$L" || gh label create "$L" --description "wayfind decision-map taxonomy"
+  grep -qxF "$L" <<<"$have" || echo "MISSING (provision via github-iac): $L"
 done
 ```
 
@@ -92,25 +96,28 @@ neither can tell who won. The discriminator is the claim comment — GitHub time
 the earliest wins. Embed a per-session marker in the comment so you can recognize your own.
 
 ```shell
-# 1. Pre-check (read): not already claimed/assigned by someone else.
-gh issue view <item#> --json assignees,labels \
-  --jq '{assignees:[.assignees[].login], claimed:([.labels[].name]|any(.=="status:claimed"))}' | tr -d '\r'
+# 1. Pre-check (read): not already assigned by someone else. The claim is assignee + lease —
+#    there is NO claim label.
+gh issue view <item#> --json assignees \
+  --jq '{assignees:[.assignees[].login]}' | tr -d '\r'
 
-# 2. Ensure the claim label exists, post a claim marker comment (embed a per-session marker),
-#    then assign self + label. @me MUST be the session identity so the timeline is honest.
-gh label list --json name --jq '.[].name' | grep -qxF status:claimed || gh label create status:claimed --description "Claimed by a work session"
+# 2. Post a claim marker comment (the lease — embed a per-session marker), then assign self.
+#    @me MUST be the session identity so the timeline is honest.
 gh issue comment <item#> --body "🔒 claim: <session-marker>"
-gh issue edit <item#> --add-label status:claimed --add-assignee "@me"
+gh issue edit <item#> --add-assignee "@me"
 
 # 3. Collision check via claim-comment ORDER (not assignees). The EARLIEST claim comment wins.
 gh issue view <item#> --json comments \
   --jq '[.comments[] | select(.body | startswith("🔒 claim:"))] | sort_by(.createdAt) | .[0].body' | tr -d '\r'
-#    If the earliest claim comment is NOT yours (marker mismatch): back off — remove ONLY your own
-#    assignee (never the shared status:claimed label the winner holds), delete your claim comment,
-#    and pick the next frontier item.
+#    If the earliest claim comment is NOT yours (marker mismatch): back off — delete your claim
+#    comment. Re-read assignees (step 1's command): if another login besides your own is present
+#    (a foreign race — the winner assigned under a different identity), remove ONLY your own
+#    assignee. If you are the item's sole assignee, leave it: a same-identity `@me` collision
+#    means that slot is shared with the winner, so removing it would also un-claim their item and
+#    let it re-enter the frontier out from under them. Either way, pick the next frontier item.
 ```
 
-Session-start `reclaim` is idempotent: clear your own `status:claimed` + assignee on items you
+Session-start `reclaim` is idempotent: clear your own assignee (and claim comment) on items you
 hold that have no in-progress signal (open PR / branch pushes / recent comments), noting the
 release in a comment.
 
@@ -120,8 +127,7 @@ release in a comment.
 # 1. Resolution comment on the item (the decision's durable home).
 gh issue comment <item#> --body "Resolved: <decision> — <one-line basis>"
 # 2. Add the one-line pointer to the map's Decisions-so-far index (edit the map body).
-# 3. Close the item.
-gh issue edit <item#> --remove-label status:claimed
+# 3. Close the item (closing removes it from the frontier — the claim is assignee + lease, no label to clear).
 gh issue close <item#> --reason completed
 ```
 

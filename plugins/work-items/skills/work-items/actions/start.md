@@ -37,7 +37,7 @@ Claim a work item through the seam (assignee + lease record).
 
 1. **Suggest branch name.** Signal the closing-keyword link upstream so `/pull-request create` can auto-inject `Closes #N` from the branch parse. The agent NEVER runs `git checkout` itself; it emits the command for the user.
 
-   **Derive `<type>`** from item labels by Conventional Commits priority — `feat > fix > refactor > docs > chore > test > build > perf`. First match wins; strip `type:` prefix. Default to `chore` if no `type:*` label present.
+   **Derive the branch `<type>` vocabulary** (the commit-layer prefix — `feat`/`fix`/`chore`/…) from the item's **issue type**. Prefer the native GitHub Issue Type when present: `Bug` → `fix`, `Feature` → `feat`, `Task` → `chore`. Fall back to a `type:` label (personal / non-org repos, or a not-yet-migrated org item): the coarse long-form labels map like the native types — `type: bug` → `fix`, `type: feature` → `feat`, `type: task` → `chore`; a legacy commit-style label maps by Conventional Commits priority — `feat > fix > refactor > docs > chore > test > build > perf`, first match wins, strip the `type:` prefix. Default to `chore` when neither is present.
 
    **Derive `<slug>`** from the item title: lowercase, replace non-alphanumeric runs with `-`, trim leading/trailing `-`, cap 40 chars.
 
