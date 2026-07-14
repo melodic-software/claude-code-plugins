@@ -34,6 +34,61 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
+# Keep the success-path contract test independent of tools installed on the
+# runner. markdownlint-cli2's documented CLI contract is an executable invoked
+# as `markdownlint-cli2 --fix <file>`: it applies fixable changes, exits 0 when
+# clean, and exits non-zero with remaining findings. This narrow local double
+# implements exactly the behavior exercised by the fixtures below (MD004,
+# MD024, and MD047); it never resolves packages or accesses the network.
+TEST_BIN="$WORK/test-bin"
+mkdir -p "$TEST_BIN"
+cat >"$TEST_BIN/markdownlint-cli2" <<'STUB'
+#!/usr/bin/env bash
+set -uo pipefail
+
+[[ "${1:-}" == "--fix" && $# -eq 2 ]] || exit 2
+file="$2"
+
+# MD004 fix: the consumer fixture requires dash list markers.
+if grep -q '^\* ' "$file"; then
+  sed -i 's/^\* /- /' "$file"
+fi
+
+# MD047 fix: add a final newline while preserving an existing CRLF style.
+if [[ -s "$file" && "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]]; then
+  if od -An -tx1 "$file" | grep -Eq '(^|[[:space:]])0d([[:space:]]|$)'; then
+    printf '\r\n' >>"$file"
+  else
+    printf '\n' >>"$file"
+  fi
+fi
+
+# MD024 residual: report the second occurrence of a duplicate ATX heading in
+# markdownlint-cli2's default violation-line shape.
+duplicate_line="$({
+  awk '
+    {
+      sub(/\r$/, "")
+      if ($0 ~ /^#{1,6}[[:space:]]+/) {
+        heading = $0
+        sub(/^#{1,6}[[:space:]]+/, "", heading)
+        if (seen[heading]++) { print NR; exit }
+      }
+    }
+  ' "$file"
+} || true)"
+if [[ -n "$duplicate_line" ]]; then
+  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content\n' \
+    "$file" "$duplicate_line"
+  exit 1
+fi
+
+exit 0
+STUB
+chmod +x "$TEST_BIN/markdownlint-cli2"
+PATH="$TEST_BIN:$PATH"
+export PATH
+
 # make_sink <body> → path to an executable single-command stub sink running
 # <body> (which reads the envelope on stdin). The contract requires
 # HOOK_TELEMETRY_SINK to be a single executable path, not a command-with-args,

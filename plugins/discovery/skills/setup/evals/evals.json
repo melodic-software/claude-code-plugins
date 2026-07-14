@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "rejects-nonportable-paths",
-      "prompt": "/discovery:setup --artifacts-dir C:\\Users\\me\\notes",
+      "prompt": "/discovery:setup --artifacts-dir C:\\Users\\<user>\\notes",
       "expected_output": "Rejects the absolute machine-local path with a visible explanation, makes no file changes, and requests a repository-relative base whose normalized destination remains under the repository root.",
       "files": [],
       "expectations": [
