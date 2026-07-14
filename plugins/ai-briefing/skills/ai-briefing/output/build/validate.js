@@ -16,6 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { validateDeck } from "./lib/schema.js";
 import { formatUrlDisplay } from "./lib/url-display.js";
+import { shouldSkipLinkCheck } from "./lib/url-policy.js";
 import { loadSlidesData, meetingsDir, shotsDir } from "./lib/paths.js";
 
 let slidesData;
@@ -175,11 +176,7 @@ try {
     recurse: false,
     timeout: 8000,
     retry: false,
-    linksToSkip: [
-      // Skip self-references and image data URIs
-      /^data:/, /^file:/, /^#/,
-      /^https?:\/\/(?:x|twitter)\.com(?:\/|$)/i,
-    ],
+    linksToSkip: shouldSkipLinkCheck,
   });
   for (const link of result.links) {
     if (link.state !== "BROKEN") continue;
