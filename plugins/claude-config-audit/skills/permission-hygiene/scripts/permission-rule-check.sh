@@ -139,16 +139,24 @@ scan_bare_tool() {
 }
 
 scan_agent() {
-  # scan_agent <text> <source-label> — flag any `Agent` allow rule, whether bare
+  # scan_agent <text> <source-label> — flag an `Agent` allow rule, whether bare
   # `Agent` or scoped `Agent(...)`. Unlike Bash/PowerShell, a scoped Agent rule
   # is NOT a narrow carry-over: auto mode drops all Agent allow rules
-  # categorically, and Agent has no bare-PATH-command analog to re-scope to. The
-  # trailing boundary is `[^[:alnum:]_]` (includes `(`) so the parenthesized form
-  # is caught too; the leading `_` exclusion keeps `mcp__x__Agent` from matching.
-  local text="$1" src="$2"
-  if printf '%s\n' "$text" | grep -qE "(^|[^[:alnum:]_])Agent([^[:alnum:]_]|\$)"; then
-    emit warning P1 "$src" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
-  fi
+  # categorically, and Agent has no bare-PATH-command analog to re-scope to.
+  #
+  # The word "Agent" must be the rule's own tool token, not a fragment inside
+  # another tool's payload (e.g. Bash(echo Agent), Bash(find *Agent*)). So the
+  # text is first split into top-level `Tool` / `Tool(...)` tokens — the greedy
+  # `(\(...\))?` consumes a tool's whole parenthesized payload as one token, so
+  # an inner "Agent" never surfaces as its own token — then only a token that IS
+  # `Agent` or begins `Agent(` is flagged.
+  local text="$1" src="$2" tok
+  while IFS= read -r tok; do
+    if [[ "$tok" == "Agent" || "$tok" == "Agent("* ]]; then
+      emit warning P1 "$src" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
+      break
+    fi
+  done < <(printf '%s\n' "$text" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\([^)]*\))?' 2>/dev/null)
 }
 
 # --- Frontmatter allowed-tools scan ------------------------------------------
