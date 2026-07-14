@@ -40,14 +40,13 @@ about to disappear from the diff.
 
 ## Graduation (before merge)
 
-1. The decision to standardize on rotating refresh tokens passes the ADR
-   admission test → `git mv docs/topics/auth-token-refresh/design/design-resolution.md
+1. The decision to standardize on rotating refresh tokens is durable →
+   `git mv docs/topics/auth-token-refresh/design/design-resolution.md
    docs/adr/0042-rotating-refresh-tokens.md` (vault seam, default
    backend).
 2. Two follow-ups (rate-limit tuning, mobile client migration) become
-   tracker items through the work-items seam; the fog-of-war question
-   ("do we need per-device revocation?" — precisely statable, not yet
-   answerable) files as a decision item.
+   tracker items through the work-items seam; the open question
+   ("do we need per-device revocation?") files as a decision item.
 3. The prune commit deletes `docs/topics/auth-token-refresh/`, and its
    message plus the PR body point at: the PR description (plan +
    verification), `docs/adr/0042`, and the tracker items.
