@@ -108,11 +108,13 @@ jq -n '{permissions:{allow:[
   "Bash(npm test)","Bash(npm run build)","Bash(yarn build)","Bash(pnpm install)",
   "Bash(cargo build)","Bash(git commit *)",
   "Bash(babysit_merge.sh:*)","Read(~/.config/app/config.toml)",
-  "Bash(echo Agent)","Bash(find *Agent*)"
+  "Bash(echo Agent)","Bash(find *Agent*)",
+  "Bash(echo Bash)","Bash(grep PowerShell *)"
 ]}}' >"$D3/.claude/settings.json"
 OUT=$(run "$D3")
 assert_contains "clean narrow ruleset reports none" "$OUT" "No fragile permission grants"
 assert_not_contains "word 'Agent' inside a Bash payload is not an Agent finding" "$OUT" "Agent allow rules are dropped"
+assert_not_contains "tool name inside a Bash payload is not a bare-tool finding" "$OUT" "bare '"
 assert_eq "narrow ruleset count == 0" "0" "$(run "$D3" --count)"
 
 # --- Case 4: P2 hardcoded machine paths -------------------------------------

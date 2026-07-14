@@ -131,18 +131,29 @@ scan_rule() {
   done < <(printf '%s\n' "$text" | grep -oE "$P2_ERE" 2>/dev/null | sort -u)
 }
 
+top_level_tokens() {
+  # top_level_tokens <text> — split rule text into top-level `Tool` /
+  # `Tool(...)` tokens, one per line. The greedy `(\(...\))?` consumes a tool's
+  # whole parenthesized payload as one token, so a tool name inside another
+  # rule's payload (e.g. Bash(echo Agent), Bash(grep PowerShell *)) never
+  # surfaces as its own token.
+  printf '%s\n' "$1" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\([^)]*\))?' 2>/dev/null
+}
+
 scan_bare_tool() {
   # scan_bare_tool <text> <source-label> — flag a bare `Bash`/`PowerShell`
-  # token (the whole-tool grant that auto mode drops). scan_settings_allow
-  # exact-matches this per rule; frontmatter arrives as a blob the parenthesized
-  # P1 ERE cannot see, so it needs a token-level scan. A token immediately
-  # followed by `(` (e.g. Bash(npm test)) is a scoped rule, not a bare grant,
-  # and is excluded so an interpreter rule is not double-flagged.
-  local text="$1" src="$2" tool
+  # token (the whole-tool grant that auto mode drops). Matching runs on
+  # top-level tokens, so a scoped rule (Bash(npm test)) is not double-flagged
+  # as a bare grant, and a tool name embedded in another rule's payload
+  # (Bash(echo Bash)) is not flagged at all.
+  local text="$1" src="$2" tool tok
   for tool in Bash PowerShell; do
-    if printf '%s\n' "$text" | grep -qE "(^|[^[:alnum:]_])${tool}([^[:alnum:]_(]|\$)"; then
-      emit warning P1 "$src" "bare '$tool' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
-    fi
+    while IFS= read -r tok; do
+      if [[ "$tok" == "$tool" ]]; then
+        emit warning P1 "$src" "bare '$tool' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
+        break
+      fi
+    done < <(top_level_tokens "$text")
   done
 }
 
@@ -151,12 +162,7 @@ scan_agent() {
   # `Agent` or scoped `Agent(...)`. Unlike Bash/PowerShell, a scoped Agent rule
   # is NOT a narrow carry-over: auto mode drops all Agent allow rules
   # categorically, and Agent has no bare-PATH-command analog to re-scope to.
-  #
-  # The word "Agent" must be the rule's own tool token, not a fragment inside
-  # another tool's payload (e.g. Bash(echo Agent), Bash(find *Agent*)). So the
-  # text is first split into top-level `Tool` / `Tool(...)` tokens — the greedy
-  # `(\(...\))?` consumes a tool's whole parenthesized payload as one token, so
-  # an inner "Agent" never surfaces as its own token — then only a token that IS
+  # Matching runs on top-level tokens so only a rule whose own tool token IS
   # `Agent` or begins `Agent(` is flagged.
   local text="$1" src="$2" tok
   while IFS= read -r tok; do
@@ -164,7 +170,7 @@ scan_agent() {
       emit warning P1 "$src" "Agent allow rules are dropped in auto mode and have no PATH-durable analog — remove/re-scope, or run outside auto mode."
       break
     fi
-  done < <(printf '%s\n' "$text" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\([^)]*\))?' 2>/dev/null)
+  done < <(top_level_tokens "$text")
 }
 
 # --- Frontmatter allowed-tools scan ------------------------------------------
