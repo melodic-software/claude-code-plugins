@@ -12,15 +12,29 @@ declutter_trim_excerpt() {
   printf '%s' "$line"
 }
 
-# Topic-docs convention forms citable from durable docs: angle-bracket slot
-# variables are schema placeholders, not literal paths; the reserved
-# concern-scoped roots and the tracked concern file are stable convention
-# surfaces, not ephemeral slices.
-declutter_is_convention_path_ref() {
-  local line="$1"
-  [[ "$line" == *'.work/<'* || "$line" == *'docs/topics/<'* ]] && return 0
-  [[ "$line" == *'.work/handoffs/'* || "$line" == *'.work/reviews/'* ]] && return 0
-  [[ "$line" == *'.claude/topic-docs.yaml'* ]] && return 0
+# Per-match ghost-ref scan: exemptions apply to each matched path, never to
+# the whole line, so a convention token cannot mask a concrete ghost ref
+# sharing its line. Angle-bracket slot variables (root followed by '<') are
+# schema placeholders and never match the candidate pattern; the reserved
+# concern-scoped roots (.work/handoffs/, .work/reviews/) are exempt only in
+# bare form — a concrete child under them flags.
+declutter_line_has_ghost_ref() {
+  local rest="$1" path root seg after
+  # Retired location: stale even in placeholder form.
+  [[ "$rest" == *'.claude/notes/'* ]] && return 0
+  while [[ "$rest" =~ (\.work|docs/topics)/([a-z0-9][a-z0-9_-]*)/ ]]; do
+    path="${BASH_REMATCH[0]}"
+    root="${BASH_REMATCH[1]}"
+    seg="${BASH_REMATCH[2]}"
+    after="${rest#*"$path"}"
+    if [[ "$root" == '.work' ]] &&
+      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' ]] &&
+      [[ ! "$after" =~ ^[[:alnum:]] ]]; then
+      rest="$after"
+      continue
+    fi
+    return 0
+  done
   return 1
 }
 
@@ -35,15 +49,8 @@ declutter_line_skipped() {
 declutter_detect_shapes() {
   local line="$1"
   local found=0
-  local ghost=0
-  if ! declutter_is_convention_path_ref "$line"; then
-    [[ "$line" =~ \.work/[a-z][a-z0-9_-]*/ ]] && ghost=1
-    [[ "$line" =~ docs/topics/[a-z][a-z0-9_-]*/ ]] && ghost=1
-  fi
-  # Retired location: a .claude/notes/ citation is stale even in placeholder
-  # form, so it bypasses the convention-path exemption.
-  [[ "$line" == *'.claude/notes/'* ]] && ghost=1
-  if [[ $ghost -eq 1 ]]; then
+  if [[ "$line" == *'.work/'* || "$line" == *'docs/topics/'* || "$line" == *'.claude/notes/'* ]] &&
+    declutter_line_has_ghost_ref "$line"; then
     printf '%s\n' 'ghost-ref'
     found=1
   fi

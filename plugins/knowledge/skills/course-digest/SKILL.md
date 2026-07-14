@@ -27,7 +27,7 @@ Where this skill says "deeper research," use whatever external-research capabili
 
 For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
 
-The `.work/` root and `<slug>` follow the marketplace topic-docs convention (memory tier: self-ignoring via a root `.gitignore` containing `*`, never committed; shared slug spec: kebab-case, ≤ 40 chars, Windows-reserved base names excluded via `-x` suffix; only `handoffs` and `reviews` are reserved at the memory root) — see `docs/conventions/topic-docs/` in the marketplace repo.
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
 
 ## Prerequisites (verify before starting)
 

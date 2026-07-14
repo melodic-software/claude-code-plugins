@@ -82,9 +82,11 @@ The skills adapt to the consuming repo rather than imposing structure:
   degrades gracefully to inline execution.
 - **Artifact location** — `handoff` and `workflow` honor a repo-documented convention for
   save-points/work journals (the `.claude/topic-docs.yaml` concern file, or the repo's `CLAUDE.md`
-  / rules); the default is `.work/handoffs/` — memory tier per the marketplace topic-docs
-  convention, self-ignoring and never committed (`reference/topic-docs.md`). Legacy
-  `.claude/handoffs/` content is still read (and pins writes) until migrated.
+  / rules); the defaults are `.work/handoffs/` for handoff save-points and
+  `.work/<slug>/workflow-checklist.md` for the per-topic workflow checklist — memory tier per the
+  marketplace topic-docs convention, self-ignoring and never committed
+  (`reference/topic-docs.md`). Legacy `.claude/handoffs/` content is still read (and pins writes)
+  until migrated.
 - **Quality gates and conventions** — build/test/lint commands, review criteria, and codification
   targets all come from the consuming repo's own instruction files.
 

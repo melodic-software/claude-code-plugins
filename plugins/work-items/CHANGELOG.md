@@ -23,8 +23,9 @@ Adopt the marketplace topic-docs convention (`docs/conventions/topic-docs/`, con
   version, no sooner than one minor release after this notice). Previously the default was
   `.work/<slug>/`, which the convention classifies as memory tier — plans are contract documents.
 - The checklist emit path (`.work/<slug>/work-items-checklist.md`) is now governed by the binding:
-  `<slug>` derives per the shared slug spec and every write verifies the memory root's self-ignore
-  guard (a `.gitignore` containing `*`, created and announced when absent).
+  `<slug>` derives per the shared slug spec and the session's first memory-tier write verifies the
+  resolved memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced
+  when absent).
 
 ## [0.3.0]
 

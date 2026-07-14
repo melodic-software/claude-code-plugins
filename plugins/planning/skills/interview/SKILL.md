@@ -156,7 +156,7 @@ Stop when every load-bearing unknown is resolved OR captured as named assumption
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`). The contract lands in the topic's contract slice `docs/topics/<topic-slug>/`; working ledgers land in the memory slice `.work/<topic-slug>/` — roots, tier, legacy grace, and precedence resolve per the topic-docs ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
+Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`). The contract lands in the topic's contract slice `docs/topics/<topic-slug>/`; working ledgers land in the memory slice `.work/<topic-slug>/` — roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
 
 **General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
 

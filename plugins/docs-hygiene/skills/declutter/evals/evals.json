@@ -29,13 +29,14 @@
     {
       "id": 3,
       "name": "convention-paths-not-flagged-as-ghost-refs",
-      "prompt": "Declutter a rule file whose body cites the topic-docs convention as examples: the schema placeholder paths `.work/<slug>/PLAN.md` and `docs/topics/<slug>/PLAN.md`, the concern-scoped roots `.work/handoffs/` and `.work/reviews/`, and the tracked concern file `.claude/topic-docs.yaml` (none are literal directory names). Classify it.",
-      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and the concern-scoped roots plus `.claude/topic-docs.yaml` as stable convention surfaces; flags NONE of them as ghost-refs. Only concrete literal paths into ephemeral slices are ghost-refs.",
+      "prompt": "Declutter a rule file whose body cites the topic-docs convention as examples: the schema placeholder paths `.work/<slug>/PLAN.md` and `docs/topics/<slug>/PLAN.md`, the bare concern-scoped roots `.work/handoffs/` and `.work/reviews/`, and the tracked concern file `.claude/topic-docs.yaml` (none are literal directory names). One line mixes a convention token with a concrete slice: 'See docs/topics/auth-fix/PLAN.md and the concern file .claude/topic-docs.yaml'. Another cites a concrete review report `.work/reviews/pr-123-auth/20260101T000000Z-self.md`. Classify it.",
+      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and the BARE concern-scoped roots plus `.claude/topic-docs.yaml` as citable convention surfaces; flags none of those as ghost-refs. Exemption is per matched path, not per line: the mixed line's concrete `docs/topics/auth-fix/PLAN.md` IS flagged despite the concern-file token beside it, and the concrete child `.work/reviews/pr-123-auth/…` IS flagged because the concern-root exemption covers only the bare root (or a placeholder child).",
       "files": [],
       "expectations": [
         "The `<slug>` placeholder paths under `.work/` and `docs/topics/` are NOT flagged as ghost-refs",
-        "`.work/handoffs/`, `.work/reviews/`, and `.claude/topic-docs.yaml` citations are NOT flagged as ghost-refs",
-        "Output states that slot-variable / schema-placeholder tokens and convention surfaces are exempt from the ghost-ref shape"
+        "Bare `.work/handoffs/`, `.work/reviews/`, and `.claude/topic-docs.yaml` citations are NOT flagged as ghost-refs",
+        "The concrete `docs/topics/auth-fix/PLAN.md` on the mixed line IS flagged — a convention token never exempts a concrete ghost ref sharing its line",
+        "The concrete child `.work/reviews/pr-123-auth/20260101T000000Z-self.md` IS flagged — the concern-root exemption covers the bare root only"
       ]
     },
     {

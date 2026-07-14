@@ -64,7 +64,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `docs/topics/<topic-slug>/design/` — the topic's contract slice, committed on the task branch: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/architect`'s gate and any fresh worktree or clone must see them. Roots, tier, legacy grace, and precedence resolve per the topic-docs ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/architect`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `docs/topics/<topic-slug>/design/` — the topic's contract slice, committed on the task branch: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/architect`'s gate and any fresh worktree or clone must see them. Roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/architect`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 

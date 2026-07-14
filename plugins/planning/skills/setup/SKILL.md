@@ -12,9 +12,11 @@ documents (`PRD.md`, `PLAN.md`, `design/`) and working memory (checklists, basel
 land — and persist it to the tracked concern file **`.claude/topic-docs.yaml`**, the
 consumer-side single source of truth every consuming plugin resolves first. The file's shape is
 the convention's `topic-docs.schema.json`; every key is optional and absent keys mean the
-documented defaults (`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`).
-Tier semantics, the full resolution ladder, and the runtime guards live in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+documented defaults (`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`,
+`vault_backend: docs`).
+This plugin's binding — its tier table, grace parameters, and guarded migration command — lives in
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md);
+the contract it cites owns the resolution order and runtime guards.
 
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind.
 
@@ -29,19 +31,23 @@ Idempotent: re-running reads the current state and offers an update rather than 
    `notes_dir` directory) already holds topic content, the pipeline skills keep operating wholly
    there — reads AND writes — until migrated. Say so explicitly, emit the deprecation notice
    (`notes_dir` and the old layout are removed at the plugin's next major version), and offer a
-   guarded migration: move contract kinds (`PRD.md`, `PLAN.md`, `design/`) into
-   `<contract_dir>/<topic-slug>/` and memory kinds (checklists, baselines, scratch) into
-   `<memory_dir>/<topic-slug>/`, one topic at a time, only on explicit confirmation. Never
-   dual-write; never split one topic across roots.
+   guarded migration executing the binding's migration command
+   ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)):
+   contract kinds (`PRD.md`, `PLAN.md`, `design/`) into `<contract_dir>/<topic-slug>/`, memory
+   kinds (checklists, baselines, scratch) into `<memory_dir>/<topic-slug>/`, one topic at a time,
+   only on explicit confirmation — then remove the `notes_dir` key from every settings scope that
+   sets it: migration completes only when the legacy knob is removed. Never dual-write; never
+   split one topic across roots.
 3. **Infer before asking.** With no concern file and no declared convention, look for an existing
    conforming layout (a `docs/topics/`-shaped contract root, a self-ignoring `.work/`) and
    confirm it rather than guessing.
 4. **Interview — one decision.** The load-bearing choice is `contract_tier`: **`branch`
    (RECOMMENDED)** — contract documents commit on the task branch, travel to worktrees and cloud
    clones, and are pruned before merge — vs `local` — solo/offline mode; contract kinds join the
-   memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`
-   and `memory_dir` at their defaults unless the repo's own conventions say otherwise; do not
-   invent further knobs.
+   memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`,
+   `memory_dir`, and `vault_backend` at their defaults unless the repo's own conventions say
+   otherwise — but offer every schema key and preserve every key an existing file carries (a
+   re-run never drops one); do not invent knobs beyond the schema.
 5. **Run the conflict check before writing.** `git check-ignore -v` on the chosen contract root
    (e.g. `docs/topics/`): if a consumer ignore rule matches, STOP and surface the exact rule and
    source line — a "committed" tier that git ignores is the failure the guard exists to catch.
@@ -49,8 +55,8 @@ Idempotent: re-running reads the current state and offers an update rather than 
    `.gitignore`** (or any ignore file) yourself.
 6. **Persist.** Write `.claude/topic-docs.yaml` (tracked, team-shared), recording only the keys
    the user chose — absent keys mean the documented defaults, so an all-defaults answer may
-   yield a file with `contract_tier: branch` alone or nothing beyond a comment header. Do not
-   disturb an existing file's unrelated keys (e.g. `vault_backend`).
+   yield a file with `contract_tier: branch` alone or nothing beyond a comment header. Preserve
+   every schema key an existing file carries.
 
 ## Output
 

@@ -12,9 +12,10 @@ Settle the **topic-docs** seam for the consuming repo — the marketplace-wide c
 plugin-generated documents land. The discovery plugin writes memory-tier artifacts (`EXPLORE.md`,
 `RESEARCH.md`, one `<slug>/` slice per topic) to `<memory_dir>/<slug>/`, never committed. The
 consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its schema
-is published in the marketplace repo at `docs/conventions/topic-docs/topic-docs.schema.json` — every
-key optional, absent keys mean the documented defaults (`contract_dir: docs/topics`,
-`memory_dir: .work`, `contract_tier: branch`). How the discovery skills consume what this skill
+is published at
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/topic-docs.schema.json> —
+every key optional, absent keys mean the documented defaults (`contract_dir: docs/topics`,
+`memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). How the discovery skills consume what this skill
 persists: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind.
@@ -32,11 +33,11 @@ Idempotent: re-running reads the current state and offers an update rather than 
    content.
 2. **Legacy state present → offer the guarded migration.** Until migrated, the discovery skills operate
    wholly on the old location — reads AND writes (old pins until migrated). Migration runs only on
-   explicit confirmation: verify-or-create the memory root's self-ignoring `.gitignore` (containing
-   `*`); move each old topic directory (`.claude/notes/<slug>/`, or `<notes_dir>/<slug>/` when the knob
-   is set) to `<memory_dir>/<slug>/`, refusing to overwrite an existing target slice; then remove the
-   `notes_dir` key from every settings scope that sets it. Never dual-write; never split one topic
-   across roots. Emit the deprecation notice whether or not the user migrates now: `notes_dir` is
+   explicit confirmation, executing the binding's guarded migration command
+   ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) —
+   one topic slice at a time, refusing to overwrite a populated target, and removing the `notes_dir`
+   key from every settings scope that sets it: migration completes only when the legacy knob is
+   removed. Emit the deprecation notice whether or not the user migrates now: `notes_dir` is
    superseded by `.claude/topic-docs.yaml` and is removed at this plugin's next major version.
 3. **Infer before asking.** With no concern file, look for a working-docs convention declared in the
    repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules` (surface it as the recommended value — prose
@@ -44,15 +45,17 @@ Idempotent: re-running reads the current state and offers an update rather than 
    conforming layout (`.work/` with a self-ignore, `docs/topics/`) that the proposed values would
    simply confirm.
 4. **Interview — one question, recommendation first.** Present the inferred or documented defaults
-   (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch` — RECOMMENDED) and let
-   the user accept or edit. `contract_tier: local` is the solo/offline mode (contract kinds join the
-   memory tier). Keep it to the concern file's schema keys; do not invent further options.
-5. **Persist, then guard.** Write the chosen values to the tracked `.claude/topic-docs.yaml` (create or
-   update; omit keys the user leaves at their defaults). Then run the conflict check:
-   `git check-ignore -v` on the configured contract root — if a consumer ignore rule matches, surface
-   the exact rule and stop rather than leaving an uncommittable "committed" tier configured.
-   Verify-or-create the memory root's self-ignoring `.gitignore` (announce the creation). **Never edit
-   the consumer's root `.gitignore`.**
+   (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
+   `vault_backend: docs` — RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
+   solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
+   consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
+   existing file carries — a re-run never drops one; do not invent options beyond the schema.
+5. **Guard, then persist.** Run the conflict check first: `git check-ignore -v` on the chosen contract
+   root — if a consumer ignore rule matches, STOP and surface the exact rule and source line rather
+   than configuring an uncommittable "committed" tier (resolving the rule is the user's edit). Only
+   then write the chosen values to the tracked `.claude/topic-docs.yaml` (create or update; omit keys
+   the user leaves at their defaults). Verify-or-create the memory root's self-ignoring `.gitignore`
+   (announce the creation). **Never edit the consumer's root `.gitignore`.**
 
 ## Output
 

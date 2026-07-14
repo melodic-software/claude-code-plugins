@@ -175,6 +175,53 @@ EOF
 mig_out="$(bash "$DETECT" "$MIGRATE")"
 assert_contains ".claude/notes/ flags even beside convention placeholders" "$mig_out" "Finding shape: ghost-ref"
 
+# --- 10. Per-match exemption: convention tokens never mask concrete ghost refs --------
+
+MIXED="$TEST_TMPDIR/mixed-line.md"
+cat >"$MIXED" <<'EOF'
+# Mixed-line fixture
+
+See docs/topics/auth-fix/PLAN.md and the concern file .claude/topic-docs.yaml for detail.
+EOF
+mixed_out="$(bash "$DETECT" "$MIXED")"
+assert_contains "concern-file token does not exempt a concrete slice on the same line" "$mixed_out" "Finding shape: ghost-ref"
+
+DEEP="$TEST_TMPDIR/deep-review.md"
+cat >"$DEEP" <<'EOF'
+# Deep-review fixture
+
+Review report kept at .work/reviews/pr-123-auth/20260101T000000Z-self.md for posterity.
+EOF
+deep_out="$(bash "$DETECT" "$DEEP")"
+assert_contains "concrete child under .work/reviews/ is a ghost ref" "$deep_out" "Finding shape: ghost-ref"
+
+DIGIT="$TEST_TMPDIR/digit-slug.md"
+cat >"$DIGIT" <<'EOF'
+# Digit-slug fixture
+
+Plan lives at docs/topics/2026-migration/PLAN.md today.
+EOF
+digit_out="$(bash "$DETECT" "$DIGIT")"
+assert_contains "digit-leading slug is a ghost ref" "$digit_out" "Finding shape: ghost-ref"
+
+BARE_ROOT="$TEST_TMPDIR/bare-root.md"
+cat >"$BARE_ROOT" <<'EOF'
+# Bare-root fixture
+
+.work/reviews/ is self-ignoring
+EOF
+bare_out="$(bash "$DETECT" "$BARE_ROOT")"
+assert_not_contains "bare concern root is not a ghost ref" "$bare_out" "Finding shape: ghost-ref"
+
+PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
+cat >"$PLACEHOLDER" <<'EOF'
+# Placeholder fixture
+
+docs/topics/<slug>/PLAN.md
+EOF
+ph_out="$(bash "$DETECT" "$PLACEHOLDER")"
+assert_not_contains "slot-variable placeholder is not a ghost ref" "$ph_out" "Finding shape: ghost-ref"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

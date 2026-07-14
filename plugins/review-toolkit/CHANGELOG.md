@@ -10,16 +10,21 @@ All notable changes to the `review-toolkit` plugin are documented here. Format f
 - **Consume the topic-docs convention** (`docs/conventions/topic-docs/README.md`), bound for this
   plugin in the new `reference/topic-docs.md`. The default findings location moves from
   `.claude/review/<branch-slug>/` to `.work/reviews/<branch-slug>/` — the memory tier's
-  concern-scoped reviews home (branch axis, never committed, self-ignoring root). A consumer-declared
-  review-artifacts location still wins; every report write runs the verify-or-create self-ignore
-  guard on the memory root; no skill edits the consumer's root `.gitignore`.
-- **Legacy grace for `.claude/review/`:** reads check the new home first and fall back to the legacy
-  directory with a deprecation note; when legacy content exists for the current branch, writes stay
-  pinned there so one branch's review history never splits across roots. Dual-read and the fallback
-  are removed at the next major version.
+  concern-scoped reviews home (branch axis, never committed, self-ignoring root). Resolution
+  follows the contract's ladder: the concern file's `memory_dir` first, then a consumer-declared
+  review-artifacts location (an inference source — the skills offer to persist it into the concern
+  file), then the default. The session's first memory-tier write runs the verify-or-create
+  self-ignore guard on the resolved memory root; no skill edits the consumer's root `.gitignore`.
+- **Legacy grace for `.claude/review/`:** the contract's grace algorithm, applied with slice
+  axis = branch and legacy root `.claude/review/` — reads check the new home first and fall back
+  to the legacy directory with a deprecation note; when the new home holds nothing for the current
+  branch and legacy content exists, writes stay pinned there so one branch's review history never
+  splits across roots (a populated new home short-circuits the legacy probe). Dual-read and the
+  fallback are removed at the next major version.
 - **`quality-gate` self-mode plan source:** the approved plan/brief is now sourced from the
   conversation, else the topic's contract slice `docs/topics/<slug>/PLAN.md` (memory-tier fallback
-  under `contract_tier: local`), replacing the untyped "project's working notes" phrase.
+  under `contract_tier: local`, then legacy `.claude/notes/<slug>/PLAN.md` as deprecation grace),
+  replacing the untyped "project's working notes" phrase.
 
 ### Added
 

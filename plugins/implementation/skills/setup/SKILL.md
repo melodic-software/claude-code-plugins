@@ -88,11 +88,12 @@ The plugin's skills place plan progress, verification manifests, and baselines p
 convention ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 When `$REPO_ROOT/.claude/topic-docs.yaml` is absent, offer to write it — one question, recommended
 option first (`contract_tier: branch`, the default; `local` for solo/offline work) — and materialize
-only the keys that differ from the documented defaults. When it exists, leave it alone unless the
-user asks to reconfigure. Before writing, run the conflict check: `git check-ignore -v` on the
+only the keys that differ from the documented defaults, offering every schema key (`contract_dir`,
+`memory_dir`, `contract_tier`, `vault_backend`). When it exists, leave it alone unless the user asks
+to reconfigure — and preserve every schema key it carries; a re-run never drops one. Before writing, run the conflict check: `git check-ignore -v` on the
 contract root (`docs/topics`, or the chosen `contract_dir`) — a matching ignore rule is surfaced to
 the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
-memory tier self-ignores through its own `.work/.gitignore`.
+resolved memory root self-ignores through its own `.gitignore`.
 
 ## Output
 

@@ -37,8 +37,9 @@ fresh session can resume planning from the artifact alone.
 
 ## Configuration
 
-Artifact placement follows the marketplace **topic-docs convention** (`docs/conventions/topic-docs/`
-in the melodic-software/claude-code-plugins repository). `EXPLORE.md` / `RESEARCH.md` are memory-tier
+Artifact placement follows the marketplace **topic-docs convention**
+(<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>).
+`EXPLORE.md` / `RESEARCH.md` are memory-tier
 documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one slug per topic, never
 committed — the memory root self-ignores. Skills resolve `<memory_dir>` in order: the tracked concern
 file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → the
@@ -48,7 +49,7 @@ content.
 
 | Option | Type | Status | Purpose |
 |---|---|---|---|
-| `notes_dir` | string | **Deprecated** — superseded by `.claude/topic-docs.yaml`; removed at the next major version | Legacy artifact directory (old default `.claude/notes`). When set — or when `.claude/notes/<slug>` content exists — skills keep reading and writing the old location until `/discovery:setup` migrates it. |
+| `notes_dir` | string | **Deprecated** — superseded by `.claude/topic-docs.yaml`; removed at the next major version | Legacy artifact directory (old default `.claude/notes`). When the key is present with any value — or when `.claude/notes/<slug>` content exists — skills keep reading and writing the old location until `/discovery:setup` migrates it. |
 
 ## License
 

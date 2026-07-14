@@ -105,8 +105,12 @@ Write the file into the handoff location (SKILL.md "Where handoffs live"):
 ```bash
 TS=$(date -u +%Y%m%dT%H%M%SZ)              # ISO basic — Windows-safe, no colons
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
-DIR=.work/handoffs                         # resolved per SKILL.md "Where handoffs live" —
-                                           # legacy .claude/handoffs content pins the old location
+MEMORY_ROOT=.work                          # the concern file's memory_dir when set — resolve it
+                                           # first, never assume the literal .work
+DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live" — probe
+                                           # legacy .claude/handoffs only when $DIR holds no
+                                           # save-points; unmigrated legacy content pins the old
+                                           # location
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
 
 # Candidate prior handoff (newest by timestamp) for the chain pointer — but
@@ -120,10 +124,12 @@ if [[ -n "$PRIOR" ]]; then
 fi
 
 mkdir -p "$DIR"
-# Self-ignore guard (new location only): the memory root must gitignore itself.
-if [[ "$DIR" == .work/* ]]; then
-  grep -qx '\*' .work/.gitignore 2>/dev/null \
-    || printf '*\n' >> .work/.gitignore    # announce this write to the user
+# Self-ignore guard (new location only; the session's FIRST memory-tier write —
+# skip when already verified this session): the resolved memory root must
+# gitignore itself.
+if [[ "$DIR" == "$MEMORY_ROOT"/* ]]; then
+  grep -qx '\*' "$MEMORY_ROOT/.gitignore" 2>/dev/null \
+    || printf '*\n' >> "$MEMORY_ROOT/.gitignore"   # announce this write to the user
 fi
 # Write: $DIR/${TS}-handoff-${TOPIC}.md
 ```

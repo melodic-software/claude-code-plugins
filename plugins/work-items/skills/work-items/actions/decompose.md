@@ -10,7 +10,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 `source` can be:
 
-- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file via the three-location lookup in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): `docs/topics/<slug>/PLAN.md` (contract slice on the task branch) → `.work/<slug>/PLAN.md` (`contract_tier: local`) → legacy `.claude/notes/<slug>/PLAN.md` (deprecation grace — emit the notice)
+- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file via the three-location lookup in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): `docs/topics/<slug>/PLAN.md` (contract slice on the task branch) → `.work/<slug>/PLAN.md` (under `contract_tier: local`) → legacy `.claude/notes/<slug>/PLAN.md` (deprecation grace — emit the notice)
 - `prd` — reads the topic's `PRD.md` user stories, resolved via the same three-location lookup
 - `#<item-number>` — reads an existing item's body
 - Conversation context — synthesizes from current discussion

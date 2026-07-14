@@ -116,8 +116,8 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | playwright | none needed | n/a | — | @playwright/cli (CLI-first) | absent → #1396 | compliant |
 | work-items | tracked `.github/recurring-schedule.json` (seam 2, optional) + backend-neutral `gh` | **partial** | `recheck` requires it; `add --recurring` scaffolds a skeleton (ask-gated); no dedicated re-runnable setup | MCP-neutral (gh CLI) | present | **GAP → net-new setup issue** (dedicated setup for the recurring schedule) |
 | event-storming | none needed | n/a | — | miro STAY (degraded-but-functional) | absent → #1396 | compliant; miro reconcile owned by #1405 |
-| review-toolkit | consumer rules (seam 3) | n/a | — | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
-| session-flow | writes `.claude/handoffs/` (default) | n/a | safe default | — | absent → #1396 | compliant |
+| review-toolkit | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) + consumer rules (seam 3); legacy `.claude/review/` content is deprecated grace | n/a | concern file → CLAUDE.md/rules → legacy content → default | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
+| session-flow | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`); legacy `.claude/handoffs/` content is deprecated grace | n/a | concern file → CLAUDE.md/rules → legacy content → default | — | absent → #1396 | compliant |
 | source-control | writes `.claude/worktrees/` (default) | n/a | safe default | — | absent → #1396 | compliant |
 | diagnose | none needed | n/a | — | — | absent → #1396 | compliant |
 | docs-hygiene | none needed | n/a | — | — | absent → #1396 | compliant |

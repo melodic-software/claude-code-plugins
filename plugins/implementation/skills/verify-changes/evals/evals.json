@@ -54,12 +54,12 @@
       "id": 7,
       "name": "e2e-auto-trigger-on-runtime-change",
       "prompt": "verify the changes — I added a new endpoint to the API",
-      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /test-e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha.",
+      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /test-e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha to the topic's contract slice.",
       "files": [],
       "expectations": [
         "Auto-triggers /test-e2e because the change matches an e2e-* category glob (runtime-affecting)",
-        "Writes the assertion-only manifest beside the change's plan/notes artifacts with verified_at_sha frontmatter",
-        "Does not cite machine-local capture paths in the manifest (captures stay gitignored)"
+        "Writes the assertion-only manifest with verified_at_sha to the topic's contract slice (docs/topics/<slug>/verification/, committed on the task branch)",
+        "Meets the redaction bar: no machine-local capture paths in the manifest — raw captures stay in the memory tier (.work/<slug>/scratch/), never committed"
       ]
     },
     {

@@ -54,13 +54,14 @@ Invoke via `@review-toolkit:<agent>` or let Claude delegate.
 
 ## Findings location
 
-Review findings persist to the project's own review-artifacts location when its conventions
-define one; otherwise to `.work/reviews/<branch-slug>/` at the project root — the topic-docs
-convention's memory tier, concern-scoped on the branch axis (`reference/topic-docs.md`). The
-memory root self-ignores (`.work/.gitignore` containing `*`, created on first write), so
-findings never enter version control. Legacy `.claude/review/<branch-slug>/` content keeps
-writes pinned there with a deprecation note until migrated; that dual-read fallback is removed
-at the next major version.
+Review findings persist to the directory the `.claude/topic-docs.yaml` concern file's
+`memory_dir` resolves (`<memory_dir>/reviews/<branch-slug>/`); else to a review-artifacts
+location the project's own conventions declare; else to `.work/reviews/<branch-slug>/` at the
+project root — the topic-docs convention's memory tier, concern-scoped on the branch axis
+(`reference/topic-docs.md`). The memory root self-ignores (a `.gitignore` containing `*`,
+created on the session's first memory-tier write), so findings never enter version control.
+Legacy `.claude/review/<branch-slug>/` content keeps writes pinned there with a deprecation note
+until migrated; that dual-read fallback is removed at the next major version.
 
 ## Install
 

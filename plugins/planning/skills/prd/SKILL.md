@@ -138,7 +138,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5 — Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `docs/topics/<topic-slug>/PRD.md` — the topic's contract slice, committed on the task branch as it locks; roots, tier, legacy grace, and precedence resolve per the topic-docs ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (architect's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `docs/topics/<topic-slug>/PRD.md` — the topic's contract slice, committed on the task branch as it locks; roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (architect's output) and the topic's design artifacts.
 
 Frontmatter:
 

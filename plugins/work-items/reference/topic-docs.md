@@ -40,8 +40,9 @@ than one minor release after its deprecation notice shipped.
 
 - `<slug>` derives per the contract's slug spec (explicit argument → Brief/PRD topic → current
   branch name; kebab-case `[a-z0-9-]`, ≤ 40 chars). The same slug names the topic in both tiers.
-- **Self-ignore guard:** every memory-tier write verifies the memory root contains a `.gitignore`
-  with `*`, creating it (announced) when absent — fresh clones heal on first write.
+- **Self-ignore guard:** the session's first memory-tier write verifies the resolved memory root
+  contains a `.gitignore` with `*`, creating it (announced) when absent — fresh clones heal on
+  first write. Once per session, per the contract.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.
 - Configuration resolves through the convention's resolution order (`.claude/topic-docs.yaml`
   concern file first, documented defaults last).

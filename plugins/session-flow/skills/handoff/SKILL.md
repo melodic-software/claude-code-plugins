@@ -32,12 +32,13 @@ the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_P
 A consumer-declared convention (the `.claude/topic-docs.yaml` concern file, or a save-point
 convention in `CLAUDE.md` / `.claude/rules/`) wins; otherwise default to
 **`<memory_dir>/handoffs/`** (default `.work/handoffs/`) — files named `<TS>-handoff-<topic>.md`
-with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). Before writing, verify
-`.work/.gitignore` exists and contains `*` — create it (announced) when absent; never edit the
-consumer's root `.gitignore`.
+with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
+memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*` — create
+it (announced) when absent; never edit the consumer's root `.gitignore`.
 
-Dual-read window (per the binding): when reading the handoff chain, check `.work/handoffs/` first
-and fall back to legacy `.claude/handoffs/` with a one-line deprecation note. Legacy content the
+Dual-read window (per the binding): when reading the handoff chain, check `<memory_dir>/handoffs/`
+first; only when it holds no save-points, fall back to legacy `.claude/handoffs/` with a one-line
+deprecation note — a populated new home short-circuits the legacy probe. Legacy content the
 consumer hasn't migrated pins the old location — operate wholly on `.claude/handoffs/` (reads AND
 writes) plus the notice; never dual-write.
 

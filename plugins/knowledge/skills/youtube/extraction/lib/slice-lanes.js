@@ -6,9 +6,9 @@
  * literals — so the lane layout is enforced in one place and a rename is a one-file flip.
  *
  * The six lanes are an intentional, user-approved concern-layout — each owns its deliverable +
- * working trail + machine-state together (Common Closure Principle). `verification` is deliberately
- * a content-noun, NOT the canonical `.work` verb `verify/`: no `/youtube` tooling binds a `verify/`
- * path, so internal consistency with the other five content-noun lanes wins. Do not "align" it back.
+ * working trail + machine-state together (Common Closure Principle). `verification` is a
+ * content-noun like the other five lanes and matches the marketplace topic-docs canon's
+ * `verification/` folder name — the alignment is deliberate; keep the two in step.
  */
 
 import path from "node:path";

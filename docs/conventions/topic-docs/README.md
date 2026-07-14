@@ -62,7 +62,16 @@ documented defaults:
 contract_dir: docs/topics   # contract-slice root
 memory_dir: .work           # memory-tier root
 contract_tier: branch       # branch (default) | local
+vault_backend: docs         # durable-tier backend; 'docs' = in-repo git mv
 ```
+
+`vault_backend` names the knowledge-vault seam backend for the durable
+tier. `docs` (the default) promotes via history-preserving `git mv` into
+the in-repo `docs/` tree. Any other value names a backend the consuming
+repo documents (e.g. a GitBook space reached through its MCP server);
+promotion steps resolve this key and degrade to `docs` when the named
+backend's tools are unavailable. Setup skills preserve and offer every
+schema key — a re-run never drops one.
 
 `contract_tier: local` is the solo/offline mode: contract kinds join the
 memory tier under `.work/<slug>/` and the PR-description paste becomes
@@ -92,15 +101,24 @@ non-interactive → `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` with the
 absolute path announced prominently and nothing persisted. Writes outside
 a project root only ever target the plugin-data surface.
 
+**Non-interactive / forked mode** (any context that cannot ask the user
+or persist config — forked subagents, dispatched workers, headless
+runs): skip the ask and persist rungs; take the resolved or documented
+default and surface the assumption in the returned summary. A fork never
+writes `.claude/topic-docs.yaml`. This rule is contract-owned; bindings
+cite it rather than redefining it.
+
 ## Runtime guards
 
 - **Committed-tier guard:** the first contract-slice write in a session
   runs `git check-ignore -v` on the target path. If a consumer ignore
   rule matches, stop and surface the exact rule — never silently produce
   an uncommittable "committed" tier.
-- **Self-ignore guard:** every memory-tier write verifies the tier root
-  contains a `.gitignore` with `*`, creating it (announced) when absent —
-  fresh clones heal on first write.
+- **Self-ignore guard:** the session's first memory-tier write verifies
+  the **resolved memory root** (whatever `memory_dir` names — never a
+  hardcoded `.work`) contains a `.gitignore` with `*`, creating it
+  (announced) when absent — fresh clones heal on first write. Once per
+  session, matching the committed-tier guard's scope.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec
@@ -169,12 +187,27 @@ credentials. Raw output stays in `.work/<slug>/`.
 
 ## Deprecation and migration
 
-- **Old pins until migrated.** When old-convention content exists
-  (`.claude/notes/<slug>/`, a set `notes_dir` knob), a plugin operates
-  wholly on the old location — reads *and* writes — and emits a
-  deprecation notice with a guarded migration command. New defaults apply
-  to fresh repos and fresh topics only. Never dual-write; never split one
-  topic across roots.
+One grace algorithm, contract-owned; bindings cite it with two
+parameters — the **slice axis** their concern keys on (topic slug,
+branch, or handoff chain) and their **legacy root**:
+
+- **"Set" is decidable:** a legacy knob counts as set when its key is
+  present in the stored plugin options with any value (the knobs carry
+  no default), or when the legacy root holds content for the current
+  slice. Legacy probes belong inside that rung: a concern-file hit at
+  rung 1 short-circuits them, and a populated new home for the current
+  slice proves the slice isn't pinned (skip the legacy probe).
+- **Old pins until migrated.** When the rung fires, the plugin operates
+  wholly on the old location for that slice — reads *and* writes — and
+  emits a deprecation notice with its binding's guarded migration
+  command. New defaults apply to fresh repos and fresh slices only.
+  Never dual-write; never split one slice across roots.
+- **Reads elsewhere dual-read:** a consumer of another plugin's artifact
+  checks the new location first, then the legacy root, and notes the
+  deprecation on a legacy hit.
+- **Migration completes only when the legacy knob is removed** from the
+  stored plugin options *and* the slice content has moved — a migration
+  that moves files but leaves the knob keeps the plugin pinned.
 - **Sunset:** dual-read and the legacy knobs are removed at each
   consuming plugin's next major version, no sooner than one minor release
   after its deprecation notice ships.
@@ -189,7 +222,7 @@ credentials. Raw output stays in `.work/<slug>/`.
 | session-flow | handoffs | memory (`handoffs/`) |
 | review-toolkit | review reports | memory (`reviews/`) |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge |
-| knowledge | ingest trees (own `library_dir` seam; slug spec applies to its `.work/` use) | memory |
+| knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) |
 | claude-ops | telemetry | machine state |
 | docs-hygiene | (reader) declutter detector recognizes these shapes | — |
 

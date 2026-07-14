@@ -14,18 +14,24 @@ All notable changes to the `planning` plugin are documented here. Format follows
   branch and pruned before merge; working memory — `interview-checklist.md`,
   `architect-checklist.md`, `baselines/`, resume notes — lands in the never-committed,
   self-ignoring `.work/<topic-slug>/`. `contract_tier: local` keeps contract kinds in the memory
-  tier for solo/offline work. Every pipeline skill resolves placement through the shared ladder in
-  `reference/topic-docs.md` (concern file → declared convention → legacy `notes_dir`
-  grace → inferred layout → ask once → defaults).
+  tier for solo/offline work. Every pipeline skill resolves placement by citing the plugin's
+  **deltas-only** binding `reference/topic-docs.md` — its artifact/tier table, the grace
+  algorithm's parameters (slice axis: topic slug; legacy root: `.claude/notes/` or a set
+  `notes_dir`), the vault-seam close-out pointer, and the one guarded migration command; the
+  contract owns the resolution order, slug spec, and runtime guards (self-ignore is verified on
+  the session's first memory-tier write, scoped to the resolved memory root).
 - **`/planning:setup` now writes the tracked concern file** `.claude/topic-docs.yaml`
-  (`contract_dir`, `memory_dir`, `contract_tier`; shape per the convention's
-  `topic-docs.schema.json`) instead of the `notes_dir` userConfig. It runs the committed-tier
-  `git check-ignore -v` conflict check before writing and never edits the consumer's root
-  `.gitignore`.
+  (offering and preserving every schema key — `contract_dir`, `memory_dir`, `contract_tier`,
+  `vault_backend`; shape per the convention's `topic-docs.schema.json`) instead of the
+  `notes_dir` userConfig. It runs the committed-tier `git check-ignore -v` conflict check before
+  writing, never edits the consumer's root `.gitignore`, and its guarded migration completes only
+  when the `notes_dir` key is removed from every settings scope that sets it.
 - **`/planning:architect` owns the contract-slice close-out**: at PR time the approved PLAN.md is
   pasted into the PR description inside a `<details>` block; durable outcomes graduate through the
-  knowledge-vault seam (default: guarded, history-preserving `git mv` into `docs/adr/` /
-  `docs/specs/`); a final commit prunes `docs/topics/<topic-slug>/` leaving context pointers.
+  knowledge-vault seam by resolving the concern file's `vault_backend` (`docs` default: guarded,
+  history-preserving `git mv` into `docs/adr/` / `docs/specs/`; other values name a
+  consumer-documented backend, degrading to `docs` when its tools are absent); a final commit
+  prunes `docs/topics/<topic-slug>/` leaving context pointers.
 - **Baselines are memory-tier**: the architect's baseline-capture step stores raw, machine-bound
   captures under `.work/<topic-slug>/baselines/`; PLAN.md records the distilled baseline, target,
   and comparison — never the raw output.
@@ -43,7 +49,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Deprecated
 
-- **`notes_dir` userConfig** — grace path only: when set, or when `.claude/notes/` already holds
-  topic content, skills operate wholly on the old location (reads AND writes) and emit a
-  deprecation notice; never dual-write, never split one topic across roots. Removed at the next
-  major version.
+- **`notes_dir` userConfig** — grace path only: when set ("set" is decidable — the key present
+  with any value, or the legacy root holding topic content), skills operate wholly on the old
+  location (reads AND writes) and emit a deprecation notice; never dual-write, never split one
+  topic across roots. Removed at the next major version.

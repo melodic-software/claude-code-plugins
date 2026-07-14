@@ -33,7 +33,7 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/derive-video-slug.js`
 
-The `.work/` root and its slugs follow the marketplace topic-docs convention (memory tier: self-ignoring via a root `.gitignore` containing `*`, never committed; shared slug spec: kebab-case, ≤ 40-char cap, Windows-reserved base names excluded via `-x` suffix) — see `docs/conventions/topic-docs/` in the marketplace repo. The `.work/<watch-epic>/<video-slug>/` nesting is compatible: the convention reserves only `handoffs` and `reviews` at the memory root.
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
 
 ## Artifact landing (work root)
 

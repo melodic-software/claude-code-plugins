@@ -35,7 +35,7 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 ## Emit checklist
 
-For the `work` action (the most common multi-step path), instruct the agent to copy `templates/checklist.md` "Action: work" section into `.work/<slug>/work-items-checklist.md` — a memory-tier write under this plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): derive `<slug>` per its slug spec and, before writing, verify the memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Tick each step as completed. For other actions (`add`, `start`, `done`, `recheck`), copy the matching action section. Single-action reads (`stats`, `list`, `search`, `scan`, `audit`) don't need a checklist.
+For the `work` action (the most common multi-step path), instruct the agent to copy `templates/checklist.md` "Action: work" section into `.work/<slug>/work-items-checklist.md` — a memory-tier write under this plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): derive `<slug>` per its slug spec and, on the session's first memory-tier write, verify the resolved memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Tick each step as completed. For other actions (`add`, `start`, `done`, `recheck`), copy the matching action section. Single-action reads (`stats`, `list`, `search`, `scan`, `audit`) don't need a checklist.
 
 ## Action Router
 

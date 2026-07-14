@@ -23,7 +23,7 @@ It sits between planning and verification: exploration and external research pro
 
 ## Progress tracking
 
-Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Placement resolves through the topic-docs ladder ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the plan artifact is contract-tier — `docs/topics/<slug>/PLAN.md`, committed on the task branch (or the memory tier under `contract_tier: local`) — and handoff notes are memory-tier under `.work/handoffs/`. A legacy `notes_dir` value or existing `.claude/notes/<slug>/` content pins the old location until migrated (ladder rung 3 — deprecation notice, never dual-write).
+Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Placement resolves per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the plan artifact is contract-tier — `docs/topics/<slug>/PLAN.md`, committed on the task branch (or the memory tier under `contract_tier: local`) — and handoff notes are memory-tier under `.work/handoffs/`. A legacy `notes_dir` value or existing `.claude/notes/<slug>/` content pins the old location until migrated (the contract's legacy grace — deprecation notice, never dual-write).
 
 ## Arguments
 
@@ -150,7 +150,7 @@ For trivial single-step implementations, skip the overhead.
 
 ### Phase-boundary discipline (the durable layer)
 
-In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes. Where these live: resolve through the topic-docs ladder ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) — plan progress marked in the tracked plan file (`docs/topics/<slug>/PLAN.md` on the task branch), handoff entries as timestamped notes in the memory tier's handoffs home. The plan is tracked, so marking progress is a diffable branch change, not a gitignored side file; the ladder's runtime guards apply (the session's first contract-slice write runs `git check-ignore`).
+In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes. Where these live: resolve per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) — plan progress marked in the tracked plan file (`docs/topics/<slug>/PLAN.md` on the task branch), handoff entries as timestamped notes in the memory tier's handoffs home. The plan is tracked, so marking progress is a diffable branch change, not a gitignored side file; the contract's runtime guards apply (the session's first contract-slice write runs `git check-ignore`).
 
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 

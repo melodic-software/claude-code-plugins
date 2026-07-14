@@ -58,11 +58,9 @@ verified code.
 
 ## Configuration
 
-One option, prompted at enable time:
-
-| Option | Type | Default | Purpose |
+| Option | Type | Status | Purpose |
 |---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | **Deprecated** — grace path only, removed at this plugin's next major version. Placement now resolves through the tracked `.claude/topic-docs.yaml` concern file (see the topic-docs seam above). When this option is set, or existing `.claude/notes/<slug>/` content is found, skills keep operating wholly on the old location and emit a migration notice — never dual-writing. Leave unset in new repos. |
+| `notes_dir` | string | **Deprecated** — superseded by the tracked `.claude/topic-docs.yaml` concern file (see the topic-docs seam above); removed at this plugin's next major version | Legacy artifact directory (old default `.claude/notes`). When the key is present with any value — or existing `.claude/notes/<slug>/` content is found — skills keep operating wholly on the old location and emit a migration notice, never dual-writing. Leave unset in new repos. |
 
 ## License
 
