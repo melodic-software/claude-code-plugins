@@ -53,8 +53,9 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
      `.claude/rules` (surface that declared convention as the recommended value, so the persisted
      `library_dir` tracks it).
    - The marketplace topic-docs convention when the repo declares it — a `.claude/topic-docs.yaml`
-     concern file or a `.work/` memory-tier root (see `docs/conventions/topic-docs/` in the marketplace
-     repo). During the deprecation grace window, a legacy `.claude/notes/` directory still counts as
+     concern file or a `.work/` memory-tier root
+     (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>).
+     During the deprecation grace window, a legacy `.claude/notes/` directory still counts as
      this signal.
    - An existing docs or knowledge directory (`docs/`, `knowledge/`) that synthesized artifacts would
      naturally join.
