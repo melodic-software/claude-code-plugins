@@ -31,7 +31,11 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    PATHS_FILE="${2:-}"
+    if [[ $# -lt 2 ]]; then
+      echo "detect.sh: --paths-file requires a value" >&2
+      exit 2
+    fi
+    PATHS_FILE="$2"
     shift 2
     ;;
   -h | --help)

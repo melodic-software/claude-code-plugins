@@ -55,6 +55,22 @@ digest = hashn()  # encode as UTF-8 and take the SHA-256 digest
 # TODO(#123): tighten the upper bound
 EOF
 
+# String-aware comment extraction: a comment leader inside a string literal is not a comment,
+# but a real leader after a closed string still is, and apostrophes in comment prose must not
+# swallow the comment.
+STRINGS="$TEST_TMPDIR/strings.js"
+cat >"$STRINGS" <<'EOF'
+const url = "https://example.com/used to do X; now does Y";
+const s = "text";  // used to return null
+// it's no longer used
+EOF
+
+# Bare hyphenated tracker key (advertised JIRA-123 form) is ticket-pr-residue.
+TICKET="$TEST_TMPDIR/ticket.js"
+cat >"$TICKET" <<'EOF'
+// JIRA-123 tracks the original design
+EOF
+
 OPTOUT="$TEST_TMPDIR/optout.py"
 cat >"$OPTOUT" <<'EOF'
 flush()  # Task 9 in the plan replaces the old flush
@@ -91,6 +107,18 @@ assert_not_contains "code identifier 'previously' (no comment) not flagged" "$cl
 assert_not_contains "UTF-8 / SHA-256 not a ticket ref" "$clean_out" "Finding shape: ticket-pr-residue"
 assert_not_contains "sanctioned TODO(#123) not flagged" "$clean_out" "Finding line: 5"
 
+# --- 3b. String-aware extraction: leader inside a string is not a comment -------------
+
+strings_out="$(bash "$DETECT" "$STRINGS")"
+assert_not_contains "residue words inside a quoted URL are not flagged" "$strings_out" "Finding line: 1"
+assert_contains "real comment after a closed string is still flagged" "$strings_out" "Finding line: 2"
+assert_contains "apostrophe in comment prose does not suppress residue" "$strings_out" "Finding line: 3"
+
+# --- 3c. Bare hyphenated tracker key (JIRA-123) is ticket-pr-residue -------------------
+
+ticket_out="$(bash "$DETECT" "$TICKET")"
+assert_contains "bare JIRA-123 key detected" "$ticket_out" "Finding shape: ticket-pr-residue"
+
 # --- 4. Opt-out markers suppress wrapped content; control still detected -------------
 
 opt_out="$(bash "$DETECT" "$OPTOUT")"
@@ -122,6 +150,11 @@ PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$CLEAN" >"$PATHS"
 pf_out="$(bash "$DETECT" --paths-file "$PATHS")"
 assert_contains "paths-file target audited" "$pf_out" "Summary file: $CLEAN"
+
+# --paths-file with no value must fail fast (exit 2), not spin the arg loop forever.
+missing_val_exit=0
+timeout 10 bash "$DETECT" --paths-file >/dev/null 2>&1 || missing_val_exit=$?
+assert_exit "--paths-file with missing value exits 2" 2 "$missing_val_exit"
 
 # --- Final report --------------------------------------------------------------------
 

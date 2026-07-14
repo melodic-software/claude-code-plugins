@@ -34,25 +34,56 @@ cr_line_skipped() {
 }
 
 # Extract the comment portion of a line, or empty if the line carries no recognized comment
-# leader. Approximate by design — a leader inside a string literal may yield a false comment,
-# but the residue-keyword gate below makes that harmless (code words never match).
+# leader. A leader (`//`, `/*`, `#`, `--`) only opens a comment when it sits OUTSIDE a string
+# literal, so a `//` inside a URL or a residue-shaped phrase inside a quoted string is not
+# mistaken for a comment. The scan tracks "...", '...', and `...` spans (with `\` escapes) up to
+# the first real leader, then returns the remainder verbatim — apostrophes in comment prose
+# ("it's", "no longer") are never treated as strings because the leader has already been found.
+# Heuristic, not a full per-language lexer: escaped quotes inside single-quoted shell strings and
+# other language-specific quoting quirks are approximated, which is sufficient for a read-only audit.
 cr_comment_text() {
   local line="${1//$'\r'/}"
   [[ "$line" =~ ^[[:space:]]*#! ]] && return 0 # shebang, not a comment
-  local rest=""
-  if [[ "$line" == *"//"* ]]; then
-    rest="${line#*//}"
-  elif [[ "$line" == *"/*"* ]]; then
-    rest="${line#*/\*}"
-    rest="${rest%%\*/*}"
-  elif [[ "$line" =~ ^[[:space:]]*\*[[:space:]] ]]; then
-    rest="${line#*\*}"
-  elif [[ "$line" == *"#"* ]]; then
-    rest="${line#*#}"
-  elif [[ "$line" == *"--"* ]]; then
-    rest="${line#*--}"
+  # Block-comment continuation line ("* ..." inside a /* */ block): whole body is comment.
+  if [[ "$line" =~ ^[[:space:]]*\*[[:space:]] ]]; then
+    printf '%s' "${line#*\*}"
+    return 0
   fi
-  printf '%s' "$rest"
+  local n=${#line} i ch nx quote="" rest
+  for ((i = 0; i < n; i++)); do
+    ch="${line:i:1}"
+    if [[ -n "$quote" ]]; then
+      if [[ "$ch" == "\\" ]]; then
+        ((i++)) # skip the escaped character
+        continue
+      fi
+      [[ "$ch" == "$quote" ]] && quote=""
+      continue
+    fi
+    case "$ch" in
+    '"' | \' | '`')
+      quote="$ch"
+      continue
+      ;;
+    *) ;;
+    esac
+    nx="${line:i+1:1}"
+    if [[ "$ch" == '/' && "$nx" == '/' ]]; then
+      printf '%s' "${line:i+2}"
+      return 0
+    elif [[ "$ch" == '/' && "$nx" == '*' ]]; then
+      rest="${line:i+2}"
+      printf '%s' "${rest%%\*/*}"
+      return 0
+    elif [[ "$ch" == '#' ]]; then
+      printf '%s' "${line:i+1}"
+      return 0
+    elif [[ "$ch" == '-' && "$nx" == '-' ]]; then
+      printf '%s' "${line:i+2}"
+      return 0
+    fi
+  done
+  return 0
 }
 
 # TODO(#issue) and its kin are the sanctioned back-reference — never flag their ticket ref.
@@ -99,7 +130,7 @@ cr_detect_shapes() {
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
     if [[ "$lc" =~ (pull[[:space:]]request|see[[:space:]](pr|mr|issue)|pr[[:space:]]#?[0-9]|from[[:space:]]branch|in[[:space:]]this[[:space:]]session) ]] ||
-      [[ "$lc" =~ (ticket|issue|jira|linear)[[:space:]]#?[a-z0-9]*-?[0-9] ]]; then
+      [[ "$lc" =~ (ticket|issue|jira|linear)([[:space:]]#?[a-z0-9]*-?[0-9]|-[0-9]) ]]; then
       printf '%s\n' 'ticket-pr-residue'
       found=1
     fi
