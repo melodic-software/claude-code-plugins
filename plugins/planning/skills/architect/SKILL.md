@@ -139,7 +139,7 @@ If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Te
 
 This step runs only when the blast-radius assessment triggers it. Note: Step 3 (plan stress-test sub-agent) already ran — this is the deeper, formal version.
 
-1. **Invoke `/devils-advocate`** — pass the plan for systematic adversarial review. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas)
+1. **Dispatch `/devils-advocate` to a fresh-context sub-agent** — hand it the plan (plus the Brief and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them — sub-agent findings are synthesis, not ground truth
 
 2. **Evaluate findings** — if `/devils-advocate` produces CRITICAL or HIGH findings:
    - Run targeted research to resolve the specific issues surfaced (`/discovery:research` if installed, or the strongest research capability available)
