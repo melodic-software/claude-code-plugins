@@ -156,7 +156,7 @@ Required before declaring done:
 - Throwaway prototypes deleted (or moved to a clearly-marked sandbox location)
 - The hypothesis that turned out correct is stated in the **commit message / PR description** — so the next debugger learns
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
-- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. If your environment has an outcome-verification capability, use it; otherwise verify inline. Boundary: `/diagnose` DOES the fix + regression test; a verifier VERIFIES the outcome
+- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix — if your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/diagnose` DOES the fix + regression test; a verifier VERIFIES the outcome
 
 **Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling, missing abstraction):
 

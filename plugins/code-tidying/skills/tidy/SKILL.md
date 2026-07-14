@@ -128,6 +128,8 @@ Tidying is behavior-preserving, so verification must confirm exactly that: run t
 1. Review the full diff yourself (`git diff origin/<default-branch>...HEAD`) hunting for accidental behavior change, scope creep, and convention violations. Drive real findings to zero before push.
 2. Run `/simplify` on the touched files (NOT scope creep — only files already edited). Rebuild and re-verify after simplify.
 
+Self-review by the producing context is enough here — a fresh-context verifier is the rule where a verdict is subjective, but tidying is behavior-preserving and Phase F is an objective build/test/lint pass/fail. A change that turns out behavioral fails Phase F and is backed out (Gotchas), never verdict-reviewed into acceptance.
+
 ### Phase H — Ship
 
 Create the PR (`gh pr create`) with title:

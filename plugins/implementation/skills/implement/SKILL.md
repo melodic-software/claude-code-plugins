@@ -172,7 +172,7 @@ When all planned work is done:
 
 1. **Final build check** — invoke `/build` via the Skill tool for all affected ecosystems
 2. **Run all affected tests** — not just the ones you wrote, but tests that could be impacted by your changes
-3. **Self-review** — read through changes (`git diff HEAD~N`) looking for:
+3. **Self-review (a floor, not the final verdict)** — the producing context converges on approval, so this catches slips but does not render the outcome verdict (step 5 hands to `/verify-changes`, which renders it from outside the producing loop). Read through changes (`git diff HEAD~N`) looking for:
    - Consistency with existing patterns
    - No debugging artifacts left behind
    - No commented-out code
