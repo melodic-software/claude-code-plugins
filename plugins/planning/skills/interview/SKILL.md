@@ -1,6 +1,6 @@
 ---
 name: interview
-description: "Lock a task contract before building: goal, constraints, acceptance criteria, and named assumptions written into a PLAN.md Brief — synthesizing directly when intent is clear, running depth-first Q&A when gaps remain, or interviewing relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous ('interview me', 'lock the brief', 'spec this task'); skip for typo/lint-only mechanical work."
+description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea — one question at a time, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs depth-first Q&A when gaps remain, or grills relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous, or on explicit request ('interview me', 'grill me', 'lock the brief', 'spec this task'); skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
@@ -24,7 +24,9 @@ The **pre-clarity** stage — upstream of exploration, research, and `/architect
 
 **Supportive, not adversarial.** `/devils-advocate` attacks an existing artifact after the fact. `/interview` walks alongside the user to extract a clear contract from the start.
 
-**Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same PLAN.md Brief section. The default action **auto-detects** which mode fits and routes accordingly.
+**Domain-routed.** The interview loop is universal — it grills any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/architect`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface — the problem itself decides, with repo and working directory as context that never suffices alone — never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "grill me on this decision").
+
+**Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain — a PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly.
 
 **Cost framing**: every clarification round-trip skipped is time and tokens saved. Auto-detect removes redundant Q&A; explicit `lock` skips Q&A entirely when the user has already given the answer.
 
@@ -57,7 +59,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 1. **Depth-first Q&A loop** — ONE question at a time, resolve the load-bearing one, then surface the next; rank questions by architectural blast radius — the answer that would change the most downstream work goes first
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
-4. **Immediate doc maintenance** — when an answer surfaces a domain term and the project keeps a domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`), update it IMMEDIATELY between questions, not batched at end. Decisions, gotchas, and conventions likewise go to their proper homes (ADR, project rules, side note) in the same response
+4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer surfaces a domain term and the project keeps a domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`), update it IMMEDIATELY between questions, not batched at end. Decisions, gotchas, and conventions likewise go to their proper homes (ADR, project rules, side note) in the same response. A general session writes no repo docs — it drives to a shared-understanding summary only
 
 **Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:explore blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
@@ -69,7 +71,7 @@ Tone is collaborative but opinionated. You are not interrogating; you are helpin
 
 `me` is the **relentless interview** — drive EVERY *consequential* branch of the decision tree to a *decision*. No question cap (some plans need three, some fifty; the escape hatch is the user saying "wrap up", never a counter). Relentless is not exhausting: every question leads with a recommendation, so most answers are a one-tap "correct".
 
-**Canonical framing** (what `me` means, in one breath): *interview relentlessly about every aspect of the plan until you reach a shared understanding; walk down each branch of the design tree, resolving dependencies between decisions one-by-one; for each question, provide your recommended answer; ask the questions one at a time; and if a question can be answered by exploring the codebase, explore the codebase instead of asking.*
+**Canonical framing** (what `me` means, in one breath): *interview relentlessly about every aspect of the task until you reach a shared understanding; walk down each branch of the decision tree, resolving dependencies between decisions one-by-one; for each question, provide your recommended answer; ask the questions one at a time; and if a question can be answered by exploring the environment (filesystem, tools, etc.), explore the environment instead of asking.*
 
 **Ask inline, ONE question per turn — NOT `AskUserQuestion`.** Shape:
 
@@ -102,7 +104,12 @@ For EVERY question, propose an answer grounded in observed codebase state. User 
 
 ### Domain-aware behaviors
 
-When the task touches domain concepts, three behaviors activate during Q&A: **glossary challenge** (when the user uses a domain term two ways, or a term collides with an existing definition, probe it), **domain scenario exploration** (invent edge cases that probe concept boundaries — "what happens when a Customer cancels half an Order?"), and **inline vocabulary update** (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one).
+When the task touches domain concepts, these behaviors activate during Q&A. The probing behaviors run in any session; the two that write repo artifacts — **inline vocabulary update** and **ADR** — are engineering-only (per the Step 1 domain classification), so a general session, gated to a shared-understanding summary, never mutates a project glossary or proposes an ADR:
+
+- **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
+- **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
+- **inline vocabulary update** *(engineering sessions only)* — write resolved terms to the project's domain-vocabulary file immediately, if it keeps one. Keep that file pure: terms and tight *what it IS* definitions, project-specific terms only — never a spec, scratchpad, or implementation detail. When several words name one concept, pick one canonical term and record the rejected synonyms so usage converges (follow the file's own convention; a readable `Avoid:` line if it has none). Discover the file and its shape by climbing to it — never prescribe a filename or format
+- **ADR, offered sparingly** *(engineering sessions only)* — propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer — never prescribe a location or format
 
 ## The interview loop
 
@@ -112,9 +119,13 @@ Five steps. Step 1 (Survey) runs every action. Step 1.5 (Auto-detect) runs on `a
 
 Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, check `${user_config.notes_dir}/<topic-slug>/` for prior PLAN.md / exploration / research artifacts.
 
-If a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to a sibling `history.md` in the topic directory before rewriting).
+Survey output: one paragraph "Here is what I see in the repo."
 
-Survey output: one paragraph "Here is what I see in the repo." Then route per action.
+**Classify the domain** from what the survey shows — *engineering* (a build or behavior-change task, or a technical subject that yields a build artifact) or *general* (a decision or idea with no build surface). The deciding signal is the **task/build surface itself**, not the working directory: a general decision raised from inside a code repo is still general, and the engineering machinery must never engage on cwd alone. Repo/cwd is context that breaks the tie only when the task surface is genuinely indeterminate — then lean engineering inside a code repo, else general. This is inferred, never asked; honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
+
+**Engineering sessions only** — if a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to a sibling `history.md` in the topic directory before rewriting). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
+
+Then route per action.
 
 ### Step 1.5 — Auto-detect (default action only)
 
@@ -145,7 +156,11 @@ Stop when every load-bearing unknown is resolved OR captured as named assumption
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`), then write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location.
+Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`); session artifacts live in `${user_config.notes_dir}/<topic-slug>/`, and a consuming project's declared working-notes convention (in its `CLAUDE.md` or rules) wins over that default. *What* gets persisted follows the Step 1 domain classification.
+
+**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to that location, or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
+
+**Engineering sessions** write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. The rest of this step — everything below — is the Brief machinery and is engineering-only.
 
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic directory) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
@@ -157,7 +172,7 @@ Section schema: write the literal `## Brief` template — TLDR / Goal / Constrai
 
 ### Step 5 — Hand off
 
-After writing the Brief into PLAN.md, recommend the next step per task shape:
+Route the handoff by what the session produced. **A general (non-engineering) session is terminal** — it produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief — recommend the next step per task shape:
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if installed — it reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
@@ -173,7 +188,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 - **Does not deep-dive the codebase** — Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
 - **Does not plan implementation** — the Brief says *what* and *what we are assuming*; `/architect` says *how*. Resist drafting an approach mid-interview
-- **Does not write code or run tests** — discovery skill. DOES write domain docs outside the notes directory when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs are first-class interview outputs alongside the Brief
+- **Does not write code or run tests** — discovery skill. In an engineering session it DOES write domain docs outside the notes directory when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs are first-class interview outputs alongside the Brief (a general session writes none)
 - **Does not adversarially attack the user's idea** — that is `/devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics — it is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
 - **Does not gate truly mechanical work** — typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default** — auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
 - **Does not fudge gaps in `lock` mode** — if a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing
