@@ -28,7 +28,7 @@ This skill takes the outputs of the earlier stages — exploration (local unders
 
 ## Emit checklist
 
-For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into the topic's memory slice as `.work/<topic-slug>/architect-checklist.md`. Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
+For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/architect-checklist.md` (default `.work/`). Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
 
 **Skip when:** mid-flight `review` replan only — append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
@@ -53,7 +53,7 @@ Before the prerequisite checklist runs, apply a pre-planning discipline checklis
 Before planning, verify the knowledge base is ready:
 
 - **Is the effort coherent enough to plan?** — If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/architect` is premature — a plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
-- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that `docs/topics/<topic-slug>/PRD.md` exists OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
+- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that the topic's contract slice holds `PRD.md` (`<contract_dir>/<topic-slug>/PRD.md`, default `docs/topics/`; the memory slice under `contract_tier: local`) OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
 - **Has exploration been done?** — Check if the conversation contains exploration findings for the relevant area. If not, suggest running the exploration capability first (`/discovery:explore` if installed). Don't plan in the dark
 - **Has research been done?** — Check if external research has been completed for technical claims the plan will rely on. If not, suggest running the research capability first (`/discovery:research` if installed). Plans built on assumptions instead of evidence lead to rework
 - **Has `/design` been done? (blocking gate)** — Classify design significance before planning:
@@ -64,7 +64,7 @@ Before planning, verify the knowledge base is ready:
 | **B — light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** minimal `type-inventory.md` OR `design/design-resolution.md` documenting early-exit with type sketch |
 | **C — no design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 
-Check the topic's contract slice `docs/topics/<topic-slug>/design/` for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/architect` consumes design artifacts — do not re-derive design inline when design-significant.
+Check the topic's contract slice `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`; the memory slice under `contract_tier: local`) for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/architect` consumes design artifacts — do not re-derive design inline when design-significant.
 
 - **Is the scope clear?** — If the task is ambiguous, ask clarifying questions before planning. A plan for "improve performance" is useless; a plan for "add a cache to the GetOrderById query handler" is actionable. When 2–4 discrete options exist (e.g. cache scope, eviction policy, key derivation), use `AskUserQuestion`; for open-ended ambiguity use prose, one question at a time
 - **Open Decisions surfaced BEFORE plan body** — scan the resume prompt + conversation context + Brief for unresolved decisions (scope cuts, technique choices, ordering, exclusions) that the downstream plan body would otherwise lock inline. Surface them as a numbered "Open Decisions" block with research-backed recommendations + trade-offs per decision; resolve via `AskUserQuestion` (≤4 decisions) or single-prompt prose (≥5). Resolving once up front is cheaper than iterating during Step 5 approval
@@ -107,7 +107,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 
-**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: measure the pre-change state and store the raw capture under `.work/<topic-slug>/baselines/` (the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
+**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: measure the pre-change state and store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
@@ -180,7 +180,7 @@ Before Step 5 approval, walk the PLAN body + Handoff section and classify every 
 
 ### Step 4.7: Outcome gate (before Step 5 — verify the PLAN, not a recap)
 
-Before presenting at Step 5, persist the composed plan as a **draft** to `docs/topics/<topic-slug>/PLAN.md` (the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
+Before presenting at Step 5, persist the composed plan as a **draft** to `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; under `contract_tier: local` it joins the memory slice — the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
 
 - **Every phase has ≥1 `Sanity Check`** — `grep -c "Sanity Check" PLAN.md` ≥ the phase count; a phase with no verifiable check is unshippable.
 - **Every phase carries a valid status tag** — each `### Phase N:` ends in `[TODO]` (or another valid tag); no untagged phase.
@@ -247,7 +247,7 @@ This is complementary to `/devils-advocate` — review checks completeness and c
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, update the draft `docs/topics/<topic-slug>/PLAN.md` (persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`); roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes. It is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `.work/<topic-slug>/`).
+After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`); roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes. It is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
 
@@ -295,7 +295,7 @@ Write the plan even for small changes — future you or a fresh-session agent wi
 
 1. Paste the approved PLAN.md into the PR description inside a `<details>` block — the review-surface publication (PR bodies cap near 64 KB; paste the contract, reference the rest).
 2. Graduate durable outcomes through the knowledge-vault seam — resolve the concern file's `vault_backend`: `docs` (default) → a history-preserving `git mv` of the promoted doc into `docs/adr/` or `docs/specs/` (guard the command — create the target directory first); any other value → the backend the consuming repo documents, degrading to `docs` when its tools are absent (binding: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Actionable follow-ups go through the work-item tracker seam.
-3. Prune with pointer: a final commit before merge deletes `docs/topics/<topic-slug>/`, leaving context pointers (the PR body, the promoted-doc and tracker locations) in its place.
+3. Prune with pointer: a final commit before merge deletes the contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`), leaving context pointers (the PR body, the promoted-doc and tracker locations) in its place.
 
 Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 

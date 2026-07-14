@@ -26,13 +26,17 @@ were persisted forever.
 Placement follows document **nature**, decided by one question: does
 anything downstream *enforce against* this document?
 
-| Tier | Location | Git | Holds |
+| Tier | Location (default) | Git | Holds |
 |---|---|---|---|
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
 | Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry, caches |
+
+Locations are the documented defaults; the tracked concern file's
+`contract_dir` / `memory_dir` keys override the memory and contract
+roots everywhere this contract or a binding names them.
 
 `.claude/observability/` is the **sole** sanctioned generated surface
 under `.claude/`: hook scripts cannot read consumer `CLAUDE.md` (they see
@@ -74,7 +78,7 @@ backend's tools are unavailable. Setup skills preserve and offer every
 schema key — a re-run never drops one.
 
 `contract_tier: local` is the solo/offline mode: contract kinds join the
-memory tier under `.work/<slug>/` and the PR-description paste becomes
+memory tier under `<memory_dir>/<slug>/` and the PR-description paste becomes
 the only publication surface. The default is `branch` because sibling
 worktrees, PR-babysit checkouts, and cloud clones see only committed
 content.
@@ -160,19 +164,23 @@ a `<STAGE>-<scope>.md` sidecar.
    `git mv` into `docs/adr/` / `docs/specs/`; remote vault backends
    resolve through the same seam), and actionable follow-ups through the
    **work-item tracker seam**.
-4. A final commit prunes `docs/topics/<slug>/`, leaving context pointers
-   (the PR body and the promoted-doc / tracker locations) in its place.
+4. A final commit prunes the contract slice `<contract_dir>/<slug>/`
+   (default `docs/topics/`), leaving context pointers (the PR body and
+   the promoted-doc / tracker locations) in its place.
 5. Enforcement: a required check that the net PR diff
-   (`git diff --name-only base...head`) contains no `docs/topics/**`
-   path. GitHub's PR view is the three-dot diff, so pruned files also
-   vanish from the final review surface.
+   (`git diff --name-only base...head`) contains no path under the
+   resolved `<contract_dir>/**` (default `docs/topics/**`). GitHub's PR
+   view is the three-dot diff, so pruned files also vanish from the
+   final review surface.
 
 Hardening at the consumer's option: `.gitattributes`
-`docs/topics/** linguist-generated` (collapses mid-review diff noise), a
-markdownlint carve-out for the contract root, and secret scanning.
+`<contract_dir>/** linguist-generated` (default `docs/topics/**`;
+collapses mid-review diff noise), a markdownlint carve-out for the
+contract root, and secret scanning.
 **Redaction bar (normative):** committed evidence is distilled — no raw
 command captures, no machine-local absolute paths, no usernames or
-credentials. Raw output stays in `.work/<slug>/`.
+credentials. Raw output stays in the memory slice `<memory_dir>/<slug>/`
+(default `.work/`).
 
 ## Graduation edges (provider-neutral seams)
 

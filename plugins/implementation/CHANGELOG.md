@@ -38,7 +38,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file** — one question
   (`contract_tier: branch` recommended), offering and preserving every schema key (`contract_dir`,
   `memory_dir`, `contract_tier`, `vault_backend`), conflict-checked with `git check-ignore -v` on
-  the contract root before writing; never edits the consumer's root `.gitignore`.
+  the chosen contract root before writing — only when the chosen tier is `branch` (local mode has
+  no committed tier to guard); never edits the consumer's root `.gitignore`.
 
 ### Deprecated
 

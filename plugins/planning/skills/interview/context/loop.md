@@ -11,7 +11,7 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - Look at `git log --oneline -20` for recent direction
 - Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a module
 - List the project's own rules files that govern the area
-- Note what the topic's contract slice `docs/topics/<topic-slug>/` already contains (prior PLAN.md, PRD, design artifacts) and what its memory slice `.work/<topic-slug>/` holds (exploration/research artifacts, ledgers)
+- Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains (prior PLAN.md, PRD, design artifacts) and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts, ledgers)
 
 Classify the domain from what the survey shows before anything Brief-related — the task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
 
@@ -117,7 +117,7 @@ For V1 / ship-fast tasks, lead with the most *reversible* option and defer the i
 
 ### Decision-tree ledger
 
-Maintain a live ledger of branches as checkboxes in `.work/<topic-slug>/interview-checklist.md` (the topic's memory slice):
+Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice):
 
 ```markdown
 **Decision tree:**
@@ -179,7 +179,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 ### Brief template (the literal shape)
 
-Write this into `docs/topics/<topic-slug>/PLAN.md` (the topic's contract slice). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
+Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
 
 ```markdown
 ## Brief

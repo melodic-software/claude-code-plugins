@@ -28,7 +28,8 @@ Adopt the marketplace topic-docs convention, contract v1.0.0
   `contract_dir`, `memory_dir`, `contract_tier`, `vault_backend` — and
   citing the schema by its raw URL. Order is guard-then-persist: the
   `git check-ignore -v` conflict check on the configured contract root
-  runs BEFORE the concern file is written. It offers the binding's
+  runs BEFORE the concern file is written — and only when the chosen
+  tier is `branch` (local mode has no committed tier to guard). It offers the binding's
   guarded migration of legacy `.claude/notes/<slug>` content, which
   completes only when the `notes_dir` key is removed from every
   settings scope that sets it.

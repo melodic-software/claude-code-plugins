@@ -13,7 +13,7 @@ this plugin's artifacts to it.
 **Memory tier only, concern-scoped.** A review report's axis is the **branch**, not a topic, so
 reports sit under the memory root's reserved `reviews/` name rather than inside a topic slice:
 
-| Artifact | Location |
+| Artifact | Location (default) |
 |---|---|
 | `quality-gate` findings | `.work/reviews/<branch-slug>/<UTC-timestamp>-<mode>.md` — never committed |
 | `code-review-fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md` — never committed |
@@ -55,15 +55,16 @@ This binding applies the contract's grace algorithm (the convention's "Deprecati
 with slice axis = branch and legacy root = `.claude/review/`. The pre-convention default was
 `.claude/review/<branch-slug>/`. During the deprecation window:
 
-- **Short-circuit:** a populated `.work/reviews/<branch-slug>/` for the current branch proves the
-  slice isn't pinned — skip the legacy probe.
-- **Reads** (the fanout `fix` action, any report lookup): check `.work/reviews/<branch-slug>/`
-  first; when it holds no matching report and legacy `.claude/review/<branch-slug>/` does, read the
-  legacy directory and emit the deprecation note.
+- **Short-circuit:** a populated resolved `<memory_dir>/reviews/<branch-slug>/` (default
+  `.work/reviews/`) for the current branch proves the slice isn't pinned — skip the legacy probe.
+- **Reads** (the fanout `fix` action, any report lookup): check the resolved
+  `<memory_dir>/reviews/<branch-slug>/` first; when it holds no matching report and legacy
+  `.claude/review/<branch-slug>/` does, read the legacy directory and emit the deprecation note.
 - **Writes:** when the new home holds no reports for the current branch and legacy
   `.claude/review/<branch-slug>/` does, keep writing there (old pins — never split one branch's
   review history across roots) and emit the deprecation note with the guarded migration command:
-  `mkdir -p .work/reviews && mv .claude/review/<branch-slug> .work/reviews/<branch-slug>`.
+  `mkdir -p <memory_dir>/reviews && mv .claude/review/<branch-slug> <memory_dir>/reviews/<branch-slug>`
+  (substitute the resolved memory root — default `.work`).
   Fresh branches and fresh repos use the new home directly.
 - **Sunset:** dual-read and the legacy fallback are removed at this plugin's next major version, no
   sooner than one minor release after this notice shipped.

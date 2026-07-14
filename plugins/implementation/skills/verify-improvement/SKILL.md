@@ -21,7 +21,7 @@ The measurement mechanism is SSOT here; the planning stage *routes* to it when a
 | `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under the topic's memory-tier `baselines/` + record baseline + target in the plan |
 | `compare` | after the change (default phase) | `/verify-improvement <family>` | Re-measure under the same conditions → compare to the stored baseline → verify the claim |
 
-Baseline storage: the topic's memory tier — `.work/<slug>/baselines/`, resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `docs/topics/<slug>/PLAN.md` and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
+Baseline storage: the topic's memory tier — `<memory_dir>/<slug>/baselines/` (default `.work/`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
 
 **Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline — do not add a harness speculatively.
 

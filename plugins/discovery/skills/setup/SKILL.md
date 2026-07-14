@@ -50,7 +50,8 @@ Idempotent: re-running reads the current state and offers an update rather than 
    solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
    existing file carries — a re-run never drops one; do not invent options beyond the schema.
-5. **Guard, then persist.** Run the conflict check first: `git check-ignore -v` on a representative
+5. **Guard, then persist.** Run the conflict check first — only when the chosen tier is `branch`
+   (local mode has no committed tier to guard): `git check-ignore -v` on a representative
    file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory
    misses `**` patterns) — if a consumer ignore rule matches, STOP and surface the exact rule and source line rather
    than configuring an uncommittable "committed" tier (resolving the rule is the user's edit). Only

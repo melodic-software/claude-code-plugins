@@ -50,7 +50,7 @@ Idempotent: re-running reads the current state and offers an update rather than 
    re-run never drops one); do not invent knobs beyond the schema.
 5. **Run the conflict check before writing** — only when the chosen tier is `branch` (local mode
    has no committed tier to guard). `git check-ignore -v` on a representative file path
-   inside the chosen contract root (e.g. `docs/topics/probe/PLAN.md` — a bare directory misses
+   inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory misses
    `**` patterns): if a consumer ignore rule matches, STOP and surface the exact rule and
    source line — a "committed" tier that git ignores is the failure the guard exists to catch.
    Resolving the rule is the user's edit to make: **never modify the consumer's root

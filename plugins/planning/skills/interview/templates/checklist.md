@@ -1,6 +1,6 @@
 # /interview Checklist
 
-Copy into `.work/<topic-slug>/interview-checklist.md` (the topic's memory slice). Tick as each step completes.
+Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice). Tick as each step completes.
 
 ## Steps
 

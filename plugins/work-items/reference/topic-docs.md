@@ -10,24 +10,24 @@ this document binds this plugin's artifacts to it.
 
 ## What this plugin writes, per tier
 
-| Artifact | Tier | Location |
+| Artifact | Tier | Location (default) |
 |---|---|---|
 | `work-items-checklist.md` (per-topic action ledger) | Memory | `.work/<slug>/` — never committed |
 | Ad-hoc drafts and notes (e.g. an unfiled item draft from `add`'s authorization gate) | Memory | `.work/<slug>/` — never committed |
 | Tracker projections (items, labels, dependency edges, comments) | Ticket edge | the work-item-tracker seam — never files |
 
 The memory root is configurable via the concern file's `memory_dir` key. This plugin never writes
-the contract tier (`docs/topics/<slug>/`).
+the contract tier (`<contract_dir>/<slug>/`).
 
 ## What this plugin reads — the three-location plan lookup
 
 `decompose` (and any action sourcing a plan or PRD) resolves `PLAN.md` / `PRD.md` in this order;
 the first location holding the document wins, and one topic never spans locations:
 
-1. `docs/topics/<slug>/PLAN.md` — the contract slice on the task branch (default,
-   `contract_tier: branch`).
-2. `.work/<slug>/PLAN.md` — the memory tier, when the concern file sets `contract_tier: local`
-   (solo/offline mode).
+1. `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) — the contract slice on the task
+   branch (`contract_tier: branch`, the default tier).
+2. `<memory_dir>/<slug>/PLAN.md` (default `.work/`) — the memory tier, when the concern file sets
+   `contract_tier: local` (solo/offline mode).
 3. `.claude/notes/<slug>/PLAN.md` — legacy location, deprecation grace only: read it, emit the
    deprecation notice naming the owning plugin's setup skill as the guarded migration path.
 

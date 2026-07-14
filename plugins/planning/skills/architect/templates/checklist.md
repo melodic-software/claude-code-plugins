@@ -1,6 +1,6 @@
 # /architect Checklist
 
-Copy into `.work/<topic-slug>/architect-checklist.md` (the topic's memory slice). Tick as each step completes.
+Copy into `<memory_dir>/<topic-slug>/architect-checklist.md` (default `.work/`; the topic's memory slice). Tick as each step completes.
 
 ## Steps
 

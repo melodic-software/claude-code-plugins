@@ -35,9 +35,10 @@ verified code.
 - **Document placement — via the topic-docs seam.** Plan progress, verification
   manifests, and baselines land per the marketplace-wide topic-docs convention
   (`docs/conventions/topic-docs/README.md`; plugin binding:
-  `reference/topic-docs.md`): contract documents in `docs/topics/<slug>/`,
-  committed on the task branch and pruned before merge; working memory in the
-  self-ignoring `.work/<slug>/`. The tracked `.claude/topic-docs.yaml` concern
+  `reference/topic-docs.md`): contract documents in `<contract_dir>/<slug>/`
+  (default `docs/topics/`), committed on the task branch and pruned before merge;
+  working memory in the self-ignoring `<memory_dir>/<slug>/` (default `.work/`).
+  The tracked `.claude/topic-docs.yaml` concern
   file is the consumer-side source of truth — `/implementation:setup` offers to
   write it. Repos with existing `.claude/notes/` content keep the old location
   until migrated.

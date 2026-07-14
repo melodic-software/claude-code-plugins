@@ -56,8 +56,8 @@ Invoke via `@review-toolkit:<agent>` or let Claude delegate.
 
 Review findings persist to the directory the `.claude/topic-docs.yaml` concern file's
 `memory_dir` resolves (`<memory_dir>/reviews/<branch-slug>/`); else to a review-artifacts
-location the project's own conventions declare; else to `.work/reviews/<branch-slug>/` at the
-project root — the topic-docs convention's memory tier, concern-scoped on the branch axis
+location the project's own conventions declare; else to the default `.work/reviews/<branch-slug>/`
+at the project root — the topic-docs convention's memory tier, concern-scoped on the branch axis
 (`reference/topic-docs.md`). The memory root self-ignores (a `.gitignore` containing `*`,
 created on the session's first memory-tier write), so findings never enter version control.
 Legacy `.claude/review/<branch-slug>/` content keeps writes pinned there with a deprecation note

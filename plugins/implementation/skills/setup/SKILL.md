@@ -90,9 +90,10 @@ When `$REPO_ROOT/.claude/topic-docs.yaml` is absent, offer to write it — one q
 option first (`contract_tier: branch`, the default; `local` for solo/offline work) — and materialize
 only the keys that differ from the documented defaults, offering every schema key (`contract_dir`,
 `memory_dir`, `contract_tier`, `vault_backend`). When it exists, leave it alone unless the user asks
-to reconfigure — and preserve every schema key it carries; a re-run never drops one. Before writing, run the conflict check: `git check-ignore -v` on a
-representative file path inside the contract root (e.g. `docs/topics/probe/PLAN.md`, or under the
-chosen `contract_dir` — a bare directory misses `**` patterns) — a matching ignore rule is surfaced to
+to reconfigure — and preserve every schema key it carries; a re-run never drops one. Before writing, run the conflict check — only when the chosen
+tier is `branch` (local mode has no committed tier to guard): `git check-ignore -v` on a
+representative file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a
+bare directory misses `**` patterns) — a matching ignore rule is surfaced to
 the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
 resolved memory root self-ignores through its own `.gitignore`.
 

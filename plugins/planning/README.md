@@ -36,8 +36,9 @@ approval — but every skill also works standalone.
   with inline guidance when absent; no step blocks on a missing plugin.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
   planning artifacts land per the topic-docs convention — contract documents in
-  `docs/topics/<topic-slug>/` on the task branch, working memory in the
-  self-ignoring `.work/<topic-slug>/` — never in plugin-internal paths.
+  `<contract_dir>/<topic-slug>/` (default `docs/topics/`) on the task branch, working
+  memory in the self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`) — never
+  in plugin-internal paths.
 
 ## Install
 
@@ -50,9 +51,10 @@ approval — but every skill also works standalone.
 
 Where artifacts land is governed by the marketplace-wide **topic-docs convention**
 (`docs/conventions/topic-docs/` in this repository): contract documents (`PRD.md`,
-`PLAN.md`, `design/`) go to `docs/topics/<topic-slug>/` on the task branch; working
-memory (checklists, baselines, scratch) goes to the self-ignoring
-`.work/<topic-slug>/`. Run `/planning:setup` to interview and persist the tracked
+`PLAN.md`, `design/`) go to `<contract_dir>/<topic-slug>/` (default `docs/topics/`) on
+the task branch; working memory (checklists, baselines, scratch) goes to the
+self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run `/planning:setup`
+to interview and persist the tracked
 concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
 `contract_tier: branch | local`); absent keys mean those documented defaults.
 

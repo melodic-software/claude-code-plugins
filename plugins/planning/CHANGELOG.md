@@ -24,7 +24,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
   (offering and preserving every schema key — `contract_dir`, `memory_dir`, `contract_tier`,
   `vault_backend`; shape per the convention's `topic-docs.schema.json`) instead of the
   `notes_dir` userConfig. It runs the committed-tier `git check-ignore -v` conflict check before
-  writing, never edits the consumer's root `.gitignore`, and its guarded migration completes only
+  writing — only when the chosen tier is `branch` (local mode has no committed tier to guard) —
+  never edits the consumer's root `.gitignore`, and its guarded migration completes only
   when the `notes_dir` key is removed from every settings scope that sets it.
 - **`/planning:architect` owns the contract-slice close-out**: at PR time the approved PLAN.md is
   pasted into the PR description inside a `<details>` block; durable outcomes graduate through the

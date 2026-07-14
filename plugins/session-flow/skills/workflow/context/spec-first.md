@@ -17,7 +17,7 @@ is still the single-session pattern — spec-first is opt-in.
 ## How stage handoffs work
 
 Each stage writes its output to the repo's work-artifact location (the consuming repo's documented
-convention, or the topic's memory-tier slice `.work/<slug>/` — see the workflow skill's "Consumer
+convention, or the topic's memory-tier slice `<memory_dir>/<slug>/` (default `.work/`) — see the workflow skill's "Consumer
 conventions"); `/handoff` save-points land in the handoff skill's own home (`.work/handoffs/` by
 default). The next stage reads only that artifact.
 

@@ -10,7 +10,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 `source` can be:
 
-- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file via the three-location lookup in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): `docs/topics/<slug>/PLAN.md` (contract slice on the task branch) → `.work/<slug>/PLAN.md` (under `contract_tier: local`) → legacy `.claude/notes/<slug>/PLAN.md` (deprecation grace — emit the notice)
+- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file via the three-location lookup in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`; contract slice on the task branch) → `<memory_dir>/<slug>/PLAN.md` (default `.work/`; under `contract_tier: local`) → legacy `.claude/notes/<slug>/PLAN.md` (deprecation grace — emit the notice)
 - `prd` — reads the topic's `PRD.md` user stories, resolved via the same three-location lookup
 - `#<item-number>` — reads an existing item's body
 - Conversation context — synthesizes from current discussion
@@ -111,7 +111,7 @@ Use agent-brief body format (see [`reference/agent-brief.md`](../reference/agent
 ## Parent
 
 Refs #<parent-item> (if source was an existing item)
-<!-- or: Source: docs/topics/<slug>/PLAN.md Phase N -->
+<!-- or: Source: <contract_dir>/<slug>/PLAN.md Phase N (write the resolved path) -->
 
 ## What to build
 

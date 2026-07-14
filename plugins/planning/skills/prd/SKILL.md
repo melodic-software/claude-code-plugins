@@ -87,7 +87,7 @@ Spend the first turn grounding yourself, in parallel:
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what the topic's contract slice `docs/topics/<topic-slug>/` already contains — prior PRD, PLAN, design artifacts — and what its memory slice `.work/<topic-slug>/` holds (exploration/research artifacts)
+- Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains — prior PRD, PLAN, design artifacts — and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts)
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
