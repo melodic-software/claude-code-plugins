@@ -10,8 +10,8 @@ only after that version increases.
 
 - **Aligned with the marketplace topic-docs convention** (`docs/conventions/topic-docs/`).
   Setup's convention inference now points at the `.claude/topic-docs.yaml` concern file and
-  the `.work/` memory tier (legacy `.claude/notes/` recognized only during the deprecation
-  grace window), and the youtube/course-digest skills carry the contract's **formal carve-out**
+  the `.work/` memory tier (the retired `.claude/notes/` location is no signal — the contract
+  is a clean break), and the youtube/course-digest skills carry the contract's **formal carve-out**
   note (the work root resolves through this plugin's `library_dir` seam, not the concern file's
   `memory_dir`; slug conformance is form-only; nested `<epic>/<slug>/` sub-slices are
   sanctioned), linking the convention by its canonical URL. The youtube slice-lane rationale

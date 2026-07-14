@@ -31,23 +31,19 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Added
 
 - **`reference/topic-docs.md`** — the plugin's **deltas-only** binding to the topic-docs contract:
-  its per-artifact tier table, the `DEVIATIONS.md` pin and phase-commit rule, the grace algorithm's
-  parameters (slice axis: topic slug; legacy root: `.claude/notes/` or a set `notes_dir`), and the
-  one guarded migration command — the contract owns the resolution order, slug spec, and runtime
-  guards. All consuming skills reference this one document.
+  its per-artifact tier table and the `DEVIATIONS.md` pin and phase-commit rule — the contract owns
+  the resolution order, slug spec, and runtime guards. All consuming skills reference this one
+  document.
 - **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file** — one question
   (`contract_tier: branch` recommended), offering and preserving every schema key (`contract_dir`,
   `memory_dir`, `contract_tier`, `vault_backend`), conflict-checked with `git check-ignore -v` on
   the chosen contract root before writing — only when the chosen tier is `branch` (local mode has
   no committed tier to guard); never edits the consumer's root `.gitignore`.
 
-### Deprecated
+### Removed
 
-- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Grace path per the
-  contract's old-pins-until-migrated policy: when the knob is set ("set" is decidable — the key
-  present with any value, or the legacy root holding slice content), skills operate wholly on the
-  old location (reads and writes) and emit a migration notice — never dual-writing, never splitting
-  one topic across roots. Removed at this plugin's next major version.
+- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Retired outright — no
+  compatibility layer, no dual-read window, no migration tooling; move residual content manually.
 
 ## [0.3.0]
 

@@ -85,8 +85,7 @@ The skills adapt to the consuming repo rather than imposing structure:
   / rules); the defaults are `.work/handoffs/` for handoff save-points and
   `.work/<slug>/workflow-checklist.md` for the per-topic workflow checklist — memory tier per the
   marketplace topic-docs convention, self-ignoring and never committed
-  (`reference/topic-docs.md`). Legacy `.claude/handoffs/` content is still read (and pins writes)
-  until migrated.
+  (`reference/topic-docs.md`).
 - **Quality gates and conventions** — build/test/lint commands, review criteria, and codification
   targets all come from the consuming repo's own instruction files.
 

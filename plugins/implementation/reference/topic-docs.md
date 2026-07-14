@@ -8,7 +8,7 @@ Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
 The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
 no-project-root fallback, non-interactive/forked mode, the prune-with-pointer lifecycle with its
-redaction bar, deprecation grace. This document records only this plugin's deltas.
+redaction bar. This document records only this plugin's deltas.
 
 ## What this plugin writes, per tier
 
@@ -28,37 +28,3 @@ the contract's solo/offline mode. Roots are configurable via the concern file's 
 
 **Phase-commit rule:** each implementation phase's plan updates ride the same commit as that
 phase's source changes — one commit, one story; memory-tier files never enter the commit.
-
-## Legacy grace — the contract's algorithm, this plugin's parameters
-
-Slice axis: **topic slug**. Legacy root: `.claude/notes/` — or the directory a set `notes_dir`
-names (read only the single `pluginConfigs["implementation@melodic-software"].options.notes_dir`
-key, never a settings file wholesale). "Set" is the contract's decidable definition, and the
-on-disk legacy-content probe runs inside the ladder's legacy rung with the contract's
-short-circuits.
-
-Guarded migration — the deprecation notice presents this command; run one topic slice at a time,
-on explicit confirmation only, refusing to overwrite a populated target slice:
-
-```bash
-LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
-MEM=.work             # the resolved memory_dir; adjust when the concern file overrides it
-CONTRACT=docs/topics  # the resolved contract_dir; adjust when the concern file overrides it
-                      # (contract_tier: local routes contract kinds to "$MEM/$SLUG" instead — skip the git add)
-mkdir -p "$CONTRACT/$SLUG" "$MEM/$SLUG"                       # create both target slices
-[ -f "$MEM/.gitignore" ] || printf '*\n' > "$MEM/.gitignore"  # self-ignore heal on the resolved root
-# contract kinds → contract slice (legacy content is untracked → mv + git add; git mv when tracked):
-for f in PLAN.md DEVIATIONS.md verification; do
-  [ -e "$CONTRACT/$SLUG/$f" ] && { echo "target $f populated — resolve before migrating"; exit 1; }
-  [ -e "$LEGACY/$SLUG/$f" ] && mv "$LEGACY/$SLUG/$f" "$CONTRACT/$SLUG/"
-done
-git add "$CONTRACT/$SLUG"
-[ -n "$(ls -A "$MEM/$SLUG" 2>/dev/null)" ] && { echo "memory target populated — resolve before migrating"; exit 1; }
-mv "$LEGACY/$SLUG"/* "$MEM/$SLUG/" && rmdir "$LEGACY/$SLUG"  # remaining memory kinds (baselines, scratch, status)
-jq 'del(.pluginConfigs["implementation@melodic-software"].options.notes_dir)' \
-  .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
-```
-
-The `jq` removal repeats for **every** settings scope that sets the key — migration completes only
-when the legacy knob is removed. Confirm: the slice reads back from the new homes; no scope still
-sets `notes_dir`.

@@ -21,13 +21,16 @@ reports sit under the memory root's reserved `reviews/` name rather than inside 
 Reports are write-only process output; nothing downstream enforces against them, which is what makes
 them memory-tier by the convention's placement question.
 
-## Resolution (earlier wins)
+## Resolution (the contract's five-rung order, earlier wins)
 
 1. `.claude/topic-docs.yaml` present → its `memory_dir`: `<memory_dir>/reviews/<branch-slug>/`.
 2. A review-artifacts location declared in the consumer's `CLAUDE.md` / `.claude/rules` → use it,
    and offer to persist it into the concern file (prose is an inference source, not the runtime
    authority).
-3. The documented default: `.work/reviews/<branch-slug>/`.
+3. An existing conforming layout inferred from the repo (a self-ignoring memory root holding
+   review reports) → confirm with the user, persist to the concern file.
+4. Ask once — one question, recommended option first; persist the answer to the concern file.
+5. The documented default: `.work/reviews/<branch-slug>/`.
 
 Both skills review a git diff; with no git repo there is nothing to review, and the skills stop
 before any write — the convention's no-project-root fallback surface never comes into play here.
@@ -48,23 +51,3 @@ before any write — the convention's no-project-root fallback surface never com
   `*`, creating it (announced) when absent — fresh clones heal on first write. Once per session,
   per the contract.
 - No skill in this plugin ever edits the consumer's root `.gitignore`.
-
-## Legacy grace — dual-read + old pins (`.claude/review/`)
-
-This binding applies the contract's grace algorithm (the convention's "Deprecation and migration")
-with slice axis = branch and legacy root = `.claude/review/`. The pre-convention default was
-`.claude/review/<branch-slug>/`. During the deprecation window:
-
-- **Short-circuit:** a populated resolved `<memory_dir>/reviews/<branch-slug>/` (default
-  `.work/reviews/`) for the current branch proves the slice isn't pinned — skip the legacy probe.
-- **Reads** (the fanout `fix` action, any report lookup): check the resolved
-  `<memory_dir>/reviews/<branch-slug>/` first; when it holds no matching report and legacy
-  `.claude/review/<branch-slug>/` does, read the legacy directory and emit the deprecation note.
-- **Writes:** when the new home holds no reports for the current branch and legacy
-  `.claude/review/<branch-slug>/` does, keep writing there (old pins — never split one branch's
-  review history across roots) and emit the deprecation note with the guarded migration command:
-  `mkdir -p <memory_dir>/reviews && mv .claude/review/<branch-slug> <memory_dir>/reviews/<branch-slug>`
-  (substitute the resolved memory root — default `.work`).
-  Fresh branches and fresh repos use the new home directly.
-- **Sunset:** dual-read and the legacy fallback are removed at this plugin's next major version, no
-  sooner than one minor release after this notice shipped.

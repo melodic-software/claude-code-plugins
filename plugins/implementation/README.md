@@ -40,8 +40,7 @@ verified code.
   working memory in the self-ignoring `<memory_dir>/<slug>/` (default `.work/`).
   The tracked `.claude/topic-docs.yaml` concern
   file is the consumer-side source of truth — `/implementation:setup` offers to
-  write it. Repos with existing `.claude/notes/` content keep the old location
-  until migrated.
+  write it.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`tdd`,
   `discovery`, `session-flow`, `playwright`) and external marketplace skills are
   invoked when installed and substituted with inline guidance when absent; no
@@ -59,9 +58,9 @@ verified code.
 
 ## Configuration
 
-| Option | Type | Status | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | **Deprecated** — superseded by the tracked `.claude/topic-docs.yaml` concern file (see the topic-docs seam above); removed at this plugin's next major version | Legacy artifact directory (old default `.claude/notes`). When the key is present with any value — or existing `.claude/notes/<slug>/` content is found — skills keep operating wholly on the old location and emit a migration notice, never dual-writing. Leave unset in new repos. |
+Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
+(see the topic-docs seam above); `/implementation:setup` interviews for and persists
+it. This plugin declares no userConfig options.
 
 ## License
 

@@ -12,13 +12,11 @@ Adopt the marketplace topic-docs convention, contract v1.0.0
   (announced) when absent. No skill edits the consumer's root
   `.gitignore`.
 - New `reference/topic-docs.md` — the plugin's **deltas-only** binding
-  to the contract: its artifact/tier table, the grace algorithm's
-  parameters (slice axis: topic slug; legacy root: `.claude/notes/` or
-  a set `notes_dir`), and the one guarded migration command. The
-  contract owns the resolution order, slug spec, runtime guards,
-  no-project-root fallback, and the non-interactive/forked mode the
-  `-deep` variants run under; every skill resolves destinations by
-  citing the binding, not by restating the rules.
+  to the contract: its artifact/tier table. The contract owns the
+  resolution order, slug spec, runtime guards, no-project-root
+  fallback, and the non-interactive/forked mode the `-deep` variants
+  run under; every skill resolves destinations by citing the binding,
+  not by restating the rules.
 - Slug derivation and sidecar filenames follow the contract's spec;
   skill-specific sidecars are `EXPLORE-<scope>.md` /
   `RESEARCH-<topic>.md`.
@@ -29,13 +27,8 @@ Adopt the marketplace topic-docs convention, contract v1.0.0
   citing the schema by its raw URL. Order is guard-then-persist: the
   `git check-ignore -v` conflict check on the configured contract root
   runs BEFORE the concern file is written — and only when the chosen
-  tier is `branch` (local mode has no committed tier to guard). It offers the binding's
-  guarded migration of legacy `.claude/notes/<slug>` content, which
-  completes only when the `notes_dir` key is removed from every
-  settings scope that sets it.
-- Deprecated: the `notes_dir` userConfig option (its `.claude/notes`
-  default is removed; "set" is decidable — the key present with any
-  value, or the legacy root holding slice content). When set, skills
-  operate wholly on the old location (reads and writes) and emit a
-  deprecation notice. The knob and dual-read are removed at the next
-  major version.
+  tier is `branch` (local mode has no committed tier to guard).
+- Removed: the `notes_dir` userConfig option and the `.claude/notes/`
+  layout. Prior locations are retired outright — no compatibility
+  layer, no dual-read window, no migration tooling; move residual
+  content manually.

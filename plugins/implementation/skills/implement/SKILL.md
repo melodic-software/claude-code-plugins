@@ -23,7 +23,7 @@ It sits between planning and verification: exploration and external research pro
 
 ## Progress tracking
 
-Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Placement resolves per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the plan artifact is contract-tier — `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`), committed on the task branch (or the memory tier under `contract_tier: local`) — and handoff notes are memory-tier under `<memory_dir>/handoffs/` (default `.work/handoffs/`). A legacy `notes_dir` value or existing `.claude/notes/<slug>/` content pins the old location until migrated (the contract's legacy grace — deprecation notice, never dual-write).
+Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Placement resolves per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the plan artifact is contract-tier — `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`), committed on the task branch (or the memory tier under `contract_tier: local`) — and handoff notes are memory-tier under `<memory_dir>/handoffs/` (default `.work/handoffs/`).
 
 ## Arguments
 

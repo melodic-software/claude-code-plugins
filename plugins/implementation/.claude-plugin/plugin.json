@@ -18,12 +18,5 @@
     "e2e",
     "verification",
     "skill"
-  ],
-  "userConfig": {
-    "notes_dir": {
-      "type": "string",
-      "title": "Notes directory (deprecated)",
-      "description": "DEPRECATED — grace path only, removed at this plugin's next major version. Artifact placement now follows the topic-docs convention (tracked .claude/topic-docs.yaml; defaults: contract documents in docs/topics/<slug>/ on the task branch, working memory in self-ignoring .work/<slug>/). When this option is set, or existing .claude/notes/<slug>/ content is found, skills keep operating wholly on the old location and emit a migration notice — never dual-writing. Leave unset in new repos."
-    }
-  }
+  ]
 }

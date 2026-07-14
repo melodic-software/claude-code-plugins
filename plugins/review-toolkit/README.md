@@ -60,8 +60,6 @@ location the project's own conventions declare; else to the default `.work/revie
 at the project root — the topic-docs convention's memory tier, concern-scoped on the branch axis
 (`reference/topic-docs.md`). The memory root self-ignores (a `.gitignore` containing `*`,
 created on the session's first memory-tier write), so findings never enter version control.
-Legacy `.claude/review/<branch-slug>/` content keeps writes pinned there with a deprecation note
-until migrated; that dual-read fallback is removed at the next major version.
 
 ## Install
 

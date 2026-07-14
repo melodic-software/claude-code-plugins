@@ -15,22 +15,17 @@ All notable changes to the `review-toolkit` plugin are documented here. Format f
   review-artifacts location (an inference source — the skills offer to persist it into the concern
   file), then the default. The session's first memory-tier write runs the verify-or-create
   self-ignore guard on the resolved memory root; no skill edits the consumer's root `.gitignore`.
-- **Legacy grace for `.claude/review/`:** the contract's grace algorithm, applied with slice
-  axis = branch and legacy root `.claude/review/` — reads check the new home first and fall back
-  to the legacy directory with a deprecation note; when the new home holds nothing for the current
-  branch and legacy content exists, writes stay pinned there so one branch's review history never
-  splits across roots (a populated new home short-circuits the legacy probe). Dual-read and the
-  fallback are removed at the next major version.
+- **`.claude/review/` retired outright.** The prior findings location gets no compatibility
+  layer, no dual-read window, no migration tooling; move residual content manually.
 - **`quality-gate` self-mode plan source:** the approved plan/brief is now sourced from the
   conversation, else the topic's contract slice `docs/topics/<slug>/PLAN.md` (memory-tier fallback
-  under `contract_tier: local`, then legacy `.claude/notes/<slug>/PLAN.md` as deprecation grace),
-  replacing the untyped "project's working notes" phrase.
+  under `contract_tier: local`), replacing the untyped "project's working notes" phrase.
 
 ### Added
 
 - **`reference/topic-docs.md`** — the plugin's compact binding to the topic-docs contract: what it
-  writes (memory tier only, branch axis), resolution order, branch-slug and timestamp spec, runtime
-  guards, and the deprecation window.
+  writes (memory tier only, branch axis), resolution order, branch-slug and timestamp spec, and
+  runtime guards.
 
 ## [0.3.0]
 

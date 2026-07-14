@@ -5,10 +5,10 @@
       "id": 1,
       "name": "resolves-topic-docs-state-and-interviews-before-writing",
       "prompt": "/planning:setup",
-      "expected_output": "Reads the current state in ladder order — an existing .claude/topic-docs.yaml, a working-docs convention declared in CLAUDE.md/.claude/rules, the legacy notes_dir value and old-convention content — and reports what it found. When nothing is configured, it presents the one load-bearing decision, contract_tier, with branch marked RECOMMENDED and presented first (local as the solo/offline alternative), keeps contract_dir and memory_dir at the documented defaults (docs/topics and .work) unless the repo declares otherwise, and writes nothing until the user accepts.",
+      "expected_output": "Reads the current state in ladder order — an existing .claude/topic-docs.yaml, a working-docs convention declared in CLAUDE.md/.claude/rules, an inferred conforming layout — and reports what it found. When nothing is configured, it presents the one load-bearing decision, contract_tier, with branch marked RECOMMENDED and presented first (local as the solo/offline alternative), keeps contract_dir and memory_dir at the documented defaults (docs/topics and .work) unless the repo declares otherwise, and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reads .claude/topic-docs.yaml first, then a declared working-docs convention, then the legacy notes_dir state — in that order",
+        "Reads .claude/topic-docs.yaml first, then a declared working-docs convention, then an inferred conforming layout — in that order",
         "Presents the single contract_tier decision with branch as the RECOMMENDED first option and invents no further knobs",
         "Keeps contract_dir and memory_dir at the documented defaults unless the repo's own conventions say otherwise",
         "Writes nothing until the user accepts the values"
@@ -16,28 +16,28 @@
     },
     {
       "id": 2,
-      "name": "legacy-grace-old-pins-until-migrated",
-      "prompt": "/planning:setup\n\nThis repo has an existing .claude/notes/auth-refresh/ directory containing PLAN.md and design artifacts, and notes_dir is set in project settings.",
-      "expected_output": "Recognizes the old-convention content and states that the pipeline skills keep operating wholly on the old location — reads and writes — until migrated, never dual-writing or splitting a topic across roots. It emits the deprecation notice (notes_dir and the old layout are removed at the plugin's next major version) and offers a guarded per-topic migration moving contract kinds (PRD.md, PLAN.md, design/) to the contract slice and memory kinds (checklists, baselines, scratch) to the memory slice, executing only on explicit confirmation.",
+      "name": "rerun-preserves-existing-concern-file-keys",
+      "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
+      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "States that skills operate wholly on the old location (reads AND writes) until migrated — never dual-write, never split one topic across roots",
-        "Emits the deprecation notice naming removal at the plugin's next major version",
-        "Offers a guarded migration separating contract kinds (PRD.md, PLAN.md, design/) from memory kinds (checklists, baselines, scratch)",
-        "Does not move or rewrite anything without explicit confirmation"
+        "Reports the existing file's effective values (absent keys = documented defaults) as the interview baseline",
+        "Preserves every key the existing concern file carries — a re-run never drops one",
+        "Does not invent knobs beyond the schema",
+        "Writes nothing until the user accepts the values"
       ]
     },
     {
       "id": 3,
       "name": "conflict-check-and-write-guards",
       "prompt": "/planning:setup\n\nUse the defaults; this repo's .gitignore contains a docs/ ignore rule.",
-      "expected_output": "Before writing, runs git check-ignore -v on the chosen contract root and, because an ignore rule matches docs/topics, stops and surfaces the exact rule and its source line rather than silently producing an uncommittable contract tier. It never edits the consumer's root .gitignore (resolving the rule is the user's edit), writes only the tracked .claude/topic-docs.yaml once the conflict is cleared — recording only non-default keys — and never writes the deprecated notes_dir userConfig, the plugin directory, or the plugin data directory.",
+      "expected_output": "Before writing, runs git check-ignore -v on the chosen contract root and, because an ignore rule matches docs/topics, stops and surfaces the exact rule and its source line rather than silently producing an uncommittable contract tier. It never edits the consumer's root .gitignore (resolving the rule is the user's edit), writes only the tracked .claude/topic-docs.yaml once the conflict is cleared — recording only non-default keys — and never writes the plugin directory or the plugin data directory.",
       "files": [],
       "expectations": [
         "Runs git check-ignore -v on the contract root before writing and surfaces the exact matching rule and source",
         "Never edits the consumer's root .gitignore or any ignore file",
         "Persists to the tracked .claude/topic-docs.yaml, recording only the keys the user chose",
-        "Does not write the deprecated notes_dir userConfig, the plugin directory, or the plugin data directory"
+        "Does not write the plugin directory or the plugin data directory"
       ]
     }
   ]

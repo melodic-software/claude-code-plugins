@@ -15,18 +15,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `architect-checklist.md`, `baselines/`, resume notes — lands in the never-committed,
   self-ignoring `.work/<topic-slug>/`. `contract_tier: local` keeps contract kinds in the memory
   tier for solo/offline work. Every pipeline skill resolves placement by citing the plugin's
-  **deltas-only** binding `reference/topic-docs.md` — its artifact/tier table, the grace
-  algorithm's parameters (slice axis: topic slug; legacy root: `.claude/notes/` or a set
-  `notes_dir`), the vault-seam close-out pointer, and the one guarded migration command; the
-  contract owns the resolution order, slug spec, and runtime guards (self-ignore is verified on
-  the session's first memory-tier write, scoped to the resolved memory root).
+  **deltas-only** binding `reference/topic-docs.md` — its artifact/tier table and the vault-seam
+  close-out pointer; the contract owns the resolution order, slug spec, and runtime guards
+  (self-ignore is verified on the session's first memory-tier write, scoped to the resolved
+  memory root).
 - **`/planning:setup` now writes the tracked concern file** `.claude/topic-docs.yaml`
   (offering and preserving every schema key — `contract_dir`, `memory_dir`, `contract_tier`,
   `vault_backend`; shape per the convention's `topic-docs.schema.json`) instead of the
   `notes_dir` userConfig. It runs the committed-tier `git check-ignore -v` conflict check before
   writing — only when the chosen tier is `branch` (local mode has no committed tier to guard) —
-  never edits the consumer's root `.gitignore`, and its guarded migration completes only
-  when the `notes_dir` key is removed from every settings scope that sets it.
+  and never edits the consumer's root `.gitignore`.
 - **`/planning:architect` owns the contract-slice close-out**: at PR time the approved PLAN.md is
   pasted into the PR description inside a `<details>` block; durable outcomes graduate through the
   knowledge-vault seam by resolving the concern file's `vault_backend` (`docs` default: guarded,
@@ -48,9 +46,5 @@ All notable changes to the `planning` plugin are documented here. Format follows
   the artifact itself, and the commit message carries the pivot rationale — contracts are
   branch-tracked, so git log is the history.
 
-### Deprecated
-
-- **`notes_dir` userConfig** — grace path only: when set ("set" is decidable — the key present
-  with any value, or the legacy root holding topic content), skills operate wholly on the old
-  location (reads AND writes) and emit a deprecation notice; never dual-write, never split one
-  topic across roots. Removed at the next major version.
+- **`notes_dir` userConfig and the `.claude/notes/` layout** — retired outright. No compatibility
+  layer, no dual-read window, no migration tooling; move residual content manually.

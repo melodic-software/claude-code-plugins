@@ -12,16 +12,16 @@ Adopt the marketplace topic-docs convention (`docs/conventions/topic-docs/`, con
 - **`reference/topic-docs.md`** — the plugin's binding to the contract: which paths the skill reads
   and writes per tier (the `work-items-checklist.md` ledger and ad-hoc notes are memory-tier under
   `.work/<slug>/`; tracker projections go through the seam, never files), the slug spec and
-  self-ignore guard, and the three-location plan/PRD lookup with its sunset.
+  self-ignore guard, and the two-location plan/PRD lookup.
 
 ### Changed
 
 - **`decompose` default source moved to the contract tier.** The topic's `PLAN.md` / `PRD.md` now
-  resolve via a three-location lookup: `docs/topics/<slug>/` (contract slice on the task branch,
-  default) → `.work/<slug>/` (`contract_tier: local`) → legacy `.claude/notes/<slug>/` (deprecation
-  grace — operate on the old location and emit a notice; this rung is removed at the next major
-  version, no sooner than one minor release after this notice). Previously the default was
-  `.work/<slug>/`, which the convention classifies as memory tier — plans are contract documents.
+  resolve via a two-location lookup: `docs/topics/<slug>/` (contract slice on the task branch,
+  default) → `.work/<slug>/` (`contract_tier: local`). Previously the default was `.work/<slug>/`,
+  which the convention classifies as memory tier — plans are contract documents. The prior
+  `.claude/notes/<slug>/` location is retired outright — no compatibility layer; move residual
+  content manually.
 - The checklist emit path (`.work/<slug>/work-items-checklist.md`) is now governed by the binding:
   `<slug>` derives per the shared slug spec and the session's first memory-tier write verifies the
   resolved memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced

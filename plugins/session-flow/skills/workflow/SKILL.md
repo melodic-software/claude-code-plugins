@@ -41,9 +41,7 @@ This skill adapts to the consuming repo rather than imposing structure:
   never committed; on the session's first memory-tier write, verify-or-create the resolved memory
   root's `.gitignore` containing `*` (announced). The sibling `handoff` skill's
   `<memory_dir>/handoffs/` holds only handoff save-points — a fixed-filename checklist there would
-  clobber across two in-flight topics. A legacy `.claude/handoffs/workflow-checklist.md` pins the
-  old location until migrated (deprecation note; never dual-write) — probe it only when the topic's
-  new slice holds no checklist.
+  clobber across two in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands and review criteria govern;
   this skill names WHERE gates belong in the sequence, not what they contain.
 

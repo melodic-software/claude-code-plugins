@@ -55,8 +55,6 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
    - The marketplace topic-docs convention when the repo declares it — a `.claude/topic-docs.yaml`
      concern file or a `.work/` memory-tier root
      (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>).
-     During the deprecation grace window, a legacy `.claude/notes/` directory still counts as
-     this signal.
    - An existing docs or knowledge directory (`docs/`, `knowledge/`) that synthesized artifacts would
      naturally join.
    - If nothing is found, the safe default is the repo root `.` (the plugin's declared `userConfig`

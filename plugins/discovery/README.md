@@ -42,14 +42,9 @@ Artifact placement follows the marketplace **topic-docs convention**
 `EXPLORE.md` / `RESEARCH.md` are memory-tier
 documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one slug per topic, never
 committed — the memory root self-ignores. Skills resolve `<memory_dir>` in order: the tracked concern
-file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → the
-deprecated `notes_dir` option → an inferred conforming layout → one question → the `.work` default.
-`/discovery:setup` is an idempotent interview that persists the concern file and migrates legacy
-content.
-
-| Option | Type | Status | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | **Deprecated** — superseded by `.claude/topic-docs.yaml`; removed at the next major version | Legacy artifact directory (old default `.claude/notes`). When the key is present with any value — or when `.claude/notes/<slug>` content exists — skills keep reading and writing the old location until `/discovery:setup` migrates it. |
+file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → an
+inferred conforming layout → one question → the `.work` default.
+`/discovery:setup` is an idempotent interview that persists the concern file.
 
 ## License
 

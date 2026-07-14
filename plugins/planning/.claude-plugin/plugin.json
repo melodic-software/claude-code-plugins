@@ -22,12 +22,5 @@
     "stress-test",
     "implementation-plan",
     "skill"
-  ],
-  "userConfig": {
-    "notes_dir": {
-      "type": "string",
-      "title": "Notes directory (deprecated)",
-      "description": "DEPRECATED — superseded by the topic-docs convention's tracked concern file (.claude/topic-docs.yaml, written by /planning:setup). Grace path only: when set, or when the configured directory already holds topic content, skills keep operating wholly there and emit a deprecation notice. Removed at the next major version."
-    }
-  }
+  ]
 }

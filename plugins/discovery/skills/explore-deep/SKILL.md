@@ -42,7 +42,7 @@ Follow the sibling `/explore` skill exactly:
 
 **Before writing, run the Outcome gate** the `/explore` workflow defines — the binary artifact self-check, not a "did I explore enough?" recap; any FAIL → fix first.
 
-Write findings to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, runtime guards, and legacy grace resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). As a fork you run under the contract's non-interactive/forked-mode rule — flag any assumed destination (and any legacy-grace hit) in your return summary.
+Write findings to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). As a fork you run under the contract's non-interactive/forked-mode rule — flag any assumed destination in your return summary.
 
 **If EXPLORE.md already exists** there for an unrelated task, write a sidecar `EXPLORE-<scope>.md` in the same directory instead (scope slugged per the same spec) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
 

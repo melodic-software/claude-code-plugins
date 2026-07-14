@@ -91,13 +91,11 @@ Identical in every consuming plugin. Earlier wins:
 2. A working-docs convention declared in the consumer's `CLAUDE.md` /
    `.claude/rules` → use it, and offer to persist it into the concern
    file (prose is an inference source, not the runtime authority).
-3. A legacy per-plugin `notes_dir` userConfig value → use it and emit
-   the deprecation notice (grace path; see Deprecation).
-4. An existing conforming layout inferred from the repo → confirm with
+3. An existing conforming layout inferred from the repo → confirm with
    the user, persist to the concern file.
-5. Ask once — one question, recommended option first (`branch` default
+4. Ask once — one question, recommended option first (`branch` default
    vs `local`). The asking skill persists the answer to the concern file.
-6. The documented defaults (`docs/topics` + `.work`, `branch`).
+5. The documented defaults (`docs/topics` + `.work`, `branch`).
 
 **No project root** (no git toplevel or project marker): interactive →
 ask (create under the current directory, or an explicit path);
@@ -195,32 +193,15 @@ credentials. Raw output stays in the memory slice `<memory_dir>/<slug>/`
   Skills degrade gracefully: no configured vault backend means the
   in-repo default, never a hard failure.
 
-## Deprecation and migration
+## Adoption (clean break)
 
-One grace algorithm, contract-owned; bindings cite it with two
-parameters — the **slice axis** their concern keys on (topic slug,
-branch, or handoff chain) and their **legacy root**:
-
-- **"Set" is decidable:** a legacy knob counts as set when its key is
-  present in the stored plugin options with any value (the knobs carry
-  no default), or when the legacy root holds content for the current
-  slice. Legacy probes belong inside that rung: a concern-file hit at
-  rung 1 short-circuits them, and a populated new home for the current
-  slice proves the slice isn't pinned (skip the legacy probe).
-- **Old pins until migrated.** When the rung fires, the plugin operates
-  wholly on the old location for that slice — reads *and* writes — and
-  emits a deprecation notice with its binding's guarded migration
-  command. New defaults apply to fresh repos and fresh slices only.
-  Never dual-write; never split one slice across roots.
-- **Reads elsewhere dual-read:** a consumer of another plugin's artifact
-  checks the new location first, then the legacy root, and notes the
-  deprecation on a legacy hit.
-- **Migration completes only when the legacy knob is removed** from the
-  stored plugin options *and* the slice content has moved — a migration
-  that moves files but leaves the knob keeps the plugin pinned.
-- **Sunset:** dual-read and the legacy knobs are removed at each
-  consuming plugin's next major version, no sooner than one minor release
-  after its deprecation notice ships.
+The prior conventions (`.claude/notes/<slug>`, `.claude/handoffs/`,
+`.claude/review/`, unscoped `.work/<slug>`) are retired outright — no
+compatibility layer, no legacy knobs, no dual-read windows, no
+migration tooling. Skills read and write only the resolved convention
+locations. A repo holding content at a retired location moves it by
+hand (or asks the session to); the declutter tooling flags stale
+citations of retired paths as ghost refs.
 
 ## Implementers
 
@@ -240,5 +221,6 @@ branch, or handoff chain) and their **legacy root**:
 
 This contract is versioned in `CHANGELOG.md`. A change that moves a
 tier, renames a key in `topic-docs.yaml`, or alters the slug spec is a
-**major** contract change and triggers the deprecation policy above in
-every implementer. Additive guidance is minor.
+**major** contract change, and every implementer adopts it in the same
+release wave (clean break — this contract carries no compatibility
+machinery). Additive guidance is minor.

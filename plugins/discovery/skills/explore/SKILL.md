@@ -153,7 +153,7 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 
 ## Final step: persist artifact for handoff
 
-Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, runtime guards, and legacy grace resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
 This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact. The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
 

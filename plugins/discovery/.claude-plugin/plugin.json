@@ -8,12 +8,5 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"],
-  "userConfig": {
-    "notes_dir": {
-      "type": "string",
-      "title": "Notes directory (deprecated)",
-      "description": "DEPRECATED — superseded by the topic-docs convention's tracked concern file (.claude/topic-docs.yaml, memory_dir key); removed at this plugin's next major version. When set — or when content exists under its legacy default .claude/notes — the discovery skills operate wholly on that old location (reads and writes) until /discovery:setup migrates it."
-    }
-  }
+  "keywords": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
 }

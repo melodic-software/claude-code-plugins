@@ -19,7 +19,7 @@ this document binds this plugin's artifacts to it.
 The memory root is configurable via the concern file's `memory_dir` key. This plugin never writes
 the contract tier (`<contract_dir>/<slug>/`).
 
-## What this plugin reads — the three-location plan lookup
+## What this plugin reads — the two-location plan lookup
 
 `decompose` (and any action sourcing a plan or PRD) resolves `PLAN.md` / `PRD.md` in this order;
 the first location holding the document wins, and one topic never spans locations:
@@ -28,13 +28,8 @@ the first location holding the document wins, and one topic never spans location
    branch (`contract_tier: branch`, the default tier).
 2. `<memory_dir>/<slug>/PLAN.md` (default `.work/`) — the memory tier, when the concern file sets
    `contract_tier: local` (solo/offline mode).
-3. `.claude/notes/<slug>/PLAN.md` — legacy location, deprecation grace only: read it, emit the
-   deprecation notice naming the owning plugin's setup skill as the guarded migration path.
 
-Roots 1 and 2 are configurable via the concern file's `contract_dir` / `memory_dir` keys.
-
-**Sunset:** rung 3 (the legacy dual-read) is removed at this plugin's next major version, no sooner
-than one minor release after its deprecation notice shipped.
+Both roots are configurable via the concern file's `contract_dir` / `memory_dir` keys.
 
 ## Slug and guards
 

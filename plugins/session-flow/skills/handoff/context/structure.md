@@ -107,16 +107,12 @@ TS=$(date -u +%Y%m%dT%H%M%SZ)              # ISO basic — Windows-safe, no colo
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
 MEMORY_ROOT=.work                          # the concern file's memory_dir when set — resolve it
                                            # first, never assume the literal .work
-DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live" — probe
-                                           # legacy .claude/handoffs only when $DIR holds no
-                                           # save-points; unmigrated legacy content pins the old
-                                           # location
+DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live"
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
 
 # Candidate prior handoff (newest by timestamp) for the chain pointer — but
 # only USE it when this session is a continuation of that handoff's task
-# (see "Chain continuity" below). DIR resolution already applied the
-# dual-read fallback, so the prior lives in $DIR.
+# (see "Chain continuity" below).
 PRIOR=$(ls -1 "$DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
 PRIOR_SID=""
 if [[ -n "$PRIOR" ]]; then

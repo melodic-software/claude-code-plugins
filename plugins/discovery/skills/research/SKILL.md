@@ -164,7 +164,7 @@ If invoked standalone, present findings directly. If invoked as part of a larger
 
 ## Final step: persist artifact for handoff
 
-Write the research output to `<memory_dir>/<slug>/RESEARCH.md` — a memory-tier artifact, never committed. Destination, slug, runtime guards, and legacy grace resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Write the research output to `<memory_dir>/<slug>/RESEARCH.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
 This file is the authoritative summary of the stage — a fresh session must be able to resume planning reading only this artifact.
 

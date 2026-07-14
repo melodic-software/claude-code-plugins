@@ -11,8 +11,8 @@ after a PR merges.
 ### Phase 1.0: Discover the session chain (multi-session-aware)
 
 When handoff save-points exist (the sibling `handoff` skill's directory — the resolved
-`<memory_dir>/handoffs/` (default `.work/handoffs/`), the consuming repo's documented location,
-or legacy `.claude/handoffs/` during the dual-read window), the retro analyzes EVERY chained session across
+`<memory_dir>/handoffs/` (default `.work/handoffs/`), or the consuming repo's documented
+location), the retro analyzes EVERY chained session across
 `/handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
 the first entry lacking `session_id`).
@@ -46,14 +46,9 @@ done
 # Multi-session form (handoff chain exists). Set HANDOFF_DIR to the resolved
 # <memory_dir>/handoffs — the concern file's memory_dir first, else the consuming
 # repo's documented save-point location (see the handoff skill's "Where handoffs
-# live"); the plugin default is .work/handoffs/, with a dual-read fallback to
-# legacy .claude/handoffs/ (note the deprecation when used).
+# live"); the plugin default is .work/handoffs/.
 HANDOFF_DIR=.work/handoffs
 NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
-if [ -z "$NEWEST" ]; then
-  HANDOFF_DIR=.claude/handoffs
-  NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
-fi
 "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 ```
 

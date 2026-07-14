@@ -8,7 +8,7 @@
       "expected_output": "A durable handoff file written to the repo's handoff location (default .work/handoffs/<TS>-handoff-<topic>.md, self-ignore guard verified) capturing task, progress, decisions, and what was tried, followed by a copy-paste resume prompt between two dashed rails that @-references the file. The skill then STOPS — it does not keep executing phase 2.",
       "files": [],
       "expectations": [
-        "A durable handoff file is written (default location .work/handoffs/, or the consuming repo's documented save-point convention; legacy .claude/handoffs/ content pins the old location)",
+        "A durable handoff file is written (default location .work/handoffs/, or the consuming repo's documented save-point convention)",
         "A copy-paste resume prompt is emitted between two dashed U+2500 rails, not a markdown --- fence, and it @-references the handoff file rather than inlining its detail",
         "A plain '/clear, then copy everything between the dashed lines' instruction sits above the top rail",
         "The skill STOPS after emitting the save-point — it does not continue executing the underlying refactor task in this session"

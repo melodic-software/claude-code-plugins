@@ -14,7 +14,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 The seam between design and planning. `/planning:architect`'s prerequisite check blocks on design-gate evidence; this skill produces that evidence honestly — a binary check read off the artifact, then a handoff summary sourced from the artifacts rather than recalled from conversation memory.
 
-Design artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice on the task branch, joining the memory slice under `contract_tier: local`; roots, tier, legacy grace, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:architect`).
+Design artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice on the task branch, joining the memory slice under `contract_tier: local`; roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:architect`).
 
 ## Binary gate — check the artifact, not your memory
 

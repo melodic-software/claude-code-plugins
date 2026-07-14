@@ -58,10 +58,6 @@ to interview and persist the tracked
 concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
 `contract_tier: branch | local`); absent keys mean those documented defaults.
 
-| Option | Type | Status | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | **Deprecated** — superseded by `.claude/topic-docs.yaml`; removed at the next major version | Legacy artifact directory (old default `.claude/notes`). When the key is present with any value — or the legacy root already holds topic content — skills keep operating wholly there and emit a deprecation notice until `/planning:setup` migrates it. |
-
 ## License
 
 MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
