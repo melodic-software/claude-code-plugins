@@ -99,7 +99,7 @@ name narrowly:
    - Pre-plugin: a small PATH shim in a directory already on your PATH (e.g. `~/.local/bin`, if it is
      on your PATH) that delegates through `$HOME` to the skill's self-locating wrapper.
    - Post-migration: the plugin's `bin/` directory — "Executables added to the Bash tool's `PATH` …
-     invokable as bare commands in any Bash tool call while the plugin is enabled" —
+     as bare commands in any Bash tool call while the plugin is enabled" —
      [plugins-reference](https://code.claude.com/docs/en/plugins-reference) (Executables row).
    - Wrappers self-locate their real directory (e.g. `readlink -f`) so they work via direct, shim, or
      symlink invocation.

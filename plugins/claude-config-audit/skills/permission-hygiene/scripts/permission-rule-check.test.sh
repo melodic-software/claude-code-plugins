@@ -139,9 +139,18 @@ allowed-tools:
 ---
 body
 EOF
+mkdir -p "$D6/.claude/skills/bare"
+cat >"$D6/.claude/skills/bare/SKILL.md" <<'EOF'
+---
+name: bare
+allowed-tools: Bash
+---
+body
+EOF
 OUT=$(run "$D6")
 assert_contains "flags interpreter in skill frontmatter" "$OUT" "skills/bad/SKILL.md allowed-tools"
 assert_contains "flags interpreter in agent frontmatter" "$OUT" "agents/runner.md allowed-tools"
+assert_contains "flags bare Bash in skill frontmatter" "$OUT" "skills/bare/SKILL.md allowed-tools: bare 'Bash'"
 assert_not_contains "does NOT flag narrow git/npm skill" "$OUT" "skills/good/SKILL.md"
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------

@@ -91,8 +91,8 @@ P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${_runner})([^A-Za-z0-9_)][^)]*)?\
 P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${_script})[^)]*\\)"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
-# path literal (e.g. the /Users/ or /home/ shape) appears in this file's source
-# bytes and trips the repo's own machine-specific-path scanner. `seg` is one
+# home-path literal appears in this file's source bytes and trips the repo's
+# own machine-specific-path scanner. `seg` is one
 # real segment character: not a separator, wildcard, or a placeholder/expansion
 # lead (<, $, {, ~), so `${CLAUDE_PROJECT_DIR}/…`, `~/…`, and doc placeholders
 # like `<name>` are not matched — only concrete usernames are.
@@ -122,6 +122,21 @@ scan_rule() {
   done < <(printf '%s\n' "$text" | grep -oE "$P2_ERE" 2>/dev/null | sort -u)
 }
 
+scan_bare_tool() {
+  # scan_bare_tool <text> <source-label> — flag a bare `Bash`/`PowerShell`
+  # token (the whole-tool grant that auto mode drops). scan_settings_allow
+  # exact-matches this per rule; frontmatter arrives as a blob the parenthesized
+  # P1 ERE cannot see, so it needs a token-level scan. A token immediately
+  # followed by `(` (e.g. Bash(npm test)) is a scoped rule, not a bare grant,
+  # and is excluded so an interpreter rule is not double-flagged.
+  local text="$1" src="$2" tool
+  for tool in Bash PowerShell; do
+    if printf '%s\n' "$text" | grep -qE "(^|[^[:alnum:]_])${tool}([^[:alnum:]_(]|\$)"; then
+      emit warning P1 "$src" "bare '$tool' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
+    fi
+  done
+}
+
 # --- Frontmatter allowed-tools scan ------------------------------------------
 # allowed-tools value + its block-list continuation lines, from the leading
 # --- frontmatter block only.
@@ -147,6 +162,7 @@ while IFS= read -r file; do
   [[ -n "${at//[[:space:]]/}" ]] || continue
   rel="${file#"$ROOT"/}"
   scan_rule "$at" "$rel allowed-tools"
+  scan_bare_tool "$at" "$rel allowed-tools"
 done < <(
   find "$ROOT" -type f \( \
     -name 'SKILL.md' \
@@ -162,12 +178,10 @@ scan_settings_allow() {
   tr -d '\r' <"$file" | jq -e . >/dev/null 2>&1 || return 0
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
-    if [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
-      emit warning P1 "$label" "bare '$rule' allow rule grants the whole tool and is dropped in auto mode. Allow a specific bare-name command instead, e.g. Bash(babysit_merge.sh:*)."
-    fi
+    scan_bare_tool "$rule" "$label"
     scan_rule "$rule" "$label"
     # Trailing tr strips CR: jq emits CRLF on Windows, which would otherwise
-    # leave a \r on each rule and defeat the exact bare-tool comparison above.
+    # leave a \r on each rule and pollute the token the scans above match.
   done < <(tr -d '\r' <"$file" | jq -r '.permissions.allow // [] | .[]' 2>/dev/null | tr -d '\r')
 }
 
