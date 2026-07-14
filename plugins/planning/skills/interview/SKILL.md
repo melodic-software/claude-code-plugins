@@ -154,13 +154,15 @@ Stop when every load-bearing unknown is resolved OR captured as named assumption
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`), then write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location.
+Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`); session artifacts live in `${user_config.notes_dir}/<topic-slug>/`, and a consuming project's declared working-notes convention (in its `CLAUDE.md` or rules) wins over that default. *What* gets persisted follows the Step 1 domain classification.
+
+**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to that location, or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
+
+**Engineering sessions** write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. The rest of this step — everything below — is the Brief machinery and is engineering-only.
 
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic directory) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/architect` fills it.
-
-**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — instead of the build-Brief template, to the same externalized location (consumer convention wins), or inline when the user wants no artifact. The `## Brief`/`## Plan` structure is the engineering shape; do not force it onto a general decision.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to a sibling `history.md` before rewriting — never silently overwrite.
 
