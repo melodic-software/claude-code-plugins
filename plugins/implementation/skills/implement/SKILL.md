@@ -154,7 +154,7 @@ In-session task state lives in the harness and does not survive a context clear.
 
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 
-1. **Mark plan progress** — set the completed phase's tag to `[DONE]` in the plan artifact and tick its step boxes; keep any parent/roadmap documents that mirror phase status in sync in the same turn
+1. **Verify acceptance criteria, then mark plan progress** — before setting the completed phase's tag to `[DONE]`, confirm the phase's acceptance criteria hold. Self-review is the floor; for any phase beyond a mechanical, behavior-preserving change (where an objective build/test/lint pass is verification enough), that verdict is rendered by an agent that did NOT produce the phase's changes — a fresh-context verifier handed binary criteria and the diff, withholding your rationale, or the cross-vendor option `/verify-changes` names — never the producing context auditing itself, which converges on approval rather than detection. Then set the tag to `[DONE]` in the plan artifact and tick its step boxes; keep any parent/roadmap documents that mirror phase status in sync in the same turn
 2. **Write a phase-boundary handoff entry** — when the `session-flow` plugin is installed, invoke `/session-flow:handoff` via the Skill tool (file method, topic `phase-N`); otherwise write a timestamped handoff note beside the plan artifact. Include: what shipped, what was tried and ruled out, decisions made, files modified, sanity-check evidence, next-phase hand-off pointer
 3. **Update the status summary** in the notes directory (current phase, next concrete action, blockers, pointer to the newest handoff entry)
 4. **Commit** the plan/notes changes alongside the phase's source-code changes in a single commit — mark-then-commit, never the reverse: committing the phase's work first and marking DONE in a follow-up commit forces a second commit just to record it. Do NOT present or run the commit until steps 1-3 are in the working tree. When git is owned by the user, still complete steps 1-3 FIRST so the marking is in the working tree when they commit
@@ -172,7 +172,7 @@ When all planned work is done:
 
 1. **Final build check** — invoke `/build` via the Skill tool for all affected ecosystems
 2. **Run all affected tests** — not just the ones you wrote, but tests that could be impacted by your changes
-3. **Self-review** — read through changes (`git diff HEAD~N`) looking for:
+3. **Self-review (a floor, not the final verdict)** — the producing context converges on approval, so this catches slips but does not render the outcome verdict (step 5 hands to `/verify-changes`, which renders it from outside the producing loop). Read through changes (`git diff HEAD~N`) looking for:
    - Consistency with existing patterns
    - No debugging artifacts left behind
    - No commented-out code

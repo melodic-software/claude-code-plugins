@@ -63,10 +63,11 @@ Write the ranked report to `<findings-location>/<UTC-timestamp>-<topic>.md` (`da
 
 ## Orchestrator plugins
 
-Two optional orchestrator plugins from the `claude-plugins-official` marketplace add adversarial breadth. Both run on the MAIN THREAD (they fan out their own agents; a subagent cannot dependably do that). Each is a graceful enhancement, not a hard dependency:
+Three optional orchestrator plugins add adversarial breadth — two same-vendor Claude plugins from the `claude-plugins-official` marketplace, plus the OpenAI Codex plugin (`codex@openai-codex`) as a different-model surface. All run on the MAIN THREAD (they fan out their own agents; a subagent cannot dependably do that). Each is a graceful enhancement, not a hard dependency:
 
 - **`pr-review-toolkit`** — `/pr-review-toolkit:review-pr`: aspect-scoped agent fan-out. Absent → this plugin's leaf agents cover most of the same dimensions; note that orchestrator breadth was skipped.
 - **`code-review`** — `/code-review:code-review`: parallel reviewers + confidence scorer for an existing PR. **PR-mutation gate:** its PR mode posts findings as a PR comment, which violates the review modes' report-only contract; when the branch has an open PR, dispatch it only on explicit user opt-in ("post the review comment"), otherwise skip it and name the skip in `## Surfaces`. Absent → note the skip; a repository's own CI review bot (when present) still provides PR coverage.
+- **`codex`** (OpenAI Codex) — `/codex:review`: read-only cross-vendor review, so it satisfies the review modes' report-only contract with no PR-mutation gate; `/codex:adversarial-review`: red-teams the diff, fitting the intentional adversarial-breadth intent. The first surface backed by a **different model** — its blind spots are uncorrelated with the same-vendor leaf agents and Claude orchestrators, so a finding only Codex raises is signal the rest structurally cannot see. Invoke it with `--wait` so the review runs in the foreground and returns findings in the same turn (its default prompts and may run in a background task the synchronous normalization step would miss), and pass `--base <review-base>` carrying this skill's resolved review diff base ("Shared inputs") so Codex diffs the same change set as every other dispatched surface — without it Codex auto-picks the working tree or default branch. Absent → note the skip; the same-vendor surfaces still cover most dimensions.
 
 ## What this skill does NOT do
 
