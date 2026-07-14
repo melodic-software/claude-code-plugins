@@ -57,7 +57,7 @@ Run rounds until the stop condition is met. Each round:
 4. **Ask ONE question with a recommended answer** — if the codebase gate didn't resolve it, ground the recommendation in observed codebase state. When no code signal exists, recommend based on conventions and state the basis
 5. **Capture the answer** in the working draft of the Brief (in your head or a scratch buffer, NOT on disk yet)
 6. **Prune the tree** — what branches did this answer eliminate? What new branches opened? What's the next blocking decision?
-7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries) + inline vocabulary update (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one)
+7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** also run the inline vocabulary update (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one) — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
 ### Decision dependencies
 
