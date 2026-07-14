@@ -21,6 +21,10 @@ Plans fail for predictable reasons: unchecked assumptions, undiscovered bugs in 
 
 Not a rubber stamp. Find real issues that would cause rework, not generic warnings. Every finding must be backed by evidence — a specific bug number, doc reference, code path, or logical argument. "This might break" without evidence is not a finding.
 
+## Fresh-context requirement
+
+If the plan or proposal under review was produced in THIS context/session, dispatch this stress-test to a fresh-context sub-agent rather than running it inline — the producing context shares the assumptions that created the plan's blind spots and drifts toward approving its own work. When you were invoked on an artifact this context did not author (a file, a plan from another session, a diff), you are already the fresh pair of eyes — proceed directly.
+
 ## When to Use
 
 **Proactively (autonomous invocation):**

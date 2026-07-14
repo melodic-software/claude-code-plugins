@@ -52,7 +52,7 @@ Based on research results:
 
 ### 4. Re-assess
 
-Run `/devils-advocate` on the updated plan. Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
+Dispatch `/devils-advocate` to a fresh-context sub-agent on the updated plan — never re-run it inline in the producing context, the same fresh-eyes discipline as the first pass (Step 4). Only the changed sections need deep review — unchanged sections carry forward their previous assessment.
 
 ## Guardrails
 

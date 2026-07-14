@@ -62,6 +62,8 @@ A worker's return is recall-grade knowledge per the calibration chapter, section
 
 In-context adversarial self-review — the verification chapter, section "Adversarial self-review" — is the floor at every effort level; self-review is a floor, never the final gate for multi-file work, because the context that produced the changes contains the exact assumptions that produced the error and converges on approval rather than detection.
 
+The independence gradient runs further than fresh context alone: self-review (floor) < a fresh **same-vendor** context (strips the producer's rationale) < a **different-vendor** model (strips the producer's training priors too — its errors are uncorrelated with yours, so it catches failure classes a same-family reviewer shares). Reach for the strongest independent critic the work warrants; a high-blast-radius verification is the natural place to spend a cross-vendor reviewer when one is installed.
+
 **TRIGGER — a fresh-context verifier is required in addition to the floor:** after any multi-file edit batch, and before declaring any multi-part task complete. Outside these triggers, the in-context floor suffices.
 
 Hand the verifier two things only: the artifact, and binary criteria checkable against the artifact by reading, searching, or counting — a holistic quality question invites a rubber stamp; a criterion with a yes/no answer does not. Withhold your rationale for the changes: a verifier that reads your justification inherits your blind spots and audits your story instead of your artifact.
