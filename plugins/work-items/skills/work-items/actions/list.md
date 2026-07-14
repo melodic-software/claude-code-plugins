@@ -26,8 +26,8 @@ List work items with optional filtering.
 ```markdown
 | # | Item | Type | Labels | Assignee | Updated |
 |---|------|------|--------|----------|---------|
-| 1 | #42 Fix <thing> | Bug | area:<your-area>, priority:p1-high | @user | 2d ago |
-| 2 | #38 Review <config> | Task | area:<your-area> | -- | 5d ago |
+| 1 | #42 Fix <thing> | Bug | area: <your-area>, priority:p1-high | @user | 2d ago |
+| 2 | #38 Review <config> | Task | area: <your-area> | -- | 5d ago |
 ```
 
 The `#` column is a sequential index for this listing. When the user references an item by `#`, match it to the item in the most recent listing.

@@ -72,9 +72,11 @@ an interactive session — do not fabricate a map.
 1. **Survey + fog test.** Ground in the effort (read any existing `.work/<slug>/`, recent
    commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
    decision item; foggy → *Not-yet-specified* prose.
-2. **Create or extend the map issue.** On first use in a repo, bootstrap the wayfind label
-   taxonomy (`work-map`, `wayfind:*`, `needs-human`) create-if-missing — a fresh repo won't have
-   them and an unknown `--label` fails the create. Then create one issue labelled bare `work-map`
+2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
+   taxonomy (`work-map`, `wayfind:*`, `needs-human`) is present — an unknown `--label` fails the
+   create. Labels are provisioned by the label-as-code SSOT (github-iac, the sole writer), never
+   created ad hoc: if any are missing, STOP and report them for a github-iac PR (or the repo's
+   own provisioning for an opt-out repo). Then create one issue labelled bare `work-map`
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
    fog clears) / **Notes** (pointers to `.work/` artifacts, research, prior context) /
    **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's

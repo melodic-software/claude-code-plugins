@@ -70,7 +70,7 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 
 ```
 **Auto-selected (<tier-name>):** #42 Fix <thing>
-Type: Bug · Labels: area:<your-area>, priority:<your-priority>
+Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
 Proceed with this item? (yes / pick different / skip)
 ```
