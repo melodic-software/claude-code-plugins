@@ -231,6 +231,26 @@ EOF
 ph_out="$(bash "$DETECT" "$PLACEHOLDER")"
 assert_not_contains "slot-variable placeholder is not a ghost ref" "$ph_out" "Finding shape: ghost-ref"
 
+# --- Configured convention roots (concern file overrides) ---------------------------
+
+CONF_ROOT="$TEST_TMPDIR/configured-repo"
+mkdir -p "$CONF_ROOT/.claude"
+cat >"$CONF_ROOT/.claude/topic-docs.yaml" <<'EOF'
+memory_dir: .scratch
+contract_dir: product/topics
+EOF
+CONFIGURED="$TEST_TMPDIR/configured.md"
+cat >"$CONFIGURED" <<'EOF'
+# Configured-roots fixture
+
+Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
+.scratch/reviews/ is self-ignoring
+EOF
+conf_out="$(DECLUTTER_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
+assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
+assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
+assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

@@ -19,15 +19,14 @@ this document binds this plugin's artifacts to it.
 The memory root is configurable via the concern file's `memory_dir` key. This plugin never writes
 the contract tier (`<contract_dir>/<slug>/`).
 
-## What this plugin reads — the two-location plan lookup
+## What this plugin reads — the tier-selected plan lookup
 
-`decompose` (and any action sourcing a plan or PRD) resolves `PLAN.md` / `PRD.md` in this order;
-the first location holding the document wins, and one topic never spans locations:
+`decompose` (and any action sourcing a plan or PRD) selects the location from the concern file's
+`contract_tier` FIRST, then reads only that tier's slice — one topic never spans locations, and a
+stale slice in the other tier never shadows the live one:
 
-1. `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) — the contract slice on the task
-   branch (`contract_tier: branch`, the default tier).
-2. `<memory_dir>/<slug>/PLAN.md` (default `.work/`) — the memory tier, when the concern file sets
-   `contract_tier: local` (solo/offline mode).
+- `contract_tier: branch` (the default) → `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`).
+- `contract_tier: local` (solo/offline mode) → `<memory_dir>/<slug>/PLAN.md` (default `.work/`).
 
 Both roots are configurable via the concern file's `contract_dir` / `memory_dir` keys.
 
