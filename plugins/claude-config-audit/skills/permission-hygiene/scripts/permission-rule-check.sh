@@ -80,7 +80,14 @@ fi
 # P1 — one ERE, case-sensitive on the tool name. Each alternative requires a
 # wildcard so an exact narrow rule (Bash(npm test)) never matches:
 #   1. blanket Bash(*) / PowerShell(*)
-#   2. an interpreter at the command position followed (eventually) by a *
+#   2. an interpreter at the command position followed (eventually) by a * —
+#      the interpreter may carry a path prefix (Bash(.venv/bin/python *),
+#      Bash(/usr/bin/python3 *)): a wildcarded interpreter-led grant is the
+#      same arbitrary-code shape regardless of how the interpreter is addressed.
+#      What follows the name must be a * or a real separator (space, quote, :)
+#      so a hyphenated bare PATH command that merely starts with an interpreter
+#      or runner name (Bash(node-gyp:*), Bash(npm-check-updates:*)) — the very
+#      shape the convention recommends — is not flagged
 #   3. a package-manager run/exec command followed by a * — both the run/exec
 #      subcommand forms (npx, pnpm dlx, uv run, …) and a bare package manager
 #      wildcard (Bash(npm:*), Bash(npm *)), which grants arbitrary execution
@@ -95,8 +102,8 @@ _script='py|sh|rb|js|ts|mjs|cjs|pl|php'
 # Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
 # finding reports the full offending rule, not a substring truncated at the *.
 P1_ERE="(Bash|PowerShell)\\(\\*\\)"
-P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${_interp})([^A-Za-z0-9_)][^)]*)?\\*[^)]*\\)"
-P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${_runner})([^A-Za-z0-9_)][^)]*)?\\*[^)]*\\)"
+P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${_interp})([\"' :][^)]*)?\\*[^)]*\\)"
+P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*(${_runner})([\"' :][^)]*)?\\*[^)]*\\)"
 P1_ERE="${P1_ERE}|(Bash|PowerShell)\\([\"' ]*\\*[^)]*\\.(${_script})[^)]*\\)"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous

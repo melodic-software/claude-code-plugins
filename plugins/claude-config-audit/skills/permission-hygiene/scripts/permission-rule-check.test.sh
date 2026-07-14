@@ -69,7 +69,8 @@ mkdir -p "$D2/.claude"
 jq -n '{permissions:{allow:[
   "Bash(*)","PowerShell(*)","Bash(python*)","Bash(node *)","Bash(sh -c*)",
   "Bash(npx *)","Bash(npm:*)","Bash(pnpm:*)","Bash(yarn:*)","Bash(npm *)",
-  "Bash(npm run *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)"
+  "Bash(npm run *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)",
+  "Bash(.venv/bin/python *)","Bash(/usr/bin/python3 *)"
 ]}}' >"$D2/.claude/settings.json"
 rc=0
 OUT=$(run "$D2") || rc=$?
@@ -85,6 +86,8 @@ assert_contains "flags bare package-manager wildcard yarn:*" "$OUT" "Bash(yarn:*
 assert_contains "flags space-form package-manager wildcard npm *" "$OUT" "Bash(npm *)"
 assert_contains "flags package-manager run wildcard npm run *" "$OUT" "Bash(npm run *)"
 assert_contains "flags script-glob interpreter *.py:*" "$OUT" "Bash(*.py:*)"
+assert_contains "flags venv path-prefixed interpreter" "$OUT" "Bash(.venv/bin/python *)"
+assert_contains "flags absolute path-prefixed interpreter" "$OUT" "Bash(/usr/bin/python3 *)"
 assert_contains "flags PowerShell(*)" "$OUT" "PowerShell(*)"
 assert_contains "flags bare Bash allow" "$OUT" "bare 'Bash'"
 assert_contains "flags Agent allow rule" "$OUT" "Agent allow rules are dropped"
@@ -109,7 +112,8 @@ jq -n '{permissions:{allow:[
   "Bash(cargo build)","Bash(git commit *)",
   "Bash(babysit_merge.sh:*)","Read(~/.config/app/config.toml)",
   "Bash(echo Agent)","Bash(find *Agent*)",
-  "Bash(echo Bash)","Bash(grep PowerShell *)"
+  "Bash(echo Bash)","Bash(grep PowerShell *)",
+  "Bash(node-gyp:*)","Bash(ruby-lsp:*)","Bash(npm-check-updates:*)"
 ]}}' >"$D3/.claude/settings.json"
 OUT=$(run "$D3")
 assert_contains "clean narrow ruleset reports none" "$OUT" "No fragile permission grants"
@@ -225,6 +229,14 @@ D8="$TEST_TMPDIR/clean"
 mkdir -p "$D8/.claude"
 jq -n '{permissions:{allow:["Bash(babysit_merge.sh:*)"]}}' >"$D8/.claude/settings.json"
 assert_contains "clean repo message" "$(run "$D8")" "No fragile permission grants"
+
+# --- Case 8b: settings.local.json scanned same as settings.json --------------
+D8B="$TEST_TMPDIR/local-settings"
+mkdir -p "$D8B/.claude"
+jq -n '{permissions:{allow:["Bash(python*)"]}}' >"$D8B/.claude/settings.local.json"
+OUT=$(run "$D8B")
+assert_contains "flags P1 grant in settings.local.json" "$OUT" "Bash(python*)"
+assert_contains "finding names the local settings file" "$OUT" "settings.local.json"
 
 # --- Case 9: missing jq exits 2 ---------------------------------------------
 real_bash=$(command -v bash)
