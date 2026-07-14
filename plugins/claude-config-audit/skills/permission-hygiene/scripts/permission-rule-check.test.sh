@@ -70,7 +70,8 @@ jq -n '{permissions:{allow:[
   "Bash(*)","PowerShell(*)","Bash(python*)","Bash(node *)","Bash(sh -c*)",
   "Bash(npx *)","Bash(npm:*)","Bash(pnpm:*)","Bash(yarn:*)","Bash(npm *)",
   "Bash(npm run *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)",
-  "Bash(.venv/bin/python *)","Bash(/usr/bin/python3 *)"
+  "Bash(.venv/bin/python *)","Bash(/usr/bin/python3 *)",
+  "Bash(python3.11 *)","Bash(/usr/bin/python3.12:*)"
 ]}}' >"$D2/.claude/settings.json"
 rc=0
 OUT=$(run "$D2") || rc=$?
@@ -88,6 +89,8 @@ assert_contains "flags package-manager run wildcard npm run *" "$OUT" "Bash(npm 
 assert_contains "flags script-glob interpreter *.py:*" "$OUT" "Bash(*.py:*)"
 assert_contains "flags venv path-prefixed interpreter" "$OUT" "Bash(.venv/bin/python *)"
 assert_contains "flags absolute path-prefixed interpreter" "$OUT" "Bash(/usr/bin/python3 *)"
+assert_contains "flags version-suffixed interpreter" "$OUT" "Bash(python3.11 *)"
+assert_contains "flags path-prefixed version-suffixed interpreter" "$OUT" "Bash(/usr/bin/python3.12:*)"
 assert_contains "flags PowerShell(*)" "$OUT" "PowerShell(*)"
 assert_contains "flags bare Bash allow" "$OUT" "bare 'Bash'"
 assert_contains "flags Agent allow rule" "$OUT" "Agent allow rules are dropped"
@@ -113,7 +116,8 @@ jq -n '{permissions:{allow:[
   "Bash(babysit_merge.sh:*)","Read(~/.config/app/config.toml)",
   "Bash(echo Agent)","Bash(find *Agent*)",
   "Bash(echo Bash)","Bash(grep PowerShell *)",
-  "Bash(node-gyp:*)","Bash(ruby-lsp:*)","Bash(npm-check-updates:*)"
+  "Bash(node-gyp:*)","Bash(ruby-lsp:*)","Bash(npm-check-updates:*)",
+  "Bash(echo $(date) Agent)","Bash(node -e \"console.log()\" PowerShell)"
 ]}}' >"$D3/.claude/settings.json"
 OUT=$(run "$D3")
 assert_contains "clean narrow ruleset reports none" "$OUT" "No fragile permission grants"

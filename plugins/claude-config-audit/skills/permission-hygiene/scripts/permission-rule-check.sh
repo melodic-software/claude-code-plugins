@@ -96,7 +96,9 @@ fi
 #      listed separately. A fixed subcommand (Bash(npm test), Bash(npm run
 #      build)) carries no * and is not matched.
 #   4. a leading-glob command that resolves to a script (Bash(*.py:*))
-_interp='python3?|node|deno|bun|ruby|perl|php|bash|sh|zsh|pwsh|osascript|Rscript'
+# python accepts version suffixes (python3, python3.11, python2.7): pinned
+# minor-version binaries are the same interpreter-led grant shape.
+_interp='python[0-9.]*|node|deno|bun|ruby|perl|php|bash|sh|zsh|pwsh|osascript|Rscript'
 _runner='npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run|npm|pnpm|yarn'
 _script='py|sh|rb|js|ts|mjs|cjs|pl|php'
 # Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
@@ -143,8 +145,11 @@ top_level_tokens() {
   # `Tool(...)` tokens, one per line. The greedy `(\(...\))?` consumes a tool's
   # whole parenthesized payload as one token, so a tool name inside another
   # rule's payload (e.g. Bash(echo Agent), Bash(grep PowerShell *)) never
-  # surfaces as its own token.
-  printf '%s\n' "$1" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\([^)]*\))?' 2>/dev/null
+  # surfaces as its own token. The payload accepts one level of nested
+  # parentheses (Bash(echo $(date) Agent), Bash(node -e "log()" PowerShell))
+  # so an inner `)` does not end the token early; ERE cannot balance
+  # arbitrary depth, and rule payloads realistically nest at most once.
+  printf '%s\n' "$1" | grep -oE '[A-Za-z_][A-Za-z0-9_]*(\(([^()]|\([^()]*\))*\))?' 2>/dev/null
 }
 
 scan_bare_tool() {
