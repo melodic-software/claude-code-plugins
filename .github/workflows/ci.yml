@@ -54,68 +54,68 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdown@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/markdown@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           config: .markdownlint-cli2.jsonc
 
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/typos@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           config: _typos.toml
 
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           config: .gitleaks.toml
 
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           config: .editorconfig-checker.json
 
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           rcfile: .shellcheckrc
 
       - name: Lint workflows
         id: actionlint
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
 
       - name: Validate marketplace manifest
         id: marketplace_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
       - name: Validate dependabot.yml
         id: dependabot_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
       - name: Validate workflows
         id: workflow_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -127,12 +127,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/exec-bit@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector.
@@ -141,12 +141,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
@@ -230,7 +230,7 @@ jobs:
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-lint contract tests in this same job.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
         with:
           paths: plugins/bash-lint
           rcfile: .shellcheckrc
