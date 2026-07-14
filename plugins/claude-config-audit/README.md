@@ -1,6 +1,6 @@
 # claude-config-audit
 
-A Claude Code plugin bundling three audit skills for one cohesive capability: keeping a repo's Claude
+A Claude Code plugin bundling four audit skills for one cohesive capability: keeping a repo's Claude
 Code configuration healthy. Each skill answers a different question about the same surface:
 
 | Skill | Question it answers |
@@ -8,9 +8,11 @@ Code configuration healthy. Each skill answers a different question about the sa
 | `/claude-config-audit:settings-audit` | Are the configuration FILES (`settings.json`, `settings.local.json`, `.mcp.json`, hooks, plugins, permissions) correct against upstream truth? |
 | `/claude-config-audit:memory-health` | Is the instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
 | `/claude-config-audit:automation-deep-dive` | Is the configured automation SET the right set — are there genuine gaps, judged against the enforcement hierarchy? |
+| `/claude-config-audit:permission-hygiene` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
 
-All three default to report-only; mutations (`--fix`, the `fix` action, `--implement`) require
-explicit opt-in and per-item user approval.
+All default to report-only; mutations (`--fix`, the `fix` action, `--implement`) require explicit
+opt-in and per-item user approval. `permission-hygiene` is report-only (its correct remediation is
+operator-manual).
 
 ## What each skill does
 
@@ -56,6 +58,23 @@ verdict is REJECT — a clean bill of health is a valid outcome.
 /claude-config-audit:automation-deep-dive               # evaluate, recommend-only
 /claude-config-audit:automation-deep-dive hooks         # one category
 /claude-config-audit:automation-deep-dive --implement   # implement user-approved items
+```
+
+### permission-hygiene
+
+Audits permission GRANTS (not file correctness — that is `settings-audit`) for the failure modes that
+make a grant silently do nothing: interpreter-wildcard / blanket rules that Claude Code drops on
+entering auto mode, hardcoded absolute machine/user paths (Bash rules match literally, no expansion),
+and inert plugin self-grants. A deterministic detector scans skill/command/agent frontmatter
+`allowed-tools` and `settings.json` / `settings.local.json` `permissions.allow`, and recommends the
+bare-command-on-PATH pattern. The principle and citations live in the marketplace
+[permission-rule-hygiene convention](../../docs/conventions/permission-rule-hygiene/README.md).
+Report-only.
+
+```shell
+/claude-config-audit:permission-hygiene              # full grant audit
+/claude-config-audit:permission-hygiene frontmatter  # allowed-tools only
+/claude-config-audit:permission-hygiene settings     # permissions.allow only
 ```
 
 ## Consumer conventions

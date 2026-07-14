@@ -1,12 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-config-audit",
-  "version": "0.2.0",
-  "description": "Three audit skills for a repo's Claude Code configuration: settings-audit (settings.json / .mcp.json / hooks / plugins / permissions drift), memory-health (CLAUDE.md, rules, and auto-memory against official-doc criteria), and automation-deep-dive (evidence-gated verdicts on automation gaps).",
+  "version": "0.3.0",
+  "description": "Four audit skills for a repo's Claude Code configuration: settings-audit (settings.json / .mcp.json / hooks / plugins / permissions drift), memory-health (CLAUDE.md, rules, and auto-memory against official-doc criteria), automation-deep-dive (evidence-gated verdicts on automation gaps), and permission-hygiene (allow-rule / allowed-tools grants for auto-mode durability and portability).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["settings", "configuration", "memory", "claude-md", "hooks", "plugins", "automation", "audit", "maintenance", "skill"]
+  "keywords": ["settings", "configuration", "memory", "claude-md", "hooks", "plugins", "permissions", "automation", "audit", "maintenance", "skill"]
 }
