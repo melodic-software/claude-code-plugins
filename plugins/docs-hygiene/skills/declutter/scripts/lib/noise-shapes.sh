@@ -29,7 +29,7 @@ declutter_line_has_ghost_ref() {
     after="${rest#*"$path"}"
     if [[ "$root" == '.work' ]] &&
       [[ "$seg" == 'handoffs' || "$seg" == 'reviews' ]] &&
-      [[ ! "$after" =~ ^[[:alnum:]] ]]; then
+      [[ ! "$after" =~ ^[A-Za-z0-9._-] ]]; then
       rest="$after"
       continue
     fi

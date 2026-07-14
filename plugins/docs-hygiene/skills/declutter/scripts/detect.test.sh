@@ -204,6 +204,15 @@ EOF
 digit_out="$(bash "$DETECT" "$DIGIT")"
 assert_contains "digit-leading slug is a ghost ref" "$digit_out" "Finding shape: ghost-ref"
 
+UNDERSCORE="$TEST_TMPDIR/underscore-child.md"
+cat >"$UNDERSCORE" <<'EOF'
+# Underscore-child fixture
+
+Report kept at .work/reviews/_hotfix/20260101T000000Z-self.md for posterity.
+EOF
+underscore_out="$(bash "$DETECT" "$UNDERSCORE")"
+assert_contains "underscore-leading child under a concern root is a ghost ref" "$underscore_out" "Finding shape: ghost-ref"
+
 BARE_ROOT="$TEST_TMPDIR/bare-root.md"
 cat >"$BARE_ROOT" <<'EOF'
 # Bare-root fixture

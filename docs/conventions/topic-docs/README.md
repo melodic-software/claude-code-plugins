@@ -122,7 +122,10 @@ cite it rather than redefining it.
   the **resolved memory root** (whatever `memory_dir` names — never a
   hardcoded `.work`) contains a `.gitignore` with `*`, creating it
   (announced) when absent — fresh clones heal on first write. Once per
-  session, matching the committed-tier guard's scope.
+  session, matching the committed-tier guard's scope. A root-equivalent
+  `memory_dir` (`.`, empty, or resolving to the repo root) is **invalid**
+  — stop and surface it; healing there would write `*` into the
+  consumer's root `.gitignore`, which the next rule forbids.
 - No plugin ever edits the consumer's root `.gitignore`.
 
 ## Slug and filename spec
