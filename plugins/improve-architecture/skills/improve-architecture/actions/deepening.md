@@ -56,7 +56,7 @@ Do NOT propose interfaces yet. After the report is written, ask: "Which of these
 
 ## Phase 3 — Interview loop on selected candidate
 
-Once the user picks a candidate, walk the design tree: constraints, dependencies, shape of the deepened module, what sits behind the seam, what tests survive.
+Once the user picks a candidate, walk the decision tree: constraints, dependencies, shape of the deepened module, what sits behind the seam, what tests survive.
 
 Side effects inline as decisions crystallize:
 

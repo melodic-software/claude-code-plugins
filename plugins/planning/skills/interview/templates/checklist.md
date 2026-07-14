@@ -8,8 +8,8 @@ Copy into `${user_config.notes_dir}/<topic-slug>/interview-checklist.md`. Tick a
 - [ ] Step 1.5: Auto-detect (default action only) — if intent already crisp from survey, route to direct synthesis (skip Q&A loop)
 - [ ] Step 2: Drive the depth-first loop — one question at a time, **inline prose** (the one-at-a-time loop never uses `AskUserQuestion`; `lock` synthesizes without Q&A); resolve load-bearing first; restate decided/open after each answer
 - [ ] Step 3: Recognize the stop condition — remaining-open is empty OR user signals "good, proceed"
-- [ ] Step 4: Persist the contract — write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions (`me` mode: persist each answer incrementally as it locks in; flush before context overflows)
-- [ ] Step 5: Hand off — recommend the next skill (exploration/research for engineering-internal; chain after `/prd` for product-driven)
+- [ ] Step 4: Persist the contract — engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in; flush before context overflows)
+- [ ] Step 5: Hand off — engineering: recommend the next skill (exploration/research for engineering-internal; chain after `/prd` for product-driven); general: deliver the summary and stop, no pipeline handoff
 
 ## Decision tree (`me` mode only)
 

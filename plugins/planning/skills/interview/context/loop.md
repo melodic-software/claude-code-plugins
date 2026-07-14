@@ -13,7 +13,9 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - List the project's own rules files that govern the area
 - Note what `${user_config.notes_dir}/<topic-slug>/` already contains (prior PLAN.md, exploration/research artifacts, notes)
 
-If a prior `PLAN.md` with a Brief section exists for this topic, read it first and ask whether to **resume** (continue from last open question), **revise** (task shifted, update specific sections in-place), or **start fresh** (append a dated scope-change note to a sibling `history.md` capturing why, then rewrite Brief).
+Classify the domain from what the survey shows before anything Brief-related — the task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
+
+**Engineering sessions only:** if a prior `PLAN.md` with a Brief section exists for this topic, read it first and ask whether to **resume** (continue from last open question), **revise** (task shifted, update specific sections in-place), or **start fresh** (append a dated scope-change note to a sibling `history.md` capturing why, then rewrite Brief). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
 
 Survey output is a one-paragraph summary in your reply: "Here is what I see in the repo about this task." Then transition to Step 1.5 (auto-detect) or Step 2 (Q&A loop), per the action.
 
@@ -55,7 +57,7 @@ Run rounds until the stop condition is met. Each round:
 4. **Ask ONE question with a recommended answer** — if the codebase gate didn't resolve it, ground the recommendation in observed codebase state. When no code signal exists, recommend based on conventions and state the basis
 5. **Capture the answer** in the working draft of the Brief (in your head or a scratch buffer, NOT on disk yet)
 6. **Prune the tree** — what branches did this answer eliminate? What new branches opened? What's the next blocking decision?
-7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries) + inline vocabulary update (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one)
+7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** also run the inline vocabulary update (write resolved terms to the project's domain-vocabulary file immediately, if it keeps one) — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
 ### Decision dependencies
 
