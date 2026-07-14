@@ -108,7 +108,10 @@ Tracked profile configuration belongs in the consuming repository. Never write i
      fi
 
      rm -rf "$BACKUP"
-     if [ -d "$CURRENT" ]; then mv "$CURRENT" "$BACKUP"; fi
+     if [ -d "$CURRENT" ] && ! mv "$CURRENT" "$BACKUP"; then
+       echo "ai-briefing could not preserve the existing runtime; refusing to replace it" >&2
+       exit 1
+     fi
      if mv "$STAGE" "$CURRENT"; then
        STAGE=""
        rm -rf "$BACKUP"
