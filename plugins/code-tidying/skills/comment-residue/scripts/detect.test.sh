@@ -156,6 +156,23 @@ missing_val_exit=0
 timeout 10 bash "$DETECT" --paths-file >/dev/null 2>&1 || missing_val_exit=$?
 assert_exit "--paths-file with missing value exits 2" 2 "$missing_val_exit"
 
+# --- 8. Relative targets stay anchored to the caller cwd, not the repo root -----------
+# Invoked from a repo SUBDIRECTORY with a relative target (or relative --paths-file), the audit
+# must still find the file — it cd's to the repo root internally, so unanchored relatives miss.
+# The invocation dir must live inside a git repo for repo_root to differ from the caller cwd.
+REPO8="$TEST_TMPDIR/repo8"
+SUBDIR="$REPO8/sub/nested"
+mkdir -p "$SUBDIR"
+git -C "$REPO8" init -q
+cp "$ALL_SHAPES" "$SUBDIR/rel.py"
+rel_out="$(cd "$SUBDIR" && bash "$DETECT" rel.py)"
+assert_contains "relative target audited from subdir cwd" "$rel_out" "Finding shape: history-narration"
+assert_not_contains "relative target is not reported as files=0" "$rel_out" "files=0"
+
+printf '%s\n' "rel.py" >"$SUBDIR/rel-paths.txt"
+relpf_out="$(cd "$SUBDIR" && bash "$DETECT" --paths-file rel-paths.txt)"
+assert_contains "relative --paths-file target audited from subdir cwd" "$relpf_out" "Finding shape: history-narration"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

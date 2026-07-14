@@ -10,6 +10,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/comment-shapes.sh
 source "$SCRIPT_DIR/lib/comment-shapes.sh"
 
+# Where the caller invoked us. Explicit targets and --paths-file are relative to THIS, not to
+# the repo root we cd into below, so they must be anchored here before the cd.
+INVOCATION_CWD="$PWD"
+
+# Anchor a caller-supplied path to the invocation cwd unless it is already absolute (POSIX or
+# Windows drive-letter form), so relative targets survive the cd to the repo root.
+cr_anchor_path() {
+  case "$1" in
+  /* | ?:[\\/]*) printf '%s' "$1" ;;
+  *) printf '%s/%s' "$INVOCATION_CWD" "$1" ;;
+  esac
+}
+
 PATHS_FILE=""
 TARGETS=()
 
@@ -60,6 +73,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Anchor caller-supplied paths to the invocation cwd BEFORE the cd, or they resolve against the
+# repo root instead and silently miss (git-status discovery below stays repo-relative by design).
+if [[ ${#TARGETS[@]} -gt 0 ]]; then
+  ANCHORED=()
+  for target in "${TARGETS[@]}"; do
+    ANCHORED+=("$(cr_anchor_path "$target")")
+  done
+  TARGETS=("${ANCHORED[@]}")
+fi
+[[ -n "$PATHS_FILE" ]] && PATHS_FILE="$(cr_anchor_path "$PATHS_FILE")"
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 if [[ -n "$repo_root" ]]; then
   cd "$repo_root" 2>/dev/null || true
@@ -70,7 +94,7 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
-      TARGETS+=("$line")
+      TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
     # Uncommitted files: modified/added/renamed/untracked, per git status.
