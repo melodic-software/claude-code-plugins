@@ -34,9 +34,11 @@ Guarded migration — run by `/discovery:setup`, one topic slice at a time, on e
 only, refusing to overwrite a populated target slice:
 
 ```bash
+MEMORY_DIR=.work      # the resolved memory_dir; adjust when the concern file overrides it
+LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
 mkdir -p "$MEMORY_DIR"                                        # create the target root
 [ -f "$MEMORY_DIR/.gitignore" ] || printf '*\n' > "$MEMORY_DIR/.gitignore"  # self-ignore heal
-LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
+[ -e "$MEMORY_DIR/$SLUG" ] && { echo "target slice populated — resolve before migrating"; exit 1; }
 mv "$LEGACY/$SLUG" "$MEMORY_DIR/$SLUG"                        # legacy memory slices are untracked → mv, not git mv
 jq 'del(.pluginConfigs["discovery@melodic-software"].options.notes_dir)' \
   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json

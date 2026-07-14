@@ -51,9 +51,11 @@ mkdir -p "$CONTRACT/$SLUG" "$MEM/$SLUG"                       # create both targ
 [ -f "$MEM/.gitignore" ] || printf '*\n' > "$MEM/.gitignore"  # self-ignore heal on the resolved root
 # contract kinds → contract slice (legacy content is untracked → mv + git add; git mv when tracked):
 for f in PRD.md PLAN.md design; do
+  [ -e "$CONTRACT/$SLUG/$f" ] && { echo "target $f populated — resolve before migrating"; exit 1; }
   [ -e "$LEGACY/$SLUG/$f" ] && mv "$LEGACY/$SLUG/$f" "$CONTRACT/$SLUG/"
 done
 git add "$CONTRACT/$SLUG"
+[ -n "$(ls -A "$MEM/$SLUG" 2>/dev/null)" ] && { echo "memory target populated — resolve before migrating"; exit 1; }
 mv "$LEGACY/$SLUG"/* "$MEM/$SLUG/" && rmdir "$LEGACY/$SLUG"  # remaining memory kinds (checklists, baselines, scratch)
 jq 'del(.pluginConfigs["planning@melodic-software"].options.notes_dir)' \
   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
