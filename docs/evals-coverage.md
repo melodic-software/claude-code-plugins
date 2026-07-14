@@ -93,7 +93,7 @@ Recorded as decisions, not silent omissions, each with a revisit trigger (playbo
   skill dir).
 - **`knowledge` (book-distill, setup, and the now-shipped youtube; course-digest pending
   `melodic-software/medley#1409`)** — the knowledge artifacts move to a dedicated repo
-  (`repo(knowledge-artifacts)` `melodic-software/medley#1393`, needs-human) and the skill set is still
+  (`repo(knowledge-corpus)` `melodic-software/medley#1393`, needs-human) and the skill set is still
   growing. Both the home and the skill set are unsettled, so the whole plugin is deferred regardless of
   which individual skills already carry evals (`youtube` ships one). **Revisit trigger:** #1393 fixes
   the plugin's home → author evals for whatever skills still lack them, in the destination repo.

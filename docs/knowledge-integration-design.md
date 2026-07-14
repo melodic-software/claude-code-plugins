@@ -1,9 +1,9 @@
 # knowledge — apply/integrate skill (design record)
 
 Spec for the `knowledge` plugin's first-class value step: a session opens against the consolidated
-`knowledge-artifacts` corpus and fits relevant findings into **any** target repo. Capability and shape
+`knowledge-corpus` corpus and fits relevant findings into **any** target repo. Capability and shape
 (a skill, not a manual workflow) are already locked — see `MIGRATION-PLAYBOOK.md`
-"Knowledge-artifacts consuming repo + integration flow — decision record (2026-07-13)". This record
+"Knowledge-corpus consuming repo + integration flow — decision record (2026-07-13)". This record
 specs the skill; it does not re-open the mechanism. **No build here** — the implement follow-up is
 emitted below.
 
@@ -12,7 +12,7 @@ emitted below.
 Ingest skills (`book-distill`, `youtube`, `course-digest`) produce durable, concept-organized artifacts
 that each carry repo-applicability recommendations. Today those recommendations are read by a human and
 applied by memory — nothing codifies the analyze-here → fit-into-a-target step, and the corpus is
-decoupled from any one product repo (it lives in `melodic-software/knowledge-artifacts`). The apply
+decoupled from any one product repo (it lives in `melodic-software/knowledge-corpus`). The apply
 skill closes that gap as a repeatable, invocable capability that works against **any** target, not just
 the repo that happens to be open.
 
@@ -23,7 +23,7 @@ seam, not this corpus.
 
 ## Load-bearing decision — the session's home is the corpus
 
-A session runs **in the corpus checkout** (`knowledge-artifacts` is `${CLAUDE_PROJECT_DIR}`); the
+A session runs **in the corpus checkout** (`knowledge-corpus` is `${CLAUDE_PROJECT_DIR}`); the
 **target repo is an explicit per-invocation argument**. This falls directly out of the record's framing
 ("a session opens against the corpus, then fits findings into any target repo") and resolves the
 two-pointer tension cleanly:
@@ -40,7 +40,7 @@ speculative knob, and couples every target-repo session to corpus config it othe
 
 ## Invocation surface
 
-- Invoked from a checkout of `knowledge-artifacts`: `/knowledge:apply --target <path-or-repo>`.
+- Invoked from a checkout of `knowledge-corpus`: `/knowledge:apply --target <path-or-repo>`.
 - `--target` accepts a local path (a sibling checkout) or an `owner/repo` slug the skill clones into a
   scratch working tree (cross-repo mechanics below).
 - Optional `--topic <term>` narrows the corpus to one concept area; absent, the whole corpus is ranked.
@@ -113,7 +113,7 @@ The human review gate sits between every stage. The skill frames edits in the ta
 
 Two repos, one session, no MCP:
 
-- **Corpus** — the session CWD (`knowledge-artifacts`), read directly.
+- **Corpus** — the session CWD (`knowledge-corpus`), read directly.
 - **Target** — a local sibling checkout given by `--target <path>`, or an `owner/repo` slug the skill
   clones into a scratch working tree under `${CLAUDE_PLUGIN_DATA}`. Edits land in that working tree.
 - **PR** — opened with `gh pr create -R <target-remote>` from the target working tree, so the corpus repo
@@ -125,5 +125,5 @@ Two repos, one session, no MCP:
 - **`implement(knowledge-integration)`** — build the `/knowledge:apply` skill to this spec: `SKILL.md`
   (invocation, scan, ranking, report→diff→PR gate), `evals/evals.json` against fixtures, and a README
   row. **agent-ready** — authoring is grounded in this spec plus contract v2.1 and needs no live corpus
-  repo; end-to-end exercise against the real `knowledge-artifacts` corpus is validated once #1393 lands
+  repo; end-to-end exercise against the real `knowledge-corpus` corpus is validated once #1393 lands
   (non-blocking for authoring). Sub-issue of wave-2 map #1369.
