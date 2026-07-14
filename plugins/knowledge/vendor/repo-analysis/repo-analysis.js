@@ -10,28 +10,30 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const GITHUB_HTTPS_PATH = /github\.com\/([^/]+)\/([^/]+)/;
-const GITHUB_SSH_PATH = /github\.com:([^/]+)\/([^/]+)/;
 const GIT_SUFFIX_PATTERN = /\.git$/;
-const SECTION_DIR_PATTERN = /^(\d{2}-|section-\d+|chapter-?\d+|module-?\d+|part-?\d+|\d+\.\s)/;
+const GITHUB_OWNER = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
+const GITHUB_REPOSITORY = /^[a-z\d._-]{1,100}$/i;
+const GITHUB_SSH_URL = /^git@github\.com:([^/]+)\/([^/]+?)\/?$/i;
+const SECTION_DIR_PATTERN =
+	/^(\d{2}-|section-\d+|chapter-?\d+|module-?\d+|part-?\d+|\d+\.\s)/;
 const WINDOWS_PATH_SEPARATOR = /\\/g;
 
 const IGNORED_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "bin",
-  "obj",
-  ".vs",
-  ".vscode",
-  ".idea",
-  "__pycache__",
-  ".venv",
-  "dist",
-  "build",
-  "out",
-  "coverage",
-  ".next",
-  ".nuxt",
+	"node_modules",
+	".git",
+	"bin",
+	"obj",
+	".vs",
+	".vscode",
+	".idea",
+	"__pycache__",
+	".venv",
+	"dist",
+	"build",
+	"out",
+	"coverage",
+	".next",
+	".nuxt",
 ]);
 
 /**
@@ -43,19 +45,44 @@ const IGNORED_DIRS = new Set([
  * @returns {{ owner: string, repo: string } | null}
  */
 export function parseGitHubUrl(url) {
-  if (!url) return null;
+	if (typeof url !== "string" || url.length === 0) return null;
 
-  const httpsMatch = url.match(GITHUB_HTTPS_PATH);
-  if (httpsMatch) {
-    return { owner: httpsMatch[1], repo: httpsMatch[2].replace(GIT_SUFFIX_PATTERN, "") };
-  }
+	let owner;
+	let repo;
+	const sshMatch = GITHUB_SSH_URL.exec(url);
+	if (sshMatch) {
+		owner = sshMatch[1];
+		repo = sshMatch[2].replace(GIT_SUFFIX_PATTERN, "");
+	} else {
+		try {
+			const parsed = new URL(url);
+			if (
+				parsed.protocol !== "https:" ||
+				parsed.hostname.toLowerCase() !== "github.com" ||
+				parsed.port !== "" ||
+				parsed.username !== "" ||
+				parsed.password !== ""
+			) {
+				return null;
+			}
+			const segments = parsed.pathname.split("/").filter(Boolean);
+			if (segments.length < 2) return null;
+			[owner] = segments;
+			repo = segments[1].replace(GIT_SUFFIX_PATTERN, "");
+		} catch {
+			return null;
+		}
+	}
 
-  const sshMatch = url.match(GITHUB_SSH_PATH);
-  if (sshMatch) {
-    return { owner: sshMatch[1], repo: sshMatch[2].replace(GIT_SUFFIX_PATTERN, "") };
-  }
-
-  return null;
+	if (
+		!GITHUB_OWNER.test(owner) ||
+		!GITHUB_REPOSITORY.test(repo) ||
+		repo === "." ||
+		repo === ".."
+	) {
+		return null;
+	}
+	return { owner, repo };
 }
 
 /**
@@ -74,28 +101,28 @@ export function parseGitHubUrl(url) {
  * @returns {{ type: 'per-section' | 'single-state', sections?: Array<{ name: string, hasStart: boolean, hasEnd: boolean }> }}
  */
 export function detectRepoStructure(codeDir) {
-  const entries = readdirSync(codeDir, { withFileTypes: true }).filter(
-    (e) => e.isDirectory() && !e.name.startsWith("."),
-  );
+	const entries = readdirSync(codeDir, { withFileTypes: true }).filter(
+		(e) => e.isDirectory() && !e.name.startsWith("."),
+	);
 
-  const numbered = entries
-    .filter((e) => SECTION_DIR_PATTERN.test(e.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
+	const numbered = entries
+		.filter((e) => SECTION_DIR_PATTERN.test(e.name))
+		.sort((a, b) => a.name.localeCompare(b.name));
 
-  if (numbered.length < 2) {
-    return { type: "single-state" };
-  }
+	if (numbered.length < 2) {
+		return { type: "single-state" };
+	}
 
-  const sections = numbered.map((e) => {
-    const sectionPath = join(codeDir, e.name);
-    return {
-      name: e.name,
-      hasStart: existsSync(join(sectionPath, "start")),
-      hasEnd: existsSync(join(sectionPath, "end")),
-    };
-  });
+	const sections = numbered.map((e) => {
+		const sectionPath = join(codeDir, e.name);
+		return {
+			name: e.name,
+			hasStart: existsSync(join(sectionPath, "start")),
+			hasEnd: existsSync(join(sectionPath, "end")),
+		};
+	});
 
-  return { type: "per-section", sections };
+	return { type: "per-section", sections };
 }
 
 /**
@@ -105,65 +132,71 @@ export function detectRepoStructure(codeDir) {
  * @returns {Array<{ framework: string, file: string, details: object }>}
  */
 export function detectFrameworks(dir) {
-  const manifests = {
-    "package.json": "node",
-    ".csproj": "dotnet",
-    "requirements.txt": "python",
-    "pyproject.toml": "python",
-    "pom.xml": "java",
-    "build.gradle": "java",
-    "go.mod": "go",
-    "Cargo.toml": "rust",
-    Gemfile: "ruby",
-  };
+	const manifests = {
+		"package.json": "node",
+		".csproj": "dotnet",
+		"requirements.txt": "python",
+		"pyproject.toml": "python",
+		"pom.xml": "java",
+		"build.gradle": "java",
+		"go.mod": "go",
+		"Cargo.toml": "rust",
+		Gemfile: "ruby",
+	};
 
-  const results = [];
+	const results = [];
 
-  function readPackageDetails(filePath) {
-    const details = {};
-    try {
-      const pkg = JSON.parse(readFileSync(filePath, "utf-8"));
-      if (pkg.name) details.name = pkg.name;
-      if (pkg.dependencies) details.depCount = Object.keys(pkg.dependencies).length;
-    } catch {
-      /* ignore parse errors */
-    }
-    return details;
-  }
+	function readPackageDetails(filePath) {
+		const details = {};
+		try {
+			const pkg = JSON.parse(readFileSync(filePath, "utf-8"));
+			if (pkg.name) details.name = pkg.name;
+			if (pkg.dependencies)
+				details.depCount = Object.keys(pkg.dependencies).length;
+		} catch {
+			/* ignore parse errors */
+		}
+		return details;
+	}
 
-  function recordManifest(entry, d) {
-    for (const [manifest, framework] of Object.entries(manifests)) {
-      if (!entry.name.endsWith(manifest)) continue;
-      const filePath = join(d, entry.name);
-      const details = manifest === "package.json" ? readPackageDetails(filePath) : {};
-      results.push({
-        framework,
-        file: filePath.replace(dir, "").replace(WINDOWS_PATH_SEPARATOR, "/"),
-        details,
-      });
-    }
-  }
+	function recordManifest(entry, d) {
+		for (const [manifest, framework] of Object.entries(manifests)) {
+			if (!entry.name.endsWith(manifest)) continue;
+			const filePath = join(d, entry.name);
+			const details =
+				manifest === "package.json" ? readPackageDetails(filePath) : {};
+			results.push({
+				framework,
+				file: filePath.replace(dir, "").replace(WINDOWS_PATH_SEPARATOR, "/"),
+				details,
+			});
+		}
+	}
 
-  function scan(d, depth) {
-    if (depth > 6) return;
-    let entries;
-    try {
-      entries = readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
+	function scan(d, depth) {
+		if (depth > 6) return;
+		let entries;
+		try {
+			entries = readdirSync(d, { withFileTypes: true });
+		} catch {
+			return;
+		}
 
-    for (const entry of entries) {
-      if (entry.isDirectory() && !IGNORED_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
-        scan(join(d, entry.name), depth + 1);
-        continue;
-      }
-      recordManifest(entry, d);
-    }
-  }
+		for (const entry of entries) {
+			if (
+				entry.isDirectory() &&
+				!IGNORED_DIRS.has(entry.name) &&
+				!entry.name.startsWith(".")
+			) {
+				scan(join(d, entry.name), depth + 1);
+				continue;
+			}
+			recordManifest(entry, d);
+		}
+	}
 
-  scan(dir, 0);
-  return results;
+	scan(dir, 0);
+	return results;
 }
 
 /**
@@ -173,33 +206,33 @@ export function detectFrameworks(dir) {
  * @returns {{ total: number, byExtension: Record<string, number> }}
  */
 export function countFiles(dir) {
-  const byExtension = {};
-  let total = 0;
+	const byExtension = {};
+	let total = 0;
 
-  function walk(d) {
-    let entries;
-    try {
-      entries = readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
+	function walk(d) {
+		let entries;
+		try {
+			entries = readdirSync(d, { withFileTypes: true });
+		} catch {
+			return;
+		}
 
-    for (const entry of entries) {
-      const fullPath = join(d, entry.name);
-      if (entry.isDirectory()) {
-        if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
-          walk(fullPath);
-        }
-      } else {
-        total++;
-        const ext = extname(entry.name).toLowerCase() || "(no ext)";
-        byExtension[ext] = (byExtension[ext] || 0) + 1;
-      }
-    }
-  }
+		for (const entry of entries) {
+			const fullPath = join(d, entry.name);
+			if (entry.isDirectory()) {
+				if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
+					walk(fullPath);
+				}
+			} else {
+				total++;
+				const ext = extname(entry.name).toLowerCase() || "(no ext)";
+				byExtension[ext] = (byExtension[ext] || 0) + 1;
+			}
+		}
+	}
 
-  walk(dir);
-  return { total, byExtension };
+	walk(dir);
+	return { total, byExtension };
 }
 
 /**
@@ -212,41 +245,43 @@ export function countFiles(dir) {
  * @returns {{ added: number, modified: number, removed: number, details: string[] }}
  */
 function parseDirDiff(fromDir, toDir, codeDir) {
-  const result = spawnSync("diff", ["-rq", fromDir, toDir], {
-    encoding: "utf-8",
-    timeout: 30000,
-  });
+	const result = spawnSync("diff", ["-rq", fromDir, toDir], {
+		encoding: "utf-8",
+		timeout: 30000,
+	});
 
-  if (result.error) {
-    throw new Error(`diff failed: ${result.error.message}`);
-  }
-  if (result.status !== null && result.status > 1) {
-    const detail = (result.stderr || "").trim();
-    throw new Error(
-      detail.length > 0
-        ? `diff exited with status ${result.status}: ${detail}`
-        : `diff exited with status ${result.status}`,
-    );
-  }
+	if (result.error) {
+		throw new Error(`diff failed: ${result.error.message}`);
+	}
+	if (result.status !== null && result.status > 1) {
+		const detail = (result.stderr || "").trim();
+		throw new Error(
+			detail.length > 0
+				? `diff exited with status ${result.status}: ${detail}`
+				: `diff exited with status ${result.status}`,
+		);
+	}
 
-  const output = (result.stdout || "").trim();
-  const lines = output ? output.split("\n") : [];
+	const output = (result.stdout || "").trim();
+	const lines = output ? output.split("\n") : [];
 
-  let added = 0;
-  let modified = 0;
-  let removed = 0;
+	let added = 0;
+	let modified = 0;
+	let removed = 0;
 
-  for (const line of lines) {
-    if (line.startsWith(`Only in ${toDir}`)) added++;
-    else if (line.startsWith(`Only in ${fromDir}`)) removed++;
-    else if (line.includes("differ")) modified++;
-  }
+	for (const line of lines) {
+		if (line.startsWith(`Only in ${toDir}`)) added++;
+		else if (line.startsWith(`Only in ${fromDir}`)) removed++;
+		else if (line.includes("differ")) modified++;
+	}
 
-  const details = lines
-    .slice(0, 20)
-    .map((line) => line.replaceAll(codeDir, ".").replace(WINDOWS_PATH_SEPARATOR, "/"));
+	const details = lines
+		.slice(0, 20)
+		.map((line) =>
+			line.replaceAll(codeDir, ".").replace(WINDOWS_PATH_SEPARATOR, "/"),
+		);
 
-  return { added, modified, removed, details };
+	return { added, modified, removed, details };
 }
 
 /**
@@ -258,26 +293,30 @@ function parseDirDiff(fromDir, toDir, codeDir) {
  * @returns {Array<{ from: string, to: string, added: number, modified: number, removed: number, details: string[] }>}
  */
 export function diffSections(codeDir, sections) {
-  if (sections.length < 2) return [];
+	if (sections.length < 2) return [];
 
-  const diffs = [];
+	const diffs = [];
 
-  for (let i = 0; i < sections.length - 1; i++) {
-    const fromDir = join(codeDir, sections[i].name);
-    const toDir = join(codeDir, sections[i + 1].name);
-    const { added, modified, removed, details } = parseDirDiff(fromDir, toDir, codeDir);
+	for (let i = 0; i < sections.length - 1; i++) {
+		const fromDir = join(codeDir, sections[i].name);
+		const toDir = join(codeDir, sections[i + 1].name);
+		const { added, modified, removed, details } = parseDirDiff(
+			fromDir,
+			toDir,
+			codeDir,
+		);
 
-    diffs.push({
-      from: sections[i].name,
-      to: sections[i + 1].name,
-      added,
-      modified,
-      removed,
-      details,
-    });
-  }
+		diffs.push({
+			from: sections[i].name,
+			to: sections[i + 1].name,
+			added,
+			modified,
+			removed,
+			details,
+		});
+	}
 
-  return diffs;
+	return diffs;
 }
 
 /**
@@ -289,23 +328,27 @@ export function diffSections(codeDir, sections) {
  * @returns {Array<{ section: string, added: number, modified: number, removed: number, details: string[] }>}
  */
 export function diffStartEnd(codeDir, sections) {
-  const diffs = [];
+	const diffs = [];
 
-  for (const section of sections) {
-    if (!section.hasStart || !section.hasEnd) continue;
+	for (const section of sections) {
+		if (!section.hasStart || !section.hasEnd) continue;
 
-    const startDir = join(codeDir, section.name, "start");
-    const endDir = join(codeDir, section.name, "end");
-    const { added, modified, removed, details } = parseDirDiff(startDir, endDir, codeDir);
+		const startDir = join(codeDir, section.name, "start");
+		const endDir = join(codeDir, section.name, "end");
+		const { added, modified, removed, details } = parseDirDiff(
+			startDir,
+			endDir,
+			codeDir,
+		);
 
-    diffs.push({
-      section: section.name,
-      added,
-      modified,
-      removed,
-      details,
-    });
-  }
+		diffs.push({
+			section: section.name,
+			added,
+			modified,
+			removed,
+			details,
+		});
+	}
 
-  return diffs;
+	return diffs;
 }

@@ -17,23 +17,23 @@ import { SUBCOMMANDS } from "./lib/per-profile-commands.js";
 import { exitWith } from "./lib/runner-context.js";
 
 function parseFlags(argv, startAt = 3) {
-  const flags = {};
-  for (let i = startAt; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const eq = a.indexOf("=");
-    if (eq > 0) flags[a.slice(2, eq)] = a.slice(eq + 1);
-    else flags[a.slice(2)] = true;
-  }
-  return flags;
+	const flags = {};
+	for (let i = startAt; i < argv.length; i++) {
+		const a = argv[i];
+		if (!a.startsWith("--")) continue;
+		const eq = a.indexOf("=");
+		if (eq > 0) flags[a.slice(2, eq)] = a.slice(eq + 1);
+		else flags[a.slice(2)] = true;
+	}
+	return flags;
 }
 
 function emitErr(msg) {
-  process.stderr.write(`${String(msg)}\n`);
+	process.stderr.write(`${String(msg)}\n`);
 }
 
 function printUsage() {
-  process.stderr.write(`per-profile-runner.js — AI briefing per-profile stage CLI
+	process.stderr.write(`per-profile-runner.js — AI briefing per-profile stage CLI
 
 Subcommands:
   init [--scope=<all|all-non-skip|high|test>] [--cutoff=<ISO>]
@@ -60,34 +60,37 @@ Exit codes: 0 success, 1 paused, 2 hard fatal, 3 completed-with-failed.
 }
 
 async function main() {
-  const argv = process.argv;
-  const sub = argv[2];
+	const argv = process.argv;
+	const sub = argv[2];
 
-  if (!sub || sub === "-h" || sub === "--help" || sub === "help") {
-    printUsage();
-    exitWith(sub ? 0 : 1);
-  }
+	if (!sub || sub === "-h" || sub === "--help" || sub === "help") {
+		printUsage();
+		exitWith(sub ? 0 : 1);
+	}
 
-  if (sub.startsWith("--")) {
-    printUsage();
-    exitWith(2, {
-      error:
-        "Flags require a subcommand (e.g. init, next-handle, commit-s1). Run with --help for the subcommand list.",
-    });
-  }
+	if (sub.startsWith("--")) {
+		printUsage();
+		exitWith(2, {
+			error:
+				"Flags require a subcommand (e.g. init, next-handle, commit-s1). Run with --help for the subcommand list.",
+		});
+	}
 
-  const fn = SUBCOMMANDS[sub];
-  if (!fn) {
-    printUsage();
-    exitWith(2, { error: `Unknown subcommand: ${sub}` });
-  }
-  const flags = parseFlags(argv);
-  const result = await fn(flags);
-  exitWith(result.code, result.payload);
+	if (
+		!Object.hasOwn(SUBCOMMANDS, sub) ||
+		typeof SUBCOMMANDS[sub] !== "function"
+	) {
+		printUsage();
+		exitWith(2, { error: `Unknown subcommand: ${sub}` });
+	}
+	const fn = SUBCOMMANDS[sub];
+	const flags = parseFlags(argv);
+	const result = await fn(flags);
+	exitWith(result.code, result.payload);
 }
 
 main().catch((err) => {
-  emitErr(`Hard fatal: ${err.message}`);
-  emitErr(err.stack || "");
-  exitWith(2, { error: err.message });
+	emitErr(`Hard fatal: ${err.message}`);
+	emitErr(err.stack || "");
+	exitWith(2, { error: err.message });
 });
