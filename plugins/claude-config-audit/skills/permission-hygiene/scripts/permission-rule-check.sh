@@ -6,8 +6,10 @@
 # Flags three anti-patterns (criteria file: reference/criteria.md):
 #   P1  interpreter-wildcard / blanket allow rules that Claude Code DROPS on
 #       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
-#       interpreters like Bash(python*), package-manager run wildcards,
-#       script-glob interpreters like Bash(*.py:*), and Agent allow rules —
+#       interpreters like Bash(python*), package-manager wildcards — runner
+#       subcommands (Bash(npx *)) and bare package managers (Bash(npm:*),
+#       Bash(npm *)) — script-glob interpreters like Bash(*.py:*), and Agent
+#       allow rules —
 #       both bare Agent and Agent(...), which auto mode drops categorically).
 #       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
 #   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
@@ -79,10 +81,16 @@ fi
 # wildcard so an exact narrow rule (Bash(npm test)) never matches:
 #   1. blanket Bash(*) / PowerShell(*)
 #   2. an interpreter at the command position followed (eventually) by a *
-#   3. a package-manager run/exec command followed by a *
+#   3. a package-manager run/exec command followed by a * — both the run/exec
+#      subcommand forms (npx, pnpm dlx, uv run, …) and a bare package manager
+#      wildcard (Bash(npm:*), Bash(npm *)), which grants arbitrary execution
+#      via npm exec / lifecycle scripts. A bare package-manager name subsumes
+#      its own run wildcard (npm matches `npm run *`), so `npm run` etc. are not
+#      listed separately. A fixed subcommand (Bash(npm test), Bash(npm run
+#      build)) carries no * and is not matched.
 #   4. a leading-glob command that resolves to a script (Bash(*.py:*))
 _interp='python3?|node|deno|bun|ruby|perl|php|bash|sh|zsh|pwsh|osascript|Rscript'
-_runner='npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run|npm run|pnpm run|yarn run'
+_runner='npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run|uv run|npm|pnpm|yarn'
 _script='py|sh|rb|js|ts|mjs|cjs|pl|php'
 # Each alternative captures the whole Tool(...) spec (trailing [^)]*\) ) so a
 # finding reports the full offending rule, not a substring truncated at the *.
@@ -178,6 +186,12 @@ extract_allowed_tools() {
 }
 
 # SKILL.md anywhere, plus markdown directly under an agents/ or commands/ dir.
+# A file under a `vendor/` path segment is a vendored upstream reference, not a
+# loadable skill/agent/command (Claude Code loads a skill from
+# skills/<name>/SKILL.md, not from a nested vendor/ copy), so its `allowed-tools`
+# never take effect and must not be flagged. Excluding the whole `vendor/`
+# segment is a principled, path-based exclusion that covers both a direct child
+# (vendor/SKILL.md) and a nested one (vendor/<tool>/SKILL.md).
 while IFS= read -r file; do
   [[ -f "$file" ]] || continue
   at="$(extract_allowed_tools "$file")"
@@ -191,7 +205,7 @@ done < <(
     -name 'SKILL.md' \
     -o \( -name '*.md' -path '*/agents/*' \) \
     -o \( -name '*.md' -path '*/commands/*' \) \
-    \) 2>/dev/null | sort -u
+    \) ! -path '*/vendor/*' 2>/dev/null | sort -u
 )
 
 # --- Settings permissions.allow scan -----------------------------------------

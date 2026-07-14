@@ -68,7 +68,8 @@ D2="$TEST_TMPDIR/p1"
 mkdir -p "$D2/.claude"
 jq -n '{permissions:{allow:[
   "Bash(*)","PowerShell(*)","Bash(python*)","Bash(node *)","Bash(sh -c*)",
-  "Bash(npx *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)"
+  "Bash(npx *)","Bash(npm:*)","Bash(pnpm:*)","Bash(yarn:*)","Bash(npm *)",
+  "Bash(npm run *)","Bash(*.py:*)","Bash","Agent","Agent(code-reviewer)"
 ]}}' >"$D2/.claude/settings.json"
 rc=0
 OUT=$(run "$D2") || rc=$?
@@ -78,6 +79,11 @@ assert_contains "flags wildcarded interpreter python*" "$OUT" "Bash(python*)"
 assert_contains "flags interpreter node *" "$OUT" "Bash(node *)"
 assert_contains "flags sh -c*" "$OUT" "Bash(sh -c*)"
 assert_contains "flags package-manager runner npx *" "$OUT" "Bash(npx *)"
+assert_contains "flags bare package-manager wildcard npm:*" "$OUT" "Bash(npm:*)"
+assert_contains "flags bare package-manager wildcard pnpm:*" "$OUT" "Bash(pnpm:*)"
+assert_contains "flags bare package-manager wildcard yarn:*" "$OUT" "Bash(yarn:*)"
+assert_contains "flags space-form package-manager wildcard npm *" "$OUT" "Bash(npm *)"
+assert_contains "flags package-manager run wildcard npm run *" "$OUT" "Bash(npm run *)"
 assert_contains "flags script-glob interpreter *.py:*" "$OUT" "Bash(*.py:*)"
 assert_contains "flags PowerShell(*)" "$OUT" "PowerShell(*)"
 assert_contains "flags bare Bash allow" "$OUT" "bare 'Bash'"
@@ -99,7 +105,8 @@ assert_eq "scoped Agent produces exactly one finding" "1" "$(run "$D2B" --count)
 D3="$TEST_TMPDIR/narrow"
 mkdir -p "$D3/.claude"
 jq -n '{permissions:{allow:[
-  "Bash(npm test)","Bash(cargo build)","Bash(git commit *)",
+  "Bash(npm test)","Bash(npm run build)","Bash(yarn build)","Bash(pnpm install)",
+  "Bash(cargo build)","Bash(git commit *)",
   "Bash(babysit_merge.sh:*)","Read(~/.config/app/config.toml)",
   "Bash(echo Agent)","Bash(find *Agent*)"
 ]}}' >"$D3/.claude/settings.json"
@@ -176,6 +183,28 @@ assert_contains "flags interpreter in agent frontmatter" "$OUT" "agents/runner.m
 assert_contains "flags bare Bash in skill frontmatter" "$OUT" "skills/bare/SKILL.md allowed-tools: bare 'Bash'"
 assert_contains "flags Agent rule in skill frontmatter" "$OUT" "skills/agent/SKILL.md allowed-tools: Agent allow rules are dropped"
 assert_not_contains "does NOT flag narrow git/npm skill" "$OUT" "skills/good/SKILL.md"
+
+# --- Case 6b: vendored (non-loadable) SKILL.md excluded ----------------------
+# A SKILL.md under a vendor/ path segment is a vendored upstream reference, not
+# a loadable skill, so its allowed-tools never take effect and must not be
+# flagged — while a real sibling skill with the same grant still is. Covers both
+# a direct child (vendor/SKILL.md) and a nested one (vendor/<tool>/SKILL.md).
+# Fixture root deliberately NOT named "vendor" — the exclusion matches a
+# /vendor/ path segment anywhere, so a root literally named vendor would exclude
+# every file beneath it and mask the real-vs-vendored distinction under test.
+D6B="$TEST_TMPDIR/vendor-exclusion-fixture"
+mkdir -p "$D6B/plugins/p/skills/real" \
+  "$D6B/plugins/p/skills/real/vendor" \
+  "$D6B/plugins/p/skills/real/vendor/cli"
+GRANT=$'---\nname: x\nallowed-tools: Bash(npm:*)\n---\nbody\n'
+printf '%s' "$GRANT" >"$D6B/plugins/p/skills/real/SKILL.md"
+printf '%s' "$GRANT" >"$D6B/plugins/p/skills/real/vendor/SKILL.md"
+printf '%s' "$GRANT" >"$D6B/plugins/p/skills/real/vendor/cli/SKILL.md"
+OUT=$(run "$D6B")
+assert_contains "flags the real loadable SKILL.md" "$OUT" "skills/real/SKILL.md allowed-tools"
+assert_not_contains "does NOT flag vendored direct-child SKILL.md" "$OUT" "vendor/SKILL.md"
+assert_not_contains "does NOT flag vendored nested SKILL.md" "$OUT" "vendor/cli/SKILL.md"
+assert_eq "vendored copies excluded — exactly one finding" "1" "$(run "$D6B" --count)"
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------
 D7="$TEST_TMPDIR/p3"

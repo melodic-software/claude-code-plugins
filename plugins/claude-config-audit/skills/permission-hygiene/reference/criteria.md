@@ -14,7 +14,10 @@ The deterministic spine is
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/permission-hygiene/scripts/permission-rule-check.sh"` — it scans
 skill/command/agent frontmatter `allowed-tools` and the `permissions.allow` arrays of
 `.claude/settings.json` and `.claude/settings.local.json`, plus any plugin `settings.json`, and emits
-one finding per fragile grant. It is advisory (always exits 0); `--count` prints the finding count.
+one finding per fragile grant. Frontmatter files under a `vendor/` path segment are skipped: they are
+vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
+effect and a finding on them would be a false positive. It is advisory (always exits 0); `--count`
+prints the finding count.
 `settings.local.json` is parsed for its `permissions.allow` array only — never read or echoed wholesale
 (it may hold tokens).
 
@@ -27,13 +30,15 @@ Findings are printed as `<severity> [<check>] <source>: <detail>`.
 **What**: An `allowed-tools` or `permissions.allow` entry matching an action class Claude Code drops on
 entering auto mode — blanket `Bash(*)` / `PowerShell(*)` / bare `Bash` / bare `PowerShell`, a
 wildcarded interpreter (`Bash(python*)`, `Bash(node *)`, `Bash(bash <path>*)`, `Bash(sh -c*)`), a
-package-manager runner (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`, `Bash(pnpm dlx *)`, …), a
-script-glob command (`Bash(*.py:*)`), or an `Agent` allow rule (bare `Agent` or scoped `Agent(...)` —
+package-manager grant — a runner subcommand (`Bash(npx *)`, `Bash(uvx *)`, `Bash(pipx run *)`,
+`Bash(pnpm dlx *)`, …) or a bare package-manager wildcard (`Bash(npm:*)`, `Bash(npm *)`,
+`Bash(pnpm:*)`, `Bash(yarn:*)`), which grants arbitrary execution via `npm exec` / lifecycle scripts —
+a script-glob command (`Bash(*.py:*)`), or an `Agent` allow rule (bare `Agent` or scoped `Agent(...)` —
 both dropped categorically, with no narrow carry-over form).
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
-(`Bash(npm test)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not flagged — matching the
-official "narrow rules carry over" behavior.
+(`Bash(npm test)`, `Bash(npm run build)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not
+flagged — matching the official "narrow rules carry over" behavior.
 
 **Why**: every P1 shape is interpreter/runner-led rather than the portable bare-name pattern, and the
 **broad forms** — blanket rules, package-manager runners, and interpreters with a wildcarded or

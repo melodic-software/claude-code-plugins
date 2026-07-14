@@ -50,6 +50,14 @@ runner (`npx`, `uvx`, `pipx run`, `pnpm dlx`, …), silently grants nothing unde
 then depends entirely on the classifier. Empirically, a guarded merge helper granted this way was
 denied even when invoked bare.
 
+A **bare package-manager wildcard** — `Bash(npm:*)`, `Bash(npm *)`, `Bash(pnpm:*)`, `Bash(yarn:*)` —
+is the same anti-pattern: it reads like a scoped grant but permits arbitrary execution (`npm exec`,
+`npm run <anything>`, lifecycle scripts), so it is interpreter/runner-led rather than the bare-name
+pattern and is flagged. The doc's dropped-category wording enumerates "package-manager run commands";
+this bare form is broader than — not narrower than — that category, so it is treated as the same
+authoring anti-pattern with the same fix. A **fixed** package-manager subcommand (`Bash(npm test)`,
+`Bash(npm run build)`) carries no wildcard, carries over into auto mode, and is not flagged.
+
 `Agent` allow rules (both bare `Agent` and scoped `Agent(...)`) are dropped the same way, and are
 flagged too — but unlike a shell helper they have no bare-command-on-PATH analog to re-scope to.
 Remove or re-scope the rule, or run the sub-agent action outside auto mode.
