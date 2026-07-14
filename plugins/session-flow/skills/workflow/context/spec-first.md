@@ -17,7 +17,7 @@ is still the single-session pattern — spec-first is opt-in.
 ## How stage handoffs work
 
 Each stage writes its output to the repo's work-artifact location (the consuming repo's documented
-convention, or the plugin default `.claude/handoffs/` — see the workflow skill's "Consumer
+convention, or the plugin default `.work/handoffs/` — see the workflow skill's "Consumer
 conventions"). The next stage reads only that artifact.
 
 | Stage | Writes | Next stage reads |

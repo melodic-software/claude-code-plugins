@@ -7,7 +7,7 @@ Copy into `.work/<slug>/work-items-checklist.md`. Per-action checklists below �
 - [ ] Session-start reclaim — `tools/work-item-tracker/work-item-tracker.sh reclaim "<id>"` over assigned items (idempotent)
 - [ ] Claim — `tools/work-item-tracker/work-item-tracker.sh claim "<id>"` (exit 7 = lost race, pick next)
 - [ ] Branch — `git checkout -b <type>/<N>-<short-slug>` from origin/main
-- [ ] Run `/workflow` chain — copy the checklist `/workflow` emits into this slice's PLAN.md
+- [ ] Run `/workflow` chain — its checklist lands as its own memory-tier ledger (`.work/<slug>/workflow-checklist.md`, per `/workflow`'s topic-docs binding); plan progress is marked in the topic's contract-tier `PLAN.md` (`docs/topics/<slug>/PLAN.md` on the task branch)
 - [ ] Close — `/work-items:work-items done <N>` after PR merges (or via PR body `Closes #N` auto-close)
 
 ## Action: add

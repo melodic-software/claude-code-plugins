@@ -1,0 +1,201 @@
+# Topic Documents Convention
+
+A versioned, marketplace-wide contract for where plugin-generated task
+documents land in a consuming repository. One topic (a unit of work — a
+feature, investigation, or change effort) owns one **slug**; the slug
+names a slice in each of two tiers, and two graduation edges carry
+content out of the working directory when it outgrows the task.
+
+This directory is the source of truth: this README (tiers, resolution
+order, slug spec, lifecycle), `topic-docs.schema.json` (the tracked
+concern file's shape), `CHANGELOG.md` (version history), `examples/`
+(one worked slice).
+
+## Why this exists
+
+Before this contract, four conventions coexisted (`.claude/notes/<slug>`,
+`.claude/handoffs/`, `.claude/review/`, legacy `.work/<slug>`) and a
+skill invoked outside any project root wrote into the user-global config
+directory. Document kinds were placed by habit, not by nature: contract
+documents that gates enforce against were gitignored (invisible to
+worktrees, cloud clones, and reviewers), while write-only process logs
+were persisted forever.
+
+## The two tiers (and their neighbors)
+
+Placement follows document **nature**, decided by one question: does
+anything downstream *enforce against* this document?
+
+| Tier | Location | Git | Holds |
+|---|---|---|---|
+| Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/` | Never committed | session handoffs; review reports — their axes are session and branch, so they sit outside topic slices |
+| Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
+| Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
+| Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry, caches |
+
+`.claude/observability/` is the **sole** sanctioned generated surface
+under `.claude/`: hook scripts cannot read consumer `CLAUDE.md` (they see
+env and files only) and `${CLAUDE_PLUGIN_DATA}` is machine-global rather
+than per-project, so project-scoped telemetry has no other home. This is
+an exception, not a precedent.
+
+Two kinds are deliberately **absent**: `history.md` (append-only decision
+log — git log, PR threads, and tracker comments provide this natively for
+tracked contracts) and a default-persisted `brainstorm.md` (ideation is
+conversation output; persisting is opt-in, into the memory tier).
+
+### The single-home rule
+
+Every fact has exactly one home. Any other surface — a handoff, a
+summary, a map, a PR body — may only *reference* it (path, URL, or
+context pointer), never restate it. An index is not a store.
+
+## The tracked concern file — `.claude/topic-docs.yaml`
+
+The consumer-side single source of truth. Shape in
+`topic-docs.schema.json`; every key optional, absent keys mean the
+documented defaults:
+
+```yaml
+# .claude/topic-docs.yaml — committed, team-shared
+contract_dir: docs/topics   # contract-slice root
+memory_dir: .work           # memory-tier root
+contract_tier: branch       # branch (default) | local
+```
+
+`contract_tier: local` is the solo/offline mode: contract kinds join the
+memory tier under `.work/<slug>/` and the PR-description paste becomes
+the only publication surface. The default is `branch` because sibling
+worktrees, PR-babysit checkouts, and cloud clones see only committed
+content.
+
+## Resolution order
+
+Identical in every consuming plugin. Earlier wins:
+
+1. `.claude/topic-docs.yaml` present → use it.
+2. A working-docs convention declared in the consumer's `CLAUDE.md` /
+   `.claude/rules` → use it, and offer to persist it into the concern
+   file (prose is an inference source, not the runtime authority).
+3. A legacy per-plugin `notes_dir` userConfig value → use it and emit
+   the deprecation notice (grace path; see Deprecation).
+4. An existing conforming layout inferred from the repo → confirm with
+   the user, persist to the concern file.
+5. Ask once — one question, recommended option first (`branch` default
+   vs `local`). The asking skill persists the answer to the concern file.
+6. The documented defaults (`docs/topics` + `.work`, `branch`).
+
+**No project root** (no git toplevel or project marker): interactive →
+ask (create under the current directory, or an explicit path);
+non-interactive → `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` with the
+absolute path announced prominently and nothing persisted. Writes outside
+a project root only ever target the plugin-data surface.
+
+## Runtime guards
+
+- **Committed-tier guard:** the first contract-slice write in a session
+  runs `git check-ignore -v` on the target path. If a consumer ignore
+  rule matches, stop and surface the exact rule — never silently produce
+  an uncommittable "committed" tier.
+- **Self-ignore guard:** every memory-tier write verifies the tier root
+  contains a `.gitignore` with `*`, creating it (announced) when absent —
+  fresh clones heal on first write.
+- No plugin ever edits the consumer's root `.gitignore`.
+
+## Slug and filename spec
+
+- Derivation precedence (one source wins): explicit argument → the
+  Brief/PRD topic → the current branch name.
+- Form: kebab-case `[a-z0-9-]`, ≤ 40 chars, truncated on a hyphen
+  boundary; branch separators (`/`) map to `-`; no leading or trailing
+  hyphen or dot.
+- Windows-reserved base names (`con prn aux nul com1-9 lpt1-9`) take an
+  `-x` suffix.
+- Collision authority is the contract slice on the branch. Same derived
+  slug + existing dir = **resume**. A genuinely new task disambiguates
+  with a scope qualifier or an ISO date suffix — never a bare ordinal.
+- Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
+- Reserved first-level names under the memory root: `handoffs`,
+  `reviews` (a topic slug that collides takes the `-x` suffix).
+- The same slug names the topic in both tiers — that is the traceability
+  bridge.
+
+Stage-file naming: UPPERCASE files (`EXPLORE.md`, `RESEARCH.md`,
+`PRD.md`, `PLAN.md`) are cross-stage contract/handoff documents;
+kebab-case files (`<stage>-checklist.md`) are auxiliary process ledgers.
+Folders are nouns (`design/`, `baselines/`, `verification/`). Repeated
+rounds of a stage append dated sections; a genuinely distinct scope takes
+a `<STAGE>-<scope>.md` sidecar.
+
+## Contract-slice lifecycle (prune with pointer)
+
+1. Contracts commit on the task branch as they lock — a phase's plan
+   updates ride the same commit as its source changes.
+2. At PR time the approved `PLAN.md` and the verification summary are
+   pasted into the PR description inside `<details>` blocks (bodies cap
+   near 64 KB — paste the contract, reference the rest).
+3. Before merge, durable outcomes graduate: architectural decisions and
+   specs through the **knowledge-vault seam** (default: history-preserving
+   `git mv` into `docs/adr/` / `docs/specs/`; remote vault backends
+   resolve through the same seam), and actionable follow-ups through the
+   **work-item tracker seam**.
+4. A final commit prunes `docs/topics/<slug>/`, leaving context pointers
+   (the PR body and the promoted-doc / tracker locations) in its place.
+5. Enforcement: a required check that the net PR diff
+   (`git diff --name-only base...head`) contains no `docs/topics/**`
+   path. GitHub's PR view is the three-dot diff, so pruned files also
+   vanish from the final review surface.
+
+Hardening at the consumer's option: `.gitattributes`
+`docs/topics/** linguist-generated` (collapses mid-review diff noise), a
+markdownlint carve-out for the contract root, and secret scanning.
+**Redaction bar (normative):** committed evidence is distilled — no raw
+command captures, no machine-local absolute paths, no usernames or
+credentials. Raw output stays in `.work/<slug>/`.
+
+## Graduation edges (provider-neutral seams)
+
+- **Ticket edge** — actionable work goes through the `work-items`
+  plugin's provider-neutral tracker seam. Ticketing backends swap behind
+  that contract; this convention never binds a backend.
+- **Vault edge** — durable knowledge goes through the knowledge-vault
+  seam: named verbs (publish, update, link-back), default backend the
+  in-repo `docs/` tree (zero external dependencies), remote backends
+  (e.g. GitBook via its MCP server, Notion/Confluence-class systems)
+  resolving through the concern file when a consumer configures one.
+  Skills degrade gracefully: no configured vault backend means the
+  in-repo default, never a hard failure.
+
+## Deprecation and migration
+
+- **Old pins until migrated.** When old-convention content exists
+  (`.claude/notes/<slug>/`, a set `notes_dir` knob), a plugin operates
+  wholly on the old location — reads *and* writes — and emits a
+  deprecation notice with a guarded migration command. New defaults apply
+  to fresh repos and fresh topics only. Never dual-write; never split one
+  topic across roots.
+- **Sunset:** dual-read and the legacy knobs are removed at each
+  consuming plugin's next major version, no sooner than one minor release
+  after its deprecation notice ships.
+
+## Implementers
+
+| Plugin | Writes | Tier(s) |
+|---|---|---|
+| discovery | `EXPLORE.md`, `RESEARCH.md` | memory |
+| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory |
+| implementation | `PLAN.md` (Plan/progress), `verification/` manifest, baselines, raw captures | contract + memory |
+| session-flow | handoffs | memory (`handoffs/`) |
+| review-toolkit | review reports | memory (`reviews/`) |
+| work-items | per-topic action ledger; tracker projections | memory; ticket edge |
+| knowledge | ingest trees (own `library_dir` seam; slug spec applies to its `.work/` use) | memory |
+| claude-ops | telemetry | machine state |
+| docs-hygiene | (reader) declutter detector recognizes these shapes | — |
+
+## Versioning
+
+This contract is versioned in `CHANGELOG.md`. A change that moves a
+tier, renames a key in `topic-docs.yaml`, or alters the slug spec is a
+**major** contract change and triggers the deprecation policy above in
+every implementer. Additive guidance is minor.

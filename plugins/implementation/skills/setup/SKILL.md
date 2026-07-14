@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the implementation plugin's ecosystem command surface for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /implementation:build and /implementation:lint resolve first. Use when: 'set up implementation', 'configure build/lint commands', 'implementation setup', /build or /lint reports it is falling back to bundled defaults, or a toolchain change needs recording. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the implementation plugin for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, write the tracked .claude/ecosystems/<ecosystem>.yaml files that /implementation:build and /implementation:lint resolve first, and offer the tracked .claude/topic-docs.yaml concern file that places plan and verification artifacts. Use when: 'set up implementation', 'configure build/lint commands', 'implementation setup', /build or /lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "[ecosystem] (no arguments — interview every inferred ecosystem; or name one to (re)configure just that ecosystem)"
 user-invocable: true
 disable-model-invocation: false
@@ -82,10 +82,23 @@ Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a 
 user-global → team → local overlay, additively per key. Recommend the consumer add
 `.claude/ecosystems/*.local.*` to `.gitignore` if not already covered.
 
+### 6. Offer the topic-docs concern file
+
+The plugin's skills place plan progress, verification manifests, and baselines per the topic-docs
+convention ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+When `$REPO_ROOT/.claude/topic-docs.yaml` is absent, offer to write it — one question, recommended
+option first (`contract_tier: branch`, the default; `local` for solo/offline work) — and materialize
+only the keys that differ from the documented defaults. When it exists, leave it alone unless the
+user asks to reconfigure. Before writing, run the conflict check: `git check-ignore -v` on the
+contract root (`docs/topics`, or the chosen `contract_dir`) — a matching ignore rule is surfaced to
+the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
+memory tier self-ignores through its own `.work/.gitignore`.
+
 ## Output
 
-Tracked `.claude/ecosystems/*.yaml` files in the consuming repo, plus a one-paragraph summary of what
-was written and how to re-run this setup to reconfigure.
+Tracked `.claude/ecosystems/*.yaml` files in the consuming repo — plus `.claude/topic-docs.yaml`
+when accepted — and a one-paragraph summary of what was written and how to re-run this setup to
+reconfigure.
 
 ## What this skill does NOT do
 

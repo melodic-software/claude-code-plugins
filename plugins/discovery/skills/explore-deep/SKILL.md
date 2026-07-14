@@ -18,7 +18,7 @@ Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
 You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — you do NOT see the parent conversation, and the main session does NOT see your file reads, Glob results, or Grep output; only your final summary returns.
 
-You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY file you Write is the `EXPLORE.md` artifact in Step 3. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
+You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY files you Write are the `EXPLORE.md` artifact in Step 3 and, when absent, the memory root's self-ignoring `.gitignore` guard. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
 
 This is a forked-execution variant of `/explore`: same investigation discipline, cleaner main-session context.
 
@@ -42,9 +42,9 @@ Follow the sibling `/explore` skill exactly:
 
 **Before writing, run the Outcome gate** the `/explore` workflow defines — the binary artifact self-check, not a "did I explore enough?" recap; any FAIL → fix first.
 
-Write findings to `${user_config.notes_dir}/<topic-slug>/EXPLORE.md` — derive `<topic-slug>` from the exploration scope or current branch name (kebab-case, ≤40 chars). If the consuming project declares its own working-notes convention, that wins over the default location.
+Write findings to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination and slug resolve through the topic-docs ladder ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): concern file `.claude/topic-docs.yaml` → a working-docs convention in the consumer's `CLAUDE.md`/rules → the deprecated `notes_dir` knob → an inferred conforming layout → the `.work` default. As a fork you cannot ask the user or persist the concern file — when resolution would reach an ask-or-persist rung, use the resolved (or default) value and flag the assumption in your return summary. Before writing, verify the memory root contains a `.gitignore` with `*` (create it if absent — the one write exception besides the artifact itself; announce it) and never touch the consumer's root `.gitignore`. A legacy `notes_dir` value or existing `.claude/notes/<slug>` content pins the old location until migrated (reads AND writes) — note the deprecation in your return summary. Outside any project root, write to `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` and announce the absolute path.
 
-**If EXPLORE.md already exists** there for an unrelated task, write a sidecar `explore-<scope-slug>.md` in the same directory instead (kebab-case scope, ≤40 chars) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
+**If EXPLORE.md already exists** there for an unrelated task, write a sidecar `EXPLORE-<scope>.md` in the same directory instead (scope slugged per the same spec) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
 
 ## Step 4 — Return summary to main session
 

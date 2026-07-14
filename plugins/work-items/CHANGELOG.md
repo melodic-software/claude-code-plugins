@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+Adopt the marketplace topic-docs convention (`docs/conventions/topic-docs/`, contract v1.0.0).
+
+### Added
+
+- **`reference/topic-docs.md`** — the plugin's binding to the contract: which paths the skill reads
+  and writes per tier (the `work-items-checklist.md` ledger and ad-hoc notes are memory-tier under
+  `.work/<slug>/`; tracker projections go through the seam, never files), the slug spec and
+  self-ignore guard, and the three-location plan/PRD lookup with its sunset.
+
+### Changed
+
+- **`decompose` default source moved to the contract tier.** The topic's `PLAN.md` / `PRD.md` now
+  resolve via a three-location lookup: `docs/topics/<slug>/` (contract slice on the task branch,
+  default) → `.work/<slug>/` (`contract_tier: local`) → legacy `.claude/notes/<slug>/` (deprecation
+  grace — operate on the old location and emit a notice; this rung is removed at the next major
+  version, no sooner than one minor release after this notice). Previously the default was
+  `.work/<slug>/`, which the convention classifies as memory tier — plans are contract documents.
+- The checklist emit path (`.work/<slug>/work-items-checklist.md`) is now governed by the binding:
+  `<slug>` derives per the shared slug spec and every write verifies the memory root's self-ignore
+  guard (a `.gitignore` containing `*`, created and announced when absent).
+
 ## [0.3.0]
 
 ### Added

@@ -3,6 +3,30 @@
 All notable changes to the `review-toolkit` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **Consume the topic-docs convention** (`docs/conventions/topic-docs/README.md`), bound for this
+  plugin in the new `reference/topic-docs.md`. The default findings location moves from
+  `.claude/review/<branch-slug>/` to `.work/reviews/<branch-slug>/` — the memory tier's
+  concern-scoped reviews home (branch axis, never committed, self-ignoring root). A consumer-declared
+  review-artifacts location still wins; every report write runs the verify-or-create self-ignore
+  guard on the memory root; no skill edits the consumer's root `.gitignore`.
+- **Legacy grace for `.claude/review/`:** reads check the new home first and fall back to the legacy
+  directory with a deprecation note; when legacy content exists for the current branch, writes stay
+  pinned there so one branch's review history never splits across roots. Dual-read and the fallback
+  are removed at the next major version.
+- **`quality-gate` self-mode plan source:** the approved plan/brief is now sourced from the
+  conversation, else the topic's contract slice `docs/topics/<slug>/PLAN.md` (memory-tier fallback
+  under `contract_tier: local`), replacing the untyped "project's working notes" phrase.
+
+### Added
+
+- **`reference/topic-docs.md`** — the plugin's compact binding to the topic-docs contract: what it
+  writes (memory tier only, branch axis), resolution order, branch-slug and timestamp spec, runtime
+  guards, and the deprecation window.
+
 ## [0.3.0]
 
 ### Added

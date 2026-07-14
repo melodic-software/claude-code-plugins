@@ -52,8 +52,12 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
    - A working-notes or artifacts directory declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
      `.claude/rules` (surface that declared convention as the recommended value, so the persisted
      `library_dir` tracks it).
-   - An existing docs or knowledge directory (`docs/`, `knowledge/`, `.claude/notes/`) that synthesized
-     artifacts would naturally join.
+   - The marketplace topic-docs convention when the repo declares it — a `.claude/topic-docs.yaml`
+     concern file or a `.work/` memory-tier root (see `docs/conventions/topic-docs/` in the marketplace
+     repo). During the deprecation grace window, a legacy `.claude/notes/` directory still counts as
+     this signal.
+   - An existing docs or knowledge directory (`docs/`, `knowledge/`) that synthesized artifacts would
+     naturally join.
    - If nothing is found, the safe default is the repo root `.` (the plugin's declared `userConfig`
      default), meaning artifacts land at the top of the consuming repo unless a skill is told otherwise.
 4. **Interview — one decision.** Present the inferred value with a recommendation and let the user accept

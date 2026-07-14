@@ -12,9 +12,16 @@ declutter_trim_excerpt() {
   printf '%s' "$line"
 }
 
-declutter_is_slot_work_ref() {
+# Topic-docs convention forms citable from durable docs: angle-bracket slot
+# variables are schema placeholders, not literal paths; the reserved
+# concern-scoped roots and the tracked concern file are stable convention
+# surfaces, not ephemeral slices.
+declutter_is_convention_path_ref() {
   local line="$1"
-  [[ "$line" == *'.work/<slug>'* || "$line" == *'.work/<sub-slug>'* || "$line" == *'.work/<TS>'* ]]
+  [[ "$line" == *'.work/<'* || "$line" == *'docs/topics/<'* ]] && return 0
+  [[ "$line" == *'.work/handoffs/'* || "$line" == *'.work/reviews/'* ]] && return 0
+  [[ "$line" == *'.claude/topic-docs.yaml'* ]] && return 0
+  return 1
 }
 
 declutter_line_skipped() {
@@ -28,11 +35,17 @@ declutter_line_skipped() {
 declutter_detect_shapes() {
   local line="$1"
   local found=0
-  if ! declutter_is_slot_work_ref "$line"; then
-    if [[ "$line" =~ \.work/[a-z][a-z0-9_-]*/ ]]; then
-      printf '%s\n' 'ghost-ref'
-      found=1
-    fi
+  local ghost=0
+  if ! declutter_is_convention_path_ref "$line"; then
+    [[ "$line" =~ \.work/[a-z][a-z0-9_-]*/ ]] && ghost=1
+    [[ "$line" =~ docs/topics/[a-z][a-z0-9_-]*/ ]] && ghost=1
+  fi
+  # Retired location: a .claude/notes/ citation is stale even in placeholder
+  # form, so it bypasses the convention-path exemption.
+  [[ "$line" == *'.claude/notes/'* ]] && ghost=1
+  if [[ $ghost -eq 1 ]]; then
+    printf '%s\n' 'ghost-ref'
+    found=1
   fi
   if [[ "$line" =~ ^##[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists ]]; then
     printf '%s\n' 'preamble'

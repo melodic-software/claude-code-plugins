@@ -87,9 +87,9 @@ Spend the first turn grounding yourself, in parallel:
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what `${user_config.notes_dir}/<topic-slug>/` already contains — prior PRD, PLAN, exploration/research artifacts
+- Note what the topic's contract slice `docs/topics/<topic-slug>/` already contains — prior PRD, PLAN, design artifacts — and what its memory slice `.work/<topic-slug>/` holds (exploration/research artifacts)
 
-If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why to a sibling `history.md` in the topic directory, then rewrite).
+If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
 Survey output is a one-paragraph summary in your reply. Then transition to depth-first Q&A.
 
@@ -138,7 +138,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5 — Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `${user_config.notes_dir}/<topic-slug>/PRD.md`. If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location. PRD.md lives alongside `PLAN.md` (architect's output) and any exploration/research artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `docs/topics/<topic-slug>/PRD.md` — the topic's contract slice, committed on the task branch as it locks; roots, tier, legacy grace, and precedence resolve per the topic-docs ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (architect's output) and the topic's design artifacts.
 
 Frontmatter:
 
@@ -197,7 +197,7 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 - **Does not run exploration or research** — Step 2's survey is a *fast grounding pass*, not deep work. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
 - **Does not gate other skills** — engineering-internal tasks skip `/prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea** — not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
-- **Does not write code, run tests, or modify anything outside the topic's notes directory** — pure product-intent skill
+- **Does not write code, run tests, or modify anything outside the topic's contract and memory slices** — pure product-intent skill
 
 ## Composition with other skills
 
@@ -212,7 +212,7 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 | Plan the implementation | `/architect` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/devils-advocate` | Adversarial pass on `/architect` output (not the PRD) |
 
-`/prd` is sister to `/architect`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the notes directory, and feed each other.
+`/prd` is sister to `/architect`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the contract slice, and feed each other.
 
 ## Gotchas
 

@@ -61,8 +61,10 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    close. A dangling "resolved" comment on an open item is a broken close-out — finish it.
 3. **The map holds decisions, not build work.** A buildable item means the decision already
    graduated — move it to the ordinary tracker (`/work-items`), off the map.
-4. **Coordination on the tracker, execution artifacts in `.work/`.** The map never cites a
-   concrete `.work/<slug>/` path as a coordination surface; `.work/` never holds map state.
+4. **Coordination on the tracker, execution artifacts in `.work/`.** `.work/<slug>/` is the
+   topic-docs convention's memory tier (never committed; slug spec shared with the pipeline
+   skills). The map never cites a concrete `.work/<slug>/` path as a coordination surface;
+   `.work/` never holds map state.
 
 ## Graduation and closure
 

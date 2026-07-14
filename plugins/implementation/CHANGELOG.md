@@ -3,6 +3,47 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **Consume the topic-docs convention** (`docs/conventions/topic-docs/README.md`). Artifact placement
+  follows document nature across two tiers, bound for this plugin in the shared
+  `reference/topic-docs.md`: `PLAN.md` progress marks and the `DEVIATIONS.md` log are contract-tier
+  (`docs/topics/<slug>/`, committed on the task branch, pruned before merge — or the memory tier under
+  `contract_tier: local`); baselines, raw captures, and the status summary are memory-tier
+  (self-ignoring `.work/<slug>/`); fallback handoff notes land in the memory tier's `.work/handoffs/`
+  home owned by `session-flow`. Placement resolves through the contract's six-rung ladder
+  (concern file `.claude/topic-docs.yaml` first) with its runtime guards: `git check-ignore` on the
+  session's first contract-slice write, verify-or-create self-ignore on memory writes, and no edits to
+  the consumer's root `.gitignore`.
+- **`/implement` Step 4 phase commits carry plan + source together.** With the plan tracked on the
+  task branch, "commit the plan changes alongside the phase's source-code changes in a single commit"
+  is now literal git behavior — one commit, one story; memory-tier files never enter the commit.
+- **`/verify-changes` evidence directory renamed `verify/` → `verification/`.** The distilled,
+  `verified_at_sha`-keyed manifest is contract-tier at `docs/topics/<slug>/verification/` and meets
+  the contract's redaction bar (no raw captures, machine-local paths, usernames, or credentials);
+  raw captures stay in `.work/<slug>/scratch/`.
+- **`/verify-improvement` baselines are memory-tier** at `.work/<slug>/baselines/` — machine-bound
+  measurements, never committed, no longer beside the plan artifact (contract-tier at
+  `docs/topics/<slug>/PLAN.md`); the comparison summary surfaces in the plan and the PR body.
+
+### Added
+
+- **`reference/topic-docs.md`** — the plugin's binding to the topic-docs contract: per-artifact tier
+  table, resolution ladder, runtime guards, no-project-root fallback, slug derivation. All consuming
+  skills reference this one document.
+- **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file** — one question
+  (`contract_tier: branch` recommended), conflict-checked with `git check-ignore -v` on the contract
+  root before writing; never edits the consumer's root `.gitignore`.
+
+### Deprecated
+
+- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Grace path per the
+  contract's old-pins-until-migrated policy: when the knob is set or old content exists, skills
+  operate wholly on the old location (reads and writes) and emit a migration notice — never
+  dual-writing, never splitting one topic across roots. Removed at this plugin's next major version.
+
 ## [0.3.0]
 
 ### Added

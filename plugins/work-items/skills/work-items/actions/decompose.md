@@ -10,8 +10,8 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 `source` can be:
 
-- *(empty)* — reads `.work/<slug>/PLAN.md` phases (default)
-- `prd` — reads `.work/<slug>/PRD.md` user stories
+- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file via the three-location lookup in [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): `docs/topics/<slug>/PLAN.md` (contract slice on the task branch) → `.work/<slug>/PLAN.md` (`contract_tier: local`) → legacy `.claude/notes/<slug>/PLAN.md` (deprecation grace — emit the notice)
+- `prd` — reads the topic's `PRD.md` user stories, resolved via the same three-location lookup
 - `#<item-number>` — reads an existing item's body
 - Conversation context — synthesizes from current discussion
 
@@ -19,7 +19,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 ### 1. Gather source material
 
-Read the source document. If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch full body and comments.
+Read the source document (PLAN.md/PRD.md located per the three-location lookup above — first hit wins, never mix locations for one topic). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch full body and comments.
 
 Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
 
@@ -111,7 +111,7 @@ Use agent-brief body format (see [`reference/agent-brief.md`](../reference/agent
 ## Parent
 
 Refs #<parent-item> (if source was an existing item)
-<!-- or: Source: .work/<slug>/PLAN.md Phase N -->
+<!-- or: Source: docs/topics/<slug>/PLAN.md Phase N -->
 
 ## What to build
 

@@ -37,12 +37,18 @@ fresh session can resume planning from the artifact alone.
 
 ## Configuration
 
-One option, prompted at enable time (or set any time with `/discovery:setup` — an idempotent interview
-that infers a landing location from your repo layout and persists it):
+Artifact placement follows the marketplace **topic-docs convention** (`docs/conventions/topic-docs/`
+in the melodic-software/claude-code-plugins repository). `EXPLORE.md` / `RESEARCH.md` are memory-tier
+documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one slug per topic, never
+committed — the memory root self-ignores. Skills resolve `<memory_dir>` in order: the tracked concern
+file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → the
+deprecated `notes_dir` option → an inferred conforming layout → one question → the `.work` default.
+`/discovery:setup` is an idempotent interview that persists the concern file and migrates legacy
+content.
 
-| Option | Type | Default | Purpose |
+| Option | Type | Status | Purpose |
 |---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where discovery artifacts (`EXPLORE.md`, `RESEARCH.md`) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `notes_dir` | string | **Deprecated** — superseded by `.claude/topic-docs.yaml`; removed at the next major version | Legacy artifact directory (old default `.claude/notes`). When set — or when `.claude/notes/<slug>` content exists — skills keep reading and writing the old location until `/discovery:setup` migrates it. |
 
 ## License
 

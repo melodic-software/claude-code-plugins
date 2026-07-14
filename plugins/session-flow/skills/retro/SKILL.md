@@ -88,8 +88,9 @@ After the retrospective:
 
 ## Multi-session awareness
 
-When the sibling `handoff` skill's save-points exist (`.claude/handoffs/` or the consuming repo's
-documented location), the retro spans the whole session CHAIN, not just the current session: the
+When the sibling `handoff` skill's save-points exist (`.work/handoffs/`, the consuming repo's
+documented location, or — dual-read window, with a one-line deprecation note — legacy
+`.claude/handoffs/`), the retro spans the whole session CHAIN, not just the current session: the
 parser's `--chain-from` walks `previous_handoff` / `previous_session_id` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
 `context/session.md` Phase 1.

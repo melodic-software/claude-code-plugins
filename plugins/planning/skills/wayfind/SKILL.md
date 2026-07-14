@@ -34,7 +34,10 @@ resolved, either sharpens the map or graduates to the destination. The moment th
 is coherent, the map closes and the normal pipeline (`/interview → /design → /architect →
 /implement`) takes over. Fog-of-war framing adapted from Matt Pocock's wayfinder — this skill
 diverges by persisting the map as native tracker primitives, routing each decision to a
-first-party skill, and keeping execution artifacts in `.work/` rather than the map.
+first-party skill, and keeping execution artifacts in `.work/<slug>/` — the topic-docs
+convention's memory tier, slug spec and all (see
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+— rather than the map.
 
 **Two modes.** `chart` builds or extends a map (interactive only). `work` picks one item off
 the map's frontier and drives it to resolution. The default action auto-detects: an existing

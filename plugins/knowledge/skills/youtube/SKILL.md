@@ -33,6 +33,8 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/derive-video-slug.js`
 
+The `.work/` root and its slugs follow the marketplace topic-docs convention (memory tier: self-ignoring via a root `.gitignore` containing `*`, never committed; shared slug spec: kebab-case, ≤ 40-char cap, Windows-reserved base names excluded via `-x` suffix) — see `docs/conventions/topic-docs/` in the marketplace repo. The `.work/<watch-epic>/<video-slug>/` nesting is compatible: the convention reserves only `handoffs` and `reviews` at the memory root.
+
 ## Artifact landing (work root)
 
 Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's `library_dir` seam (`pluginConfigs["knowledge@melodic-software"].options.library_dir`, substituted into this skill's content as `${user_config.library_dir}`):

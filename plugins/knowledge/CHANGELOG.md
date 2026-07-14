@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.3
+
+### Changed
+
+- **Aligned with the marketplace topic-docs convention** (`docs/conventions/topic-docs/`).
+  Setup's convention inference now points at the `.claude/topic-docs.yaml` concern file and
+  the `.work/` memory tier (legacy `.claude/notes/` recognized only during the deprecation
+  grace window), and the youtube/course-digest skills note that their `.work/` root and slugs
+  follow the shared convention (memory tier, self-ignoring, shared slug spec). Docs-only —
+  no paths or behavior change; the `library_dir` seam is untouched.
+
 ## 0.5.2
 
 ### Fixed

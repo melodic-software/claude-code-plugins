@@ -26,7 +26,7 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 
 - **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`). Never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
-- **Findings location** — when the project's conventions define a review-artifacts location (check its `CLAUDE.md` / project rules), use it; otherwise `.claude/review/<branch-slug>/` at the project root, where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`.
+- **Findings location** — when the project's conventions define a review-artifacts location (check its `CLAUDE.md` / project rules), use it; otherwise `.work/reviews/<branch-slug>/` at the project root — the memory tier's concern-scoped reviews home, branch axis ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) — where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`. Self-ignore guard before any write: verify the memory root (`.work/`) contains a `.gitignore` with `*`, creating it (announced) when absent. Legacy grace: when `.claude/review/<branch-slug>/` holds reports for this branch, writes stay pinned there with a deprecation note; reads check the new home first, then fall back to legacy — detail in the binding doc.
 
 ## Step 0: Mode
 
@@ -59,7 +59,7 @@ Run the 5-stage pipeline in [context/findings-normalization.md](context/findings
 
 ## Step 3: Persist findings
 
-Write the ranked report to `<findings-location>/<UTC-timestamp>-<topic>.md` (`date -u +%Y%m%dT%H%M%SZ`, colon-free; `<topic>` sanitized to `[a-z0-9._-]`). Relativize machine paths BEFORE writing — findings cite `file:line` repo-relative only. File shape contract: [context/default-mode.md](context/default-mode.md) "Findings-file shape".
+Run the self-ignore guard ("Shared inputs"), then write the ranked report to `<findings-location>/<UTC-timestamp>-<topic>.md` (`date -u +%Y%m%dT%H%M%SZ`, colon-free; `<topic>` sanitized to `[a-z0-9._-]`). Relativize machine paths BEFORE writing — findings cite `file:line` repo-relative only. File shape contract: [context/default-mode.md](context/default-mode.md) "Findings-file shape".
 
 ## Orchestrator plugins
 

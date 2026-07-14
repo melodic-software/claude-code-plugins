@@ -18,10 +18,10 @@ The measurement mechanism is SSOT here; the planning stage *routes* to it when a
 
 | Phase | Stage | Who invokes | What it does |
 |-------|-------|-------------|--------------|
-| `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under `<plan-artifact-dir>/baselines/` + record baseline + target in the plan |
+| `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under the topic's memory-tier `baselines/` + record baseline + target in the plan |
 | `compare` | after the change (default phase) | `/verify-improvement <family>` | Re-measure under the same conditions → compare to the stored baseline → verify the claim |
 
-Baseline storage: beside the change's plan artifact — the consuming project's working-notes convention, or `${user_config.notes_dir}/<topic-slug>/baselines/` by default.
+Baseline storage: the topic's memory tier — `.work/<slug>/baselines/`, resolved through the topic-docs ladder ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `docs/topics/<slug>/PLAN.md` and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
 
 **Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline — do not add a harness speculatively.
 
@@ -49,7 +49,7 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 | An approved plan states a measurable goal | Run the `baseline` phase BEFORE implementation |
 | Improvement claimed without data (in `/verify-changes`, review, or conversation) | Redirect here — `performance` or `metrics` per the claim |
 | Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold — fix or withdraw it |
-| Measurement complete | Feed the comparison table into the `/verify-changes` outcome report or PR evidence |
+| Measurement complete | Feed the comparison table into the `/verify-changes` outcome report; surface the summary in the plan artifact / PR body |
 
 ## What this skill does NOT do
 

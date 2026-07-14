@@ -27,6 +27,8 @@ Where this skill says "deeper research," use whatever external-research capabili
 
 For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
 
+The `.work/` root and `<slug>` follow the marketplace topic-docs convention (memory tier: self-ignoring via a root `.gitignore` containing `*`, never committed; shared slug spec: kebab-case, ≤ 40 chars, Windows-reserved base names excluded via `-x` suffix; only `handoffs` and `reviews` are reserved at the memory root) — see `docs/conventions/topic-docs/` in the marketplace repo.
+
 ## Prerequisites (verify before starting)
 
 1. **course-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent — safe to re-run, and re-run after a plugin update.

@@ -17,7 +17,7 @@ where artifacts land in the consuming repo.
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
 | `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
-| `/planning:setup` | Configuration | Interviews the consumer and persists the `notes_dir` config that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
+| `/planning:setup` | Configuration | Interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
 
 The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
@@ -35,8 +35,9 @@ approval — but every skill also works standalone.
   session handoff (`session-flow`) — are invoked when installed and substituted
   with inline guidance when absent; no step blocks on a missing plugin.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
-  planning artifacts are written to your configured notes directory, never to
-  plugin-internal paths.
+  planning artifacts land per the topic-docs convention — contract documents in
+  `docs/topics/<topic-slug>/` on the task branch, working memory in the
+  self-ignoring `.work/<topic-slug>/` — never in plugin-internal paths.
 
 ## Install
 
@@ -47,11 +48,17 @@ approval — but every skill also works standalone.
 
 ## Configuration
 
-One option, prompted at enable time (or set any time with `/planning:setup`):
+Where artifacts land is governed by the marketplace-wide **topic-docs convention**
+(`docs/conventions/topic-docs/` in this repository): contract documents (`PRD.md`,
+`PLAN.md`, `design/`) go to `docs/topics/<topic-slug>/` on the task branch; working
+memory (checklists, baselines, scratch) goes to the self-ignoring
+`.work/<topic-slug>/`. Run `/planning:setup` to interview and persist the tracked
+concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
+`contract_tier: branch | local`); absent keys mean those documented defaults.
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where planning artifacts (`PRD.md`, `PLAN.md`, design artifacts, checklists) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `notes_dir` | string | `.claude/notes` | **Deprecated** — superseded by `.claude/topic-docs.yaml`. Grace path: when set, or when the configured directory already holds topic content, skills keep operating wholly there and emit a deprecation notice. Removed at the next major version. |
 
 ## License
 

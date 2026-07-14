@@ -27,11 +27,19 @@ rediscovering dead ends.
 
 ## Where handoffs live
 
-Honor the consuming repo's documented convention for session save-points / work journals (check
-`CLAUDE.md` / `.claude/rules/`) if one exists. Otherwise default to **`.claude/handoffs/`** in the
-project — files named `<TS>-handoff-<topic>.md` with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic,
-Windows-safe, sortable). Handoffs are project files by design: they travel with the repo and any
-session or machine can resume from them.
+Handoffs are memory-tier save-points, concern-scoped by session — resolve the destination through
+the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+A consumer-declared convention (the `.claude/topic-docs.yaml` concern file, or a save-point
+convention in `CLAUDE.md` / `.claude/rules/`) wins; otherwise default to
+**`<memory_dir>/handoffs/`** (default `.work/handoffs/`) — files named `<TS>-handoff-<topic>.md`
+with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). Before writing, verify
+`.work/.gitignore` exists and contains `*` — create it (announced) when absent; never edit the
+consumer's root `.gitignore`.
+
+Dual-read window (per the binding): when reading the handoff chain, check `.work/handoffs/` first
+and fall back to legacy `.claude/handoffs/` with a one-line deprecation note. Legacy content the
+consumer hasn't migrated pins the old location — operate wholly on `.claude/handoffs/` (reads AND
+writes) plus the notice; never dual-write.
 
 ## Arguments
 
@@ -143,7 +151,7 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @.claude/handoffs/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
+Read @.work/handoffs/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
 Prior session: <UUID>.
 ──────────────────────────────────────────────────────────
 ```
@@ -221,7 +229,8 @@ incomplete.
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
-- [ ] Handoff file written to the handoff location with frontmatter per `context/structure.md`
+- [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
+  frontmatter per `context/structure.md`
 - [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
   handoff's task (chain continuity per `context/structure.md`); omitted otherwise — including when
   the directory holds only unrelated-task handoffs

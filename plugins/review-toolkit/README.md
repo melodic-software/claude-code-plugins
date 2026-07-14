@@ -55,8 +55,12 @@ Invoke via `@review-toolkit:<agent>` or let Claude delegate.
 ## Findings location
 
 Review findings persist to the project's own review-artifacts location when its conventions
-define one; otherwise to `.claude/review/<branch-slug>/` at the project root. Add the
-default to your `.gitignore` if you do not want findings tracked.
+define one; otherwise to `.work/reviews/<branch-slug>/` at the project root — the topic-docs
+convention's memory tier, concern-scoped on the branch axis (`reference/topic-docs.md`). The
+memory root self-ignores (`.work/.gitignore` containing `*`, created on first write), so
+findings never enter version control. Legacy `.claude/review/<branch-slug>/` content keeps
+writes pinned there with a deprecation note until migrated; that dual-read fallback is removed
+at the next major version.
 
 ## Install
 

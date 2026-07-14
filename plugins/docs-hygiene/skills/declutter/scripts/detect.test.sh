@@ -61,7 +61,10 @@ cat >"$CLEAN" <<'EOF'
 # Clean fixture
 
 Plain prose with no noise shapes. The schema uses .work/<slug>/PLAN.md as a
-slot-variable example, which is not a ghost ref.
+slot-variable example, which is not a ghost ref. Contract slices land in
+docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/ and review
+reports in .work/reviews/<branch-slug>/; .claude/topic-docs.yaml is the tracked
+concern file.
 
 ## Cross-references
 
@@ -140,6 +143,37 @@ PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$CLEAN" >"$PATHS"
 pf_out="$(bash "$DETECT" --paths-file "$PATHS")"
 assert_contains "paths-file target audited" "$pf_out" "Summary file: $CLEAN"
+
+# --- 8. Topic-docs taxonomy: concrete contract slice flags; convention forms pass ----
+
+TAXONOMY="$TEST_TMPDIR/taxonomy.md"
+cat >"$TAXONOMY" <<'EOF'
+# Taxonomy fixture
+
+The worked example lives at docs/topics/net-hardening/PLAN.md on the branch.
+EOF
+tax_out="$(bash "$DETECT" "$TAXONOMY")"
+assert_contains "concrete contract-slice path is a ghost ref" "$tax_out" "Finding shape: ghost-ref"
+
+# --- 9. Retired .claude/notes/ location always flags ----------------------------------
+
+NOTES="$TEST_TMPDIR/notes.md"
+cat >"$NOTES" <<'EOF'
+# Notes fixture
+
+Older drafts sit under .claude/notes/net-hardening/ for this rule.
+EOF
+notes_out="$(bash "$DETECT" "$NOTES")"
+assert_contains "retired .claude/notes/ citation flags" "$notes_out" "Finding shape: ghost-ref"
+
+MIGRATE="$TEST_TMPDIR/migrate.md"
+cat >"$MIGRATE" <<'EOF'
+# Migration fixture
+
+Move .claude/notes/<slug>/ content into .work/<slug>/ before the sunset.
+EOF
+mig_out="$(bash "$DETECT" "$MIGRATE")"
+assert_contains ".claude/notes/ flags even beside convention placeholders" "$mig_out" "Finding shape: ghost-ref"
 
 # --- Final report --------------------------------------------------------------------
 

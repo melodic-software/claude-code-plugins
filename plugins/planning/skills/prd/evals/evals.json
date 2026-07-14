@@ -46,7 +46,7 @@
       "expectations": [
         "Output evaluates an existing PRD against the required sections rather than authoring a new one",
         "Output checks that goals are outcomes (not implementations) and that success metrics have a threshold and measurement window",
-        "The run does not write code or modify anything outside the notes directory"
+        "The run does not write code or modify anything outside the topic's contract and memory slices"
       ]
     },
     {

@@ -12,7 +12,7 @@ verified code.
 | `/implementation:implement-dispatch` | Orchestrated execution variant — composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
 | `/implementation:build` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown); resolves each ecosystem's commands through the shared four-rung ladder. |
 | `/implementation:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it; also owns the `yaml` and `cross-cutting` lint surfaces. |
-| `/implementation:setup` | Configure the ecosystem command surface for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/build` and `/lint` resolve first. Re-runnable. |
+| `/implementation:setup` | Configure the plugin for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/build` and `/lint` resolve first, and offer the tracked `.claude/topic-docs.yaml` concern file. Re-runnable. |
 | `/implementation:test-write` | Test authoring discipline — vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/implementation:test-plan` | Coverage-gap analysis — classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/implementation:test-diagnose` | Failing-test diagnosis — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
@@ -30,15 +30,24 @@ verified code.
   bundled portable defaults. Run `/implementation:setup` to write those files
   once. The command surface conforms to the marketplace-wide contract at
   `docs/conventions/ecosystem-commands/README.md`
-  (schema: `ecosystem.schema.json`); testing structure, commit conventions, and
-  working-notes locations still come from your own `CLAUDE.md` and rules.
+  (schema: `ecosystem.schema.json`); testing structure and commit conventions
+  still come from your own `CLAUDE.md` and rules.
+- **Document placement — via the topic-docs seam.** Plan progress, verification
+  manifests, and baselines land per the marketplace-wide topic-docs convention
+  (`docs/conventions/topic-docs/README.md`; plugin binding:
+  `reference/topic-docs.md`): contract documents in `docs/topics/<slug>/`,
+  committed on the task branch and pruned before merge; working memory in the
+  self-ignoring `.work/<slug>/`. The tracked `.claude/topic-docs.yaml` concern
+  file is the consumer-side source of truth — `/implementation:setup` offers to
+  write it. Repos with existing `.claude/notes/` content keep the old location
+  until migrated.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`tdd`,
   `discovery`, `session-flow`, `playwright`) and external marketplace skills are
   invoked when installed and substituted with inline guidance when absent; no
   step blocks on a missing plugin.
 - **Self-contained.** All command tables and context references ship inside the
-  plugin; state and artifacts go to your project's own notes convention (or the
-  `notes_dir` option below).
+  plugin; state and artifacts go to your project's own tree per the topic-docs
+  convention above.
 
 ## Install
 
@@ -53,7 +62,7 @@ One option, prompted at enable time:
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where implementation artifacts (plan progress notes, handoff entries, verification manifests, baselines) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `notes_dir` | string | `.claude/notes` | **Deprecated** — grace path only, removed at this plugin's next major version. Placement now resolves through the tracked `.claude/topic-docs.yaml` concern file (see the topic-docs seam above). When this option is set, or existing `.claude/notes/<slug>/` content is found, skills keep operating wholly on the old location and emit a migration notice — never dual-writing. Leave unset in new repos. |
 
 ## License
 

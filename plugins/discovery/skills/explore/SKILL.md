@@ -153,11 +153,11 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 
 ## Final step: persist artifact for handoff
 
-Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `${user_config.notes_dir}/<topic-slug>/EXPLORE.md` — derive `<topic-slug>` from the exploration scope or current branch name (kebab-case, ≤40 chars). If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location. This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
+Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination and slug resolve through the topic-docs ladder ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): concern file `.claude/topic-docs.yaml` → a working-docs convention in the consumer's `CLAUDE.md`/rules → the deprecated `notes_dir` knob → an inferred conforming layout → ask once → the `.work` default; slug per the convention's spec (kebab-case `[a-z0-9-]`, ≤40 chars, Windows-reserved base names suffixed `-x`; same slug + existing directory = resume, a genuinely new task adds a scope qualifier or date suffix). Verify-or-create the memory root's self-ignoring `.gitignore` (`*`) before writing; never edit the consumer's root `.gitignore`. A legacy `notes_dir` value or existing `.claude/notes/<slug>` content pins the old location until migrated — reads AND writes — with a deprecation notice naming `/discovery:setup` as the guarded migration path (never dual-write).
 
-The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
+This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact. The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
 
-If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split overflow into sibling `explore-<topic>.md` files in the same directory and keep EXPLORE.md as the index.
+If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split overflow into sibling `EXPLORE-<scope>.md` files in the same directory and keep EXPLORE.md as the index.
 
 ## Gotchas
 

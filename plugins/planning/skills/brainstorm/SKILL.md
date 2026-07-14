@@ -24,7 +24,7 @@ Rough problem: $ARGUMENTS (if empty, infer from conversation; if nothing rough i
 
 ## Output
 
-Session output — no persisted artifact by default (divergence usually precedes the work having a home). When a topic directory already exists under `${user_config.notes_dir}/<topic-slug>/`, offer to persist the candidate list + reactions to `<topic-slug>/brainstorm.md`.
+Session output — no persisted artifact by default (ideation is conversation output, and divergence usually precedes the work having a home). When a topic slice already exists for the effort, offer to persist the candidate list + reactions to the topic's memory slice as `.work/<topic-slug>/brainstorm.md` — opt-in only, never a default write, never the contract slice (roots resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
 ## What this skill does NOT do
 

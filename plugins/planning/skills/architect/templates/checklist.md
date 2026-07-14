@@ -1,6 +1,6 @@
 # /architect Checklist
 
-Copy into `${user_config.notes_dir}/<topic-slug>/architect-checklist.md`. Tick as each step completes.
+Copy into `.work/<topic-slug>/architect-checklist.md` (the topic's memory slice). Tick as each step completes.
 
 ## Steps
 
