@@ -35,14 +35,12 @@ fresh session can resume planning from the artifact alone.
 /plugin install discovery@melodic-software
 ```
 
-## Configuration
+## Artifact location
 
-One option, prompted at enable time (or set any time with `/discovery:setup` — an idempotent interview
-that infers a landing location from your repo layout and persists it):
-
-| Option | Type | Default | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where discovery artifacts (`EXPLORE.md`, `RESEARCH.md`) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+Discovery shares the versioned lifecycle artifact protocol with planning and implementation. Resolve the
+base from explicit `--artifacts-dir` / `--topic` arguments, then the repository's `CLAUDE.md`, `AGENTS.md`,
+or `.claude/rules`, and otherwise `.work/<topic-slug>/`. Run `/discovery:setup` to record a team-shared
+repository convention. Setup never writes personal plugin configuration.
 
 ## License
 

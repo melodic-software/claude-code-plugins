@@ -1,12 +1,15 @@
 ---
 name: interview
 description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea — one question at a time, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs depth-first Q&A when gaps remain, or grills relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous, or on explicit request ('interview me', 'grill me', 'lock the brief', 'spec this task'); skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
-argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
+argument-hint: "[action] [topic] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the action and interview topic.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -32,7 +35,7 @@ The **pre-clarity** stage — upstream of exploration, research, and `/architect
 
 ## Emit checklist
 
-For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into `${user_config.notes_dir}/<topic-slug>/interview-checklist.md` (**one ledger per topic** — not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
+For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into `<topic-root>/interview-checklist.md` (**one ledger per topic** — not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
 ## Action Router
 
@@ -117,7 +120,7 @@ Five steps. Step 1 (Survey) runs every action. Step 1.5 (Auto-detect) runs on `a
 
 ### Step 1 — Survey before you ask
 
-Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, check `${user_config.notes_dir}/<topic-slug>/` for prior PLAN.md / exploration / research artifacts.
+Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, and check `<topic-root>/` for prior PLAN.md / exploration / research artifacts.
 
 Survey output: one paragraph "Here is what I see in the repo."
 
@@ -156,11 +159,11 @@ Stop when every load-bearing unknown is resolved OR captured as named assumption
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`); session artifacts live in `${user_config.notes_dir}/<topic-slug>/`, and a consuming project's declared working-notes convention (in its `CLAUDE.md` or rules) wins over that default. *What* gets persisted follows the Step 1 domain classification.
+Resolve `<topic-root>` by the artifact protocol. *What* gets persisted follows the Step 1 domain classification.
 
 **General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to that location, or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
 
-**Engineering sessions** write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. The rest of this step — everything below — is the Brief machinery and is engineering-only.
+**Engineering sessions** write the Brief section into `<topic-root>/PLAN.md`. The rest of this step — everything below — is the Brief machinery and is engineering-only.
 
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic directory) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 

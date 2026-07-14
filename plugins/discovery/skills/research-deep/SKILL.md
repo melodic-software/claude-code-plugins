@@ -1,12 +1,15 @@
 ---
 name: research-deep
 description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Use for broad, multi-source, comparison, or migration research; for a single small lookup use the research skill directly."
-argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
+argument-hint: "[topic] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the research topic.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -40,7 +43,7 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 
 ### Tier 1 — workflow engine (preferred)
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination (`${user_config.notes_dir}/<topic-slug>/RESEARCH.md`). The engine runs in the background; its completion notification carries the summary + artifact path. Surface those to the user. Do **NOT** re-run the research inline.
+If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination (`<topic-root>/RESEARCH.md`, resolved by the artifact protocol). The engine runs in the background; its completion notification carries the summary + artifact path. Surface those to the user. Do **NOT** re-run the research inline.
 
 If no workflow engine resolves, fall through to Tier 2.
 

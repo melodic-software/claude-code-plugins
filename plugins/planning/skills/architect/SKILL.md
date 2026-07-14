@@ -1,12 +1,15 @@
 ---
 name: architect
 description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written — persisting PLAN.md for fresh-session handoff. Use for 'plan this', 'architect this', 'how should we implement', 'implementation plan', proactively before executing without a formalized plan, or 'review this plan' to audit an existing plan's completeness."
-argument-hint: "[task description or 'review'] (e.g., /planning:architect add caching to query handlers, /planning:architect review)"
+argument-hint: "[task description or 'review'] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the task or action.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -28,7 +31,7 @@ This skill takes the outputs of the earlier stages — exploration (local unders
 
 ## Emit checklist
 
-For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into `${user_config.notes_dir}/<topic-slug>/architect-checklist.md`. Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
+For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into `<topic-root>/architect-checklist.md`. Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
 
 **Skip when:** mid-flight `review` replan only — append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
@@ -53,7 +56,7 @@ Before the prerequisite checklist runs, apply a pre-planning discipline checklis
 Before planning, verify the knowledge base is ready:
 
 - **Is the effort coherent enough to plan?** — If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/architect` is premature — a plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
-- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that `${user_config.notes_dir}/<topic-slug>/PRD.md` exists OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
+- **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that `<topic-root>/PRD.md` exists OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
 - **Has exploration been done?** — Check if the conversation contains exploration findings for the relevant area. If not, suggest running the exploration capability first (`/discovery:explore` if installed). Don't plan in the dark
 - **Has research been done?** — Check if external research has been completed for technical claims the plan will rely on. If not, suggest running the research capability first (`/discovery:research` if installed). Plans built on assumptions instead of evidence lead to rework
 - **Has `/design` been done? (blocking gate)** — Classify design significance before planning:
@@ -64,7 +67,7 @@ Before planning, verify the knowledge base is ready:
 | **B — light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** minimal `type-inventory.md` OR `design/design-resolution.md` documenting early-exit with type sketch |
 | **C — no design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 
-Check `${user_config.notes_dir}/<topic-slug>/design/` for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/architect` consumes design artifacts — do not re-derive design inline when design-significant.
+Check `<topic-root>/design/` for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/architect` consumes design artifacts — do not re-derive design inline when design-significant.
 
 - **Is the scope clear?** — If the task is ambiguous, ask clarifying questions before planning. A plan for "improve performance" is useless; a plan for "add a cache to the GetOrderById query handler" is actionable. When 2–4 discrete options exist (e.g. cache scope, eviction policy, key derivation), use `AskUserQuestion`; for open-ended ambiguity use prose, one question at a time
 - **Open Decisions surfaced BEFORE plan body** — scan the resume prompt + conversation context + Brief for unresolved decisions (scope cuts, technique choices, ordering, exclusions) that the downstream plan body would otherwise lock inline. Surface them as a numbered "Open Decisions" block with research-backed recommendations + trade-offs per decision; resolve via `AskUserQuestion` (≤4 decisions) or single-prompt prose (≥5). Resolving once up front is cheaper than iterating during Step 5 approval
@@ -107,7 +110,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 
-**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: measure the pre-change state, store it under `${user_config.notes_dir}/<topic-slug>/baselines/`, and record the baseline + target in PLAN.md. After the change, re-measure and compare against the stored baseline — never claim an improvement without one.
+**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: measure the pre-change state, store it under `<topic-root>/baselines/`, and record the baseline + target in PLAN.md. After the change, re-measure and compare against the stored baseline — never claim an improvement without one.
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
@@ -180,7 +183,7 @@ Before Step 5 approval, walk the PLAN body + Handoff section and classify every 
 
 ### Step 4.7: Outcome gate (before Step 5 — verify the PLAN, not a recap)
 
-Before presenting at Step 5, persist the composed plan as a **draft** to `${user_config.notes_dir}/<topic-slug>/PLAN.md` (the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
+Before presenting at Step 5, persist the composed plan as a **draft** to `<topic-root>/PLAN.md` (the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it (grep / Read / count) — not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting:
 
 - **Every phase has ≥1 `Sanity Check`** — `grep -c "Sanity Check" PLAN.md` ≥ the phase count; a phase with no verifiable check is unshippable.
 - **Every phase carries a valid status tag** — each `### Phase N:` ends in `[TODO]` (or another valid tag); no untagged phase.
@@ -247,7 +250,7 @@ This is complementary to `/devils-advocate` — review checks completeness and c
 
 ## Final step: persist the approved plan for handoff
 
-After the user approves the plan in Step 5, update the draft `${user_config.notes_dir}/<topic-slug>/PLAN.md` (persisted at Step 4.7) with any approval-round changes — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/prd`, `/interview`, `/design`). If the consuming project declares its own working-notes convention, that convention wins. PLAN.md is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus any exploration/research artifacts in the same directory).
+After the user approves the plan in Step 5, update the draft `<topic-root>/PLAN.md` (persisted at Step 4.7) with any approval-round changes. PLAN.md is the **living source of truth** for the stage — a fresh cleared session must be able to execute the plan reading only this file (plus any exploration/research artifacts in the same directory).
 
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
 

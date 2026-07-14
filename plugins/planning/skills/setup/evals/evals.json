@@ -3,41 +3,53 @@
   "evals": [
     {
       "id": 1,
-      "name": "infers-notes-dir-and-interviews-before-writing",
+      "name": "infers-repository-convention-before-writing",
       "prompt": "/planning:setup",
-      "expected_output": "Reads the current effective notes_dir across scopes (querying only that single key, not whole settings files) and reports the effective value and its scope. When none is set, it infers a landing location from the repo — a working-notes convention declared in CLAUDE.md/AGENTS.md/.claude/rules, else an existing notes/working-artifacts directory, else the documented .claude/notes default — and presents that single knob with a recommendation, writing nothing until the user accepts.",
+      "expected_output": "Reads the repository's project instructions and existing work-artifact convention first. If none exists, recommends the neutral .work base. It presents one repository-relative artifact-base proposal and the exact instruction-file edit, writing nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reads the effective notes_dir narrowly (only the pluginConfigs notes_dir key), never loading a settings file wholesale",
-        "Infers the value from the repo (declared working-notes convention, existing notes directory, else the .claude/notes default) rather than guessing",
-        "Presents the single notes_dir knob with a recommendation and invents no further options",
+        "Reads CLAUDE.md, AGENTS.md, .claude/CLAUDE.md, and .claude/rules before proposing a value",
+        "Preserves an existing declared repository convention instead of guessing",
+        "Recommends .work when the repository declares no convention",
         "Writes nothing until the user accepts the value"
       ]
     },
     {
       "id": 2,
-      "name": "surfaces-convention-shadowing-and-idempotent",
-      "prompt": "/planning:setup",
-      "expected_output": "When notes_dir already carries a value, re-running reports it and its scope and proposes changes against that baseline rather than overwriting blind. Even with a value set, it inspects the repo for a declared working-notes convention and, when one conflicts with the effective value, surfaces the shadowing explicitly — the declared convention wins at write time — and offers to reconcile. It also flags when a higher-precedence Managed or Local layer will shadow the project value it writes.",
+      "name": "idempotent-reconciliation",
+      "prompt": "/planning:setup -- this repo already declares that work artifacts live under docs/planning.",
+      "expected_output": "Reports docs/planning as the effective repository artifact base and proposes no rewrite unless the user asks to change it. It does not inspect or edit pluginConfigs or plugin files.",
       "files": [],
       "expectations": [
-        "Reports the existing effective notes_dir and its scope before proposing changes",
-        "Inspects for a declared working-notes convention even when a value is set, and surfaces the shadowing when it conflicts (convention wins at write time)",
-        "Warns when a higher-precedence Managed or Local layer will shadow the project-scope write",
-        "Does not overwrite the existing value blind"
+        "Reports the existing repository-declared base before proposing changes",
+        "Does not rewrite an equivalent convention",
+        "Does not read or write pluginConfigs",
+        "Does not write into the plugin directory or plugin data directory"
       ]
     },
     {
       "id": 3,
-      "name": "persists-portable-value-to-tracked-project-not-plugin",
-      "prompt": "/planning:setup\n\nLand planning artifacts in docs/planning for the whole team.",
-      "expected_output": "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json, creating the pluginConfigs/options path without disturbing unrelated keys. It never propagates a machine-absolute or personal value into the shared team scope — routing a personal-only override to .claude/settings.local.json instead — offers the local overlay plus gitignore convention, and never writes into the plugin directory or plugin data directory.",
+      "name": "validates-portable-project-path",
+      "prompt": "/planning:setup --artifacts-dir ../shared-notes",
+      "expected_output": "Rejects the traversal path with a visible explanation because the normalized destination can escape the repository. It makes no file changes and asks for a repository-relative path without .. segments.",
       "files": [],
       "expectations": [
-        "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json",
-        "Never propagates a machine-absolute or personal value into the shared team scope, routing a personal-only override to .claude/settings.local.json",
-        "Offers the .claude/settings.local.json personal overlay and gitignore convention",
-        "Does not write into the plugin directory or plugin data directory"
+        "Rejects an artifact base containing a .. segment",
+        "Makes no file changes for an invalid path",
+        "Requires the normalized destination to remain under the repository root"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "writes-tracked-project-instruction",
+      "prompt": "/planning:setup\n\nLand lifecycle artifacts in docs/planning for the whole team.",
+      "expected_output": "After confirmation, records docs/planning in the repository's existing work-artifact instruction surface or creates .claude/rules/work-artifacts.md. It preserves unrelated content, verifies the file is tracked, and never writes pluginConfigs or personal settings.",
+      "files": [],
+      "expectations": [
+        "Persists the convention in a team-shared project instruction file",
+        "Creates .claude/rules/work-artifacts.md only when no existing instruction surface clearly owns the convention",
+        "Preserves unrelated content and verifies the instruction file is not gitignored",
+        "Does not write pluginConfigs, personal settings, or plugin files"
       ]
     }
   ]

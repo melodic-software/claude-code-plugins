@@ -1,12 +1,15 @@
 ---
 name: design-handoff
 description: "Gate and package a finished design for /planning:architect: binary check that every thread in design-threads.md is RESOLVED, directional, or TAGGED-DEFERRED, then emit the architect-ready summary and resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'architect-ready summary', 'design gate', /planning:design discussion rounds stop surfacing gaps, or entering /planning:architect from a completed design session. FAILs on any thread that is unresolved AND untagged — names it and routes back to /planning:design. Skip when: still exploring the design space — use /planning:design; mid-session save-point to clear and resume later — use a session-handoff capability."
-argument-hint: "(no args — reads the design-threads artifact in your notes directory)"
+argument-hint: "[--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before resolving artifacts.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -14,11 +17,11 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 The seam between design and planning. `/planning:architect`'s prerequisite check blocks on design-gate evidence; this skill produces that evidence honestly — a binary check read off the artifact, then a handoff summary sourced from the artifacts rather than recalled from conversation memory.
 
-Design artifacts live in `${user_config.notes_dir}/<topic-slug>/design/` — derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:architect`). If the consuming project declares its own working-notes convention, that convention wins.
+Resolve `<topic-root>` by the artifact protocol. Design artifacts live in `<topic-root>/design/`.
 
 ## Binary gate — check the artifact, not your memory
 
-Read `${user_config.notes_dir}/<topic-slug>/design/design-threads.md` and confirm, thread by thread, that **every** design thread is one of:
+Read `<topic-root>/design/design-threads.md` and confirm, thread by thread, that **every** design thread is one of:
 
 - **RESOLVED** — the deciding rationale is recorded in the artifact (not merely "decided"), or
 - **directional** — direction agreed AND the remaining detail carries a research tag, or

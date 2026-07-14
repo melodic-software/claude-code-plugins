@@ -3,7 +3,7 @@ name: setup
 description: "Configure the codebase-audit plugin for this repository: interview the user, infer audit targets from the repo layout, and write the tracked .claude/codebase-audit.md config file. Use when: 'set up codebase-audit', 'configure the audit', 'codebase-audit setup', the audit skill reports missing or thin config, or audit dimensions need tuning. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

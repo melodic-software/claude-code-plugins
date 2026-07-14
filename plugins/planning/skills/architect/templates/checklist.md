@@ -1,6 +1,6 @@
 # /architect Checklist
 
-Copy into `${user_config.notes_dir}/<topic-slug>/architect-checklist.md`. Tick as each step completes.
+Copy into protocol-resolved `<topic-root>/architect-checklist.md`. Tick as each step completes.
 
 ## Steps
 

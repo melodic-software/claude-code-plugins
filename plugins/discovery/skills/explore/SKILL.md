@@ -1,12 +1,15 @@
 ---
 name: explore
 description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration. Use as step 1 before any code change, for 'what exists for X' investigation, or in blindspot mode to surface the user's unknown-unknowns in unfamiliar territory."
-argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config, /discovery:explore blindspot <area-or-domain>)"
+argument-hint: "[scope] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the exploration scope.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
@@ -153,7 +156,7 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 
 ## Final step: persist artifact for handoff
 
-Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `${user_config.notes_dir}/<topic-slug>/EXPLORE.md` — derive `<topic-slug>` from the exploration scope or current branch name (kebab-case, ≤40 chars). If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location. This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
+Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: resolve `<topic-root>` by the artifact protocol and write `<topic-root>/EXPLORE.md`. This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
 
 The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
 

@@ -3,7 +3,7 @@ name: setup
 description: "Configure the implementation plugin's ecosystem command surface for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /implementation:build and /implementation:lint resolve first. Use when: 'set up implementation', 'configure build/lint commands', 'implementation setup', /build or /lint reports it is falling back to bundled defaults, or a toolchain change needs recording. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "[ecosystem] (no arguments — interview every inferred ecosystem; or name one to (re)configure just that ecosystem)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

@@ -1,6 +1,6 @@
 # /interview Checklist
 
-Copy into `${user_config.notes_dir}/<topic-slug>/interview-checklist.md`. Tick as each step completes.
+Copy into protocol-resolved `<topic-root>/interview-checklist.md`. Tick as each step completes.
 
 ## Steps
 

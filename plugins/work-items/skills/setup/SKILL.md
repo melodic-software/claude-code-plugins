@@ -3,7 +3,7 @@ name: setup
 description: "Configure the work-items plugin's recurring-schedule seam for this repository: interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, and write the tracked .github/recurring-schedule.json. Use when: 'set up work-items', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose
@@ -80,11 +80,10 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    the `recurring` label is absent, the first `[Maintenance]` item created (by the recurring automation
    or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
    pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's label listing
-   (for the GitHub adapter, `gh label list`). **Labels are provisioned by the label-as-code SSOT
-   (`melodic-software/github-iac`), the sole writer — never `gh label create` them ad hoc** (an
-   out-of-band label is pruned on the next `pulumi up`). When `recurring` is missing, tell the user
-   plainly that the schedule cannot be reconciled until the label is added via a github-iac PR (or, for
-   a `ManagedLabels: false` opt-out repo, through the repo's own provisioning); do not silently treat it
+   (for the GitHub adapter, `gh label list`). **When the repository declares a label-as-code source
+   of truth, that system is the sole writer — never `gh label create` labels ad hoc.** When
+   `recurring` is missing, tell the user plainly that the schedule cannot be reconciled until the
+   label is added through the repository's declared provisioning process; do not silently treat it
    as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for reconciliation) —
    note their absence the same way if they are missing. This step files no items;
    for a row now in the schedule, its `[Maintenance]` item is created — item only, no extra schedule

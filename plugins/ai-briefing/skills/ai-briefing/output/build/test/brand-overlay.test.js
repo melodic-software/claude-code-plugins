@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,119 +13,102 @@ const DEFAULT_BRAND = {
   logoWhite: "",
   footerTemplate: "{org} · AI Meeting #{meeting_n} · {date}",
 };
-
 const DEFAULT_THEME = { bg: "0F1424", accent: "6E8BFF", pptFontHead: "Arial" };
 
-/** Run `body(configDir)` against a throwaway profile dir containing `brand.js`
- *  (when `overlaySource` is non-null), then clean it up. */
-async function withProfile(overlaySource, body) {
-  const dir = await mkdtemp(path.join(tmpdir(), "ai-briefing-brand-"));
+async function withProfile(overlay, body) {
+  const root = await mkdtemp(path.join(tmpdir(), "ai-briefing-brand-"));
+  const configDir = path.join(root, "profile");
+  await mkdir(configDir);
   try {
-    if (overlaySource !== null) {
-      await writeFile(path.join(dir, "brand.js"), overlaySource, "utf-8");
+    if (overlay !== null) {
+      const source = typeof overlay === "string" ? overlay : JSON.stringify(overlay);
+      await writeFile(path.join(configDir, "brand.json"), source, "utf-8");
     }
-    return await body(dir);
+    return await body(configDir, root);
   } finally {
-    await rm(dir, { force: true, recursive: true });
+    await rm(root, { force: true, recursive: true });
   }
 }
 
-test("absent profile brand.js returns the neutral default unchanged", async () => {
+function resolve(configDir) {
+  return resolveBrand({ defaultBrand: DEFAULT_BRAND, defaultTheme: DEFAULT_THEME, configDir });
+}
+
+test("absent profile brand.json returns copies of the neutral defaults", async () => {
   await withProfile(null, async (configDir) => {
-    const { brand, theme } = await resolveBrand({
-      defaultBrand: DEFAULT_BRAND,
-      defaultTheme: DEFAULT_THEME,
-      configDir,
-    });
-    assert.equal(brand.org, "AI Briefing");
-    assert.equal(brand.logoColor, "");
+    const { brand, theme } = await resolve(configDir);
+    assert.deepEqual(brand, DEFAULT_BRAND);
     assert.deepEqual(theme, DEFAULT_THEME);
-    // A copy, not the shared default object.
     assert.notEqual(brand, DEFAULT_BRAND);
     assert.notEqual(theme, DEFAULT_THEME);
   });
 });
 
-test("profile overlay wins per key over the default for brand and theme", async () => {
-  const overlay = `
-    export const brand = { org: "SETWorks Engineering", tagline: "Empowering agencies." };
-    export const theme = { accent: "8080FF", pptFontHead: "Ubuntu" };
-  `;
-  await withProfile(overlay, async (configDir) => {
-    const { brand, theme } = await resolveBrand({
-      defaultBrand: DEFAULT_BRAND,
-      defaultTheme: DEFAULT_THEME,
-      configDir,
+test("profile overlay wins per key and preserves unmentioned defaults", async () => {
+  await withProfile(
+    {
+      brand: { org: "Example Engineering", tagline: "Useful briefings." },
+      theme: { accent: "8080FF", pptFontHead: "Ubuntu" },
+    },
+    async (configDir) => {
+      const { brand, theme } = await resolve(configDir);
+      assert.equal(brand.org, "Example Engineering");
+      assert.equal(brand.footerTemplate, DEFAULT_BRAND.footerTemplate);
+      assert.equal(theme.accent, "8080FF");
+      assert.equal(theme.bg, DEFAULT_THEME.bg);
+    },
+  );
+});
+
+test("relative logo paths resolve only to regular files inside the profile", async () => {
+  await withProfile(
+    { brand: { logoColor: "assets/logo.png" } },
+    async (configDir) => {
+      await mkdir(path.join(configDir, "assets"));
+      await writeFile(path.join(configDir, "assets", "logo.png"), "image");
+      const { brand } = await resolve(configDir);
+      assert.equal(brand.logoColor, path.join(configDir, "assets", "logo.png"));
+    },
+  );
+});
+
+test("absolute, traversal, missing, and directory logo paths are rejected", async () => {
+  for (const value of [path.resolve("absolute-logo.png"), "../outside.png", "missing.png", "assets"]) {
+    await withProfile({ brand: { logoWhite: value } }, async (configDir, root) => {
+      await mkdir(path.join(configDir, "assets"));
+      await writeFile(path.join(root, "outside.png"), "outside");
+      await assert.rejects(() => resolve(configDir));
     });
-    assert.equal(brand.org, "SETWorks Engineering");
-    assert.equal(brand.tagline, "Empowering agencies.");
-    // Unmentioned key falls through to the default.
-    assert.equal(brand.footerTemplate, DEFAULT_BRAND.footerTemplate);
-    assert.equal(theme.accent, "8080FF");
-    assert.equal(theme.pptFontHead, "Ubuntu");
-    assert.equal(theme.bg, "0F1424");
+  }
+});
+
+test("a symlink cannot escape the profile directory", async (t) => {
+  await withProfile({ brand: { logoWhite: "linked-logo.png" } }, async (configDir, root) => {
+    const outside = path.join(root, "outside.png");
+    await writeFile(outside, "outside");
+    try {
+      await symlink(outside, path.join(configDir, "linked-logo.png"), "file");
+    } catch (error) {
+      if (error.code === "EPERM") {
+        t.skip("file symlinks require Windows Developer Mode or elevation");
+        return;
+      }
+      throw error;
+    }
+    await assert.rejects(() => resolve(configDir), /inside the profile directory/);
   });
 });
 
-test("relative profile logo paths resolve to absolute against the profile dir", async () => {
-  const overlay = `
-    export const brand = {
-      org: "SETWorks Engineering",
-      logoColor: "assets/setworks-logo-color.png",
-      logoWhite: "assets/setworks-logo-white.png",
-    };
-  `;
-  await withProfile(overlay, async (configDir) => {
-    const { brand } = await resolveBrand({
-      defaultBrand: DEFAULT_BRAND,
-      defaultTheme: DEFAULT_THEME,
-      configDir,
+test("malformed JSON, unknown keys, invalid colors, and unsafe font strings are rejected", async () => {
+  for (const overlay of [
+    "{not-json",
+    { executable: "no" },
+    { brand: { unknown: "no" } },
+    { theme: { accent: "not-a-hex-color" } },
+    { theme: { htmlFontHead: "Arial; background: url(https://example.invalid)" } },
+  ]) {
+    await withProfile(overlay, async (configDir) => {
+      await assert.rejects(() => resolve(configDir));
     });
-    assert.ok(path.isAbsolute(brand.logoColor));
-    assert.ok(path.isAbsolute(brand.logoWhite));
-    assert.equal(brand.logoColor, path.resolve(configDir, "assets/setworks-logo-color.png"));
-    // Downstream build scripts resolve against the build dir; an absolute path
-    // survives path.resolve unchanged — the whole point of anchoring here.
-    assert.equal(path.resolve("/some/build/dir", brand.logoColor), brand.logoColor);
-  });
-});
-
-test("an already-absolute profile logo path is left untouched", async () => {
-  const abs = path.join(path.sep, "opt", "brand", "logo.png");
-  const overlay = `export const brand = { logoWhite: ${JSON.stringify(abs)} };`;
-  await withProfile(overlay, async (configDir) => {
-    const { brand } = await resolveBrand({
-      defaultBrand: DEFAULT_BRAND,
-      defaultTheme: DEFAULT_THEME,
-      configDir,
-    });
-    assert.equal(brand.logoWhite, abs);
-  });
-});
-
-test("overlay loads under an explicit CommonJS consumer package scope", async () => {
-  // A profile brand.js lives under the consumer project, whose nearest
-  // package.json governs `.js` module type. An explicit `"type":"commonjs"`
-  // makes a file-URL import of ESM `export const` throw SyntaxError; the data:
-  // URL load is scope-independent. Pin the scope to prove the fix.
-  const overlay = `export const brand = { org: "Scoped Co" };\nexport const theme = { accent: "AABBCC" };`;
-  await withProfile(overlay, async (configDir) => {
-    await writeFile(path.join(configDir, "package.json"), '{"type":"commonjs"}', "utf-8");
-    const { brand, theme } = await resolveBrand({
-      defaultBrand: DEFAULT_BRAND,
-      defaultTheme: DEFAULT_THEME,
-      configDir,
-    });
-    assert.equal(brand.org, "Scoped Co");
-    assert.equal(theme.accent, "AABBCC");
-  });
-});
-
-test("a present-but-malformed profile brand.js surfaces the error (no silent fallback)", async () => {
-  const overlay = "export const brand = { this is not valid javascript";
-  await withProfile(overlay, async (configDir) => {
-    await assert.rejects(() =>
-      resolveBrand({ defaultBrand: DEFAULT_BRAND, defaultTheme: DEFAULT_THEME, configDir }),
-    );
-  });
+  }
 });

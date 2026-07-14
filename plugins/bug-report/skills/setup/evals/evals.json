@@ -3,41 +3,26 @@
   "evals": [
     {
       "id": 1,
-      "name": "interviews-the-binary-before-writing",
+      "name": "validates-rendered-option-without-settings-edits",
       "prompt": "/bug-report:setup",
-      "expected_output": "Reads the current effective output_dir across settings scopes (querying only that single key, not whole settings files), reports the effective value or that it is unset (reports land in the plugin data directory), then interviews the single yes/no decision — commit --file reports into the repo, or keep them in the plugin's private data directory — recommending the uncommitted default. It writes nothing until the user chooses, and only when repo-committed is chosen does it infer a repo-root-anchored path.",
+      "expected_output": "Reports the rendered output_dir or the private plugin-data fallback, asks whether reports should remain private or use a portable repository location, and never reads or edits settings files or pluginConfigs.",
       "files": [],
       "expectations": [
-        "Reads the effective output_dir narrowly (only the pluginConfigs output_dir key), never loading a settings file wholesale",
-        "Presents the commit-vs-private-default choice as a single decision with the uncommitted default recommended",
-        "Writes no configuration until the user has chosen",
-        "Infers a repo-root-anchored path only when the user opts into repo-committed reports, with no baked repo assumptions"
+        "Reads only the rendered user_config value supplied to the skill",
+        "Explains the private plugin-data fallback when output_dir is unset",
+        "Does not inspect or edit settings files or pluginConfigs"
       ]
     },
     {
       "id": 2,
-      "name": "idempotent-reset-clears-every-writable-scope",
-      "prompt": "/bug-report:setup",
-      "expected_output": "When output_dir already carries a value, re-running reads the current value and its scope and proposes changes against that baseline rather than overwriting blind. Choosing the private (uncommitted) default clears output_dir from every writable scope that carries it — not just the winning one — pruning emptied options/pluginConfigs containers, touching the user global scope only with explicit consent, and never editing read-only Managed or command-line scopes.",
+      "name": "routes-changes-through-claude-configuration",
+      "prompt": "/bug-report:setup\n\nCommit --file reports into this repository.",
+      "expected_output": "Inspects the repository's declared artifact conventions, recommends a portable location, directs the user to Claude Code's plugin configuration prompt, and requires a rerun before claiming the value changed.",
       "files": [],
       "expectations": [
-        "Detects and reports the existing effective value and its scope before proposing changes",
-        "Clears output_dir from every writable scope that carries it when resetting to the default, not only the winning scope",
-        "Edits the user global scope only with explicit consent and never edits read-only Managed or command-line scopes",
-        "Does not overwrite or drop the existing value without user confirmation"
-      ]
-    },
-    {
-      "id": 3,
-      "name": "writes-portable-value-to-tracked-project-scope",
-      "prompt": "/bug-report:setup\n\nCommit --file bug reports into this repo.",
-      "expected_output": "Writes output_dir to the consumer's tracked project .claude/settings.json as a portable repo-root-anchored value (e.g. ${CLAUDE_PROJECT_DIR}/.bug-reports), never a machine-absolute path in the shared team scope, creating the pluginConfigs/options path without disturbing unrelated keys. It offers the .claude/settings.local.json personal overlay plus gitignore convention and never writes configuration into the plugin directory or plugin data directory.",
-      "files": [],
-      "expectations": [
-        "Writes output_dir to the consumer's tracked project .claude/settings.json",
-        "Stores a portable repo-root-anchored value, never a machine-absolute path in the shared team scope",
-        "Offers the .claude/settings.local.json personal overlay and gitignore convention",
-        "Does not write configuration into the plugin directory or plugin data directory"
+        "Uses repository evidence before recommending a destination",
+        "Rejects machine-absolute team paths",
+        "Routes persistence through Claude Code and verifies on rerun"
       ]
     }
   ]

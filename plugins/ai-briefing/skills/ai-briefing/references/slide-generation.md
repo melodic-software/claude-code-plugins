@@ -2,13 +2,13 @@
 
 This file documents how to generate presentation slides from ai-briefing output.
 
-**Canonical pipeline = in-tree `output/build/*.js`** (Node ESM, pptxgenjs + playwright direct). Reproduces the deck deterministically from the active brand (default neutral tokens in `output/build/brand.js`, or a profile overlay). See `references/build-pipeline.md` for build commands, `slides-data.js` schema, slide types, and prerequisites.
+**Canonical pipeline = in-tree `output/build/*.js`** (Node ESM, pptxgenjs + playwright direct). Reproduces the deck deterministically from the active brand (default neutral tokens in `output/build/brand.js`, or a declarative profile `brand.json` overlay). See `references/build-pipeline.md` for build commands, `slides-data.js` schema, slide types, and prerequisites.
 
 The `/document-skills:pptx` skill stack is documented as a **fallback path** at the bottom of this file — only used when the in-tree pipeline cannot run.
 
 ## Default brand spec
 
-These tokens are defined in `output/build/brand.js` (the neutral engine default) and embedded into the generated `slides-data.js` `theme` + `meta` exports by the emitter. Do NOT redefine per run; a consumer profile overlays `brand.js` to rebrand.
+These tokens are defined in `output/build/brand.js` (the neutral engine default) and embedded into the generated `slides-data.js` `theme` + `meta` exports by the emitter. Do NOT redefine per run; a consumer profile supplies a schema-validated `brand.json` to rebrand.
 
 ### Color palette (default)
 
@@ -28,11 +28,11 @@ These tokens are defined in `output/build/brand.js` (the neutral engine default)
 
 ### Fonts (default)
 
-- Heads / body: **Arial** in PPTX; system-font stacks in HTML (`'Segoe UI', system-ui, sans-serif` / `'Open Sans', 'Segoe UI', system-ui, sans-serif`). The defaults use only system fonts, so the HTML deck makes **no** remote webfont fetch out of the box. A profile that overlays a CDN webfont takes on that remote fetch (and any local no-remote-fetch policy) itself.
+- Heads / body: **Arial** in PPTX; system-font stacks in HTML (`'Segoe UI', system-ui, sans-serif` / `'Open Sans', 'Segoe UI', system-ui, sans-serif`). Remote webfonts are not supported; rendering is offline and deterministic.
 
 ### Logos
 
-The neutral default ships **no** org logo (`brand.js` `logoColor` / `logoWhite` are empty), and the build scripts skip logo embedding when empty. A profile supplies its own logo asset paths (base64-inlined in the HTML deck; embedded via pptxgenjs `addImage` in PPTX). Provider logos (Anthropic, OpenAI, …) ship bundled in `output/build/assets/` and are used nominatively per news item.
+The neutral default ships **no** org logo (`brand.js` `logoColor` / `logoWhite` are empty), and the build scripts skip logo embedding when empty. A profile's `brand.json` may name local logo files inside that profile directory (base64-inlined in the HTML deck; embedded via pptxgenjs `addImage` in PPTX). Provider logos (Anthropic, OpenAI, …) ship bundled in `output/build/assets/` and are used nominatively per news item.
 
 ### Title slide elements
 
@@ -52,17 +52,14 @@ The neutral default ships **no** org logo (`brand.js` `logoColor` / `logoWhite` 
 
 ## Provider logo registry
 
-Logos cached at `output/build/assets/logo-<slug>.svg`, downloaded once from simpleicons CDN. HTML build inlines SVG with `fill: currentColor` so they render white-on-dark. PPTX build SHOULD use PNG variants (pptxgenjs cannot inline SVG with currentColor) — convert SVG → PNG via Inkscape or skip provider logo on PPTX side.
+Logos are bundled at `output/build/assets/logo-<slug>.svg`. HTML inlines SVG with
+`fill: currentColor` so they render white-on-dark. Missing optional assets degrade to a
+text-only header; runtime downloads are forbidden. PPTX SHOULD use bundled PNG variants
+when needed (pptxgenjs cannot inline SVG with `currentColor`) or skip the provider logo.
 
-**CDN URL pattern:**
+**Bundled slug list:**
 
-```
-https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/<slug>.svg
-```
-
-**Required slug list** (download missing on first run):
-
-| Provider key | simpleicons slug | Notes |
+| Provider key | Bundled asset stem | Notes |
 |---|---|---|
 | anthropic | `anthropic` | |
 | openai | `openai` | |
@@ -80,13 +77,12 @@ https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/<slug>.svg
 | huggingface | `huggingface` | |
 | firecrawl | `firecrawl` | add when first encountered |
 
-**Add slugs as new providers appear** — append to `providerLogos` map in `slides-data.js`, fetch via curl/wget into `assets/`. Slides whose `provider:` key has no logo entry render text-only header (no error).
-
-**Fetch script** (run when slug missing — never commit; assets/ is in repo):
-
-```bash
-SLUG=anthropic; curl -fsSL "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${SLUG}.svg" -o "output/build/assets/logo-${SLUG}.svg"
-```
+**Add providers through the maintained source map, not generated output.** Update
+`PROVIDER_LOGOS` in `emit-slides-data.js`. Prefer the text-only fallback. If a logo is
+necessary, a maintainer must select a versioned upstream asset, verify its license and
+integrity, commit the reviewed SVG under `assets/`, and run the render validation suite.
+`provider-logos.js` never downloads a missing asset, and generated `slides-data.js` must not
+be hand-edited.
 
 ## Canonical slide order
 
@@ -188,7 +184,7 @@ See `references/build-pipeline.md` for full schema, commands, and dependency set
 cd output/build
 
 # One-time setup
-npm install                          # pptxgenjs + playwright
+npm ci                               # installs the committed dependency tree
 npx playwright install chromium --only-shell
 
 # Per-meeting build
@@ -244,8 +240,8 @@ These tools are NOT installed and superseded by the in-tree pipeline:
 | Symptom | Fix |
 |---|---|
 | `validate.js` reports missing URLs | Source slides-data.js `urls[]` array not rendering — check escape + bullet template in `build-html.js` |
-| Provider logo missing | Slug not in `providerLogos` map OR file not in `assets/` — fetch via simpleicons CDN |
+| Provider logo missing | Add a reviewed, pinned asset to `assets/` or use the text-only fallback |
 | Slide overflow flagged by validate.js | HIGH slide has too many bullets — split into multiple slides per "Split rules" |
-| PPTX font fallback wrong | Ubuntu / Cabin not installed locally — pptxgenjs falls back to default; HTML deck still renders correctly via Google Fonts CDN |
+| PPTX font fallback wrong | Use the supported system-font defaults or bundle an approved local font asset |
 | LibreOffice `soffice` not found (fallback PDF path) | `winget install TheDocumentFoundation.LibreOffice` (Windows) |
 | `/document-skills:pptx` not in slash menu (fallback) | `/reload-plugins`, then `/doctor` if still missing |

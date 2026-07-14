@@ -1,0 +1,43 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "infers-repository-convention-before-writing",
+      "prompt": "/discovery:setup",
+      "expected_output": "Reads the repository's project instructions and existing work-artifact convention first. If none exists, recommends the neutral .work base. It presents one repository-relative artifact-base proposal and the exact instruction-file edit, writing nothing until the user accepts.",
+      "files": [],
+      "expectations": [
+        "Reads project instruction files before proposing a value",
+        "Preserves an existing declared repository convention instead of guessing",
+        "Recommends .work when the repository declares no convention",
+        "Writes nothing until the user accepts the value"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "rejects-nonportable-paths",
+      "prompt": "/discovery:setup --artifacts-dir C:\\Users\\me\\notes",
+      "expected_output": "Rejects the absolute machine-local path with a visible explanation, makes no file changes, and requests a repository-relative base whose normalized destination remains under the repository root.",
+      "files": [],
+      "expectations": [
+        "Rejects a machine-absolute artifact base",
+        "Makes no file changes for an invalid path",
+        "Does not write pluginConfigs, personal settings, or plugin files"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "writes-shared-project-instruction-idempotently",
+      "prompt": "/discovery:setup\n\nUse .work for the whole team.",
+      "expected_output": "After confirmation, records .work in the repository's existing work-artifact instruction surface or creates .claude/rules/work-artifacts.md. It preserves unrelated content, verifies the file is tracked, and an immediate re-run proposes no equivalent rewrite.",
+      "files": [],
+      "expectations": [
+        "Persists the convention in a team-shared project instruction file",
+        "Creates .claude/rules/work-artifacts.md only when no existing instruction surface owns the convention",
+        "Preserves unrelated content and verifies the instruction file is not gitignored",
+        "Re-running does not rewrite an equivalent convention"
+      ]
+    }
+  ]
+}

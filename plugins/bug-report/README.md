@@ -41,14 +41,15 @@ when you describe a defect). The five fields are:
 
 ## Configuration
 
-One optional `userConfig` value, prompted at enable time (or set any time with `/bug-report:setup`):
+One optional personal `userConfig` value, prompted by Claude Code at enable time:
 
 | Option | Type | Effect |
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
 
-Run `/bug-report:setup` to make this choice interactively — it reads the current value, recommends the
-uncommitted default, and (re-runnably) persists or clears `output_dir` for the team.
+Run `/bug-report:setup` to validate this choice interactively. It reads the rendered option,
+recommends the uncommitted default, and routes changes through Claude Code's plugin configuration
+prompt. Current releases ignore plugin `userConfig` values placed in project or local settings.
 
 Project-specific conventions — naming, areas, tracker choice, priority labels — are
 read from the **consuming project's own `CLAUDE.md` / rules**; the plugin imposes

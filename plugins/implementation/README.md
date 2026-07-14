@@ -37,8 +37,7 @@ verified code.
   invoked when installed and substituted with inline guidance when absent; no
   step blocks on a missing plugin.
 - **Self-contained.** All command tables and context references ship inside the
-  plugin; state and artifacts go to your project's own notes convention (or the
-  `notes_dir` option below).
+  plugin; state and artifacts go to your project's own work-artifact convention.
 
 ## Install
 
@@ -47,13 +46,13 @@ verified code.
 /plugin install implementation@melodic-software
 ```
 
-## Configuration
+## Artifact location
 
-One option, prompted at enable time:
-
-| Option | Type | Default | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where implementation artifacts (plan progress notes, handoff entries, verification manifests, baselines) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+Implementation shares the versioned lifecycle artifact protocol with discovery and planning. Resolve the
+base from explicit `--artifacts-dir` / `--topic` arguments, then the repository's `CLAUDE.md`, `AGENTS.md`,
+or `.claude/rules`, and otherwise `.work/<topic-slug>/`. Its `/implementation:setup` skill remains scoped
+to tracked ecosystem command configuration; either lifecycle setup skill can record the shared artifact
+convention.
 
 ## License
 

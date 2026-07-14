@@ -16,11 +16,22 @@ const context = await browser.newContext({
   viewport: { width: 1280, height: 720 },
 });
 const page = await context.newPage();
-await page.goto(url, { waitUntil: "networkidle" });
-
-// Wait for fonts to settle
-await page.evaluate(() => document.fonts.ready);
-await page.waitForTimeout(400);
+const externalRequests = [];
+await page.route(/^https?:\/\//, (route) => {
+  externalRequests.push(route.request().url());
+  return route.abort("blockedbyclient");
+});
+await page.goto(url, { waitUntil: "load" });
+await page.waitForSelector("main#deck");
+await page.evaluate(async () => {
+  await document.fonts.ready;
+  await new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  );
+});
+if (externalRequests.length > 0) {
+  throw new Error(`Local PDF render attempted external requests: ${externalRequests.join(", ")}`);
+}
 
 // Letter landscape, full color, one slide per page
 await page.pdf({

@@ -1,7 +1,7 @@
 ---
 name: explore-deep
 description: "Run the full explore workflow in an isolated forked subagent so verbose file reads and search output stay out of the main conversation; only a short summary returns, with findings persisted to an EXPLORE.md artifact. Use for thorough or large-scope investigation (10+ file reads or broad search sweeps); requires CLAUDE_CODE_FORK_SUBAGENT=1 — when unset, fall back to inline /explore or a built-in Explore subagent."
-argument-hint: "[scope] (e.g., /discovery:explore-deep payments module dependencies, /discovery:explore-deep tests, /discovery:explore-deep git)"
+argument-hint: "[scope] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 context: fork
@@ -9,6 +9,9 @@ agent: general-purpose
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the exploration scope.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
@@ -42,7 +45,7 @@ Follow the sibling `/explore` skill exactly:
 
 **Before writing, run the Outcome gate** the `/explore` workflow defines — the binary artifact self-check, not a "did I explore enough?" recap; any FAIL → fix first.
 
-Write findings to `${user_config.notes_dir}/<topic-slug>/EXPLORE.md` — derive `<topic-slug>` from the exploration scope or current branch name (kebab-case, ≤40 chars). If the consuming project declares its own working-notes convention, that wins over the default location.
+Resolve `<topic-root>` by the artifact protocol and write findings to `<topic-root>/EXPLORE.md`.
 
 **If EXPLORE.md already exists** there for an unrelated task, write a sidecar `explore-<scope-slug>.md` in the same directory instead (kebab-case scope, ≤40 chars) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
 

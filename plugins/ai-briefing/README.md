@@ -1,57 +1,73 @@
 # ai-briefing
 
-A Claude Code plugin that aggregates AI-industry news into a ranked briefing. It runs
-multi-wave collection (Chrome/X, optional Grok preload, Perplexity, RSS, GitHub releases),
-deduplicates and categorizes across provider buckets, and presents the result as markdown,
-a self-contained HTML deck, or a PPTX. It is a **generic engine**: the curated inputs and
-branding for a given audience live in a **profile** in your project, not in the plugin.
+A repository- and organization-agnostic Claude Code plugin for source-backed AI-industry
+briefings. It collects from official vendor publications, configured RSS/Atom feeds, GitHub
+releases, reputable secondary reporting, and user-supplied URLs; then deduplicates, ranks,
+and presents the result as markdown or an optional HTML/PPTX deck.
 
 ## Skills
 
 | Skill | Invoke | What it does |
 |---|---|---|
-| `ai-briefing` | `/ai-briefing:ai-briefing` | Runs a briefing: collect → dedup → categorize → rank → emit. Also `retro --meeting <N>`, `search "<query>"`, and `drift` actions. |
-| `setup` | `/ai-briefing:setup` | Scaffolds or reconfigures a profile (curated follow-list, optional branding, optional stack lens) and installs runtime dependencies. Idempotent. |
+| `ai-briefing` | `/ai-briefing:ai-briefing` | Collects, cites, deduplicates, ranks, and emits a briefing; also supports `retro` and archive `search`. |
+| `setup` | `/ai-briefing:setup` | Scaffolds or updates a source/profile configuration and optionally installs presentation dependencies. |
 
 ## Getting started
 
-1. Enable the plugin, then run `/ai-briefing:setup`. It scaffolds a profile under
-   `.claude/ai-briefing/` (seeding the follow-list from a bundled neutral list of public
-   vendor accounts) and installs the runtime dependencies.
-2. Tailor `following-list.json` in that profile, or run
-   `/ai-briefing:ai-briefing --refresh-following` to scrape your own following graph.
-3. Run `/ai-briefing:ai-briefing` for a briefing. Add `--format html` or `--format slides`
-   for a deck (the build dependencies are heavier — `setup` installs them on request).
+1. Enable the plugin and run `/ai-briefing:setup`.
+2. Add authorized official feeds, GitHub release pages, reputable publications, and any
+   user-supplied URLs to `.claude/ai-briefing/sources.md`.
+3. Run `/ai-briefing:ai-briefing` for markdown output.
+4. Before the first `--format html` or `--format slides` run, install the optional locked
+   build toolchain with `/ai-briefing:setup --with-build-deps`.
 
-## Profiles (audience / deployment variants)
+## Optional build prerequisites
 
-Files at `.claude/ai-briefing/` are the **default profile**; each
-`.claude/ai-briefing/<name>/` subfolder is a **named profile** that overlays the default
-per key. A profile carries the curated `following-list.json`, an optional `brand.js`
-overlay (org name, tagline, logos, theme), and an optional stack lens that turns on the
-per-item `impact` tag. Select the active profile when several exist via the `active_profile`
-plugin option or a `--profile <name>` argument, and export `AI_BRIEFING_PROFILE=<name>` for
-the runner/build scripts. With no profile, the engine runs against the bundled neutral seed
-and default brand.
+The presentation pipeline follows Playwright's current supported environment matrix:
 
-## Configuration
+- the latest Node.js 22.x, 24.x, or 26.x release, with npm;
+- Windows 11+ or Windows Server 2019+;
+- macOS 14 Sonoma or later; or
+- Debian 12/13 or Ubuntu 22.04/24.04/26.04 on x86-64 or arm64.
 
-| Option | Type | Purpose |
-|---|---|---|
-| `active_profile` | string | Which profile to use when more than one exists. Unset resolves automatically. |
+Setup preflights Node, npm, and the OS family. On Linux, Playwright's documented
+`install --with-deps` flow may invoke the system package manager and require elevation.
+Unsupported or missing prerequisites are reported before the existing runtime is changed.
+See [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements).
 
-Rankings ship as **documented, overridable defaults**: a pragmatic-use ranking lens (bias
-HIGH toward things an engineer can use next week) and an apolitical filter (drop partisan-only
-content, keep industry-wide controversy). A profile can refine or replace them.
+## Source access policy
 
-## State and dependencies
+Automated X/Twitter collection is disabled. The plugin does not scrape profiles, timelines,
+search results, or following graphs and does not configure a paid X API. If a user supplies
+an X URL, the skill may preserve the URL and user-provided context but must not
+programmatically retrieve the page; it should seek a non-X primary source for corroboration.
+This follows the current [X Terms of Service](https://x.com/en/tos), which prohibit crawling
+or scraping without prior written consent.
 
-Machine-local run state — the seen-items dedup registry, per-run artifacts, and generated
-decks — persists under `${CLAUDE_PLUGIN_DATA}`, keyed per profile, and survives plugin
-updates. The plugin cache is read-only, so runtime dependencies also persist under
-`${CLAUDE_PLUGIN_DATA}` (installed by `/ai-briefing:setup`); the runner and build scripts are
-invoked with `NODE_PATH` pointed there. No curated configuration is ever written to the data
-directory — that flows through the profile in your project.
+Playwright remains an optional local rendering dependency. It opens generated local HTML for
+deterministic PDF generation and layout validation; it is not a collection provider.
 
-Grok Build is optional — the briefing never requires it; without it, Chrome Wave 1 is the
-full path (install: <https://x.ai/cli>).
+## Profiles and configuration
+
+Files at `.claude/ai-briefing/` form the default profile. Each
+`.claude/ai-briefing/<name>/` directory is a named overlay containing:
+
+- `sources.md` for approved source URLs and feeds;
+- optional `audience.md` for impact ranking;
+- optional declarative `brand.json` and local assets for presentation branding.
+
+Select a profile through the `active_profile` plugin option or a per-run
+`--profile <name>` argument. The per-run argument wins. Claude Code renders the configured
+option into the skill; the skill then explicitly sets `AI_BRIEFING_PROFILE` on each launched
+build process. Users do not need to export an environment variable globally.
+Profile names must be portable 1-63 character lowercase-kebab slugs (for example,
+`engineering-leads`) and cannot use reserved Windows device names, following Microsoft's
+[cross-platform file-naming rules](https://learn.microsoft.com/windows/win32/fileio/naming-a-file#naming-conventions).
+`brand.json` is strict declarative data. Logo paths must resolve to regular files inside the
+selected profile directory; the resolver uses Node's
+[`fs.realpathSync`](https://nodejs.org/api/fs.html#fsrealpathsyncpath-options) so symlinks
+cannot escape that boundary.
+
+Machine-local state and generated artifacts live under `${CLAUDE_PLUGIN_DATA}`, keyed by
+profile. Tracked source, audience, and brand configuration always stays in the consumer
+repository.

@@ -17,7 +17,7 @@ where artifacts land in the consuming repo.
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
 | `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
-| `/planning:setup` | Configuration | Interviews the consumer and persists the `notes_dir` config that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
+| `/planning:setup` | Configuration | Interviews the consumer and records the repository-owned artifact convention used across lifecycle skills (idempotent — re-run to reconfigure). |
 
 The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
@@ -35,7 +35,7 @@ approval — but every skill also works standalone.
   session handoff (`session-flow`) — are invoked when installed and substituted
   with inline guidance when absent; no step blocks on a missing plugin.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
-  planning artifacts are written to your configured notes directory, never to
+  planning artifacts are written to the repository's artifact directory, never to
   plugin-internal paths.
 
 ## Install
@@ -45,13 +45,12 @@ approval — but every skill also works standalone.
 /plugin install planning@melodic-software
 ```
 
-## Configuration
+## Artifact location
 
-One option, prompted at enable time (or set any time with `/planning:setup`):
-
-| Option | Type | Default | Purpose |
-|---|---|---|---|
-| `notes_dir` | string | `.claude/notes` | Project-relative directory where planning artifacts (`PRD.md`, `PLAN.md`, design artifacts, checklists) are written, one subdirectory per topic. A working-notes convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+Planning shares the versioned lifecycle artifact protocol with discovery and implementation. Resolve the
+base from explicit `--artifacts-dir` / `--topic` arguments, then the repository's `CLAUDE.md`, `AGENTS.md`,
+or `.claude/rules`, and otherwise `.work/<topic-slug>/`. Run `/planning:setup` to record a team-shared
+repository convention. Setup never writes personal plugin configuration.
 
 ## License
 

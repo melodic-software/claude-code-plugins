@@ -1,12 +1,15 @@
 ---
 name: brainstorm
 description: "Diverge before scoping — turn a rough engineering/product problem into codebase-grounded candidate approaches ordered cheapest→most ambitious, capture which resonate, and hand off scoped. Use for 'brainstorm', 'what are my options', 'places we could intervene', 'how could we approach X', or any rough technical problem with no locked scope; skip when scope is already locked or the options are visual variations."
-argument-hint: "<rough-problem> (e.g., /planning:brainstorm users churn after onboarding)"
+argument-hint: "<rough-problem> [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Purpose
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the rough problem.
 
 The divergence step before any scoping: unknown-knowns (criteria the user only recognizes when seen) surface cheapest at candidate-list time — finding one mid-implementation costs a re-plan. A brainstorm round also calibrates scope: reacting to a cheapest→most-ambitious spread prevents locking a scope that is too narrow (missed the high-value approach) or too wide (ambition the problem doesn't need).
 
@@ -24,7 +27,7 @@ Rough problem: $ARGUMENTS (if empty, infer from conversation; if nothing rough i
 
 ## Output
 
-Session output — no persisted artifact by default (divergence usually precedes the work having a home). When a topic directory already exists under `${user_config.notes_dir}/<topic-slug>/`, offer to persist the candidate list + reactions to `<topic-slug>/brainstorm.md`.
+Session output — no persisted artifact by default (divergence usually precedes the work having a home). When the protocol-resolved `<topic-root>` already exists, offer to persist the candidate list + reactions to `<topic-root>/brainstorm.md`.
 
 ## What this skill does NOT do
 

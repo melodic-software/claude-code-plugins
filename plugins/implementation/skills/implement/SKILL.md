@@ -1,12 +1,15 @@
 ---
 name: implement
 description: "Execute approved plans, fix bugs, and make code changes inline with incremental validation — TDD by default, build+test after each logical block, commit at green checkpoints, and divergence detection that routes back to planning instead of pushing through a broken approach. Use for 'implement this', 'execute the plan', 'fix this bug', 'refactor', or whenever code is about to be written; modes: feature, fix, refactor, config."
-argument-hint: "[task or mode] (e.g., /implementation:implement, /implementation:implement feature, /implementation:implement fix login-bug, /implementation:implement refactor)"
+argument-hint: "[task or mode] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the task or mode.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
@@ -23,7 +26,7 @@ It sits between planning and verification: exploration and external research pro
 
 ## Progress tracking
 
-Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Honor the consuming project's documented convention for where plan and handoff artifacts live; when none exists, default to `${user_config.notes_dir}/<topic-slug>/`.
+Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4) — do not mirror progress into a second checklist file. Resolve `<topic-root>` by the artifact protocol and keep plan and handoff artifacts there.
 
 ## Arguments
 
@@ -150,7 +153,7 @@ For trivial single-step implementations, skip the overhead.
 
 ### Phase-boundary discipline (the durable layer)
 
-In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes. Where these live: honor the consuming project's documented convention for work/planning artifacts (check its `CLAUDE.md` / rules); when none exists, default to `${user_config.notes_dir}/<topic-slug>/` — plan progress marked in the plan file, handoff entries as timestamped notes beside it.
+In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes under protocol-resolved `<topic-root>` — plan progress marked in the plan file, handoff entries as timestamped notes beside it.
 
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 

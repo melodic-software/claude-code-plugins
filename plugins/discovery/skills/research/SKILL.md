@@ -1,12 +1,15 @@
 ---
 name: research
 description: "Multi-source external research in three chained phases — broad, targeted + falsification, preferred sources — with per-claim source tiers, recency checks, and a binary outcome gate before presenting. Use to verify a technical claim, evaluate libraries or approaches, compare X vs Y, or ground any decision in current authoritative sources instead of training data."
-argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
+argument-hint: "[topic] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the research topic.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -164,7 +167,7 @@ If invoked standalone, present findings directly. If invoked as part of a larger
 
 ## Final step: persist artifact for handoff
 
-Write the research output to `${user_config.notes_dir}/<topic-slug>/RESEARCH.md` — derive `<topic-slug>` from the research topic or current branch name (kebab-case, ≤40 chars). If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location. This file is the authoritative summary of the stage — a fresh session must be able to resume planning reading only this artifact.
+Resolve `<topic-root>` by the artifact protocol and write the research output to `<topic-root>/RESEARCH.md`. This file is the authoritative summary of the stage — a fresh session must be able to resume planning reading only this artifact.
 
 The artifact opens with a Task restatement, follows the Output Format above, and closes with a Next-stage-handoff (settled facts vs. open decisions for the planning step).
 

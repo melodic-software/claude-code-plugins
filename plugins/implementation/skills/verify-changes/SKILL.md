@@ -2,11 +2,14 @@
 name: verify-changes
 description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /build and /lint, STOPs if broken), then outcome verification — does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use for 'verify changes', 'prove this works', 'did we build the right thing'; for quick mechanical-only checks use /build, for measurable-improvement claims use /verify-improvement."
 user-invocable: true
-argument-hint: "[mode] [ecosystem] (e.g., /implementation:verify-changes, /implementation:verify-changes outcome, /implementation:verify-changes fix, /implementation:verify-changes refactor, /implementation:verify-changes dotnet)"
+argument-hint: "[mode] [ecosystem] [--artifacts-dir <dir>] [--topic <slug>]"
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the mode or ecosystem.
 
 Working tree status: !`git status --porcelain 2>/dev/null || echo ""`
 Changed files (vs HEAD): !`git diff --name-only HEAD 2>/dev/null || echo ""`
@@ -96,7 +99,7 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
 **Independence of the verdict.** This skill usually runs in the context that produced the changes — and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor reviewer **when one is installed** — e.g. the OpenAI Codex plugin's `/codex:review` (read-only) or `/codex:adversarial-review`, so the second opinion comes from a different model rather than a same-vendor echo. When no cross-vendor reviewer is available, the same-vendor fresh-context verifier above is the fallback — never route the verdict to a command that may not resolve.
 
-When `/test-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit — record `verified_at_sha`) beside the change's plan/notes artifacts — the consuming project's working-notes convention, or `${user_config.notes_dir}/<topic-slug>/verify/`, governs the location. No machine-local paths — captures stay gitignored; the manifest cites a `## Reproduction` block instead.
+When `/test-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit — record `verified_at_sha`) under protocol-resolved `<topic-root>/verify/`. No machine-local paths — captures stay gitignored; the manifest cites a `## Reproduction` block instead.
 
 ## Delegation: live-app run + observe
 

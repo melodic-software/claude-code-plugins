@@ -15,12 +15,12 @@ This file documents the working pipeline schema + commands. For brand spec / sli
 | `lib/emit-slides.js` | Items → slide objects (canonical order, HIGH≤5 split, MED≤14 split, cross-provider clusters, patterns synthesis) | — |
 | `lib/holidays.js` | Run-date → holiday theme (US federal via date-holidays + tech custom map) | — |
 | `lib/schema.js` | Zod discriminated union — 11 slide types, meta, theme, providerLogos | — |
-| `lib/fetch-logos.js` | Auto-fetch missing simpleicons SVGs to `assets/`. 404s downgrade to null | populates `assets/logo-<slug>.svg` |
+| `lib/provider-logos.js` | Resolves bundled provider SVGs; missing optional assets downgrade to text-only headers without network access | — |
 | `build-pptx.js` | pptxgenjs ESM — provider-aware decorate(), 11 slide types | `../meetings/ai-meeting-{N}.pptx` |
 | `build-html.js` | Single-file HTML emitter — inline base64 org logos + inline SVG provider logos via `currentColor`; keyboard nav, prev/next buttons, touch swipe, hash deep-link, `?print=1` flag | `../meetings/ai-meeting-{N}.html` |
 | `build-pdf.js` | Playwright headless chromium prints `?print=1` HTML to Letter landscape, 0-margin, one slide per page | `../meetings/ai-meeting-{N}.pdf` |
 | `validate.js` | 6-gate validator — Zod schema, URL/headline coverage, console errors, content-slide overflow, linkinator URL reach, PDF text coverage (unpdf), PPTX slide count match (node-pptx-parser). Screenshots all slides | `build/shots/*.png` + `build/shots/audit.json` |
-| `assets/` | Cached org logos (PNG) + provider logos (SVG from simpleicons CDN) | — |
+| `assets/` | Bundled org logos (PNG) + provider logos (SVG) | — |
 | `package.json` | `playwright` + `pptxgenjs` + `remark-parse` + `remark-gfm` + `unified` + `unist-util-visit` + `zod` + `date-holidays` + `linkinator` + `unpdf` + `node-pptx-parser` | — |
 
 ## Prerequisites — one-time setup
@@ -28,13 +28,18 @@ This file documents the working pipeline schema + commands. For brand spec / sli
 ```bash
 cd output/build
 
-npm install                                       # pptxgenjs ^4.0.1 + playwright ^1.59.1
-npx playwright install chromium --only-shell      # ~120 MB, headless-only
+npm ci
+npx playwright install chromium --only-shell
 ```
 
-Node 20+ required (ESM imports + top-level await). On Windows / Git Bash, use `pwsh` for npx if `npx.cmd` resolution flakes.
+The committed lockfile is authoritative for dependency versions; [`npm ci`](https://docs.npmjs.com/cli/commands/npm-ci/)
+fails instead of rewriting a mismatched lockfile. [Playwright couples each library release
+to compatible browser binaries](https://playwright.dev/docs/browsers), so rerun the browser
+install after a Playwright update. `--only-shell` is appropriate because this pipeline
+launches Chromium headlessly without a browser channel. Node 20+ is required (ESM imports +
+top-level await). On Windows / Git Bash, use `pwsh` for npx if `npx.cmd` resolution flakes.
 
-**Plugin form.** The plugin cache is read-only and the scripts are Node ESM (which ignores `NODE_PATH`), so `/ai-briefing:setup` **stages a runnable copy** of the build tree under `${CLAUDE_PLUGIN_DATA}/runtime/build/` with `node_modules` installed as a sibling, and the build runs from there: `node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/` via the env-driven path seam. Setup re-stages on a plugin-version bump.
+**Plugin form.** The plugin cache is read-only and the scripts are Node ESM (which ignores `NODE_PATH`), so `/ai-briefing:setup --with-build-deps` **stages a runnable copy** of the build tree under `${CLAUDE_PLUGIN_DATA}/runtime/build/` with `node_modules` installed as a sibling. The skill resolves the rendered `${user_config.active_profile}` value (or a per-invocation override) and passes it explicitly when launching the build: `AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/`. Setup re-stages the optional build tree on a plugin-version bump when `--with-build-deps` is present.
 
 ## Per-meeting build sequence
 
@@ -125,7 +130,7 @@ export const slides = [
 ];
 ```
 
-`meta` and `theme` are the default brand, sourced from `output/build/brand.js` — DO NOT redefine per run. Edit `brand.js` only on rebrand. `meta.meetingNumber`, `meta.date`, `meta.window` are the only `meta` fields that change per meeting.
+`meta` and `theme` start from the neutral brand in `output/build/brand.js` — DO NOT redefine them per run. A consumer rebrand belongs in the selected profile's schema-validated `brand.json`; `meta.meetingNumber`, `meta.date`, and `meta.window` are the only meeting-specific fields.
 
 ## Slide types (11 total)
 
@@ -174,14 +179,15 @@ When `--format slides|html` runs:
    - Cross-provider clusters → dedicated `news` slide (Legal/Compute/Real-world)
    - Patterns synthesis → `patterns` slide when ≥3 cross-bucket themes
    - Flair → `flair` slide always (placeholder if no items)
-7. Resolve provider logos: for each unique `provider:` slug, ensure `assets/logo-<slug>.svg` exists; fetch missing via simpleicons CDN
+7. Resolve provider logos from bundled `assets/logo-<slug>.svg` files; missing optional logos degrade to text-only headers
 8. Write `slides-data.js` (overwriting prior meeting's data)
 9. Run pipeline: `build-pptx.js → build-html.js → build-pdf.js → validate.js`
 10. On validate.js exit 0: increment `meeting_n` in `seen-items.json`, archive briefing
 
 ## HTML deck features
 
-`build-html.js` emits a single self-contained file. No external dependencies at runtime (Google Fonts CDN is the one external — gracefully falls back to system fonts if offline).
+`build-html.js` emits a single self-contained file using system-font stacks and bundled or
+profile-provided assets. Rendering performs no external requests.
 
 ### Navigation
 
@@ -213,7 +219,8 @@ await page.pdf({
 });
 ```
 
-One slide per page. Embeds fonts via Google Fonts CDN (Playwright-headless waits for `document.fonts.ready`).
+One slide per page. Uses local/system fonts; Playwright waits for document load, the deck
+root, `document.fonts.ready`, and two animation frames before printing.
 
 ## validate.js gates
 
@@ -236,9 +243,9 @@ Outputs:
 |---|---|
 | pptxgenjs major version bump | Verify `addImage` data URI handling, `ShapeType.rect` / `ellipse` API |
 | playwright major version bump | Re-test `chromium.launch` headless; `page.pdf` margin handling |
-| simpleicons CDN URL changes | Update fetch script in `slide-generation.md` "Provider logo registry" |
-| New provider added (slug missing) | Append to `providerLogos` map; fetch SVG to `assets/`; update `slide-generation.md` slug list |
-| Org rebrands | Update `output/build/brand.js` `theme` + `brand` exports; update `slide-generation.md` "Default brand spec" |
+| bundled provider logo changes | Update the pinned SVG in `assets/` and re-run render validation |
+| New provider added (slug missing) | Append to `providerLogos`; add a reviewed asset to `assets/` or use text-only rendering |
+| Plugin-wide neutral default changes | Update `output/build/brand.js` `theme` + `brand` exports; update `slide-generation.md` "Default brand spec" |
 | Node 20 EOL (April 2026) | Verify ESM + top-level await on Node 22+ |
 
 ---

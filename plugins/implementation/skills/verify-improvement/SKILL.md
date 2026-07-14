@@ -2,11 +2,14 @@
 name: verify-improvement
 description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change — two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'); use for 'is it faster', 'before/after', 'prove the improvement', while intent/outcome confirmation stays with /verify-changes."
 user-invocable: true
-argument-hint: "[performance|metrics] [baseline|compare] (e.g., /implementation:verify-improvement performance, /implementation:verify-improvement metrics baseline)"
+argument-hint: "[performance|metrics] [baseline|compare] [--artifacts-dir <dir>] [--topic <slug>]"
 disable-model-invocation: false
 ---
 
 ## Purpose
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the metric family and phase.
 
 `/verify-improvement` answers **"did the claimed improvement actually happen, by how much?"** — it MEASURES a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verify-changes` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
 
@@ -21,7 +24,7 @@ The measurement mechanism is SSOT here; the planning stage *routes* to it when a
 | `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under `<plan-artifact-dir>/baselines/` + record baseline + target in the plan |
 | `compare` | after the change (default phase) | `/verify-improvement <family>` | Re-measure under the same conditions → compare to the stored baseline → verify the claim |
 
-Baseline storage: beside the change's plan artifact — the consuming project's working-notes convention, or `${user_config.notes_dir}/<topic-slug>/baselines/` by default.
+Baseline storage: under protocol-resolved `<topic-root>/baselines/`, beside the change's plan artifact.
 
 **Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline — do not add a harness speculatively.
 

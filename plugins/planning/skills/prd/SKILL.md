@@ -1,12 +1,15 @@
 ---
 name: prd
 description: "Produce a Product Requirements Document that locks product intent — problem, users, success metrics — before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use for 'write a PRD', 'spec out a feature', 'product brief', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /architect)."
-argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
+argument-hint: "[tier] [task description] [--artifacts-dir <dir>] [--topic <slug>]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
+
+Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
+flags from `$ARGUMENTS` before interpreting the tier and task.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -87,7 +90,7 @@ Spend the first turn grounding yourself, in parallel:
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what `${user_config.notes_dir}/<topic-slug>/` already contains — prior PRD, PLAN, exploration/research artifacts
+- Note what protocol-resolved `<topic-root>/` already contains — prior PRD, PLAN, and exploration/research artifacts
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why to a sibling `history.md` in the topic directory, then rewrite).
 
@@ -138,7 +141,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5 — Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `${user_config.notes_dir}/<topic-slug>/PRD.md`. If the consuming project declares its own working-notes convention (in its `CLAUDE.md` or rules), that convention wins over the default location. PRD.md lives alongside `PLAN.md` (architect's output) and any exploration/research artifacts.
+Resolve `<topic-root>` by the artifact protocol and write `<topic-root>/PRD.md`. `PRD.md` lives alongside `PLAN.md` (architect's output) and any exploration/research artifacts.
 
 Frontmatter:
 

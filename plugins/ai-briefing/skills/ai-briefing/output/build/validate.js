@@ -4,7 +4,7 @@
 //   1. Zod schema — slides-data.js shape
 //   2. HTML render — every URL appears as anchor, headlines match, 0 console errors
 //   3. Slide overflow detection (visual quality)
-//   4. URL reachability via linkinator (warn-only on x.com 401/403/429)
+//   4. URL reachability via linkinator (X URLs excluded by collection policy)
 //   5. PDF text coverage — every URL appears in PDF text layer
 //   6. PPTX slide count match
 //   7. Responsive matrix — 6 viewport×zoom combos, capture screenshots, check overflow
@@ -71,12 +71,22 @@ const context = await browser.newContext({ viewport: { width: 1600, height: 900 
 const page = await context.newPage();
 
 const consoleErrs = [];
+const externalRenderRequests = [];
 page.on("pageerror", (e) => consoleErrs.push(`PAGEERR: ${e.message}`));
 page.on("console", (m) => { if (m.type() === "error") consoleErrs.push(`CONSOLE: ${m.text()}`); });
+await page.route(/^https?:\/\//, (route) => {
+  externalRenderRequests.push(route.request().url());
+  return route.abort("blockedbyclient");
+});
 
-await page.goto(pathToFileURL(HTML).href, { waitUntil: "networkidle" });
-await page.evaluate(() => document.fonts.ready);
-await page.waitForTimeout(500);
+await page.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
+await page.waitForSelector("main#deck");
+await page.evaluate(async () => {
+  await document.fonts.ready;
+  await new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  );
+});
 
 // Section-based audit (sectioned-scroll deck). One screenshot per <section>.
 // Page-wide URL/headline coverage check (vs old per-slide approach).
@@ -142,6 +152,9 @@ console.log(`  Console errors:         ${consoleErrs.length}`);
 if (urlMismatches.length) issues.blocking.push(`URL coverage: ${urlMismatches.length} missing`);
 if (headlineMismatches.length) issues.blocking.push(`Headline coverage: ${headlineMismatches.length} missing`);
 if (consoleErrs.length) issues.blocking.push(`Console errors: ${consoleErrs.length}`);
+if (externalRenderRequests.length) {
+  issues.blocking.push(`External render requests: ${externalRenderRequests.length}`);
+}
 
 console.log(`\n[3/7] Section horizontal overflow ...`);
 console.log(`  Sections w/ horizontal overflow: ${pageData.sectionOverflows.length}`);
@@ -149,10 +162,11 @@ pageData.sectionOverflows.forEach((s) => console.log(`    #${s.id}  scrollWidth=
 if (pageData.sectionOverflows.length) issues.warnings.push(`Section h-overflow: ${pageData.sectionOverflows.map((s) => s.id).join(", ")}`);
 
 // ────────────────────────────────────────────────────────────────────
-// Gate 4: URL reachability via linkinator (warn-only on x.com auth failures)
+// Gate 4: URL reachability via linkinator. X URLs are user-supplied citation
+// metadata only and must not be fetched by this plugin.
 // ────────────────────────────────────────────────────────────────────
 console.log(`\n[4/7] URL reachability (linkinator) ...`);
-const linkResults = { broken: [], warned: [] };
+const linkResults = { broken: [] };
 try {
   const { LinkChecker } = await import("linkinator");
   const checker = new LinkChecker();
@@ -164,18 +178,16 @@ try {
     linksToSkip: [
       // Skip self-references and image data URIs
       /^data:/, /^file:/, /^#/,
+      /^https?:\/\/(?:x|twitter)\.com(?:\/|$)/i,
     ],
   });
   for (const link of result.links) {
     if (link.state !== "BROKEN") continue;
-    // Treat 401/403/429 on x.com as warn-only (auth-required, expected)
-    const isAuthGate = /^(https?:\/\/(?:x|twitter)\.com)/.test(link.url) && [401, 403, 429].includes(link.status);
-    if (isAuthGate) linkResults.warned.push(`${link.url} [${link.status}]`);
-    else linkResults.broken.push(`${link.url} [${link.status}]`);
+    linkResults.broken.push(`${link.url} [${link.status}]`);
   }
   console.log(`  Checked ${result.links.length} links`);
   console.log(`  Broken:    ${linkResults.broken.length}`);
-  console.log(`  Auth-gate: ${linkResults.warned.length} (x.com 401/403/429 — expected)`);
+  console.log("  X URLs:     skipped by collection policy");
   if (linkResults.broken.length) issues.warnings.push(`Broken links: ${linkResults.broken.length}`);
 } catch (e) {
   console.log(`  ⚠ linkinator skipped: ${e.message}`);
@@ -251,10 +263,16 @@ try {
   for (const m of responsiveMatrix) {
     const ctx2 = await browser2.newContext({ viewport: m.viewport, deviceScaleFactor: 1 });
     const p2 = await ctx2.newPage();
-    await p2.goto(pathToFileURL(HTML).href, { waitUntil: "networkidle" });
+    await p2.route(/^https?:\/\//, (route) => route.abort("blockedbyclient"));
+    await p2.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
+    await p2.waitForSelector("main#deck");
     await p2.evaluate((z) => { document.documentElement.style.zoom = String(z); }, m.zoom);
-    await p2.evaluate(() => document.fonts.ready);
-    await p2.waitForTimeout(300);
+    await p2.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+    });
 
     // Per-section overflow check
     const overflows = await p2.evaluate(() => {

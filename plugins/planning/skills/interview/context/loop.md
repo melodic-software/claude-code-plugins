@@ -11,7 +11,7 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - Look at `git log --oneline -20` for recent direction
 - Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a module
 - List the project's own rules files that govern the area
-- Note what `${user_config.notes_dir}/<topic-slug>/` already contains (prior PLAN.md, exploration/research artifacts, notes)
+- Note what protocol-resolved `<topic-root>/` already contains (prior PLAN.md, exploration/research artifacts, notes)
 
 Classify the domain from what the survey shows before anything Brief-related — the task/build surface decides, not cwd; a general decision raised from inside a code repo is still general. See SKILL.md Step 1 "Classify the domain".
 
@@ -117,7 +117,7 @@ For V1 / ship-fast tasks, lead with the most *reversible* option and defer the i
 
 ### Decision-tree ledger
 
-Maintain a live ledger of branches as checkboxes in `${user_config.notes_dir}/<topic-slug>/interview-checklist.md`:
+Maintain a live ledger of branches as checkboxes in `<topic-root>/interview-checklist.md`:
 
 ```markdown
 **Decision tree:**
@@ -179,7 +179,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 ### Brief template (the literal shape)
 
-Write this into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
+Write this into `<topic-root>/PLAN.md`. `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
 
 ```markdown
 ## Brief

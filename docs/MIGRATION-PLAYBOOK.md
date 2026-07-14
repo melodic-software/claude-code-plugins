@@ -4,35 +4,18 @@ How skills, hooks, and agents become reusable plugins in this marketplace. One p
 time: lift it out, make it work in plugin form and in any repo, build in configuration and extensibility,
 vet it against best practices, then publish.
 
+The durable design policy is [Plugin philosophy](PLUGIN-PHILOSOPHY.md). This playbook applies that
+policy to migration, validation, cutover, and release; it does not redefine the policy.
+
 All schema and behavior claims below were verified against the official docs on 2026-06-22 (the
 "Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
-## Intent
-
-The point of moving a skill/hook out of a private repo and into a plugin is **reuse and developer
-experience**: it should drop into any repository and work, and a consumer should be able to customize
-behavior without filing an issue or editing the plugin. If a consumer needs to change a workflow, add an
-action, or adapt to their repo, that is an **extensibility point** the plugin must expose by design.
-
-## Design charter
-
-Every plugin is designed to these principles (named here as the bar; apply, don't recite):
-
-- Low coupling, high cohesion
-- Vertical slice architecture
-- SOLID
-- Clean code
-- DRY / single source of truth / no duplication
-
-Concretely for plugins: a plugin owns one cohesive capability, depends on nothing repo-specific, and
-exposes its variability through declared configuration rather than internal forks.
-
 ## Organization — one plugin per cohesive concern
 
-The charter's "one cohesive capability" is also the packaging boundary: **one plugin per cohesive
+The philosophy's "one cohesive capability" is also the packaging boundary: **one plugin per cohesive
 concern or capability**, grouped in the catalog through `category` / `tags` rather than by splitting.
 A cohesive plugin MAY hold several units — a first-party plugin bundles many skills of one concern, a
 hooks plugin bundles many hooks of one concern. One-unit-per-plugin is not the norm; do not ship a
@@ -88,7 +71,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies — the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` into hook/MCP/monitor/command configs and non-sensitive values into skill/agent content; exported as `CLAUDE_PLUGIN_OPTION_<KEY>` to the plugin's own declared command subprocesses only — **not** to a Bash tool call a skill makes (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive stored in `settings.json` under `pluginConfigs[<id>].options`; sensitive in the system keychain | Endpoints, toggles, tokens — consumer config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens — personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
 | `hooks/hooks.json` | Event handlers the plugin ships | Behavior consumers opt into by enabling the plugin |
@@ -112,10 +95,13 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
 
 1. **Typed scalars → `userConfig` → `pluginConfigs`. [SPEC]** Declare `string` / `number` /
    `boolean` / `directory` / `file` options (a `string` may set `multiple` for an array — there is no
-   `string[]` type); mark a credential `sensitive` so it lands in the keychain, never `settings.json`.
-   Non-sensitive values store under `pluginConfigs[<id>].options`. Use for endpoints, toggles, tokens,
-   and single path knobs. The `directory` / `file` type is a UI hint, not a validator — a `--config`
-   value is stored verbatim with no existence check and no normalization to absolute (smoke-test A).
+   `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
+   storage, never `settings.json`.
+   Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
+   user settings, `--settings`, or managed settings only; project and local entries are ignored since
+   Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
+   `file` type is a UI hint, not a validator — a `--config` value is stored verbatim with no existence
+   check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
    PRECEDENT-EXTENSION]** When configuration outgrows typed scalars — prose guidance, rule lists,
    threat models, structured rulesets — read a checked-in file instead of piling on `userConfig` knobs.
@@ -173,8 +159,9 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
 The **adopted** rule for how a plugin settles a value at runtime, applied to every seam:
 
 1. Config present → use it.
-2. Absent → explore the repo and infer, then **persist the inference** into the tracked config (seam 1
-   or 2) so the next run is deterministic.
+2. Absent → explore the repo and infer, then **persist the inference** into tracked project config
+   (seam 2) so the next run is deterministic. For a personal scalar (seam 1), direct the user to Claude
+   Code's native plugin configuration surface instead.
 3. Cannot infer → ask the user, and offer to persist the answer.
 4. Otherwise → a safe generic default.
 
@@ -188,7 +175,8 @@ Every plugin that carries any `userConfig` or tracked-config seam ships a re-run
 idempotent — safe to re-run to reconfigure. The Thariq `config.json` first-run pattern is **rejected**
 for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGIN_ROOT}`, which is
 replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
-writes to the consumer's tracked config or to `pluginConfigs` — both persist across updates.
+writes only the consumer configuration the plugin owns. Claude Code's native configuration surface
+collects `userConfig` and owns `pluginConfigs`; a setup skill never edits that key directly.
 
 ## Evals — warrant policy and consumer-verify recipe
 
@@ -354,7 +342,8 @@ consumers who never opt in.
    repo-level.** Not a plugin concern.
 
 **Secrets → `userConfig` `sensitive` seam.** A SHIP declares each secret as a `userConfig` entry with
-`sensitive: true` (masked input, system-keychain storage) and substitutes it as `${user_config.KEY}`
+`sensitive: true` (masked input; macOS Keychain storage, or `~/.claude/.credentials.json` where no
+supported keychain exists) and substitutes it as `${user_config.KEY}`
 — but **where** it goes depends on transport: a **stdio** server takes it in `.mcp.json` `env`, while
 a **remote HTTP/SSE/WS** server takes it in `headers` / `headersHelper` (`env` only reaches a spawned
 stdio process, so an HTTP key placed in `env` never authenticates). medley's own config shows the
@@ -387,7 +376,7 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 
 | Server | Transport | Secret | Verdict | Basis |
 |---|---|---|---|---|
-| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro` (single source of truth, no copy left behind), bundled to one `dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, keychain); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
+| miro | stdio (bundled) | `miro_api_token` (`sensitive`) | **SHIP (cutover+bundle)** | Owner-confirmed 2026-07-12: ships as a **dedicated** `miro` plugin whose whole capability *is* the Miro board server, so it is *useless without the server* (rule 2), not event-storming's optional dependency (event-storming stays degraded-but-functional and ships no server, consuming miro only when connected). The server's TypeScript **relocates** out of `mcp-servers/miro/node` into `plugins/miro` (single source of truth, no copy left behind), bundled to one `dist/index.min.js` invoked as `node ${CLAUDE_PLUGIN_ROOT}/dist/index.min.js` (sidesteps #58510); `MIRO_API_TOKEN` → `userConfig` `miro_api_token` (`sensitive`, Claude secure credential storage); `defaultEnabled: false` so it never auto-starts unasked. First instance of the SHIP convention |
 | aspire | stdio (`aspire` native) | — | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
@@ -428,7 +417,8 @@ over stdio — no npm/registry publish, no consumer token wall, no `npx` (#58510
   auto-connect to any remote MCP host.
 - **Data egress.** Only the Miro REST calls the consumer's own tool invocations make, to
   `api.miro.com`, authenticated by the consumer's own token. No telemetry, no other outbound network.
-- **Token scope.** `MIRO_API_TOKEN` → `userConfig` `miro_api_token`, `sensitive` (system keychain,
+- **Token scope.** `MIRO_API_TOKEN` → `userConfig` `miro_api_token`, `sensitive` (macOS Keychain, or
+  `~/.claude/.credentials.json` where no supported keychain exists;
   never `settings.json`); the consumer supplies and scopes it. The server exits at startup if unset.
 - **Opt-in.** `defaultEnabled: false` — installs disabled; the consumer enables it deliberately.
 
@@ -524,9 +514,11 @@ here — new, or a version bump that adds a trust surface — passes this review
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `CLAUDE.md` fresh-docs mandate.
 
-1. **Code execution — hooks & scripts.** A hook command runs shell on the consumer's machine on matched events,
-   with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, `${user_config.*}`, and any
-   `${ENV_VAR}` interpolated in. Check: which binaries it spawns; whether it mutates files in place and is
+1. **Code execution — hooks & scripts.** A hook command runs on the consumer's machine on matched events,
+   with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
+   interpolated in. An exec-form hook may also use `${user_config.*}` in its arguments. A shell-form hook
+   rejects that substitution and must read `CLAUDE_PLUGIN_OPTION_*` from the hook process environment.
+   Check: which binaries it spawns; whether it mutates files in place and is
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
    (`HOOK_<PLUGIN>_ENABLED`) exists.
@@ -541,9 +533,11 @@ Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `
    capability can't be a local `stdio` server. **Do not accept a third-party remote MCP server** without an
    explicit recorded trust decision naming the vendor, the data egress, and the token scope.
 3. **Consumer config — `userConfig`.** Any credential/token option MUST set `"sensitive": true` — that masks
-   input and stores the value in the system keychain (or `~/.claude/.credentials.json`), **not** `settings.json`.
-   Non-sensitive values land in `settings.json` under `pluginConfigs[<id>].options` and are readable — never put
-   a secret there. Endpoints and toggles are fine as non-sensitive. Every option is documented.
+   input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
+   `~/.claude/.credentials.json` — **not** `settings.json`.
+   Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable —
+   never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
+   not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation — no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no absolute paths, no reading consumer files
    outside `${CLAUDE_PROJECT_DIR}`.
@@ -604,9 +598,9 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    (smoke-test C), so pass every option on the install command, never a later call: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
    Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope; a sensitive value still routes to the keychain (smoke-tests A and C). Interactively, install
-   prompts for scope, then each configurable plugin's setup action (or `/plugin configure`) writes the
-   tracked config.
+   scope; a sensitive value still routes to secure credential storage (smoke-tests A and C).
+   Interactively, `/plugin configure` owns personal `userConfig`; an explicit setup skill owns any
+   separate tracked project configuration declared by the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
    option left unset does **not** block the install; it stays advisory until set (smoke-test C). Seed
    every required option on the install command so the plugin does not run unconfigured.
@@ -837,18 +831,19 @@ the whole corpus and fit relevant findings into *any* target repo. Decided with 
 interview session against medley EPIC #1273 / wave-2 map #1369 (issue #1393); recorded here because
 the wave's codification requirement puts convention decisions in tracked docs, not issue comments.
 
-- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Org (Team plan: 250 GiB free
-  Git LFS storage + bandwidth) over the personal Pro account (10 GiB) precisely because source media
-  is retained — see below. Created pure-IaC via the `melodic-software/github-iac` governed registry
+- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Organization ownership was
+  chosen because source media is retained and storage/bandwidth usage belongs with the shared corpus,
+  not a personal account. Created pure-IaC via the `melodic-software/github-iac` governed registry
   (no ad-hoc `gh`, no import/drift window); the repo comes into being at the Pulumi deploy.
 - **Media retention + LFS:** retain source video, keyframes, and any input useful for re-scraping or a
   fresh analysis — the corpus is the durable substrate for re-runnable synthesis, not just derived
   text. LFS-backed: a `.gitattributes` tracking media globs (mp4/mov/webm/png/jpg/jpeg/gif/pdf/epub/
   mp3/wav) plus pushed LFS objects. Git LFS is **not** expressible on the pulumi-github v6.14.0
   `Repository` resource (verified against the provider schema) → it is content-side, landing via a
-  follow-up content PR to the repo, not governed in IaC. Cost basis (verified 2026-07-13): metered
-  LFS is $0.07/GiB-mo storage + $0.0875/GiB bandwidth over the free tier; the Team 250 GiB free tier
-  holds a many-source corpus at $0 where the personal 10 GiB tier would meter.
+  follow-up content PR to the repo, not governed in IaC. GitHub's quotas, metering, and prices change;
+  verify the current account allowance, budget, and overage behavior in the
+  [official Git LFS billing documentation](https://docs.github.com/en/billing/concepts/product-billing/git-lfs)
+  before changing retention or ownership policy.
 - **Artifact landing:** no consuming-repo name is baked into the plugin (contract v2.1 seam 1 + the
   convention-resolution ladder), so it serves any consumer unchanged. Which pipeline lands where — and
   which honor `library_dir` vs write elsewhere — is fast-moving plugin-seam state; the `knowledge`

@@ -166,8 +166,8 @@ function isReasonablePubDate(ms) {
  *    3. "M/D" or "M/D/YY" anywhere — covers SDK-bump shorthand
  *    4. ISO YYYY-MM-DD that is NOT inside a hyphenated compound token
  *       (e.g. `fast-mode-2026-02-01` beta header should NOT match)
- *    5. URL-based inference (Twitter snowflake ID → tweet timestamp; GH release URL)
- *       — caller applies via the urlDateMap pass, not here
+ *    5. Date segments in authorized source URLs
+ *       — caller applies via the URL inference pass, not here
  */
 function extractDate(body, headline) {
   const text = `${headline} ${body}`;
@@ -226,37 +226,13 @@ function extractDate(body, headline) {
   return null;
 }
 
-/** Decode a Twitter/X snowflake ID to its ms-since-epoch timestamp.
- *  Twitter epoch: 2010-11-04T01:42:54.657Z (1288834974657 ms).
- *  Snowflake shift: 22 bits. Returns null if ID isn't a valid snowflake. */
-function snowflakeToMs(snowflakeStr) {
-  if (!/^\d{15,20}$/.test(snowflakeStr)) return null;
-  try {
-    const id = BigInt(snowflakeStr);
-    const epoch = 1288834974657n;
-    const ms = Number((id >> 22n) + epoch);
-    if (ms < epoch || ms > Date.now() + 365 * 24 * 3600 * 1000) return null;
-    return ms;
-  } catch {
-    return null;
-  }
-}
-
 /** Infer a date from a URL when extractDate returned null.
  *  Supported:
- *    - x.com/{user}/status/{snowflake} → snowflake decode
- *    - github.com/{owner}/{repo}/releases/tag/v{tag} → null (no date in URL)
  *    - any URL with /YYYY/MM/DD/ path segment → that date
  *    - any URL with YYYY-MM-DD in path → that date (not in domain)
  *  Returns ms-since-epoch or null. */
 function dateFromUrl(url) {
   if (!url) return null;
-  // x.com/{user}/status/{id} → snowflake
-  const xMatch = url.match(/^https?:\/\/(?:x\.com|twitter\.com)\/[^/]+\/status\/(\d+)/i);
-  if (xMatch) {
-    const ms = snowflakeToMs(xMatch[1]);
-    if (ms) return ms;
-  }
   // /YYYY/MM/DD/ path
   const pathDate = url.match(/\/(\d{4})\/(\d{2})\/(\d{2})(?:\/|$)/);
   if (pathDate) {
@@ -364,30 +340,17 @@ export async function parseBriefing(briefingPath, opts = {}) {
   }
   if (currentBucket) buckets[currentBucket] = parseBucketSection(bucketChildren);
 
-  // Build URL→date map from the "Per-profile runner deltas" bucket, then
-  // back-fill any null `date` on bullets whose URLs match. Runner deltas carry
-  // authoritative `Date range: YYYY-MM-DD` per item; main-bucket bullets often
-  // omit explicit month/year and would otherwise stay undated.
-  // URL→date map is authoritative (announcement date from source tweet); extractDate
-  // heuristic often hits dates mentioned in body ("through July 13") that aren't the
-  // announcement date. Override any heuristic date when a URL match exists.
-  const urlDateMap = buildUrlDateMap(raw);
   for (const bucket of Object.values(buckets)) {
     for (const tier of Object.values(bucket)) {
       for (const item of tier) {
-        // Pass 1: deltas URL→date map (authoritative for runner-captured tweets)
-        for (const u of item.urls || []) {
-          if (urlDateMap.has(u)) { item.date = urlDateMap.get(u); break; }
-        }
-        // Pass 2: URL-based inference for items still undated
-        // (Twitter snowflake decode, /YYYY/MM/DD/ path segments, ISO in URL path)
+        // Pass 1: URL-based inference for items still undated.
         if (item.date == null) {
           for (const u of item.urls || []) {
             const inferred = dateFromUrl(u);
             if (inferred != null) { item.date = inferred; break; }
           }
         }
-        // Pass 3: seen-items.json first_seen fallback (caller-provided map).
+        // Pass 2: seen-items.json first_seen fallback (caller-provided map).
         // Final resort when markdown encodes no date and URL has no embedded date.
         if (item.date == null && opts.seenUrlDateMap) {
           for (const u of item.urls || []) {
@@ -402,30 +365,4 @@ export async function parseBriefing(briefingPath, opts = {}) {
   }
 
   return { meta, buckets };
-}
-
-/** Scan raw markdown for `URLs: <url>, <url>` + `Date: YYYY-MM-DD` (or legacy
- *  `Date range: YYYY-MM-DD`) pairs (the briefing-deltas.md format) and return a
- *  URL→epoch-ms map. Backward-compat for deltas from prior runs that emitted
- *  `Date range: <range>` before the schema tightened to single ISO `date`. */
-function buildUrlDateMap(raw) {
-  const map = new Map();
-  const lines = raw.split(/\r?\n/);
-  let pendingUrls = [];
-  for (const line of lines) {
-    const urlMatch = line.match(/^URLs?:\s*(.+)$/i);
-    if (urlMatch) {
-      pendingUrls = urlMatch[1].split(/[,\s]+/).filter((s) => /^https?:\/\//.test(s));
-      continue;
-    }
-    const dateMatch = line.match(/^Date(?:\s*range)?:\s*(\d{4})-(\d{2})-(\d{2})/i);
-    if (dateMatch && pendingUrls.length > 0) {
-      const ts = Date.UTC(+dateMatch[1], +dateMatch[2] - 1, +dateMatch[3]);
-      for (const u of pendingUrls) {
-        if (!map.has(u)) map.set(u, ts);
-      }
-      pendingUrls = [];
-    }
-  }
-  return map;
 }

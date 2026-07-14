@@ -35,7 +35,7 @@ Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/deri
 
 ## Artifact landing (work root)
 
-Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's `library_dir` seam (`pluginConfigs["knowledge@melodic-software"].options.library_dir`, substituted into this skill's content as `${user_config.library_dir}`):
+Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's personal `library_dir` user-configuration seam, substituted into this skill's content as `${user_config.library_dir}`:
 
 - **Non-default** — when `${user_config.library_dir}` is a non-empty value other than the repo-root default `.` (and not an unexpanded `${user_config.library_dir}` token), pass it as a **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
 
