@@ -36,7 +36,8 @@ only, refusing to overwrite a populated target slice:
 ```bash
 mkdir -p "$MEMORY_DIR"                                        # create the target root
 [ -f "$MEMORY_DIR/.gitignore" ] || printf '*\n' > "$MEMORY_DIR/.gitignore"  # self-ignore heal
-mv ".claude/notes/$SLUG" "$MEMORY_DIR/$SLUG"                  # legacy memory slices are untracked → mv, not git mv
+LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
+mv "$LEGACY/$SLUG" "$MEMORY_DIR/$SLUG"                        # legacy memory slices are untracked → mv, not git mv
 jq 'del(.pluginConfigs["discovery@melodic-software"].options.notes_dir)' \
   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```

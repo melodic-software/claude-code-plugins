@@ -111,9 +111,11 @@ cite it rather than redefining it.
 ## Runtime guards
 
 - **Committed-tier guard:** the first contract-slice write in a session
-  runs `git check-ignore -v` on the target path. If a consumer ignore
-  rule matches, stop and surface the exact rule — never silently produce
-  an uncommittable "committed" tier.
+  runs `git check-ignore -v` on a **representative file path inside the
+  slice** (e.g. `<contract_dir>/<slug>/PLAN.md`) — not the bare
+  directory, which patterns like `docs/topics/**` do not match. If a
+  consumer ignore rule matches, stop and surface the exact rule — never
+  silently produce an uncommittable "committed" tier.
 - **Self-ignore guard:** the session's first memory-tier write verifies
   the **resolved memory root** (whatever `memory_dir` names — never a
   hardcoded `.work`) contains a `.gitignore` with `*`, creating it

@@ -152,10 +152,15 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @.work/handoffs/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
 Prior session: <UUID>.
 ──────────────────────────────────────────────────────────
 ```
+
+`<handoffs-dir>` is the path the write step actually used — the resolved
+`<memory_dir>/handoffs/` (default `.work/handoffs/`), or the legacy
+`.claude/handoffs/` when old content pins writes there. Never emit a
+default the file was not written to.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session

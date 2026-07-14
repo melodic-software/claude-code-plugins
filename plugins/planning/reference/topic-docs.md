@@ -43,15 +43,16 @@ Guarded migration — run by `/planning:setup`, one topic slice at a time, on ex
 only, refusing to overwrite a populated target slice:
 
 ```bash
-MEM=.work  # the resolved memory_dir; adjust when the concern file overrides it
+LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
+MEM=.work             # the resolved memory_dir; adjust when the concern file overrides it
 mkdir -p "docs/topics/$SLUG" "$MEM/$SLUG"                     # create both target slices (use the configured roots)
 [ -f "$MEM/.gitignore" ] || printf '*\n' > "$MEM/.gitignore"  # self-ignore heal on the resolved root
 # contract kinds → contract slice (legacy content is untracked → mv + git add; git mv when tracked):
 for f in PRD.md PLAN.md design; do
-  [ -e ".claude/notes/$SLUG/$f" ] && mv ".claude/notes/$SLUG/$f" "docs/topics/$SLUG/"
+  [ -e "$LEGACY/$SLUG/$f" ] && mv "$LEGACY/$SLUG/$f" "docs/topics/$SLUG/"
 done
 git add "docs/topics/$SLUG"
-mv ".claude/notes/$SLUG"/* "$MEM/$SLUG/" && rmdir ".claude/notes/$SLUG"  # remaining memory kinds (checklists, baselines, scratch)
+mv "$LEGACY/$SLUG"/* "$MEM/$SLUG/" && rmdir "$LEGACY/$SLUG"  # remaining memory kinds (checklists, baselines, scratch)
 jq 'del(.pluginConfigs["planning@melodic-software"].options.notes_dir)' \
   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```

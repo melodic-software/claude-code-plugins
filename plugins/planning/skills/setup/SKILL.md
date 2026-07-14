@@ -48,8 +48,9 @@ Idempotent: re-running reads the current state and offers an update rather than 
    `memory_dir`, and `vault_backend` at their defaults unless the repo's own conventions say
    otherwise — but offer every schema key and preserve every key an existing file carries (a
    re-run never drops one); do not invent knobs beyond the schema.
-5. **Run the conflict check before writing.** `git check-ignore -v` on the chosen contract root
-   (e.g. `docs/topics/`): if a consumer ignore rule matches, STOP and surface the exact rule and
+5. **Run the conflict check before writing.** `git check-ignore -v` on a representative file path
+   inside the chosen contract root (e.g. `docs/topics/probe/PLAN.md` — a bare directory misses
+   `**` patterns): if a consumer ignore rule matches, STOP and surface the exact rule and
    source line — a "committed" tier that git ignores is the failure the guard exists to catch.
    Resolving the rule is the user's edit to make: **never modify the consumer's root
    `.gitignore`** (or any ignore file) yourself.

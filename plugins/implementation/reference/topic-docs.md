@@ -41,15 +41,16 @@ Guarded migration — the deprecation notice presents this command; run one topi
 on explicit confirmation only, refusing to overwrite a populated target slice:
 
 ```bash
-MEM=.work  # the resolved memory_dir; adjust when the concern file overrides it
+LEGACY=.claude/notes  # the resolved legacy root: the notes_dir value when set, else this default
+MEM=.work             # the resolved memory_dir; adjust when the concern file overrides it
 mkdir -p "docs/topics/$SLUG" "$MEM/$SLUG"                     # create both target slices (use the configured roots)
 [ -f "$MEM/.gitignore" ] || printf '*\n' > "$MEM/.gitignore"  # self-ignore heal on the resolved root
 # contract kinds → contract slice (legacy content is untracked → mv + git add; git mv when tracked):
 for f in PLAN.md DEVIATIONS.md verification; do
-  [ -e ".claude/notes/$SLUG/$f" ] && mv ".claude/notes/$SLUG/$f" "docs/topics/$SLUG/"
+  [ -e "$LEGACY/$SLUG/$f" ] && mv "$LEGACY/$SLUG/$f" "docs/topics/$SLUG/"
 done
 git add "docs/topics/$SLUG"
-mv ".claude/notes/$SLUG"/* "$MEM/$SLUG/" && rmdir ".claude/notes/$SLUG"  # remaining memory kinds (baselines, scratch, status)
+mv "$LEGACY/$SLUG"/* "$MEM/$SLUG/" && rmdir "$LEGACY/$SLUG"  # remaining memory kinds (baselines, scratch, status)
 jq 'del(.pluginConfigs["implementation@melodic-software"].options.notes_dir)' \
   .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
