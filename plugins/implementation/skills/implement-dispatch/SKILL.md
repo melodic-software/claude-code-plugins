@@ -44,7 +44,7 @@ In a session with no human to escalate to, stop-and-escalate on Moderate diverge
 
 **Ritual unchanged.** Every phase boundary runs the `/implement` "Step 4: Task Tracking and Phase-Boundary Handoff" ritual in full — plan marks, handoff entry, status summary, mark-then-commit, resume prompt. Orchestration changes who edits, not how progress is recorded.
 
-**Autonomous-only:** dispatch a **fresh-context verifier** subagent before marking a phase `[DONE]` — a separate agent that checks the phase's acceptance criteria against the actual diff, never the producing context auditing itself. Surface subagent results in the response before ending the turn.
+**Fresh-context verifier before marking a phase `[DONE]`:** the Step 4 ritual's acceptance-criteria verdict (item 1) is, in orchestrated runs, *dispatched* rather than rendered inline — send a separate verifier subagent to check the phase's acceptance criteria against the actual diff, handed binary criteria and the diff with your rationale withheld. It applies in every mode: autonomous runs MUST; interactive runs MUST for any phase beyond a mechanical, behavior-preserving change. Surface subagent results in the response before ending the turn.
 
 ### Resident-vs-clear at phase boundaries
 
@@ -64,7 +64,7 @@ Any criterion fails → clear + resume from the emitted prompt. **The phase-boun
 | Phase is inline-routed or routing table absent, autonomous mode | Synthesize a worker row and dispatch — the orchestrator never does volume edits |
 | Worker divergence report | Severity-assess per `/implement` "Step 3: Divergence Detection"; Major → the planning skill (`/planning:architect review` when installed) |
 | Every worker return | Verify against direct evidence, then `/build` main-side |
-| Phase sanity check passes | `/implement` "Step 4" ritual (+ autonomous fresh-context verifier first) |
+| Phase sanity check passes | `/implement` "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it — see Phase boundaries) |
 | All phases complete | `/implement` "Step 5: Completion and Handoff" |
 
 ## What this skill does NOT do

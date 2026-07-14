@@ -62,7 +62,7 @@ Invoke the bundled `/simplify` skill (when available in the session; otherwise a
 - Correctness-class: `<m>` → `<applied>` fixed (list with file:line), `<surfaced>` surfaced for decision.
 - Unparsed / surface-only: `<k>` listed for manual handling.
 
-Suggest the follow-up: re-run the review to confirm the fixes resolved the findings, then the project's build/test verification before committing. The fix action does NOT run builds or tests.
+Follow-up: after correctness-class fixes, re-run the review — the fixer confirming its own fix resolved a finding is the producer verifying its own work, and a fresh review pass re-fans-out to reviewers that did NOT apply the fix. Treat that re-review as **required** for correctness-class findings, not merely suggested; cleanup-class fixes are mechanical and behavior-preserving, so their `/simplify` verification stands on its own. Either way, run the project's build/test verification before committing — the fix action does NOT run builds or tests.
 
 ## What this action does NOT do
 

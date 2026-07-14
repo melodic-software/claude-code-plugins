@@ -168,6 +168,8 @@ After all groups complete, consolidate the deferred items collected in Phase 6. 
 
 After all groups complete, run final verification across all affected ecosystems using the consuming project's canonical build/test/lint commands (its `CLAUDE.md` usually names them; generic fallbacks per ecosystem in [context/reference.md](context/reference.md) "Ecosystem verification commands (Phase 7)").
 
+Simplification is behavior-preserving, so this objective cross-ecosystem pass is verification enough — a fresh-context verifier is the rule only where a verdict is subjective, not where the check is a mechanical pass/fail. A change that passes only because it altered behavior is a regression this final verification exists to catch (Gotchas).
+
 Report the final verification results as a summary table.
 
 ### Phase 8: Summary report
