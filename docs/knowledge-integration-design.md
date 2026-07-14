@@ -16,6 +16,11 @@ decoupled from any one product repo (it lives in `melodic-software/knowledge-art
 skill closes that gap as a repeatable, invocable capability that works against **any** target, not just
 the repo that happens to be open.
 
+Scope boundary: the corpus holds ingest-pipeline material and its synthesized outputs — source media,
+transcripts, frame extractions, distilled reference files. It is not a general documentation home;
+repo-owned docs stay in their repos, and durable per-topic knowledge flows through the knowledge-vault
+seam, not this corpus.
+
 ## Load-bearing decision — the session's home is the corpus
 
 A session runs **in the corpus checkout** (`knowledge-artifacts` is `${CLAUDE_PROJECT_DIR}`); the
