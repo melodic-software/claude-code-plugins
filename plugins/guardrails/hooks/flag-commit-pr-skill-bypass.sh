@@ -8,10 +8,9 @@
 # available in the consuming project (`enabledPlugins["source-control@…"]`
 # resolves `true` in the consuming project's `.claude/settings.json`, with
 # `.claude/settings.local.json` honored as an override only for a key that
-# already exists in `settings.json` — CC ignores a local-only key, see
-# anthropics/claude-code#27247). Uncertain state (no jq, no settings file, key
-# absent) fails QUIET (exit 0, no advisory) — an advisory firing on unknown
-# state is noise, not signal.
+# already exists in `settings.json` — CC ignores a local-only key). Uncertain
+# state (no jq, no settings file, key absent) fails QUIET (exit 0, no
+# advisory) — an advisory firing on unknown state is noise, not signal.
 #
 # WHAT IT FLAGS:
 #   git commit  — invoked WITHOUT the canonical mechanic's two markers
