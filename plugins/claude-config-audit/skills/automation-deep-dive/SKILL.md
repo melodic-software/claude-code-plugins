@@ -4,7 +4,6 @@ description: "Audit a repo's Claude Code automation landscape (hooks, MCP server
 argument-hint: "[--recommend-only] [--implement] [category] — category: hooks|mcp|skills|subagents|scheduled|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Bash(bash "${CLAUDE_PLUGIN_ROOT}/skills/automation-deep-dive/scripts/inventory.sh"*)
 ---
 
 ## Pre-computed context
