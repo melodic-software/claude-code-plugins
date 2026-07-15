@@ -186,7 +186,14 @@ if (existsSync(aiBriefingBrandOverlay)) {
   if (!content.includes('"brand.json"') || !content.includes("realpathSync") || !content.includes(".strict()")) {
     fail(aiBriefingBrandOverlay, "must load schema-validated brand.json and confine logo real paths");
   }
-  if (/data:text\/javascript|import\(dataUrl\)|brand\.js["']/.test(content)) {
+  // A brand.js literal is allowed only for passive legacy-profile detection
+  // and migration errors. Keep rejecting the executable overlay paths used by
+  // earlier runtimes, including direct imports of profile-controlled files.
+  if (
+    /data:text\/javascript|import\s*\(\s*(?:dataUrl|overlayPath|legacyOverlayPath)\s*\)/.test(
+      content,
+    )
+  ) {
     fail(aiBriefingBrandOverlay, "must not execute consumer-controlled brand configuration");
   }
 }
