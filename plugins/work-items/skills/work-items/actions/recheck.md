@@ -36,7 +36,7 @@ If multiple matches, present them and ask the user to clarify.
 
 1. **Edit `.github/recurring-schedule.json`:**
 
-Read the current file, find the matched item, then:
+Re-read the current file from disk immediately before writing (the schedule is shared; never write back a stale in-context copy), find the matched item, then — touching only that row, preserving all others:
 
 - Set `last_checked` to today's date (always)
 - If `next_due <= today`: set `next_due` to today + cadence days

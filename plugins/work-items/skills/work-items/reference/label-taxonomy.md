@@ -18,8 +18,46 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 | Type | native Issue Type (org) · `type:` label (personal/non-org) | The kind of issue: `Bug` (broken vs. intent), `Feature` (new capability), `Task` (any other tracked work — maintenance, refactor, tests, docs, audits, chores). Commit-type granularity (`fix`/`feat`/`chore`/`docs`/`refactor`/`test`/`build`/`perf`) stays at the commit layer, not the issue axis. |
 | Priority | `priority:` | Urgency. Members from the live set. |
 | Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`, `needs-triage`). Members from the live set. **Claim is not a status label** — it is assignee + lease (see the seam claim protocol). **Blocked is not a status label** — it is a native `blocked-by` dependency edge. |
-| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `recurring`, `agent-ready`, `needs-human`, `good-first-issue`, `migrated`, `stale`. |
+| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring` — see "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
+
+## Canonical roles
+
+Three meta-axis members are **canonical roles**: skill and action prose speaks the role name, and
+the repo-actual label string resolves from the tracker binding — `.work-item-tracker.json`, key
+`config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
+apply, so existing repos need zero migration.
+
+| Role | Default label | What it marks |
+|------|---------------|---------------|
+| `autonomous-eligible` | `agent-ready` | Fully specified and briefed; eligible for autonomous (AFK) pickup from the frontier |
+| `human-gated` | `needs-human` | Needs human judgment (design decision, UX review, manual QA); excluded by `list-frontier --autonomous` |
+| `recurring-maintenance` | `recurring` | A scheduled maintenance item reconciled against `.github/recurring-schedule.json` |
+
+Binding shape (every entry optional; unlisted roles keep their defaults):
+
+```json
+{
+  "config": {
+    "role_labels": {
+      "autonomous-eligible": "agent-ready",
+      "human-gated": "needs-human",
+      "recurring-maintenance": "recurring"
+    }
+  }
+}
+```
+
+Resolve the mapping once per session and use the resolved strings wherever a role is meant. Two
+constraints on remapping:
+
+- **`human-gated` is shared with the seam.** `list-frontier --autonomous` excludes items by that
+  label, and the shipped seam reads `needs-human`; remap this role only when the bound seam
+  resolves the same `config.role_labels` key, or the frontier filter and the skill will disagree.
+- **The remapped label must exist** in the consuming repo (or route through its label-as-code
+  owner) — the same never-create-ad-hoc rule as every other label.
+
+`/work-items:setup` offers the remap interview and writes the binding key.
 
 ## Project-specific axes
 

@@ -49,6 +49,7 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 - **Cross-surface merge takes MAX severity + MAX confidence** — never a filtered value.
 - **Agreement = positive presence only.** Count the surfaces that flagged the issue; a surface's ABSENCE carries no signal (it may have been confidence-filtered, not judged absent).
 - **Rank:** (1) tier CRITICAL → IMPORTANT → SUGGESTION; (2) agreement count descending; (3) confidence `high` > `medium` > `unscored` > `low`. Render `pending: human-tier` and `forward-flag` markers visibly.
+- **Two-axis presentation:** the merged ranked queue is the primary view; the report ALSO regroups the same findings by review dimension (the Stage-0 category enum) under per-dimension headings — a merged rank can mask one dimension failing badly while the others pass.
 
 ## Model assignment
 

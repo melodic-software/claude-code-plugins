@@ -21,7 +21,7 @@ you ask about work items, tracked work, or what to do next):
 | Skill | What it does |
 |---|---|
 | `/work-items:work-items` | The tracker itself — the action router below (stats, list, add, work, triage, …). |
-| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, and writes the tracked `.github/recurring-schedule.json` (re-runnable). |
+| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, writes the tracked `.github/recurring-schedule.json`, and offers the canonical-role → label remap in the tracker binding (re-runnable). |
 
 ## Actions
 
@@ -36,7 +36,7 @@ you ask about work items, tracked work, or what to do next):
 | `scan` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each |
 | `audit` | Detect stale leases, orphaned recurring entries, label hygiene issues |
 | `decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering |
-| `triage` | Structured evaluation of incoming items, with an attention view |
+| `triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view |
 
 ## The tracker seam
 
@@ -89,8 +89,10 @@ a shared bot — so the race check stays sound.
 ## Configuration
 
 No `userConfig`. Project-specific behavior routes through the consuming repo's
-own surfaces: the bound provider in `.work-item-tracker.json`, its labels
+own surfaces: the bound provider in `.work-item-tracker.json` (including the
+optional `config.role_labels` canonical-role → label remap), its labels
 (taxonomy discovery through the adapter), its optional recurring schedule file,
+its optional rejected-concept ledger (`docs/out-of-scope/`, checked at intake),
 and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
 writes through a bot wrapper) and development workflow. The skill degrades
 gracefully when any of these are absent.

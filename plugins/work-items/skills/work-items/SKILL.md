@@ -18,14 +18,14 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 **Default = fix, not file.** Do NOT reflexively suggest `/work-items:work-items add` or `/work-items:work-items scan` for small / medium drift discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW items only when the work is genuinely orthogonal to the current session, large enough to need its own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and surface what was fixed in the commit message / PR description.
 
-**Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: discover them live through the bound tracker adapter. When the consuming repository declares a label-as-code source of truth, that system owns writes and this skill remains read-only. The **type axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it; otherwise use the repository's live `type:` labels. The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
+**Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: discover them live through the bound tracker adapter. When the consuming repository declares a label-as-code source of truth, that system owns writes and this skill remains read-only. The **type axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it; otherwise use the repository's live `type:` labels. Three meta labels are **canonical roles** — `autonomous-eligible`, `human-gated`, `recurring-maintenance` — whose repo-actual strings resolve from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs-human` / `recurring`; see [`reference/label-taxonomy.md`](reference/label-taxonomy.md) "Canonical roles"). The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
 
 | Axis | Mechanism | Scope | What it encodes |
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task` — the kind of issue; commit-type granularity stays at the commit layer |
 | Priority | `priority:` | universal | urgency — members from the live set |
 | Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`, `needs-triage`); claim = assignee + lease, blocked = native edge (neither is a label) |
-| Meta | (none) | universal | `automated`, `recurring`, `agent-ready`, `needs-human`, `good-first-issue`, `migrated`, `stale` |
+| Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`) |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface — see `reference/label-taxonomy.md` |
 | Category | `category:` | repo-specific | the consuming repo's domain categorization — see `reference/label-taxonomy.md` |
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix — see `reference/label-taxonomy.md` |
@@ -55,7 +55,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | `scan` | Scan codebase for TODO/FIXME/HACK comments, create items from them | [actions/scan.md](actions/scan.md) |
 | `audit` | Detect stale claims, orphaned recurring entries, label hygiene | [actions/audit.md](actions/audit.md) |
 | `decompose` | Break a plan/PRD/item into vertical-slice work items with HITL/AFK classification and dependency ordering | [actions/decompose.md](actions/decompose.md) |
-| `triage` | Evaluate incoming item: gather → recommend → reproduce → interview → apply outcome. No args = attention view | [actions/triage.md](actions/triage.md) |
+| `triage` | Evaluate raw intake (issues AND unsolicited PRs) through the triage states: raw → verified → briefed → autonomous-eligible. No args = attention view | [actions/triage.md](actions/triage.md) |
 | `help` | Show the action table above | *(inline)* |
 
 If `$ARGUMENTS` is empty, run `stats`. If the action is unknown, show the action table.
@@ -93,7 +93,7 @@ Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items:work-items start
 
 ### With autonomous agents
 
-Items labeled `agent-ready` with no assignee are available for autonomous agent pickup. The `work` action's seam claim (assignee + lease) prevents concurrent agent collisions. The `audit` action detects stale claims from crashed/abandoned agent sessions.
+Items carrying the autonomous-eligible role label (default `agent-ready`) with no assignee are available for autonomous agent pickup. The `work` action's seam claim (assignee + lease) prevents concurrent agent collisions. The `audit` action detects stale claims from crashed/abandoned agent sessions.
 
 ### End-of-session check
 
@@ -107,6 +107,7 @@ Skill-behavior failure patterns. Add to this section when new gotchas are discov
 
 - **Claim concurrency is the seam's job.** Claiming is race-safe at the seam (assignee + lease comment, same-identity aware) — `tools/work-item-tracker/CONTRACT.md` "Lease protocol". Reclaim runs idempotently at session start (`work` / `start`). Do not hand-roll a label-based hold protocol.
 - **Recurring schedule is in `.github/`, not the skill directory.** The schedule file is `.github/recurring-schedule.json`. It's version-controlled and shared. The consuming repo's recurring-issues automation reads it; the `/work-items:work-items recheck` action updates it.
+- **Multi-turn shared artifacts: re-read from disk, then append.** Immediately before writing any shared artifact that outlives a single turn (the recurring schedule, the checklist ledger, an out-of-scope concept file), re-read it from disk — another session may have written since it was last in context — and append or merge into what's there rather than rewriting the whole file from memory.
 
 ## What this skill does NOT do
 

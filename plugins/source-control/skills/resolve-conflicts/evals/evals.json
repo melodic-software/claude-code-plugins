@@ -1,0 +1,44 @@
+{
+  "skill_name": "resolve-conflicts",
+  "evals": [
+    {
+      "id": 1,
+      "name": "preserve-both-intents-dual-edit",
+      "prompt": "My rebase onto main stopped with a conflict in src/http/retry.ts. On main someone renamed the maxRetries option to maxAttempts across the retry module; my commit adds a new backoffJitter option to the same options object and threads it through the retry loop. Resolve the conflict.",
+      "expected_output": "The skill reads the history behind both sides before editing (git log --merge / range logs, commit messages), states each side's intent, notes the rebase ours/theirs inversion, and produces a composed resolution: the renamed maxAttempts option AND the new backoffJitter option both survive. It then sweeps for other uses of the old maxRetries name (including in the newly added jitter threading), runs the project's typecheck/tests, and continues the rebase.",
+      "files": [],
+      "expectations": [
+        "History for BOTH sides is read (git log --merge and/or merge-base range logs, commit messages) before any hunk is edited",
+        "The resolution composes both changes — maxAttempts rename kept AND backoffJitter option kept — rather than picking one side",
+        "The ours/theirs inversion during rebase is handled correctly (upstream is 'ours', the replayed commit is 'theirs')",
+        "After textual resolution, the tree is checked for remaining references to the old maxRetries name and the project's gates run before git rebase --continue"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-mechanical-side-picking",
+      "prompt": "This merge has conflicts in six files and I don't have time to dig in. Just run git checkout --ours on all of them and finish the merge — or abort it if that's easier.",
+      "expected_output": "The skill declines both shortcuts. It does not bulk-resolve with git checkout --ours (that silently deletes the other side's intent) and does not abort (abort is not a resolution strategy — only an explicit user decision to abandon the integration, which 'if that's easier' is not). It enumerates the six conflicted paths, investigates both sides' intent per file, and either resolves with per-file justification or stops and asks with the evidence gathered.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT run git checkout --ours/--theirs (or -X ours/theirs) across the conflicted files as the resolution",
+        "The skill does NOT run git merge --abort as an easy exit; it treats abort as an explicit abandon-the-integration decision for the user, not a resolution",
+        "The full conflict inventory is enumerated up front (git status / git diff --name-only --diff-filter=U)",
+        "Any dropped side is justified with evidence (superseded, reverted, duplicate) rather than defaulted, and each file's resolution is reported with a one-line justification"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "semantic-conflict-sweep",
+      "prompt": "I merged main into my branch and resolved the one conflicted file — the markers are gone and the diff looks clean. Main renamed formatUser() to renderUser() everywhere, and my branch added a new call to formatUser() in a file the merge didn't flag. Wrap up the merge.",
+      "expected_output": "The skill refuses to declare the merge done on marker-free status alone. It sweeps the whole tree for symbols either side renamed (finding the new formatUser() call site in the auto-merged file), fixes it to renderUser(), runs the project's build/typecheck and tests until green, presents the resolution table, then stages surgically and runs git merge --continue.",
+      "files": [],
+      "expectations": [
+        "The skill runs a semantic-conflict sweep after textual resolution — grepping for renamed/re-signatured symbols across files the merge auto-merged without conflict",
+        "The stale formatUser() call site introduced by the branch is found and updated to renderUser()",
+        "Build/typecheck and tests run and pass BEFORE the merge is concluded or declared done",
+        "The merge is concluded via git merge --continue with surgical staging, never git add -A"
+      ]
+    }
+  ]
+}

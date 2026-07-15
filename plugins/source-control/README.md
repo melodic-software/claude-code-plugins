@@ -1,8 +1,8 @@
 # source-control
 
-A Claude Code plugin bundling the git/GitHub delivery workflow as three
-composable skills — commit mechanics, the full PR lifecycle, and worktree
-lifecycle management.
+A Claude Code plugin bundling the git/GitHub delivery workflow as four
+composable skills — commit mechanics, the full PR lifecycle, worktree
+lifecycle management, and merge-conflict resolution.
 
 ## Skills
 
@@ -53,6 +53,18 @@ naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
 batched PR cross-reference, staleness classification), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
 destructive branch deletion for the user), `audit` (configuration health).
+
+### `/source-control:resolve-conflicts`
+
+Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
+the history behind BOTH sides of every hunk before editing (log/blame,
+commit messages, PR/issue context via `gh` when available), composes both
+changes by default, and drops a side only with evidence — never mechanical
+`--ours`/`--theirs` picking. After the markers are gone it sweeps for
+semantic conflicts the merge machinery can't flag (renamed symbol vs new
+call site) and runs the project's build/test gates before concluding via
+`--continue`. `--abort` is never a resolution strategy — only an explicit
+user decision to abandon the integration.
 
 ## Works in any repo
 

@@ -26,7 +26,11 @@ module's purpose without traversing the whole import graph.
 3. **Interview the selected candidate.** Once you pick one, walks the decision tree
    — constraints, dependencies, the shape of the deepened module, what sits
    behind the seam, which tests survive — and records the agreed shape for a
-   planning step to consume.
+   planning step to consume. When you want alternatives, a *Design-It-Twice*
+   branch frames the problem space, fans out parallel subagents that each design
+   the interface under a deliberately different constraint, compares the results
+   on depth, locality, and seam placement, and closes with an opinionated
+   recommendation.
 
 ## Invoke
 

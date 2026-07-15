@@ -1,6 +1,6 @@
 # Agent-Brief Template
 
-Template for issues labeled `agent-ready`. An agent brief is the authoritative specification an AFK agent works from. The original issue body and discussion are context — the agent brief is the contract.
+Template for items carrying the autonomous-eligible role label (default `agent-ready`). An agent brief is the authoritative specification an AFK agent works from. The original issue body and discussion are context — the agent brief is the contract.
 
 ## Principles
 
@@ -69,7 +69,7 @@ Be specific about edge cases and error conditions.
 
 Apply this template when:
 
-- Issue receives `agent-ready` meta label
+- Issue receives the autonomous-eligible role label (default `agent-ready`)
 - Issue is intended for AFK agent execution (`/schedule`, `/loop`, Codex)
 - Issue body is vague and needs structuring for autonomous execution
 

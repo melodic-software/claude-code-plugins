@@ -114,6 +114,7 @@ When precision emerges from a domain expert's words, key term definitions are ca
 
 - Not a "Wikipedia-ready" definition — just the precise meaning of that term in that specific conversation
 - Captures the **Bounded Context**-specific vocabulary
+- At wrap-up, resolved terms are graduation candidates for the consumer repo's committed project glossary (mechanics in `glossary-and-tools.md`)
 
 ---
 
