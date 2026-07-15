@@ -3,6 +3,15 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- Renamed the `ai-briefing` skill → `generate`. Update any `/ai-briefing:ai-briefing` invocations to
+  `/ai-briefing:generate`; the plugin ID (`ai-briefing`) is unchanged, only the skill's leaf name
+  moved. `scripts/validate-plugin-contracts.mjs` retargeted to `skills/generate` for its
+  active-profile and build-root checks.
+
 ## [0.4.0]
 
 ### Added

@@ -10,7 +10,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 | Skill | What it does |
 |---|---|
-| `/skill-quality:skill-quality` | Runs the contract gate (`check`) or schema-validates evals (`validate-evals`), for one skill or every skill. |
+| `/skill-quality:check` | Runs the contract gate (`check`) or schema-validates evals (`validate-evals`), for one skill or every skill. |
 | `/skill-quality:setup` | Confirms and persists the skills directory when it is not the conventional `.claude/skills`. |
 
 ## Checks
@@ -29,9 +29,9 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
   action-router skills ship `evals/evals.json`; companion spoke dirs are referenced.
 
 ```shell
-/skill-quality:skill-quality check my-skill          # gate one skill
-/skill-quality:skill-quality check                   # gate every skill under the resolved root
-/skill-quality:skill-quality validate-evals my-skill # schema-check evals.json
+/skill-quality:check my-skill          # gate one skill
+/skill-quality:check                   # gate every skill under the resolved root
+/skill-quality:check validate-evals my-skill # schema-check evals.json
 ```
 
 ## Skills directory — never baked in

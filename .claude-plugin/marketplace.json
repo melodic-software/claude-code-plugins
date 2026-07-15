@@ -10,49 +10,49 @@
     {
       "name": "markdown-formatter",
       "source": "./plugins/markdown-formatter",
-      "category": "formatting",
+      "category": "development",
       "tags": ["markdown", "markdownlint", "formatter", "linter", "hook"]
     },
     {
       "name": "bash-lint",
       "source": "./plugins/bash-lint",
-      "category": "formatting",
+      "category": "development",
       "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"]
     },
     {
       "name": "biome-format",
       "source": "./plugins/biome-format",
-      "category": "formatting",
+      "category": "development",
       "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"]
     },
     {
       "name": "ruff-format",
       "source": "./plugins/ruff-format",
-      "category": "formatting",
+      "category": "development",
       "tags": ["ruff", "python", "formatter", "linter", "hook"]
     },
     {
       "name": "eol-normalizer",
       "source": "./plugins/eol-normalizer",
-      "category": "formatting",
+      "category": "development",
       "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
     },
     {
       "name": "desktop-notification",
       "source": "./plugins/desktop-notification",
-      "category": "notifications",
+      "category": "claude-code",
       "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
     },
     {
       "name": "powershell-format",
       "source": "./plugins/powershell-format",
-      "category": "formatting",
+      "category": "development",
       "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
     },
     {
       "name": "actionlint",
       "source": "./plugins/actionlint",
-      "category": "formatting",
+      "category": "development",
       "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
     },
     {
@@ -64,91 +64,85 @@
     {
       "name": "bug-report",
       "source": "./plugins/bug-report",
-      "category": "workflow",
+      "category": "maintenance",
       "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
     },
     {
-      "name": "diagnose",
-      "source": "./plugins/diagnose",
-      "category": "debugging",
+      "name": "debugging",
+      "source": "./plugins/debugging",
+      "category": "maintenance",
       "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
     },
     {
-      "name": "improve-architecture",
-      "source": "./plugins/improve-architecture",
-      "category": "architecture",
+      "name": "architecture",
+      "source": "./plugins/architecture",
+      "category": "design",
       "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
     },
     {
-      "name": "mcp-tool-audit",
-      "source": "./plugins/mcp-tool-audit",
+      "name": "mcp-tools",
+      "source": "./plugins/mcp-tools",
       "category": "quality",
       "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"]
     },
     {
       "name": "prototype",
       "source": "./plugins/prototype",
-      "category": "workflow",
+      "category": "design",
       "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
     },
     {
       "name": "knowledge",
       "source": "./plugins/knowledge",
-      "category": "knowledge",
+      "category": "discovery",
       "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"]
     },
     {
       "name": "context7",
       "source": "./plugins/context7",
-      "category": "utilities",
+      "category": "discovery",
       "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
     },
     {
-      "name": "thariq-skills",
-      "source": "./plugins/thariq-skills",
-      "category": "learning",
-      "tags": ["knowledge", "skill", "skill-authoring", "playbook", "best-practices", "authoring"]
-    },
-    {
-      "name": "boris",
-      "source": "./plugins/boris",
-      "category": "learning",
-      "tags": ["knowledge", "skill", "claude-code", "workflow", "tips", "best-practices"]
+      "name": "playbooks",
+      "source": "./plugins/playbooks",
+      "category": "claude-code",
+      "tags": ["knowledge", "playbook", "doctrine", "boris", "thariq", "fable-5", "skill-authoring", "best-practices", "skill"]
     },
     {
       "name": "docs-hygiene",
       "source": "./plugins/docs-hygiene",
-      "category": "documentation",
-      "tags": ["maintenance", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
-    },
-    {
-      "name": "fable-5-playbook",
-      "source": "./plugins/fable-5-playbook",
-      "category": "learning",
-      "tags": ["knowledge", "skill", "doctrine", "playbook", "engineering-judgment", "best-practices"]
+      "category": "maintenance",
+      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit"]
     },
     {
       "name": "firecrawl",
       "source": "./plugins/firecrawl",
-      "category": "utilities",
+      "category": "discovery",
       "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"]
     },
     {
-      "name": "claude-config-audit",
-      "source": "./plugins/claude-config-audit",
-      "category": "configuration",
-      "tags": ["maintenance", "settings", "permissions", "mcp", "memory", "claude-md", "rules", "automation", "audit", "skill"]
+      "name": "claude-config",
+      "source": "./plugins/claude-config",
+      "category": "claude-code",
+      "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"]
+    },
+    {
+      "name": "claude-memory",
+      "source": "./plugins/claude-memory",
+      "category": "claude-code",
+      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "skill"]
     },
     {
       "name": "work-items",
       "source": "./plugins/work-items",
-      "category": "productivity",
+      "category": "project-management",
       "tags": ["work-items", "tracker", "seam", "provider-neutral", "github", "issues", "triage", "orchestration", "skill"]
     },
     {
       "name": "discovery",
       "source": "./plugins/discovery",
-      "category": "development",
+      "category": "discovery",
       "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
     },
     {
@@ -160,25 +154,25 @@
     {
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
-      "category": "review",
+      "category": "maintenance",
       "tags": ["tidy", "refactoring", "simplify", "boy-scout", "maintenance", "skill"]
     },
     {
       "name": "session-flow",
       "source": "./plugins/session-flow",
-      "category": "productivity",
+      "category": "workflow",
       "tags": ["workflow", "handoff", "retro", "retrospective", "session", "orchestration", "skill"]
     },
     {
       "name": "tdd",
       "source": "./plugins/tdd",
-      "category": "learning",
+      "category": "testing",
       "tags": ["knowledge", "skill", "tdd", "testing", "unit-testing", "test-design", "best-practices"]
     },
     {
       "name": "claude-ops",
       "source": "./plugins/claude-ops",
-      "category": "monitoring",
+      "category": "claude-code",
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "claude-code", "skill"]
     },
     {
@@ -196,36 +190,54 @@
     {
       "name": "planning",
       "source": "./plugins/planning",
-      "category": "development",
+      "category": "design",
       "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
     },
     {
-      "name": "review-toolkit",
-      "source": "./plugins/review-toolkit",
-      "category": "review",
+      "name": "review",
+      "source": "./plugins/review",
+      "category": "quality",
       "tags": ["review", "code-review", "security", "architecture", "doc-drift", "ci-audit", "quality-gate", "fanout", "agents", "skill"]
     },
     {
       "name": "implementation",
       "source": "./plugins/implementation",
       "category": "development",
-      "tags": ["implementation", "build", "lint", "testing", "tdd", "e2e", "verification", "skill"]
+      "tags": ["implementation", "execute", "orchestration", "dispatch", "incremental", "skill"]
+    },
+    {
+      "name": "toolchain",
+      "source": "./plugins/toolchain",
+      "category": "development",
+      "tags": ["build", "lint", "format", "ecosystem", "toolchain", "setup", "skill"]
+    },
+    {
+      "name": "testing",
+      "source": "./plugins/testing",
+      "category": "testing",
+      "tags": ["testing", "test", "tdd", "e2e", "coverage", "diagnose", "skill"]
+    },
+    {
+      "name": "verification",
+      "source": "./plugins/verification",
+      "category": "verification",
+      "tags": ["verification", "outcome", "baseline", "measure", "verify", "skill"]
     },
     {
       "name": "kindle-dedrm",
       "source": "./plugins/kindle-dedrm",
-      "category": "knowledge",
+      "category": "personal",
       "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"]
     },
     {
-      "name": "codebase-audit",
-      "source": "./plugins/codebase-audit",
+      "name": "codebase-health",
+      "source": "./plugins/codebase-health",
       "category": "quality",
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
-      "name": "teach",
-      "source": "./plugins/teach",
+      "name": "education",
+      "source": "./plugins/education",
       "category": "learning",
       "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
     },
@@ -238,35 +250,45 @@
     {
       "name": "event-storming",
       "source": "./plugins/event-storming",
-      "category": "modeling",
+      "category": "design",
       "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
     },
     {
       "name": "skill-quality",
       "source": "./plugins/skill-quality",
-      "category": "quality",
+      "category": "claude-code",
       "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"]
     },
     {
       "name": "machine-health",
       "source": "./plugins/machine-health",
-      "category": "monitoring",
+      "category": "operations",
       "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
     },
     {
       "name": "ai-briefing",
       "source": "./plugins/ai-briefing",
-      "category": "productivity",
+      "category": "personal",
       "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"]
     },
     {
       "name": "miro",
       "source": "./plugins/miro",
-      "category": "utilities",
+      "category": "design",
       "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"]
     }
   ],
   "renames": {
-    "book-distill": "knowledge"
+    "book-distill": "knowledge",
+    "diagnose": "debugging",
+    "improve-architecture": "architecture",
+    "teach": "education",
+    "review-toolkit": "review",
+    "mcp-tool-audit": "mcp-tools",
+    "codebase-audit": "codebase-health",
+    "claude-config-audit": "claude-config",
+    "boris": "playbooks",
+    "thariq-skills": "playbooks",
+    "fable-5-playbook": "playbooks"
   }
 }

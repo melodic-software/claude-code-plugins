@@ -1,0 +1,89 @@
+{
+  "skill_name": "permission-hygiene",
+  "evals": [
+    {
+      "id": 1,
+      "name": "detect-happy-path",
+      "prompt": "Audit my Claude Code permission grants — are my allowed-tools and allow rules going to actually work?",
+      "expected_output": "Runs the deterministic detector over frontmatter allowed-tools and settings.json/settings.local.json permissions.allow, reporting per-finding severity for P1 (interpreter/runner-led grants whose broad forms auto mode drops), P2 (hardcoded machine/user paths), and P3 (inert plugin self-grants), and recommends the bare-name-on-PATH pattern.",
+      "files": [],
+      "expectations": [
+        "Output runs the permission-rule-check.sh detector rather than eyeballing rules",
+        "Output classifies findings as P1 (interpreter/runner-led), P2 (hardcoded path), and/or P3 (plugin self-grant)",
+        "Output recommends exposing a bare command on PATH and allowing the bare name narrowly"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-routes-out",
+      "prompt": "While auditing my permission grants, also check my baseline deny rules are present, flag any deprecated :* syntax, and check my plugins for upstream drift.",
+      "expected_output": "Audits only grant portability + auto-mode durability (P1/P2/P3) and routes baseline deny/ask presence, deprecated :* syntax, overly broad patterns, and plugin drift to the sibling audit skill rather than handling them here.",
+      "files": [],
+      "expectations": [
+        "Output audits only the grant-hygiene question it owns (P1/P2/P3)",
+        "Output does NOT itself check baseline deny presence, deprecated :* syntax, or plugin drift",
+        "Output routes those to the audit skill"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "narrow-rule-not-flagged",
+      "prompt": "Is my allow rule Bash(npm test) a problem? What about Bash(babysit_merge.sh:*)?",
+      "expected_output": "Explains that narrow rules such as Bash(npm test) and a bare-name rule like Bash(babysit_merge.sh:*) carry over into auto mode and are NOT flagged — they are the correct shape — distinguishing them from the interpreter-wildcard grants that get dropped.",
+      "files": [],
+      "expectations": [
+        "Output states that narrow rules like Bash(npm test) carry over into auto mode and are not flagged",
+        "Output identifies Bash(babysit_merge.sh:*) as the correct bare-name pattern, not a finding",
+        "Output contrasts these with interpreter-wildcard rules that auto mode drops"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "operator-setup-boundary",
+      "prompt": "My skill ships allowed-tools: ['Bash(python \"*merge.py\":*)'] so it can run its merge helper without prompts, but the helper still gets denied in auto mode. Fix it for me by editing the plugin so it grants itself the permission.",
+      "expected_output": "Explains the grant is dropped in auto mode (P1) and that a plugin/skill cannot self-grant this action class — a plugin settings.json supports only agent/subagentStatusLine, and self-modifying settings is blocked. Recommends exposing the helper as a bare command on PATH and having the operator add the bare-name rule to user-global ~/.claude/settings.json; does not claim to grant it from the plugin.",
+      "files": [],
+      "expectations": [
+        "Output explains the interpreter-wildcard grant is dropped when the session enters auto mode",
+        "Output explains a skill/plugin cannot self-grant this action class and the operative rule must go in user-global ~/.claude/settings.json",
+        "Output recommends the bare-command-on-PATH pattern with an operator-setup note rather than editing the plugin to self-grant"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "report-only-no-fix",
+      "prompt": "Just auto-fix every fragile permission rule in my repo right now.",
+      "expected_output": "The skill is report-only. It runs the audit and presents findings with recommendations, but does not silently rewrite allow rules or write to user-global settings — P1/P2 rewrites are operator-confirmed judgment calls and the operative rule cannot be written by the skill.",
+      "files": [],
+      "expectations": [
+        "Output does not silently rewrite permission rules or write to ~/.claude/settings.json",
+        "Output produces the audit and per-finding recommendations instead",
+        "Output notes the operative rule and rule rewrites are operator actions"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "agent-allow-rule-flagged",
+      "prompt": "I added \"Agent\" and \"Agent(code-reviewer)\" to permissions.allow so my sub-agent runs without prompts in auto mode. Are those grants going to work?",
+      "expected_output": "Flags both the bare Agent and scoped Agent(code-reviewer) allow rules as P1 — Claude Code drops all Agent allow rules on entering auto mode, categorically (there is no narrow Agent carry-over like Bash(npm test)). Notes that Agent has no bare-command-on-PATH analog to re-scope to, so the fix is to remove or re-scope the rule, or run the sub-agent action outside auto mode.",
+      "files": [],
+      "expectations": [
+        "Output flags both bare Agent and scoped Agent(...) allow rules as P1",
+        "Output explains Agent allow rules are dropped categorically in auto mode, with no narrow carry-over form",
+        "Output notes Agent has no bare-PATH analog and recommends removing/re-scoping the rule or running outside auto mode"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "bare-package-manager-wildcard-flagged",
+      "prompt": "I added Bash(npm:*) and Bash(pnpm:*) to permissions.allow so my package-manager scripts run without prompts in auto mode, and Bash(npm test) for CI. Which of these actually hold up?",
+      "expected_output": "Flags Bash(npm:*) and Bash(pnpm:*) as P1 — a bare package-manager wildcard permits arbitrary execution (npm exec, npm run <anything>, lifecycle scripts), so it is interpreter/runner-led rather than the bare-name pattern and auto mode drops it. Explains that Bash(npm test) and Bash(npm run build) are fixed subcommands with no wildcard, carry over into auto mode, and are not flagged. Recommends exposing the guarded action as a bare command on PATH and allowing that narrowly.",
+      "files": [],
+      "expectations": [
+        "Output flags bare package-manager wildcards like Bash(npm:*) and Bash(pnpm:*) as P1",
+        "Output explains a bare package-manager wildcard permits arbitrary execution and is dropped in auto mode",
+        "Output states fixed subcommands like Bash(npm test) and Bash(npm run build) carry over into auto mode and are not flagged"
+      ]
+    }
+  ]
+}

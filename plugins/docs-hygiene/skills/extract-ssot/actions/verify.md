@@ -2,7 +2,7 @@
 
 Cheap pre-extraction gate. Refuse-fast on candidates that wouldn't survive `plan`/`execute` anyway. Surfaces the refusal verdict from a single grep + citation check, without spawning a subagent.
 
-Private surface — external consumers invoke `/extract-ssot verify <cluster>`, never cite this file directly (contract: `/encapsulation-audit`).
+Private surface — external consumers invoke `/extract-ssot verify <cluster>`, never cite this file directly (contract: `/audit-encapsulation`).
 
 ## When to invoke
 

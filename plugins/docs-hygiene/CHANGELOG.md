@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## 0.5.0 — 2026-07-15
+
+Changed:
+
+- Renamed the `encapsulation-audit` skill → `audit-encapsulation`. Update any
+  `/docs-hygiene:encapsulation-audit` invocations to `/docs-hygiene:audit-encapsulation`; the plugin ID
+  (`docs-hygiene`) is unchanged, only the skill's leaf name moved.
+
 ## 0.4.0 — 2026-07-15
 
 Added:

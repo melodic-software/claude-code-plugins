@@ -3,6 +3,13 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Changed
+
+- Synced the composition table's sibling-skill routes to the reorganized plugin
+  taxonomy: `/improve-architecture:improve-architecture` is now `/architecture:improve`.
+
 ## [0.2.1]
 
 ### Added

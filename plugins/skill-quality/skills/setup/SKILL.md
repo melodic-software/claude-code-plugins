@@ -29,7 +29,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    for `skill-quality`. For an explicit one-run override, the checker also accepts
    `CHECK_SKILL_SKILLS_ROOT`; do not persist that environment variable on the user's behalf.
 5. Rerun setup after reconfiguration and verify with
-   `/skill-quality:skill-quality check` without turning setup into the full quality audit.
+   `/skill-quality:check` without turning setup into the full quality audit.
 
 ## Output
 

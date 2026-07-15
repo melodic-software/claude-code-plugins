@@ -14,6 +14,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   vocabulary) as the recommended default, or a custom pattern for orgs that
   don't use Conventional Commits. Re-runnable to reconfigure. Ships evals.
 
+## [0.3.1]
+
+### Changed
+
+- Synced the pull-request verify-gate example to the reorganized taxonomy:
+  `/verify-changes` / `/build` are now `/verification:confirm` / `/toolchain:build`.
+
 ## [0.3.0]
 
 ### Added

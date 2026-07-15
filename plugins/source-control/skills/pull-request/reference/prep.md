@@ -46,7 +46,7 @@ Unless `quick` or `review-only` scope:
 
 ## 1.5 Verify gate (HARD — blocks PR creation)
 
-Run the project's full build + test + lint surface — via its verify skill when one exists (e.g. a `/verify-changes` or `/build` command), otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.**
+Run the project's full build + test + lint surface — via its verify skill when one exists (e.g. a `/verification:confirm` or `/toolchain:build` command), otherwise the ecosystem-native commands (`dotnet build && dotnet test`, `npm test`, `pytest`, shellcheck, markdownlint, …) for every ecosystem the branch touches. **All results must be clean before proceeding to PR creation.**
 
 **Run the full cross-cutting surface, not just the "obvious" ecosystem.** A branch that "looks dotnet-only" can still break CI through a touched README, an unmarked `.sh` script, or a modified workflow file. Mirror locally whatever CI will run — the project's CI workflows are the canonical list of what must pass.
 

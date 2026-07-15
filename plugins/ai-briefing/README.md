@@ -9,7 +9,7 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 
 | Skill | Invoke | What it does |
 |---|---|---|
-| `ai-briefing` | `/ai-briefing:ai-briefing` | Collects, cites, deduplicates, ranks, and emits a briefing; also supports `retro` and archive `search`. |
+| `generate` | `/ai-briefing:generate` | Collects, cites, deduplicates, ranks, and emits a briefing; also supports `retro` and archive `search`. |
 | `setup` | `/ai-briefing:setup` | Scaffolds or updates a source/profile configuration and optionally installs presentation dependencies. |
 
 ## Getting started
@@ -17,7 +17,7 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 1. Enable the plugin and run `/ai-briefing:setup`.
 2. Add authorized official feeds, GitHub release pages, reputable publications, and any
    user-supplied URLs to `.claude/ai-briefing/sources.md`.
-3. Run `/ai-briefing:ai-briefing` for markdown output.
+3. Run `/ai-briefing:generate` for markdown output.
 4. Before the first `--format html` or `--format slides` run, install the optional locked
    build toolchain with `/ai-briefing:setup --with-build-deps`.
 
