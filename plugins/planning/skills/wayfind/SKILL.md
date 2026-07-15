@@ -77,9 +77,9 @@ an interactive session — do not fabricate a map.
    decision item; foggy → *Not-yet-specified* prose.
 2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
    taxonomy (`work-map`, `wayfind:*`, `needs-human`) is present — an unknown `--label` fails the
-   create. Labels are provisioned by the label-as-code SSOT (github-iac, the sole writer), never
-   created ad hoc: if any are missing, STOP and report them for a github-iac PR (or the repo's
-   own provisioning for an opt-out repo). Then create one issue labelled bare `work-map`
+   create. Honor the consuming repository's declared label ownership. If it names a label-as-code
+   source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
+   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
    fog clears) / **Notes** (pointers to memory-tier `<memory_dir>/` artifacts, research, prior context) /
    **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's

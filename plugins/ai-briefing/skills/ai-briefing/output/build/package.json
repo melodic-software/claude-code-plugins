@@ -17,7 +17,7 @@
     "date-holidays": "^3.24.4",
     "linkinator": "^7.0.0",
     "node-pptx-parser": "^1.0.1",
-    "playwright": "^1.59.1",
+    "playwright": "1.61.1",
     "pptxgenjs": "^4.0.1",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",

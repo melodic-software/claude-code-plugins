@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://melodic.local/machine-health/check-result.schema.json",
+  "$id": "urn:claude-code-plugin:machine-health:check-result",
   "title": "CheckResult",
   "description": "One JSON object emitted by each check script on stdout. Enforced by Write-HealthResult at emit time; orchestrator re-validates on receipt.",
   "type": "object",

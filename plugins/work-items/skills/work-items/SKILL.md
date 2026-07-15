@@ -18,12 +18,12 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 **Default = fix, not file.** Do NOT reflexively suggest `/work-items:work-items add` or `/work-items:work-items scan` for small / medium drift discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW items only when the work is genuinely orthogonal to the current session, large enough to need its own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and surface what was fixed in the commit message / PR description.
 
-**Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: on org repos the universal axes are owned by the label-as-code SSOT (`melodic-software/github-iac`, the sole writer) and discovered live (`gh label list`); the **type axis is a native GitHub Issue Type** (`Bug`/`Feature`/`Task`), not a label, on org repos. The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
+**Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: discover them live through the bound tracker adapter. When the consuming repository declares a label-as-code source of truth, that system owns writes and this skill remains read-only. The **type axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it; otherwise use the repository's live `type:` labels. The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
 
 | Axis | Mechanism | Scope | What it encodes |
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task` — the kind of issue; commit-type granularity stays at the commit layer |
-| Priority | `priority:` | universal | urgency — members from the live set / github-iac |
+| Priority | `priority:` | universal | urgency — members from the live set |
 | Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`, `needs-triage`); claim = assignee + lease, blocked = native edge (neither is a label) |
 | Meta | (none) | universal | `automated`, `recurring`, `agent-ready`, `needs-human`, `good-first-issue`, `migrated`, `stale` |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface — see `reference/label-taxonomy.md` |

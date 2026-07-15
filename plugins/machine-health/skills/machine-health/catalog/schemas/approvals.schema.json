@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://melodic.local/machine-health/approvals.schema.json",
+  "$id": "urn:claude-code-plugin:machine-health:approvals",
   "title": "Approvals",
   "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Edited directly by the user or by migration on first run.",
   "type": "object",

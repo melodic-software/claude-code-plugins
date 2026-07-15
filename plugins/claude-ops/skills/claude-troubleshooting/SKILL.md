@@ -27,12 +27,18 @@ Claude Code ships frequently. Features that worked last week may have new bugs t
 The issue registry (`registry.json`) persists in the **registry directory**. By default this is the
 plugin's per-machine data directory (`${CLAUDE_PLUGIN_DATA}`, survives plugin updates). A consumer can
 instead keep the registry inside their repository — git-tracked and team-shared — by setting the
-`registry_dir` plugin option (project scope).
+`registry_dir` plugin option (personal user configuration).
 
 **Registry location — apply to EVERY `registry_manager.py` invocation:** the configured value is
 `${user_config.registry_dir}`; the project root is `${CLAUDE_PROJECT_DIR}`.
 
-- If `${user_config.registry_dir}` is a non-empty path → pass `--data-dir "${CLAUDE_PROJECT_DIR}/${user_config.registry_dir}"` (it is project-relative; use it as-is if it is already absolute).
+- If `${user_config.registry_dir}` is a non-empty path → first require a contained
+  project-relative value. Reject POSIX/rooted paths, Windows drive-qualified or drive-relative
+  paths, UNC paths, any `..` segment with either separator, and any existing symlink path that
+  resolves outside `${CLAUDE_PROJECT_DIR}`. If invalid, stop the registry action, report the
+  configuration problem visibly, and direct `/claude-ops:setup`; do not join, normalize, create,
+  or use the destination. If valid, pass
+  `--data-dir "${CLAUDE_PROJECT_DIR}/${user_config.registry_dir}"`.
 - If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → OMIT `--data-dir`; the script falls back to `${CLAUDE_PLUGIN_DATA}`.
 
 | File | Purpose | Who edits |

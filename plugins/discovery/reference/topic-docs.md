@@ -10,6 +10,9 @@ The contract owns every general rule — tiers, schema, resolution order, slug s
 no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
 deltas.
 
+The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
+behavior; this binding and topic-docs remain authoritative for their placement.
+
 ## What this plugin writes
 
 Discovery writes **memory tier only** — working documents nothing downstream enforces against:

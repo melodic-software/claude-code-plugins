@@ -34,6 +34,61 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
+# Keep the success-path contract test independent of tools installed on the
+# runner. markdownlint-cli2's documented CLI contract is an executable invoked
+# as `markdownlint-cli2 --fix <file>`: it applies fixable changes, exits 0 when
+# clean, and exits non-zero with remaining findings. This narrow local double
+# implements exactly the behavior exercised by the fixtures below (MD004,
+# MD024, and MD047); it never resolves packages or accesses the network.
+TEST_BIN="$WORK/test-bin"
+mkdir -p "$TEST_BIN"
+cat >"$TEST_BIN/markdownlint-cli2" <<'STUB'
+#!/usr/bin/env bash
+set -uo pipefail
+
+[[ "${1:-}" == "--fix" && $# -eq 2 ]] || exit 2
+file="$2"
+
+# MD004 fix: the consumer fixture requires dash list markers.
+if grep -q '^\* ' "$file"; then
+  sed -i 's/^\* /- /' "$file"
+fi
+
+# MD047 fix: add a final newline while preserving an existing CRLF style.
+if [[ -s "$file" && "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]]; then
+  if od -An -tx1 "$file" | grep -Eq '(^|[[:space:]])0d([[:space:]]|$)'; then
+    printf '\r\n' >>"$file"
+  else
+    printf '\n' >>"$file"
+  fi
+fi
+
+# MD024 residual: report the second occurrence of a duplicate ATX heading in
+# markdownlint-cli2's default violation-line shape.
+duplicate_line="$({
+  awk '
+    {
+      sub(/\r$/, "")
+      if ($0 ~ /^#{1,6}[[:space:]]+/) {
+        heading = $0
+        sub(/^#{1,6}[[:space:]]+/, "", heading)
+        if (seen[heading]++) { print NR; exit }
+      }
+    }
+  ' "$file"
+} || true)"
+if [[ -n "$duplicate_line" ]]; then
+  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content\n' \
+    "$file" "$duplicate_line"
+  exit 1
+fi
+
+exit 0
+STUB
+chmod +x "$TEST_BIN/markdownlint-cli2"
+PATH="$TEST_BIN:$PATH"
+export PATH
+
 # make_sink <body> → path to an executable single-command stub sink running
 # <body> (which reads the envelope on stdin). The contract requires
 # HOOK_TELEMETRY_SINK to be a single executable path, not a command-with-args,
@@ -171,6 +226,142 @@ if [[ $RC_M -eq 0 && -z "$OUT_M" ]]; then
   ok "missing .md skipped"
 else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
+fi
+
+# --- Missing markdownlint: visible advisory, never npx ----------------------
+# Simulate markdownlint-cli2 missing while an npx executable is available. The
+# hook must not invoke the package runner (which could fetch from the network).
+NO_MDLINT_ENV="$WORK/no-markdownlint.bashenv"
+NPX_MARKER="$WORK/npx-was-invoked"
+cat >"$NO_MDLINT_ENV" <<EOF
+command() {
+  if [[ "\${1:-}" == "-v" && "\${2:-}" == "markdownlint-cli2" ]]; then
+    return 1
+  fi
+  if [[ "\${1:-}" == "-v" && "\${2:-}" == "npx" ]]; then
+    printf '%s\\n' "$WORK/npx"
+    return 0
+  fi
+  builtin command "\$@"
+}
+npx() {
+  : >"$NPX_MARKER"
+  return 99
+}
+EOF
+OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
+  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_MDLINT=$?
+if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("markdownlint-cli2 is not installed")' >/dev/null 2>&1; then
+  ok "missing markdownlint emits visible additionalContext"
+else
+  fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
+fi
+if [[ ! -e "$NPX_MARKER" ]]; then ok "missing markdownlint never invokes npx"; else fail "missing markdownlint invoked npx"; fi
+
+# --- Missing jq: visible advisory, no malformed parsing ---------------------
+NO_JQ_ENV="$WORK/no-jq.bashenv"
+cat >"$NO_JQ_ENV" <<'EOF'
+command() {
+  if [[ "${1:-}" == "-v" && "${2:-}" == "jq" ]]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+EOF
+OUT_NO_JQ="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
+  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_NO_JQ=$?
+if [[ $RC_NO_JQ -eq 0 ]]; then ok "missing jq exits 0 (advisory)"; else fail "missing jq exit $RC_NO_JQ"; fi
+if printf '%s' "$OUT_NO_JQ" | jq -e '.hookSpecificOutput.additionalContext | contains("jq is required")' >/dev/null 2>&1; then
+  ok "missing jq emits visible additionalContext"
+else
+  fail "missing jq warning absent: $OUT_NO_JQ"
+fi
+
+# --- Repository-config trust boundary: visible once per risky state ---------
+# Use the official persistent plugin-data surface so separate hook processes
+# share the acknowledgement marker. A config-content change must produce a new
+# state signature and therefore a fresh warning.
+TRUST_DATA="$WORK/plugin-data"
+ORIGINAL_CONFIG="$REPO/.markdownlint-cli2.jsonc"
+SAVED_CONFIG="$WORK/original-markdownlint-cli2.jsonc"
+mv "$ORIGINAL_CONFIG" "$SAVED_CONFIG"
+
+cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
+module.exports = {
+  config: { "MD013": false },
+  noBanner: true,
+  noProgress: true
+};
+CJS
+TRUST_FILE="$REPO/trust-cjs.md"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+
+OUT_TRUST_1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
+  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_TRUST_1=$?
+if [[ $RC_TRUST_1 -eq 0 ]]; then ok "executable config advisory exits 0"; else fail "executable config advisory exit $RC_TRUST_1"; fi
+if printf '%s' "$OUT_TRUST_1" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.cjs")' >/dev/null 2>&1; then
+  ok "executable .cjs config emits visible trust advisory"
+else
+  fail "executable .cjs trust advisory absent: $OUT_TRUST_1"
+fi
+if [[ "$(tail -c 1 "$TRUST_FILE" | od -An -tx1 | tr -d ' \n')" == "0a" ]]; then
+  ok "trust advisory does not block markdownlint --fix"
+else
+  fail "trust advisory blocked markdownlint --fix"
+fi
+
+OUT_TRUST_2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
+  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -z "$OUT_TRUST_2" ]]; then
+  ok "unchanged executable config warning appears only once"
+else
+  fail "unchanged executable config warned again: $OUT_TRUST_2"
+fi
+
+printf '\n// reviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
+OUT_TRUST_3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
+  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory")' >/dev/null 2>&1; then
+  ok "changed executable config state warns again"
+else
+  fail "changed executable config state did not warn: $OUT_TRUST_3"
+fi
+
+# Declarative CLI2 configuration still loads modules when these official keys
+# are present. Empty arrays keep the fixture self-contained while proving all
+# three key names are recognized without executing third-party test modules.
+rm "$REPO/.markdownlint-cli2.cjs"
+cat >"$ORIGINAL_CONFIG" <<'JSONC'
+{
+  "config": { "MD013": false },
+  "customRules": [],
+  "markdownItPlugins": [],
+  "outputFormatters": [],
+  "noBanner": true,
+  "noProgress": true
+}
+JSONC
+OUT_TRUST_MODULES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
+  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1; then
+  ok "module-loading config keys emit visible trust advisory"
+else
+  fail "module-loading config trust advisory absent: $OUT_TRUST_MODULES"
+fi
+
+# Negative control: a declarative rule-only config is not executable and loads
+# no modules, so it must not produce trust-warning noise.
+mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
+OUT_TRUST_SAFE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
+  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -z "$OUT_TRUST_SAFE" ]]; then
+  ok "rule-only declarative config emits no trust advisory"
+else
+  fail "rule-only declarative config emitted advisory: $OUT_TRUST_SAFE"
 fi
 
 # --- Kill switch: disabled hook is a no-op ----------------------------------

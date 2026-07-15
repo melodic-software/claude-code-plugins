@@ -59,10 +59,9 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
   no eval issues. General-purpose in-repo hook migration into `guardrails`/`claude-ops` is owned by
   `melodic-software/medley#1391`. Per-slug retrofits already filed:
   `#1405` (event-storming), `#1408`/`#1409` (knowledge), `#1418` (skill-quality), `#1419`
-  (machine-health — including the setup-completeness gap where its setup skill defers `report_dir`
-  to `/plugin configure` instead of interviewing/persisting it), `#1420` (implementation),
-  `#1421` (review-toolkit). knowledge and skill-quality setups, by contrast, do interview and
-  persist their `userConfig` — machine-health is the lone setup-completeness outlier.
+  (machine-health), `#1420` (implementation), `#1421` (review-toolkit). Current Claude Code owns
+  `userConfig` prompting and persistence: knowledge, skill-quality, and machine-health setup skills
+  validate the rendered value or direct the user to `/plugin configure`; none edits `pluginConfigs`.
 
 ## Hook plugins (9) — compliant
 
@@ -103,13 +102,13 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | claude-ops | `userConfig` `registry_dir` + `.claude/observability/` | **missing** | default → plugin-data | ccusage (CLI-first) | absent → #1396 | **GAP → net-new setup issue** (coordinate with #1391's claude-ops telemetry seam) |
 | code-tidying | tracked `.claude/tidy-lanes/**` (seam 2, folder) | **missing** | ships default lanes; consumer overrides | — | present | **GAP → net-new setup issue** (scaffold project lanes) |
 | songwriting | tracked `songwriting/templates/**` override + `${CLAUDE_PROJECT_DIR}/songwriting/` output (seam 2/3) | **missing** | safe default layout + CLAUDE.md precedence; ships default templates, consumer overrides | Datamuse public API (rhyme, no secret, opt-in) | absent → #1396 | **GAP → net-new setup issue** (scaffold project template overrides). Reclassified from pure-reference: 9 action skills (`rhyme`/`co-write`/`suno`/…), not knowledge-only |
-| discovery | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | **missing** | concern file → CLAUDE.md → infer/ask → default | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | absent → #1396 | **GAP → net-new setup issue** |
-| planning | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | **missing** | concern file → CLAUDE.md → infer/ask → default | — | absent → #1396 | **GAP → net-new setup issue** |
-| implementation | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | missing | concern file → CLAUDE.md → infer/ask → default | — | present | owned by #1420 (setup + ecosystem-commands) |
+| discovery | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | setup covered by shared convention eval | compliant |
+| planning | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
+| implementation | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) + ecosystem commands | present for ecosystem commands; consumes the shared topic-docs and lifecycle artifact contracts | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
 | codebase-audit | tracked `.claude/codebase-audit.md` (seam 2) | present | read-existing → interview → write | — | present | compliant (setup exemplar) |
-| knowledge | `userConfig` `library_dir` | present | infer/ask + persist | — | absent → #1396 | compliant; youtube/course-digest retrofits owned by #1408/#1409 |
-| machine-health | `userConfig` `report_dir` | partial | overlay persisted; `report_dir` deferred to `/plugin configure` | — | absent → #1396 | setup ships (catalog overlay) but does **not** interview/persist `report_dir` — completeness gap + behavior fixes owned by #1419 |
-| skill-quality | `userConfig` `skills_root` | present | infer/ask + persist | — | absent → #1396 | compliant; runner/contract work owned by #1418 |
+| knowledge | `userConfig` `library_dir` | present | validate rendered value → `/plugin configure` when needed | — | absent → #1396 | compliant; setup never edits `pluginConfigs`; youtube/course-digest retrofits owned by #1408/#1409 |
+| machine-health | `userConfig` `report_dir` + machine-local overlay | present | overlay persisted; personal scalar delegated to `/plugin configure` | — | absent → #1396 | compliant setup ownership; remaining behavior fixes owned by #1419 |
+| skill-quality | `userConfig` `skills_root` | present | validate/infer candidate → `/plugin configure` when needed | — | absent → #1396 | compliant; setup never edits `pluginConfigs`; runner/contract work owned by #1418 |
 | claude-config-audit | consumer `.claude/**` via `CLAUDE_PROJECT_DIR` (seam 3) | n/a | reads consumer config | — | present | compliant |
 | context7 | none needed | n/a | — | ctx7 (CLI-first) | absent → #1396 | compliant |
 | firecrawl | none needed | n/a | — | firecrawl-cli (CLI-first) | absent → #1396 | compliant |
@@ -132,8 +131,10 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 
 One `retrofit(<slug>)` issue per setup-action gap, sub-issue-linked under wave-2 map
 `melodic-software/medley#1369`, `agent-ready`. Each is scoped to: add a re-runnable
-`setup`/`configure` skill that interviews the consumer and writes the plugin's tracked config
-(`userConfig` via `pluginConfigs`, or the seam-2 tracked file), idempotent per the playbook's
+`setup`/`configure` skill that interviews the consumer and writes the appropriate owned config
+(a tracked project instruction/config file or machine-local plugin state). Personal `userConfig` is
+owned by Claude Code's native plugin configuration surface; setup validates it but never writes
+`pluginConfigs`. The setup remains idempotent per the playbook's
 "Setup action — every configurable plugin ships one", and bump `plugin.json` `version`.
 
 | Plugin | Issue |

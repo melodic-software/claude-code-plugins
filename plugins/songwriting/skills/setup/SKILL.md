@@ -3,7 +3,7 @@ name: setup
 description: "Configure the songwriting plugin for this repository: interview the user, then scaffold project-level prompt-template overrides under songwriting/templates/pat-pattison/ from the bundled defaults and confirm where craft artifacts land. Use when: 'set up songwriting', 'configure songwriting', 'songwriting setup', 'customize a songwriting template', 'override the co-write prompt', or a craft skill reports you want to tune its bundled prompt. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

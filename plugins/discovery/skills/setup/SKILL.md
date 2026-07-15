@@ -3,7 +3,7 @@ name: setup
 description: "Configure where discovery artifacts land in this repository: interview the user and persist the tracked topic-docs concern file (.claude/topic-docs.yaml). Use when: 'set up discovery', 'configure the discovery plugin', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

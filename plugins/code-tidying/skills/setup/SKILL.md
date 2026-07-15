@@ -3,7 +3,7 @@ name: setup
 description: "Configure the code-tidying plugin for this repository: interview the user, infer which lane patterns fit the repo layout, and scaffold tracked .claude/tidy-lanes/<lane>.md project lane files from the bundled templates. Use when: 'set up code-tidying', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', or the tidy skill reports no project lanes for this repo. Re-runnable — safe to invoke again to add or retune lanes."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

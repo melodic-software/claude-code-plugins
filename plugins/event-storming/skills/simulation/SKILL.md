@@ -50,9 +50,10 @@ plugin's tool under the `mcp__plugin_miro_miro__` prefix.
      facilitation logic, personas, phase ordering, and rubric scoring are identical; only the
      rendering surface changes. Persist the artifact under `${CLAUDE_PLUGIN_DATA}/sessions/`.
   2. **Install + enable the `miro` plugin, then retry:** a fresh user has only `event-storming` — the
-     `miro` plugin must be installed from the marketplace first (`claude plugin install miro@melodic-software`),
-     then enabled (`claude plugin enable miro` or the `/plugin` interface) with a Miro API token
-     (stored in the keychain). Stop until its tools are available. Full setup: `reference/miro-integration.md`.
+     `miro` plugin must be installed from an available marketplace first, then enabled through
+     the `/plugin` interface with a Miro API token (stored by Claude Code's secure credential
+     mechanism). Do not assume a marketplace name. Stop until its tools are available. Full setup:
+     `reference/miro-integration.md`.
 
 Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--crc`,
 `--discover-bcs` with a board URL) require Miro — if it's absent, say so and offer path 2, since

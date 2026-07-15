@@ -10,6 +10,9 @@ The contract owns every general rule — tiers, schema, resolution order, slug s
 no-project-root fallback, non-interactive/forked mode, the prune-with-pointer lifecycle with its
 redaction bar. This document records only this plugin's deltas.
 
+The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
+behavior; this binding and topic-docs remain authoritative for their placement.
+
 ## What this plugin writes, per tier
 
 | Artifact | Tier | Location (default) |

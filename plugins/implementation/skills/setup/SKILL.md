@@ -3,7 +3,7 @@ name: setup
 description: "Configure the implementation plugin for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, write the tracked .claude/ecosystems/<ecosystem>.yaml files that /implementation:build and /implementation:lint resolve first, and offer the tracked .claude/topic-docs.yaml concern file that places plan and verification artifacts. Use when: 'set up implementation', 'configure build/lint commands', 'implementation setup', /build or /lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "[ecosystem] (no arguments — interview every inferred ecosystem; or name one to (re)configure just that ecosystem)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

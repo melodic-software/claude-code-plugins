@@ -3,6 +3,7 @@ name: setup
 description: "Configure the planning plugin for this repository: interview the user, resolve where topic documents land per the topic-docs convention, and persist the tracked concern file .claude/topic-docs.yaml. Use when: 'set up planning', 'configure the planning plugin', 'planning setup', 'where do planning artifacts land', or a planning skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
+disable-model-invocation: true
 ---
 
 ## Purpose

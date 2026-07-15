@@ -1,52 +1,95 @@
-// Resolve the active profile's brand.js overlay over the engine's neutral
-// default. The emitter reads a single concrete brand (deck `meta` fields) +
-// `theme`; a consumer profile supplies a `brand.js` beside its logo assets to
-// override org name, tagline, logos, and theme tokens per key.
-//
-// Contract:
-//   - Absent profile brand.js  -> neutral default returned unchanged (the
-//     common unprofiled case; the seed dir ships no overlay).
-//   - Present-but-malformed     -> the import error propagates. A profile that
-//     exists but cannot load is a real fault, not a silent fall-through.
-//   - Profile logo paths are relative to the profile brand.js (e.g.
-//     `assets/logo.png`). They are resolved to ABSOLUTE here so the downstream
-//     build scripts' `path.resolve(buildDir, meta.logo*)` returns them
-//     unchanged (path.resolve keeps a trailing absolute segment).
-//
-// The overlay is loaded via a `data:` URL rather than a file URL so its ESM
-// `export const` parses regardless of the consumer project's package scope: a
-// profile brand.js sits under the consumer's `.claude/ai-briefing/`, where the
-// nearest package.json is the consumer's — an explicit `"type":"commonjs"`
-// there makes a file-URL import throw `SyntaxError`, and a typeless one prints a
-// MODULE_TYPELESS_PACKAGE_JSON perf warning on every build. A `data:` module is
-// always ESM. The trade-off: a data: module cannot resolve relative `import`s,
-// so brand.js must stay a pure-data overlay (org/tagline/logo strings + theme
-// tokens) — which the documented contract already requires.
+// Resolve a declarative, schema-validated brand.json profile overlay over the
+// engine's neutral defaults. Profile data is never executed as JavaScript.
 
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 const LOGO_KEYS = ["logoColor", "logoWhite"];
+const COLOR_KEYS = [
+  "bg",
+  "bgAccent",
+  "bgCard",
+  "brandIndigo",
+  "brandRed",
+  "accent",
+  "accent2",
+  "accent3",
+  "text",
+  "textMuted",
+  "divider",
+];
+
+const brandSchema = z
+  .object({
+    org: z.string().min(1).max(120).optional(),
+    tagline: z.string().max(240).optional(),
+    logoColor: z.string().min(1).max(260).optional(),
+    logoWhite: z.string().min(1).max(260).optional(),
+    footerTemplate: z.string().min(1).max(240).optional(),
+  })
+  .strict();
+
+const fontSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(/^[A-Za-z0-9 ',._-]+$/, "font stacks may contain only portable font-family characters");
+const themeShape = Object.fromEntries(
+  COLOR_KEYS.map((key) => [key, z.string().regex(/^[0-9A-Fa-f]{6}$/).optional()]),
+);
+for (const key of ["pptFontHead", "pptFontBody", "htmlFontHead", "htmlFontBody"]) {
+  themeShape[key] = fontSchema.optional();
+}
+const themeSchema = z.object(themeShape).strict();
+const overlaySchema = z
+  .object({
+    brand: brandSchema.optional(),
+    theme: themeSchema.optional(),
+  })
+  .strict();
+
+function resolveLogo(configDir, value) {
+  if (!value) return value;
+  if (path.isAbsolute(value) || /^[A-Za-z]:/.test(value)) {
+    throw new Error("brand.json logo paths must be relative to the profile directory");
+  }
+
+  const realConfigDir = fs.realpathSync(configDir);
+  const candidate = path.resolve(realConfigDir, value);
+  const realCandidate = fs.realpathSync(candidate);
+  const relative = path.relative(realConfigDir, realCandidate);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error("brand.json logo paths must remain inside the profile directory");
+  }
+  if (!fs.statSync(realCandidate).isFile()) {
+    throw new Error("brand.json logo paths must identify regular files");
+  }
+  return realCandidate;
+}
 
 export async function resolveBrand({ defaultBrand, defaultTheme, configDir }) {
-  const overlayPath = path.join(configDir, "brand.js");
+  const overlayPath = path.join(configDir, "brand.json");
   if (!fs.existsSync(overlayPath)) {
+    const legacyOverlayPath = path.join(configDir, "brand.js");
+    if (fs.existsSync(legacyOverlayPath)) {
+      throw new Error(
+        `Legacy profile branding found at ${legacyOverlayPath}. Convert brand.js to declarative brand.json before building; executable profile overlays are no longer supported.`,
+      );
+    }
     return { brand: { ...defaultBrand }, theme: { ...defaultTheme } };
   }
 
-  const source = fs.readFileSync(overlayPath, "utf-8");
-  const dataUrl = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
-  const overlay = await import(dataUrl);
+  const overlay = overlaySchema.parse(JSON.parse(fs.readFileSync(overlayPath, "utf-8")));
   const brand = { ...defaultBrand, ...(overlay.brand ?? {}) };
   const theme = { ...defaultTheme, ...(overlay.theme ?? {}) };
 
-  // Only the profile-supplied logos anchor to configDir; the neutral default's
-  // logos are empty and provider logos stay relative to the build dir.
   for (const key of LOGO_KEYS) {
-    const value = overlay.brand?.[key];
-    if (value && !path.isAbsolute(value)) {
-      brand[key] = path.resolve(configDir, value);
-    }
+    if (overlay.brand?.[key]) brand[key] = resolveLogo(configDir, overlay.brand[key]);
   }
 
   return { brand, theme };

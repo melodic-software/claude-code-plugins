@@ -11,7 +11,7 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 |---|---|---|
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
 | `youtube` | `/knowledge:youtube` | Watches a single public YouTube video (transcript + visual frames), harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
-| `setup` | `/knowledge:setup` | Interviews the consumer and persists the `library_dir` config (idempotent — re-run to reconfigure). |
+| `setup` | `/knowledge:setup` | Validates `library_dir` against the repository's artifact convention and routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## What book-distill produces
 
@@ -74,7 +74,7 @@ resuming so the resume pointer survives.
 
 ## Configuration
 
-One option, prompted at enable time (or set any time with `/knowledge:setup`):
+One personal option, prompted by Claude Code at enable time:
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|

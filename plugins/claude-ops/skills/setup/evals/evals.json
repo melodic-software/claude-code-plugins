@@ -3,41 +3,39 @@
   "evals": [
     {
       "id": 1,
-      "name": "interviews-binary-then-path-only-if-needed",
+      "name": "validates-registry-without-settings-edits",
       "prompt": "/claude-ops:setup",
-      "expected_output": "Reads the current effective registry_dir across scopes (querying only that single key, not whole settings files), reports the effective value or that it is unset (registry lives in the per-machine plugin data directory), then presents the binary — per-machine (unset, recommended default) versus in-repo git-tracked — and asks for a directory only when the consumer chooses in-repo, inferring a .claude/-rooted tracked path. No baked repo assumptions.",
+      "expected_output": "Reports the rendered registry_dir and skill_usage_dir or their documented fallbacks, explains that the options are personal, validates containment, and does not read or edit settings files or pluginConfigs.",
       "files": [],
       "expectations": [
-        "Reads the effective registry_dir narrowly (only the pluginConfigs registry_dir key), never loading a settings file wholesale",
-        "Presents the per-machine-vs-in-repo binary with the per-machine default recommended",
-        "Asks for a directory only when in-repo is chosen and infers a .claude/-rooted tracked path",
-        "Makes no baked repo assumptions and writes nothing until the user chooses"
+        "Reads only the rendered user_config values",
+        "Reports both effective destinations and containment status",
+        "Explains personal versus repository-resident implications",
+        "Does not inspect or edit settings files or pluginConfigs"
       ]
     },
     {
       "id": 2,
-      "name": "idempotent-reports-scope-and-shadowing",
-      "prompt": "/claude-ops:setup",
-      "expected_output": "When registry_dir already carries a value, re-running reports the effective value and which scope (Local > Project > User) supplies it, and proposes changes against that baseline rather than overwriting blind. When a local override shadows the project value, it says so explicitly — a project-scope write will not change what the plugin uses until the developer updates or removes the local override.",
+      "name": "routes-reconfiguration-through-claude",
+      "prompt": "/claude-ops:setup\n\nKeep the troubleshooting registry in this repository.",
+      "expected_output": "Recommends a portable project-relative path from repository evidence, directs the user to Claude Code's plugin configuration prompt, and verifies the rendered value on rerun before claiming success.",
       "files": [],
       "expectations": [
-        "Reports the existing effective registry_dir and its supplying scope before proposing changes",
-        "Resolves precedence as Local > Project > User",
-        "Warns when a higher-precedence local override will shadow a project-scope write",
-        "Does not overwrite the existing value blind"
+        "Uses repository-declared artifact conventions",
+        "Does not present a user option as tracked team policy",
+        "Routes persistence through Claude Code and verifies on rerun"
       ]
     },
     {
       "id": 3,
-      "name": "persists-to-tracked-project-not-plugin",
-      "prompt": "/claude-ops:setup\n\nKeep the troubleshooting registry in this repo, git-tracked.",
-      "expected_output": "Writes registry_dir to the consumer's project .claude/settings.json as a value relative to the project root, storing it verbatim and creating the pluginConfigs/options path without disturbing unrelated keys. It offers the .claude/settings.local.json personal overlay plus gitignore convention and never stores configuration in the plugin install directory or its data directory.",
+      "name": "rejects-uncontained-user-paths",
+      "prompt": "/claude-ops:setup\n\nMy rendered registry_dir is ../shared and skill_usage_dir is C:\\logs.",
+      "expected_output": "Rejects traversal, absolute, Windows drive, UNC, and escaping-symlink paths as invalid; does not join, normalize, create, or use either destination; and directs reconfiguration through Claude Code.",
       "files": [],
       "expectations": [
-        "Writes registry_dir to the consumer's tracked project .claude/settings.json relative to the project root",
-        "Creates the pluginConfigs/options path without disturbing unrelated keys",
-        "Offers the .claude/settings.local.json personal overlay and gitignore convention",
-        "Does not store configuration in the plugin install directory or plugin data directory"
+        "Rejects ../shared and C:\\logs before any path join or write",
+        "Explains the project-containment boundary visibly",
+        "Does not silently fall back or claim to reconfigure the options"
       ]
     }
   ]

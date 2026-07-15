@@ -45,10 +45,10 @@ updates:
     labels:
       - dependencies
     schedule:
-      interval: weekly
+      # GitHub defines daily as every weekday. This executable compatibility
+      # dependency intentionally tracks the latest Claude Code release.
+      interval: daily
     open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
     # Batch minor + patch bumps into one reviewed PR; majors stay individual.
     groups:
       npm-minor-patch:
