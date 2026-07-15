@@ -38,10 +38,12 @@ Compliant examples:
 ## Task
 
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
-2. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
-3. Pre-check the subject against the pattern (fast-fail before invoking git).
-4. Invoke `git commit -F -` via the Bash tool, heredoc-piped, with `--trailer` for `Co-Authored-By` per the trailer template below.
-5. Surface the resulting commit SHA + subject to the user.
+2. Stage the intended files (`git add <path>...`); run the exec-bit check below on any newly-added file.
+3. Run the format-before-push check below against the staged files, if a local formatter/linter is discoverable.
+4. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
+5. Pre-check the subject against the pattern (fast-fail before invoking git).
+6. Invoke `git commit -F -` via the Bash tool, heredoc-piped, with `--trailer` for `Co-Authored-By` per the trailer template below.
+7. Surface the resulting commit SHA + subject to the user.
 
 ## Canonical bash form
 
@@ -94,6 +96,34 @@ If the working tree contains unstaged or untracked files that fall outside this 
 ## Staging discipline
 
 Always `git add <specific-files>`, never `git add -A` or `git add .`. The risk is including secrets, build artifacts, or unrelated changes that the user did not approve for this commit. If multiple files are intentionally part of the commit, stage them by explicit list, not by wildcard.
+
+Immediately after staging, run the exec-bit check and the format-before-push check below — catch what CI would otherwise catch on the push round-trip.
+
+## Exec-bit check
+
+After staging, for every newly-added file (not previously tracked) whose first line is a shebang (`#!`), confirm the index recorded it as executable. A shebang script staged as mode `100644` slips past local review and fails a CI exec-bit lint lane every time — cheaper to fix here than to round-trip through a failed check:
+
+```bash
+for f in <newly-added paths>; do
+  head -c 2 -- "$f" | grep -q '^#!' || continue
+  git ls-files --stage -- "$f" | grep -q '^100755' && continue
+  git update-index --chmod=+x -- "$f"
+done
+```
+
+Scope this to files newly added in the current change set, not a full-repo sweep. Already-tracked files that were already executable, and files without a shebang, need no action.
+
+## Format-before-push check
+
+Before drafting the commit message, check whether the consuming repo already has a formatter or linter configured, and run it against the staged files — catching issues locally that CI would otherwise catch after a push:
+
+- `package.json` `scripts.format` / `scripts.lint` (`npm run format`, `npm run lint`)
+- `biome.json` / `biome.jsonc` (`biome check --write`, scoped to the changed paths)
+- A `Makefile` `format` or `lint` target
+- `.editorconfig` paired with an installed `editorconfig-checker`
+- Any other formatter/linter config already at the repo root (`.prettierrc`, `rustfmt.toml`, `.golangci.yml`, a markdown-lint config, etc.), run with its matching CLI
+
+Run only what's already configured and discoverable in the consuming repo — never install or invent a formatter for this step. If nothing is discoverable, skip this step silently; don't block the commit on tooling that doesn't exist. If the tool modifies files, re-stage them (`git add <path>`) before drafting the commit message.
 
 ## Pathspec-limited commits (dirty shared index)
 

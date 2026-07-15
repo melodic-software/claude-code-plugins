@@ -14,7 +14,11 @@ pattern before git runs, appends a `Co-Authored-By: Claude …` trailer, and
 feeds the message via Bash heredoc (`git commit -F - --cleanup=verbatim`) —
 never PowerShell here-strings, never scratch files in `.git/`. Stages
 surgically (`git add <path>`, never `-A`), and supports pathspec-limited
-commits when the index is shared with a concurrent session.
+commits when the index is shared with a concurrent session. Right after
+staging, it fixes the exec bit on newly-added shebang files and runs the
+consuming repo's own formatter/linter (when one is discoverable) against the
+staged files — catching what CI's exec-bit and lint lanes would otherwise
+catch after the push round-trip.
 
 ### `/source-control:pull-request`
 
