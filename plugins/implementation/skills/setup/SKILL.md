@@ -97,9 +97,10 @@ tier is `branch` (local mode has no committed tier to guard): `git check-ignore 
 representative file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a
 bare directory misses `**` patterns) — a matching ignore rule is surfaced to
 the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
-resolved memory root self-ignores through its own `.gitignore`. When an existing or offered file
-carries `vault_backend: gitbook`, preserve it but report that GitBook is deferred and non-writable
-(see `docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`): the effective writable promotion
+resolved memory root self-ignores through its own `.gitignore`. Whenever the effective
+`vault_backend` is (or becomes) `gitbook` — preserved from an existing file or chosen by the user
+during this interview — report that GitBook is deferred and non-writable (see
+`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`): the effective writable promotion
 target remains `docs` until a later reviewed decision enables the backend. Do not configure or test a
 GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user chooses
 that change.

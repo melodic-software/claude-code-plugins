@@ -9,8 +9,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **GitBook remains non-writable throughout planning close-out**: `/planning:architect` and the
   topic-docs binding now route `vault_backend: gitbook` to the in-repo `docs` promotion path without
-  invoking GitBook API/MCP or Git Sync writes. `/planning:setup` preserves an existing key while
-  reporting its deferred, non-writable status instead of implying that it enables a writer.
+  invoking GitBook API/MCP or Git Sync writes. `/planning:setup` reports the deferred, non-writable
+  status whenever the effective value is `gitbook` — preserved from an existing file, inferred from
+  the repo's own conventions, or chosen during the interview — instead of implying that any of those
+  paths enables a writer.
 
 ## [0.9.0]
 
