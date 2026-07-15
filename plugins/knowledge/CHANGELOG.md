@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.3
+
+### Changed
+
+- **Aligned with the marketplace topic-docs convention** (`docs/conventions/topic-docs/`).
+  Setup's convention inference now points at the `.claude/topic-docs.yaml` concern file and
+  the `.work/` memory tier (the retired `.claude/notes/` location is no signal — the contract
+  is a clean break), and the youtube/course-digest skills carry the contract's **formal carve-out**
+  note (the work root resolves through this plugin's `library_dir` seam, not the concern file's
+  `memory_dir`; slug conformance is form-only; nested `<epic>/<slug>/` sub-slices are
+  sanctioned), linking the convention by its canonical URL. The youtube slice-lane rationale
+  now records that the `verification/` lane name matches the convention's canon. Docs-only —
+  no paths or behavior change; the `library_dir` seam is untouched.
+
 ## 0.5.2
 
 ### Fixed

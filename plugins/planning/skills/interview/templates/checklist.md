@@ -1,10 +1,10 @@
 # /interview Checklist
 
-Copy into `${user_config.notes_dir}/<topic-slug>/interview-checklist.md`. Tick as each step completes.
+Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice). Tick as each step completes.
 
 ## Steps
 
-- [ ] Step 1: Survey before you ask — read existing context, the topic's notes directory, conversation history; identify what's already settled
+- [ ] Step 1: Survey before you ask — read existing context, the topic's contract and memory slices, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only) — if intent already crisp from survey, route to direct synthesis (skip Q&A loop)
 - [ ] Step 2: Drive the depth-first loop — one question at a time, **inline prose** (the one-at-a-time loop never uses `AskUserQuestion`; `lock` synthesizes without Q&A); resolve load-bearing first; restate decided/open after each answer
 - [ ] Step 3: Recognize the stop condition — remaining-open is empty OR user signals "good, proceed"

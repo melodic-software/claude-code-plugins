@@ -61,7 +61,10 @@ cat >"$CLEAN" <<'EOF'
 # Clean fixture
 
 Plain prose with no noise shapes. The schema uses .work/<slug>/PLAN.md as a
-slot-variable example, which is not a ghost ref.
+slot-variable example, which is not a ghost ref. Contract slices land in
+docs/topics/<slug>/PLAN.md; session handoffs sit in .work/handoffs/ and review
+reports in .work/reviews/<branch-slug>/; .claude/topic-docs.yaml is the tracked
+concern file.
 
 ## Cross-references
 
@@ -140,6 +143,131 @@ PATHS="$TEST_TMPDIR/paths.txt"
 printf '%s\n' "$CLEAN" >"$PATHS"
 pf_out="$(bash "$DETECT" --paths-file "$PATHS")"
 assert_contains "paths-file target audited" "$pf_out" "Summary file: $CLEAN"
+
+# --- 8. Topic-docs taxonomy: concrete contract slice flags; convention forms pass ----
+
+TAXONOMY="$TEST_TMPDIR/taxonomy.md"
+cat >"$TAXONOMY" <<'EOF'
+# Taxonomy fixture
+
+The worked example lives at docs/topics/net-hardening/PLAN.md on the branch.
+EOF
+tax_out="$(bash "$DETECT" "$TAXONOMY")"
+assert_contains "concrete contract-slice path is a ghost ref" "$tax_out" "Finding shape: ghost-ref"
+
+# --- 9. Retired .claude artifact locations always flag -------------------------------
+
+NOTES="$TEST_TMPDIR/notes.md"
+cat >"$NOTES" <<'EOF'
+# Notes fixture
+
+Older drafts sit under .claude/notes/net-hardening/ for this rule.
+EOF
+notes_out="$(bash "$DETECT" "$NOTES")"
+assert_contains "retired .claude/notes/ citation flags" "$notes_out" "Finding shape: ghost-ref"
+
+MIGRATE="$TEST_TMPDIR/migrate.md"
+cat >"$MIGRATE" <<'EOF'
+# Migration fixture
+
+Move .claude/notes/<slug>/ content into .work/<slug>/ before the sunset.
+EOF
+mig_out="$(bash "$DETECT" "$MIGRATE")"
+assert_contains ".claude/notes/ flags even beside convention placeholders" "$mig_out" "Finding shape: ghost-ref"
+
+HANDOFFS="$TEST_TMPDIR/retired-handoffs.md"
+cat >"$HANDOFFS" <<'EOF'
+# Retired handoffs fixture
+
+Prior save-points sit under .claude/handoffs/<timestamp>-handoff-<topic>.md.
+EOF
+handoffs_out="$(bash "$DETECT" "$HANDOFFS")"
+assert_contains "retired .claude/handoffs/ citation flags" "$handoffs_out" "Finding shape: ghost-ref"
+
+REVIEW="$TEST_TMPDIR/retired-review.md"
+cat >"$REVIEW" <<'EOF'
+# Retired review fixture
+
+Prior findings sit under .claude/review/<branch-slug>/self.md.
+EOF
+review_out="$(bash "$DETECT" "$REVIEW")"
+assert_contains "retired .claude/review/ citation flags" "$review_out" "Finding shape: ghost-ref"
+
+# --- 10. Per-match exemption: convention tokens never mask concrete ghost refs --------
+
+MIXED="$TEST_TMPDIR/mixed-line.md"
+cat >"$MIXED" <<'EOF'
+# Mixed-line fixture
+
+See docs/topics/auth-fix/PLAN.md and the concern file .claude/topic-docs.yaml for detail.
+EOF
+mixed_out="$(bash "$DETECT" "$MIXED")"
+assert_contains "concern-file token does not exempt a concrete slice on the same line" "$mixed_out" "Finding shape: ghost-ref"
+
+DEEP="$TEST_TMPDIR/deep-review.md"
+cat >"$DEEP" <<'EOF'
+# Deep-review fixture
+
+Review report kept at .work/reviews/pr-123-auth/20260101T000000Z-self.md for posterity.
+EOF
+deep_out="$(bash "$DETECT" "$DEEP")"
+assert_contains "concrete child under .work/reviews/ is a ghost ref" "$deep_out" "Finding shape: ghost-ref"
+
+DIGIT="$TEST_TMPDIR/digit-slug.md"
+cat >"$DIGIT" <<'EOF'
+# Digit-slug fixture
+
+Plan lives at docs/topics/2026-migration/PLAN.md today.
+EOF
+digit_out="$(bash "$DETECT" "$DIGIT")"
+assert_contains "digit-leading slug is a ghost ref" "$digit_out" "Finding shape: ghost-ref"
+
+UNDERSCORE="$TEST_TMPDIR/underscore-child.md"
+cat >"$UNDERSCORE" <<'EOF'
+# Underscore-child fixture
+
+Report kept at .work/reviews/_hotfix/20260101T000000Z-self.md for posterity.
+EOF
+underscore_out="$(bash "$DETECT" "$UNDERSCORE")"
+assert_contains "underscore-leading child under a concern root is a ghost ref" "$underscore_out" "Finding shape: ghost-ref"
+
+BARE_ROOT="$TEST_TMPDIR/bare-root.md"
+cat >"$BARE_ROOT" <<'EOF'
+# Bare-root fixture
+
+.work/reviews/ is self-ignoring
+EOF
+bare_out="$(bash "$DETECT" "$BARE_ROOT")"
+assert_not_contains "bare concern root is not a ghost ref" "$bare_out" "Finding shape: ghost-ref"
+
+PLACEHOLDER="$TEST_TMPDIR/placeholder.md"
+cat >"$PLACEHOLDER" <<'EOF'
+# Placeholder fixture
+
+docs/topics/<slug>/PLAN.md
+EOF
+ph_out="$(bash "$DETECT" "$PLACEHOLDER")"
+assert_not_contains "slot-variable placeholder is not a ghost ref" "$ph_out" "Finding shape: ghost-ref"
+
+# --- Configured convention roots (concern file overrides) ---------------------------
+
+CONF_ROOT="$TEST_TMPDIR/configured-repo"
+mkdir -p "$CONF_ROOT/.claude"
+cat >"$CONF_ROOT/.claude/topic-docs.yaml" <<'EOF'
+memory_dir: .scratch
+contract_dir: product/topics
+EOF
+CONFIGURED="$TEST_TMPDIR/configured.md"
+cat >"$CONFIGURED" <<'EOF'
+# Configured-roots fixture
+
+Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
+.scratch/reviews/ is self-ignoring
+EOF
+conf_out="$(DECLUTTER_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
+assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
+assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
+assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
 
 # --- Final report --------------------------------------------------------------------
 

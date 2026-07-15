@@ -18,11 +18,17 @@ with `claude plugin enable miro` or the `/plugin` interface, and provide a token
 
 | Option | Storage | Purpose |
 |---|---|---|
-| `miro_api_token` | System keychain (never `settings.json`) | Miro REST API token. Required — the server exits at startup without it. |
+| `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. Required — the server exits at startup without it. |
 
 Get a token from <https://miro.com/app/settings/user-profile/apps>. Claude Code prompts
-for it at enable time (masked input); it is substituted into the server's
+for it at enable time (masked input). Sensitive values use the macOS Keychain, or
+`~/.claude/.credentials.json` on platforms where no supported keychain is available;
+the token is substituted into the server's
 `MIRO_API_TOKEN` environment variable at launch.
+
+Run `/miro:setup` to check enablement and MCP availability or, with explicit confirmation,
+perform a minimal read-only API credential check. The setup skill never reads or exposes the
+token and never invokes a mutating Miro tool.
 
 ## Tools
 

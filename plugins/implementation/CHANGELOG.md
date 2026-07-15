@@ -3,6 +3,48 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **Consume the topic-docs convention** (`docs/conventions/topic-docs/README.md`). Artifact placement
+  follows document nature across two tiers, bound for this plugin in the shared
+  `reference/topic-docs.md`: `PLAN.md` progress marks and the `DEVIATIONS.md` log are contract-tier
+  (`docs/topics/<slug>/`, committed on the task branch, pruned before merge — or the memory tier under
+  `contract_tier: local`); baselines, raw captures, and the status summary are memory-tier
+  (self-ignoring `.work/<slug>/`); fallback handoff notes land in the memory tier's `.work/handoffs/`
+  home owned by `session-flow`. Placement resolves through the contract's resolution order (concern
+  file `.claude/topic-docs.yaml` first) with its runtime guards: `git check-ignore` on the session's
+  first contract-slice write, and a first-per-session self-ignore check scoped to the resolved memory
+  root; no edits to the consumer's root `.gitignore`.
+- **`/implement` Step 4 phase commits carry plan + source together.** With the plan tracked on the
+  task branch, "commit the plan changes alongside the phase's source-code changes in a single commit"
+  is now literal git behavior — one commit, one story; memory-tier files never enter the commit.
+- **`/verify-changes` evidence directory renamed `verify/` → `verification/`.** The distilled,
+  `verified_at_sha`-keyed manifest is contract-tier at `docs/topics/<slug>/verification/` and meets
+  the contract's redaction bar (no raw captures, machine-local paths, usernames, or credentials);
+  raw captures stay in `.work/<slug>/scratch/`. The skill's evals assert the migrated locations.
+- **`/verify-improvement` baselines are memory-tier** at `.work/<slug>/baselines/` — machine-bound
+  measurements, never committed, no longer beside the plan artifact (contract-tier at
+  `docs/topics/<slug>/PLAN.md`); the comparison summary surfaces in the plan and the PR body.
+
+### Added
+
+- **`reference/topic-docs.md`** — the plugin's **deltas-only** binding to the topic-docs contract:
+  its per-artifact tier table and the `DEVIATIONS.md` pin and phase-commit rule — the contract owns
+  the resolution order, slug spec, and runtime guards. All consuming skills reference this one
+  document.
+- **`/implementation:setup` offers the `.claude/topic-docs.yaml` concern file** — one question
+  (`contract_tier: branch` recommended), offering and preserving every schema key (`contract_dir`,
+  `memory_dir`, `contract_tier`, `vault_backend`), conflict-checked with `git check-ignore -v` on
+  the chosen contract root before writing — only when the chosen tier is `branch` (local mode has
+  no committed tier to guard); never edits the consumer's root `.gitignore`.
+
+### Removed
+
+- **`notes_dir` userConfig option and the `.claude/notes/<slug>/` layout.** Retired outright — no
+  compatibility layer, no dual-read window, no migration tooling; move residual content manually.
+
 ## [0.3.0]
 
 ### Added

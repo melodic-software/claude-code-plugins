@@ -27,6 +27,8 @@ Where this skill says "deeper research," use whatever external-research capabili
 
 For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
 
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+
 ## Prerequisites (verify before starting)
 
 1. **course-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent — safe to re-run, and re-run after a plugin update.

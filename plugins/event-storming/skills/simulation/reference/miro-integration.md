@@ -33,12 +33,12 @@ graceful degradation") probes the prefixed form.
 A fresh consumer has only `event-storming` installed — the `miro` plugin must be **installed from the
 marketplace first, then enabled** (enabling alone does not install it).
 
-1. **Add the marketplace** (if not already added): `claude plugin marketplace add melodic-software/claude-code-plugins`.
-2. **Install the plugin:** `claude plugin install miro@melodic-software`. It installs **disabled**
-   (`defaultEnabled: false` by design).
-3. **Enable it and supply a token:** `claude plugin enable miro` (or the `/plugin` interface). Claude
-   Code prompts for the Miro API token at enable time (masked input) and stores it in the system
-   keychain — never in `settings.json`. Get a token from
+1. **Find the plugin:** open `/plugin` and select the `miro` plugin from an available marketplace.
+   Marketplace names are deployment details; this reusable plugin does not prescribe one.
+2. **Install the plugin.** It installs **disabled** (`defaultEnabled: false` by design).
+3. **Enable it and supply a token** through `/plugin`. Claude Code prompts for the Miro API token at
+   enable time (masked input) and stores it using its secure credential mechanism — never as a
+   non-sensitive `settings.json` value. Get a token from
    https://miro.com/app/settings/user-profile/apps with `boards:read` + `boards:write` scopes.
 4. **Verify:** in a session with the plugin enabled, `mcp__plugin_miro_miro__*` tools are callable —
    test with "List my Miro boards".

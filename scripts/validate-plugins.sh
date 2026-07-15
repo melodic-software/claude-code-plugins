@@ -9,6 +9,12 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "error: node not on PATH" >&2
+  exit 2
+fi
+node scripts/validate-plugin-contracts.mjs || exit 1
+
 if ! command -v claude >/dev/null 2>&1; then
   echo "error: claude CLI not on PATH (npm install -g @anthropic-ai/claude-code)" >&2
   exit 2

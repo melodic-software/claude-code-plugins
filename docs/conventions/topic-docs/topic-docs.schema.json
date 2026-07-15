@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/topic-docs/topic-docs.schema.json",
+  "title": "Topic documents concern file (.claude/topic-docs.yaml)",
+  "description": "Consumer-side single source of truth for the topic-docs convention. Every key is optional; absent keys mean the documented defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_dir": {
+      "type": "string",
+      "default": "docs/topics",
+      "description": "Contract-slice root, relative to the repo root. Holds one <slug>/ directory per topic on the task branch; pruned before merge."
+    },
+    "memory_dir": {
+      "type": "string",
+      "default": ".work",
+      "description": "Memory-tier root, relative to the repo root. Self-ignoring (contains a .gitignore with '*'). Holds <slug>/ slices plus the reserved concern directories handoffs/ and reviews/."
+    },
+    "contract_tier": {
+      "type": "string",
+      "enum": ["branch", "local"],
+      "default": "branch",
+      "description": "branch: contract kinds commit on the task branch and are pruned before merge (default). local: contract kinds join the memory tier; the PR-description paste is the only publication surface."
+    },
+    "vault_backend": {
+      "type": "string",
+      "default": "docs",
+      "description": "Knowledge-vault seam backend for the durable tier. 'docs' (default) promotes into the in-repo docs/ tree via git mv. Other values name a backend documented by the consuming repo (e.g. a GitBook space reached through its MCP server); skills degrade to 'docs' when the named backend's tools are unavailable."
+    }
+  }
+}

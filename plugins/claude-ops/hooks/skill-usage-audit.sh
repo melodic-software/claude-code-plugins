@@ -15,6 +15,8 @@ set -uo pipefail
 
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=claude-ops-paths.sh
+source "$(dirname "${BASH_SOURCE[0]}")/claude-ops-paths.sh"
 
 hook::check_enabled "SKILL_USAGE_AUDIT"
 
@@ -35,8 +37,13 @@ SKILL="${SKILL#/}"
 # --- Second store: skill-usage.jsonl (unconditional) ------------------------
 project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
 rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
-log_dir="${project_dir%/}/${rel_dir}"
-if mkdir -p "$log_dir" 2>/dev/null; then
+log_dir=""
+if ! log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir"); then
+  hook::emit_additional_context "PostToolUse" \
+    "claude-ops skipped skill-usage logging: skill_usage_dir must be a contained project-relative path (no absolute, drive, UNC, traversal, or escaping symlink path)."
+elif mkdir -p "$log_dir" 2>/dev/null \
+  && verified_log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir") \
+  && [[ "$verified_log_dir" == "$log_dir" ]]; then
   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
   branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   line=$(
@@ -47,6 +54,9 @@ if mkdir -p "$log_dir" 2>/dev/null; then
       --arg hook "skill-usage-audit" \
       '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, hook: $hook, source: "tool"}'
   ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
+else
+  hook::emit_additional_context "PostToolUse" \
+    "claude-ops skipped skill-usage logging: the configured project-relative destination could not be created safely."
 fi
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------

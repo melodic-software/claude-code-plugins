@@ -1,0 +1,45 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reads-topic-docs-state-before-interview",
+      "prompt": "/discovery:setup",
+      "expected_output": "Reads .claude/topic-docs.yaml first when present and reports effective values, applying documented defaults to absent keys. With no concern file it inspects project instructions and conforming layouts before asking one recommendation-first question covering every schema key.",
+      "files": [],
+      "expectations": [
+        "Reads an existing .claude/topic-docs.yaml before proposing changes",
+        "Treats project instructions as an inference source rather than a competing runtime authority",
+        "Recommends the documented contract and memory tier defaults when no convention exists",
+        "Offers and preserves every topic-docs schema key"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fails-closed-on-ignored-contract-tier",
+      "prompt": "/discovery:setup\n\nUse contract_tier: branch and contract_dir: docs/topics. The repository ignores docs/topics/**.",
+      "expected_output": "Runs git check-ignore -v against a representative file path such as docs/topics/probe/PLAN.md before writing. When an ignore rule matches, it stops, reports the exact matching rule and source line, and does not create or update .claude/topic-docs.yaml.",
+      "files": [],
+      "expectations": [
+        "Checks a representative contract file path rather than only the directory",
+        "Stops before persistence when the branch-tier contract root is ignored",
+        "Reports the matching ignore rule and source",
+        "Never edits an ignore file to force the configuration through"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "persists-tracked-concern-file-idempotently",
+      "prompt": "/discovery:setup\n\nAccept the recommended defaults and preserve an existing vault_backend: docs key.",
+      "expected_output": "Writes a schema-valid tracked .claude/topic-docs.yaml without dropping the existing vault_backend key, verifies or creates the resolved memory root's self-ignoring .gitignore with an announcement, and reports the effective values. An immediate re-run reads the same state and does not rewrite equivalent values.",
+      "files": [],
+      "expectations": [
+        "Persists configuration only in the tracked .claude/topic-docs.yaml concern file",
+        "Produces a schema-valid object rather than a comment-only YAML document",
+        "Preserves all existing schema keys on reconfiguration",
+        "Verifies the resolved memory root self-ignore and announces any creation",
+        "Re-running does not rewrite an equivalent configuration"
+      ]
+    }
+  ]
+}

@@ -23,13 +23,34 @@ imposes no rules of its own.
 
 ## Requirements
 
-`markdownlint-cli2` must be resolvable — installed globally, or reachable via
-`npx` (the hook falls back to `npx markdownlint-cli2`). When neither is present
-the hook is a silent no-op.
+The hook requires the following tools on `PATH`:
 
-The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
-(Bash 5.0+); on older bash the telemetry envelope is skipped while formatting
-still runs.
+- Bash 3.2 or later. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run this Bash hook; WSL is also supported.
+- [`jq`](https://jqlang.org/) to parse hook input and emit structured context.
+- [`markdownlint-cli2`](https://github.com/DavidAnson/markdownlint-cli2),
+  installed explicitly by the user or consuming repository.
+
+Missing prerequisites do not block an edit. Following Claude Code's
+[PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
+the hook exits `0` and reports a visible `additionalContext` warning. It never
+falls back to `npx`, installs a package, or performs a network request during a
+hook run.
+
+Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
+envelope is skipped while formatting still runs.
+
+### Configuration trust boundary
+
+`markdownlint-cli2` supports executable `.cjs`/`.mjs` configuration and can
+load custom rules, Markdown-it plugins, and output formatters. Because the hook
+runs the consuming repository's configuration, enable it only for repositories
+whose configuration and installed dependencies you trust. Prefer declarative
+JSONC or YAML when executable configuration is unnecessary. Before running a
+risky configuration, the hook emits a non-blocking trust advisory once for each
+repository and configuration-content state; changing that configuration causes
+the advisory to appear again.
 
 ## Install
 

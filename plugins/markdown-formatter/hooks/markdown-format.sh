@@ -37,6 +37,14 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq is required to parse Claude Code's hook payload and to emit structured
+# PostToolUse context. Keep this advisory and visible: exit 0 with a static JSON
+# message rather than turning every edit into a hook error or failing silently.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"markdown-format skipped: jq is required on PATH. Install jq, then retry the Markdown edit."}}'
+  exit 0
+fi
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
   *.md | *.mdc) ;;
@@ -93,27 +101,134 @@ build_data_json() {
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
-elif command -v npx >/dev/null 2>&1; then
-  MDLINT=(npx markdownlint-cli2)
 else
-  # markdownlint unavailable — emit skipped telemetry then exit cleanly.
+  # Never invoke a package runner here: hooks must not download or execute an
+  # unpinned package as a side effect of editing a file. Degrade visibly.
+  hook::emit_additional_context PostToolUse \
+    "markdown-format skipped: markdownlint-cli2 is not installed on PATH. Install it explicitly; this hook does not invoke npx or download tools."
   emit_tel "skipped" '[]'
   exit 0
 fi
 
+# markdownlint-cli2 configuration can cross a code-execution boundary. Its
+# official configuration contract loads .cjs/.mjs modules directly and passes
+# customRules, markdownItPlugins, and outputFormatters module identifiers to
+# Node's require/import machinery. Discover only the configuration files that
+# apply to this file (repo root through its parent directory), honoring the
+# documented same-directory precedence so a shadowed executable config does not
+# create a false warning.
+RISK_CONFIGS=()
+CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
+CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" \
+  || CONFIG_TARGET_DIR="$(dirname "$FILE")"
+collect_risky_configs() {
+  local cursor dir candidate config
+  local dirs=()
+
+  cursor="$CONFIG_TARGET_DIR"
+  while :; do
+    dirs=("$cursor" "${dirs[@]}")
+    [[ "$cursor" == "$CONFIG_ROOT" ]] && break
+    dir="$(dirname "$cursor")"
+    [[ "$dir" != "$cursor" ]] || return 0
+    cursor="$dir"
+  done
+
+  for dir in "${dirs[@]}"; do
+    config=""
+    for candidate in \
+      .markdownlint-cli2.jsonc \
+      .markdownlint-cli2.yaml \
+      .markdownlint-cli2.cjs \
+      .markdownlint-cli2.mjs; do
+      if [[ -f "$dir/$candidate" ]]; then
+        config="$dir/$candidate"
+        break
+      fi
+    done
+    if [[ -n "$config" ]]; then
+      case "$config" in
+      *.cjs | *.mjs) RISK_CONFIGS+=("$config") ;;
+      *)
+        if grep -Eq "[\"']?(customRules|markdownItPlugins|outputFormatters)[\"']?[[:space:]]*:" "$config" 2>/dev/null; then
+          RISK_CONFIGS+=("$config")
+        fi
+        ;;
+      esac
+    fi
+
+    config=""
+    for candidate in \
+      .markdownlint.jsonc \
+      .markdownlint.json \
+      .markdownlint.yaml \
+      .markdownlint.yml \
+      .markdownlint.cjs \
+      .markdownlint.mjs; do
+      if [[ -f "$dir/$candidate" ]]; then
+        config="$dir/$candidate"
+        break
+      fi
+    done
+    case "$config" in
+    *.cjs | *.mjs) RISK_CONFIGS+=("$config") ;;
+    *) ;;
+    esac
+  done
+}
+
+# Return success only for the first observation of this repo + risky-config
+# content state. CLAUDE_PLUGIN_DATA is the official persistent plugin-state
+# location and survives plugin updates. If it is unavailable or unwritable
+# (for example, a direct development invocation), fail open by warning again;
+# never suppress a trust warning merely because its marker could not be saved.
+claim_trust_advisory() {
+  local state_base="${CLAUDE_PLUGIN_DATA:-}" state_dir signature config digest
+  [[ -n "$state_base" ]] || return 0
+  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
+    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 0
+  fi
+  state_dir="${state_base%/}/trust-advisories"
+  signature=$(
+    {
+      printf '%s\n' "$REPO_ROOT"
+      for config in "${RISK_CONFIGS[@]}"; do
+        digest=$(git hash-object "$config" 2>/dev/null) || return 1
+        printf '%s\t%s\n' "$config" "$digest"
+      done
+    } | git hash-object --stdin 2>/dev/null
+  ) || return 0
+  [[ -n "$signature" ]] || return 0
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+  mkdir "$state_dir/$signature" 2>/dev/null
+}
+
+hook::ctx_reset
+collect_risky_configs
+if ((${#RISK_CONFIGS[@]} > 0)) && claim_trust_advisory; then
+  RISK_LIST=""
+  for config in "${RISK_CONFIGS[@]}"; do
+    config="${config#"$CONFIG_ROOT"/}"
+    RISK_LIST+="${RISK_LIST:+, }$config"
+  done
+  hook::ctx_append \
+    "markdown-format trust advisory: markdownlint-cli2 will load executable or module-loading repository configuration ($RISK_LIST). Formatting continues, but review these files and their installed dependencies before trusting this repository. This warning appears once per configuration state."
+fi
+
 if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
   # Clean after fix — emit ok with empty findings.
+  hook::ctx_flush PostToolUse
   emit_tel "ok" '[]'
   exit 0
 fi
 
-# Residual findings — surface via additionalContext, then emit ok with findings.
+# Residual findings — append to any trust advisory, surface one JSON object via
+# additionalContext, then emit ok with findings.
 # ctx_append receives all output lines (human-readable context for Claude Code).
 # FINDINGS_JSON is filtered to violation lines only — schema requires
 # "Unfixable markdownlint violations remaining after --fix, one per line";
 # banner/diagnostic lines (version, Finding:, Linting:, Summary:) are excluded.
 # Violation lines are identified by the " MD<digits>/" rule-code pattern.
-hook::ctx_reset
 hook::ctx_append "markdown-format: $(basename "$FILE") has markdownlint findings:"
 findings_raw=""
 while IFS= read -r line; do

@@ -69,7 +69,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@c2654182bc2d78f7909795df78304d482aa69226 # 99ac2f8 2026-07-11
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@f2d5e06757201f2fce187096a2c6fa805836c3d2
         with:
           config: .gitleaks.toml
           scan-mode: git

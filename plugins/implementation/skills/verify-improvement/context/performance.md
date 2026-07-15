@@ -19,11 +19,11 @@ When a plan claims a perf improvement:
    | Reduced latency | P50, P95, P99 | Tracing dashboard, load tests |
 
 3. **Noise floor — don't optimize below it.** Estimate aggregate savings against run-to-run variance. If projected savings sit within the noise floor, the change is unmeasurable — skip it and surface the noise-floor argument BEFORE doing the work, not after.
-4. **Capture the baseline** — measure the pre-change state under controlled conditions (same machine, data, config; minimum 3 runs, ideally 5+; discard the warm-up run). Store mean + std in the baselines directory beside the plan artifact and record baseline + target in the plan.
+4. **Capture the baseline** — measure the pre-change state under controlled conditions (same machine, data, config; minimum 3 runs, ideally 5+; discard the warm-up run). Store mean + std in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record baseline + target in the plan.
 
 ## `compare` phase (at `/verify-improvement performance`)
 
-1. **Retrieve the baseline** from the baselines directory beside the plan artifact (or the plan itself). Confirm it was measured under comparable conditions. If no baseline exists, apply the no-baseline honesty rule (SKILL.md "Purpose") — report the current measurement and that the improvement cannot be quantified.
+1. **Retrieve the baseline** from the topic's memory-tier baselines directory (or the plan itself). Confirm it was measured under comparable conditions. If no baseline exists, apply the no-baseline honesty rule (SKILL.md "Purpose") — report the current measurement and that the improvement cannot be quantified.
 2. **Measure current state** under the SAME conditions as the baseline (same machine, data, config; multiple runs; report mean ± std, not a single number).
 3. **Report:**
 

@@ -8,10 +8,10 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.206",
+    "@anthropic-ai/claude-code": "2.1.209",
     "@biomejs/biome": "2.5.3"
   },
   "allowScripts": {
-    "@anthropic-ai/claude-code@2.1.206": true
+    "@anthropic-ai/claude-code@2.1.209": true
   }
 }

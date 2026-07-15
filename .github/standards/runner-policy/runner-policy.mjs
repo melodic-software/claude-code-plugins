@@ -5,11 +5,57 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
+
+export class ConfigurationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ConfigurationError";
+  }
+}
+
+export function parseUniqueJson(source, location) {
+  const document = parseDocument(source, {
+    maxAliasCount: 0,
+    merge: false,
+    prettyErrors: true,
+    schema: "json",
+    strict: true,
+    uniqueKeys: true,
+  });
+  if (document.errors.length > 0) {
+    throw new ConfigurationError(
+      `${location} has duplicate object members or ambiguous structure: ${document.errors[0].message}`,
+    );
+  }
+  try {
+    return JSON.parse(source);
+  } catch (error) {
+    throw new ConfigurationError(`${location} is not valid JSON: ${error.message}`);
+  }
+}
 
 const MODULE_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_POLICY_PATH = path.join(MODULE_DIRECTORY, "policy.json");
 const DEFAULT_CONFIG_PATH = ".github/runner-policy.json";
+const POLICY_SCHEMA_PATH = path.join(MODULE_DIRECTORY, "policy.schema.json");
+const REPOSITORY_POLICY_SCHEMA_PATH = path.join(MODULE_DIRECTORY, "repository-policy.schema.json");
+const POLICY_SCHEMA = parseUniqueJson(
+  await readFile(POLICY_SCHEMA_PATH, "utf8"),
+  `policy schema at ${POLICY_SCHEMA_PATH}`,
+);
+const REPOSITORY_POLICY_SCHEMA = parseUniqueJson(
+  await readFile(REPOSITORY_POLICY_SCHEMA_PATH, "utf8"),
+  `repository policy schema at ${REPOSITORY_POLICY_SCHEMA_PATH}`,
+);
+const SCHEMA_VALIDATOR = new Ajv2020({
+  allErrors: false,
+  strict: true,
+  validateFormats: false,
+});
+const validatePolicyStructure = SCHEMA_VALIDATOR.compile(POLICY_SCHEMA);
+const validateRepositoryPolicyStructure = SCHEMA_VALIDATOR.compile(REPOSITORY_POLICY_SCHEMA);
 const RUNNER_OUTPUT =
   /^\s*\$\{\{\s*needs\.(?<selectorId>[A-Za-z0-9_-]+)\.outputs\.runner\s*\|\|\s*'(?<fallback>[^'\r\n]+)'\s*}}\s*$/;
 const MATRIX_OUTPUT = /^\$\{\{ matrix\.([A-Za-z0-9_-]+) }}$/;
@@ -17,151 +63,36 @@ const FULL_SHA = /^[0-9a-f]{40}$/i;
 const REUSABLE_WORKFLOW_PATH =
   /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
 const LOCAL_REUSABLE_WORKFLOW = /^\.\/\.github\/workflows\/([A-Za-z0-9_.-]+\.ya?ml)$/;
-const REPOSITORY_OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 const GITHUB_REPOSITORY = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\/[A-Za-z0-9_.-]+$/;
 const EXACT_GITHUB_TOKEN_EXPRESSIONS = new Set([
   `\${{ secrets.GITHUB_TOKEN }}`,
   `\${{ github.token }}`,
 ]);
 
-class ConfigurationError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "ConfigurationError";
-  }
+function jsonPointerLocation(location, instancePath) {
+  return `${location}${instancePath
+    .split("/")
+    .slice(1)
+    .map((segment) => `.${segment.replaceAll("~1", "/").replaceAll("~0", "~")}`)
+    .join("")}`;
 }
 
-function assertPlainObject(value, location) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new ConfigurationError(`${location} must be an object`);
+function validateStructure(value, validator, location) {
+  if (validator(value)) {
+    return;
   }
-}
-
-function assertExactKeys(value, allowed, location) {
-  const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
-  if (unknown.length > 0) {
-    throw new ConfigurationError(`${location} has unknown properties: ${unknown.join(", ")}`);
+  const [error] = validator.errors;
+  let errorLocation = jsonPointerLocation(location, error.instancePath);
+  if (error.keyword === "additionalProperties") {
+    errorLocation += `.${error.params.additionalProperty}`;
+  } else if (error.keyword === "propertyNames") {
+    errorLocation += `.${error.params.propertyName}`;
   }
-}
-
-function assertStringArray(value, location, { allowEmpty = false } = {}) {
-  if (
-    !Array.isArray(value) ||
-    (!allowEmpty && value.length === 0) ||
-    value.some((item) => typeof item !== "string" || item.trim() === "")
-  ) {
-    throw new ConfigurationError(`${location} must be a non-empty array of non-empty strings`);
-  }
-  if (new Set(value).size !== value.length) {
-    throw new ConfigurationError(`${location} must not contain duplicates`);
-  }
-}
-
-function assertStringMap(value, location, { allowEmpty = false } = {}) {
-  assertPlainObject(value, location);
-  if (!allowEmpty && Object.keys(value).length === 0) {
-    throw new ConfigurationError(`${location} must not be empty`);
-  }
-  for (const [key, item] of Object.entries(value)) {
-    if (key.trim() === "" || typeof item !== "string" || item.trim() === "") {
-      throw new ConfigurationError(`${location} must map non-empty keys to non-empty strings`);
-    }
-  }
+  throw new ConfigurationError(`${errorLocation} ${error.message}`);
 }
 
 function validatePolicy(value) {
-  assertPlainObject(value, "policy");
-  assertExactKeys(
-    value,
-    [
-      "schemaVersion",
-      "selectorWorkflowPaths",
-      "approvedSelectorReferences",
-      "approvedSelectorReferencesByRepositoryOwner",
-      "approvedReusableWorkflowContracts",
-      "canonicalSelectorInputs",
-      "optionalCanonicalSelectorInputs",
-      "canonicalSelectorSecrets",
-      "approvedHostedRunnerLabels",
-      "hostedMatrixExpressions",
-      "governedReusableRunnerInput",
-      "forbiddenHostedRunnerLabels",
-      "managedLabelPatterns",
-      "hostedExceptionReasons",
-      "localCredentialActions",
-    ],
-    "policy",
-  );
-  if (value.schemaVersion !== 3) {
-    throw new ConfigurationError("policy.schemaVersion must be 3");
-  }
-  assertStringArray(value.selectorWorkflowPaths, "policy.selectorWorkflowPaths");
-  if (value.selectorWorkflowPaths.some((workflow) => !REUSABLE_WORKFLOW_PATH.test(workflow))) {
-    throw new ConfigurationError(
-      "policy.selectorWorkflowPaths must contain only owner/repository/.github/workflows/<file>.yml paths",
-    );
-  }
-  if (!Array.isArray(value.approvedSelectorReferences)) {
-    throw new ConfigurationError("policy.approvedSelectorReferences must be an array");
-  }
-  if (
-    value.approvedSelectorReferences.some(
-      (reference) => typeof reference !== "string" || reference.trim() === "",
-    )
-  ) {
-    throw new ConfigurationError(
-      "policy.approvedSelectorReferences must contain only non-empty strings",
-    );
-  }
-  if (new Set(value.approvedSelectorReferences).size !== value.approvedSelectorReferences.length) {
-    throw new ConfigurationError("policy.approvedSelectorReferences must not contain duplicates");
-  }
-  assertPlainObject(
-    value.approvedSelectorReferencesByRepositoryOwner,
-    "policy.approvedSelectorReferencesByRepositoryOwner",
-  );
-  assertPlainObject(
-    value.approvedReusableWorkflowContracts,
-    "policy.approvedReusableWorkflowContracts",
-  );
-  assertStringMap(value.canonicalSelectorInputs, "policy.canonicalSelectorInputs");
-  assertStringMap(value.optionalCanonicalSelectorInputs, "policy.optionalCanonicalSelectorInputs", {
-    allowEmpty: true,
-  });
-  assertStringMap(value.canonicalSelectorSecrets, "policy.canonicalSelectorSecrets");
-  assertStringArray(value.approvedHostedRunnerLabels, "policy.approvedHostedRunnerLabels");
-  assertStringArray(value.hostedMatrixExpressions, "policy.hostedMatrixExpressions");
-  assertPlainObject(value.governedReusableRunnerInput, "policy.governedReusableRunnerInput");
-  assertExactKeys(
-    value.governedReusableRunnerInput,
-    ["name", "expression", "default"],
-    "policy.governedReusableRunnerInput",
-  );
-  for (const property of ["name", "expression", "default"]) {
-    if (
-      typeof value.governedReusableRunnerInput[property] !== "string" ||
-      value.governedReusableRunnerInput[property].trim() === ""
-    ) {
-      throw new ConfigurationError(
-        `policy.governedReusableRunnerInput.${property} must be a non-empty string`,
-      );
-    }
-  }
-  assertStringArray(value.forbiddenHostedRunnerLabels, "policy.forbiddenHostedRunnerLabels");
-  assertStringArray(value.managedLabelPatterns, "policy.managedLabelPatterns");
-  assertStringArray(value.hostedExceptionReasons, "policy.hostedExceptionReasons");
-  assertStringArray(value.localCredentialActions, "policy.localCredentialActions");
-
-  if (
-    value.localCredentialActions.some(
-      (action) =>
-        !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(action) || action !== action.toLowerCase(),
-    )
-  ) {
-    throw new ConfigurationError(
-      "policy.localCredentialActions must contain lowercase owner/action names without revisions",
-    );
-  }
+  validateStructure(value, validatePolicyStructure, "policy");
 
   const approvedHostedRunnerLabels = new Set(value.approvedHostedRunnerLabels);
   const forbiddenHostedRunnerLabels = new Set(
@@ -201,12 +132,6 @@ function validatePolicy(value) {
   for (const [owner, references] of Object.entries(
     value.approvedSelectorReferencesByRepositoryOwner,
   )) {
-    if (!REPOSITORY_OWNER.test(owner) || owner !== owner.toLowerCase()) {
-      throw new ConfigurationError(
-        `policy.approvedSelectorReferencesByRepositoryOwner key ${JSON.stringify(owner)} must be a lowercase GitHub repository owner`,
-      );
-    }
-    assertStringArray(references, `policy.approvedSelectorReferencesByRepositoryOwner.${owner}`);
     for (const reference of references) {
       validateSelectorReference(
         reference,
@@ -237,54 +162,14 @@ function validatePolicy(value) {
         `policy.approvedReusableWorkflowContracts key ${JSON.stringify(reference)} must be a non-selector reusable workflow path pinned to a full 40-character SHA`,
       );
     }
-    assertPlainObject(contract, `reusable workflow contract ${reference}`);
-    assertExactKeys(
-      contract,
-      [
-        "routing",
-        "runnerInput",
-        "selectorResultInput",
-        "allowedInputs",
-        "allowedSecrets",
-        "fixedRunsOn",
-      ],
-      `reusable workflow contract ${reference}`,
-    );
-    if (!new Set(["hosted-only", "runner-input"]).has(contract.routing)) {
-      throw new ConfigurationError(
-        `reusable workflow contract ${reference}.routing must be hosted-only or runner-input`,
-      );
-    }
-    assertStringArray(
-      contract.allowedInputs,
-      `reusable workflow contract ${reference}.allowedInputs`,
-      { allowEmpty: true },
-    );
-    assertStringMap(
-      contract.allowedSecrets,
-      `reusable workflow contract ${reference}.allowedSecrets`,
-      { allowEmpty: true },
-    );
     if (contract.routing === "runner-input") {
-      if (
-        typeof contract.runnerInput !== "string" ||
-        !/^[A-Za-z][A-Za-z0-9_-]*$/.test(contract.runnerInput)
-      ) {
-        throw new ConfigurationError(
-          `reusable workflow contract ${reference}.runnerInput must be a canonical input name`,
-        );
-      }
       if (!contract.allowedInputs.includes(contract.runnerInput)) {
         throw new ConfigurationError(
           `reusable workflow contract ${reference}.allowedInputs must include ${contract.runnerInput}`,
         );
       }
       if (Object.hasOwn(contract, "selectorResultInput")) {
-        if (
-          typeof contract.selectorResultInput !== "string" ||
-          !/^[A-Za-z][A-Za-z0-9_-]*$/.test(contract.selectorResultInput) ||
-          contract.selectorResultInput === contract.runnerInput
-        ) {
+        if (contract.selectorResultInput === contract.runnerInput) {
           throw new ConfigurationError(
             `reusable workflow contract ${reference}.selectorResultInput must be a canonical input name distinct from runnerInput`,
           );
@@ -295,26 +180,7 @@ function validatePolicy(value) {
           );
         }
       }
-      if (Object.hasOwn(contract, "fixedRunsOn")) {
-        throw new ConfigurationError(
-          `runner-input reusable workflow contract ${reference} cannot declare fixedRunsOn`,
-        );
-      }
     } else {
-      if (Object.hasOwn(contract, "runnerInput")) {
-        throw new ConfigurationError(
-          `hosted-only reusable workflow contract ${reference} cannot declare runnerInput`,
-        );
-      }
-      if (Object.hasOwn(contract, "selectorResultInput")) {
-        throw new ConfigurationError(
-          `hosted-only reusable workflow contract ${reference} cannot declare selectorResultInput`,
-        );
-      }
-      assertStringArray(
-        contract.fixedRunsOn,
-        `reusable workflow contract ${reference}.fixedRunsOn`,
-      );
       const unknownLabel = contract.fixedRunsOn.find(
         (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
       );
@@ -354,16 +220,6 @@ function validatePolicy(value) {
   const hostedMatrixAxes = new Map();
   for (const expression of value.hostedMatrixExpressions) {
     const match = MATRIX_OUTPUT.exec(expression);
-    if (!match) {
-      throw new ConfigurationError(
-        `policy.hostedMatrixExpressions entry ${JSON.stringify(expression)} must use the exact form \${{ matrix.<axis> }}`,
-      );
-    }
-    if (hostedMatrixAxes.has(match[1])) {
-      throw new ConfigurationError(
-        `policy.hostedMatrixExpressions contains duplicate matrix axis ${match[1]}`,
-      );
-    }
     hostedMatrixAxes.set(match[1], expression);
   }
 
@@ -389,55 +245,14 @@ function validatePolicy(value) {
 }
 
 function validateRepositoryConfig(value, policy) {
-  assertPlainObject(value, "repository config");
-  assertExactKeys(
-    value,
-    ["schemaVersion", "repositoryOwner", "visibility", "selfHostedCi", "exceptions"],
-    "repository config",
-  );
-  if (value.schemaVersion !== 1) {
-    throw new ConfigurationError("repository config schemaVersion must be 1");
-  }
-  if (
-    Object.hasOwn(value, "repositoryOwner") &&
-    (typeof value.repositoryOwner !== "string" ||
-      !REPOSITORY_OWNER.test(value.repositoryOwner) ||
-      value.repositoryOwner !== value.repositoryOwner.toLowerCase())
-  ) {
-    throw new ConfigurationError(
-      "repository config repositoryOwner must be a lowercase GitHub repository owner",
-    );
-  }
-  if (!new Set(["public", "private"]).has(value.visibility)) {
-    throw new ConfigurationError('repository config visibility must be "public" or "private"');
-  }
-  if (typeof value.selfHostedCi !== "boolean") {
-    throw new ConfigurationError("repository config selfHostedCi must be a boolean");
-  }
-  if (value.visibility === "public" && value.selfHostedCi) {
-    throw new ConfigurationError("public repositories cannot enable selfHostedCi");
-  }
-  assertPlainObject(value.exceptions, "repository config exceptions");
+  validateStructure(value, validateRepositoryPolicyStructure, "repository config");
 
   const exceptions = new Map();
   for (const [key, exception] of Object.entries(value.exceptions)) {
-    if (!/^\.github\/workflows\/[^/#]+\.ya?ml#[A-Za-z0-9_-]+$/.test(key)) {
-      throw new ConfigurationError(
-        `exception key ${JSON.stringify(key)} must be .github/workflows/<file>.yml#<job-id>`,
-      );
-    }
-    assertPlainObject(exception, `exception ${key}`);
-    assertExactKeys(exception, ["reason", "justification"], `exception ${key}`);
-    if (
-      typeof exception.reason !== "string" ||
-      !policy.hostedExceptionReasons.has(exception.reason)
-    ) {
+    if (!policy.hostedExceptionReasons.has(exception.reason)) {
       throw new ConfigurationError(
         `exception ${key} reason must be one of: ${[...policy.hostedExceptionReasons].join(", ")}`,
       );
-    }
-    if (typeof exception.justification !== "string" || exception.justification.trim() === "") {
-      throw new ConfigurationError(`exception ${key} justification must be a non-empty string`);
     }
     exceptions.set(key, exception);
   }
@@ -452,11 +267,7 @@ async function readJson(filePath, location) {
   } catch (error) {
     throw new ConfigurationError(`${location} could not be read at ${filePath}: ${error.message}`);
   }
-  try {
-    return JSON.parse(source);
-  } catch (error) {
-    throw new ConfigurationError(`${location} is not valid JSON: ${error.message}`);
-  }
+  return parseUniqueJson(source, `${location} at ${filePath}`);
 }
 
 function parseWorkflow(source, file) {
@@ -1425,12 +1236,195 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
   };
 }
 
-function containsCredentialExpression(value) {
-  return stringsIn(value).some((item) =>
-    /\$\{\{[\s\S]*?\b(?:secrets\s*(?:\.|\[)|github\s*(?:\.\s*token\b|\[\s*["']token["']\s*\]))/i.test(
-      item,
-    ),
+function isExpressionWordCharacter(codeUnit) {
+  return (
+    (codeUnit >= 48 && codeUnit <= 57) ||
+    (codeUnit >= 65 && codeUnit <= 90) ||
+    codeUnit === 95 ||
+    (codeUnit >= 97 && codeUnit <= 122)
   );
+}
+
+function isExpressionPropertyNameStart(codeUnit) {
+  return (
+    (codeUnit >= 65 && codeUnit <= 90) || codeUnit === 95 || (codeUnit >= 97 && codeUnit <= 122)
+  );
+}
+
+function skipExpressionWhitespace(value, cursor, end) {
+  while (cursor < end && value[cursor].trim() === "") {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function findExpressionEnd(value, cursor) {
+  let quote;
+  while (cursor < value.length) {
+    const character = value[cursor];
+    if (quote !== undefined) {
+      if (character === quote) {
+        if (value[cursor + 1] === quote) {
+          cursor += 2;
+          continue;
+        }
+        quote = undefined;
+      }
+      cursor += 1;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      cursor += 1;
+      continue;
+    }
+    if (character === "}" && value[cursor + 1] === "}") {
+      return cursor;
+    }
+    cursor += 1;
+  }
+  return value.length;
+}
+
+function skipExpressionQuotedLiteral(value, cursor, end) {
+  const quote = value[cursor];
+  cursor += 1;
+  while (cursor < end) {
+    if (value[cursor] === quote) {
+      if (value[cursor + 1] === quote) {
+        cursor += 2;
+        continue;
+      }
+      return cursor + 1;
+    }
+    cursor += 1;
+  }
+  return end;
+}
+
+function staticExpressionIndex(value, cursor, end) {
+  cursor = skipExpressionWhitespace(value, cursor, end);
+  if (value[cursor] !== "'") {
+    return undefined;
+  }
+  cursor += 1;
+  let literal = "";
+  while (cursor < end) {
+    if (value[cursor] === "'") {
+      if (value[cursor + 1] === "'") {
+        literal += "'";
+        cursor += 2;
+        continue;
+      }
+      cursor = skipExpressionWhitespace(value, cursor + 1, end);
+      return value[cursor] === "]" ? literal : undefined;
+    }
+    literal += value[cursor];
+    cursor += 1;
+  }
+  return undefined;
+}
+
+function expressionContainsCredentialReference(value, cursor, end) {
+  let previousSignificant;
+  while (cursor < end) {
+    const character = value[cursor];
+    if (character.trim() === "") {
+      cursor += 1;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      cursor = skipExpressionQuotedLiteral(value, cursor, end);
+      previousSignificant = character;
+      continue;
+    }
+
+    const previousIsWord =
+      previousSignificant !== undefined &&
+      isExpressionWordCharacter(previousSignificant.charCodeAt(0));
+    const previousIsPropertyDereference = previousSignificant === ".";
+    const secretsEnd = cursor + "secrets".length;
+    if (
+      !previousIsWord &&
+      !previousIsPropertyDereference &&
+      secretsEnd <= end &&
+      value.startsWith("secrets", cursor) &&
+      (secretsEnd === end || !isExpressionWordCharacter(value.charCodeAt(secretsEnd)))
+    ) {
+      return true;
+    }
+
+    const githubEnd = cursor + "github".length;
+    if (
+      !previousIsWord &&
+      !previousIsPropertyDereference &&
+      githubEnd <= end &&
+      value.startsWith("github", cursor) &&
+      (githubEnd === end || !isExpressionWordCharacter(value.charCodeAt(githubEnd)))
+    ) {
+      let property = skipExpressionWhitespace(value, githubEnd, end);
+      if (property < end && value[property] === ".") {
+        property = skipExpressionWhitespace(value, property + 1, end);
+        const propertyStart = property;
+        if (!isExpressionPropertyNameStart(value.charCodeAt(property))) {
+          return true;
+        }
+        while (
+          property < end &&
+          (isExpressionWordCharacter(value.charCodeAt(property)) || value[property] === "-")
+        ) {
+          property += 1;
+        }
+        if (property === propertyStart || value.slice(propertyStart, property) === "token") {
+          return true;
+        }
+      } else if (property < end && value[property] === "[") {
+        const index = staticExpressionIndex(value, property + 1, end);
+        if (index === undefined || index === "token") {
+          return true;
+        }
+      } else {
+        return true;
+      }
+    }
+
+    previousSignificant = character;
+    cursor += 1;
+  }
+  return false;
+}
+
+function stringContainsCredentialExpression(value) {
+  const normalized = value.toLowerCase();
+  let cursor = 0;
+  while (cursor < normalized.length) {
+    const start = normalized.indexOf("${{", cursor);
+    if (start === -1) {
+      return false;
+    }
+    const expressionStart = start + "${{".length;
+    const expressionEnd = findExpressionEnd(normalized, expressionStart);
+    if (expressionContainsCredentialReference(normalized, expressionStart, expressionEnd)) {
+      return true;
+    }
+    if (expressionEnd === normalized.length) {
+      return false;
+    }
+    cursor = expressionEnd + "}}".length;
+  }
+  return false;
+}
+
+function containsCredentialExpression(value) {
+  return stringsIn(value).some(stringContainsCredentialExpression);
+}
+
+function conditionContainsCredentialReference(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.toLowerCase();
+  return expressionContainsCredentialReference(normalized, 0, normalized.length);
 }
 
 function hasStaticallyReadOnlyPermissions(workflow, job) {
@@ -1448,7 +1442,10 @@ function localCredentialRequirement(workflow, job) {
   if (containsCredentialExpression(workflow.env)) {
     return "a credential expression in workflow-level env";
   }
-  const { steps, ...jobWithoutSteps } = job;
+  const { steps, if: jobCondition, ...jobWithoutSteps } = job;
+  if (conditionContainsCredentialReference(jobCondition)) {
+    return "a credential expression in a job condition";
+  }
   if (containsCredentialExpression(jobWithoutSteps)) {
     return "a credential expression outside a narrow step env/with value";
   }
@@ -1460,7 +1457,10 @@ function localCredentialRequirement(workflow, job) {
     if (step === null || typeof step !== "object" || Array.isArray(step)) {
       continue;
     }
-    const { env, with: inputs, ...stepWithoutCredentialMappings } = step;
+    const { env, if: stepCondition, with: inputs, ...stepWithoutCredentialMappings } = step;
+    if (conditionContainsCredentialReference(stepCondition)) {
+      return "a credential expression in a step condition";
+    }
     if (containsCredentialExpression(stepWithoutCredentialMappings)) {
       return "a credential expression outside a narrow step env/with value";
     }
@@ -1973,5 +1973,3 @@ async function main() {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await main();
 }
-
-export { ConfigurationError };

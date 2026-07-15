@@ -34,7 +34,7 @@
       "id": 3,
       "name": "decompose-vertical-slices-hitl-afk-dependency-order",
       "prompt": "/work-items:work-items decompose",
-      "expected_output": "Reads the source (default .work/<slug>/PLAN.md phases), drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (labeled needs-human), orders by dependency, gets user approval, then publishes blockers-first via the seam create-item with native --blocked-by edges without touching the parent item.",
+      "expected_output": "Reads the source (default: the topic's PLAN.md phases via the two-location lookup — docs/topics/<slug>/PLAN.md contract slice, then .work/<slug>/PLAN.md under contract_tier: local), drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (labeled needs-human), orders by dependency, gets user approval, then publishes blockers-first via the seam create-item with native --blocked-by edges without touching the parent item.",
       "files": [],
       "expectations": [
         "Drafts VERTICAL tracer-bullet slices (each a complete end-to-end path through all layers), NOT horizontal single-layer slices",
