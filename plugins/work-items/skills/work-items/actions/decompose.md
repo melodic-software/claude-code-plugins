@@ -36,14 +36,14 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 
 **Classify each slice:**
 
-| Type | Meaning | Label |
-|------|---------|-------|
-| **AFK** | Implementable and mergeable without human interaction | `agent-ready` |
-| **HITL** | Requires human decision, design review, or manual testing | `needs-human` |
+| Type | Meaning | Role → label |
+|------|---------|--------------|
+| **AFK** | Implementable and mergeable without human interaction | autonomous-eligible (default `agent-ready`) |
+| **HITL** | Requires human decision, design review, or manual testing | human-gated (default `needs-human`) |
 
-Prefer AFK. Mark HITL only when the slice genuinely needs judgment (architectural decision, UX review, external-system access, manual QA).
+Prefer AFK. Mark HITL only when the slice genuinely needs judgment (architectural decision, UX review, external-system access, manual QA). Both are canonical roles — resolve each repo-actual label string from the binding's `config.role_labels`, defaulting to the strings shown ([`../reference/label-taxonomy.md`](../reference/label-taxonomy.md) "Canonical roles").
 
-`needs-human` is the label that keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting `agent-ready` does NOT: the frontier filter keys on the `needs-human` label, not on the absence of `agent-ready`, so an unlabeled HITL slice would still be claimable by `/work-items:work-items work`. `agent-ready` is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants `needs-human` set AND `agent-ready` omitted.
+The human-gated label (default `needs-human`) is what keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT: the frontier filter keys on the human-gated label, not on the absence of the other, so an unlabeled HITL slice would still be claimable by `/work-items:work-items work`. The autonomous-eligible label (default `agent-ready`) is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants the human-gated label set AND the autonomous-eligible one omitted.
 
 **Investigation tickets — decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside — or ahead of — build slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
@@ -89,9 +89,10 @@ Iterate one question at a time until the user approves — never publish an unap
 For each approved slice, create a work item via the seam (`tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:work-items add` is the canonical creation path). **Publish in dependency order** — blockers first — so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
-# AFK slices get agent-ready (autonomous-pickup eligibility); HITL + investigation slices
-# get needs-human instead — the label list-frontier --autonomous actually honors to exclude
-# an item. Omitting agent-ready alone does NOT keep an HITL slice off the frontier.
+# AFK slices get the autonomous-eligible role label; HITL + investigation slices get the
+# human-gated one — the label list-frontier --autonomous actually honors to exclude an item.
+# Omitting the autonomous-eligible label alone does NOT keep an HITL slice off the frontier.
+# Defaults shown; substitute the binding's config.role_labels values when the repo remaps.
 META_LABEL=$([ -n "$AFK" ] && echo "agent-ready" || echo "needs-human")
 BODY_FILE=$(mktemp)
 # Write the composed slice body to "$BODY_FILE" with the Write tool NOW — before create-item —
@@ -130,7 +131,9 @@ Concise description of this vertical slice. Describe end-to-end behavior, not la
 Or "None — can start immediately" if no blockers.
 ```
 
-Classify per taxonomy: the **issue type** from the slice nature — `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else) — set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; `agent-ready` for AFK slices, `needs-human` for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
+Classify per taxonomy: the **issue type** from the slice nature — `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else) — set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK slices, the human-gated label for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
+
+Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so the `triage` action never re-processes them ([actions/triage.md](triage.md)).
 
 **Do NOT close or modify any parent item** — decomposition creates children, doesn't replace the parent.
 

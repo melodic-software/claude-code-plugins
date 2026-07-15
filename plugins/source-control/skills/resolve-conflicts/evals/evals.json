@@ -1,0 +1,83 @@
+{
+  "skill_name": "resolve-conflicts",
+  "evals": [
+    {
+      "id": 1,
+      "name": "preserve-both-intents-dual-edit",
+      "prompt": "My rebase onto main stopped with a conflict in src/http/retry.ts. On main someone renamed the maxRetries option to maxAttempts across the retry module; my commit adds a new backoffJitter option to the same options object and threads it through the retry loop. Resolve the conflict.",
+      "expected_output": "The skill identifies the rebase stop and reads operation-specific history before editing: the current-side range from the merge base to HEAD and the exact REBASE_HEAD commit being replayed, including its patch and commit message. It states each side's intent, notes the rebase ours/theirs inversion, and produces a composed resolution: the renamed maxAttempts option AND the new backoffJitter option both survive. It then sweeps for other uses of the old maxRetries name (including in the newly added jitter threading), runs the project's typecheck/tests, and continues the rebase.",
+      "files": [],
+      "expectations": [
+        "History for BOTH sides is read before any hunk is edited using the rebase-specific REBASE_HEAD commit plus the current-side merge-base range — not a MERGE_HEAD-only command",
+        "The resolution composes both changes — maxAttempts rename kept AND backoffJitter option kept — rather than picking one side",
+        "The ours/theirs inversion during rebase is handled correctly (upstream is 'ours', the replayed commit is 'theirs')",
+        "After textual resolution, the tree is checked for remaining references to the old maxRetries name and the project's gates run before git rebase --continue"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-mechanical-side-picking",
+      "prompt": "This merge has conflicts in six files and I don't have time to dig in. Just run git checkout --ours on all of them and finish the merge — or abort it if that's easier.",
+      "expected_output": "The skill declines both shortcuts. It does not bulk-resolve with git checkout --ours (that silently deletes the other side's intent) and does not abort (abort is not a resolution strategy — only an explicit user decision to abandon the integration, which 'if that's easier' is not). It enumerates the six conflicted paths, investigates both sides' intent per file, and either resolves with per-file justification or stops and asks with the evidence gathered.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT run git checkout --ours/--theirs (or -X ours/theirs) across the conflicted files as the resolution",
+        "The skill does NOT run git merge --abort as an easy exit; it treats abort as an explicit abandon-the-integration decision for the user, not a resolution",
+        "The full conflict inventory is enumerated up front (git status / git diff --name-only --diff-filter=U)",
+        "Any dropped side is justified with evidence (superseded, reverted, duplicate) rather than defaulted, and each file's resolution is reported with a one-line justification"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "semantic-conflict-sweep",
+      "prompt": "I merged main into my branch and resolved the one conflicted file — the markers are gone and the diff looks clean. Main renamed formatUser() to renderUser() everywhere, and my branch added a new call to formatUser() in a file the merge didn't flag. Wrap up the merge.",
+      "expected_output": "The skill refuses to declare the merge done on marker-free status alone. It sweeps the whole tree for symbols either side renamed (finding the new formatUser() call site in the auto-merged file), fixes it to renderUser(), runs the project's build/typecheck and tests until green, presents the resolution table, then stages surgically and runs git merge --continue.",
+      "files": [],
+      "expectations": [
+        "The skill runs a semantic-conflict sweep after textual resolution — grepping for renamed/re-signatured symbols across files the merge auto-merged without conflict",
+        "The stale formatUser() call site introduced by the branch is found and updated to renderUser()",
+        "Build/typecheck and tests run and pass BEFORE the merge is concluded or declared done",
+        "The merge is concluded via git merge --continue with surgical staging, never git add -A"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cherry-pick-history-uses-the-pick-pseudoref",
+      "prompt": "A cherry-pick stopped with a conflict in src/billing/rules.ts. Recover both intents before resolving it. There is no MERGE_HEAD in this stop.",
+      "expected_output": "The skill identifies a cherry-pick in progress, reads the target-side history from a merge base to HEAD, and inspects the exact CHERRY_PICK_HEAD commit and patch being applied. It does not assume MERGE_HEAD or run a merge-only history command. Only after stating both intents does it resolve the hunk, sweep for semantic conflicts, run the project gates, and continue with git cherry-pick --continue.",
+      "files": [],
+      "expectations": [
+        "Uses CHERRY_PICK_HEAD to inspect the exact commit and patch being picked",
+        "Reads current-side history from an explicit merge-base-to-HEAD range before editing",
+        "Does not assume MERGE_HEAD exists or substitute a merge-only history command",
+        "Continues with git cherry-pick --continue only after the semantic sweep and project gates pass"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "merge-intent-reads-full-incoming-range-not-just-tip",
+      "prompt": "A merge stopped with a conflict in config/retry.yaml. The branch being merged in has three commits; the first one changed config/retry.yaml, but the tip commit only touched an unrelated file. Recover the incoming side's intent and resolve it.",
+      "expected_output": "The skill does not rely on `git show MERGE_HEAD -- config/retry.yaml` alone to recover the incoming intent — that command is silently empty here because the tip commit never touched the path. Instead it reads the full incoming range from the merge base to MERGE_HEAD (e.g. `git log -p \"$BASE\"..MERGE_HEAD -- config/retry.yaml`) and finds the earlier commit that actually changed the file, states its intent from that commit's patch and message, and only then composes the resolution.",
+      "files": [],
+      "expectations": [
+        "The skill does not treat `git show MERGE_HEAD -- <path>` as sufficient by itself for incoming-intent recovery",
+        "It reads the full merge-base..MERGE_HEAD range for the conflicted path (e.g. git log -p) rather than only the tip commit",
+        "It correctly locates and states the intent of the earlier commit that actually touched the conflicted path, not the unrelated tip commit",
+        "It does not proceed to resolve the hunk until the incoming side's actual intent (from the earlier commit) has been stated"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "revert-conflict-concludes-with-revert-continue",
+      "prompt": "I ran git revert on an old commit and it stopped with a conflict in src/auth/session.ts. Resolve it and wrap up the revert.",
+      "expected_output": "The skill identifies the stop as a revert (REVERT_HEAD present), reads current-side history plus the REVERT_HEAD commit's patch to recover the original change being inverted, resolves the hunk, sweeps for semantic conflicts, runs the project's gates, stages surgically, and concludes with git revert --continue — not git merge --continue or git cherry-pick --continue.",
+      "files": [],
+      "expectations": [
+        "The skill recognizes the revert operation via REVERT_HEAD, not MERGE_HEAD or CHERRY_PICK_HEAD",
+        "It reads REVERT_HEAD's patch to recover the original change whose inverse is being applied, before editing any hunk",
+        "It concludes the operation with git revert --continue, matching git's own documented revert sequencer form",
+        "It does not substitute git merge --continue or git cherry-pick --continue for a revert stop"
+      ]
+    }
+  ]
+}

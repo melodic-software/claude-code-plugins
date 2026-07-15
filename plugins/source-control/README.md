@@ -1,8 +1,8 @@
 # source-control
 
-A Claude Code plugin bundling the git/GitHub delivery workflow as four
+A Claude Code plugin bundling the git/GitHub delivery workflow as five
 composable skills — commit mechanics, the full PR lifecycle, worktree
-lifecycle management, and convention setup.
+lifecycle management, convention setup, and merge-conflict resolution.
 
 ## Skills
 
@@ -64,6 +64,18 @@ own `CLAUDE.md`/rules, commit-msg hook, or git log history before asking.
 Offers Conventional Commits (11-type vocabulary) as the recommended default,
 or a custom pattern (e.g. a ticket-prefix regex) for orgs that don't use
 Conventional Commits. Re-runnable to reconfigure.
+
+### `/source-control:resolve-conflicts`
+
+Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
+the history behind BOTH sides of every hunk before editing (log/blame,
+commit messages, PR/issue context via `gh` when available), composes both
+changes by default, and drops a side only with evidence — never mechanical
+`--ours`/`--theirs` picking. After the markers are gone it sweeps for
+semantic conflicts the merge machinery can't flag (renamed symbol vs new
+call site) and runs the project's build/test gates before concluding via
+`--continue`. `--abort` is never a resolution strategy — only an explicit
+user decision to abandon the integration.
 
 ## Works in any repo
 

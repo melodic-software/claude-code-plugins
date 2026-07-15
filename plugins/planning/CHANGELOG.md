@@ -3,6 +3,37 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **ADR admission test at `/planning:architect` close-out**: a decision graduates as an ADR only
+  when ALL three hold — hard to reverse, surprising without context, the result of a real
+  trade-off; ADRs stay minimal (title + a few sentences, optional sections only when they earn
+  their place), and the ADR is preferably written the moment the decision crystallizes rather
+  than batched at graduation.
+- **Durability-over-precision authoring rule in `/planning:prd`**: PRD content describes
+  interfaces, types, and behavioural contracts — never file paths or line numbers — and never
+  assumes the current implementation structure persists.
+- **Test-seam posture thread in `/planning:design` Phase 2**: sketch the seams the feature will
+  be tested at — prefer existing seams, place new ones as high as possible, drive toward the
+  fewest (ideal: one) — and confirm the sketch with the user before design output is finalized.
+  `/planning:prd` gains a one-line pointer routing test-seam sketching to `/planning:design`.
+- **Non-goals graduation edge in `/planning:prd`**: a permanent, deliberate rejection (not a
+  deferral) graduates to the consuming repo's rejected-concept ledger at
+  `docs/out-of-scope/<concept>.md` — one file per concept, accreting a "Prior requests" log — so
+  repeat proposals get answered by the ledger; consumer convention with graceful degrade (create
+  lazily; plain Non-goals suffice when no ledger exists).
+- **Committed project-glossary format** (`skills/design/context/project-glossary.md`): one term
+  per entry, 1–2 sentence what-it-IS definition, an `Avoid:` line pinning rejected synonyms,
+  project-context terms only, lazy creation at the repo root (or per-context with a root map
+  file), updated the moment a term resolves. `/planning:design`'s type-modeling and terminology
+  guidance now writes through it.
+- **Re-read-before-write discipline for multi-turn shared artifacts**: `/planning:architect`
+  (PLAN.md) and `/planning:design` (design-threads.md and peers) re-read the artifact from disk
+  before every write — another turn or agent may have modified it — and prefer appending or
+  refining over wholesale rewrites.
+
 ## [0.9.0]
 
 ### Added

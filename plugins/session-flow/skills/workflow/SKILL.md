@@ -101,6 +101,41 @@ also copy `templates/checklist.md` into the artifact location (see "Consumer con
 consuming repo already tracks the same stages in its own plan artifact — never mirror progress in
 two files.
 
+## On-ramps: work that merges into the flow partway
+
+The stage sequence is the main line, not the only entrance. Work also arrives from the side and
+merges in at a later stage — recognize the CLASS of arrival and merge at the right point instead of
+forcing every session through stage 0. Common classes:
+
+- **Incoming bug or issue intake** — a report or request that arrived raw from outside. An
+  already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
+  through a diagnosis capability first (if the consuming setup installs one, e.g. from a diagnose
+  or debugging plugin), then rejoins at implement with the root cause in hand.
+- **A foggy, too-big-to-plan effort** — the destination is clear but the route is not, and no
+  single plan can hold it yet. Route through a wayfinding or route-charting capability (if
+  installed, e.g. from a planning plugin) to convert unknowns into decisions BEFORE the plan stage;
+  without one, run explore/research cycles until a plan becomes writable.
+- **Codebase-upkeep findings** — audits, tidy sweeps, and architecture surveys surface candidate
+  improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
+  fresh cycle at contract/explore; it never merges into an in-progress cycle's later stages.
+
+These are classes, not an inventory. Match the arriving situation to its class, then check what the
+consuming setup actually installs for that class — the same rule as stage execution: never invent
+skill names, and degrade to inline work when nothing is installed.
+
+## When two capabilities both fit
+
+Adjacent capabilities overlap at their edges — intake vs diagnosis, wayfinding vs planning, upkeep
+vs review. Route to exactly ONE owner and state why; never present both and leave the user to
+disambiguate. Precedence:
+
+1. **Exclusion language wins.** A capability whose own description disclaims the situation ("skip
+   when", "not for") is out, however well its trigger words match.
+2. **The more specific claim owns it.** Observed broken behavior belongs to diagnosis, not a
+   generic implement pass; a route-finding problem belongs to wayfinding, not an oversized plan.
+3. **Still tied → the earlier stage wins** — every downstream stage remains reachable from it, but
+   a skipped upstream stage is gone.
+
 ## Key principles (always apply, regardless of mode)
 
 - **Verification rigor is size-independent** — a one-line config change gets the same rigor as a
@@ -118,6 +153,10 @@ two files.
   assumptions; lock the goal and acceptance criteria first.
 - **Opening a PR before the verify stage** — the pre-PR sequence (`context/pre-pr.md`) is ordered
   for a reason; verification evidence comes before the PR, not after.
+- **Routing from a stale map** — a navigator that has drifted from the actual capability inventory
+  is worse than none: it confidently routes to things that were renamed or removed. Whenever
+  capabilities are added, renamed, or retired — in the consuming setup or in this marketplace —
+  re-check that the flows described here still match what exists before trusting a route.
 
 ## What this skill does NOT do
 

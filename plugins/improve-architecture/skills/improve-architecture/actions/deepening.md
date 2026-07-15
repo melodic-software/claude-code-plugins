@@ -29,6 +29,11 @@ Report is **self-contained — inline `<style>` + inline SVG only, no CDN or rem
 
 Each candidate gets a card with: files involved, problem (one sentence), solution (one sentence), before/after diagram, benefits in terms of **leverage** and **locality**, recommendation badge (`Strong` / `Worth exploring` / `Speculative`), dependency category badge.
 
+Two acceptance heuristics gate the badge:
+
+- **Deletion test (acceptance form)** — would a future maintainer, finding this module gone, rebuild it substantially the same way? If not, the module boundary is arbitrary and the candidate is weak.
+- **Two-adapter rule** — an abstraction or port earns its existence only with two real consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter abstraction is speculative indirection — badge it `Speculative` at best.
+
 End with a **Top recommendation** section. Full scaffold and diagram patterns in [../research/deepening/html-report.md](../research/deepening/html-report.md).
 
 Use the project's domain glossary vocabulary for the domain, and [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md) vocabulary for architecture.
@@ -63,6 +68,11 @@ Side effects inline as decisions crystallize:
 - **New concept not in the project glossary?** If the project maintains a ubiquitous-language glossary, add the term immediately rather than batching it to the end.
 - **Sharpening a fuzzy term?** Update the glossary right there.
 - **User rejects a candidate with a load-bearing reason?** Offer to record it as an architecture decision — only when the reason would help a future explorer avoid re-suggesting it.
-- **Want to explore alternative interfaces?** See [../research/deepening/interface-design.md](../research/deepening/interface-design.md) — "Design It Twice" via parallel subagents.
+
+### Design-It-Twice exploration mode
+
+Branch here when the user wants alternative interfaces for the selected candidate, or a single proposed shape isn't converging. Grounded in Ousterhout's design-it-twice principle — the first workable design is rarely the deepest. Frame the problem space and show it to the user, fan out 3–4 parallel subagents each under a deliberately orthogonal design constraint, present the returned designs sequentially, compare on interface depth/leverage, locality of change, and seam placement, then close with an opinionated recommendation (hybrid allowed). Full process: [../research/deepening/interface-design.md](../research/deepening/interface-design.md). Feed the winning shape back into the interview loop — it becomes the `agreed-shape` once grilled.
+
+### Handoff
 
 When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what sits behind the seam, tests that survive). Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.

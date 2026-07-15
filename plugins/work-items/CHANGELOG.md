@@ -3,6 +3,44 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+Raw-intake triage, canonical role labels, and the rejected-concept ledger check.
+
+### Added
+
+- **Canonical-role → label mapping.** The skills now speak three canonical roles —
+  `autonomous-eligible`, `human-gated`, `recurring-maintenance` — and resolve each repo-actual
+  label string from the tracker binding (`.work-item-tracker.json`, `config.role_labels`).
+  Defaults are the previous literals (`agent-ready` / `needs-human` / `recurring`), so existing
+  consumers need zero migration. The role table and binding shape live in
+  `reference/label-taxonomy.md` "Canonical roles"; `/work-items:setup` offers the remap interview
+  (with an existence check on the target label and a warning that `human-gated` is shared with the
+  seam's `list-frontier --autonomous` exclusion).
+- **Rejected-concept ledger check at intake.** When the consuming repo keeps a ledger
+  (`docs/out-of-scope/`, one file per concept), `add` and `triage` match incoming requests against
+  it by concept similarity and answer from the ledger — appending the request to the concept
+  file's "Prior requests" log — instead of re-litigating a prior rejection. `triage` records a
+  newly rejected enhancement there and links it from the closing comment; already-implemented
+  closes are never ledgered. Degrades gracefully: no `docs/out-of-scope/`, no check.
+- **Triage eval coverage** — PR-as-item routing, verify-before-interview ordering, and the
+  never-re-triage-decompose-output exclusion.
+
+### Changed
+
+- **`triage` reworked as the raw-intake state machine.** Triage now covers items the team did not
+  author — bug reports, incoming feature requests, and unsolicited PRs — through
+  raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and
+  close. An unsolicited PR enters the same intake as an issue: its diff is an attachment to
+  evaluate, never an obligation to merge. Verification (reproduce the bug / confirm the diff does
+  what it claims) precedes any interview, and a briefed outcome follows the agent-brief
+  durability-over-precision rule (behavioral contracts, no file paths or line numbers). Items
+  published by `decompose` are born triaged and never re-enter the flow.
+- **Re-read-before-write + append-only discipline** on multi-turn shared artifacts (the recurring
+  schedule, the checklist ledger, out-of-scope concept files, the tracker binding): re-read from
+  disk immediately before writing and append/merge rather than rewriting from a stale in-context
+  copy.
+
 ## [0.5.0]
 
 Adopt the marketplace topic-docs convention (`docs/conventions/topic-docs/`, contract v1.0.0).

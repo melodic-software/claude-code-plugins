@@ -136,7 +136,7 @@ NOW name them. "How would I call a class with this information and purpose?" Add
 - These are your integration events. `[BOURGAU]` If you placed External System (pink) stickies in Step 4, the contracts are already visible — formalize them here.
 
 **Step 11: Wrap Up** (5 min)
-Photo the wall. **Start coding ASAP** — "the roll is not the deliverable, it's just a way to get to the right implementation faster." (Brandolini)
+Photo the wall. **Start coding ASAP** — "the roll is not the deliverable, it's just a way to get to the right implementation faster." (Brandolini) Also sweep the shared vocabulary the session pinned down: offer each resolved term for graduation into the consumer repo's committed project glossary (term + 1–2 sentence definition + `Avoid:` anti-synonyms; mechanics in `glossary-and-tools.md`) so the context's language outlives the wall photo.
 
 ### Post-Workshop Strategies `[BOURGAU]`
 

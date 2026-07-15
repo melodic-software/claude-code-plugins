@@ -4,7 +4,7 @@ Reference consulted while WRITING a full-path handoff (the decision logic — ST
 exit checklists — stays in `SKILL.md`). Walk every section; be specific — vague handoffs cost the
 next session a re-investigation.
 
-## The seven body sections
+## The eight body sections
 
 ### Task
 
@@ -51,6 +51,14 @@ Actionable items ordered by priority:
 1. [ ] Next immediate action
 2. [ ] Question blocking progress (who to ask, how to test)
 3. [ ] Follow-up once the blocker resolves
+
+### Suggested skills
+
+Forward pointers: which skills the resuming session should invoke for the remaining work, each tied
+to a concrete remaining item — not generic recommendations. Use fully-qualified names
+(`plugin:skill`) and qualify each with "if installed": the resuming session may run under a
+different plugin set, and a missing skill degrades to doing that work inline. When no skill maps to
+the remaining work, write "None — remaining work runs inline" rather than omitting the section.
 
 ### Files to review on resume
 
