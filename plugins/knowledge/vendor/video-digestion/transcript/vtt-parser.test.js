@@ -13,8 +13,20 @@ describe("stripVttInlineTags", () => {
     );
   });
 
-  it("handles a long unterminated tag in linear traversal", () => {
-    expect(stripVttInlineTags(`<${"<".repeat(100_000)}payload`)).toBe("");
+  it.each(["if (x < y)", "count < limit"])(
+    "preserves an unmatched less-than tail: %s",
+    (caption) => {
+      expect(stripVttInlineTags(caption)).toBe(caption);
+    },
+  );
+
+  it("preserves an unmatched less-than tail after a complete tag", () => {
+    expect(stripVttInlineTags("<c>count</c> < limit")).toBe("count < limit");
+  });
+
+  it("preserves a long unterminated candidate in linear traversal", () => {
+    const caption = `<${"<".repeat(100_000)}payload`;
+    expect(stripVttInlineTags(caption)).toBe(caption);
   });
 });
 
@@ -26,5 +38,14 @@ describe("parseVttSegment", () => {
 <c>Hello</c> <b>world</b>`);
     expect(cues).toHaveLength(1);
     expect(cues[0].text).toBe("Hello world");
+  });
+
+  it("preserves literal less-than text in a parsed cue", () => {
+    const cues = parseVttSegment(`WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+if (x < y)`);
+    expect(cues).toHaveLength(1);
+    expect(cues[0].text).toBe("if (x < y)");
   });
 });

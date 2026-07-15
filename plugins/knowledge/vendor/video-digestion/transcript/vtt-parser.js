@@ -64,18 +64,30 @@ export function formatTimestamp(seconds) {
  * @returns {string}
  */
 export function stripVttInlineTags(text) {
-  let result = "";
-  let inTag = false;
-  for (const character of text) {
-    if (character === "<") {
-      inTag = true;
-    } else if (character === ">" && inTag) {
-      inTag = false;
-    } else if (!inTag) {
-      result += character;
+  const result = [];
+  let copyStart = 0;
+  let tagStart = -1;
+
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (tagStart === -1) {
+      if (character === "<") {
+        if (copyStart < index) {
+          result.push(text.slice(copyStart, index));
+        }
+        tagStart = index;
+      }
+    } else if (character === ">") {
+      tagStart = -1;
+      copyStart = index + 1;
     }
   }
-  return result;
+
+  const tailStart = tagStart === -1 ? copyStart : tagStart;
+  if (tailStart < text.length) {
+    result.push(text.slice(tailStart));
+  }
+  return result.join("");
 }
 
 /**

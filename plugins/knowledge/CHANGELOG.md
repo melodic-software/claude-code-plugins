@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.5
+
+### Fixed
+
+- **Lossless WebVTT transcript extraction.** Cue cleanup still strips complete WebVTT tags in one
+  linear pass, but now preserves an unmatched literal less-than tail instead of truncating the rest
+  of programming, mathematics, or other tolerant transcript text.
+
 ## 0.5.4
 
 ### Fixed
