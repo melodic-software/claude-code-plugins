@@ -61,6 +61,10 @@ tier: <small|medium|large>
 |------|------|------------|----------|------------|---------|--------|
 | 1 | CRITICAL | high | path:line | code-reviewer, pr-review-toolkit | ... | ... |
 
+## By dimension
+
+<the same findings regrouped under one `### <dimension>` heading per Stage-0 category present, rows in merged-rank order with their rank numbers unchanged>
+
 ## Unparsed
 
 <raw text of any finding Stage 0 could not parse — never dropped>
@@ -70,6 +74,6 @@ tier: <small|medium|large>
 Ran: [...]. Returned no result: [...] (with cause when known).
 ```
 
-`tier`, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required — they keep the report honest about coverage and never silently drop a finding.
+`tier`, the `## By dimension` breakdown, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required — they keep the report honest about coverage and never silently drop a finding. The breakdown exists because a merged rank can mask one dimension failing badly while the others pass; the fix action parses only `## Findings` and `## Unparsed`, so the breakdown is presentation-additive.
 
 **Cell-escaping rule (required — the fix action parses this table):** inside `Finding` and `Action` cells, escape literal `|` as `\|` and replace newlines with spaces. Reviewer text routinely contains pipes (TypeScript unions, shell pipelines); unescaped, a row splits into phantom columns and the fix action misreads it.

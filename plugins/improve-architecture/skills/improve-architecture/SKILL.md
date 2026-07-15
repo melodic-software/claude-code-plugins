@@ -1,6 +1,6 @@
 ---
 name: improve-architecture
-description: "Scan an existing codebase for module-level friction and architecture improvement opportunities. Explores for shallow modules (interface nearly as complex as implementation), seam leaks, and locality gaps; presents candidates as a self-contained HTML report; runs an interview loop on the selected candidate; hands off an agreed candidate shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: applying mechanical code-level tidyings (this operates at module level), reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
+description: "Scan an existing codebase for module-level friction and architecture improvement opportunities. Explores for shallow modules (interface nearly as complex as implementation), seam leaks, and locality gaps; presents candidates as a self-contained HTML report; runs an interview loop on the selected candidate, with a Design-It-Twice branch that fans out parallel subagents to design the interface several radically different ways; hands off an agreed candidate shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: applying mechanical code-level tidyings (this operates at module level), reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
 disable-model-invocation: false
@@ -29,7 +29,7 @@ This finds existing friction — it does not plan new work, apply mechanical cod
 | Argument | Action | What it does |
 |----------|--------|-------------|
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
-| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop → hand off an agreed candidate for planning. Full process: `actions/deepening.md` |
+| `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop (with a Design-It-Twice branch for parallel interface exploration) → hand off an agreed candidate for planning. Full process: `actions/deepening.md` |
 
 One lens per invocation — lenses don't chain implicitly. Read the action's playbook for its full process.
 

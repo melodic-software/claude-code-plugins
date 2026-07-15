@@ -290,12 +290,16 @@ After the user approves the plan in Step 5, update the draft `<contract_dir>/<to
 
 Advance the phase tag (`[TODO]` → `[DOING]` → `[DONE]`) as implementation completes each phase — the tags are what a resuming session reads to know where to continue.
 
+PLAN.md is a multi-turn shared artifact: re-read it from disk before every write — another turn or agent may have modified it — and prefer appending or refining sections over wholesale rewrites.
+
 Write the plan even for small changes — future you or a fresh-session agent will thank you.
 
 **Close-out (PR time).** The contract slice is branch-lived; `/architect` owns describing its close-out:
 
 1. Paste the approved PLAN.md into the PR description inside a `<details>` block — the review-surface publication (PR bodies cap near 64 KB; paste the contract, reference the rest).
 2. Graduate durable outcomes through the knowledge-vault seam — resolve the concern file's `vault_backend`: `docs` (default) → a history-preserving `git mv` of the promoted doc into `docs/adr/` or `docs/specs/` (guard the command — create the target directory first); `gitbook` → report that writes are deferred and use the `docs` path without invoking GitBook API/MCP or Git Sync; any other enabled value → the backend the consuming repo documents, degrading to `docs` when its tools are absent (binding: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Actionable follow-ups go through the work-item tracker seam.
+
+   **ADR admission test** — a decision earns an ADR only when ALL three hold: **hard to reverse** (changing course later carries real cost), **surprising without context** (a future reader of the code would wonder why it was done this way), and **the result of a real trade-off** (genuine alternatives existed and one was picked for specific reasons). Any one missing → no ADR: an easily reversed decision just gets reversed, an unsurprising one raises no questions, and a no-alternative decision has nothing worth recording. Keep each ADR minimal — a title plus a few sentences covering context, decision, and why; optional sections (status, considered options, consequences) only when they earn their place. Prefer writing the ADR the moment the decision crystallizes during planning over batching candidates at graduation — this step then just moves the already-written file.
 3. Prune with pointer: a final commit before merge deletes the contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`), leaving context pointers (the PR body, the promoted-doc and tracker locations) in its place.
 
 Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
