@@ -24,6 +24,7 @@ declutter_convention_roots_pattern() {
       for key in memory_dir contract_dir; do
         val=$(sed -n "s/^${key}:[[:space:]]*//p" "$yaml" | head -1)
         val="${val%%#*}"; val="${val//[[:space:]]/}"; val="${val%/}"
+        val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
         if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
           DECLUTTER_CONTRACT_ROOT="$val"
         fi

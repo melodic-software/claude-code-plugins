@@ -52,9 +52,13 @@ cannot infer → ask and offer to persist; otherwise a safe generic default (rep
    - A working-notes or artifacts directory declared in the repo's own `CLAUDE.md`, `AGENTS.md`, or
      `.claude/rules` (surface that declared convention as the recommended value, so the persisted
      `library_dir` tracks it).
-   - The marketplace topic-docs convention when the repo declares it — a `.claude/topic-docs.yaml`
-     concern file or a `.work/` memory-tier root
-     (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>).
+   - NOT the topic-docs convention's roots
+     (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
+     its `memory_dir` (default `.work/`) governs pipeline working documents, not the knowledge
+     corpus — and the youtube pipeline writes `.work/<watch-epic>/…` *beneath* `library_dir`, so
+     aligning `library_dir` to the memory root would nest `.work/.work/…` under a self-ignored
+     tier. Keep `library_dir` at the repo root `.` unless the repo declares a distinct
+     knowledge/artifacts directory.
    - An existing docs or knowledge directory (`docs/`, `knowledge/`) that synthesized artifacts would
      naturally join.
    - If nothing is found, the safe default is the repo root `.` (the plugin's declared `userConfig`
