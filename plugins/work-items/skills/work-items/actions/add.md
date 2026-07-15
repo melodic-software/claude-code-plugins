@@ -24,7 +24,7 @@ Create a new work item with labels from the taxonomy.
 - `--recurring` -- Mark as recurring. Requires `--cadence`
 - `--cadence <c>` -- One of: `weekly`, `biweekly`, `monthly`, `quarterly`, `semi-annual`, `annual`
 - `--context "summary"` -- Add research context to the item body
-- `--agent-ready` -- Apply `agent-ready` meta label and use agent-brief body template (see [`reference/agent-brief.md`](../reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for items intended for AFK agent execution
+- `--agent-ready` -- Apply the autonomous-eligible role label (default `agent-ready`; resolve per [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md) "Canonical roles") and use agent-brief body template (see [`reference/agent-brief.md`](../reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for items intended for AFK agent execution
 - `--force` -- Skip duplicate check
 
 ## Workflow
@@ -35,9 +35,11 @@ Create a new work item with labels from the taxonomy.
 
 1. **Duplicate check** (skip if `--force`) — the search-before-create pre-flight (adapter: "Search items", `--state all`, bare read). If a potential duplicate is found (similar title), present it: "Similar item found: **#N {title}** ({state}). Add anyway, merge, or skip?"
 
+1. **Rejected-concept check.** When the consuming repo keeps a rejected-concept ledger (`docs/out-of-scope/`, one file per concept), scan its concept files for a match with the incoming request — match by **concept similarity, not keyword** ("night theme" matches `dark-mode.md`). On a match, answer from the ledger instead of re-litigating: present the recorded rationale ("Rejected before — `docs/out-of-scope/<concept>.md`: <reason>. Still stand?"). If the user confirms the rejection stands, append the request to that file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite the file) and stop without filing. If the user reconsiders, or the directory is absent, continue normally — no ledger, no check.
+
 1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label — it is not part of `{labels}`. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead — append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
 
-1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. Start from the group defaults `priority:p3-low,category:general` and replace each group's default with any supplied `--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the `agent-ready` meta label so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
+1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. Start from the group defaults `priority:p3-low,category:general` and replace each group's default with any supplied `--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`reference/agent-brief.md`](../reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
@@ -103,7 +105,7 @@ For non-recurring items, omit the `[Maintenance]` prefix. The emitted item objec
 }
 ```
 
-Read the current file, append the new item to the `items` array, write it back. Compute `next_due` from today + cadence duration. Also add the `recurring` and `cadence:{cadence}` labels to the item.
+Re-read the current file from disk immediately before the write — the schedule is shared and another session may have appended since it was last in context — then append the new item to the `items` array and write it back, preserving every existing row. Compute `next_due` from today + cadence duration. Also add the recurring-maintenance role label (default `recurring`) and the `cadence:{cadence}` label to the item.
 
 1. Confirm: "Created **#{number}**: {title} (type: {type}, labels: {labels})"
 

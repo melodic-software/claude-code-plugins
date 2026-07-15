@@ -39,11 +39,18 @@ Route on `$ARGUMENTS`:
 
 Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster.md)) and the normalization pipeline — no duplicated roster or pipeline.
 
+## Pre-flight gate (both review modes)
+
+Resolve the review diff base ("Shared inputs") and confirm it yields a non-empty diff BEFORE any surface is spawned:
+
+- **Unresolvable base** — an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even after a fetch (do NOT silently substitute a different base — that reviews the wrong diff), or no ladder ref resolves at all → report which ref failed and STOP.
+- **Nothing to review** — truly clean tree, or untracked-only changes → emit the matching diagnostic (full logic: [context/default-mode.md](context/default-mode.md) "Clean-tree short-circuit + untracked-only diagnostic") and STOP; never stage files.
+
+Either outcome spawns ZERO reviewers — a fan-out against an empty or wrong change set burns the whole roster to produce noise. The `fix` action is exempt: it consumes persisted findings and spawns no reviewers.
+
 ## Step 1: Detect lifecycle tier (default mode)
 
-Read the pre-computed facts. **Dispatch gate first:** (1) truly clean tree + no open PR → "no changes to review", spawn nothing; (2) untracked-only changes → report ``only untracked files; `git add` them to include in review`` and spawn nothing (do NOT stage them); (3) otherwise proceed. Full logic: [context/default-mode.md](context/default-mode.md).
-
-Classify the change into a tier (thresholds + the judgment layer in the context file):
+Read the pre-computed facts (the pre-flight gate above has already screened out unresolvable and empty change sets). Classify the change into a tier (thresholds + the judgment layer in [context/default-mode.md](context/default-mode.md)):
 
 | Tier | Trigger | Surfaces dispatched |
 |---|---|---|

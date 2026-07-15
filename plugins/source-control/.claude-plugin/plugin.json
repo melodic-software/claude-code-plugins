@@ -2,11 +2,11 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
   "version": "0.3.0",
-  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), and /worktree (create, status, cleanup, audit for parallel-session isolation).",
+  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), /worktree (create, status, cleanup, audit for parallel-session isolation), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["git", "github", "commit", "pull-request", "worktree", "ci", "code-review", "delivery", "skill"]
+  "keywords": ["git", "github", "commit", "pull-request", "worktree", "merge-conflict", "rebase", "ci", "code-review", "delivery", "skill"]
 }

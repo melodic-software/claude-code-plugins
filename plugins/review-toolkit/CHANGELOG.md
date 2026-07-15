@@ -3,6 +3,27 @@
 All notable changes to the `review-toolkit` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **Judgement-call labeling in reviewer output formats.** `code-reviewer` and
+  `architecture-guardian` now label design-smell and convention findings as judgement calls —
+  advisory, reviewer-tier — never as hard violations; hard-violation framing is reserved for
+  findings backed by a documented project rule, a failing check, or a demonstrable defect
+  (`architecture-guardian` admits a finding into its Violations bucket only with that backing).
+- **Pre-flight fail-fast gate in `code-review-fanout`.** Both review modes now resolve the review
+  diff base and confirm a non-empty diff BEFORE any surface is spawned: an unresolvable base ref
+  or an empty change set reports and stops — reviewers are never fanned out against an empty or
+  wrong diff. The default mode's inline dispatch-gate summary folds into the shared gate; the full
+  clean-tree and untracked-only logic stays in the default-mode context, and run-everything mode
+  defers to the same gate.
+- **Per-dimension breakdown in the fanout report.** The persisted findings file keeps the merged
+  ranked queue and adds a required `## By dimension` section regrouping the same findings under
+  one heading per review dimension — a merged rank can mask one dimension failing badly while the
+  others pass. Stage 4 of the normalization pipeline carries the matching two-axis presentation
+  rule; the fix action's parse contract (`## Findings` + `## Unparsed`) is unchanged.
+
 ## [0.6.0]
 
 ### Added

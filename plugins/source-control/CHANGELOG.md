@@ -7,6 +7,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- `/resolve-conflicts` skill: intent-first resolution of in-progress merge/rebase/cherry-pick
+  conflicts — both sides' history read before any hunk is edited, compose-by-default with
+  evidence-gated side-dropping, a post-resolution semantic-conflict sweep (build/tests before
+  done), and a hard never-`--abort` discipline. Ships three evals.
 - **Exec-bit check in `/source-control:commit`.** Immediately after staging, newly-added files whose
   first line is a shebang (`#!`) are checked against the index and fixed with
   `git update-index --chmod=+x` when staged non-executable. Closes the gap where a new `.sh`/`.py`

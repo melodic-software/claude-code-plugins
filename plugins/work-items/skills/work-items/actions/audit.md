@@ -10,6 +10,11 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 
 ## Checks
 
+Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
+`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
+empty, or non-string configured value. Keep the resolved string for every recurring-item query and
+comparison in this audit.
+
 ### 1. Stale claims
 
 A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check + outcome semantics: `tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Enumerate currently-assigned items (adapter: "List items", assigned filter — rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run `reclaim` on each id — idempotent, safe to run repeatedly:
@@ -32,7 +37,9 @@ if [[ -f "$SCHEDULE" ]]; then
 fi
 ```
 
-List open recurring items (adapter: "List items", `--label recurring`, `--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned. The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.
+List open recurring items (adapter: "List items", `--label <resolved recurring-maintenance label>`,
+`--state all`, bare read) and cross-reference: schedule items without a matching item are orphaned.
+The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix when comparing.
 
 ### 3. Unlabeled items + label conflicts
 

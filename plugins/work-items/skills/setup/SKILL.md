@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the work-items plugin's recurring-schedule seam for this repository: interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, and write the tracked .github/recurring-schedule.json. Use when: 'set up work-items', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the work-items plugin for this repository: interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, write the tracked .github/recurring-schedule.json, and optionally remap the canonical role labels (autonomous-eligible / human-gated / recurring-maintenance) in the tracker binding. Use when: 'set up work-items', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
 disable-model-invocation: true
@@ -16,7 +16,8 @@ item) stays as-is. Idempotent: re-running reads the existing file and offers upd
 overwriting blind. The schedule file is a plain tracked JSON file the skill reads and writes directly
 (Read / Write / `jq`) — it is not a tracker record, so it does not route through the work-item-tracker
 seam; only operations on the work items themselves (labels, item lookups, edits) go through the bound
-provider.
+provider. Setup also owns the optional canonical-role → label remap in the tracker binding (see
+"Canonical role labels" below).
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work-items/actions/add.md`](../work-items/actions/add.md) (step "If
@@ -74,10 +75,14 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-4. **Check the `recurring` label is present — it is load-bearing, not optional.** `due` / `work`
-   enumerate open maintenance items by the `recurring` label (adapter: "List items", `--label
-   recurring`), and the create path filters out labels the repo lacks — so if you write a schedule while
-   the `recurring` label is absent, the first `[Maintenance]` item created (by the recurring automation
+4. **Resolve and check the recurring-maintenance role label — it is load-bearing, not optional.**
+   Before the first tracker read, resolve the role from `.work-item-tracker.json`
+   `config.role_labels["recurring-maintenance"]`, defaulting to `recurring` only when the file or entry
+   is absent. A malformed, empty, or non-string configured value is an error, not a fallback. The
+   checks in this step and every later setup query use the resolved string. `due` / `work` enumerate
+   open maintenance items with that resolved label, and the create path filters out labels the repo
+   lacks — so if you write a schedule while the resolved label is absent, the first `[Maintenance]`
+   item created (by the recurring automation
    or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
    pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's label listing
    (for the GitHub adapter, `gh label list`). **When the repository declares a label-as-code source
@@ -108,10 +113,11 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
 6. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
    row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
    longer carries that title, so `due` / `work` — which derive recurring candidates only from the
-   schedule, and whose frontier tiers exclude `recurring`-labeled items — will never surface it again,
+   schedule, and whose frontier tiers exclude items carrying the resolved recurring-maintenance label — will never surface it again,
    leaving it stale outside the normal flow (a rename additionally risks a duplicate under the new
    title). For each renamed or dropped existing row, look up its open item under the OLD title (adapter:
-   "Search items", `--label recurring`). Provider search is substring/prefix, not exact-title equality,
+   "Search items", `--label <resolved recurring-maintenance label>`). Provider search is
+   substring/prefix, not exact-title equality,
    so it can return a longer item (`[Maintenance] Review CI workflow pins`) when the old title was
    `Review CI` — **filter the results to the one whose title equals `[Maintenance] {old title}`
    exactly** before acting, and never reconcile against a mere prefix/substring match. When exactly one
@@ -123,11 +129,39 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
    A rename or drop with no exact-match open item needs no reconciliation.
 
+## Canonical role labels (optional remap)
+
+After the schedule interview, offer the role→label remap. The work-items actions speak three
+canonical roles — `autonomous-eligible`, `human-gated`, `recurring-maintenance` — and resolve each
+repo-actual label string from the tracker binding: `.work-item-tracker.json`, key
+`config.role_labels`. Absent entries fall back to the defaults `agent-ready` / `needs-human` /
+`recurring`, so a repo that never remaps needs no binding change at all. Role semantics and the
+binding shape live in the work-items skill's
+[`../work-items/reference/label-taxonomy.md`](../work-items/reference/label-taxonomy.md)
+"Canonical roles".
+
+1. **Skip silently when `.work-item-tracker.json` is absent** — the tracker seam isn't bound in
+   this repo, so there is nothing to remap.
+2. **Read the current binding first** and present each role with its currently-resolved label
+   (the default when unset). RECOMMENDED: keep the defaults — remap only when the repo already
+   uses a different vocabulary for these markers.
+3. **On a remap**, per role:
+   - Verify the target label exists via the adapter's label listing; route creation through the
+     repo's label-as-code owner exactly as in the schedule step above — never create ad hoc.
+   - For `human-gated`, warn before writing: the seam's `list-frontier --autonomous` exclusion
+     keys on this label, and the shipped seam reads `needs-human` — remap it only when the bound
+     seam resolves the same `config.role_labels` key, or the frontier filter and the skill will
+     disagree about what autonomous agents may pick up.
+4. **Write the binding**: re-read `.work-item-tracker.json` from disk immediately before writing
+   and merge only the `config.role_labels` key — the binding carries seam-required keys
+   (`provider`, `config.lease_ttl_hours`, …) that must survive untouched. Omit entries that keep
+   their default rather than snapshotting defaults into the file.
+
 ## Output
 
 A tracked `.github/recurring-schedule.json` in the consuming repo, plus a one-paragraph summary of the
-items written (id, cadence, next_due), whether any labels were created, and how to re-run this setup to
-reconfigure.
+items written (id, cadence, next_due), whether any labels were created, any role→label remap written
+to `.work-item-tracker.json`, and how to re-run this setup to reconfigure.
 
 ## What this skill does NOT do
 

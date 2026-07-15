@@ -93,6 +93,8 @@ For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: si
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
+For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface — the ideal count is one. Confirm the seam sketch with the user before design output is finalized.
+
 Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
@@ -103,6 +105,7 @@ Derive types from capabilities:
 - Contracts: interfaces with method signatures
 - Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions) — read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
+- Record each resolved domain term in the committed project glossary the moment it resolves — entry format, placement, and update discipline: [context/project-glossary.md](context/project-glossary.md)
 
 Produce: `type-inventory.md`
 
@@ -140,6 +143,7 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
+5. Sync resolved terms — and the synonyms rejected for them — into the committed project glossary ([context/project-glossary.md](context/project-glossary.md))
 
 ## Handoff gate (`handoff` action)
 
@@ -162,7 +166,7 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 - **Collaborative always.** Never autonomously decide design. One question at a time, depth-first — resolve the load-bearing question before surfacing the next. Use `AskUserQuestion` when 2-4 discrete choices exist; prose for open-ended questions
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
-- **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve
+- **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write — another turn or agent may have modified them — and prefer appending or refining over wholesale rewrites
 - **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/architect` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
 - **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if installed). When the session tail is reached, suggest the `terminology` then `handoff` actions
