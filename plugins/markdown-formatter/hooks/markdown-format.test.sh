@@ -273,6 +273,32 @@ else
 fi
 if [[ ! -e "$NPX_MARKER" ]]; then ok "repo-local markdownlint never invokes npx"; else fail "repo-local markdownlint invoked npx"; fi
 
+# npm uses a relative .bin symlink on POSIX. Prove the resolver follows that
+# normal contained shape without mistaking it for an escape. Git Bash may copy
+# the target when native symlinks are unavailable; the regular-shim case above
+# already covers that host, so this symlink-specific assertion skips there.
+rm -f "$LOCAL_MDLINT"
+LOCAL_PACKAGE_BIN="$REPO/node_modules/markdownlint-cli2/markdownlint-cli2"
+mkdir -p "$(dirname "$LOCAL_PACKAGE_BIN")"
+cp "$TEST_BIN/markdownlint-cli2" "$LOCAL_PACKAGE_BIN"
+chmod +x "$LOCAL_PACKAGE_BIN"
+ln -s ../markdownlint-cli2/markdownlint-cli2 "$LOCAL_MDLINT"
+if [[ -L "$LOCAL_MDLINT" ]]; then
+  LOCAL_SYMLINK_FIXTURE="$REPO/fixtureLocalSymlink.md"
+  printf '# Local Symlink\n\n* symlink item\n' >"$LOCAL_SYMLINK_FIXTURE"
+  OUT_LOCAL_SYMLINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_SYMLINK_FIXTURE" \
+    | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  RC_LOCAL_SYMLINK=$?
+  if [[ $RC_LOCAL_SYMLINK -eq 0 && -z "$OUT_LOCAL_SYMLINK" ]] \
+    && grep -q '^- symlink item$' "$LOCAL_SYMLINK_FIXTURE"; then
+    ok "contained relative POSIX .bin symlink applied --fix"
+  else
+    fail "contained relative POSIX .bin symlink failed (rc=$RC_LOCAL_SYMLINK out=$OUT_LOCAL_SYMLINK)"
+  fi
+else
+  ok "contained relative POSIX .bin symlink skipped (host lacks native symlinks)"
+fi
+
 # --- Escaping repository-local binary: reject before execution --------------
 rm -rf "$REPO/node_modules"
 ESCAPE_DIR="$WORK/outside-node-modules"
