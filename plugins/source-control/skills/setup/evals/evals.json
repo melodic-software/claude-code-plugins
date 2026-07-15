@@ -5,10 +5,10 @@
       "id": 1,
       "name": "infers-before-recommending-conventional-commits",
       "prompt": "/source-control:setup",
-      "expected_output": "Before asking anything, checks the repo's own CLAUDE.md/AGENTS.md/.claude/rules, any commit-msg hook (lefthook.yml, .husky/commit-msg, commitlint config, .git/hooks/commit-msg), and recent git log history for an existing convention. With no signal found, it recommends Conventional Commits (11-type vocabulary: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test) as the default, marked RECOMMENDED, and does not offer or accept 'security' as a type.",
+      "expected_output": "Before asking anything, checks the repo's own CLAUDE.md/AGENTS.md/.claude/rules, any commit-msg hook (lefthook.yml, .husky/commit-msg, commitlint config, or a plain Git-managed commit-msg hook resolved via `git rev-parse --git-path hooks` rather than a hardcoded .git/hooks path), and recent git log history for an existing convention. With no signal found, it recommends Conventional Commits (11-type vocabulary: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test) as the default, marked RECOMMENDED, and does not offer or accept 'security' as a type.",
       "files": [],
       "expectations": [
-        "Checks CLAUDE.md/rules, a commit-msg hook, and git log history for an existing convention before asking",
+        "Checks CLAUDE.md/rules, a commit-msg hook (resolved via git plumbing, not a hardcoded .git/hooks path), and git log history for an existing convention before asking",
         "Recommends Conventional Commits with exactly the 11-type vocabulary when nothing is inferable, marked RECOMMENDED",
         "Does not include 'security' as a Conventional Commits type"
       ]
@@ -47,6 +47,18 @@
         "Runs git check-ignore -v .claude/source-control.md after writing the file",
         "Reports success only when the file is confirmed tracked, not ignored",
         "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "subject-pattern-always-machine-checkable",
+      "prompt": "/source-control:setup\n\nOur convention is: start with a ticket number, then a colon, then a short summary in the imperative mood.",
+      "expected_output": "Translates the prose description into a single anchored regex (e.g. ^[A-Z]+-\\d+: .+) and confirms the translation with the user before persisting, rather than writing the plain-language description itself to subject_pattern. Never persists a free-text subject_pattern.",
+      "files": [],
+      "expectations": [
+        "Translates a prose-described convention into an anchored regex before persisting",
+        "Confirms the translated regex with the user rather than silently guessing",
+        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
       ]
     }
   ]

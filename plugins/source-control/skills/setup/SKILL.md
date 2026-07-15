@@ -31,7 +31,11 @@ safe default (Conventional Commits).
      PR-title convention.
    - A commit-msg git hook — `lefthook.yml` (`commit-msg` entry), `.husky/commit-msg`,
      `commitlint.config.*` / `.commitlintrc*` (and whether it extends
-     `@commitlint/config-conventional` or declares custom rules), or a plain `.git/hooks/commit-msg`.
+     `@commitlint/config-conventional` or declares custom rules), or a plain Git-managed
+     `commit-msg` hook. Resolve the hooks directory with `git rev-parse --git-path hooks`
+     rather than assuming `.git/hooks` — in a linked worktree `.git` is a file, not a
+     directory, and the hooks directory (or a `core.hooksPath` override) can live elsewhere;
+     `git rev-parse --git-path hooks` resolves it correctly in both cases.
    - Recent history — `git log --oneline -50` (or more) for a stable, repeating subject shape (e.g.
      every subject matches `^[A-Z]+-\d+: .+`, or every subject is already Conventional-Commits-shaped).
    Present the inferred candidate as the recommendation, naming the source it came from. If nothing is
@@ -49,6 +53,15 @@ safe default (Conventional Commits).
      recommendation instead of Conventional Commits.
    Let the user accept the recommendation, edit it, or supply something else entirely. Do not invent a
    convention the repo gives no signal for and the user doesn't state.
+   - **`subject_pattern` must always end up machine-checkable**: either the literal keyword
+     `Conventional Commits` (which resolves to the bundled 11-type anchored pattern and enables
+     `type_list`), or a single anchored regex (`^...$`-style, anchored at the start at minimum) that
+     `/commit` and `/pull-request` can evaluate directly. If the user describes their convention in
+     prose (e.g. "ticket number then a colon then a summary"), translate it into an anchored regex
+     yourself and confirm the translation with the user before persisting — never write the prose
+     description itself. If a convention genuinely cannot be expressed as one regex, ask the user to
+     restate it as an anchored regex (or a short list of anchored regexes, any-of), or fall back to the
+     Conventional Commits default; do not persist a free-text/plain-language `subject_pattern`.
 4. **Settle the remaining fields**, recommendation first:
    - **`pr_title_pattern`** — usually identical to `subject_pattern` (squash-merge repos set the PR
      title as the squash commit's subject, so the same gate applies to both). Ask only if the user
@@ -69,7 +82,8 @@ safe default (Conventional Commits).
 
    ## subject_pattern
 
-   <the anchored regex, or a plain-language description if no single regex captures it>
+   <the literal keyword `Conventional Commits`, or a single anchored regex (or an any-of list of
+   anchored regexes) — always machine-checkable, never a plain-language description>
 
    ## type_list
 
