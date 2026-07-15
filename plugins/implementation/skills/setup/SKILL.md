@@ -88,7 +88,9 @@ The plugin's skills place plan progress, verification manifests, and baselines p
 convention ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 When `$REPO_ROOT/.claude/topic-docs.yaml` is absent, offer to write it — one question, recommended
 option first (`contract_tier: branch`, the default; `local` for solo/offline work) — and materialize
-only the keys that differ from the documented defaults, offering every schema key (`contract_dir`,
+only the keys that differ from the documented defaults (always at least one explicit key, e.g.
+`contract_tier: branch` — a comment-only YAML document parses as null and fails the contract
+schema's `type: object`), offering every schema key (`contract_dir`,
 `memory_dir`, `contract_tier`, `vault_backend`). When it exists, leave it alone unless the user asks
 to reconfigure — and preserve every schema key it carries; a re-run never drops one. Before writing, run the conflict check — only when the chosen
 tier is `branch` (local mode has no committed tier to guard): `git check-ignore -v` on a

@@ -41,7 +41,9 @@ Idempotent: re-running reads the current state and offers an update rather than 
    misses `**` patterns) — if a consumer ignore rule matches, STOP and surface the exact rule and source line rather
    than configuring an uncommittable "committed" tier (resolving the rule is the user's edit). Only
    then write the chosen values to the tracked `.claude/topic-docs.yaml` (create or update; omit keys
-   the user leaves at their defaults). Verify-or-create the memory root's self-ignoring `.gitignore`
+   the user leaves at their defaults, but always write at least one explicit key — a comment-only
+   YAML document parses as null and fails the contract schema's `type: object`). Verify-or-create
+   the memory root's self-ignoring `.gitignore`
    (announce the creation). **Never edit the consumer's root `.gitignore`.**
 
 ## Output
