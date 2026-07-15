@@ -22,7 +22,7 @@ Encapsulates the canonical mechanic for building a commit message that honors a 
 
 The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
 
-1. **`.claude/source-control.md`** — if the consuming repo has this tracked config (written by `/source-control:setup`), its declared `subject_pattern` (and `type_list`, when Conventional-Commits-shaped) is authoritative.
+1. **`.claude/source-control.md`** — if the consuming repo has this tracked config (written by `/source-control:setup`), its declared `subject_pattern` (and `type_list`, when Conventional-Commits-shaped) is authoritative. Before pre-checking, expand `subject_pattern`: the literal keyword `Conventional Commits` expands to the anchored pattern in step 3 below; anything else is already an anchored regex (or any-of list) and is used as-is. Likewise expand `pr_title_pattern` when it reads `Same as subject_pattern` — resolve it to the same expanded value.
 2. **The consuming project's own `CLAUDE.md`, rules, or commit-msg hook** — if no config file exists but the project declares (or enforces via lefthook, husky, commitlint, or a plain `.git/hooks/`) a different convention, follow that instead. (Existing behavior — unchanged.)
 3. **Conventional Commits (11-type vocabulary)** — the default when neither of the above is present. Every subject must match this anchored pattern:
 
@@ -46,7 +46,7 @@ When the project enforces its convention with a commit-msg git hook (lefthook, h
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
 2. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
 3. Pre-check the subject against the pattern (fast-fail before invoking git).
-4. Invoke `git commit -F -` via the Bash tool, heredoc-piped, with `--trailer` for `Co-Authored-By` per the trailer template below.
+4. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` for `Co-Authored-By` per the trailer template below only when the resolved `trailer_policy` calls for one (default: yes; skip or substitute per an explicit `.claude/source-control.md` `trailer_policy` of `none` or a different trailer).
 5. Surface the resulting commit SHA + subject to the user.
 
 ## Canonical bash form
@@ -91,7 +91,7 @@ On mismatch, surface the convention name and the compliant examples as actionabl
 
 The trailer body is `Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`. Fill the `<model>` and `<context>` placeholders from your own knowledge of the running session — e.g. model = `Opus 4.8` or `Fable 5`, context = `1M context`. If uncertain, invoke `/usage` to confirm before committing.
 
-There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If `.claude/source-control.md` declares a `trailer_policy`, follow it; otherwise, if the consuming project's conventions specify a different attribution trailer (or none), follow those.
+There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If `.claude/source-control.md` declares a `trailer_policy`, follow it exactly: a policy of `none` means omit `--trailer` from the `git commit` invocation entirely (do not append an empty or default trailer), and a policy naming a different template means substitute that template in place of the one above. Otherwise, if the consuming project's conventions specify a different attribution trailer (or none), follow those instead of the default.
 
 ## Unrelated uncommitted changes
 
