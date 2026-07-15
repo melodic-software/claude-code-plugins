@@ -77,8 +77,8 @@
     {
       "id": 7,
       "name": "floor-scaling-single-product",
-      "prompt": "We're deciding whether to adopt a particular open-source in-process cache library for a new service. Before committing, research its actual production readiness: current stability/release maturity, adapter support across the data stores we use, history of breaking changes, integration story with our dependency-injection container, testing/mocking support, and any documented limitations.",
-      "expected_output": "Single-product topic — broad-topic auto-detect does not fire (one library named, no comparison), so standard floors apply. The written Phase 1 gap list surfaces well more than 3 open questions (release/stability status, adapter maturity, breaking-change history, DI integration, testing support, known limitations), and Phase 2 runs one query per gap rather than stopping at the 3-query floor. Includes the mandatory falsification query, primaries fetched directly, and the outcome gate before presenting.",
+      "prompt": "We're deciding whether to adopt FusionCache (the open-source .NET in-process/hybrid cache library) for a new service. Before committing, research its actual production readiness: current stability/release maturity, adapter support across the data stores we use, history of breaking changes, integration story with our dependency-injection container, testing/mocking support, and any documented limitations.",
+      "expected_output": "Single-product topic — broad-topic auto-detect does not fire (one named library (FusionCache), no comparison), so standard floors apply. The written Phase 1 gap list surfaces well more than 3 open questions (release/stability status, adapter maturity, breaking-change history, DI integration, testing support, known limitations), and Phase 2 runs one query per gap rather than stopping at the 3-query floor. Includes the mandatory falsification query, primaries fetched directly, and the outcome gate before presenting.",
       "files": [],
       "expectations": [
         "Does not treat this as a broad-topic / comparison — only one library is named, so standard (non-doubled) minimums apply",

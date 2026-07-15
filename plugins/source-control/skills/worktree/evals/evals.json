@@ -64,13 +64,13 @@
       "id": 6,
       "name": "cleanup-dry-run-reports-only",
       "prompt": "/worktree cleanup --dry-run",
-      "expected_output": "Identifies cleanup candidates across every worktree root the project uses (including a bare-clone hub, when detected) and reports them in a table without removing anything or running any destructive git command — no prune-then-remove, no branch deletion.",
+      "expected_output": "Identifies cleanup candidates across every worktree root the project uses (including a bare-clone hub, when detected) and reports them in a table without removing anything or running any mutating git command — metadata pruning runs only as `git worktree prune --dry-run` (report-only), no removal, no branch deletion.",
       "files": [],
       "expectations": [
         "Scans every worktree root the project uses for orphan directories and prunable/stale/merged candidates",
         "Identifies each candidate by reason (orphaned directory / prunable / PR merged / stale)",
         "Extracts the real branch name from `git worktree list --porcelain` output, not from the directory name",
-        "Takes NO action — reports candidates only and exits, running no removal or branch-deletion command"
+        "Takes NO mutating action — reports candidates only and exits; any prune runs in --dry-run form, and no removal or branch-deletion command runs"
       ]
     },
     {

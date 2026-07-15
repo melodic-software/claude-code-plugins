@@ -12,6 +12,8 @@ git worktree prune
 
 Cleans up worktree administrative records for directories that no longer exist on disk (e.g., manually deleted via `rm -rf`).
 
+In `--dry-run` mode this step runs `git worktree prune --dry-run` instead — it reports what would be pruned without touching worktree metadata, keeping the whole dry-run pass mutation-free.
+
 ## Step 2: Identify cleanup candidates
 
 Run `status` logic internally and identify candidates:
