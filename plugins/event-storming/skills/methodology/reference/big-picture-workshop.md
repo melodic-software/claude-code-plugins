@@ -180,6 +180,8 @@ This provides a safe way to make opinions visible without raising explicit confl
 
 Take final pictures, manage closing conversations, clean up (or postpone if you can).
 
+Before cleanup, sweep the Ubiquitous Language stickies: offer each term the workshop resolved for graduation into the consumer repo's committed project glossary — term, 1–2 sentence definition, plain `Avoid:` line of rejected synonyms — rather than letting resolved language die with the session. Graduation mechanics (lazy creation, format ownership): `glossary-and-tools.md`.
+
 ---
 
 ## Structure Summary (Quick Reference)

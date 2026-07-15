@@ -47,6 +47,15 @@
 | **Retrospective** | Process improvement discovery | Existing operations | Team members |
 | **Induction/Learning** | Onboarding new hires | Whole organization | New + senior staff |
 
+### Graduating Workshop Terms into the Project Glossary
+
+Ubiquitous Language stickies are session artifacts — the terms they resolve should not be. At workshop wrap-up, offer each resolved term for graduation into the consumer repo's committed project glossary:
+
+- One entry per term: the term, a 1–2 sentence definition of what it IS, and a plain `Avoid:` line listing the rejected synonyms the workshop ruled out
+- Project-context terms only — EventStorming mechanics vocabulary (the tables above) stays out
+- If the repo keeps no committed glossary yet, offer to create one lazily: a single file at the repo root, or per-context files plus a root map once multiple bounded contexts each own their own language
+- When the `planning` plugin is installed, `/planning:design` owns this format — defer to it for format details; without it, the shape above is the complete contract
+
 ---
 
 ## Physical Tools

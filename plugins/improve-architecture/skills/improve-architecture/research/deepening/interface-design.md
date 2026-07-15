@@ -1,42 +1,44 @@
-# Interface Design — "Design It Twice"
+# Interface Design — Design It Twice
 
-When the user wants to explore alternative interfaces for a chosen deepening candidate, use parallel subagents. Based on Ousterhout's "Design It Twice" — first idea is unlikely to be best.
+Full process for the Design-It-Twice exploration mode of the deepening interview loop. Grounded in Ousterhout's design-it-twice principle: the first workable design is rarely the deepest, and producing several radically different alternatives costs little next to living with a shallow interface for years.
 
-## Process
+## 1. Frame the problem space
 
-### 1. Frame the problem space
+Before any design work, write a user-facing framing of the problem space for the selected candidate:
 
-Before spawning subagents, write a user-facing explanation:
+- The constraints any new interface must satisfy — existing callers, invariants that must hold, ordering and performance facts callers already rely on
+- The candidate's dependencies and their categories per [dependencies.md](dependencies.md)
+- A small illustrative code sketch that makes the constraints concrete — labeled explicitly as **not a proposal**; it exists so the constraints stop being abstract, nothing more
 
-- Constraints any new interface must satisfy
-- Dependencies and their category (per [dependencies.md](dependencies.md))
-- Rough illustrative code sketch grounding the constraints — not a proposal
+Show the framing to the user, then move straight to step 2. The user absorbs the framing while the subagents work.
 
-Show to user, then immediately proceed to Step 2. User reads while subagents work.
+## 2. Fan out to parallel subagents
 
-### 2. Spawn parallel subagents
+Spawn 3–4 subagents in parallel via the Agent tool. Orthogonality is deliberate — each subagent gets one design constraint chosen so the resulting interfaces cannot converge on the same shape:
 
-Spawn 3+ subagents via Agent tool. Each must produce a **radically different** interface for the deepened module.
+- **Minimal interface** — 1–3 entry points at most; squeeze maximum leverage from each
+- **Maximum flexibility** — support many use cases and extension
+- **Optimize the common caller** — the dominant call site's default case becomes trivial
+- **Ports and adapters** (only when the candidate's dependency classification shows cross-seam dependencies) — port at the seam, transport injected
 
-Prompt each with a separate technical brief (file paths, coupling details, dependency category, what sits behind the seam). Give each a different design constraint:
+Brief each subagent with the concrete technical context — file paths, coupling details, dependency category, what sits behind the seam — independent of the user-facing framing from step 1. Include [vocabulary.md](vocabulary.md) terms and the project's own glossary terms (if it maintains one) so every design names things consistently.
 
-- **Agent 1:** "Minimize the interface — 1-3 entry points max. Maximize leverage per entry point."
-- **Agent 2:** "Maximize flexibility — support many use cases and extension."
-- **Agent 3:** "Optimize for the most common caller — make the default case trivial."
-- **Agent 4 (if applicable):** "Design around ports and adapters for cross-seam dependencies."
+Every subagent returns the same five-part structure:
 
-Include both [vocabulary.md](vocabulary.md) terms and the project's own glossary terms (if it maintains one) in the brief so subagents name things consistently.
+1. **Interface** — types, methods, params, plus the rest of what a caller must know: invariants, ordering constraints, error modes
+2. **Usage example** — real caller code against the proposed interface
+3. **What the implementation hides** — the complexity absorbed behind the seam
+4. **Dependency strategy** — how each dependency is handled and which adapters exist
+5. **Trade-offs** — where the design's leverage is high, and where it thins out
 
-Each subagent outputs:
+## 3. Present and compare
 
-1. Interface (types, methods, params — plus invariants, ordering, error modes)
-2. Usage example showing how callers use it
-3. What the implementation hides behind the seam
-4. Dependency strategy and adapters
-5. Trade-offs — where leverage is high, where it's thin
+Present the designs one at a time so the user can absorb each before the next arrives. Then compare across three axes:
 
-### 3. Present and compare
+- **Interface depth / leverage** — behavior per unit of interface a caller must learn
+- **Locality of change** — where future change, bugs, and verification concentrate
+- **Seam placement** — where each design puts the seam, and what that position costs or buys
 
-Present designs sequentially so user absorbs each, then compare in prose. Contrast by **depth** (leverage at interface), **locality** (where change concentrates), and **seam placement**.
+## 4. Recommend
 
-Give your recommendation: which design is strongest and why. If elements from different designs combine well, propose a hybrid. Be opinionated — user wants a strong read, not a menu.
+Close with your own read: which design wins, and why. If pieces of different designs combine into something stronger, propose the hybrid explicitly. Be opinionated — the user is here for a strong recommendation, not a menu of equally weighted options.

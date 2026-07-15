@@ -1,5 +1,37 @@
 # Changelog — session-flow plugin
 
+## 0.5.0 — 2026-07-15
+
+Added:
+
+- handoff: mandatory redaction pass over ALL outbound handoff content
+  (file, resume prompt, `--bg` launch) — secrets/tokens/credentials/PII
+  replaced with shape markers before anything is written or emitted; the
+  `--bg` process-argument visibility note now leans on it. New checklist
+  ticks on both paths.
+- handoff: mandatory "Suggested skills" body section — fully-qualified,
+  "if installed"-qualified forward pointers naming the skills the
+  resuming session should invoke for the remaining work (eight body
+  sections now).
+- handoff: fork-beats-compaction guidance — once the session is deep
+  enough into its context window that reasoning quality degrades
+  (roughly beyond the final third), a fresh-session fork from the
+  handoff file beats continuing over a compacted history; threshold is
+  relative, never a token count.
+- handoff: re-read-from-disk + append-over-rewrite discipline when
+  extending a handoff file that already exists on disk.
+- workflow: on-ramp classes that merge into the stage sequence partway
+  (raw bug/issue intake via diagnosis into implement, foggy
+  too-big-to-plan efforts via wayfinding into plan, codebase-upkeep
+  findings entering a fresh cycle), with graceful if-installed
+  cross-plugin routing and no enumerated skill catalog.
+- workflow: single-owner routing when two adjacent capabilities both
+  fit — exclusion language wins, then the more specific claim, then the
+  earlier stage.
+- workflow: stale-map gotcha — re-check the described flows against the
+  actual capability inventory whenever capabilities are added, renamed,
+  or retired.
+
 ## 0.4.0 — 2026-07-15
 
 Added:

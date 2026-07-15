@@ -88,6 +88,18 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 - Last turn had an unexpected compaction
 - Sharing state with another session or machine
 
+## Fork beats compaction when the window is deep
+
+Two ways to keep going past a heavy context: fork (handoff file + `/clear` + fresh session) or
+continue in place over a compacted history. Compaction suits an intentional break between phases
+while the window is still mostly fresh — the summarized turns were genuinely disposable. Once the
+session has consumed enough of its context window that reasoning quality degrades — roughly beyond
+the final third of the window — fork instead: a handoff file carries forward exactly the state that
+matters, chosen deliberately, while a compaction summary carries forward whatever the summarizer
+happened to keep, and the degradation that prompted the move rides along into the continued
+session. Judge the threshold by window position and response quality, never by a fixed token count
+— it shifts with model and configuration.
+
 ## Locate the position first
 
 Before emitting anything, establish where the work stands: if a plan or checklist artifact backs
@@ -115,13 +127,27 @@ ANY doubt → full handoff. A wrongly-skipped file loses state the fresh session
 wrongly-written one costs nothing. The explicit method argument overrides auto-detect — but note
 `prompt` leaves a gap in the session-id chain that `/retro` walks (no file, no chain pointer).
 
+## Redaction pass — mandatory on BOTH paths
+
+Before writing the handoff file or emitting the resume prompt, sweep everything outbound — body
+sections, TaskList snapshot, frontmatter, and the prompt between the rails — for secrets, API keys,
+tokens, credentials, connection strings, and PII, and redact each hit with a shape marker
+(`<REDACTED: API key>`), never the value. Handoff output outlives the session: it sits on disk
+uncommitted-but-readable, travels to other sessions and machines, and gets read in contexts the
+current conversation never anticipated. A value acceptable to see in-session is not acceptable to
+persist. This pass gates the write — no artifact or prompt is emitted before it runs.
+
 ## Writing the handoff (full path)
 
-The document structure (seven body sections — Task / Progress / Decisions made / Files modified /
-Tried and ruled out / Open questions / Files to review), the TaskList snapshot + reconstitute
-format, and the frontmatter shape (including the `session_id` / `previous_handoff` /
+The document structure (eight body sections — Task / Progress / Decisions made / Files modified /
+Tried and ruled out / Open questions / Suggested skills / Files to review), the TaskList snapshot +
+reconstitute format, and the frontmatter shape (including the `session_id` / `previous_handoff` /
 `previous_session_id` chain fields that `/retro` walks) live in `context/structure.md` — walk it
 while writing the file.
+
+When the target file already exists on disk (extending an earlier turn's write), re-read it from
+disk immediately before writing and append to it — never rewrite the whole file from the in-context
+copy, which goes stale the moment disk moved on without this conversation seeing it.
 
 ## Final step: emit the copy/paste resume prompt
 
@@ -208,8 +234,9 @@ fallback), then:
    deliberately unique — a bare `EOF` line inside a freeform resume prompt would terminate a
    plain `<<'EOF'` heredoc early and silently truncate the prompt. Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
-   (`ps`) — inherent to `claude --bg "<prompt>"`; keep secrets out of resume prompts (they don't
-   belong there on ANY path).
+   (`ps`) — inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
+   scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
+   handoff output on ANY path.
 
 3. Report the launch result: the command's output, the agent name, and the `claude agents`
    management hint. Swap the `/clear`-then-paste instruction for this report — the user no longer
@@ -234,7 +261,9 @@ ambiguous.
 - [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
   handoff's task (chain continuity per `context/structure.md`); omitted otherwise — including when
   the directory holds only unrelated-task handoffs
-- [ ] All seven body sections present
+- [ ] All eight body sections present
+- [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
+  shape markers)
 - [ ] TaskList snapshot + Reconstitute sections present (OR explicit "exception: 0 active tasks")
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file; copy instruction above
   the top rail; `/goal` first line if a goal is active
@@ -243,6 +272,7 @@ ambiguous.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
 - [ ] Copy instruction above the rails; `/goal` first line if a goal is active
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
