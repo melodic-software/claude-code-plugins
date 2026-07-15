@@ -106,7 +106,7 @@
       "allowedInputs": ["runner", "prerequisite-result"],
       "allowedSecrets": {}
     },
-    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@35f2684ac953794b854bac1959df00e74eeca1d9": {
       "routing": "hosted-only",
       "allowedInputs": ["dry-run", "targets"],
       "allowedSecrets": {
@@ -159,7 +159,8 @@
   "governedReusableRunnerInput": {
     "name": "runner",
     "expression": "${{ inputs.runner }}",
-    "default": "ubuntu-24.04"
+    "default": "ubuntu-24.04",
+    "failureSentinel": "ci-runner-selection-failed"
   },
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
   "managedLabelPatterns": [
