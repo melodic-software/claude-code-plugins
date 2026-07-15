@@ -6,6 +6,10 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
+## Pre-computed context
+
+Automation inventory: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/automation-deep-dive/scripts/inventory.sh" 2>/dev/null || echo "inventory unavailable"`
+
 ## Purpose
 
 Audit the repo's automation landscape and identify genuine gaps — not surface-level "you don't have X"

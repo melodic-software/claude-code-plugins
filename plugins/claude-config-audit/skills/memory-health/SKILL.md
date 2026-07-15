@@ -6,6 +6,16 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
+## Pre-computed context
+
+Memory files: !`d=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/memory-health/scripts/resolve-memory-dir.sh" 2>/dev/null); ls "$d"/*.md 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
+MEMORY.md lines: !`d=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/memory-health/scripts/resolve-memory-dir.sh" 2>/dev/null); test -f "$d/MEMORY.md" && wc -l < "$d/MEMORY.md" | tr -d '\r' || echo "0"`
+Rules files: !`find .claude/rules -name "*.md" 2>/dev/null | wc -l | tr -d '\r' || echo "0"`
+CLAUDE.md lines: !`test -f CLAUDE.md && wc -l < CLAUDE.md | tr -d '\r' || echo "0"`
+CLAUDE.local.md exists: !`test -f CLAUDE.local.md && echo "yes" || echo "no"`
+Orphan always-loaded rules (RD1): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/memory-health/scripts/orphan-rule-check.sh" --count 2>/dev/null || echo "?"`
+MEMORY.md index issues (M2): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/memory-health/scripts/memory-index-refs-check.sh" --count 2>/dev/null || echo "?"`
+
 # Memory Health
 
 Deterministic health check for the Claude Code instruction/memory layer. Audits files YOU write that

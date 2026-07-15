@@ -3,7 +3,7 @@ name: setup
 description: "Configure the machine-health plugin for this machine: review the check catalog, write the machine-local overlay (disable/deprecate/demote checks, register custom ones), and optionally seed remediation approvals. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 ## Purpose

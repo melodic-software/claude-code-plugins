@@ -1,7 +1,7 @@
 # Workflow Checklist
 
-Copy this checklist into the repo's work-artifact location as `workflow-checklist.md` (see the
-workflow skill's "Consumer conventions" for where that is). Tick each box as the corresponding
+Copy this checklist into the topic's memory-tier slice as `<memory_dir>/<slug>/workflow-checklist.md`
+(default `.work/`; resolved per the workflow skill's "Consumer conventions"). Tick each box as the corresponding
 stage produces its output. The ticked artifact is the durable proof-of-stage for `/clear` resume
 and `/retro` analysis.
 

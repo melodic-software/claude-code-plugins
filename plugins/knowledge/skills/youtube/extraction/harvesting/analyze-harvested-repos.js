@@ -8,7 +8,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { detectFrameworks, detectRepoStructure, parseGitHubUrl } from "@melodic/repo-analysis";
+import {
+  detectFrameworks,
+  detectRepoStructure,
+  parseGitHubUrl,
+} from "@melodic/repo-analysis";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
@@ -29,9 +33,11 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  */
 export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
   return new Promise((resolve) => {
-    const child = spawnFn("git", ["clone", "--depth", "1", "--single-branch", url, destDir], {
-      stdio: "ignore",
-    });
+    const child = spawnFn(
+      "git",
+      ["clone", "--depth", "1", "--single-branch", "--", url, destDir],
+      { stdio: "ignore" },
+    );
     child.on("close", (code) => resolve(code === 0));
     child.on("error", () => resolve(false));
   });
@@ -86,7 +92,9 @@ export async function analyzeHarvestedRepos(
 
   /** @type {HarvestedRepoAnalysis[]} */
   const analyses = [];
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-repo-analysis-"));
+  const tempRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "youtube-repo-analysis-"),
+  );
 
   try {
     for (const url of githubUrls) {
@@ -115,9 +123,17 @@ export async function analyzeHarvestedRepos(
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 
-  const outputPath = lanePath(sliceDir, LANES.source, "harvested-repo-analysis.json");
+  const outputPath = lanePath(
+    sliceDir,
+    LANES.source,
+    "harvested-repo-analysis.json",
+  );
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, `${JSON.stringify(analyses, null, 2)}\n`, "utf8");
+  await fs.writeFile(
+    outputPath,
+    `${JSON.stringify(analyses, null, 2)}\n`,
+    "utf8",
+  );
 
   return analyses;
 }
@@ -129,23 +145,31 @@ export async function analyzeHarvestedRepos(
 export async function runAnalyzeHarvestedReposCli(argv) {
   const sliceDir = argv[2];
   if (!sliceDir) {
-    process.stderr.write("Usage: node harvesting/analyze-harvested-repos.js <slice-dir>\n");
+    process.stderr.write(
+      "Usage: node harvesting/analyze-harvested-repos.js <slice-dir>\n",
+    );
     return 1;
   }
 
   const analyses = await analyzeHarvestedRepos(sliceDir);
-  process.stdout.write(`${JSON.stringify({ count: analyses.length, analyses }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ count: analyses.length, analyses }, null, 2)}\n`,
+  );
   return 0;
 }
 
 const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+  process.argv[1] &&
+  path.resolve(process.argv[1]) ===
+    path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
   runAnalyzeHarvestedReposCli(process.argv)
     .then((code) => process.exit(code))
     .catch((err) => {
-      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+      process.stderr.write(
+        `${err instanceof Error ? err.message : String(err)}\n`,
+      );
       process.exit(1);
     });
 }

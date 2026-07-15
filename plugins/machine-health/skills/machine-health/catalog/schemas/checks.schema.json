@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://melodic.local/machine-health/checks.schema.json",
+  "$id": "urn:claude-code-plugin:machine-health:checks",
   "title": "CheckCatalog",
   "description": "Schema for catalog/checks.jsonc. Enumerates every check the orchestrator may dispatch.",
   "type": "object",

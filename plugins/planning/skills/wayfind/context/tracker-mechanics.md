@@ -20,17 +20,18 @@ or every item whose blocker ever closed is stranded off the frontier forever.
 ## Bootstrap labels (first use in a repo)
 
 `/wayfind` uses its own taxonomy — `work-map`, `wayfind:research|interview|design|prototype|task`,
-`needs-human`. These labels are provisioned by the label-as-code SSOT (`melodic-software/github-iac`,
-the **sole writer**), never created ad hoc — an out-of-band `gh label create` is pruned on the next
-`pulumi up`. At chart-mode entry, **verify** the taxonomy is present (an unknown `--label` fails the
-`gh issue create`); if any are missing, stop and have them added via a github-iac PR (or, for a
-`ManagedLabels: false` opt-out repo, the repo's own provisioning) — do not create them locally:
+`needs-human`. At chart-mode entry, **verify** the taxonomy is present because an unknown `--label`
+fails `gh issue create`. Read the consuming repository's instructions and configuration for label
+ownership. If they declare a label-as-code source of truth, treat that declared system as the writer,
+report the exact missing set to its owner, and stop. If no ownership policy is declared, report the
+missing set and ask the user how labels are provisioned. The plugin never assumes an organization or
+provisioning repository and never creates labels ad hoc:
 
 ```shell
-# Presence check only — never create. Report any missing labels for github-iac to provision.
+# Presence check only — never create. Route missing labels to the repository-declared owner.
 have=$(gh label list --json name --jq '.[].name')
 for L in work-map wayfind:research wayfind:interview wayfind:design wayfind:prototype wayfind:task needs-human; do
-  grep -qxF "$L" <<<"$have" || echo "MISSING (provision via github-iac): $L"
+  grep -qxF "$L" <<<"$have" || echo "MISSING (route to repository label owner): $L"
 done
 ```
 

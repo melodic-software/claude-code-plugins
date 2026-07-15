@@ -1,5 +1,5 @@
-const VTT_TIMESTAMP_RANGE = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/;
-const VTT_INLINE_TAG = /<[^>]+>/g;
+const VTT_TIMESTAMP_RANGE =
+  /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/;
 const WHITESPACE_RUN = /\s+/g;
 const SENTENCE_ENDING = /[.?!]$/;
 const MIN_CUE_JOIN_OVERLAP_WORDS = 3;
@@ -56,6 +56,41 @@ export function formatTimestamp(seconds) {
 }
 
 /**
+ * Remove WebVTT cue tags in one left-to-right pass.
+ *
+ * A state machine avoids both repeated regex rescans on unterminated tags and
+ * the possibility that removing an inner fragment creates a new tag.
+ * @param {string} text
+ * @returns {string}
+ */
+export function stripVttInlineTags(text) {
+  const result = [];
+  let copyStart = 0;
+  let tagStart = -1;
+
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (tagStart === -1) {
+      if (character === "<") {
+        if (copyStart < index) {
+          result.push(text.slice(copyStart, index));
+        }
+        tagStart = index;
+      }
+    } else if (character === ">") {
+      tagStart = -1;
+      copyStart = index + 1;
+    }
+  }
+
+  const tailStart = tagStart === -1 ? copyStart : tagStart;
+  if (tailStart < text.length) {
+    result.push(text.slice(tailStart));
+  }
+  return result.join("");
+}
+
+/**
  * Parse a single WebVTT segment into an array of cues.
  * Skips the WEBVTT header, X-TIMESTAMP-MAP, and NOTE blocks.
  *
@@ -77,8 +112,12 @@ export function parseVttSegment(vttText) {
       /** @type {string[]} */
       const textLines = [];
       i++;
-      while (i < lines.length && lines[i].trim() !== "" && !lines[i].includes("-->")) {
-        const cleaned = lines[i].trim().replace(VTT_INLINE_TAG, "");
+      while (
+        i < lines.length &&
+        lines[i].trim() !== "" &&
+        !lines[i].includes("-->")
+      ) {
+        const cleaned = stripVttInlineTags(lines[i].trim());
         // Skip consecutive duplicate lines (Hotmart VTT repeats each line
         // for display carry-forward — joining both doubles the text)
         if (cleaned && cleaned !== textLines[textLines.length - 1]) {
@@ -118,7 +157,10 @@ export function deduplicateCues(cues) {
   for (const cue of cues) {
     // Round to 0.1s to handle floating-point drift across segments
     const roundedStart = Math.round(cue.startSec * 10) / 10;
-    const normalizedText = cue.text.toLowerCase().replace(WHITESPACE_RUN, " ").trim();
+    const normalizedText = cue.text
+      .toLowerCase()
+      .replace(WHITESPACE_RUN, " ")
+      .trim();
     const key = `${roundedStart}|${normalizedText}`;
 
     if (!seen.has(key)) {
@@ -143,7 +185,11 @@ export function mergeAdjacentCueText(previous, next) {
 
   const prevWords = previous.split(WHITESPACE_RUN).filter(Boolean);
   const nextWords = next.split(WHITESPACE_RUN).filter(Boolean);
-  const maxOverlap = Math.min(prevWords.length, nextWords.length, MAX_CUE_JOIN_OVERLAP_WORDS);
+  const maxOverlap = Math.min(
+    prevWords.length,
+    nextWords.length,
+    MAX_CUE_JOIN_OVERLAP_WORDS,
+  );
 
   for (let len = maxOverlap; len >= MIN_CUE_JOIN_OVERLAP_WORDS; len--) {
     const suffix = prevWords.slice(-len).join(" ").toLowerCase();
@@ -176,7 +222,9 @@ export function formatTranscript(cues) {
 
   for (const cue of cues) {
     if (currentParagraphText && cue.startSec - paragraphStart > 30) {
-      paragraphs.push(`[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`);
+      paragraphs.push(
+        `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
+      );
       currentParagraphText = "";
       cuesInParagraph = 0;
       paragraphStart = cue.startSec;
@@ -187,19 +235,26 @@ export function formatTranscript(cues) {
       currentParagraphText = cue.text;
       cuesInParagraph = 1;
     } else {
-      currentParagraphText = mergeAdjacentCueText(currentParagraphText, cue.text);
+      currentParagraphText = mergeAdjacentCueText(
+        currentParagraphText,
+        cue.text,
+      );
       cuesInParagraph++;
     }
 
     if (SENTENCE_ENDING.test(cue.text) && cuesInParagraph >= 2) {
-      paragraphs.push(`[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`);
+      paragraphs.push(
+        `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
+      );
       currentParagraphText = "";
       cuesInParagraph = 0;
     }
   }
 
   if (currentParagraphText) {
-    paragraphs.push(`[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`);
+    paragraphs.push(
+      `[${formatTimestamp(paragraphStart)}] ${currentParagraphText}`,
+    );
   }
 
   return paragraphs.join("\n\n");

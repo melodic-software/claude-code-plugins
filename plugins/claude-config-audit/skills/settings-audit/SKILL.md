@@ -6,6 +6,10 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
+## Pre-computed context
+
+Claude Code version: !`claude --version 2>/dev/null || echo "unknown"`
+
 ## Purpose
 
 Periodic audit of Claude Code configuration files against current official documentation and the

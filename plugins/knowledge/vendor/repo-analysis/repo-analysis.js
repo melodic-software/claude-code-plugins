@@ -10,10 +10,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const GITHUB_HTTPS_PATH = /github\.com\/([^/]+)\/([^/]+)/;
-const GITHUB_SSH_PATH = /github\.com:([^/]+)\/([^/]+)/;
 const GIT_SUFFIX_PATTERN = /\.git$/;
-const SECTION_DIR_PATTERN = /^(\d{2}-|section-\d+|chapter-?\d+|module-?\d+|part-?\d+|\d+\.\s)/;
+const GITHUB_OWNER = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
+const GITHUB_REPOSITORY = /^[a-z\d._-]{1,100}$/i;
+const GITHUB_SSH_URL = /^git@github\.com:([^/]+)\/([^/]+?)\/?$/i;
+const SECTION_DIR_PATTERN =
+  /^(\d{2}-|section-\d+|chapter-?\d+|module-?\d+|part-?\d+|\d+\.\s)/;
 const WINDOWS_PATH_SEPARATOR = /\\/g;
 
 const IGNORED_DIRS = new Set([
@@ -43,19 +45,44 @@ const IGNORED_DIRS = new Set([
  * @returns {{ owner: string, repo: string } | null}
  */
 export function parseGitHubUrl(url) {
-  if (!url) return null;
+  if (typeof url !== "string" || url.length === 0) return null;
 
-  const httpsMatch = url.match(GITHUB_HTTPS_PATH);
-  if (httpsMatch) {
-    return { owner: httpsMatch[1], repo: httpsMatch[2].replace(GIT_SUFFIX_PATTERN, "") };
-  }
-
-  const sshMatch = url.match(GITHUB_SSH_PATH);
+  let owner;
+  let repo;
+  const sshMatch = GITHUB_SSH_URL.exec(url);
   if (sshMatch) {
-    return { owner: sshMatch[1], repo: sshMatch[2].replace(GIT_SUFFIX_PATTERN, "") };
+    owner = sshMatch[1];
+    repo = sshMatch[2].replace(GIT_SUFFIX_PATTERN, "");
+  } else {
+    try {
+      const parsed = new URL(url);
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.hostname.toLowerCase() !== "github.com" ||
+        parsed.port !== "" ||
+        parsed.username !== "" ||
+        parsed.password !== ""
+      ) {
+        return null;
+      }
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) return null;
+      [owner] = segments;
+      repo = segments[1].replace(GIT_SUFFIX_PATTERN, "");
+    } catch {
+      return null;
+    }
   }
 
-  return null;
+  if (
+    !GITHUB_OWNER.test(owner) ||
+    !GITHUB_REPOSITORY.test(repo) ||
+    repo === "." ||
+    repo === ".."
+  ) {
+    return null;
+  }
+  return { owner, repo };
 }
 
 /**
@@ -124,7 +151,8 @@ export function detectFrameworks(dir) {
     try {
       const pkg = JSON.parse(readFileSync(filePath, "utf-8"));
       if (pkg.name) details.name = pkg.name;
-      if (pkg.dependencies) details.depCount = Object.keys(pkg.dependencies).length;
+      if (pkg.dependencies)
+        details.depCount = Object.keys(pkg.dependencies).length;
     } catch {
       /* ignore parse errors */
     }
@@ -135,7 +163,8 @@ export function detectFrameworks(dir) {
     for (const [manifest, framework] of Object.entries(manifests)) {
       if (!entry.name.endsWith(manifest)) continue;
       const filePath = join(d, entry.name);
-      const details = manifest === "package.json" ? readPackageDetails(filePath) : {};
+      const details =
+        manifest === "package.json" ? readPackageDetails(filePath) : {};
       results.push({
         framework,
         file: filePath.replace(dir, "").replace(WINDOWS_PATH_SEPARATOR, "/"),
@@ -154,7 +183,11 @@ export function detectFrameworks(dir) {
     }
 
     for (const entry of entries) {
-      if (entry.isDirectory() && !IGNORED_DIRS.has(entry.name) && !entry.name.startsWith(".")) {
+      if (
+        entry.isDirectory() &&
+        !IGNORED_DIRS.has(entry.name) &&
+        !entry.name.startsWith(".")
+      ) {
         scan(join(d, entry.name), depth + 1);
         continue;
       }
@@ -244,7 +277,9 @@ function parseDirDiff(fromDir, toDir, codeDir) {
 
   const details = lines
     .slice(0, 20)
-    .map((line) => line.replaceAll(codeDir, ".").replace(WINDOWS_PATH_SEPARATOR, "/"));
+    .map((line) =>
+      line.replaceAll(codeDir, ".").replace(WINDOWS_PATH_SEPARATOR, "/"),
+    );
 
   return { added, modified, removed, details };
 }
@@ -265,7 +300,11 @@ export function diffSections(codeDir, sections) {
   for (let i = 0; i < sections.length - 1; i++) {
     const fromDir = join(codeDir, sections[i].name);
     const toDir = join(codeDir, sections[i + 1].name);
-    const { added, modified, removed, details } = parseDirDiff(fromDir, toDir, codeDir);
+    const { added, modified, removed, details } = parseDirDiff(
+      fromDir,
+      toDir,
+      codeDir,
+    );
 
     diffs.push({
       from: sections[i].name,
@@ -296,7 +335,11 @@ export function diffStartEnd(codeDir, sections) {
 
     const startDir = join(codeDir, section.name, "start");
     const endDir = join(codeDir, section.name, "end");
-    const { added, modified, removed, details } = parseDirDiff(startDir, endDir, codeDir);
+    const { added, modified, removed, details } = parseDirDiff(
+      startDir,
+      endDir,
+      codeDir,
+    );
 
     diffs.push({
       section: section.name,

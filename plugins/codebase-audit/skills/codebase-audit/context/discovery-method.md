@@ -73,6 +73,13 @@ caught vs a single sequential agent.
 Because each agent owns one file, the "complete one dimension before the next" sequencing is moot —
 there is no shared context to thin out, so dimension order does not matter.
 
+**Background / unattended variant:** the same per-file fan-out can run as a saved workflow
+(background execution, same-session resume, rerunnable script) instead of in-session subagents —
+same discovery, different executor. This applies only when your environment provides a
+background/saved-workflow execution surface; the in-session fan-out above is the default. Reach for
+the workflow form only when you want a fire-and-forget periodic audit you can walk away from — an
+interactive audit you are actively driving stays with the in-session fan-out.
+
 ## What to report
 
 Report **every discrepancy** found, no matter how small. Also report what you verified as correct —

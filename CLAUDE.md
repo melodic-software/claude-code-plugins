@@ -1,6 +1,6 @@
 # Operating rules — AI agents working in this repo
 
-This repository is a public Claude Code plugin marketplace. Plugins here must be reusable,
+This repository is a private Claude Code plugin marketplace. Plugins here must still be reusable,
 repo-agnostic, configurable by consumers, and safe in plugin form.
 
 ## Fresh-docs mandate (non-negotiable)
@@ -37,11 +37,12 @@ Machine-readable JSON Schemas (editor validation for the JSON in this repo; Clau
 
 - **Repo-agnostic.** No hardcoded paths, repo names, or project-specific values. Read the consumer's
   context via `${CLAUDE_PROJECT_DIR}` and the consumer's own `CLAUDE.md` / `.claude/rules`.
-- **Configurable without editing the plugin.** Expose consumer choices through `userConfig`
-  (`${user_config.KEY}`), never by requiring a fork or a hand-edit of the skill.
+- **Configurable without editing the plugin.** Use `userConfig` (`${user_config.KEY}`) for personal or
+  administrator-provided scalars. Put tracked repository policy and team conventions in a documented
+  consumer-project file. Never require a fork or a hand-edit of the installed plugin.
 - **Plugin-form-safe.** Installed plugins run from an isolated cache — reference only files inside the
   plugin via `${CLAUDE_PLUGIN_ROOT}`; persist state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs.
-- **No PII / secrets.** Public repo + permanent git history: scrub before the first commit, not after.
+- **No PII / secrets.** Git history is durable: scrub before the first commit, not after.
 - **Versioned.** Set an explicit semver `version` in each `plugin.json` so consumers update on bumps.
 - **Security-reviewed.** Every plugin clears the playbook's plugin-acceptance security review before publish —
   code execution, remote MCP servers, config secrets, cache isolation, data egress, and third-party trust.
@@ -49,6 +50,7 @@ Machine-readable JSON Schemas (editor validation for the JSON in this repo; Clau
 
 ## Process
 
-The full design charter, extensibility model, plugin-form caveats, per-plugin migration gate, and the
-plugin-acceptance security review live in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow it
-for every migration.
+The durable design rules live in [`docs/PLUGIN-PHILOSOPHY.md`](docs/PLUGIN-PHILOSOPHY.md). The
+extensibility model, plugin-form caveats, per-plugin migration gate, and plugin-acceptance security
+review live in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow both for every
+migration.

@@ -60,6 +60,18 @@ env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ2" \
 assert_eq "override dir used" "research" \
   "$(jq -r '.skill' "$PROJ2/telemetry/skills/skill-usage.jsonl" 2>/dev/null)"
 
+# --- Invalid override is visible and cannot escape the project -------------
+PROJB="$TEST_TMPDIR/projb"; mkdir -p "$PROJB"
+INVALID_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJB" \
+  CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR="../outside" \
+  bash "$HOOK" <<<"$INPUT" 2>/dev/null)
+assert_file_absent "traversal override cannot write outside project" \
+  "$TEST_TMPDIR/outside/skill-usage.jsonl"
+assert_contains "invalid override emits visible advisory" "$INVALID_OUTPUT" \
+  "claude-ops skipped skill-usage logging"
+assert_eq "invalid override advisory uses hook protocol" "UserPromptExpansion" \
+  "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$INVALID_OUTPUT" 2>/dev/null)"
+
 # --- Envelope emitted when a sink is wired ---------------------------------
 PROJ3="$TEST_TMPDIR/proj3"; mkdir -p "$PROJ3"
 TEL="$TEST_TMPDIR/tel.json"; SINK="$(make_sink "$TEL")"

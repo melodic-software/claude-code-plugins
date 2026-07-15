@@ -1,20 +1,26 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate — persisting PRD.md / PLAN.md / design artifacts for fresh-session handoff.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "implementation-plan", "skill"],
-  "userConfig": {
-    "notes_dir": {
-      "type": "string",
-      "title": "Notes directory",
-      "description": "Project-relative directory where planning artifacts (PRD.md, PLAN.md, design artifacts) are written, one subdirectory per topic. A working-notes convention declared in your own project's CLAUDE.md or rules takes precedence.",
-      "default": ".claude/notes"
-    }
-  }
+  "keywords": [
+    "planning",
+    "wayfind",
+    "decision-map",
+    "brainstorm",
+    "prd",
+    "interview",
+    "design",
+    "design-handoff",
+    "devils-advocate",
+    "architect",
+    "stress-test",
+    "implementation-plan",
+    "skill"
+  ]
 }

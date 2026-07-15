@@ -1,0 +1,27 @@
+# Topic-docs placement — where discovery artifacts land
+
+How `/discovery:explore`, `/discovery:explore-deep`, `/discovery:research`, and
+`/discovery:research-deep` resolve where generated documents land in a consuming repo. These skills
+read this one document; none bakes its own paths.
+
+Implements the topic-docs convention:
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
+The contract owns every general rule — tiers, schema, resolution order, slug spec, runtime guards,
+no-project-root fallback, non-interactive/forked mode. This document records only this plugin's
+deltas.
+
+The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
+behavior; this binding and topic-docs remain authoritative for their placement.
+
+## What this plugin writes
+
+Discovery writes **memory tier only** — working documents nothing downstream enforces against:
+
+| Artifact | Location |
+|---|---|
+| `EXPLORE.md` (+ `EXPLORE-<scope>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
+| `RESEARCH.md` (+ `RESEARCH-<topic>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
+
+Discovery never writes the contract tier; the `contract_tier` setting does not change where its
+artifacts land. `/discovery:explore-deep` and a Tier-2 research subagent operate under the
+contract's **non-interactive / forked mode** rule.

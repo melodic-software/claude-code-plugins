@@ -33,9 +33,11 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/transcript/derive-video-slug.js`
 
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+
 ## Artifact landing (work root)
 
-Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's `library_dir` seam (`pluginConfigs["knowledge@melodic-software"].options.library_dir`, substituted into this skill's content as `${user_config.library_dir}`):
+Every extraction command in this skill runs through `run.mjs`, and each writes its `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root honors the knowledge plugin's personal `library_dir` user-configuration seam, substituted into this skill's content as `${user_config.library_dir}`:
 
 - **Non-default** — when `${user_config.library_dir}` is a non-empty value other than the repo-root default `.` (and not an unexpanded `${user_config.library_dir}` token), pass it as a **leading** `--work-root` flag on **every** `run.mjs` invocation in this skill:
 

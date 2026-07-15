@@ -9,7 +9,8 @@
   "approvedSelectorReferencesByRepositoryOwner": {
     "melodic-software": [
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2"
     ]
   },
   "approvedReusableWorkflowContracts": {
@@ -86,7 +87,7 @@
       "allowedSecrets": {},
       "fixedRunsOn": ["windows-2025"]
     },
-    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@15aefd8799e8a8b5ffdfcc183dcbfcbf58044481": {
       "routing": "hosted-only",
       "allowedInputs": [],
       "allowedSecrets": {},
@@ -105,7 +106,7 @@
       "allowedInputs": ["runner", "prerequisite-result"],
       "allowedSecrets": {}
     },
-    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@35f2684ac953794b854bac1959df00e74eeca1d9": {
       "routing": "hosted-only",
       "allowedInputs": ["dry-run", "targets"],
       "allowedSecrets": {
@@ -121,6 +122,18 @@
       "fixedRunsOn": ["ubuntu-24.04"]
     },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "paths"],
@@ -146,11 +159,12 @@
   "governedReusableRunnerInput": {
     "name": "runner",
     "expression": "${{ inputs.runner }}",
-    "default": "ubuntu-24.04"
+    "default": "ubuntu-24.04",
+    "failureSentinel": "ci-runner-selection-failed"
   },
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
   "managedLabelPatterns": [
-    "(?:^|[^a-z0-9-])(?:melodic|kyle)-ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
+    "(?:^|[^a-z0-9-])(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
   ],
   "hostedExceptionReasons": [
     "dependabot",

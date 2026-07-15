@@ -9,7 +9,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseBriefing } from "./lib/parse-briefing.js";
 import { emitSlides } from "./lib/emit-slides.js";
-import { ensureProviderLogos } from "./lib/fetch-logos.js";
+import { resolveProviderLogos } from "./lib/provider-logos.js";
 import { validateDeck } from "./lib/schema.js";
 import { brand as DEFAULT_BRAND, theme as DEFAULT_THEME } from "./brand.js";
 import { resolveBrand } from "./lib/brand-overlay.js";
@@ -40,7 +40,6 @@ function parseArgs(argv) {
     else if (k === "--briefing") out.briefing = argv[++i];
     else if (k === "--date") out.date = argv[++i];
     else if (k === "--out") out.out = argv[++i];
-    else if (k === "--no-fetch-logos") out.noFetchLogos = true;
   }
   return out;
 }
@@ -52,52 +51,6 @@ async function readState() {
   } catch {
     return null;
   }
-}
-
-/** Find the latest per-profile-runner run with a non-empty briefing-deltas.md.
- *  Returns the deltas markdown string (newest run wins) or null if none. */
-async function readLatestBriefingDeltas() {
-  const runsDir = path.join(stateRoot(), "context", "runs");
-  let entries;
-  try {
-    entries = await fs.readdir(runsDir, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  const dirs = entries
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort()
-    .reverse();
-  for (const name of dirs) {
-    const deltasPath = path.join(runsDir, name, "briefing-deltas.md");
-    try {
-      const text = await fs.readFile(deltasPath, "utf-8");
-      if (text.trim().length > 0) {
-        return { runId: name, path: deltasPath, text };
-      }
-    } catch {
-      /* not present */
-    }
-  }
-  return null;
-}
-
-/** Merge briefing-deltas.md (per-profile runner output) into the briefing markdown
- *  that downstream slide emit consumes. Appended under "## Per-profile runner deltas"
- *  so parseBriefing keeps the existing structure intact. Returns the merged markdown
- *  if a delta was applied, otherwise the original briefing markdown unchanged. */
-async function mergeRunnerDeltas(originalMarkdown) {
-  const deltas = await readLatestBriefingDeltas();
-  if (!deltas) return { merged: originalMarkdown, deltaApplied: null };
-
-  const sentinel = `<!-- runner-deltas:${deltas.runId} -->`;
-  if (originalMarkdown.includes(sentinel)) {
-    return { merged: originalMarkdown, deltaApplied: { runId: deltas.runId, alreadyMerged: true } };
-  }
-  const sep = "\n\n---\n\n## Per-profile runner deltas\n\n";
-  const merged = `${originalMarkdown.trimEnd()}${sep}${sentinel}\n${deltas.text.trim()}\n`;
-  return { merged, deltaApplied: { runId: deltas.runId, alreadyMerged: false } };
 }
 
 function formatWindow(openIso, closeIso) {
@@ -134,8 +87,8 @@ export const slides = ${asJsLiteral(slides, 0)};
 async function main() {
   const args = parseArgs(process.argv);
 
-  // Resolve the active profile's brand.js overlay (org, tagline, logos, theme)
-  // over the engine's neutral default. Absent overlay → neutral default. Profile
+  // Resolve the active profile's declarative brand.json overlay over the
+  // engine's neutral default. Absent overlay → neutral default. Profile
   // logo paths come back absolute so the downstream build scripts embed them.
   const { brand: BRAND, theme: THEME } = await resolveBrand({
     defaultBrand: DEFAULT_BRAND,
@@ -170,26 +123,6 @@ async function main() {
   // exist yet on a fresh install.
   await fs.mkdir(buildOutDir(), { recursive: true });
 
-  // Merge per-profile runner deltas (latest run with non-empty briefing-deltas.md)
-  // before parsing, so emitted slides reflect runner output without needing a
-  // separate manual merge into meeting-{N}.md.
-  const originalMarkdown = await fs.readFile(briefingPath, "utf-8");
-  const { merged, deltaApplied } = await mergeRunnerDeltas(originalMarkdown);
-  if (deltaApplied) {
-    if (deltaApplied.alreadyMerged) {
-      console.log(`Runner deltas:     ${deltaApplied.runId} (already merged — skipping)`);
-    } else {
-      console.log(`Runner deltas:     ${deltaApplied.runId} (merging)`);
-    }
-  }
-  // Use the merged content for parsing — delegate to parseBriefing via tmp shim
-  // (parseBriefing reads from a path; we write merged content to a sibling tmp file
-  // when a merge actually happened, then parse that).
-  let parseInputPath = briefingPath;
-  if (deltaApplied && !deltaApplied.alreadyMerged) {
-    parseInputPath = path.join(buildOutDir(), ".briefing-merged.tmp.md");
-    await fs.writeFile(parseInputPath, merged, "utf-8");
-  }
   // Build seen-items.json URL → first_seen map (final date-inference fallback).
   // Reuse the `state` read above — seen-items.json is unchanged between reads.
   const seenUrlDateMap = new Map();
@@ -206,11 +139,8 @@ async function main() {
       }
     }
   }
-  const briefing = await parseBriefing(parseInputPath, { seenUrlDateMap });
+  const briefing = await parseBriefing(briefingPath, { seenUrlDateMap });
   console.log(`Seen-items dates:  ${seenUrlDateMap.size} URL→date entries (final fallback)`);
-  if (parseInputPath !== briefingPath) {
-    try { await fs.unlink(parseInputPath); } catch { /* ignore */ }
-  }
 
   // Window from briefing.md header (preferred — reflects actual data)
   if (briefing.meta.window) {
@@ -224,12 +154,13 @@ async function main() {
     windowStr = `~${dateStr}`;
   }
 
-  // Pre-flight: fetch missing provider logos
-  if (!args.noFetchLogos) {
-    const fetchResult = await ensureProviderLogos(PROVIDER_LOGOS);
-    console.log(`Logos fetched: ${fetchResult.fetched.length} | cached: ${fetchResult.skipped.length} | failed: ${fetchResult.failed.length}`);
-    if (fetchResult.failed.length) console.log(`  Failed: ${fetchResult.failed.join(", ")}`);
-  }
+  // Pre-flight: use bundled provider logos only. Missing optional assets
+  // degrade to text headers without network access.
+  const logoResult = await resolveProviderLogos(PROVIDER_LOGOS);
+  console.log(
+    `Logos available: ${logoResult.available.length} | skipped: ${logoResult.skipped.length} | missing: ${logoResult.missing.length}`,
+  );
+  if (logoResult.missing.length) console.log(`  Missing: ${logoResult.missing.join(", ")}`);
 
   // Build context
   const ctx = {

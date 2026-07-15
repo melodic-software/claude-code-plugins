@@ -1,5 +1,11 @@
 # Changelog — ecosystem-commands convention
 
+## 1.1.0 — 2026-07-15
+
+Additive: optional `tool-pin` key — pinned tool versions keyed by tool name. When present, resolvers
+warn if the installed version drifts from the pin (a pin typically mirrors the repo's own CI pin);
+inert when absent. Bundled portable defaults never set it — pins are consumer-specific.
+
 ## 1.0.0 — 2026-07-12
 
 Initial contract (design gate melodic-software/medley#1390):

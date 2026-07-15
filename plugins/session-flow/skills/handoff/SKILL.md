@@ -27,11 +27,14 @@ rediscovering dead ends.
 
 ## Where handoffs live
 
-Honor the consuming repo's documented convention for session save-points / work journals (check
-`CLAUDE.md` / `.claude/rules/`) if one exists. Otherwise default to **`.claude/handoffs/`** in the
-project — files named `<TS>-handoff-<topic>.md` with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic,
-Windows-safe, sortable). Handoffs are project files by design: they travel with the repo and any
-session or machine can resume from them.
+Handoffs are memory-tier save-points, concern-scoped by session — resolve the destination through
+the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+A consumer-declared convention (the `.claude/topic-docs.yaml` concern file, or a save-point
+convention in `CLAUDE.md` / `.claude/rules/`) wins; otherwise default to
+**`<memory_dir>/handoffs/`** (default `.work/handoffs/`) — files named `<TS>-handoff-<topic>.md`
+with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
+memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*` — create
+it (announced) when absent; never edit the consumer's root `.gitignore`.
 
 ## Arguments
 
@@ -143,10 +146,14 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @.claude/handoffs/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
 Prior session: <UUID>.
 ──────────────────────────────────────────────────────────
 ```
+
+`<handoffs-dir>` is the path the write step actually used — the resolved
+`<memory_dir>/handoffs/` (default `.work/handoffs/`). Never emit a
+default the file was not written to.
 
 When the next stage is a specific skill in the consuming repo, swap the directive to
 `Read @… and execute /<skill>.` The `@`-reference is mandatory on the full path — the fresh session
@@ -216,12 +223,14 @@ fallback), then:
 ## Post-write enforcement checklist
 
 Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
-incomplete.
+incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
+ambiguous.
 
 **Full path:**
 
 - [ ] Position located + next stage named (fresh reads this turn)
-- [ ] Handoff file written to the handoff location with frontmatter per `context/structure.md`
+- [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
+  frontmatter per `context/structure.md`
 - [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
   handoff's task (chain continuity per `context/structure.md`); omitted otherwise — including when
   the directory holds only unrelated-task handoffs

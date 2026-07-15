@@ -1,0 +1,32 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routes-secret-configuration-through-claude",
+      "prompt": "/miro:setup",
+      "expected_output": "Checks enablement and scoped Miro tool availability without inspecting the token or settings, routes missing configuration through Claude Code's native plugin prompt, and requires a reload before rechecking.",
+      "files": [],
+      "expectations": [
+        "Never reads settings, environment variables, credential storage, logs, or the token",
+        "Routes enablement and token entry through Claude Code's native plugin interface",
+        "Distinguishes a disabled plugin from an enabled server that failed to start",
+        "Requires reload-plugins or a new session after configuration"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "verifies-api-access-read-only-with-consent",
+      "prompt": "/miro:setup\n\nVerify that my configured token works.",
+      "expected_output": "Requests explicit confirmation before calling miro_list_boards with limit 1, reports only whether access succeeded, and distinguishes authentication failures from network, rate-limit, or service failures without mutating a board.",
+      "files": [],
+      "expectations": [
+        "Asks for confirmation before the external Miro API request",
+        "Uses only the read-only miro_list_boards tool with limit 1",
+        "Does not disclose board names, IDs, URLs, or token material",
+        "Never invokes a create, update, or delete tool",
+        "Does not misdiagnose network or service failures as a bad credential"
+      ]
+    }
+  ]
+}

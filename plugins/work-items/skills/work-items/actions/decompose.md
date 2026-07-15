@@ -10,8 +10,8 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 `source` can be:
 
-- *(empty)* — reads `.work/<slug>/PLAN.md` phases (default)
-- `prd` — reads `.work/<slug>/PRD.md` user stories
+- *(empty)* — reads the topic's `PLAN.md` phases (default). Resolve the file per [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md): select the tier from the concern file's `contract_tier` FIRST — `branch` (default) → `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`); `local` → `<memory_dir>/<slug>/PLAN.md` (default `.work/`). The tier selects the location; never read the other tier's slice (a stale branch-tier slice must not shadow the live local one, or vice versa)
+- `prd` — reads the topic's `PRD.md` user stories, resolved via the same tier-selected lookup
 - `#<item-number>` — reads an existing item's body
 - Conversation context — synthesizes from current discussion
 
@@ -19,7 +19,7 @@ Break a plan, spec, or PRD into independently-grabbable work items using vertica
 
 ### 1. Gather source material
 
-Read the source document. If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch full body and comments.
+Read the source document (PLAN.md/PRD.md located per the tier-selected lookup above — the configured tier's location only, never mix locations for one topic). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch full body and comments.
 
 Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
 
@@ -111,7 +111,7 @@ Use agent-brief body format (see [`reference/agent-brief.md`](../reference/agent
 ## Parent
 
 Refs #<parent-item> (if source was an existing item)
-<!-- or: Source: .work/<slug>/PLAN.md Phase N -->
+<!-- or: Source: <contract_dir>/<slug>/PLAN.md Phase N (write the resolved path) -->
 
 ## What to build
 

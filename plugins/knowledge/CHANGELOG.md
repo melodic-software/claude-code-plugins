@@ -4,6 +4,41 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.5
+
+### Fixed
+
+- **Lossless WebVTT transcript extraction.** Cue cleanup still strips complete WebVTT tags in one
+  linear pass, but now preserves an unmatched literal less-than tail instead of truncating the rest
+  of programming, mathematics, or other tolerant transcript text.
+
+## 0.5.4
+
+### Fixed
+
+- **Current Claude Code configuration contract.** Setup now treats `library_dir` as a personal
+  `userConfig` option, validates it against the consuming repository's artifact convention, and
+  routes changes through Claude Code's configuration prompt instead of editing unsupported
+  project/local `pluginConfigs` entries.
+- **Repository and transcript input hardening.** GitHub repository URLs now require an exact,
+  credential-free GitHub HTTPS or SSH shape before canonical clone arguments are constructed;
+  clone option parsing is terminated explicitly; and WebVTT/entity cleanup uses bounded,
+  single-pass transformations that cannot turn nested malformed input into active markup.
+
+## 0.5.3
+
+### Changed
+
+- **Aligned with the marketplace topic-docs convention** (`docs/conventions/topic-docs/`).
+  Setup's convention inference now points at the `.claude/topic-docs.yaml` concern file and
+  the `.work/` memory tier (the retired `.claude/notes/` location is no signal — the contract
+  is a clean break), and the youtube/course-digest skills carry the contract's **formal carve-out**
+  note (the work root resolves through this plugin's `library_dir` seam, not the concern file's
+  `memory_dir`; slug conformance is form-only; nested `<epic>/<slug>/` sub-slices are
+  sanctioned), linking the convention by its canonical URL. The youtube slice-lane rationale
+  now records that the `verification/` lane name matches the convention's canon. Docs-only —
+  no paths or behavior change; the `library_dir` seam is untouched.
+
 ## 0.5.2
 
 ### Fixed
