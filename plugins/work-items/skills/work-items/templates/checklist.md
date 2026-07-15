@@ -12,9 +12,10 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 
 ## Action: add
 
-- [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`) — pivot if open/closed match exists
-- [ ] Compose title (`<type>: <description>`); write the body to a temp file with the Write tool (argv-safe — never inline generated text); build labels
-- [ ] `tools/work-item-tracker/work-item-tracker.sh create-item --title '...' --body "$(cat "$BODY_FILE")" --labels '...'`
+- [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`) — pivot if open/closed match exists (skip if `--force`)
+- [ ] Resolve issue type from `--type` (default `task`) — native GitHub Issue Type on org repos (passed via `--type`, not a label); coarse `type: bug`/`type: feature`/`type: task` label on personal/non-org repos
+- [ ] Build labels list; build body (default template, or agent-brief template if `--agent-ready`); write the body to a temp file with the Write tool (argv-safe — never inline generated text)
+- [ ] `tools/work-item-tracker/work-item-tracker.sh create-item --title '{title}' --body "$(cat "$BODY_FILE")" --type '{type}' --labels '...'` (`--type` on org repos only; `[Maintenance]` title prefix when `--recurring`)
 - [ ] Capture item ID/number for cross-reference
 
 ## Action: start
