@@ -8,6 +8,7 @@ import {
   analyzeHarvestedRepos,
   filterGitHubUrls,
   sanitizePathSegment,
+  shallowCloneGitHubRepo,
 } from "./analyze-harvested-repos.js";
 
 describe("filterGitHubUrls", () => {
@@ -34,6 +35,37 @@ describe("sanitizePathSegment", () => {
   });
 });
 
+describe("shallowCloneGitHubRepo", () => {
+  it("terminates git option parsing before repository and destination arguments", async () => {
+    let capturedArgs;
+    const spawnFn = (_command, args) => {
+      capturedArgs = args;
+      return {
+        on(event, callback) {
+          if (event === "close") callback(0);
+        },
+      };
+    };
+
+    await expect(
+      shallowCloneGitHubRepo(
+        "https://github.com/owner/repo",
+        "-destination",
+        spawnFn,
+      ),
+    ).resolves.toBe(true);
+    expect(capturedArgs).toEqual([
+      "clone",
+      "--depth",
+      "1",
+      "--single-branch",
+      "--",
+      "https://github.com/owner/repo",
+      "-destination",
+    ]);
+  });
+});
+
 describe("analyzeHarvestedRepos clone target", () => {
   /** @type {string} */
   let sliceDir;
@@ -50,7 +82,11 @@ describe("analyzeHarvestedRepos clone target", () => {
   it("clones the canonical repo URL built from parsed parts, not the harvested deep link", async () => {
     fs.writeFileSync(
       path.join(sliceDir, "source", "harvested-links.json"),
-      JSON.stringify([{ url: "https://github.com/melodic-software/medley/blob/main/README.md" }]),
+      JSON.stringify([
+        {
+          url: "https://github.com/melodic-software/medley/blob/main/README.md",
+        },
+      ]),
     );
 
     /** @type {string[]} */

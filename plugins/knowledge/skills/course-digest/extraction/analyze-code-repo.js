@@ -49,7 +49,9 @@ function checkRepoSize(parsed) {
   );
 
   if (sizeResult.status !== 0 || !sizeResult.stdout.trim()) {
-    log.warn("  Could not check repo size (gh api failed). Proceeding with clone.");
+    log.warn(
+      "  Could not check repo size (gh api failed). Proceeding with clone.",
+    );
     log.debug(`  gh stderr: ${sizeResult.stderr?.trim()}`);
     return;
   }
@@ -59,7 +61,9 @@ function checkRepoSize(parsed) {
   log.info(`  Repo size: ~${sizeMB} MB`);
 
   if (sizeKB > MAX_SIZE_KB) {
-    log.error(`  Repo too large (${sizeMB} MB > ${MAX_SIZE_KB / 1024} MB limit). Aborting.`);
+    log.error(
+      `  Repo too large (${sizeMB} MB > ${MAX_SIZE_KB / 1024} MB limit). Aborting.`,
+    );
     process.exit(1);
   }
   if (sizeKB > WARN_SIZE_KB) {
@@ -67,13 +71,14 @@ function checkRepoSize(parsed) {
   }
 }
 
-function cloneRepoToTemp(githubUrl, parsed) {
+function cloneRepoToTemp(parsed) {
   const cloneDir = join(tmpdir(), `course-repo-${parsed.repo}-${Date.now()}`);
+  const githubUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
   log.info(`  Cloning to temp: ${cloneDir}`);
 
   const cloneResult = spawnSync(
     "git",
-    ["clone", "--depth", "1", "--single-branch", githubUrl, cloneDir],
+    ["clone", "--depth", "1", "--single-branch", "--", githubUrl, cloneDir],
     { encoding: "utf-8", timeout: 120000 },
   );
 
@@ -85,7 +90,7 @@ function cloneRepoToTemp(githubUrl, parsed) {
   return cloneDir;
 }
 
-function resolveCloneDir(githubUrl, parsed, courseDir) {
+function resolveCloneDir(parsed, courseDir) {
   if (args["skip-clone"]) {
     const codeOutputDir = join(courseDir, "code");
     if (!existsSync(codeOutputDir)) {
@@ -97,7 +102,7 @@ function resolveCloneDir(githubUrl, parsed, courseDir) {
   }
 
   checkRepoSize(parsed);
-  return { cloneDir: cloneRepoToTemp(githubUrl, parsed), isTemp: true };
+  return { cloneDir: cloneRepoToTemp(parsed), isTemp: true };
 }
 
 function buildReadme(githubUrl, structure, frameworks, fileCounts) {
@@ -111,7 +116,9 @@ function buildReadme(githubUrl, structure, frameworks, fileCounts) {
     "## Structure",
     "",
     `Type: **${structure.type}**`,
-    structure.sections ? `Sections: ${structure.sections.map((s) => s.name).join(", ")}` : "",
+    structure.sections
+      ? `Sections: ${structure.sections.map((s) => s.name).join(", ")}`
+      : "",
     "",
     "## Frameworks",
     "",
@@ -137,7 +144,9 @@ function main() {
   log.debug(`  Node: ${process.version} | OS: ${process.platform}`);
 
   if (!githubUrl) {
-    log.warn("  No githubUrl in course.json resources — skipping code repo analysis.");
+    log.warn(
+      "  No githubUrl in course.json resources — skipping code repo analysis.",
+    );
     return;
   }
 
@@ -149,7 +158,7 @@ function main() {
     process.exit(1);
   }
 
-  const { cloneDir, isTemp } = resolveCloneDir(githubUrl, parsed, courseDir);
+  const { cloneDir, isTemp } = resolveCloneDir(parsed, courseDir);
 
   log.info("  Analyzing structure...");
   const structure = detectRepoStructure(cloneDir);
@@ -173,7 +182,9 @@ function main() {
     log.info("  Computing section diffs...");
     sectionDiffs = diffSections(cloneDir, structure.sections);
     for (const d of sectionDiffs) {
-      log.info(`    ${d.from} → ${d.to}: +${d.added} ~${d.modified} -${d.removed}`);
+      log.info(
+        `    ${d.from} → ${d.to}: +${d.added} ~${d.modified} -${d.removed}`,
+      );
     }
   }
 

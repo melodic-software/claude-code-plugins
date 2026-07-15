@@ -23,14 +23,18 @@ imposes no rules of its own.
 
 ## Requirements
 
-The hook requires the following tools on `PATH`:
+The hook requires the following tools:
 
 - Bash 3.2 or later. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run this Bash hook; WSL is also supported.
 - [`jq`](https://jqlang.org/) to parse hook input and emit structured context.
 - [`markdownlint-cli2`](https://github.com/DavidAnson/markdownlint-cli2),
-  installed explicitly by the user or consuming repository.
+  installed explicitly either on `PATH` or as a pinned dependency in the consuming
+  repository. For the latter, the hook uses the extensionless
+  `node_modules/.bin/markdownlint-cli2` shim that npm supplies for POSIX shells and Git
+  Bash. It resolves symlinks first and rejects a shim whose physical target escapes the
+  repository's `node_modules` tree.
 
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),

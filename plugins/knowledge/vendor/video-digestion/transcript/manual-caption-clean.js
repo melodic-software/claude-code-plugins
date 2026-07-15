@@ -12,6 +12,14 @@ import { deduplicateCues, parseVttSegment } from "./vtt-parser.js";
 
 const WHITESPACE_RUN = /\s+/g;
 const HTML_ENTITY = /&(?:nbsp|amp|lt|gt|quot|#39);/gi;
+const HTML_ENTITY_REPLACEMENTS = new Map([
+  ["&nbsp;", " "],
+  ["&amp;", "&"],
+  ["&lt;", "<"],
+  ["&gt;", ">"],
+  ["&quot;", '"'],
+  ["&#39;", "'"],
+]);
 
 /**
  * @param {string} text
@@ -19,13 +27,10 @@ const HTML_ENTITY = /&(?:nbsp|amp|lt|gt|quot|#39);/gi;
  */
 export function stripCaptionHtmlEntities(text) {
   return text
-    .replaceAll("&nbsp;", " ")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replace(HTML_ENTITY, " ")
+    .replace(
+      HTML_ENTITY,
+      (entity) => HTML_ENTITY_REPLACEMENTS.get(entity.toLowerCase()) ?? entity,
+    )
     .replace(WHITESPACE_RUN, " ")
     .trim();
 }
@@ -53,16 +58,24 @@ export function collapseConsecutiveDuplicateWords(text) {
  * @returns {string}
  */
 export function collapseRollingDuplicatePhrases(text) {
-  const normalized = collapseConsecutiveDuplicateWords(stripCaptionHtmlEntities(text));
+  const normalized = collapseConsecutiveDuplicateWords(
+    stripCaptionHtmlEntities(text),
+  );
   if (!normalized) return "";
 
   const words = normalized.split(" ");
   if (words.length < 6) return normalized;
 
-  for (let phraseLen = Math.min(12, Math.floor(words.length / 2)); phraseLen >= 3; phraseLen--) {
+  for (
+    let phraseLen = Math.min(12, Math.floor(words.length / 2));
+    phraseLen >= 3;
+    phraseLen--
+  ) {
     for (let start = 0; start + phraseLen * 2 <= words.length; start++) {
       const first = words.slice(start, start + phraseLen).join(" ");
-      const second = words.slice(start + phraseLen, start + phraseLen * 2).join(" ");
+      const second = words
+        .slice(start + phraseLen, start + phraseLen * 2)
+        .join(" ");
       if (first === second) {
         const collapsed = [
           ...words.slice(0, start + phraseLen),
@@ -94,7 +107,9 @@ function applyPhraseCollapse(cues) {
 export function cleanManualCaptions(vttText) {
   const inputCues = parseVttSegment(vttText);
   const progressiveMergeApplied = shouldCleanProgressiveCaptions(vttText);
-  const merged = progressiveMergeApplied ? mergeProgressiveCaptionCues(inputCues) : inputCues;
+  const merged = progressiveMergeApplied
+    ? mergeProgressiveCaptionCues(inputCues)
+    : inputCues;
 
   const collapsed = applyPhraseCollapse(merged);
   const cues = deduplicateCues(collapsed.filter((cue) => cue.text.length > 0));

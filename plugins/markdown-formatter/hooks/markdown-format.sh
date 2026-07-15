@@ -98,14 +98,55 @@ build_data_json() {
     || printf '{"tool":"","file":"","findings":[]}'
 }
 
+# Resolve the consuming repository's pinned npm binary without invoking a
+# package runner. npm creates an extensionless POSIX shim in node_modules/.bin
+# alongside its Windows .cmd launcher; Git Bash executes the POSIX shim. Follow
+# symlinks before accepting it and require the physical target to remain inside
+# this repository's node_modules tree. This rejects a checked-in or replaced
+# .bin symlink that escapes the repository trust boundary.
+resolve_repo_markdownlint() {
+  local candidate="$REPO_ROOT/node_modules/.bin/markdownlint-cli2"
+  local root_physical target link target_dir depth=0
+
+  [[ -f "$candidate" && -x "$candidate" ]] || return 1
+  root_physical="$(cd -P -- "$REPO_ROOT" 2>/dev/null && pwd -P)" || return 1
+  target="$candidate"
+
+  while [[ -L "$target" ]]; do
+    depth=$((depth + 1))
+    ((depth <= 32)) || return 1
+    link="$(readlink "$target" 2>/dev/null)" || return 1
+    case "$link" in
+    /*) target="$link" ;;
+    [A-Za-z]:[\\/]*)
+      command -v cygpath >/dev/null 2>&1 || return 1
+      target="$(cygpath -u "$link" 2>/dev/null)" || return 1
+      ;;
+    *) target="$(dirname -- "$target")/$link" ;;
+    esac
+  done
+
+  [[ -f "$target" && -x "$target" ]] || return 1
+  target_dir="$(cd -P -- "$(dirname -- "$target")" 2>/dev/null && pwd -P)" || return 1
+  target="$target_dir/$(basename -- "$target")"
+  case "$target" in
+  "$root_physical"/node_modules/*) ;;
+  *) return 1 ;;
+  esac
+
+  printf '%s' "$candidate"
+}
+
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
+elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
+  MDLINT=("$REPO_MDLINT")
 else
   # Never invoke a package runner here: hooks must not download or execute an
   # unpinned package as a side effect of editing a file. Degrade visibly.
   hook::emit_additional_context PostToolUse \
-    "markdown-format skipped: markdownlint-cli2 is not installed on PATH. Install it explicitly; this hook does not invoke npx or download tools."
+    "markdown-format skipped: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable. Install it explicitly; this hook does not invoke npx or download tools."
   emit_tel "skipped" '[]'
   exit 0
 fi
