@@ -51,6 +51,11 @@
       "type": "string",
       "description": "Cross-platform install guidance shown when a required tool is missing. Missing tools report skip, never failure."
     },
+    "tool-pin": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "description": "Pinned tool versions keyed by tool name. When present, resolvers warn if the installed version drifts from the pin (a pin typically mirrors the repo's own CI pin). Inert when absent."
+    },
     "gates": {
       "type": "array",
       "description": "Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact freshness, schema regeneration).",

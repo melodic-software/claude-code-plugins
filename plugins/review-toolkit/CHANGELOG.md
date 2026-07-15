@@ -3,6 +3,16 @@
 All notable changes to the `review-toolkit` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Model-assignment cost routing for the findings-normalization pipeline.** Each stage heading in
+  `code-review-fanout`'s findings-normalization context now carries its model annotation, and a
+  closing `## Model assignment` section summarizes the routing: Stage 0 Sonnet (parse fidelity),
+  Stages 1–2 deterministic/Haiku (enum lookup), Stage 3 Sonnet (semantic merge), Stage 4
+  deterministic.
+
 ## [0.4.0]
 
 ### Changed

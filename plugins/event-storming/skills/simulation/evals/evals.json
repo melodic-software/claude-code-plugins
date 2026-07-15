@@ -73,6 +73,18 @@
         "Output does not fabricate some other arbitrary domain as if the user had specified it",
         "Output honors the Miro preflight — proceeding on-board when Miro is available, or offering the structured-markdown / connect-and-retry degradation when Miro is absent — rather than assuming an unconditional board run"
       ]
+    },
+    {
+      "id": 7,
+      "name": "design-level-missing-prerequisite",
+      "prompt": "--design-level Enrollment",
+      "expected_output": "Design-Level deep-dive routing that first requires the prerequisite: an existing Process Modeling board for the Enrollment bounded context. It should look up the PM board URL in the run-state store (${CLAUDE_PLUGIN_DATA}/history.jsonl) and, finding no prior board, surface the missing prerequisite — offering to run --process-model first — rather than fabricating a process model or aggregates from scratch. It routes to Design-Level behavior (Blank Aggregates technique), not to Big Picture or the interactive-discovery flow.",
+      "files": [],
+      "expectations": [
+        "Recognizes Design-Level requires an existing Process Modeling board for the bounded context and looks up the board URL in ${CLAUDE_PLUGIN_DATA}/history.jsonl before proceeding",
+        "On finding no prior Process Modeling board, surfaces the missing prerequisite (offering to run --process-model first) instead of fabricating a process model or aggregates from scratch",
+        "Routes to Design-Level behavior (e.g. Blank Aggregates), not to Big Picture or the no-args interactive discovery flow"
+      ]
     }
   ]
 }

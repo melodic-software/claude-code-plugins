@@ -16,7 +16,7 @@ Parse `$ARGUMENTS` for a simulation mode:
 - `--simulate [domain]`: Run a full simulation cycle with interactive progression. Loads `agentic-simulation.md` and `simulation-evaluation.md`. Starts with Big Picture, identifies bounded contexts, then uses AskUserQuestion to guide the user through selecting which BC to explore next. Domain defaults to "Developer Conference" if not specified. See "Running a Simulation" below.
 - `--process-model [board-url-or-bc-name]`: Run Process Modeling only, against an existing Big Picture board. Reads the BP board to extract the winning problem / selected BC, then executes PM with the 3-pass technique. Use when the user wants to deep-dive a specific BC without re-running Big Picture.
 - `--design-level [board-url-or-bc-name]`: Run Design-Level only, against an existing Process Modeling board. Reads the PM board to extract the process model, then executes DL with Blank Aggregates technique. Use when the user wants to go from PM → DL on a specific bounded context.
-- `--evaluate`: Run the iteration workflow against existing boards. Loads `iteration-workflow.md` and `simulation-evaluation.md`. Executes: SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY. Requires existing boards (reads from memory for board URLs).
+- `--evaluate`: Run the iteration workflow against existing boards. Loads `iteration-workflow.md` and `simulation-evaluation.md`. Executes: SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY. Requires existing boards (reads the run-state store, `${CLAUDE_PLUGIN_DATA}/history.jsonl`, for board URLs).
 - `--retrospective [domain]`: Run Big Picture as an organization retrospective — exploring an existing business process to find improvement opportunities. Frames exploration as "what ACTUALLY happens?" vs the official version. Same phases as `--simulate` but with a focus on problems/opportunities in existing flows rather than new product discovery. (Book Ch. 1 story 4, Ch. 10)
 - `--induction [domain]`: Run Big Picture as a new hire onboarding exercise. The New Hire persona leads (models based on guessing/assumptions), senior personas correct and explain. Implements Brandolini's "give newcomers the leading role" (Ch. 10). Produces a learning-oriented model, not a definitive one.
 - `--value [domain]`: Run standalone Value Exploration against an existing Big Picture board. Executes all 5 sub-rounds: Financial value → Non-financial currencies → Contrasting perspectives → Diverging perspectives (customer segments) → Explore Purpose. (Book Ch. 5)
@@ -75,9 +75,9 @@ there is no board to read.
 1. **Setup** — MCP preflight (Miro availability per "Miro availability & graceful degradation" above), domain research (3+ web-research searches — Perplexity MCP if present, else `WebSearch`; default domain "Developer Conference"), persona setup (4-7 personas, three-zone DEEP/GREY/PRETEND knowledge, 5 shared focal moments). Session lifecycle (ID, dirs, teardown) and preflight detail: `@./reference/agentic-simulation.md` "Session lifecycle".
 2. **Big Picture** (always first) — run every workshop phase in order (Chaotic Exploration → Enforce Timeline → People & Systems → Explicit Walk-through → Reverse Narrative → [optional] Add the Money / Value Exploration → Problems & Opportunities → Arrow Voting → Wrapping Up) per `@./reference/agentic-simulation.md` "Round-Based Orchestration", taking a visual-verification screenshot at each transition; then run the post-workshop visual check (Ch. 9) and score against the Big Picture rubric.
 3. **Post-workshop analysis + interactive progression** — run bounded-context discovery (architect's homework, not a workshop phase — see `--discover-bcs` below), present the arrow-voting winner and discovered BCs, then use AskUserQuestion to let the user pick the next BC to Process Model, then Design-Level, repeating per BC. **Never auto-advance formats — the user chooses each step.**
-4. **Evaluation & codification** — score all boards against the full rubric, compare against memory baselines, run the retrospective protocol (`@./reference/simulation-evaluation.md`), update memory with version metrics / board URLs / findings, present the version comparison, and clean up old boards with user approval.
+4. **Evaluation & codification** — score all boards against the full rubric, compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines, run the retrospective protocol (`@./reference/simulation-evaluation.md`), update the run-state store with version metrics / board URLs / findings, present the version comparison, and clean up old boards with user approval.
 
-Throughout, maintain an **exploration map** (Big Picture URL, all BCs explored + unexplored, per-BC Process Modeling and Design-Level board URLs) on the Big Picture board as a cyan sticky and in memory — layout detail in `@./reference/agentic-simulation.md`.
+Throughout, maintain an **exploration map** (Big Picture URL, all BCs explored + unexplored, per-BC Process Modeling and Design-Level board URLs) on the Big Picture board as a cyan sticky and in the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) — layout detail in `@./reference/agentic-simulation.md`.
 
 ## Running a Deep Dive (`--process-model` or `--design-level`)
 
@@ -85,7 +85,7 @@ When invoked with `--process-model` or `--design-level`, run a single format aga
 
 **`--process-model [board-url-or-bc-name]`:**
 
-1. Read memory for the Big Picture board URL and the list of identified BCs
+1. Read the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for the Big Picture board URL and the list of identified BCs
 2. If a BC name is given, extract relevant events from the BP board for that context
 3. If a board URL is given, read it directly
 4. Execute Process Modeling with 3-pass technique on the selected scope
@@ -94,17 +94,18 @@ When invoked with `--process-model` or `--design-level`, run a single format aga
 
 **`--design-level [board-url-or-bc-name]`:**
 
-1. Read memory for the Process Modeling board URL for the specified BC
-2. Extract the process model (events, commands, policies)
-3. Execute Design-Level with Blank Aggregates technique
-4. Score against DL rubric
-5. Update the exploration map with the new aggregate information
+1. Read the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for the Process Modeling board URL for the specified BC
+2. If no prior Process Modeling board exists for the BC, surface the missing prerequisite and offer to run `--process-model` first — never fabricate a process model or aggregates from scratch
+3. Extract the process model (events, commands, policies)
+4. Execute Design-Level with Blank Aggregates technique
+5. Score against DL rubric
+6. Update the exploration map with the new aggregate information
 
 ## Running an Evaluation (`--evaluate`)
 
 When invoked with `--evaluate`, run the iteration workflow against existing boards WITHOUT re-running the simulation. Use this to re-score boards, compare versions, or verify that fixes improved quality.
 
-**Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, score against rubric, compare against memory baselines.
+**Execution:** Follow `iteration-workflow.md` steps 2-7 (SCORE → COMPARE → DIFF → FIX → VERIFY → CODIFY). Read board data via Miro MCP, score against rubric, compare against the `${CLAUDE_PLUGIN_DATA}/history.jsonl` baselines.
 
 ## Bounded Context Discovery Protocol (`--discover-bcs`)
 
