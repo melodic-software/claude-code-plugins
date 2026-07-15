@@ -41,14 +41,27 @@
       "id": 4,
       "name": "verifies-tracked-not-ignored",
       "prompt": "/source-control:setup\n\nUse the recommended Conventional Commits default.",
-      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore, then runs git ls-files --error-unmatch .claude/source-control.md to confirm it is actually present in the index (check-ignore reporting nothing does not by itself prove the file is tracked). If a .gitignore pattern excludes it, surfaces the matching pattern and offers to fix .gitignore; if it is unignored but not yet in the index, stages it and prompts the user to commit. Reports success only once both checks pass.",
+      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore, then runs git status --porcelain -- .claude/source-control.md and reads the worktree column to confirm the content is staged (check-ignore reporting nothing does not by itself prove the file is tracked or staged, and git ls-files --error-unmatch alone would not catch an unstaged rewrite of an already-tracked file). If a .gitignore pattern excludes it, surfaces the matching pattern and offers to fix .gitignore; if the worktree column is non-blank (new or modified-not-staged), stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit. Reports success once not-ignored and no-unstaged-changes both hold — it does not require the file to be committed, since a staged-but-uncommitted file legitimately still shows in git status --porcelain output.",
       "files": [],
       "expectations": [
         "Runs git check-ignore -v .claude/source-control.md after writing the file",
-        "Also checks the index (e.g. git ls-files --error-unmatch) rather than treating a clean check-ignore result alone as proof of tracked status",
-        "Reports success only when the file is confirmed both unignored and present in the index",
+        "Checks staged status via git status --porcelain (worktree column) rather than treating a clean check-ignore result (or index presence alone) as proof the current content is staged",
+        "Reports success once the file is confirmed unignored and no unstaged changes remain (e.g. via git diff --quiet), without requiring the file to already be committed",
         "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success",
-        "If unignored but untracked, stages the file and prompts the user to commit rather than silently reporting success"
+        "If the worktree column shows untracked or modified-not-staged, stages the file and prompts the user to commit rather than silently reporting success"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "reconfiguration-stages-updated-config",
+      "prompt": "/source-control:setup\n\nWe're switching from Conventional Commits to a ticket-prefix convention like WEB-123: fix the thing.",
+      "expected_output": "With an existing, already-committed .claude/source-control.md, rewrites it with the new ticket-prefix subject_pattern, then checks git status --porcelain -- .claude/source-control.md rather than relying on git ls-files --error-unmatch (which would report the path as tracked and appear to pass even though the rewritten content is an unstaged working-tree modification). Because the rewrite produces a modified-but-unstaged file, stages it with git add, confirms via git diff --quiet that nothing remains unstaged, and prompts the user to commit before reporting success.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Rewrites the existing tracked .claude/source-control.md with the newly accepted convention",
+        "Does not rely on index-presence alone (e.g. git ls-files --error-unmatch) to declare the update staged",
+        "Detects the unstaged modification via git status --porcelain -- .claude/source-control.md (worktree column non-blank)",
+        "Stages the modified file with git add and prompts the user to commit before reporting success, without requiring the commit itself to have happened"
       ]
     },
     {

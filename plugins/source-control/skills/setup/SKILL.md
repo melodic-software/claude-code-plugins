@@ -110,18 +110,30 @@ safe default (Conventional Commits).
 
    Drop any section with no content (`type_list` for a non-Conventional-Commits pattern;
    `trailer_policy` when there is no trailer convention) rather than leaving it empty. Then verify the
-   file is actually tracked before reporting success — `git check-ignore -v` alone does not prove this:
-   it only reports a matching `.gitignore` pattern, and reports nothing for both a properly tracked file
-   and a plain untracked one, so a freshly written file in a fresh repo would pass it while still being
-   invisible to teammates.
+   file is actually staged before reporting success — neither `git check-ignore -v` nor
+   `git ls-files --error-unmatch` prove this by itself. `git check-ignore -v` only reports a matching
+   `.gitignore` pattern, staying silent for both a properly tracked file and a plain untracked one.
+   `git ls-files --error-unmatch` only proves the path is *somewhere* in the index: on a
+   reconfiguration run (the file already existed and this step just rewrote it), the path was already
+   tracked before the rewrite, so that check exits 0 even though the new content is still an unstaged
+   working-tree modification — success would be reported while the updated convention stays local and
+   uncommitted.
    - Run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/.claude/source-control.md"` — a non-empty result
      means a `.gitignore` pattern excludes it; surface the matching pattern and offer to fix
      `.gitignore` first.
-   - Then, with no ignore match, confirm the file is actually in the index: run
-     `git -C "${CLAUDE_PROJECT_DIR}" ls-files --error-unmatch .claude/source-control.md`. A non-zero
-     exit means the file is untracked — stage it (`git add`) and prompt the user to commit, since this
-     file is team-shared and must be committed to take effect. Only report success once both checks
-     pass: not ignored, and present in the index.
+   - Then, with no ignore match, run
+     `git -C "${CLAUDE_PROJECT_DIR}" status --porcelain -- .claude/source-control.md` and read the
+     second (worktree) column: `??` (untracked) or a non-blank worktree column (` M`, `MM`, etc.) means
+     the just-written content is not yet staged — run
+     `git -C "${CLAUDE_PROJECT_DIR}" add .claude/source-control.md`. This covers both the fresh-file case
+     and the reconfiguration case (an already-tracked file whose rewritten content hadn't been staged
+     yet), unlike an index-presence check alone. After staging, confirm nothing is left unstaged with
+     `git -C "${CLAUDE_PROJECT_DIR}" diff --quiet -- .claude/source-control.md` (exit 0 = worktree
+     matches the index). This skill stages but does not commit — `git status --porcelain` legitimately
+     keeps printing `A ` / `M ` for a staged-but-uncommitted file, so success does **not** require
+     porcelain to be fully empty, only that no *unstaged* changes remain. Prompt the user to commit,
+     since this file is team-shared and must be committed to take effect. Only report success once both
+     checks pass: not ignored, and no unstaged changes remain for the path.
 
 ## Output
 
