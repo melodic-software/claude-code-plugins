@@ -1,0 +1,19 @@
+{
+  "skill_name": "object-writing",
+  "evals": [
+    {
+      "id": 1,
+      "name": "metaphor-recipe-for-emotion",
+      "prompt": "/songwriting:object-writing metaphor-recipe I need a metaphor for grief that isn't a storm or an ocean",
+      "expected_output": "Routes to the metaphor-recipe action. Loads metaphor.md (the 8 named recipes) and templates/metaphor-recipe-prompt.md. Generates 6-8 metaphor candidates avoiding the named cliche families (storm-anger, fire-passion, ocean-sadness) per the user's constraint, labeling each with its type (expressed identity / qualifying / verbal) and a grounding suggestion.",
+      "files": [],
+      "expectations": [
+        "Loads metaphor.md via the `metaphor-recipe` action",
+        "Avoids storm and ocean (named cliche families) per the user's constraint",
+        "Generates 6-8 candidate metaphors",
+        "Labels each with a metaphor type (expressed identity / qualifying / verbal)",
+        "Offers options rather than a single winning metaphor"
+      ]
+    }
+  ]
+}

@@ -7,6 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- Readiness security-gate, mixed-actor, and three worktree evals.
 - **Exec-bit check in `/source-control:commit`.** Immediately after staging, newly-added files whose
   first line is a shebang (`#!`) are checked against the index and fixed with
   `git update-index --chmod=+x` when staged non-executable. Closes the gap where a new `.sh`/`.py`

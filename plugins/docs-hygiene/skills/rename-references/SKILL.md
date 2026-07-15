@@ -147,7 +147,7 @@ Paths skipped from sweeps automatically:
 - **Ambiguous bucket is mandatory triage, not optional.** English-verb collisions are the highest false-positive vector. If a token is in the blocklist, force into ambiguous regardless of position. Cost of one extra confirmation prompt is far lower than silently mangling prose.
 - **Re-sweep until count == 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate.
 - **Plan-doc exclusion is mandatory.** The active plan/work-notes document *documents the rename* and contains both old and new names by design. Editing it would break the documentation narrative.
-- **Pattern library evolves.** When Phase 6 finds a NEW form, treat as a learning event: extend `context/patterns.md`. Future renames benefit immediately.
+- **Pattern library evolves.** When Phase 6 finds a NEW form, treat as a learning event: extend `context/patterns.md`, add an eval case. Future renames benefit immediately.
 - **A file MOVE breaks the moved files' own relative paths — sweep INSIDE the moved set, not just refs TO it.** When `git mv` changes directory depth, relative refs *inside* the moved files (`source ../../lib.sh`, `# shellcheck source=../../../../tests/...`, relative markdown links) silently break — they carry no renamed token, so every token-keyed pattern returns clean while the moved file itself is broken. After any depth-changing move: `grep -nE '\.\./' <moved-files>` + re-run the moved code from its new location (tests, `--help`). Real example: a directory promotion left a `# shellcheck source=` directive pointing four levels up when the new home was two.
 - **A rename couples sibling renames — sweep each as its own pair.** Renaming a skill or identifier usually drags coupled siblings that do NOT contain the primary token: dot-form action/mode IDs (`verify.runtime-affecting-paths` — Form 12), internal mode names (`quality` mode), content-file basenames (context/quality.md style paths). A phase-scoped, skill-only grep on the primary token (`/verify`) leaves these EXTERNAL refs — in skill bodies, config files, and other skills' dispatch tables — unverified. A slash-anchored token sweep can return "clean" while `<old>.id` / `<old-mode>` / `<old>.md`-path refs survive elsewhere. Before declaring a rename complete: enumerate the coupled identifiers (Survey phase) and run a sweep per pair.
 
@@ -163,4 +163,4 @@ Paths skipped from sweeps automatically:
 | `git mv` just executed | Invoke `/rename-references audit` to surface stragglers |
 | Pre-PR: working tree contains R-status files | Suggest `/rename-references audit` before final verification |
 | `/rename-references` finds 0 matches | Proceed to verification (or done if already past it) |
-| `/rename-references` finds NEW form not in pattern library | Update `context/patterns.md`, re-iterate |
+| `/rename-references` finds NEW form not in pattern library | Update `context/patterns.md`, add eval case, re-iterate |

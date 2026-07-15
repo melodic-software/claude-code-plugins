@@ -1,0 +1,33 @@
+{
+  "skill_name": "rhyme",
+  "evals": [
+    {
+      "id": 1,
+      "name": "non-cliche-rhymes-internal-primary",
+      "prompt": "/songwriting:rhyme find rhymes for 'lonely' that aren't cliche",
+      "expected_output": "Loads rhyme-generation.md FIRST as the primary source. Applies the internal discipline: anchors the stressed vowel (long-O), runs the identity check (rejects 'only' as identity, not rhyme, since the pre-vowel consonant doesn't differ), walks the stability-tier scale, pulls from the phonetic family, and flags cliche partners (e.g. slowly/holy). Surfaces 8-15 candidates across tiers with labels. Does not lead with Datamuse.",
+      "files": [],
+      "expectations": [
+        "Loads rhyme-generation.md before any external API call",
+        "Identifies the stressed vowel as long-O",
+        "Rejects 'only' as identity (no pre-vowel consonant difference)",
+        "Flags cliche pairs (e.g. holy/lonely, slowly/lonely)",
+        "Surfaces 8-15 candidates with stability-tier and cliche-risk labels",
+        "If Datamuse is used, it is labeled as a supplement to internal generation, not the primary source"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "syllable-count-via-datamuse",
+      "prompt": "/songwriting:rhyme datamuse how many syllables is 'disestablishmentarianism'?",
+      "expected_output": "Recognizes this as a polysyllabic / rare word where internal counting is unreliable. Routes to the datamuse action, loading ai-tools.md and invoking scripts/datamuse.sh for syllable lookup, returning an exact count rather than a guess.",
+      "files": [],
+      "expectations": [
+        "Acknowledges this is a polysyllabic / rare word",
+        "Routes to the `datamuse` action (ai-tools.md + scripts/datamuse.sh) for syllable verification",
+        "Returns an exact syllable count, not a guess",
+        "If the script is unavailable (no bash/curl/jq), degrades gracefully and says so rather than fabricating a count"
+      ]
+    }
+  ]
+}
