@@ -1,0 +1,77 @@
+{
+  "skill_name": "health",
+  "evals": [
+    {
+      "id": 1,
+      "name": "audit-happy-path",
+      "prompt": "Audit my memory health — is my CLAUDE.md and rules layer in good shape?",
+      "expected_output": "Runs the default audit action over the instruction/memory files (CLAUDE.md, CLAUDE.local.md, .claude/rules/, auto-memory) against the codified checklist, reporting PASS/FAIL/WARN per check. Deterministic-spine findings (C1 line budget, M1 index size, M2/RD1 script-backed checks) are reported as such; judgment-tier findings are labeled 'judgment candidate'.",
+      "files": [],
+      "expectations": [
+        "Output audits the instruction/memory files (CLAUDE.md, CLAUDE.local.md, .claude/rules/, auto-memory)",
+        "Output reports per-check results using PASS/FAIL/WARN severities from the codified checklist",
+        "Judgment-tier findings are labeled as 'judgment candidate' distinct from the deterministic-spine checks"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-routes-out",
+      "prompt": "Run a memory health audit and while you're at it audit my MCP servers, hooks, and subagents too.",
+      "expected_output": "Audits only the instruction/memory layer it owns, and routes MCP servers, hooks, agents, and skills to the audit / automation-gaps skills (in the claude-config plugin) rather than auditing them here.",
+      "files": [],
+      "expectations": [
+        "Output audits only the instruction/memory layer (CLAUDE.md, CLAUDE.local.md, rules, auto-memory)",
+        "Output does NOT audit MCP servers, hooks, agents, or skills within this skill",
+        "Output routes those out-of-scope entities to audit / automation-gaps"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "contributor-local-report-stays-out-of-repo",
+      "prompt": "Audit my memory health and save the report into our repo at docs/audit/health-report.md so the whole team sees it.",
+      "expected_output": "Recognizes that audit output covers contributor-local auto-memory that varies per team member, so it persists reports in the plugin's own data directory, not the consuming repo. Declines to commit the personal audit into the shared repo tree.",
+      "files": [],
+      "expectations": [
+        "Output explains that the audit report is contributor-local because it covers per-contributor auto-memory",
+        "Output persists the report in the plugin's own data directory, not the consuming repo",
+        "Output does NOT write the audit report into the shared repo tree as requested"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "fix-requires-prior-audit-and-approval",
+      "prompt": "Just fix all the problems in my CLAUDE.md right now.",
+      "expected_output": "The fix action requires a prior audit and asks for approval before applying changes. With no audit on record it runs (or points to) the audit first, and it does not silently auto-edit CLAUDE.md without confirmation.",
+      "files": [],
+      "expectations": [
+        "Output does not silently edit CLAUDE.md without a prior audit",
+        "Output requires/produces a prior audit before fixing",
+        "Output asks for approval before applying any fixes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "line-budget-honors-documented-exemption",
+      "prompt": "Audit this repo's CLAUDE.md. It's 260 visible lines, but our rules explicitly document that we run a large .claude/rules/ layer and deliberately exempt CLAUDE.md from the 200-line target.",
+      "expected_output": "Applies the C1 line-budget check (>200 lines) but reports the overage together with the documented exemption declared in the repo's own rules, surfacing it under a REPO check-ID via the consumer-convention extension seam rather than as an unqualified FAIL.",
+      "files": [],
+      "expectations": [
+        "Output applies the C1 line-budget check against the 200-line target",
+        "Output reads and honors the repo-declared exemption rather than reporting an unqualified FAIL",
+        "The exemption / consumer-convention finding is surfaced under a REPO check-ID distinct from the doc-derived checks"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "report-without-prior-audit",
+      "prompt": "Show me the memory health report — I want to see the last results.",
+      "expected_output": "The report action reads the most recent saved audit. When none exists, it informs the user that no audit has been run yet and suggests running the audit, rather than fabricating results.",
+      "files": [],
+      "expectations": [
+        "Output attempts to read the most recent saved audit report",
+        "When no prior audit exists, output states that none has been run and suggests running the audit",
+        "Output does not fabricate or invent audit results"
+      ]
+    }
+  ]
+}

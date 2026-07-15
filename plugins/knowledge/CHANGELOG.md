@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.6
+
+### Added
+
+- Revisit condition in the README recording when the bundled `youtube` skill would
+  graduate into a standalone plugin (once its vendored `video-digestion` package is
+  independently distributable).
+
 ## 0.5.5
 
 ### Fixed

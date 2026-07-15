@@ -1,0 +1,17 @@
+{
+  "skill_name": "write",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just wrote a new command handler for creating template items. Write tests for it.",
+      "expected_output": "Routes to context/write.md. Identifies the handler as Application layer code needing unit tests. Follows TDD: generates test list (happy path, validation failures, edge cases), names tests using {Method}_Should{Behavior}_When{Condition} pattern, places in co-located {Project}.Tests/ directory. References testing.md for framework conventions (xUnit v3, Shouldly).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Where should I put integration tests for a new Platform.Messaging library?",
+      "expected_output": "Routes to context/organize.md. Evaluates whether the library has testable behavior (business logic, conditional branching) vs pure contracts. If testable: co-located Platform.Messaging.Tests/ in libs/dotnet/. If contracts only: no dedicated test project needed, transitive coverage acceptable.",
+      "files": []
+    }
+  ]
+}

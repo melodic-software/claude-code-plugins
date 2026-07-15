@@ -1,0 +1,19 @@
+{
+  "skill_name": "decompose",
+  "evals": [
+    {
+      "id": 1,
+      "name": "decompose-vertical-slices-hitl-afk-dependency-order",
+      "prompt": "/work-items:decompose",
+      "expected_output": "Reads the source (default: the topic's PLAN.md phases via the two-location lookup — docs/topics/<slug>/PLAN.md contract slice, then .work/<slug>/PLAN.md under contract_tier: local), drafts thin tracer-bullet vertical slices cutting through all layers, classifies each AFK (labeled agent-ready) vs HITL (labeled needs-human), orders by dependency, gets user approval, then publishes blockers-first via the seam create-item with native --blocked-by edges without touching the parent item.",
+      "files": [],
+      "expectations": [
+        "Drafts VERTICAL tracer-bullet slices (each a complete end-to-end path through all layers), NOT horizontal single-layer slices",
+        "Classifies each slice AFK (`agent-ready` label) vs HITL (`needs-human` label — the label `list-frontier --autonomous` honors to exclude an item from autonomous pickup; omitting `agent-ready` alone does NOT); prefers AFK, marks HITL only for genuine human-judgment / design-review / manual-QA needs",
+        "Presents the breakdown for approval with per-slice Type + Blocked-by + scope, iterating one question at a time with the user before creating anything",
+        "Publishes items in dependency order (blockers first) via `work-item-tracker.sh create-item`, recording dependencies as native `--blocked-by` edges",
+        "Does NOT close or modify the parent item"
+      ]
+    }
+  ]
+}

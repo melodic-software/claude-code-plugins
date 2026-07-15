@@ -49,7 +49,7 @@ When the hunt phase produces more candidates than fit in the budget:
 
 2. **Take the top-priority subset that fits.** Greedy selection: take the highest-priority candidate; if adding it would exceed the cap, skip and try the next; stop when the cap is reached or no remaining candidate fits.
 
-3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings — those just go away), file a work item using the deferred-items template below: via `/work-items:work-items add` when that plugin is installed, else `gh issue create`, else present the list to the user.
+3. **Defer the rest.** For each unselected candidate above a "would-be-worth-doing" threshold (i.e., not trivial micro-tidyings — those just go away), file a work item using the deferred-items template below: via `/work-items:track add` when that plugin is installed, else `gh issue create`, else present the list to the user.
 
 4. **Record the deferred issue numbers in the PR body** under a `## Deferred items` section. This makes the PR's review obvious-by-default: "here's what I did, here's what I parked for next time, here are the issue numbers to hold me accountable."
 

@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- Synced the pull-request verify-gate example to the reorganized taxonomy:
+  `/verify-changes` / `/build` are now `/verification:confirm` / `/toolchain:build`.
+
 ## [0.3.0]
 
 ### Added

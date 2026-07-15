@@ -69,7 +69,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 
 ## Test Strategy
 
-> **Invoke `/tdd:tdd` (if installed) when writing this section** — it provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Test-first (Red-Green-Refactor) is the default — specify test-after only when genuinely impractical.
+> **Invoke `/tdd:principles` (if installed) when writing this section** — it provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Test-first (Red-Green-Refactor) is the default — specify test-after only when genuinely impractical.
 
 - <How to verify the changes work — specific test types, not just "write tests">
 - <TDD approach: which tests get written first, what assertions prove the behavior>

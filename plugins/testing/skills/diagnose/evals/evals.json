@@ -1,0 +1,17 @@
+{
+  "skill_name": "diagnose",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "dotnet test failed with 'Bootstrap logger is frozen' error",
+      "expected_output": "Routes to context/investigate.md. Immediately identifies the MonolithApi.Tests collection fixture issue — test class is using IClassFixture<WebApplicationFactory<Program>> instead of [Collection(MonolithApiTestFixture.CollectionName)]. Explains the process-global singleton root cause. Does NOT suggest retrying.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The test I wrote is failing. I think the fix is obvious — let me just change the code.",
+      "expected_output": "Routes to context/loop.md (test failure + fix intent). Enforces the full feedback loop: reproduce (write failing test first), isolate (root cause, not symptom), fix (minimal change), retest (original test must pass), regression (ALL affected tests). Does not skip steps even if the fix seems obvious.",
+      "files": []
+    }
+  ]
+}
