@@ -1,0 +1,86 @@
+{
+  "skill_name": "generate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "retro-action-routing-and-scoring",
+      "prompt": "/ai-briefing retro --meeting 5\n\nThe archived briefing for meeting 5 is at evals/fixtures/archive-sample.md relative to the skill directory — read it, then run the retro.",
+      "expected_output": "An interactive retrospective that reads the meeting-5 archive, walks each item, captures an acted/noted/skipped signal per item, and produces a retro annotation for meeting 5 (e.g., a retro-5 record under the profile's state directory) — without launching a fresh collection run or reopening the window.",
+      "files": ["evals/fixtures/archive-sample.md"],
+      "expectations": [
+        "Routes to the retro action — scores already-archived items and does NOT start a fresh collection run (no vendor-blog/GitHub/RSS/secondary-reporting wave collection)",
+        "Extracts the individual item bullets (provider, headline, source URL) from the meeting-5 archive fixture rather than inventing items",
+        "Captures an acted / noted / skipped signal for each item (interactive per-item prompting, or a documented auto-mode heuristic inference)",
+        "Produces retro output (a per-item annotation plus a pattern summary), not a new briefing for a different window",
+        "Surfaces follow-list demote/promote recommendations derived from the per-item signals, rather than emitting a fresh collection briefing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "search-action-across-archives",
+      "prompt": "/ai-briefing search \"Cloud Agents\"\n\nTreat evals/fixtures/archive-sample.md (relative to the skill directory) as the archived-briefing corpus to search.",
+      "expected_output": "A full-text search result that returns the matching Northwind Cloud Agents item from the archive, grouped by meeting number with tier/signal context, without running any collection.",
+      "files": ["evals/fixtures/archive-sample.md"],
+      "expectations": [
+        "Routes to the search action — full-text search over archived briefings, no collection run and no new briefing emitted",
+        "Returns the matching item(s) that actually contain the query text in the fixture (the Northwind Cloud Agents GA item), grouped or labelled by meeting number",
+        "Reports match context such as tier (HIGH/MED/LOW) and/or cross-meeting recurrence count",
+        "Does not fabricate items absent from the archive — only real matches from the fixture are returned"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "slides-never-auto-generated",
+      "prompt": "Catch me up on AI from the last two weeks so I'm ready for the team meeting.",
+      "expected_output": "A markdown briefing covering roughly the last 14 days. No PPTX or HTML deck is produced because the user did not opt into --format slides or --format html.",
+      "files": [],
+      "expectations": [
+        "Output is a markdown briefing, not a PPTX or HTML slide deck",
+        "The slide/HTML build pipeline (output/build/*.js) is not invoked without an explicit --format slides or --format html opt-in",
+        "The window resolves to roughly 14 days (interpreting 'last two weeks' / the --since default) rather than a 1-day or 30-day window"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "merge-not-append-continuation",
+      "prompt": "The meeting-prep briefing already open for this window is at evals/fixtures/open-window-sample.md relative to the skill directory — the bottom section lists new items collected today. Fold the new items into the briefing and give me the updated consolidated document.",
+      "expected_output": "A single consolidated briefing where the new items are merged into the existing provider buckets under their HIGH/MED/LOW headings, prior items preserved, and no delta/supplement section appended.",
+      "files": ["evals/fixtures/open-window-sample.md"],
+      "expectations": [
+        "New items are merged into the existing provider buckets under their HIGH/MED/LOW headings (add-only = MERGE)",
+        "No '## Run N', '## Supplement', or 'New items collected today' delta/append section survives in the merged output — the body stays a single consolidated document",
+        "Existing items from the prior briefing are preserved in the merged output, not dropped",
+        "The previously-empty Northwind Systems bucket is populated by its new item rather than left as a stale 'no notable items' note",
+        "Each provider appears once with its items consolidated under it, not duplicated across multiple sections"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apolitical-filter-pragmatic-ranking-bucket-coverage",
+      "prompt": "I've already collected this raw batch of AI items — evals/fixtures/candidate-items-sample.md relative to the skill directory. The active profile's audience.md declares an impact lens over a typical web-application stack (a JS/TS runtime, a hosted database, an auth provider, and cloud hosting). Categorize, apply the filters, rank them, and lay out as the briefing.",
+      "expected_output": "A ranked briefing that drops partisan-only items, keeps genuine industry controversy even when a lawmaker is named, ranks usable tooling releases HIGH above research speculation, routes the robotics item to EXTRAS, and tags HIGH items with an impact annotation against the declared stack lens.",
+      "files": ["evals/fixtures/candidate-items-sample.md"],
+      "expectations": [
+        "Partisan-only items are dropped before ranking (the candidate-deepfake meme and the partisan horse-race thread do not appear anywhere in the briefing)",
+        "Genuine industry-wide controversy is kept even though a lawmaker is named (the VendorCo procurement-dispute item appears, under Legal & regulatory)",
+        "Tooling/IDE/CLI releases usable within a week are ranked HIGH (the Solstice Code, Meridian Agent CLI, and Northwind IDE items) ahead of research speculation",
+        "The research-speculation post and the hype post are ranked LOW/MED, not HIGH",
+        "The robotics item (the Anchorpoint Unit-7 warehouse demo) is routed to the EXTRAS section rather than a mainstream provider bucket",
+        "HIGH items carry an impact annotation assessed against the declared stack lens (e.g., \"impact: medium — ...\"), per the profile-provided impact lens"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unreachable-source-degrades-visibly",
+      "prompt": "/ai-briefing --since 3d\n\n(One of the profile's configured RSS/Atom feeds times out and is unreachable during this run; official vendor blogs and GitHub releases remain reachable.)",
+      "expected_output": "The briefing proceeds using the still-reachable source classes; the unreachable feed is surfaced as a visible warning/caveat rather than silently dropped, and the run is not aborted for one unreachable optional source.",
+      "files": [],
+      "expectations": [
+        "The run continues via the still-reachable source classes — one unreachable RSS/Atom feed does NOT block or abort the briefing",
+        "The unreachable source is surfaced as a visible warning (in the run report and/or the briefing's caveats section), not silently ignored",
+        "The run is not failed outright for a single unreachable optional source, matching the documented 'no black-box degradation' quality gate",
+        "Items collected from the still-reachable source classes are still deduplicated, ranked, and emitted normally in the resulting briefing"
+      ]
+    }
+  ]
+}

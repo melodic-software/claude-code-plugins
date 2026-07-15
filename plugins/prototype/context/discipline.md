@@ -52,6 +52,6 @@ prototype so the answer gets filled in before deletion. Then delete the throwawa
 | When | Skill | How it composes |
 |------|-------|-----------------|
 | Product intent locked | `/planning:prd` (when installed) | PRD says "users need X" — prototype proves X works |
-| Architecture discovery surfaced a design question | `/improve-architecture:improve-architecture` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
+| Architecture discovery surfaced a design question | `/architecture:improve` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
 | Prototype answered the question | `/planning:architect` (when installed) | Validated decision feeds the plan |
 | Logic module worth keeping | `/implementation:implement` (when installed) | Lift the pure module into production; delete the TUI shell |

@@ -12,9 +12,9 @@ per-hook execution telemetry Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
-| `/claude-ops:claude-observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
-| `/claude-ops:claude-troubleshooting` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
-| `/claude-ops:claude-code-changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
+| `/claude-ops:troubleshoot` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
+| `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
 | `/claude-ops:setup` | Validates the troubleshooting-registry and skill-usage-log destinations, including path containment, and routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## The audit hooks
@@ -56,7 +56,7 @@ the repo-relative path of the loaded rule file.
 A migrated emitter is inert without a consumer. `hooks/hook-telemetry-sink.sh`
 is a **reference** sink: it reads an envelope on stdin and appends one line to
 `<project-root>/.claude/observability/hook-events.jsonl` — exactly the shape the
-`claude-observability` skill reads.
+`observability` skill reads.
 
 Wire it by pointing `HOOK_TELEMETRY_SINK` at an **executable that exists at
 resolution time**. A *relative* value resolves against the **consuming repo
@@ -122,7 +122,7 @@ skill reports missing optional tooling instead of failing.
 Two `userConfig` options:
 
 - **`registry_dir`** (string, optional) — project-relative directory for the
-  claude-troubleshooting issue registry (`registry.json`). Set it to keep the
+  troubleshoot issue registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
   per-machine plugin data directory; leave unset to use `${CLAUDE_PLUGIN_DATA}`.
   Absolute, drive-qualified, UNC, traversal, and escaping-symlink paths are

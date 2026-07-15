@@ -4,7 +4,7 @@ Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptatio
 
 ## Sequence
 
-1. **Reproduce first (test-first, always)** — write a failing test that demonstrates the bug before touching any production code. If you can't reproduce it in a test, you can't prove you fixed it. Test name should describe the bug: `Should_ReturnError_When_InputIsNull`, not `TestFix42`. Invoke `/tdd:tdd` via Skill tool (when the `tdd` plugin is installed) for test design guidance (what kind of test, where it goes, what to assert). Bug fixes are the strongest case for test-first — the failing test IS the bug report
+1. **Reproduce first (test-first, always)** — write a failing test that demonstrates the bug before touching any production code. If you can't reproduce it in a test, you can't prove you fixed it. Test name should describe the bug: `Should_ReturnError_When_InputIsNull`, not `TestFix42`. Invoke `/tdd:principles` via Skill tool (when the `tdd` plugin is installed) for test design guidance (what kind of test, where it goes, what to assert). Bug fixes are the strongest case for test-first — the failing test IS the bug report
 2. **Isolate the cause** — read the code path, add logging or breakpoints if needed. Understand *why* it fails, not just *where*. A fix that addresses the symptom instead of the cause will break again
 3. **Fix minimally** — change the smallest amount of code that fixes the root cause. Bug fixes are not refactoring opportunities. Boy Scout Rule applies to the files you touch, but keep behavioral changes focused
 4. **Verify the fix** — the failing test from step 1 should now pass. Run the full test suite for the affected project — your fix may have side effects

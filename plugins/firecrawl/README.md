@@ -24,6 +24,14 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
   path puts `npm install` and any skill-content integration behind explicit
   approval gates, with a recorded rollback version in `UPSTREAM.md`.
 
+## Revisit condition
+
+`parse` (local-file extraction) is one of the ten subcommands behind the single
+`/firecrawl:firecrawl` skill — consolidation over per-subcommand proliferation.
+Split it into a dedicated `parse` skill only if local-file extraction discovery
+demonstrably fails under the general skill, or a non-credit extraction backend
+appears worth its own surface.
+
 ## Requirements
 
 - `firecrawl-cli` on PATH (`npm install -g firecrawl-cli`) — the skill flags

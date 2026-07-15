@@ -4,7 +4,7 @@ A Claude Code plugin that turns an informal defect description into a structured
 five-field bug report — **read-only by default**. It captures; it does not fix,
 open a PR, or file an issue on its own.
 
-Invoke it with `/bug-report:bug-report <description>` (or let Claude reach for it
+Invoke it with `/bug-report:write <description>` (or let Claude reach for it
 when you describe a defect). The five fields are:
 
 1. **Title** — present tense, one line
@@ -28,7 +28,7 @@ when you describe a defect). The five fields are:
 ## Usage
 
 ```text
-/bug-report:bug-report [--file] [--quick|--full] [--no-survey] <bug description>
+/bug-report:write [--file] [--quick|--full] [--no-survey] <bug description>
 ```
 
 | Flag | Effect |

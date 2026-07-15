@@ -35,7 +35,7 @@ Every extraction decision must be grounded in **direct evidence captured this se
 | Citation target | Form |
 |-----------------|------|
 | Rule-file H3 heading | `` per `<file>.md` "<exact heading>" `` |
-| New skill | `/<skill-name>` invocation (skill internals NOT cited externally — see `/encapsulation-audit`) |
+| New skill | `/<skill-name>` invocation (skill internals NOT cited externally — see `/audit-encapsulation`) |
 
 **Out-of-scope, but flagged during `identify`:**
 
@@ -115,9 +115,9 @@ Full contract incl. line-wrap edge case: `context/citation-form.md`.
 
 ## Encapsulation rule
 
-Encapsulation enforcement (detection grep, public/private surface matrix, remediation paths) lives in its own skill — `/encapsulation-audit`. Different concern from duplication: violations are single-instance matters (Rule of Three does not gate them).
+Encapsulation enforcement (detection grep, public/private surface matrix, remediation paths) lives in its own skill — `/audit-encapsulation`. Different concern from duplication: violations are single-instance matters (Rule of Three does not gate them).
 
-`/extract-ssot execute` invokes `/encapsulation-audit detect` during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/encapsulation-audit` for the public surface matrix, filter taxonomy, and remediation paths.
+`/extract-ssot execute` invokes `/audit-encapsulation detect` during the refactor pass to catch any encapsulation violations introduced or exposed by the migration. See `/audit-encapsulation` for the public surface matrix, filter taxonomy, and remediation paths.
 
 ## Anti-patterns guarded
 
@@ -169,7 +169,7 @@ Per-phase checklist: `context/execution-checklist.md`.
 - `context/lessons.md` — append-only empirical lessons from batch executions; consumed by the `verify` action and `context/decision-framework.md`
 - `actions/identify.md`, `actions/verify.md`, `actions/batch.md` — action bodies (private surface)
 - `/rename-references` — load-bearing 10-pattern sweep after any heading change (owns the syntactic-form set)
-- `/encapsulation-audit` — encapsulation detection + remediation (separate concern)
+- `/audit-encapsulation` — encapsulation detection + remediation (separate concern)
 
 ## Recheck triggers
 

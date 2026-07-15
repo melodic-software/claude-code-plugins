@@ -91,7 +91,7 @@ Tracked profile configuration belongs in the consuming repository. Never write i
      cleanup() { rm -rf "$STAGE"; }
      trap cleanup EXIT INT TERM
 
-     cp -R "${CLAUDE_PLUGIN_ROOT}/skills/ai-briefing/output/build/." "$STAGE"
+     cp -R "${CLAUDE_PLUGIN_ROOT}/skills/generate/output/build/." "$STAGE"
      if ! (
        cd "$STAGE" &&
        npm ci --no-fund --no-audit &&
@@ -134,7 +134,7 @@ Tracked profile configuration belongs in the consuming repository. Never write i
 
 5. **Confirm.** Report the profile path, whether `sources.md` was created or preserved,
    which optional overlays were created, and whether build dependencies were installed or
-   intentionally skipped. Point the consumer to `/ai-briefing:ai-briefing`.
+   intentionally skipped. Point the consumer to `/ai-briefing:generate`.
 
 ## This skill does not
 

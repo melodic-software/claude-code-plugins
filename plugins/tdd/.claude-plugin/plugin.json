@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tdd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A TDD knowledge base distilled from cover-to-cover readings of Kent Beck's Test-Driven Development: By Example and Vladimir Khorikov's Unit Testing: Principles, Practices, and Patterns — fourteen author-attributed reference files behind a routing table plus a no-load quick decision guide, answering the WHY behind test design decisions.",
   "author": {
     "name": "Melodic Software",

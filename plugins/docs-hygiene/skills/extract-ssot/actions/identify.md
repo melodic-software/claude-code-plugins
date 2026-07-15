@@ -2,7 +2,7 @@
 
 Default mode dispatches a read-only exploration subagent that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/extract-ssot batch`.
 
-Private surface — external consumers invoke `/extract-ssot identify`, never cite this file directly (contract: `/encapsulation-audit`).
+Private surface — external consumers invoke `/extract-ssot identify`, never cite this file directly (contract: `/audit-encapsulation`).
 
 ## Two modes
 

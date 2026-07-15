@@ -133,6 +133,6 @@ The chain prose form hides the citation in narrative; pure-token grep can find t
 
 - `decision-framework.md` — 6-test extraction gate + 5-test keep-inline gate + output-type criteria
 - `anti-patterns.md` #1 (citation rot), #4 (loss of locality), #5 (reference resolution failure) — failure modes this contract guards against
-- `/encapsulation-audit` — citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
+- `/audit-encapsulation` — citation form for skill internals (cite the `/skill-name` invocation, not an internal file path)
 - `/rename-references` — owns the full 10-pattern sweep specification
 - Numbered references — write the full `docs/<family>/<number>-<slug>.md` path, not a bare number shorthand like "ADR-NNNN" (number-only shorthand collides)
