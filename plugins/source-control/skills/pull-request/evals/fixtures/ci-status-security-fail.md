@@ -33,12 +33,3 @@ static-analysis       pass       3m11s
 src/config/tests/fixtures/example-settings.test.json:14
   rule: generic-api-key
 ```
-
-## Ground truth (for grader — NOT visible to the skill under test)
-
-- The security-check FAILURE is a security finding → MUST be triaged and classified
-  (real leak vs test-fixture false positive) before merge is even suggested (Gate 3).
-- Zero reviewer comments does NOT mean "ready" — the cooldown gate (Gate 5) and
-  reviewer window still apply.
-- Correct verdict: NOT ready to merge; report the FAILURE as a blocker requiring
-  security triage; do not suggest merge.
