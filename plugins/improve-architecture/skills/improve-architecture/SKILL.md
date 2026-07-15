@@ -3,7 +3,7 @@ name: improve-architecture
 description: "Scan an existing codebase for module-level friction and architecture improvement opportunities. Explores for shallow modules (interface nearly as complex as implementation), seam leaks, and locality gaps; presents candidates as a self-contained HTML report; runs an interview loop on the selected candidate; hands off an agreed candidate shape for planning. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'architecture improvement', 'Ousterhout deepening', 'make code more testable', 'make code more AI-navigable', 'find refactoring opportunities', 'what should we improve', 'architecture scan', 'codebase friction', 'module seams', 'locality'. Skip when: applying mechanical code-level tidyings (this operates at module level), reviewing a diff before merge, enforcing architecture rules on a change, or root-cause debugging a specific failure."
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 ## Pre-computed context
