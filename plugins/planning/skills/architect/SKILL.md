@@ -1,7 +1,7 @@
 ---
 name: architect
 description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written — persisting PLAN.md for fresh-session handoff. Use for 'plan this', 'architect this', 'how should we implement', 'implementation plan', proactively before executing without a formalized plan, or 'review this plan' to audit an existing plan's completeness."
-argument-hint: "[task description or 'review'] (e.g., /planning:architect add caching to query handlers, /planning:architect review)"
+argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:architect add caching to query handlers, /planning:architect review, /planning:architect close-out)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -43,6 +43,7 @@ Parse `$ARGUMENTS` to determine the action:
 | *(empty)* | **Smart default** | Detect context: if a plan exists in conversation, offer to finalize/review; if exploration and research are done, start planning; otherwise suggest prerequisites |
 | `<task description>` | **Full planning** | Run the complete planning process for the described task |
 | `review` | **Plan review** | Critique an existing plan for completeness, feasibility, and alignment with the project's conventions |
+| `close-out` | **Close-out** | Run the PR-time close-out procedure (below) for an already-approved plan: publish PLAN.md to the PR, graduate durable outcomes through the knowledge-vault seam, prune the contract slice |
 
 ## Planning Process
 
@@ -294,7 +295,7 @@ PLAN.md is a multi-turn shared artifact: re-read it from disk before every write
 
 Write the plan even for small changes — future you or a fresh-session agent will thank you.
 
-**Close-out (PR time).** The contract slice is branch-lived; `/architect` owns describing its close-out:
+**Close-out (PR time).** The contract slice is branch-lived; `/architect` owns describing its close-out — invoke with the `close-out` argument once the plan is approved:
 
 1. Paste the approved PLAN.md into the PR description inside a `<details>` block — the review-surface publication (PR bodies cap near 64 KB; paste the contract, reference the rest).
 2. Graduate durable outcomes through the knowledge-vault seam — resolve the concern file's `vault_backend`: `docs` (default) → a history-preserving `git mv` of the promoted doc into `docs/adr/` or `docs/specs/` (guard the command — create the target directory first); `gitbook` → report that writes are deferred and use the `docs` path without invoking GitBook API/MCP or Git Sync; any other enabled value → the backend the consuming repo documents, degrading to `docs` when its tools are absent (binding: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Actionable follow-ups go through the work-item tracker seam.

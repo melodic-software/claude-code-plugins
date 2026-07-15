@@ -13,6 +13,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   status whenever the effective value is `gitbook` — preserved from an existing file, inferred from
   the repo's own conventions, or chosen during the interview — instead of implying that any of those
   paths enables a writer.
+- **`/planning:architect` Action Router recognizes `close-out`**: the PR-time close-out procedure was
+  documented but unreachable through the router, so `close-out` fell through to full planning instead
+  of running the close-out steps. The router now routes it directly, and the eval that exercises the
+  GitBook-deferral close-out path is reachable again.
 
 ## [0.10.0]
 
