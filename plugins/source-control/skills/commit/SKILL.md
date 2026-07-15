@@ -39,7 +39,7 @@ Compliant examples:
 
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
 2. Stage the intended files (`git add <path>...`); run the exec-bit check below on any newly-added file.
-3. Run the format-before-push check below against the staged files, if a local formatter/linter is discoverable.
+3. Run the format-before-push check below against the files just staged for this commit (not the full staged set — see the pathspec note in that check), if a local formatter/linter is discoverable.
 4. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
 5. Pre-check the subject against the pattern (fast-fail before invoking git).
 6. Invoke `git commit -F -` via the Bash tool, heredoc-piped, with `--trailer` for `Co-Authored-By` per the trailer template below.
@@ -115,7 +115,7 @@ Scope this to files newly added in the current change set, not a full-repo sweep
 
 ## Format-before-push check
 
-Before drafting the commit message, check whether the consuming repo already has a formatter or linter configured, and run it against the staged files — catching issues locally that CI would otherwise catch after a push:
+Before drafting the commit message, check whether the consuming repo already has a formatter or linter configured, and run it against the paths just staged for **this commit** — never the whole index — catching issues locally that CI would otherwise catch after a push:
 
 - `package.json` `scripts.format` / `scripts.lint` (`npm run format`, `npm run lint`)
 - `biome.json` / `biome.jsonc` (`biome check --write`, scoped to the changed paths)
@@ -123,7 +123,7 @@ Before drafting the commit message, check whether the consuming repo already has
 - `.editorconfig` paired with an installed `editorconfig-checker`
 - Any other formatter/linter config already at the repo root (`.prettierrc`, `rustfmt.toml`, `.golangci.yml`, a markdown-lint config, etc.), run with its matching CLI
 
-Run only what's already configured and discoverable in the consuming repo — never install or invent a formatter for this step. If nothing is discoverable, skip this step silently; don't block the commit on tooling that doesn't exist. If the tool modifies files, re-stage them (`git add <path>`) before drafting the commit message.
+Scope every invocation to the explicit path list from step 2 (`<path>...`), the same list a pathspec-limited commit would use below — never a bare/whole-repo invocation of the formatter. When the index also holds staged work outside this commit's scope (see Pathspec-limited commits below), a whole-index run would mutate or block on paths this commit doesn't own; the explicit path list is what keeps the check inside this commit's boundary. Run only what's already configured and discoverable in the consuming repo — never install or invent a formatter for this step. If nothing is discoverable, skip this step silently; don't block the commit on tooling that doesn't exist. If the tool modifies files, re-stage only those same paths (`git add <path>`) before drafting the commit message.
 
 ## Pathspec-limited commits (dirty shared index)
 

@@ -16,5 +16,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Format-before-push check in `/source-control:commit`.** Before drafting the commit message, the
   skill now checks the consuming repo for an already-configured formatter/linter (`package.json`
   scripts, `biome.json`, a `Makefile` target, `.editorconfig` + `editorconfig-checker`, or an
-  equivalent repo-native tool) and runs it against the staged files, re-staging any fixes. Runs only
-  tooling that already exists in the consuming repo; skips silently when none is discoverable.
+  equivalent repo-native tool) and runs it against the files staged for that commit, re-staging any
+  fixes. Scoped to this commit's paths, not the full index, so it never mutates or blocks on staged
+  work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
+  skips silently when none is discoverable.
