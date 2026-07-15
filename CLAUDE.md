@@ -57,5 +57,6 @@ migration.
 
 ## Branching & PRs
 
-PRs required; squash merge; Conventional Commits branch `<type>/<description>` (enforced here by
-`.github/workflows/pr-title.yml`). Org convention home: `melodic-software/standards` `conventions/`.
+PRs required; squash merge; branch `<type>/<description>`. PR title follows Conventional Commits,
+enforced here by `.github/workflows/pr-title.yml` (squash merge sets the commit subject to the PR
+title). Org convention home: `melodic-software/standards` `conventions/`.
