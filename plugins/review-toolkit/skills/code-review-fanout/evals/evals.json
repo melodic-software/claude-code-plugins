@@ -72,6 +72,177 @@
         "Output names the skipped PR-mutation surface in its surfaces list rather than silently omitting it",
         "Output keeps the review report-only, posting nothing to the open PR absent an explicit opt-in"
       ]
+    },
+    {
+      "id": 7,
+      "name": "tier-small-leaf-agents-only",
+      "prompt": "[Scenario: a 30-line non-security, non-layer-boundary change staged.] Fan out a review of this small 30-line change — nothing security-sensitive, no layer boundaries crossed.",
+      "expected_output": "The small tier dispatches code-reviewer only (plus security-reviewer solely when a security-sensitive path is touched) and does not promote to medium or large.",
+      "files": [],
+      "expectations": [
+        "Classifies the change as tier small (<50 changed lines) and does not promote to medium",
+        "Dispatches code-reviewer only; does NOT dispatch architecture-guardian or any orchestrator plugin at this tier",
+        "Names security-reviewer as SKIPPED in the tier-transparency line since no auth/input/secrets path was touched"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "tier-small-security-promotes-to-medium",
+      "prompt": "[Scenario: a 25-line change touching an auth/identity path.] Fan out a review of this 25-line change — it touches an authentication check.",
+      "expected_output": "A small-sized diff that is security-sensitive promotes to the full medium-tier surface set rather than only adding security-reviewer to the small set.",
+      "files": [],
+      "expectations": [
+        "Detects the security-sensitive path and promotes the diff from small to medium tier despite the line count",
+        "Dispatches the full medium-tier surface set (code-reviewer, security-reviewer, orchestrator plugin(s), and architecture-guardian when structural paths are touched) rather than only adding security-reviewer to the small set",
+        "The tier-transparency line names the promotion trigger rather than silently reporting a small-tier classification"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "large-tier-ownerless-slices-and-exclusions",
+      "prompt": "[Scenario: a >300-line cross-cutting change across multiple directories.] Fan out a review of this 400-line change spanning multiple directories and ecosystems.",
+      "expected_output": "The large tier dispatches the medium set plus the project's ownerless review-criteria docs as slice-subagents, while excluding agent-owned criteria and the two non-diff-review agents.",
+      "files": [],
+      "expectations": [
+        "Classifies tier as large (>300 lines or cross-cutting) and dispatches the medium set plus discovered ownerless review-criteria slices",
+        "Does NOT dispatch code-quality/security/architecture criteria docs as separate slice-subagents — those are agent-owned, so re-reviewing them would be pure waste",
+        "Does NOT include ecosystem-specialist or ci-log-auditor in the roster — neither is a finding-producing diff reviewer",
+        "Orchestrator plugin(s) still run on the main thread, never inside a Workflow"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "dedup-cross-surface-max-severity",
+      "prompt": "[Scenario: a change where two surfaces both flag the same file:line.] Fan out a review where code-reviewer and security-reviewer both flag the same file:line.",
+      "expected_output": "Stage 3 dedup merges the same-issue findings from two surfaces into one ranked finding keyed by file plus line-proximity, carrying MAX severity and MAX confidence and listing both surfaces.",
+      "files": [],
+      "expectations": [
+        "Merges the two same-issue findings into ONE record keyed by normalized file path + line-proximity bucket (±3 lines), not by category",
+        "Merged severity is the MAX of the contributing surfaces' severities, never a filtered-down value",
+        "The merged finding's surface list names BOTH contributing surfaces as a positive-agreement signal"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "plugin-findings-severity-derived-not-invented",
+      "prompt": "[Scenario: a PR-present change where the code-review plugin emits confidence-filtered issues.] Fan out a review where the code-review orchestrator plugin returns confidence-filtered issues with no native severity.",
+      "expected_output": "The severity crosswalk derives a tier from finding content for surfaces with no native severity; a high confidence score is never treated as a severity tier.",
+      "files": [],
+      "expectations": [
+        "Findings from a surface with no native severity get a tier DERIVED from content (bug/correctness vs. convention-adherence), not copied from its confidence score",
+        "A high (>=80) confidence-filtered score maps to the confidence enum 'high', NOT to a high severity tier",
+        "Ambiguous derived-severity findings are tagged pending: human-tier rather than silently assigned a guessed tier"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "findings-file-stable-shape-relative-paths",
+      "prompt": "[Scenario: any reviewable change.] Fan out a review and persist the findings.",
+      "expected_output": "The persisted findings file has the stable frontmatter-plus-table-plus-appendix shape and cites file:line only as repo-relative paths.",
+      "files": [],
+      "expectations": [
+        "Findings file frontmatter declares type: review-findings, plus date, branch, and tier",
+        "Body includes the ranked Findings table, a ## Unparsed appendix, and a ## Surfaces reconciliation line",
+        "All file:line citations in the findings are repo-relative — machine-absolute paths are relativized before writing"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "clean-tree-no-pr-spawns-nothing",
+      "prompt": "[Scenario: empty git diff vs. merge-base, branch not ahead of base, no open PR.] Fan out a review — my branch is clean and has no open PR.",
+      "expected_output": "A truly clean tree (no diff, not ahead of base, no open PR) reports that there is nothing to review and spawns nothing.",
+      "files": [],
+      "expectations": [
+        "Reports that there are no changes to review",
+        "Spawns no reviewer surfaces",
+        "Writes no findings file"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "orchestrator-absent-degrades-gracefully",
+      "prompt": "[Scenario: a medium-tier change with no orchestrator plugin installed.] Fan out a medium-tier review — none of the optional orchestrator plugins are installed.",
+      "expected_output": "An absent orchestrator plugin degrades to leaf-only coverage with an explicit skip notice; normalization still runs over whatever surfaces produced output.",
+      "files": [],
+      "expectations": [
+        "Dispatches only this plugin's leaf agents (and slice-subagents where applicable) when an orchestrator plugin is absent",
+        "Emits an explicit notice naming that orchestrator breadth was skipped rather than silently omitting it",
+        "Normalization and findings persistence still run over the surfaces that did produce output"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "run-everything-workflows-disabled-degraded-block",
+      "prompt": "[Scenario: CLAUDE_CODE_DISABLE_WORKFLOWS=1 set in the environment; a reviewable change.] /review-toolkit:code-review-fanout run-everything",
+      "expected_output": "The pre-launch gate detects Workflows are disabled and falls back to the main-thread coverage-parity roster with a DEGRADED block prepended, rather than attempting a launch.",
+      "files": [],
+      "expectations": [
+        "The pre-launch availability gate detects the disabled state BEFORE attempting any Workflow launch",
+        "Falls back to spawning the same leaf roster on the main thread — findings coverage stays full",
+        "Prepends a DEGRADED block at the top of both the chat output and the persisted file naming the dropped execution properties, not any dropped findings"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "run-everything-null-leaf-named-not-dropped",
+      "prompt": "[Scenario: a run where one leaf returns null.] /review-toolkit:code-review-fanout run-everything",
+      "expected_output": "A leaf that returns null (budget exhaustion, a Bash failure, etc.) is named under a 'Returned no result' line, never silently absorbed into the roster count.",
+      "files": [],
+      "expectations": [
+        "Reconciles the expected roster (ran) against the non-null returns rather than reporting only the non-null count",
+        "Names the null leaf explicitly under the ## Surfaces 'Returned no result' line, with cause when known",
+        "Does not silently cap or hide the null count — it is visible in the persisted report regardless of cause"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "run-everything-priority-ordering-tier1-barrier",
+      "prompt": "[Scenario: a run under a finite user turn-token budget that exhausts partway through the leaf fan-out.] /review-toolkit:code-review-fanout run-everything",
+      "expected_output": "Tier-1 high-value reviewers (security-reviewer, architecture-guardian, code-reviewer) run as a barrier before tier-2 leaves, so budget exhaustion drops tier-2, never tier-1.",
+      "files": [],
+      "expectations": [
+        "security-reviewer, architecture-guardian, and code-reviewer run as tier 1, awaited as a barrier before any tier-2 leaf starts",
+        "When the budget exhausts during tier 2, those calls resolve to null rather than rejecting or aborting the whole run",
+        "Tier 1's results are unaffected by a tier-2 budget exhaustion — priority ordering protects the highest-value surfaces"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "fix-pass-splits-mixed-class-findings",
+      "prompt": "[Scenario: a current-branch findings file with both a cleanup-class (extract-helper) finding and a correctness-class (CRITICAL security) finding.] /review-toolkit:code-review-fanout fix",
+      "expected_output": "Fix-pass classifies findings by class and routes cleanup-class findings to /simplify while applying correctness-class findings via sequential scope-fenced fixes.",
+      "files": [],
+      "expectations": [
+        "Locates the newest findings file for the CURRENT branch only",
+        "Classifies the cleanup-class finding and routes it to the bundled /simplify skill",
+        "Classifies the correctness-class finding and applies it via a sequential scope-fenced fix, not via /simplify",
+        "Emits the classification plan and confirms before mutating the working tree in an interactive session"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "fix-pass-no-findings-branch-scoped",
+      "prompt": "[Scenario: the current branch has no findings file; a different branch's findings directory does have one.] /review-toolkit:code-review-fanout fix",
+      "expected_output": "Fix-pass with no findings file for the current branch reports cleanly and stops, without scanning another branch's findings.",
+      "files": [],
+      "expectations": [
+        "Reports 'No findings for branch <branch>' and stops",
+        "Does NOT scan, read, or apply another branch's findings file — the branch check against frontmatter is the safety fence",
+        "Mutates nothing; suggests running the review first"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "fix-pass-correctness-never-simplify",
+      "prompt": "[Scenario: a findings file whose only entries are correctness-class (a logic bug and a race condition).] /review-toolkit:code-review-fanout fix",
+      "expected_output": "All correctness findings are applied via sequential scope-fenced fixes; /simplify is never invoked for a correctness-class finding.",
+      "files": [],
+      "expectations": [
+        "Applies both correctness findings via sequential, non-parallel scope-fenced fixes — one file at a time",
+        "Never invokes /simplify for a correctness-class finding — /simplify is cleanup-only and would silently drop the bug",
+        "Zero cleanup-class findings means /simplify is skipped entirely, not invoked 'to tidy anyway'",
+        "A low-confidence or high-blast-radius correctness finding is surfaced for the user's decision rather than auto-applied"
+      ]
     }
   ]
 }
