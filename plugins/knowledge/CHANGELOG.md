@@ -4,6 +4,19 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.5.4
+
+### Fixed
+
+- **Current Claude Code configuration contract.** Setup now treats `library_dir` as a personal
+  `userConfig` option, validates it against the consuming repository's artifact convention, and
+  routes changes through Claude Code's configuration prompt instead of editing unsupported
+  project/local `pluginConfigs` entries.
+- **Repository and transcript input hardening.** GitHub repository URLs now require an exact,
+  credential-free GitHub HTTPS or SSH shape before canonical clone arguments are constructed;
+  clone option parsing is terminated explicitly; and WebVTT/entity cleanup uses bounded,
+  single-pass transformations that cannot turn nested malformed input into active markup.
+
 ## 0.5.3
 
 ### Changed

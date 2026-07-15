@@ -228,9 +228,10 @@ else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
 fi
 
-# --- Missing markdownlint: visible advisory, never npx ----------------------
-# Simulate markdownlint-cli2 missing while an npx executable is available. The
-# hook must not invoke the package runner (which could fetch from the network).
+# --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
+# Hide the PATH copy, then provide the extensionless POSIX shim npm installs
+# beside its Windows .cmd launcher. The hook must execute it directly from the
+# consuming repository, with no package runner or network fallback.
 NO_MDLINT_ENV="$WORK/no-markdownlint.bashenv"
 NPX_MARKER="$WORK/npx-was-invoked"
 cat >"$NO_MDLINT_ENV" <<EOF
@@ -249,11 +250,89 @@ npx() {
   return 99
 }
 EOF
+
+LOCAL_BIN_DIR="$REPO/node_modules/.bin"
+LOCAL_MDLINT="$LOCAL_BIN_DIR/markdownlint-cli2"
+mkdir -p "$LOCAL_BIN_DIR"
+cp "$TEST_BIN/markdownlint-cli2" "$LOCAL_MDLINT"
+chmod +x "$LOCAL_MDLINT"
+LOCAL_FIXTURE="$REPO/fixtureLocal.md"
+printf '# Local\n\n* local item\n' >"$LOCAL_FIXTURE"
+OUT_LOCAL="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_FIXTURE" \
+  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+RC_LOCAL=$?
+if [[ $RC_LOCAL -eq 0 && -z "$OUT_LOCAL" ]]; then
+  ok "repo-local markdownlint shim exits 0 with no advisory"
+else
+  fail "repo-local markdownlint shim failed (rc=$RC_LOCAL out=$OUT_LOCAL)"
+fi
+if grep -q '^- local item$' "$LOCAL_FIXTURE"; then
+  ok "repo-local markdownlint shim applied --fix"
+else
+  fail "repo-local markdownlint shim did not format: $(cat "$LOCAL_FIXTURE")"
+fi
+if [[ ! -e "$NPX_MARKER" ]]; then ok "repo-local markdownlint never invokes npx"; else fail "repo-local markdownlint invoked npx"; fi
+
+# --- Escaping repository-local binary: reject before execution --------------
+rm -rf "$REPO/node_modules"
+ESCAPE_DIR="$WORK/outside-node-modules"
+ESCAPE_TARGET="$ESCAPE_DIR/.bin/markdownlint-cli2"
+ESCAPE_MARKER="$WORK/outside-markdownlint-was-invoked"
+mkdir -p "$ESCAPE_DIR/.bin"
+cat >"$ESCAPE_TARGET" <<EOF
+#!/usr/bin/env bash
+: >"$ESCAPE_MARKER"
+exit 0
+EOF
+chmod +x "$ESCAPE_TARGET"
+
+ESCAPE_LINK_CREATED=false
+ESCAPE_WINDOWS_JUNCTION=false
+if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+  # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
+  LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
+    TARGET_PATH="$(cygpath -aw "$ESCAPE_DIR")" \
+    powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
+      'New-Item -ItemType Junction -Path $env:LINK_PATH -Target $env:TARGET_PATH | Out-Null' \
+      >/dev/null 2>&1 \
+    && ESCAPE_LINK_CREATED=true \
+    && ESCAPE_WINDOWS_JUNCTION=true
+else
+  mkdir -p "$REPO/node_modules/.bin"
+  ln -s "$ESCAPE_TARGET" "$LOCAL_MDLINT" && ESCAPE_LINK_CREATED=true
+fi
+
+if [[ "$ESCAPE_LINK_CREATED" == true ]]; then
+  OUT_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
+    | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  RC_ESCAPE=$?
+  if [[ $RC_ESCAPE -eq 0 ]] \
+    && printf '%s' "$OUT_ESCAPE" | jq -e '.hookSpecificOutput.additionalContext | contains("contained repository-local")' >/dev/null 2>&1; then
+    ok "escaping repo-local markdownlint emits advisory"
+  else
+    fail "escaping repo-local markdownlint was not rejected (rc=$RC_ESCAPE out=$OUT_ESCAPE)"
+  fi
+  if [[ ! -e "$ESCAPE_MARKER" ]]; then ok "escaping repo-local markdownlint was not executed"; else fail "escaping repo-local markdownlint executed"; fi
+else
+  fail "could not create repo-local escape symlink fixture"
+fi
+if [[ "$ESCAPE_WINDOWS_JUNCTION" == true ]]; then
+  # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
+  LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
+    powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
+      'Remove-Item -LiteralPath $env:LINK_PATH -Force' >/dev/null 2>&1
+else
+  rm -rf "$REPO/node_modules"
+fi
+
+# --- Missing markdownlint: visible advisory, never npx ----------------------
+# With neither PATH nor a contained local binary available, the hook must not
+# invoke the package runner (which could fetch from the network).
 OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
   | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_MDLINT=$?
 if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("markdownlint-cli2 is not installed")' >/dev/null 2>&1; then
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("neither on PATH nor available as a contained repository-local")' >/dev/null 2>&1; then
   ok "missing markdownlint emits visible additionalContext"
 else
   fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
