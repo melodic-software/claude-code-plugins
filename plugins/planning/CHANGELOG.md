@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.1]
+## [0.10.2]
 
 ### Fixed
 
@@ -17,6 +17,17 @@ All notable changes to the `planning` plugin are documented here. Format follows
   documented but unreachable through the router, so `close-out` fell through to full planning instead
   of running the close-out steps. The router now routes it directly, and the eval that exercises the
   GitBook-deferral close-out path is reachable again.
+
+## [0.10.1]
+
+### Changed
+
+- Synced sibling-skill invocation routes to the reorganized plugin taxonomy across
+  `architect`, `brainstorm`, and `devils-advocate`: `/tdd:tdd` is now
+  `/tdd:principles`; `/implementation:verify-improvement` is now
+  `/verification:measure`; `/implementation:verify-changes` is now
+  `/verification:confirm`; `/improve-architecture:improve-architecture` is now
+  `/architecture:improve`; `/work-items:work-items` is now `/work-items:track`.
 
 ## [0.10.0]
 

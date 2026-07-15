@@ -1,7 +1,7 @@
 # Permission Rule Hygiene Convention — Changelog
 
 Notable changes to the permission-rule-hygiene convention. The convention states a principle and three
-anti-patterns; it is enforced by the `claude-config-audit` plugin's `permission-hygiene` skill (checks
+anti-patterns; it is enforced by the `claude-config` plugin's `permission-hygiene` skill (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
 ## 1.0 — 2026-07-14

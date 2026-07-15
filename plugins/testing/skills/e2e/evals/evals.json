@@ -1,0 +1,17 @@
+{
+  "skill_name": "e2e",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/testing:e2e",
+      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites missing, hard-fails with clear report and remediation steps (e.g., 'npm install -g @playwright/cli@latest'). If available, proceeds with health check, endpoint verification, and screenshot capture. References the playwright plugin's skill for browser mechanics when installed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "How do I live-test a change to an MCP server with no UI?",
+      "expected_output": "Routes to context/non-ui.md. Maps the MCP-server surface to its smoke-test invocation: unit-level coverage plus the JSON-RPC initialize stdio-handshake pattern. Does not demand browser evidence for a non-UI surface.",
+      "files": []
+    }
+  ]
+}

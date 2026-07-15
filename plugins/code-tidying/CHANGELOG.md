@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- Synced work-item filing routes to the reorganized `work-items` taxonomy:
+  `/work-items:work-items add` is now `/work-items:track add` (README, `tidy`,
+  `batch-simplify`, and the scope-budget reference).
+
 ## [0.4.0]
 
 ### Added

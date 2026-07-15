@@ -1,0 +1,69 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "detect-defects-and-discriminate",
+      "prompt": "Audit these MCP tool definitions against the design-quality checklist. Read the fixture at evals/fixtures/tools-with-defects.md relative to the skill directory — it holds the tool source. Give me the per-tool PASS/WARN/FAIL scorecard and tell me what to fix first.",
+      "expected_output": "A per-tool scorecard flagging get_report's missing parameter description (FAIL), its missing readOnlyHint and absent when/returns context, and delete_workspace's implementation-detail leak, while correctly NOT flagging list_items' name as a CRUD-naming problem (acceptable for a generic entity). FAIL items are prioritized ahead of WARN.",
+      "files": ["evals/fixtures/tools-with-defects.md"],
+      "expectations": [
+        "Flags get_report's reportId parameter as missing a description and rates it FAIL (C6)",
+        "Flags the read-only get_report tool for not declaring readOnlyHint as WARN, not FAIL (C12, SPEC-OPTIONAL)",
+        "Identifies that get_report's description lacks when-to-use and/or returns context (C2/C3)",
+        "Surfaces the implementation-detail leak (Cosmos DB / tombstone / partition key) in delete_workspace's description (C5)",
+        "Does NOT flag list_items' name under C10 — CRUD naming is acceptable for a generic entity operation",
+        "Reports per-tool verdicts using the PASS/WARN/FAIL vocabulary",
+        "Orders or labels FAIL items ahead of WARN in the fix guidance"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-fabricated-findings-on-strong-tool",
+      "prompt": "Review the MCP tool description quality for the tool defined in evals/fixtures/well-designed-tool.md relative to the skill directory. Is it well-designed, or does it need work?",
+      "expected_output": "An assessment rating miro_archive_board as high quality — PASS-dominant with no invented FAIL findings — confirming the description covers what/when/returns, the boardId parameter carries value guidance with a format example, and the annotations are present and appropriate.",
+      "files": ["evals/fixtures/well-designed-tool.md"],
+      "expectations": [
+        "Rates miro_archive_board as high-quality / PASS-dominant with no fabricated FAIL findings",
+        "Confirms the description covers what, when, and returns (C1/C2/C3)",
+        "Confirms the boardId parameter has value guidance including a format example (C6/C7)",
+        "Recognizes the readOnlyHint/destructiveHint/idempotentHint annotations are present and appropriate for a non-read-only, non-destructive tool (C12-C14)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "report-only-does-not-modify",
+      "prompt": "Audit the MCP tools in evals/fixtures/tools-with-defects.md relative to the skill directory and fix the problems you find.",
+      "expected_output": "The audit reports the findings scorecard for the fixture's tools but does not edit the tool source; it states that the skill reports rather than applies fixes, leaving the user to act on the guidance.",
+      "files": ["evals/fixtures/tools-with-defects.md"],
+      "expectations": [
+        "Does not edit or modify the fixture source file (no write to the tool definitions)",
+        "States that the audit reports findings rather than applying fixes / modifying tool definitions",
+        "Still produces the audit scorecard rather than refusing the request outright"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "single-scope-narrowing",
+      "prompt": "Run an MCP tool audit scoped to just the tools under the payments server directory — skip every other server in the project.",
+      "expected_output": "The audit narrows to the single named scope: the report's summary table and findings cover only the payments server (discover.sh is run with --path pointing at that directory), and no other server appears in the output.",
+      "files": [],
+      "expectations": [
+        "Runs discovery scoped to the named directory (discover.sh --path <dir>) rather than the whole project",
+        "The report's server summary and findings contain only the scoped server",
+        "No server outside the named scope appears in the report's summary table or findings"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "tools-only-scope-boundary",
+      "prompt": "Audit the MCP definitions in evals/fixtures/server-with-resource.md relative to the skill directory, including the resources.",
+      "expected_output": "The audit scores the list_snippets tool against the checklist but produces no checklist findings for the MCP resource, noting that resources are out of scope and only tools are evaluated.",
+      "files": ["evals/fixtures/server-with-resource.md"],
+      "expectations": [
+        "Audits the list_snippets tool against the checklist",
+        "Produces no checklist findings for the MCP resource and states that resources are out of scope (tools only)"
+      ]
+    }
+  ]
+}

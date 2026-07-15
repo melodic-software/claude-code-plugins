@@ -3,14 +3,39 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.1]
+## [0.6.0]
 
-### Fixed
+### Changed — nine skills extracted into three new plugins (migration required to retain them)
 
-- **`/implementation:setup` reports `vault_backend: gitbook` as deferred and non-writable.** Offering
-  or preserving the key now cites the ADR
-  (`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`) and states that durable writes still
-  target `docs`; the skill never configures or tests a GitBook API, MCP, or Git Sync writer.
+**The `implementation` plugin is now two skills — `/implementation:implement` and
+`/implementation:implement-dispatch`.** The other nine skills moved out into three new plugins.
+Consumers who relied on any moved skill MUST install the new plugin that now owns it to keep the
+capability — there is no renames-map path for extracted skills:
+
+- **`build`, `lint`, `setup` → the new `toolchain` plugin** (skill names unchanged):
+  `/toolchain:build`, `/toolchain:lint`, `/toolchain:setup`. The `reference/resolution-ladder.md` and
+  the `reference/ecosystems/` portable defaults moved with them.
+- **`test-plan`, `test-write`, `test-e2e`, `test-diagnose` → the new `testing` plugin, renamed:**
+  `/testing:plan`, `/testing:write`, `/testing:e2e`, `/testing:diagnose`.
+- **`verify-changes`, `verify-improvement` → the new `verification` plugin, renamed:**
+  `/verification:confirm`, `/verification:measure`.
+
+This split is **presence-gated graceful degradation, NOT a hard dependency.**
+`/implementation:implement` and `/implementation:implement-dispatch` still run their cadence when a
+companion plugin is absent — they fall back to the project's own build/test command and to self-verifying
+the outcome against the plan/intent — and prefer the companion skill (`/toolchain:build`,
+`/verification:confirm`, `/testing:*`) when it is installed. To restore the full former surface, install
+`toolchain`, `testing`, and/or `verification`.
+
+### Changed
+
+- **Seam references rewritten to the new namespaces and presence-gated.** Every in-skill reference to a
+  moved skill now names its new plugin (`/toolchain:*`, `/testing:*`, `/verification:*`); active
+  invocations are gated with a graceful fallback, and relationship prose that called the moved skills
+  "siblings" is reframed to "companion skills in separate plugins."
+- **`reference/topic-docs.md` trimmed** to the artifacts these two skills write — `PLAN.md` progress
+  marks, the `DEVIATIONS.md` log, the status summary, and handoff notes. Verification manifests and
+  baselines are now the `verification` plugin's, bound in its own `reference/topic-docs.md`.
 
 ## [0.5.0]
 

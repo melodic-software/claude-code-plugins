@@ -1,0 +1,80 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scope-filter-permissions-only",
+      "prompt": "/audit permissions",
+      "expected_output": "An audit limited to Category B (permissions) only — required deny/ask patterns, deprecated :* syntax, deny-rules-in-settings.json placement — presented as a severity-rated findings table. Categories C-G (MCP, hooks, plugins, env vars, skill-listing budget) are not run.",
+      "files": [],
+      "expectations": [
+        "Runs only the permissions category (Category B) checks — required deny/ask patterns, deprecated :* syntax, deny-rule placement",
+        "Does NOT run MCP, hooks, plugins, environment-variable, or skill-listing-budget checks",
+        "Presents findings as a severity-rated table using the error/warning/info vocabulary"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fix-flag-stops-before-editing",
+      "prompt": "/audit --fix",
+      "expected_output": "A full audit that presents the findings table, then STOPS and asks the user which findings to fix (numbers, 'all', or 'skip') before making any edit. No config file is modified until the user responds.",
+      "files": [],
+      "expectations": [
+        "Presents the findings table and then asks the user which findings to fix before applying anything",
+        "Does NOT edit any config file before the user selects which findings to fix",
+        "Offers the user the choice to reply with numbers, 'all', or 'skip'"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "report-only-default-no-edits",
+      "prompt": "audit our claude code settings for drift",
+      "expected_output": "A report-only audit (no --fix) that presents findings and notes which items are auto-fixable, but applies zero edits and does not enter Phase 5.",
+      "files": [],
+      "expectations": [
+        "Applies zero edits to any config file (report-only mode, no --fix flag)",
+        "Notes which findings could be auto-fixed versus which require judgment",
+        "Presents a findings summary and a recheck-frequency recommendation based on the finding count"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "settings-local-secret-safety",
+      "prompt": "check settings.local.json for any misconfigured permissions or leaked secrets",
+      "expected_output": "The audit inspects settings.local.json structure via the check-structure.sh script and jq key/count queries only — never via the Read tool (blocked by deny rule by design) — and reports keys and counts without ever printing a secret value.",
+      "files": [],
+      "expectations": [
+        "Does NOT attempt to open settings.local.json with the Read tool",
+        "Inspects settings.local.json via check-structure.sh and/or jq queries for structure only",
+        "Reports keys and counts rather than secret values",
+        "Never prints or echoes a secret value from settings.local.json"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "findings-table-output-contract",
+      "prompt": "/audit all",
+      "expected_output": "A full seven-category audit whose findings are presented as a GFM table with columns #, Category, Severity, Finding, Current, Recommended; each finding carries an error/warning/info severity and is tagged auto-fixable vs judgment-required; closes with a summary and a recheck-frequency recommendation.",
+      "files": [],
+      "expectations": [
+        "Findings are presented as a GFM table with a per-finding severity column",
+        "Every finding uses the error/warning/info severity vocabulary",
+        "Each finding is identified as auto-fixable or requiring judgment",
+        "If a deny rule is found in settings.local.json, it is flagged as a bug #8961 violation",
+        "If a secret value is found in settings.json, it is flagged (secrets belong in settings.local.json)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "plugin-orphan-fix-policy-asymmetry",
+      "prompt": "/audit plugins",
+      "expected_output": "A plugins-scoped audit that applies the drift auto-fix policy asymmetrically: an orphan plugin set to false (absent upstream) is auto-removable, while an orphan plugin set to true is report-only and never auto-removed because the user explicitly enabled it.",
+      "files": [],
+      "expectations": [
+        "Treats an orphan plugin set to false (absent upstream) as auto-removable",
+        "Treats an orphan plugin set to true (absent upstream) as report-only, never auto-removed",
+        "Records a newly-discovered upstream plugin as an explicit enabledPlugins false entry rather than silently enabling it"
+      ]
+    }
+  ]
+}

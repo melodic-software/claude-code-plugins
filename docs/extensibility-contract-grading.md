@@ -7,6 +7,17 @@ ladder, and setup-action sections of the [migration playbook](MIGRATION-PLAYBOOK
 plugin stood on the audit date and which follow-up issue owns each gap. Empirical claims decay: a
 plugin's row is only true as of the stamp below.
 
+> **Reconciliation — 2026-07-15 (taxonomy reorg).** The reorg renamed, split, and merged plugins
+> (41 graded → 45 shipped). This pass reconciles **names and membership only — no contract grade was
+> re-audited this session** (only eval *presence* was re-verified, in
+> [`evals-coverage.md`](evals-coverage.md)). Surviving plugins keep their 2026-07-12 grade under the
+> post-reorg name; the renames map in `.claude-plugin/marketplace.json` and the split changelogs
+> (`implementation` 0.6.0, `work-items` 0.7.0, `claude-config` 0.5.0) are the authoritative old→new
+> mapping. Plugins with no 2026-07-12 grade — the reorg split-offs `toolchain`, `testing`,
+> `verification`, `claude-memory`, plus the never-graded `ai-briefing` — are listed under *Pending
+> contract re-grade* with their contract verdict explicitly unresolved. The `playbooks` merge
+> (`boris` + `thariq-skills` + `fable-5-playbook`) also warrants a class re-grade — flagged in place.
+
 Graded 2026-07-12 against the 41 plugins in `.claude-plugin/marketplace.json` (retrofit-audit
 `melodic-software/medley#1388`). Facts are Tier-0 — read from each plugin's `plugin.json`, skill
 tree, and `hooks/hooks.json` this session; the MCP-carry column is the verdict from the MCP-servers
@@ -59,9 +70,18 @@ decision"](MIGRATION-PLAYBOOK.md) table (SHIP 0 / STAY 14 / DROP 0).
   no eval issues. General-purpose in-repo hook migration into `guardrails`/`claude-ops` is owned by
   `melodic-software/medley#1391`. Per-slug retrofits already filed:
   `#1405` (event-storming), `#1408`/`#1409` (knowledge), `#1418` (skill-quality), `#1419`
-  (machine-health), `#1420` (implementation), `#1421` (review-toolkit). Current Claude Code owns
+  (machine-health), `#1420` (implementation), `#1421` (review). Current Claude Code owns
   `userConfig` prompting and persistence: knowledge, skill-quality, and machine-health setup skills
   validate the rendered value or direct the user to `/plugin configure`; none edits `pluginConfigs`.
+
+**Membership reconciliation (2026-07-15, not a re-grade).** The reorg changed the plugin set, not the
+frozen verdicts above: three pure-reference plugins (`boris`, `thariq-skills`, `fable-5-playbook`)
+merged into `playbooks`; four behavior plugins were added by splits (`toolchain`, `testing`,
+`verification` from `implementation`; `claude-memory` from `claude-config-audit`'s `memory-health`),
+and `ai-briefing` surfaced as never graded — all five carry evals per the 2026-07-15 scan but no
+contract grade (see *Pending contract re-grade*). Empirically, `setup` skills have since shipped for
+most of the seven setup-action gaps below; whether each satisfies the contract is a re-audit, not done
+here.
 
 ## Hook plugins (9) — compliant
 
@@ -82,16 +102,14 @@ MCP; contract tests are `.test.sh`, not evals.
 | desktop-notification | compliant |
 | guardrails | compliant — further in-repo hook migration into it owned by #1391 |
 
-## Pure-reference plugins (4) — no-op
+## Pure-reference plugins (2) — no-op
 
-Knowledge-only single-skill plugins; each README declares "no `userConfig` … pure knowledge skill".
-No config seam, no hooks, no repo coupling. Nothing to retrofit.
+Knowledge-only skills; each README declares "no `userConfig` … pure knowledge skill". No config seam,
+no hooks, no repo coupling — nothing to retrofit on the extensibility axis.
 
 | Plugin | Verdict |
 |---|---|
-| boris | no-op |
-| fable-5-playbook | no-op |
-| thariq-skills | no-op |
+| playbooks | no-op grade carried from the pre-merge `boris`/`thariq-skills`/`fable-5-playbook` — **class pending re-grade**: the merge adds an `update` mutation skill, which may move the plugin from pure-reference to behavior (the extensibility no-op may still hold — it exposes no config seam) |
 | tdd | no-op |
 
 ## Behavior plugins (28)
@@ -105,27 +123,44 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | discovery | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | setup covered by shared convention eval | compliant |
 | planning | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
 | implementation | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) + ecosystem commands | present for ecosystem commands; consumes the shared topic-docs and lifecycle artifact contracts | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
-| codebase-audit | tracked `.claude/codebase-audit.md` (seam 2) | present | read-existing → interview → write | — | present | compliant (setup exemplar) |
+| codebase-health | tracked `.claude/codebase-health.md` (seam 2) | present | read-existing → interview → write | — | present | compliant (setup exemplar) |
 | knowledge | `userConfig` `library_dir` | present | validate rendered value → `/plugin configure` when needed | — | absent → #1396 | compliant; setup never edits `pluginConfigs`; youtube/course-digest retrofits owned by #1408/#1409 |
 | machine-health | `userConfig` `report_dir` + machine-local overlay | present | overlay persisted; personal scalar delegated to `/plugin configure` | — | absent → #1396 | compliant setup ownership; remaining behavior fixes owned by #1419 |
 | skill-quality | `userConfig` `skills_root` | present | validate/infer candidate → `/plugin configure` when needed | — | absent → #1396 | compliant; setup never edits `pluginConfigs`; runner/contract work owned by #1418 |
-| claude-config-audit | consumer `.claude/**` via `CLAUDE_PROJECT_DIR` (seam 3) | n/a | reads consumer config | — | present | compliant |
+| claude-config | consumer `.claude/**` via `CLAUDE_PROJECT_DIR` (seam 3) | n/a | reads consumer config | — | present | compliant |
 | context7 | none needed | n/a | — | ctx7 (CLI-first) | absent → #1396 | compliant |
 | firecrawl | none needed | n/a | — | firecrawl-cli (CLI-first) | absent → #1396 | compliant |
 | playwright | none needed | n/a | — | @playwright/cli (CLI-first) | absent → #1396 | compliant |
 | work-items | tracked `.github/recurring-schedule.json` (seam 2, optional) + backend-neutral `gh` | **partial** | `recheck` requires it; `add --recurring` scaffolds a skeleton (ask-gated); no dedicated re-runnable setup | MCP-neutral (gh CLI) | present | **GAP → net-new setup issue** (dedicated setup for the recurring schedule) |
 | event-storming | none needed | n/a | — | miro STAY (degraded-but-functional) | absent → #1396 | compliant; miro reconcile owned by #1405 |
-| review-toolkit | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) + consumer rules (seam 3) | n/a | concern file → CLAUDE.md/rules → default | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
+| review | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) + consumer rules (seam 3) | n/a | concern file → CLAUDE.md/rules → default | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
 | session-flow | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) | n/a | concern file → CLAUDE.md/rules → default | — | absent → #1396 | compliant |
 | source-control | writes `.claude/worktrees/` (default) | n/a | safe default | — | absent → #1396 | compliant |
-| diagnose | none needed | n/a | — | — | absent → #1396 | compliant |
+| debugging | none needed | n/a | — | — | absent → #1396 | compliant |
 | docs-hygiene | none needed | n/a | — | — | absent → #1396 | compliant |
-| improve-architecture | none needed | n/a | — | — | present | compliant |
-| mcp-tool-audit | none needed | n/a | — | — | present | compliant |
+| architecture | none needed | n/a | — | — | present | compliant |
+| mcp-tools | none needed | n/a | — | — | present | compliant |
 | prototype | none needed | n/a | — | — | absent → #1396 | compliant |
 | repo-hygiene | none needed | n/a | — | — | present | compliant |
-| teach | none needed (seam 3) | n/a | — | — | absent → #1396 | compliant |
+| education | none needed (seam 3) | n/a | — | — | absent → #1396 | compliant |
 | kindle-dedrm | none needed (own state) | n/a | — | — | absent → #1396 | compliant |
+
+## Pending contract re-grade (added 2026-07-15)
+
+These plugins carry no 2026-07-12 grade — four are reorg split-offs; `ai-briefing` was never graded.
+Only the empirical columns below were verified this session (config-seam presence from `plugin.json`
+and the skill tree, eval presence from the live scan); the contract **verdict is unresolved** pending
+a re-audit against the four-seam contract. The split-offs inherit context from their source
+(`toolchain`/`testing`/`verification` from `implementation`; `claude-memory` from
+`claude-config-audit`) — a starting point for that audit, not a substitute for it.
+
+| Plugin | Origin | Config seam (observed) | Setup skill | Evals | Verdict |
+|---|---|---|---|---|---|
+| toolchain | split from `implementation` (build, lint, setup) | `userConfig` absent; consumes the ecosystem-commands contract | present | present | **pending re-grade** |
+| testing | split from `implementation` (test-\* → plan, write, e2e, diagnose) | `userConfig` absent | absent | present | **pending re-grade** |
+| verification | split from `implementation` (verify-\* → confirm, measure) | `userConfig` absent | absent | present | **pending re-grade** |
+| claude-memory | split from `claude-config-audit` (memory-health → health) | `userConfig` absent; reads consumer `.claude/**` (seam 3, inherited) | absent | present | **pending re-grade** |
+| ai-briefing | pre-existing, never graded | `userConfig` `active_profile` (seam 1) | present | present | **pending re-grade** — a `userConfig` seam requires a setup action (present); compliance unverified |
 
 ## Net-new retrofit issues emitted
 
@@ -136,6 +171,11 @@ One `retrofit(<slug>)` issue per setup-action gap, sub-issue-linked under wave-2
 owned by Claude Code's native plugin configuration surface; setup validates it but never writes
 `pluginConfigs`. The setup remains idempotent per the playbook's
 "Setup action — every configurable plugin ships one", and bump `plugin.json` `version`.
+
+Frozen 2026-07-12 record. Per the 2026-07-15 scan, a `setup` skill dir is now present for all seven
+(`bug-report`, `claude-ops`, `code-tidying`, `discovery`, `planning`, `work-items`, `songwriting`) —
+the retrofit issues appear to have landed. Whether each shipped setup satisfies the contract is a
+re-audit, not recorded here.
 
 | Plugin | Issue |
 |---|---|

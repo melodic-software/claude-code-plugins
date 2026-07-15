@@ -8,7 +8,7 @@ design decisions: when to mock, what makes a good test, classical vs London
 school, observable behavior vs implementation details, test doubles, coverage
 metrics, testable architecture, and more.
 
-Invoke it with `/tdd:tdd <question or concept>`, or let Claude load it
+Invoke it with `/tdd:principles <question or concept>`, or let Claude load it
 automatically when you ask a test design question.
 
 ## What it provides

@@ -3,6 +3,44 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+Split the single `work-items` action-router skill into five focused skills. The capability set is
+unchanged — the same taxonomy, seam, canonical-role remap, and recurring-schedule behavior — only
+decomposed so each surface is invoked directly. The separate `setup` skill is unchanged.
+
+### Changed (breaking)
+
+- **One skill → five skills.** The `work-items` skill (an action router over 13 actions) is
+  replaced by five skills. The nine backlog-CRUD verbs stay behind a sub-action router in `track`;
+  the four multi-step surfaces each become a standalone skill. Invocation mapping:
+
+  | Old | New |
+  |-----|-----|
+  | `/work-items:work-items` (bare — stats dashboard) | `/work-items:track` (default = stats dashboard) |
+  | `/work-items:work-items {stats\|list\|add\|start\|done\|due\|recheck\|search\|audit}` | `/work-items:track <action>` |
+  | `/work-items:work-items triage` | `/work-items:triage` |
+  | `/work-items:work-items work` | `/work-items:work` |
+  | `/work-items:work-items decompose` | `/work-items:decompose` |
+  | `/work-items:work-items scan` | `/work-items:scan` |
+
+- **Shared context lifted to the plugin level.** The tracker seam, operation routing, label
+  taxonomy, canonical-role resolution, recurring-schedule note, integration points, and gotchas —
+  previously repeated in the router body — now live once in `reference/tracker-seam.md`, and each
+  skill references it via `${CLAUDE_PLUGIN_ROOT}`. The `label-taxonomy.md` and `agent-brief.md`
+  references and the `checklist.md` template moved from the skill directory to the plugin root
+  (`${CLAUDE_PLUGIN_ROOT}/reference/…`, `${CLAUDE_PLUGIN_ROOT}/templates/…`) so all five skills
+  share one copy; `topic-docs.md` was already there.
+
+### Added
+
+- **Per-skill eval coverage.** Each new skill ships its own `evals/evals.json`: `track` (empty-args
+  stats default + the remapped-role due/recheck/audit cases), `work` (auto-select-and-claim + the
+  remapped-role frontier case), `triage` (PR-as-item, verify-before-interview, never-re-triage
+  decompose output), `decompose` (vertical-slice HITL/AFK dependency ordering), and `scan`
+  (single-pass sweep + marker classification). The `work` case's workflow-chain example was updated
+  to the current cross-plugin skill names.
+
 ## [0.6.0]
 
 Raw-intake triage, canonical role labels, and the rejected-concept ledger check.

@@ -226,7 +226,7 @@ citations of retired paths as ghost refs.
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory |
 | implementation | `PLAN.md` (Plan/progress), `verification/` manifest, baselines, raw captures | contract + memory |
 | session-flow | handoffs | memory (`handoffs/`) |
-| review-toolkit | review reports | memory (`reviews/`) |
+| review | review reports | memory (`reviews/`) |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) |
 | claude-ops | telemetry | machine state |

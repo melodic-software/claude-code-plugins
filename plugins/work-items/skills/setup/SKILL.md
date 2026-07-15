@@ -20,7 +20,7 @@ provider. Setup also owns the optional canonical-role → label remap in the tra
 "Canonical role labels" below).
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
-[`${CLAUDE_PLUGIN_ROOT}/skills/work-items/actions/add.md`](../work-items/actions/add.md) (step "If
+[`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md) (step "If
 `--recurring`" and the Cadence Duration Table). This skill produces rows in that exact shape — read
 that file for the authoritative field list before writing.
 
@@ -61,7 +61,7 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    gives no signal for.
 3. **Interview, one decision at a time, recommendation first.** For each candidate (and any custom item
    the user names last), settle its fields against the shape in
-   [`../work-items/actions/add.md`](../work-items/actions/add.md): `id` (kebab-case),
+   [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md): `id` (kebab-case),
    `title`, `cadence` (one of the cadence table's values), `area[]`, `category`, `triggers[]` (external
    events warranting an early recheck — e.g. "new major framework release"), `notes`, and
    `close_previous`. Present one item at a time with your recommended values marked; the user accepts
@@ -69,7 +69,7 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    setup seeds the schedule but never performs the maintenance, so it must not advance the cadence
    clock on an existing item (that is `recheck`'s job, gated on the check actually being done):
    - **New item:** seed `last_checked` to today and `next_due` to today + the cadence's day count
-     (Cadence Duration Table in [`../work-items/actions/add.md`](../work-items/actions/add.md)).
+     (Cadence Duration Table in [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)).
    - **Existing item:** preserve its current `last_checked` and `next_due` as-is. Only recompute
      `next_due` when the user explicitly reschedules or changes the cadence — and even then never set
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
@@ -136,8 +136,8 @@ canonical roles — `autonomous-eligible`, `human-gated`, `recurring-maintenance
 repo-actual label string from the tracker binding: `.work-item-tracker.json`, key
 `config.role_labels`. Absent entries fall back to the defaults `agent-ready` / `needs-human` /
 `recurring`, so a repo that never remaps needs no binding change at all. Role semantics and the
-binding shape live in the work-items skill's
-[`../work-items/reference/label-taxonomy.md`](../work-items/reference/label-taxonomy.md)
+binding shape live in the plugin's
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
 "Canonical roles".
 
 1. **Skip silently when `.work-item-tracker.json` is absent** — the tracker seam isn't bound in
@@ -165,8 +165,8 @@ to `.work-item-tracker.json`, and how to re-run this setup to reconfigure.
 
 ## What this skill does NOT do
 
-- File work items or run a recurring check — that is `/work-items:work-items` (`add`, `due`, `recheck`,
-  `work`). Setup only writes the schedule config.
+- File work items or run a recurring check — that is `/work-items:track` (`add`, `due`, `recheck`)
+  and `/work-items:work`. Setup only writes the schedule config.
 - Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring item;
   setup is the bulk / initial-config path that seeds or reshapes the whole schedule.
 - Write machine-local state — the schedule lives in the consumer's tracked `.github/`, never in the

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "architecture",
+  "version": "0.3.0",
+  "description": "Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, and locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and runs an interview loop on the selected candidate before handing off for planning.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "skill"]
+}
