@@ -10,7 +10,8 @@ Code configuration healthy. Each skill answers a different question about the sa
 | `/claude-config:permission-hygiene` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
 
 The instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) is audited
-by the `health` skill in the separate `claude-memory` plugin.
+by the `health` skill in the separate `claude-memory` plugin (see "Migrating from
+`claude-config-audit`" below if you relied on the old `memory-health` skill here).
 
 All default to report-only; mutations (`--fix`, `--implement`) require explicit opt-in and per-item
 user approval. `permission-hygiene` is report-only (its correct remediation is operator-manual).
@@ -73,6 +74,21 @@ enforcement hierarchy. Nothing project-specific is baked into the plugin.
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install claude-config@melodic-software
+```
+
+## Migrating from `claude-config-audit`
+
+The marketplace's `renames` map migrates an enabled `claude-config-audit` to `claude-config`
+automatically at your next session — no action needed for `audit`, `automation-gaps`, and
+`permission-hygiene`.
+
+The `memory-health` skill did **not** move to `claude-config` — it was extracted into the new,
+separate `claude-memory` plugin (as `health`). The rename only rewrites the `claude-config-audit`
+plugin key; it does not enable additional plugins, so `claude-memory` is not installed for you
+automatically. If you used `/claude-config-audit:memory-health`, install it explicitly:
+
+```shell
+/plugin install claude-memory@melodic-software
 ```
 
 ## Configuration

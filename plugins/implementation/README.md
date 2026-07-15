@@ -51,6 +51,24 @@ gracefully when absent — no hard dependencies:
 /plugin install implementation@melodic-software
 ```
 
+## Migrating from an earlier `implementation`
+
+If you had `implementation` installed before the `0.6.0` split, `build`, `lint`, `setup`,
+`test-plan`, `test-write`, `test-e2e`, `test-diagnose`, `verify-changes`, and `verify-improvement`
+no longer live here — nine skills moved into the new `toolchain`, `testing`, and `verification`
+plugins. `implementation` keeps its name, so the marketplace's `renames` map (which migrates a
+renamed or removed plugin automatically) does not apply — install the plugins you relied on:
+
+```shell
+/plugin install toolchain@melodic-software      # build, lint, setup
+/plugin install testing@melodic-software        # test-plan, test-write, test-e2e, test-diagnose
+/plugin install verification@melodic-software   # verify-changes, verify-improvement
+```
+
+`/implementation:implement` and `/implementation:implement-dispatch` still run without them —
+build/test falls back to the project's own command and outcome verification falls back to
+self-verification — but installing the companion plugins restores the full former surface.
+
 ## Configuration
 
 Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
