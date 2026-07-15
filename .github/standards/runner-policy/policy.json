@@ -10,7 +10,8 @@
     "melodic-software": [
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952"
     ]
   },
   "approvedReusableWorkflowContracts": {
