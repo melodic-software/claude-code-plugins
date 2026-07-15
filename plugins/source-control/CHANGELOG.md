@@ -3,16 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.0]
+## [0.3.0]
 
 ### Added
 
-- Readiness security-gate, mixed-actor, and three worktree evals.
 - **Exec-bit check in `/source-control:commit`.** Immediately after staging, newly-added files whose
   first line is a shebang (`#!`) are checked against the index and fixed with
   `git update-index --chmod=+x` when staged non-executable. Closes the gap where a new `.sh`/`.py`
   script lands as mode `100644` and is only caught by a CI exec-bit lint lane after the push
-  round-trip.
+  round-trip. Runs after the format-before-push check below (not before), because re-staging a
+  formatter's fixes reads the worktree file mode and would otherwise silently undo an
+  already-applied `--chmod=+x`.
 - **Format-before-push check in `/source-control:commit`.** Before drafting the commit message, the
   skill now checks the consuming repo for an already-configured formatter/linter (`package.json`
   scripts, `biome.json`, a `Makefile` target, `.editorconfig` + `editorconfig-checker`, or an
@@ -20,3 +21,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fixes. Scoped to this commit's paths, not the full index, so it never mutates or blocks on staged
   work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
   skips silently when none is discoverable.
+
+## [0.2.0]
+
+### Added
+
+- Readiness security-gate, mixed-actor, and three worktree evals.
