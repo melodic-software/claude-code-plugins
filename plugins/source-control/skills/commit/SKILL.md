@@ -1,6 +1,6 @@
 ---
 name: commit
-description: "Create a git commit with a Conventional Commits subject, a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
+description: "Create a git commit with a subject matching the resolved convention (`.claude/source-control.md` → project convention → Conventional Commits default), a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
 ---
@@ -20,7 +20,11 @@ Encapsulates the canonical mechanic for building a commit message that honors a 
 - **`git commit -m "<multi-line>"`** flattens newlines unpredictably across shells.
 - **`git add -A` / `git add .`** stages secrets, build artifacts, unrelated edits — the convention is surgical staging.
 
-The default subject convention (WHAT shape a subject must take) is **Conventional Commits (11-type vocabulary)**. Every subject must match this anchored pattern:
+The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
+
+1. **`.claude/source-control.md`** — if the consuming repo has this tracked config (written by `/source-control:setup`), its declared `subject_pattern` (and `type_list`, when Conventional-Commits-shaped) is authoritative.
+2. **The consuming project's own `CLAUDE.md`, rules, or commit-msg hook** — if no config file exists but the project declares (or enforces via lefthook, husky, commitlint, or a plain `.git/hooks/`) a different convention, follow that instead. (Existing behavior — unchanged.)
+3. **Conventional Commits (11-type vocabulary)** — the default when neither of the above is present. Every subject must match this anchored pattern:
 
 ```text
 ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+
@@ -33,7 +37,9 @@ Compliant examples:
 - `docs: clarify rebase guidance`
 - `refactor(skills)!: rename /simplify to /code-review`
 
-**Consumer convention wins.** If the consuming project's own `CLAUDE.md`, rules, or commit-msg hook declare a different message convention, follow that instead — this skill's pattern is the default, not an override. When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate; this skill's pre-check exists to fast-fail client-side before the hook round-trip.
+The 11 types — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test` — come from the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional` source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact set. `security` is **not** a Conventional Commits type in any of them — never add it.
+
+When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail client-side before the hook round-trip. When no config exists and nothing is inferable from the project's own files, point the user at `/source-control:setup` to persist a convention instead of re-inferring one every commit.
 
 ## Task
 
@@ -85,7 +91,7 @@ On mismatch, surface the convention name and the compliant examples as actionabl
 
 The trailer body is `Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`. Fill the `<model>` and `<context>` placeholders from your own knowledge of the running session — e.g. model = `Opus 4.8` or `Fable 5`, context = `1M context`. If uncertain, invoke `/usage` to confirm before committing.
 
-There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If the consuming project's conventions specify a different attribution trailer (or none), follow those.
+There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If `.claude/source-control.md` declares a `trailer_policy`, follow it; otherwise, if the consuming project's conventions specify a different attribution trailer (or none), follow those.
 
 ## Unrelated uncommitted changes
 

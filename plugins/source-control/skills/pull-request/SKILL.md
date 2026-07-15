@@ -28,6 +28,8 @@ This skill is self-contained: it runs on `git`, `gh`, and its own bundled script
 
 Consumer conventions come from the consuming project's own `CLAUDE.md` and rules — notably: PR body template, branch naming, merge style (this skill defaults to squash), review-reply identity (some projects post bot-identity replies via a wrapper; default is plain `gh`), and any extra pre-PR gates. Read them before creating or merging.
 
+**PR title format** resolves via the same ladder `/commit` uses for the commit subject (see its SKILL.md), checked in order: `.claude/source-control.md`'s `pr_title_pattern` (when present, written by `/source-control:setup`) → the consuming project's own `CLAUDE.md`/rules → Conventional Commits (11-type vocabulary — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`; confirmed via the spec, the Angular convention, commitlint's `@commitlint/config-conventional`, and `amannn/action-semantic-pull-request`'s default `types` — `security` is not a member of any of these) as the default. See [reference/create.md](reference/create.md) §2.4.1 for where the title is derived. When no config exists and nothing is inferable, point the user at `/source-control:setup`.
+
 ## Emit checklist
 
 For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as the phase produces its output. Stateful surface; survives `/clear`.

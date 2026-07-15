@@ -1,0 +1,53 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "infers-before-recommending-conventional-commits",
+      "prompt": "/source-control:setup",
+      "expected_output": "Before asking anything, checks the repo's own CLAUDE.md/AGENTS.md/.claude/rules, any commit-msg hook (lefthook.yml, .husky/commit-msg, commitlint config, .git/hooks/commit-msg), and recent git log history for an existing convention. With no signal found, it recommends Conventional Commits (11-type vocabulary: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test) as the default, marked RECOMMENDED, and does not offer or accept 'security' as a type.",
+      "files": [],
+      "expectations": [
+        "Checks CLAUDE.md/rules, a commit-msg hook, and git log history for an existing convention before asking",
+        "Recommends Conventional Commits with exactly the 11-type vocabulary when nothing is inferable, marked RECOMMENDED",
+        "Does not include 'security' as a Conventional Commits type"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "custom-ticket-prefix-alternative",
+      "prompt": "/source-control:setup\n\nThis repo uses ticket-prefixed commit messages like WEB-123: fix the thing, not Conventional Commits.",
+      "expected_output": "Accepts a custom subject_pattern (e.g. ^[A-Z]+-\\d+: .+) instead of Conventional Commits, omits the type_list section entirely (no type vocabulary applies to a custom pattern), and writes the custom pattern to .claude/source-control.md.",
+      "files": [],
+      "expectations": [
+        "Accepts the custom ticket-prefix pattern as subject_pattern instead of forcing Conventional Commits",
+        "Omits the type_list section since a custom pattern has no Conventional-Commits type vocabulary",
+        "Writes the accepted custom pattern to .claude/source-control.md"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "idempotent-reads-existing-config",
+      "prompt": "/source-control:setup",
+      "expected_output": "When .claude/source-control.md already exists, reads it, summarizes the current subject_pattern/type_list/pr_title_pattern/trailer_policy, and proposes changes against that baseline rather than overwriting it blind.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Detects and reads the existing .claude/source-control.md before proposing changes",
+        "Summarizes the current configured values",
+        "Does not overwrite the existing config without user confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "verifies-tracked-not-ignored",
+      "prompt": "/source-control:setup\n\nUse the recommended Conventional Commits default.",
+      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore. If a pattern excludes it, surfaces the matching pattern and offers to fix .gitignore before reporting success.",
+      "files": [],
+      "expectations": [
+        "Runs git check-ignore -v .claude/source-control.md after writing the file",
+        "Reports success only when the file is confirmed tracked, not ignored",
+        "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success"
+      ]
+    }
+  ]
+}
