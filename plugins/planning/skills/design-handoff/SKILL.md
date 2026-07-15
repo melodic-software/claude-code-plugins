@@ -1,15 +1,12 @@
 ---
 name: design-handoff
 description: "Gate and package a finished design for /planning:architect: binary check that every thread in design-threads.md is RESOLVED, directional, or TAGGED-DEFERRED, then emit the architect-ready summary and resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'architect-ready summary', 'design gate', /planning:design discussion rounds stop surfacing gaps, or entering /planning:architect from a completed design session. FAILs on any thread that is unresolved AND untagged — names it and routes back to /planning:design. Skip when: still exploring the design space — use /planning:design; mid-session save-point to clear and resume later — use a session-handoff capability."
-argument-hint: "[--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "(no args — reads the design-threads artifact in the topic's contract slice)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before resolving artifacts.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -17,11 +14,11 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 The seam between design and planning. `/planning:architect`'s prerequisite check blocks on design-gate evidence; this skill produces that evidence honestly — a binary check read off the artifact, then a handoff summary sourced from the artifacts rather than recalled from conversation memory.
 
-Resolve `<topic-root>` by the artifact protocol. Design artifacts live in `<topic-root>/design/`.
+Design artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice on the task branch, joining the memory slice under `contract_tier: local`; roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:architect`).
 
 ## Binary gate — check the artifact, not your memory
 
-Read `<topic-root>/design/design-threads.md` and confirm, thread by thread, that **every** design thread is one of:
+Read `design-threads.md` in the topic's resolved design slice (`<contract_dir>/<topic-slug>/design/`, default `docs/topics/`; the memory slice under `contract_tier: local`) and confirm, thread by thread, that **every** design thread is one of:
 
 - **RESOLVED** — the deciding rationale is recorded in the artifact (not merely "decided"), or
 - **directional** — direction agreed AND the remaining detail carries a research tag, or

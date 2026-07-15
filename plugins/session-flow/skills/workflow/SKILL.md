@@ -33,9 +33,15 @@ This skill adapts to the consuming repo rather than imposing structure:
   invoking that skill. Otherwise execute the stage inline following its definition in
   `context/steps.md`. Never invent skill names — check what actually exists.
 - **Artifact location.** When persisting stage outputs or checklists, honor the consuming repo's
-  documented convention for work/planning artifacts (check `CLAUDE.md` / `.claude/rules/`). When no
-  convention exists, default to `.claude/handoffs/` in the project (shared with the sibling
-  `handoff` skill).
+  documented convention for work/planning artifacts (check `.claude/topic-docs.yaml`, `CLAUDE.md` /
+  `.claude/rules/`). When no convention exists, the checklist is a per-topic stage ledger at
+  `<memory_dir>/<slug>/workflow-checklist.md` — default `.work/<slug>/workflow-checklist.md`, the
+  topic's memory-tier slice per the plugin binding
+  ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)):
+  never committed; on the session's first memory-tier write, verify-or-create the resolved memory
+  root's `.gitignore` containing `*` (announced). The sibling `handoff` skill's
+  `<memory_dir>/handoffs/` holds only handoff save-points — a fixed-filename checklist there would
+  clobber across two in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands and review criteria govern;
   this skill names WHERE gates belong in the sequence, not what they contain.
 

@@ -1,51 +1,44 @@
-# Plugin artifact protocol
+# Plugin lifecycle artifact protocol
 
-Protocol version: 1
+Protocol version: 2
 
-This protocol is the shared artifact contract for repo-facing plugins that participate in a discovery,
-planning, implementation, or handoff lifecycle.
+This protocol is the lifecycle interoperability profile for repo-facing plugins that participate in
+discovery, planning, implementation, verification, or handoff. The marketplace-wide topic-docs convention
+owns placement, tiers, resolution, slug rules, runtime guards, and lifecycle:
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
+This profile owns only the cross-plugin artifact names and producer/consumer behavior.
 
-## Ownership
+## Ownership and resolution
 
-Plugin `userConfig` is for personal, managed, or enable-time plugin options. It is not the coordination
-surface for tracked repository artifacts. Repo-shared artifact locations belong to the consuming
-repository's own documented convention (`CLAUDE.md`, `AGENTS.md`, `.claude/rules`, or a repo-owned config
-file). When no convention exists, these plugins use `.work/<topic-slug>/`.
+Plugin `userConfig` is for personal, managed, or enable-time options. It is not a coordination surface
+for repository artifacts. The tracked `.claude/topic-docs.yaml` concern file is the runtime authority;
+consumer project instructions are an inference source when that file is absent.
 
-## Resolution
+Resolve the memory and contract slices through the topic-docs convention and the current plugin's
+`reference/topic-docs.md` binding. An explicit topic argument may select the slug, but cannot introduce a
+competing artifact root. The same slug names the topic in both tiers. Reject invalid roots or slugs using
+the convention's guards rather than silently falling back to another location.
 
-Resolve artifact destinations in this order:
+## Artifact kinds
 
-1. Explicit invocation arguments: `--artifacts-dir <repo-relative-base>` selects the base directory and
-   `--topic <slug>` selects the topic. Either argument may be supplied independently.
-2. A consuming-repo convention declared in `CLAUDE.md`, `AGENTS.md`, or `.claude/rules`.
-3. The default `.work/<topic-slug>/` directory at the repository root.
+Lifecycle plugins exchange these public artifacts:
 
-The resolved topic root is `<artifact-base>/<topic-slug>/`. Reject bases that are absolute paths,
-contain a `..` segment, or escape the repository root after normalization. Topic slugs are lowercase
-kebab-case, at most 40 characters, and derived from the task, plan title, or current branch name when not
-supplied. If derivation is ambiguous, ask instead of selecting an unrelated branch-derived name.
-
-## Layout
-
-Discovery, planning, and implementation plugins may write different artifact types, but they share the
-same topic root:
-
-- `.work/<topic-slug>/EXPLORE.md`
-- `.work/<topic-slug>/RESEARCH.md`
-- `.work/<topic-slug>/PRD.md`
-- `.work/<topic-slug>/PLAN.md`
-- `.work/<topic-slug>/design/`
-- `.work/<topic-slug>/baselines/`
-- `.work/<topic-slug>/verify/`
+- Memory tier: `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures, and
+  scratch under `<memory_dir>/<topic-slug>/`.
+- Contract tier: `PRD.md`, `PLAN.md`, `design/`, and distilled `verification/` manifests under
+  `<contract_dir>/<topic-slug>/` when `contract_tier: branch`.
+- In `contract_tier: local`, contract kinds join the memory slice with the same relative layout.
+- Session handoffs and branch review reports use the concern-scoped homes defined by topic-docs, not a
+  topic slice.
 
 Each plugin remains horizontally decoupled: it may read artifacts by this public protocol, but it must not
 import sibling plugin internals or assume another plugin is installed. Namespaced skill invocation is
 optional and must degrade to a visible manual handoff when unavailable.
 
-The distributable copy at each participating plugin's `reference/artifact-protocol.md` must match this
-contract. A breaking layout or resolution change increments the protocol version and requires all copies
-and consumers to change together.
+The canonical repository copy and every participating plugin's
+`reference/artifact-protocol.md` copy must remain byte-identical. A breaking artifact-name or
+producer/consumer change increments this protocol version and updates all copies and consumers together.
+Placement changes belong to the versioned topic-docs convention, not this profile.
 
 ## Missing prerequisites
 

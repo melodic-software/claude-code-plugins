@@ -3,40 +3,42 @@
   "evals": [
     {
       "id": 1,
-      "name": "infers-repository-convention-before-writing",
+      "name": "reads-topic-docs-state-before-interview",
       "prompt": "/discovery:setup",
-      "expected_output": "Reads the repository's project instructions and existing work-artifact convention first. If none exists, recommends the neutral .work base. It presents one repository-relative artifact-base proposal and the exact instruction-file edit, writing nothing until the user accepts.",
+      "expected_output": "Reads .claude/topic-docs.yaml first when present and reports effective values, applying documented defaults to absent keys. With no concern file it inspects project instructions and conforming layouts before asking one recommendation-first question covering every schema key.",
       "files": [],
       "expectations": [
-        "Reads project instruction files before proposing a value",
-        "Preserves an existing declared repository convention instead of guessing",
-        "Recommends .work when the repository declares no convention",
-        "Writes nothing until the user accepts the value"
+        "Reads an existing .claude/topic-docs.yaml before proposing changes",
+        "Treats project instructions as an inference source rather than a competing runtime authority",
+        "Recommends the documented contract and memory tier defaults when no convention exists",
+        "Offers and preserves every topic-docs schema key"
       ]
     },
     {
       "id": 2,
-      "name": "rejects-nonportable-paths",
-      "prompt": "/discovery:setup --artifacts-dir C:\\Users\\<user>\\notes",
-      "expected_output": "Rejects the absolute machine-local path with a visible explanation, makes no file changes, and requests a repository-relative base whose normalized destination remains under the repository root.",
+      "name": "fails-closed-on-ignored-contract-tier",
+      "prompt": "/discovery:setup\n\nUse contract_tier: branch and contract_dir: docs/topics. The repository ignores docs/topics/**.",
+      "expected_output": "Runs git check-ignore -v against a representative file path such as docs/topics/probe/PLAN.md before writing. When an ignore rule matches, it stops, reports the exact matching rule and source line, and does not create or update .claude/topic-docs.yaml.",
       "files": [],
       "expectations": [
-        "Rejects a machine-absolute artifact base",
-        "Makes no file changes for an invalid path",
-        "Does not write pluginConfigs, personal settings, or plugin files"
+        "Checks a representative contract file path rather than only the directory",
+        "Stops before persistence when the branch-tier contract root is ignored",
+        "Reports the matching ignore rule and source",
+        "Never edits an ignore file to force the configuration through"
       ]
     },
     {
       "id": 3,
-      "name": "writes-shared-project-instruction-idempotently",
-      "prompt": "/discovery:setup\n\nUse .work for the whole team.",
-      "expected_output": "After confirmation, records .work in the repository's existing work-artifact instruction surface or creates .claude/rules/work-artifacts.md. It preserves unrelated content, verifies the file is tracked, and an immediate re-run proposes no equivalent rewrite.",
+      "name": "persists-tracked-concern-file-idempotently",
+      "prompt": "/discovery:setup\n\nAccept the recommended defaults and preserve an existing vault_backend: docs key.",
+      "expected_output": "Writes a schema-valid tracked .claude/topic-docs.yaml without dropping the existing vault_backend key, verifies or creates the resolved memory root's self-ignoring .gitignore with an announcement, and reports the effective values. An immediate re-run reads the same state and does not rewrite equivalent values.",
       "files": [],
       "expectations": [
-        "Persists the convention in a team-shared project instruction file",
-        "Creates .claude/rules/work-artifacts.md only when no existing instruction surface owns the convention",
-        "Preserves unrelated content and verifies the instruction file is not gitignored",
-        "Re-running does not rewrite an equivalent convention"
+        "Persists configuration only in the tracked .claude/topic-docs.yaml concern file",
+        "Produces a schema-valid object rather than a comment-only YAML document",
+        "Preserves all existing schema keys on reconfiguration",
+        "Verifies the resolved memory root self-ignore and announces any creation",
+        "Re-running does not rewrite an equivalent configuration"
       ]
     }
   ]

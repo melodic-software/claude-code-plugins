@@ -1,7 +1,7 @@
 ---
 name: explore-deep
 description: "Run the full explore workflow in an isolated forked subagent so verbose file reads and search output stay out of the main conversation; only a short summary returns, with findings persisted to an EXPLORE.md artifact. Use for thorough or large-scope investigation (10+ file reads or broad search sweeps); requires CLAUDE_CODE_FORK_SUBAGENT=1 — when unset, fall back to inline /explore or a built-in Explore subagent."
-argument-hint: "[scope] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[scope] (e.g., /discovery:explore-deep payments module dependencies, /discovery:explore-deep tests, /discovery:explore-deep git)"
 user-invocable: true
 disable-model-invocation: false
 context: fork
@@ -9,9 +9,6 @@ agent: general-purpose
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the exploration scope.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
@@ -21,7 +18,7 @@ Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
 You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — you do NOT see the parent conversation, and the main session does NOT see your file reads, Glob results, or Grep output; only your final summary returns.
 
-You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY file you Write is the `EXPLORE.md` artifact in Step 3. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
+You inherit the parent's full toolset, but this is the **read-only exploration phase**: do NOT Edit source files and do NOT run mutating Bash (no writes/moves/deletes/installs, no git-state changes). The ONLY files you Write are the `EXPLORE.md` artifact in Step 3 and, when absent, the memory root's self-ignoring `.gitignore` guard. Read-only Bash (e.g. `git log`, `git diff`) for the git-history dimension is fine. This read-only boundary is by instruction, not tool-enforced — honor it deliberately.
 
 This is a forked-execution variant of `/explore`: same investigation discipline, cleaner main-session context.
 
@@ -45,9 +42,9 @@ Follow the sibling `/explore` skill exactly:
 
 **Before writing, run the Outcome gate** the `/explore` workflow defines — the binary artifact self-check, not a "did I explore enough?" recap; any FAIL → fix first.
 
-Resolve `<topic-root>` by the artifact protocol and write findings to `<topic-root>/EXPLORE.md`.
+Write findings to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). As a fork you run under the contract's non-interactive/forked-mode rule — flag any assumed destination in your return summary.
 
-**If EXPLORE.md already exists** there for an unrelated task, write a sidecar `explore-<scope-slug>.md` in the same directory instead (kebab-case scope, ≤40 chars) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
+**If EXPLORE.md already exists** there for an unrelated task, write a sidecar `EXPLORE-<scope>.md` in the same directory instead (scope slugged per the same spec) and surface the filename choice in your return summary — the sidecar avoids clobbering prior work.
 
 ## Step 4 — Return summary to main session
 

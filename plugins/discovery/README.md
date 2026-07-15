@@ -35,12 +35,16 @@ fresh session can resume planning from the artifact alone.
 /plugin install discovery@melodic-software
 ```
 
-## Artifact location
+## Configuration
 
-Discovery shares the versioned lifecycle artifact protocol with planning and implementation. Resolve the
-base from explicit `--artifacts-dir` / `--topic` arguments, then the repository's `CLAUDE.md`, `AGENTS.md`,
-or `.claude/rules`, and otherwise `.work/<topic-slug>/`. Run `/discovery:setup` to record a team-shared
-repository convention. Setup never writes personal plugin configuration.
+Artifact placement follows the marketplace **topic-docs convention**
+(<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>).
+`EXPLORE.md` / `RESEARCH.md` are memory-tier
+documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one slug per topic, never
+committed — the memory root self-ignores. Skills resolve `<memory_dir>` in order: the tracked concern
+file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → an
+inferred conforming layout → one question → the `.work` default.
+`/discovery:setup` is an idempotent interview that persists the concern file.
 
 ## License
 

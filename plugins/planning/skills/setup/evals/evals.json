@@ -3,53 +3,41 @@
   "evals": [
     {
       "id": 1,
-      "name": "infers-repository-convention-before-writing",
+      "name": "resolves-topic-docs-state-and-interviews-before-writing",
       "prompt": "/planning:setup",
-      "expected_output": "Reads the repository's project instructions and existing work-artifact convention first. If none exists, recommends the neutral .work base. It presents one repository-relative artifact-base proposal and the exact instruction-file edit, writing nothing until the user accepts.",
+      "expected_output": "Reads the current state in ladder order — an existing .claude/topic-docs.yaml, a working-docs convention declared in CLAUDE.md/.claude/rules, an inferred conforming layout — and reports what it found. When nothing is configured, it presents the one load-bearing decision, contract_tier, with branch marked RECOMMENDED and presented first (local as the solo/offline alternative), keeps contract_dir and memory_dir at the documented defaults (docs/topics and .work) unless the repo declares otherwise, and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reads CLAUDE.md, AGENTS.md, .claude/CLAUDE.md, and .claude/rules before proposing a value",
-        "Preserves an existing declared repository convention instead of guessing",
-        "Recommends .work when the repository declares no convention",
-        "Writes nothing until the user accepts the value"
+        "Reads .claude/topic-docs.yaml first, then a declared working-docs convention, then an inferred conforming layout — in that order",
+        "Presents the single contract_tier decision with branch as the RECOMMENDED first option and invents no further knobs",
+        "Keeps contract_dir and memory_dir at the documented defaults unless the repo's own conventions say otherwise",
+        "Writes nothing until the user accepts the values"
       ]
     },
     {
       "id": 2,
-      "name": "idempotent-reconciliation",
-      "prompt": "/planning:setup -- this repo already declares that work artifacts live under docs/planning.",
-      "expected_output": "Reports docs/planning as the effective repository artifact base and proposes no rewrite unless the user asks to change it. It does not inspect or edit pluginConfigs or plugin files.",
+      "name": "rerun-preserves-existing-concern-file-keys",
+      "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
+      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reports the existing repository-declared base before proposing changes",
-        "Does not rewrite an equivalent convention",
-        "Does not read or write pluginConfigs",
-        "Does not write into the plugin directory or plugin data directory"
+        "Reports the existing file's effective values (absent keys = documented defaults) as the interview baseline",
+        "Preserves every key the existing concern file carries — a re-run never drops one",
+        "Does not invent knobs beyond the schema",
+        "Writes nothing until the user accepts the values"
       ]
     },
     {
       "id": 3,
-      "name": "validates-portable-project-path",
-      "prompt": "/planning:setup --artifacts-dir ../shared-notes",
-      "expected_output": "Rejects the traversal path with a visible explanation because the normalized destination can escape the repository. It makes no file changes and asks for a repository-relative path without .. segments.",
+      "name": "conflict-check-and-write-guards",
+      "prompt": "/planning:setup\n\nUse the defaults; this repo's .gitignore contains a docs/ ignore rule.",
+      "expected_output": "Before writing, runs git check-ignore -v on the chosen contract root and, because an ignore rule matches docs/topics, stops and surfaces the exact rule and its source line rather than silently producing an uncommittable contract tier. It never edits the consumer's root .gitignore (resolving the rule is the user's edit), writes only the tracked .claude/topic-docs.yaml once the conflict is cleared — recording only non-default keys — and never writes the plugin directory or the plugin data directory.",
       "files": [],
       "expectations": [
-        "Rejects an artifact base containing a .. segment",
-        "Makes no file changes for an invalid path",
-        "Requires the normalized destination to remain under the repository root"
-      ]
-    },
-    {
-      "id": 4,
-      "name": "writes-tracked-project-instruction",
-      "prompt": "/planning:setup\n\nLand lifecycle artifacts in docs/planning for the whole team.",
-      "expected_output": "After confirmation, records docs/planning in the repository's existing work-artifact instruction surface or creates .claude/rules/work-artifacts.md. It preserves unrelated content, verifies the file is tracked, and never writes pluginConfigs or personal settings.",
-      "files": [],
-      "expectations": [
-        "Persists the convention in a team-shared project instruction file",
-        "Creates .claude/rules/work-artifacts.md only when no existing instruction surface clearly owns the convention",
-        "Preserves unrelated content and verifies the instruction file is not gitignored",
-        "Does not write pluginConfigs, personal settings, or plugin files"
+        "Runs git check-ignore -v on the contract root before writing and surfaces the exact matching rule and source",
+        "Never edits the consumer's root .gitignore or any ignore file",
+        "Persists to the tracked .claude/topic-docs.yaml, recording only the keys the user chose",
+        "Does not write the plugin directory or the plugin data directory"
       ]
     }
   ]

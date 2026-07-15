@@ -81,8 +81,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 - **Stage skills** — `workflow` routes to the repo's own stage skills when they exist; every stage
   degrades gracefully to inline execution.
 - **Artifact location** — `handoff` and `workflow` honor a repo-documented convention for
-  save-points/work journals (declared in the repo's `CLAUDE.md` / rules); the default is
-  `.claude/handoffs/` in the project.
+  save-points/work journals (the `.claude/topic-docs.yaml` concern file, or the repo's `CLAUDE.md`
+  / rules); the defaults are `.work/handoffs/` for handoff save-points and
+  `.work/<slug>/workflow-checklist.md` for the per-topic workflow checklist — memory tier per the
+  marketplace topic-docs convention, self-ignoring and never committed
+  (`reference/topic-docs.md`).
 - **Quality gates and conventions** — build/test/lint commands, review criteria, and codification
   targets all come from the consuming repo's own instruction files.
 
@@ -96,6 +99,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 ## Configuration
 
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
-directory (per-project files) — never in the consumer's repo. Handoff save-points are project files
-by design (they travel with the repo). Network: none — the bundled transcript parser is
-stdlib-only Python 3.10+ reading local `~/.claude/projects/` transcripts.
+directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
+working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
+committed. Network: none — the bundled transcript parser is stdlib-only Python 3.10+ reading local
+`~/.claude/projects/` transcripts.

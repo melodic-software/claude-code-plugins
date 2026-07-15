@@ -20,7 +20,11 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 1. Read the rendered `${user_config.library_dir}` value from this skill. Do not inspect or edit
    settings files or `pluginConfigs` directly.
 2. Inspect the consumer's `CLAUDE.md`, `AGENTS.md`, `.claude/rules`, and existing artifact
-   directories. A repository-declared artifact convention is the team source of truth.
+   directories. A repository-declared artifact convention is the team source of truth. Do not infer
+   `library_dir` from `.claude/topic-docs.yaml` or its `memory_dir`: topic-docs governs lifecycle working
+   documents, while `library_dir` owns the knowledge corpus. Mapping both to `.work` would make the
+   YouTube pipeline's own `.work/<watch-epic>/...` layout nest as `.work/.work/...`. Absent a distinct
+   knowledge/artifact convention, retain the portable repository-root default `.`.
 3. Compare the personal option with the repository convention. Default `.` means the repository
    root. Reject machine-absolute paths for portable repository work.
 4. If the personal value should change, direct the user to Claude Code's plugin configuration prompt

@@ -2,14 +2,11 @@
 name: verify-improvement
 description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change — two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'); use for 'is it faster', 'before/after', 'prove the improvement', while intent/outcome confirmation stays with /verify-changes."
 user-invocable: true
-argument-hint: "[performance|metrics] [baseline|compare] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[performance|metrics] [baseline|compare] (e.g., /implementation:verify-improvement performance, /implementation:verify-improvement metrics baseline)"
 disable-model-invocation: false
 ---
 
 ## Purpose
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the metric family and phase.
 
 `/verify-improvement` answers **"did the claimed improvement actually happen, by how much?"** — it MEASURES a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verify-changes` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
 
@@ -21,10 +18,10 @@ The measurement mechanism is SSOT here; the planning stage *routes* to it when a
 
 | Phase | Stage | Who invokes | What it does |
 |-------|-------|-------------|--------------|
-| `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under `<plan-artifact-dir>/baselines/` + record baseline + target in the plan |
+| `baseline` | planning time (plan states a measurable goal) | `/verify-improvement <family> baseline` | Capture pre-change measurements → store under the topic's memory-tier `baselines/` + record baseline + target in the plan |
 | `compare` | after the change (default phase) | `/verify-improvement <family>` | Re-measure under the same conditions → compare to the stored baseline → verify the claim |
 
-Baseline storage: under protocol-resolved `<topic-root>/baselines/`, beside the change's plan artifact.
+Baseline storage: the topic's memory tier — `<memory_dir>/<slug>/baselines/` (default `.work/`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
 
 **Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline — do not add a harness speculatively.
 
@@ -52,7 +49,7 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 | An approved plan states a measurable goal | Run the `baseline` phase BEFORE implementation |
 | Improvement claimed without data (in `/verify-changes`, review, or conversation) | Redirect here — `performance` or `metrics` per the claim |
 | Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold — fix or withdraw it |
-| Measurement complete | Feed the comparison table into the `/verify-changes` outcome report or PR evidence |
+| Measurement complete | Feed the comparison table into the `/verify-changes` outcome report; surface the summary in the plan artifact / PR body |
 
 ## What this skill does NOT do
 

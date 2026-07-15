@@ -1,15 +1,12 @@
 ---
 name: design
 description: "Explore and resolve design decisions — types, contracts, package topology, module boundaries — through collaborative discussion rounds before /architect plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use for 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', or entering /architect without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
-argument-hint: "[scope] [action] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the scope and action.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -29,7 +26,7 @@ The depth of design exploration scales to the work:
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
-Early-exit is diagnostic, not failure. The stage always runs; depth scales to signal. **Gate artifact:** Tier C and light Tier B early-exits MUST produce `<topic-root>/design/design-resolution.md` so `/architect`'s prerequisite check can verify the gate without relying on conversation memory.
+Early-exit is diagnostic, not failure. The stage always runs; depth scales to signal. **Gate artifact:** Tier C and light Tier B early-exits MUST produce `design-resolution.md` in the topic's design slice (`<contract_dir>/<topic-slug>/design/`, default `docs/topics/`; the memory slice under `contract_tier: local`) so `/architect`'s prerequisite check can verify the gate without relying on conversation memory.
 
 ### design-resolution.md (early-exit artifact)
 
@@ -67,7 +64,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-Resolve `<topic-root>` by the artifact protocol. All design artifacts live in `<topic-root>/design/`. Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/architect`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/architect`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 

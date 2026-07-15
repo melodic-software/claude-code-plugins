@@ -1,15 +1,12 @@
 ---
 name: research
 description: "Multi-source external research in three chained phases — broad, targeted + falsification, preferred sources — with per-claim source tiers, recency checks, and a binary outcome gate before presenting. Use to verify a technical claim, evaluate libraries or approaches, compare X vs Y, or ground any decision in current authoritative sources instead of training data."
-argument-hint: "[topic] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[topic] (e.g., /discovery:research <library> <version> best practices, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the research topic.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -167,11 +164,13 @@ If invoked standalone, present findings directly. If invoked as part of a larger
 
 ## Final step: persist artifact for handoff
 
-Resolve `<topic-root>` by the artifact protocol and write the research output to `<topic-root>/RESEARCH.md`. This file is the authoritative summary of the stage — a fresh session must be able to resume planning reading only this artifact.
+Write the research output to `<memory_dir>/<slug>/RESEARCH.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+
+This file is the authoritative summary of the stage — a fresh session must be able to resume planning reading only this artifact.
 
 The artifact opens with a Task restatement, follows the Output Format above, and closes with a Next-stage-handoff (settled facts vs. open decisions for the planning step).
 
-If research spans many topics and RESEARCH.md exceeds ~2000 words, split overflow into sibling `research-<topic>.md` files in the same directory and keep RESEARCH.md as the index.
+If research spans many topics and RESEARCH.md exceeds ~2000 words, split overflow into sibling `RESEARCH-<topic>.md` files in the same directory and keep RESEARCH.md as the index.
 
 **Intra-task pivot — delete stale research, don't layer.** If the approach you researched is abandoned mid-task for a different direction *before shipping*, delete the now-stale RESEARCH.md section and re-run the research on the new direction rather than keeping both — a superseded section misleads the planning step into planning against a dead approach.
 

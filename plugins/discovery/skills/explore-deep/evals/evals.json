@@ -64,12 +64,12 @@
     {
       "id": 6,
       "name": "sidecar-when-artifact-exists",
-      "prompt": "Explore-deep the reporting module. Heads up: an EXPLORE.md for an unrelated onboarding task already exists in the notes directory.",
-      "expected_output": "Avoids clobbering the existing unrelated EXPLORE.md by writing a sidecar explore-<scope-slug>.md in the same directory (kebab-case scope), and surfaces the filename choice in the return summary.",
+      "prompt": "Explore-deep the reporting module. Heads up: an EXPLORE.md for an unrelated onboarding task already exists in the topic's memory directory.",
+      "expected_output": "Avoids clobbering the existing unrelated EXPLORE.md by writing a sidecar EXPLORE-<scope>.md in the same directory (scope slugged per the topic-docs slug spec), and surfaces the filename choice in the return summary.",
       "files": [],
       "expectations": [
         "Output does not overwrite the pre-existing unrelated EXPLORE.md",
-        "Output writes a sidecar file named explore-<scope-slug>.md in the same directory",
+        "Output writes a sidecar file named EXPLORE-<scope>.md in the same directory",
         "Output surfaces the sidecar filename choice in its return summary"
       ]
     }

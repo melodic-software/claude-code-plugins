@@ -102,9 +102,9 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | claude-ops | `userConfig` `registry_dir` + `.claude/observability/` | **missing** | default → plugin-data | ccusage (CLI-first) | absent → #1396 | **GAP → net-new setup issue** (coordinate with #1391's claude-ops telemetry seam) |
 | code-tidying | tracked `.claude/tidy-lanes/**` (seam 2, folder) | **missing** | ships default lanes; consumer overrides | — | present | **GAP → net-new setup issue** (scaffold project lanes) |
 | songwriting | tracked `songwriting/templates/**` override + `${CLAUDE_PROJECT_DIR}/songwriting/` output (seam 2/3) | **missing** | safe default layout + CLAUDE.md precedence; ships default templates, consumer overrides | Datamuse public API (rhyme, no secret, opt-in) | absent → #1396 | **GAP → net-new setup issue** (scaffold project template overrides). Reclassified from pure-reference: 9 action skills (`rhyme`/`co-write`/`suno`/…), not knowledge-only |
-| discovery | tracked project artifact convention | present | explicit args → project instructions → `.work/<topic>` | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | setup covered by shared convention eval | compliant |
-| planning | tracked project artifact convention | present | explicit args → project instructions → `.work/<topic>` | — | present | compliant |
-| implementation | tracked project artifact convention + ecosystem commands | present for ecosystem commands; consumes shared artifact protocol | explicit args → project instructions → `.work/<topic>` | — | present | compliant |
+| discovery | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | perplexity/ref/microsoft-learn declared, not shipped (rule 3) | setup covered by shared convention eval | compliant |
+| planning | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) | present | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
+| implementation | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file) + ecosystem commands | present for ecosystem commands; consumes the shared topic-docs and lifecycle artifact contracts | concern file → CLAUDE.md → infer/ask → default | — | present | compliant |
 | codebase-audit | tracked `.claude/codebase-audit.md` (seam 2) | present | read-existing → interview → write | — | present | compliant (setup exemplar) |
 | knowledge | `userConfig` `library_dir` | present | validate rendered value → `/plugin configure` when needed | — | absent → #1396 | compliant; setup never edits `pluginConfigs`; youtube/course-digest retrofits owned by #1408/#1409 |
 | machine-health | `userConfig` `report_dir` + machine-local overlay | present | overlay persisted; personal scalar delegated to `/plugin configure` | — | absent → #1396 | compliant setup ownership; remaining behavior fixes owned by #1419 |
@@ -115,8 +115,8 @@ No config seam, no hooks, no repo coupling. Nothing to retrofit.
 | playwright | none needed | n/a | — | @playwright/cli (CLI-first) | absent → #1396 | compliant |
 | work-items | tracked `.github/recurring-schedule.json` (seam 2, optional) + backend-neutral `gh` | **partial** | `recheck` requires it; `add --recurring` scaffolds a skeleton (ask-gated); no dedicated re-runnable setup | MCP-neutral (gh CLI) | present | **GAP → net-new setup issue** (dedicated setup for the recurring schedule) |
 | event-storming | none needed | n/a | — | miro STAY (degraded-but-functional) | absent → #1396 | compliant; miro reconcile owned by #1405 |
-| review-toolkit | consumer rules (seam 3) | n/a | — | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
-| session-flow | writes `.claude/handoffs/` (default) | n/a | safe default | — | absent → #1396 | compliant |
+| review-toolkit | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) + consumer rules (seam 3) | n/a | concern file → CLAUDE.md/rules → default | — | absent → #1396 | compliant; ecosystem-commands retrofit owned by #1421 |
+| session-flow | tracked `.claude/topic-docs.yaml` (seam 2, shared concern file — `memory_dir`) | n/a | concern file → CLAUDE.md/rules → default | — | absent → #1396 | compliant |
 | source-control | writes `.claude/worktrees/` (default) | n/a | safe default | — | absent → #1396 | compliant |
 | diagnose | none needed | n/a | — | — | absent → #1396 | compliant |
 | docs-hygiene | none needed | n/a | — | — | absent → #1396 | compliant |

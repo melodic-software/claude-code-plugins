@@ -111,7 +111,7 @@ backfills those not already owned by a plugin-family batch (`discovery/setup` #1
 `songwriting`). A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
 Its first pass covered `bug-report/setup`, `claude-ops/setup`, `work-items/setup`, `ai-briefing/setup`, and
 `planning/setup` (the last two caught as post-filing landings — a scaffold/dep-install setup and a
-repository artifact-convention writer, each with no other eval owner).
+`.claude/topic-docs.yaml` concern-file writer, each with no other eval owner).
 
 ## Skip — pure-reference plugins (2)
 

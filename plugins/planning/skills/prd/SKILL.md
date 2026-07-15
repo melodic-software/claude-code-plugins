@@ -1,15 +1,12 @@
 ---
 name: prd
 description: "Produce a Product Requirements Document that locks product intent — problem, users, success metrics — before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use for 'write a PRD', 'spec out a feature', 'product brief', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /architect)."
-argument-hint: "[tier] [task description] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the tier and task.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
@@ -90,9 +87,9 @@ Spend the first turn grounding yourself, in parallel:
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what protocol-resolved `<topic-root>/` already contains — prior PRD, PLAN, and exploration/research artifacts
+- Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains — prior PRD, PLAN, design artifacts — and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts)
 
-If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why to a sibling `history.md` in the topic directory, then rewrite).
+If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
 Survey output is a one-paragraph summary in your reply. Then transition to depth-first Q&A.
 
@@ -141,7 +138,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5 — Persist the PRD
 
-Resolve `<topic-root>` by the artifact protocol and write `<topic-root>/PRD.md`. `PRD.md` lives alongside `PLAN.md` (architect's output) and any exploration/research artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`) — the topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (architect's output) and the topic's design artifacts.
 
 Frontmatter:
 
@@ -200,7 +197,7 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 - **Does not run exploration or research** — Step 2's survey is a *fast grounding pass*, not deep work. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
 - **Does not gate other skills** — engineering-internal tasks skip `/prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea** — not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
-- **Does not write code, run tests, or modify anything outside the topic's notes directory** — pure product-intent skill
+- **Does not write code, run tests, or modify anything outside the topic's contract and memory slices** — pure product-intent skill
 
 ## Composition with other skills
 
@@ -215,7 +212,7 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 | Plan the implementation | `/architect` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/devils-advocate` | Adversarial pass on `/architect` output (not the PRD) |
 
-`/prd` is sister to `/architect`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the notes directory, and feed each other.
+`/prd` is sister to `/architect`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the contract slice, and feed each other.
 
 ## Gotchas
 

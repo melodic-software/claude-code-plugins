@@ -1,52 +1,62 @@
 ---
 name: setup
-description: "Configure the repository-owned artifact convention used by discovery, planning, and implementation skills. Use when asked to set up discovery, choose where lifecycle artifacts land, or reconcile an existing work-artifact convention. Re-runnable and idempotent."
-argument-hint: "[--artifacts-dir <repo-relative-directory>]"
+description: "Configure where discovery artifacts land in this repository: interview the user and persist the tracked topic-docs concern file (.claude/topic-docs.yaml). Use when: 'set up discovery', 'configure the discovery plugin', 'discovery setup', 'where do EXPLORE.md / RESEARCH.md land', or a discovery skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure."
+argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Establish one portable, repository-owned base directory for lifecycle artifacts. This setup never edits
-`pluginConfigs`, plugin files, or user-global settings. Personal plugin configuration is not a safe
-coordination surface for files shared by a repository.
+Settle the **topic-docs** seam for the consuming repo — the marketplace-wide convention for where
+plugin-generated documents land. The discovery plugin writes memory-tier artifacts (`EXPLORE.md`,
+`RESEARCH.md`, one `<slug>/` slice per topic) to `<memory_dir>/<slug>/`, never committed. The
+consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its schema
+is published at
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/topic-docs.schema.json> —
+every key optional, absent keys mean the documented defaults (`contract_dir: docs/topics`,
+`memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). How the discovery skills consume what this skill
+persists: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
-## Protocol
+Idempotent: re-running reads the current state and offers an update rather than overwriting blind.
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md` before proposing or writing configuration.
+## Task
 
-## Workflow
-
-1. Find the repository root with `git rev-parse --show-toplevel`. Stop visibly if the current directory
-   is not in a repository.
-2. Read the repository's loaded project instructions: root `CLAUDE.md`, `AGENTS.md`, `.claude/CLAUDE.md`,
-   and `.claude/rules/*.md`. Look for an explicit lifecycle/work-artifact base directory.
-3. Inspect existing candidate directories only for evidence. Never infer from a machine-absolute path,
-   a gitignored personal directory, or a plugin cache path.
-4. Resolve a proposal in this order:
-   - `$ARGUMENTS` supplies `--artifacts-dir`: validate and propose that value.
-   - The repository already declares a convention: preserve it unless the user requests a change.
-   - Otherwise recommend `.work`.
-5. Validate the proposed base: it must be repository-relative, must not contain a `..` segment, and its
-   normalized path must remain under the repository root. Reject invalid values with a visible reason.
-6. Present the single proposed value and the exact file/edit that would record it. Write nothing until
-   the user accepts.
-7. Persist the accepted convention in an existing project-instruction surface when one clearly owns
-   work-artifact conventions. Otherwise create `.claude/rules/work-artifacts.md` with this concise rule:
-
-   ```markdown
-   # Work artifacts
-
-   Discovery, planning, and implementation artifacts use `<artifact-base>/<topic-slug>/`.
-   The repository artifact base is `<accepted-value>`.
-   ```
-
-8. Preserve unrelated content, confirm the instruction file is tracked rather than gitignored, and
-   summarize the effective base. Re-running reads the existing declaration first and does not rewrite an
-   equivalent value.
+1. **Read the current state first.** If `.claude/topic-docs.yaml` exists, report its effective values
+   (absent keys = defaults); the interview proposes changes against that baseline.
+2. **Infer before asking.** With no concern file, look for a working-docs convention declared in the
+   repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules` (surface it as the recommended value — prose
+   is an inference source; the concern file this skill writes is the runtime authority), or an existing
+   conforming layout (`.work/` with a self-ignore, `docs/topics/`) that the proposed values would
+   simply confirm.
+3. **Interview — one question, recommendation first.** Present the inferred or documented defaults
+   (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
+   `vault_backend: docs` — RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
+   solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
+   consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
+   existing file carries — a re-run never drops one; do not invent options beyond the schema.
+4. **Guard, then persist.** Run the conflict check first — only when the chosen tier is `branch`
+   (local mode has no committed tier to guard): `git check-ignore -v` on a representative
+   file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory
+   misses `**` patterns) — if a consumer ignore rule matches, STOP and surface the exact rule and source line rather
+   than configuring an uncommittable "committed" tier (resolving the rule is the user's edit). Only
+   then write the chosen values to the tracked `.claude/topic-docs.yaml` (create or update; omit keys
+   the user leaves at their defaults, but always write at least one explicit key — a comment-only
+   YAML document parses as null and fails the contract schema's `type: object`). Verify-or-create
+   the memory root's self-ignoring `.gitignore`
+   (announce the creation). **Never edit the consumer's root `.gitignore`.**
 
 ## Output
 
-The accepted repository instruction change plus a one-line summary. If the user declines persistence,
-report that invocations may still use `--artifacts-dir` and that the default remains `.work`.
+A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line summary of what was
+written and how to re-run this setup to reconfigure. Note in the summary that the concern file
+governs where every discovery skill (`/discovery:explore`, `/discovery:research`, and their `-deep`
+variants) lands handoff artifacts.
+
+## What this skill does NOT do
+
+- Run an exploration or research pass — that is the plugin's discovery skills (`/discovery:explore`,
+  `/discovery:research`, and their `-deep` variants).
+- Write machine-local state — configuration lives in the consumer's tracked concern file, never in the
+  plugin directory or the plugin data directory (`${CLAUDE_PLUGIN_DATA}` is for caches and generated
+  state only).

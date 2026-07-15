@@ -1,15 +1,12 @@
 ---
 name: explore
 description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration. Use as step 1 before any code change, for 'what exists for X' investigation, or in blindspot mode to surface the user's unknown-unknowns in unfamiliar territory."
-argument-hint: "[scope] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config, /discovery:explore blindspot <area-or-domain>)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the exploration scope.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
@@ -156,11 +153,11 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 
 ## Final step: persist artifact for handoff
 
-Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: resolve `<topic-root>` by the artifact protocol and write `<topic-root>/EXPLORE.md`. This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact.
+Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
+This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact. The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
 
-If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split overflow into sibling `explore-<topic>.md` files in the same directory and keep EXPLORE.md as the index.
+If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split overflow into sibling `EXPLORE-<scope>.md` files in the same directory and keep EXPLORE.md as the index.
 
 ## Gotchas
 

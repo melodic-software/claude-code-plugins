@@ -1,15 +1,12 @@
 ---
 name: research-deep
 description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Use for broad, multi-source, comparison, or migration research; for a single small lookup use the research skill directly."
-argument-hint: "[topic] [--artifacts-dir <dir>] [--topic <slug>]"
+argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
 ## Pre-computed context
-
-Artifact protocol: read `${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`; remove its two optional
-flags from `$ARGUMENTS` before interpreting the research topic.
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
@@ -27,7 +24,7 @@ If no topic was provided, infer it from the current conversation — identify th
 
 ## Dispatch decision (multi-topic check, then three tiers)
 
-**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). Each agent writes its own artifact as a sibling `research-<topic>.md`; the main session then synthesizes `RESEARCH.md` from the per-topic artifacts. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
+**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). Each agent writes its own artifact as a sibling `RESEARCH-<topic>.md`; the main session then synthesizes `RESEARCH.md` from the per-topic artifacts. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
 
 For a single-topic ask, detection is **engine-biased**: prefer the heaviest available tier UNLESS the task is clearly small/targeted. Unknown scope or any doubt → heavier tier.
 
@@ -43,7 +40,7 @@ For a single-topic ask, detection is **engine-biased**: prefer the heaviest avai
 
 ### Tier 1 — workflow engine (preferred)
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination (`<topic-root>/RESEARCH.md`, resolved by the artifact protocol). The engine runs in the background; its completion notification carries the summary + artifact path. Surface those to the user. Do **NOT** re-run the research inline.
+If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first — a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination — `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Surface those to the user. Do **NOT** re-run the research inline.
 
 If no workflow engine resolves, fall through to Tier 2.
 
