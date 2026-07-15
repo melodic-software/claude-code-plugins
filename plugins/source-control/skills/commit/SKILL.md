@@ -38,7 +38,11 @@ Compliant examples:
 ## Task
 
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
-2. Stage the intended files, but first check each for a pre-existing partial-staging split (`git diff --cached --stat -- <path>` non-empty AND `git diff --stat -- <path>` also non-empty, checked *before* this step touches anything): a path already in that state has hunks the user deliberately left unstaged, so leave it as-is rather than running `git add <path>` over it — a blanket add would sweep those unstaged hunks in too. Run `git add <path>...` only for paths not already in a partial-staging split.
+2. Stage the intended files, but first check each path against two pre-existing conditions — *before* this step touches anything:
+   - **Already-staged deletion.** `git diff --cached --name-status -- <path>` reports `D` (e.g. from a prior `git rm --cached <path>`). A deletion staged this way can leave a file present in the worktree (untracked or otherwise), so `git diff --stat -- <path>` reads empty and would not flag it as a partial-staging split — but a blanket `git add <path>` would re-add the file and silently clear the intended deletion. Skip any path already staged as `D` entirely; never `git add` over it.
+   - **Partial-staging split.** `git diff --cached --stat -- <path>` non-empty AND `git diff --stat -- <path>` also non-empty. A path already in that state has hunks the user deliberately left unstaged, so leave it as-is rather than running `git add <path>` over it — a blanket add would sweep those unstaged hunks in too.
+
+   Run `git add <path>...` only for paths not already staged as `D` and not already in a partial-staging split.
 3. Run the format-before-push check below against the files just staged for this commit (not the full staged set — see the pathspec note in that check), if a local formatter/linter is discoverable, re-staging any fixes.
 4. Run the exec-bit check below on any newly-added file — **after** step 3, not before: a formatter re-stage in step 3 reads the worktree file mode, so setting the exec bit any earlier would be silently undone by that later `git add`.
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
@@ -129,18 +133,22 @@ When the tool supports it, also pass its ignore-unknown mode (e.g., Prettier's `
 
 Run this **after** the format-before-push check above, not before: setting the exec bit any earlier would be silently undone once the format check's re-stage runs `git add` again. Running the exec-bit check last makes it the final mutation for the affected paths.
 
-For every newly-added file (not previously tracked) whose first line is a shebang (`#!`), confirm both the worktree permission bits and the index recorded it as executable — not the index alone. `git update-index --chmod=+x` only overrides the index entry; it leaves the worktree file's actual mode untouched. A worktree/index mismatch causes three separate failure modes: `git status` reports a mode-only diff immediately after commit, a later `git add <path>` re-reads the still-`0644` worktree mode and reverts the index back to `100644`, and the pathspec-limited commit form below (`git commit -- <path>`, `--only` mode) records the **worktree** mode rather than the index — so an index-only fix still ships a non-executable blob. Set the worktree bit first, then the index, so both agree before either the plain or pathspec commit form runs:
+For every newly-added file (not previously tracked) whose first line is a shebang (`#!`), confirm both the worktree permission bits and the index recorded it as executable — not the index alone. `git update-index --chmod=+x` only overrides the index entry; it leaves the worktree file's actual mode untouched. A worktree/index mismatch causes three separate failure modes: `git status` reports a mode-only diff immediately after commit, a later `git add <path>` re-reads the still-`0644` worktree mode and reverts the index back to `100644`, and the pathspec-limited commit form below (`git commit -- <path>`, `--only` mode) records the **worktree** mode rather than the index — so an index-only fix still ships a non-executable blob. Set the worktree bit first, then the index, so both agree before either the plain or pathspec commit form runs.
+
+**Skip symlinks first.** Check the staged mode via `git ls-files --stage -- <path>` before probing for a shebang at all. A symlink is staged as mode `120000`, not `100644`/`100755`; git tracks the symlink's own mode, not the target's, so exec-bit semantics don't apply to it. Following the link to read or `chmod` the target would operate on a file that may sit outside the repo entirely, and `git update-index --chmod=+x` fails outright on a `120000` entry. Only proceed to the shebang probe for paths staged as `100644` or `100755`:
 
 ```bash
 for f in <newly-added paths>; do
+  mode=$(git ls-files --stage -- "$f" | cut -d' ' -f1)
+  case "$mode" in 100644|100755) ;; *) continue ;; esac  # skip symlinks (120000) and other non-regular modes
   head -c 2 -- "$f" | grep -q '^#!' || continue
-  git ls-files --stage -- "$f" | grep -q '^100755' && [ -x "$f" ] && continue
+  [ "$mode" = "100755" ] && [ -x "$f" ] && continue
   chmod +x -- "$f"
   git update-index --chmod=+x -- "$f"
 done
 ```
 
-Scope this to files newly added in the current change set, not a full-repo sweep. Already-tracked files that were already executable, and files without a shebang, need no action.
+Scope this to files newly added in the current change set, not a full-repo sweep. Already-tracked files that were already executable, files without a shebang, and symlinks need no action.
 
 ## Pathspec-limited commits (dirty shared index)
 
