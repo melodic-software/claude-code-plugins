@@ -9,11 +9,12 @@ disable-model-invocation: true
 ## Purpose
 
 Write (or update) the consuming repo's tracked commit-subject / PR-title convention at
-`.claude/source-control.md` so `/source-control:commit` and `/source-control:pull-request` resolve it
-deterministically instead of falling back to Conventional Commits by default every run. Conventional
-Commits is genuinely optional — some orgs gate on ticket-prefixed subjects (`WEB-123: description`)
-instead — so the plugin ships a sensible default, not a hardcoded requirement. Idempotent: re-running
-reads the existing config and offers updates rather than overwriting blind.
+`${CLAUDE_PROJECT_DIR}/.claude/source-control.md` so `/source-control:commit` and
+`/source-control:pull-request` resolve it deterministically instead of falling back to Conventional
+Commits by default every run. Conventional Commits is genuinely optional — some orgs gate on
+ticket-prefixed subjects (`WEB-123: description`) instead — so the plugin ships a sensible default, not
+a hardcoded requirement. Idempotent: re-running reads the existing config and offers updates rather than
+overwriting blind.
 
 ## Task
 
@@ -21,10 +22,15 @@ Apply the convention-resolution ladder — config present → use it and offer u
 from the repo and persist what the user accepts; cannot infer → ask and offer to persist; else the
 safe default (Conventional Commits).
 
-1. **Read the current config first.** If `.claude/source-control.md` exists, load it and present a
-   short summary (`subject_pattern`, `type_list` if present, `pr_title_pattern`, `trailer_policy` if
-   present). The interview proposes changes against that baseline; nothing is overwritten without the
-   user confirming.
+0. **Anchor at the repo root before any read or write.** Resolve it via `${CLAUDE_PROJECT_DIR}` (fall
+   back to `git rev-parse --show-toplevel` if that variable is unset) and use that root for every path
+   below — never a path relative to the current working directory. Invoked from a nested directory, a
+   cwd-relative path would read and write the wrong `.claude/source-control.md`, and a later
+   `/commit` or `/pull-request` run from the repo root would miss the persisted convention.
+1. **Read the current config first.** If `${CLAUDE_PROJECT_DIR}/.claude/source-control.md` exists, load
+   it and present a short summary (`subject_pattern`, `type_list` if present, `pr_title_pattern`,
+   `trailer_policy` if present). The interview proposes changes against that baseline; nothing is
+   overwritten without the user confirming.
 2. **Infer before asking.** With no config file, look for an existing declared or enforced convention,
    in this order, and surface which signal produced the candidate:
    - The repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules` — prose stating a commit-message or
@@ -36,8 +42,10 @@ safe default (Conventional Commits).
      rather than assuming `.git/hooks` — in a linked worktree `.git` is a file, not a
      directory, and the hooks directory (or a `core.hooksPath` override) can live elsewhere;
      `git rev-parse --git-path hooks` resolves it correctly in both cases.
-   - Recent history — `git log --oneline -50` (or more) for a stable, repeating subject shape (e.g.
-     every subject matches `^[A-Z]+-\d+: .+`, or every subject is already Conventional-Commits-shaped).
+   - Recent history — `git log --format=%s -50` (or more; subjects only, no abbreviated commit hash —
+     `git log --oneline` prefixes every subject with one and will break anchored matching) for a
+     stable, repeating subject shape (e.g. every subject matches `^[A-Z]+-\d+: .+`, or every subject is
+     already Conventional-Commits-shaped).
    Present the inferred candidate as the recommendation, naming the source it came from. If nothing is
    inferable, say so plainly and move to the interview with the bundled default as the recommendation.
 3. **Interview, one decision at a time, recommendation first.** Ask: "What commit-subject / PR-title
@@ -70,7 +78,8 @@ safe default (Conventional Commits).
      attribution trailer, and its exact template. Recommend keeping `/commit`'s default
      (`Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`) unless the user states
      otherwise. Omit this section entirely if the repo has no trailer convention.
-5. **Write the config.** Materialize `.claude/source-control.md` with these sections:
+5. **Write the config.** Materialize `${CLAUDE_PROJECT_DIR}/.claude/source-control.md` with these
+   sections:
 
    ```markdown
    # source-control configuration
@@ -101,10 +110,10 @@ safe default (Conventional Commits).
 
    Drop any section with no content (`type_list` for a non-Conventional-Commits pattern;
    `trailer_policy` when there is no trailer convention) rather than leaving it empty. Then verify the
-   file is tracked, not ignored: run `git check-ignore -v .claude/source-control.md` — it must report
-   nothing. A non-empty result means a `.gitignore` pattern excludes it; surface the matching pattern
-   and offer to fix `.gitignore` before reporting success, since this file is team-shared and must be
-   committed to take effect.
+   file is tracked, not ignored: run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/.claude/source-control.md"`
+   — it must report nothing. A non-empty result means a `.gitignore` pattern excludes it; surface the
+   matching pattern and offer to fix `.gitignore` before reporting success, since this file is
+   team-shared and must be committed to take effect.
 
 ## Output
 
