@@ -44,6 +44,21 @@ test("absent profile brand.json returns copies of the neutral defaults", async (
   });
 });
 
+test("legacy brand.js profiles fail with an explicit migration message", async () => {
+  await withProfile(null, async (configDir) => {
+    await writeFile(
+      path.join(configDir, "brand.js"),
+      'export const brand = { org: "Legacy Engineering" };',
+      "utf-8",
+    );
+
+    await assert.rejects(
+      () => resolve(configDir),
+      /Legacy profile branding.*Convert brand\.js to declarative brand\.json.*no longer supported/,
+    );
+  });
+});
+
 test("profile overlay wins per key and preserves unmentioned defaults", async () => {
   await withProfile(
     {

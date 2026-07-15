@@ -75,6 +75,12 @@ function resolveLogo(configDir, value) {
 export async function resolveBrand({ defaultBrand, defaultTheme, configDir }) {
   const overlayPath = path.join(configDir, "brand.json");
   if (!fs.existsSync(overlayPath)) {
+    const legacyOverlayPath = path.join(configDir, "brand.js");
+    if (fs.existsSync(legacyOverlayPath)) {
+      throw new Error(
+        `Legacy profile branding found at ${legacyOverlayPath}. Convert brand.js to declarative brand.json before building; executable profile overlays are no longer supported.`,
+      );
+    }
     return { brand: { ...defaultBrand }, theme: { ...defaultTheme } };
   }
 
