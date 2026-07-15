@@ -20,6 +20,14 @@ This skill manages **development work items** — maintenance tasks, feature req
 
 **Label taxonomy.** Work items are classified along a prefix-axis grammar — UNIVERSAL axes (work in any repo) plus REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here: discover them live through the bound tracker adapter. When the consuming repository declares a label-as-code source of truth, that system owns writes and this skill remains read-only. The **type axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it; otherwise use the repository's live `type:` labels. Three meta labels are **canonical roles** — `autonomous-eligible`, `human-gated`, `recurring-maintenance` — whose repo-actual strings resolve from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs-human` / `recurring`; see [`reference/label-taxonomy.md`](reference/label-taxonomy.md) "Canonical roles"). The grammar and citations live in [`reference/label-taxonomy.md`](reference/label-taxonomy.md).
 
+**Role-label resolution is an action-entry invariant.** At the start of every action that queries,
+creates, or filters items by a canonical role, read `.work-item-tracker.json` and resolve each role the
+action uses from `config.role_labels`; an absent file or absent entry uses the documented default.
+Keep those resolved strings for that invocation and use them in every adapter query and core-side
+label comparison. Never put a default literal such as `recurring` into a provider query after the
+role has been remapped. A present binding with invalid JSON, a non-string role value, or an empty
+role value is a configuration error: stop and report it rather than silently querying the default.
+
 | Axis | Mechanism | Scope | What it encodes |
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task` — the kind of issue; commit-type granularity stays at the commit layer |

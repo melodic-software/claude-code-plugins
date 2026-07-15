@@ -10,6 +10,12 @@ Show recurring items that are past their `next_due` date.
 
 ## Workflow
 
+1. **Resolve the recurring-maintenance role label before any tracker read.** Read
+   `.work-item-tracker.json` at action entry and resolve
+   `config.role_labels["recurring-maintenance"]`; use `recurring` only when the file or entry is
+   absent. Stop on a malformed, empty, or non-string configured value. Use the resolved string in
+   every adapter filter below.
+
 1. **Read the recurring schedule:**
 
 Read `.github/recurring-schedule.json` and filter items where `next_due <= today`. When the file is absent, report "no recurring schedule configured" and stop. Use jq for the initial filter:
@@ -29,7 +35,11 @@ fi
 
 For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
 
-1. **Cross-reference with open items.** For each due recurring item, check if one already exists (adapter: "List items", `--label recurring`, bare read). Match against the FULL expected title `[Maintenance] {schedule item title}` — never by the bare `[Maintenance]` prefix alone (that would let any recurring item satisfy every due row), and never by a prefix/substring of the title (a shorter title would spuriously match a longer item).
+1. **Cross-reference with open items.** For each due recurring item, check if one already exists
+   (adapter: "List items", `--label <resolved recurring-maintenance label>`, bare read). Match against
+   the FULL expected title `[Maintenance] {schedule item title}` — never by the bare `[Maintenance]`
+   prefix alone (that would let any recurring item satisfy every due row), and never by a
+   prefix/substring of the title (a shorter title would spuriously match a longer item).
 
 1. **Check for orphaned entries.** Only **due** entries can be orphaned — the recurring automation creates a tracker item only once an entry reaches `next_due <= today`, so a healthy future entry (`next_due > today`) legitimately has no open item and is NOT orphaned. Filter to due entries before flagging missing items:
 

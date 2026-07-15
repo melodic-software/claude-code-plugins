@@ -5,10 +5,10 @@
       "id": 1,
       "name": "preserve-both-intents-dual-edit",
       "prompt": "My rebase onto main stopped with a conflict in src/http/retry.ts. On main someone renamed the maxRetries option to maxAttempts across the retry module; my commit adds a new backoffJitter option to the same options object and threads it through the retry loop. Resolve the conflict.",
-      "expected_output": "The skill reads the history behind both sides before editing (git log --merge / range logs, commit messages), states each side's intent, notes the rebase ours/theirs inversion, and produces a composed resolution: the renamed maxAttempts option AND the new backoffJitter option both survive. It then sweeps for other uses of the old maxRetries name (including in the newly added jitter threading), runs the project's typecheck/tests, and continues the rebase.",
+      "expected_output": "The skill identifies the rebase stop and reads operation-specific history before editing: the current-side range from the merge base to HEAD and the exact REBASE_HEAD commit being replayed, including its patch and commit message. It states each side's intent, notes the rebase ours/theirs inversion, and produces a composed resolution: the renamed maxAttempts option AND the new backoffJitter option both survive. It then sweeps for other uses of the old maxRetries name (including in the newly added jitter threading), runs the project's typecheck/tests, and continues the rebase.",
       "files": [],
       "expectations": [
-        "History for BOTH sides is read (git log --merge and/or merge-base range logs, commit messages) before any hunk is edited",
+        "History for BOTH sides is read before any hunk is edited using the rebase-specific REBASE_HEAD commit plus the current-side merge-base range — not a MERGE_HEAD-only command",
         "The resolution composes both changes — maxAttempts rename kept AND backoffJitter option kept — rather than picking one side",
         "The ours/theirs inversion during rebase is handled correctly (upstream is 'ours', the replayed commit is 'theirs')",
         "After textual resolution, the tree is checked for remaining references to the old maxRetries name and the project's gates run before git rebase --continue"
@@ -38,6 +38,19 @@
         "The stale formatUser() call site introduced by the branch is found and updated to renderUser()",
         "Build/typecheck and tests run and pass BEFORE the merge is concluded or declared done",
         "The merge is concluded via git merge --continue with surgical staging, never git add -A"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cherry-pick-history-uses-the-pick-pseudoref",
+      "prompt": "A cherry-pick stopped with a conflict in src/billing/rules.ts. Recover both intents before resolving it. There is no MERGE_HEAD in this stop.",
+      "expected_output": "The skill identifies a cherry-pick in progress, reads the target-side history from a merge base to HEAD, and inspects the exact CHERRY_PICK_HEAD commit and patch being applied. It does not assume MERGE_HEAD or run a merge-only history command. Only after stating both intents does it resolve the hunk, sweep for semantic conflicts, run the project gates, and continue with git cherry-pick --continue.",
+      "files": [],
+      "expectations": [
+        "Uses CHERRY_PICK_HEAD to inspect the exact commit and patch being picked",
+        "Reads current-side history from an explicit merge-base-to-HEAD range before editing",
+        "Does not assume MERGE_HEAD exists or substitute a merge-only history command",
+        "Continues with git cherry-pick --continue only after the semantic sweep and project gates pass"
       ]
     }
   ]

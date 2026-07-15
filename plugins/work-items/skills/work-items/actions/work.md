@@ -30,6 +30,14 @@ Before selecting, clear stale claims left by crashed or abandoned sessions (an i
 
 ## Workflow
 
+### Role-label preflight
+
+Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
+`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
+empty, or non-string configured value. Use the resolved string for every recurring/non-recurring
+filter and every adapter query in this action; do not compare labels against the default literal after
+a remap.
+
 ### Step 1: Find candidates
 
 For each tier, emit the corresponding query:
@@ -52,13 +60,13 @@ For each tier, emit the corresponding query:
   "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" list-frontier --autonomous
   ```
 
-  `--autonomous` additionally excludes items carrying the human-gated role label (`needs-human` by default — [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md) "Canonical roles"). Tier 2 keeps only `area: guardrails` non-recurring; tier 3 keeps the rest. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
+  `--autonomous` additionally excludes items carrying the human-gated role label (`needs-human` by default — [`../reference/label-taxonomy.md`](../reference/label-taxonomy.md) "Canonical roles"). Tier 2 keeps only `area: guardrails` items that do not carry the resolved recurring-maintenance label; tier 3 keeps the rest of that non-recurring set. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
 
 Tiers flagged `last-resort: true` are skipped if any prior tier yielded a candidate.
 
 ### Step 2: Cross-reference with open items
 
-For tier 1 and tier 4 (recurring candidates), cross-reference against open items — the recurring-issues automation may have already created one (adapter: "List items", `--label recurring`). Pass an explicit `--limit` covering every open recurring issue: the default truncation would silently drop rows, so a bare read can miss an existing `[Maintenance]` issue and wrongly fall through to the create path below, duplicating it — page per the adapter "List items" note if they exceed the max page size. Match against the FULL expected title `[Maintenance] {schedule item title}` — exact match, never a prefix or substring. A prefix match would let a shorter title (`[Maintenance] Review CI`) spuriously match a longer item (`[Maintenance] Review CI workflow pins`), so one schedule row could be treated as already holding another row's item and skip creating its own. This mirrors the same exact-title rule in the `due` action.
+For tier 1 and tier 4 (recurring candidates), cross-reference against open items — the recurring-issues automation may have already created one (adapter: "List items", `--label <resolved recurring-maintenance label>`). Pass an explicit `--limit` covering every open recurring issue: the default truncation would silently drop rows, so a bare read can miss an existing `[Maintenance]` issue and wrongly fall through to the create path below, duplicating it — page per the adapter "List items" note if they exceed the max page size. Match against the FULL expected title `[Maintenance] {schedule item title}` — exact match, never a prefix or substring. A prefix match would let a shorter title (`[Maintenance] Review CI`) spuriously match a longer item (`[Maintenance] Review CI workflow pins`), so one schedule row could be treated as already holding another row's item and skip creating its own. This mirrors the same exact-title rule in the `due` action.
 
 **Due-recurring tiers (`where: 'next_due <= today'`):** if no open item exists, create one via the `add` action pattern before claiming. These items are actionable now — dead-ending without an item to hold would strand work.
 

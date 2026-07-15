@@ -48,8 +48,11 @@ Binding shape (every entry optional; unlisted roles keep their defaults):
 }
 ```
 
-Resolve the mapping once per session and use the resolved strings wherever a role is meant. Two
-constraints on remapping:
+Resolve the mapping at the start of every action invocation that uses a role and use the resolved
+strings in every provider query and core-side label comparison for that invocation. Do not cache a
+mapping across invocations: the tracked binding may change between them. An absent file or absent
+entry uses the default; a present malformed, empty, or non-string entry is a configuration error,
+not permission to fall back silently. Two constraints on remapping:
 
 - **`human-gated` is shared with the seam.** `list-frontier --autonomous` excludes items by that
   label, and the shipped seam reads `needs-human`; remap this role only when the bound seam

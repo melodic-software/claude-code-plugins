@@ -10,6 +10,12 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 
 ## Workflow
 
+1. **Resolve the recurring-maintenance role label before any tracker read.** Read
+   `.work-item-tracker.json` at action entry and resolve
+   `config.role_labels["recurring-maintenance"]`; use `recurring` only when the file or entry is
+   absent. Stop on a malformed, empty, or non-string configured value. Use the resolved string in
+   the search below.
+
 1. **Find the item in the recurring schedule:**
 
 ```bash
@@ -42,7 +48,14 @@ Re-read the current file from disk immediately before writing (the schedule is s
 - If `next_due <= today`: set `next_due` to today + cadence days
 - If `next_due > today`: leave `next_due` unchanged (already advanced by the recurring workflow)
 
-1. **Close the associated item** (if one exists). Search for open items with the `recurring` label (adapter: "Search items", `label:recurring` + the `[Maintenance]` title, bare read). Provider search is substring/prefix, not exact-title equality, so **filter the results to the item whose title equals `[Maintenance] {title}` exactly** before closing — otherwise a shorter title (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment "Rechecked YYYY-MM-DD. Next due: <next_due>.".
+1. **Close the associated item** (if one exists). Search for open items with the resolved
+   recurring-maintenance label (adapter: "Search items",
+   `label:<resolved recurring-maintenance label>` + the `[Maintenance]` title, bare read). Provider
+   search is substring/prefix, not exact-title equality, so **filter the results to the item whose
+   title equals `[Maintenance] {title}` exactly** before closing — otherwise a shorter title
+   (`Review CI`) could close a longer item's issue (`[Maintenance] Review CI workflow pins`). Close
+   only the exact match, with a recheck comment (adapter: "Close item"), reason `completed`, comment
+   "Rechecked YYYY-MM-DD. Next due: <next_due>.".
 
 1. **Confirm:** "Rechecked: **{title}**. Next due: **{next_due}**"
 

@@ -75,12 +75,14 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-4. **Check the recurring-maintenance role label is present — it is load-bearing, not optional.** The
-   role's label is `recurring` by default, remappable via the binding (see "Canonical role labels"
-   below); the checks in this step run against the resolved string. `due` / `work`
-   enumerate open maintenance items by the `recurring` label (adapter: "List items", `--label
-   recurring`), and the create path filters out labels the repo lacks — so if you write a schedule while
-   the `recurring` label is absent, the first `[Maintenance]` item created (by the recurring automation
+4. **Resolve and check the recurring-maintenance role label — it is load-bearing, not optional.**
+   Before the first tracker read, resolve the role from `.work-item-tracker.json`
+   `config.role_labels["recurring-maintenance"]`, defaulting to `recurring` only when the file or entry
+   is absent. A malformed, empty, or non-string configured value is an error, not a fallback. The
+   checks in this step and every later setup query use the resolved string. `due` / `work` enumerate
+   open maintenance items with that resolved label, and the create path filters out labels the repo
+   lacks — so if you write a schedule while the resolved label is absent, the first `[Maintenance]`
+   item created (by the recurring automation
    or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
    pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's label listing
    (for the GitHub adapter, `gh label list`). **When the repository declares a label-as-code source
@@ -111,10 +113,11 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
 6. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
    row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
    longer carries that title, so `due` / `work` — which derive recurring candidates only from the
-   schedule, and whose frontier tiers exclude `recurring`-labeled items — will never surface it again,
+   schedule, and whose frontier tiers exclude items carrying the resolved recurring-maintenance label — will never surface it again,
    leaving it stale outside the normal flow (a rename additionally risks a duplicate under the new
    title). For each renamed or dropped existing row, look up its open item under the OLD title (adapter:
-   "Search items", `--label recurring`). Provider search is substring/prefix, not exact-title equality,
+   "Search items", `--label <resolved recurring-maintenance label>`). Provider search is
+   substring/prefix, not exact-title equality,
    so it can return a longer item (`[Maintenance] Review CI workflow pins`) when the old title was
    `Review CI` — **filter the results to the one whose title equals `[Maintenance] {old title}`
    exactly** before acting, and never reconcile against a mere prefix/substring match. When exactly one

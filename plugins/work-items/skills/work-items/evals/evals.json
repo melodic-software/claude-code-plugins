@@ -84,6 +84,58 @@
         "Performs no triage writes on the item — no label changes, no needs-info comment, no close",
         "Notes the attention view excludes decompose output by construction (born-labeled items never land in the unlabeled or needs-triage buckets)"
       ]
+    },
+    {
+      "id": 7,
+      "name": "due-resolves-remapped-recurring-role-before-listing",
+      "prompt": "/work-items:work-items due\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep. There are open scheduled-upkeep items, but no label named recurring.",
+      "expected_output": "At action entry, the due flow reads .work-item-tracker.json, resolves recurring-maintenance to scheduled-upkeep, and uses that exact label in its open-item listing before exact-title reconciliation. It never queries --label recurring and therefore does not misreport existing maintenance items as orphaned.",
+      "files": [],
+      "expectations": [
+        "Reads config.role_labels[recurring-maintenance] before the first tracker query",
+        "Lists open items with the resolved scheduled-upkeep label rather than the default recurring literal",
+        "Still exact-matches the full [Maintenance] title after label filtering",
+        "Does not report an existing remapped maintenance item as orphaned"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "work-excludes-and-cross-references-remapped-recurring-role",
+      "prompt": "/work-items:work-items work\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep. Both due maintenance and ordinary frontier items exist.",
+      "expected_output": "The work flow resolves recurring-maintenance to scheduled-upkeep before selection. It excludes scheduled-upkeep items from the non-recurring frontier tiers and uses scheduled-upkeep when listing open items for the recurring tiers. It never compares against or queries the default recurring literal.",
+      "files": [],
+      "expectations": [
+        "Resolves the recurring-maintenance label before any tracker read",
+        "Excludes items carrying scheduled-upkeep from non-recurring frontier tiers",
+        "Uses --label scheduled-upkeep when cross-referencing recurring candidates",
+        "Does not fall back to the recurring literal after a valid remap"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "recheck-closes-remapped-recurring-item",
+      "prompt": "/work-items:work-items recheck dependency-review\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep, and the associated open item carries only scheduled-upkeep.",
+      "expected_output": "The recheck flow resolves recurring-maintenance to scheduled-upkeep at action entry, updates the matched schedule row, searches open items with label:scheduled-upkeep plus the maintenance title, exact-filters the result, and closes the correct item. It never searches label:recurring.",
+      "files": [],
+      "expectations": [
+        "Resolves the recurring-maintenance role before searching tracker items",
+        "Searches with label:scheduled-upkeep rather than label:recurring",
+        "Exact-matches the full [Maintenance] title before closing",
+        "Updates only the matched schedule row and closes only its associated item"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "audit-detects-orphans-under-remapped-recurring-role",
+      "prompt": "/work-items:work-items audit\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep. Existing maintenance items use that label exclusively.",
+      "expected_output": "The audit resolves recurring-maintenance to scheduled-upkeep before tracker reads and uses --label scheduled-upkeep for orphan reconciliation. Existing maintenance items remain visible, so the audit does not produce false orphan findings from an obsolete recurring query.",
+      "files": [],
+      "expectations": [
+        "Resolves the recurring-maintenance role at audit entry",
+        "Lists recurring items with the resolved scheduled-upkeep label",
+        "Does not query the default recurring literal after the remap",
+        "Does not falsely flag schedule entries whose remapped open items exist"
+      ]
     }
   ]
 }

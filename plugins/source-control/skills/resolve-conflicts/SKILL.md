@@ -29,8 +29,24 @@ Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry
    - Sides orientation: during a **merge**, `ours` = your branch (HEAD), `theirs` = the branch being merged in. During a **rebase** the labels invert — `ours` = the upstream you are rebasing onto, `theirs` = your own commit being replayed. Fix this orientation in mind before reading any hunk; misreading it is how the wrong side gets kept.
 
 2. **Recover both intents.** For each conflicted path, before editing anything:
-   - `git log --merge --oneline -- <path>` — the commits from both sides that touched the conflicted paths (works during merge, rebase, cherry-pick, and revert; the pseudoref is picked automatically).
-   - Range logs for a fuller picture: `git log $(git merge-base HEAD <counterpart>)..HEAD -- <path>` and the symmetric `..<counterpart>` range.
+   - Use the operation-specific row below. Do not assume every stop has `MERGE_HEAD`, and do not use
+     one generic history command as a substitute for identifying the operation first. In every row,
+     replace `<path>` with the conflicted path and read the full patch after the summary.
+
+     | Operation | Current-side history | Incoming/replayed intent |
+     |-----------|----------------------|--------------------------|
+     | Merge | `BASE=$(git merge-base HEAD MERGE_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git log --oneline "$BASE"..MERGE_HEAD -- <path>` and `git show MERGE_HEAD -- <path>` |
+     | Rebase | `BASE=$(git merge-base HEAD REBASE_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline REBASE_HEAD -- <path>` then `git show REBASE_HEAD -- <path>` — this exact commit is the patch being replayed |
+     | Cherry-pick | `BASE=$(git merge-base HEAD CHERRY_PICK_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline CHERRY_PICK_HEAD -- <path>` then `git show CHERRY_PICK_HEAD -- <path>` — this exact commit is being picked |
+     | Revert | `BASE=$(git merge-base HEAD REVERT_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline REVERT_HEAD -- <path>` then `git show REVERT_HEAD -- <path>` — recover the original change whose inverse is being applied |
+
+     If `git merge-base` returns no commit, do not interpolate an empty `BASE` into a range. Inspect
+     the exact operation ref plus `git log --all --oneline -- <path>`, and stop to ask if the history
+     relationship still cannot be stated. Git documents `MERGE_HEAD`, `REBASE_HEAD`,
+     `CHERRY_PICK_HEAD`, and `REVERT_HEAD` as distinct
+     [pseudorefs](https://git-scm.com/docs/gitrevisions). Current Git also documents `git log
+     --merge` as selecting the first present operation ref, but keeping the refs explicit makes the
+     operation and orientation reviewable instead of hiding which counterpart supplied the history.
    - Read the commit messages; when `gh` is available and the commits came through PRs, pull the PR title/body and any linked issue — the WHY often lives there, not in the diff.
    - When the inline markers lack base context, re-materialize the file with it: `git checkout --merge --conflict=zdiff3 -- <path>` (or read the base directly via `git show :1:<path>`).
    - Write down, per side, one sentence of intent. If you cannot state a side's intent, you have not read enough history to resolve the hunk.
