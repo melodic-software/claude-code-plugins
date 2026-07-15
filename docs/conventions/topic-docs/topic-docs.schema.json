@@ -25,7 +25,7 @@
     "vault_backend": {
       "type": "string",
       "default": "docs",
-      "description": "Knowledge-vault seam backend for the durable tier. 'docs' (default) promotes into the in-repo docs/ tree via git mv. Other values name a backend documented by the consuming repo (e.g. a GitBook space reached through its MCP server); skills degrade to 'docs' when the named backend's tools are unavailable."
+      "description": "Knowledge-vault seam backend for the durable tier. 'docs' (default) promotes into the in-repo docs/ tree via git mv. Other values name a backend documented by the consuming repo; skills degrade to 'docs' when the named backend's tools are unavailable. GitBook is deferred as a vault_backend value (see docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md) and is usable today only as a one-way rendered mirror, not a value skills write through."
     }
   }
 }
