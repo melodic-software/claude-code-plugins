@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## 0.4.0 — 2026-07-15
+
+Added:
+
+- Self-contained, bundled eval fixtures: compress's `audit-classification-table`
+  case (`evals/fixtures/audit-fixture-dir/`) and declutter's
+  `opt-out-and-section-exemptions-respected` case
+  (`evals/fixtures/legit-optouts.md`) — both previously unfalsifiable prose
+  prompts referencing nonexistent files.
+- The "add an eval case" clause, re-added to the two Gotchas/Recheck-trigger
+  bullets in rename-references/SKILL.md.
+
 ## 0.3.0 — 2026-07-14
 
 Adopt the marketplace topic-docs convention

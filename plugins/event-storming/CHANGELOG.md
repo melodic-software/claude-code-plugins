@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- `--discover-bcs` eval + fixture for the offline/exported-board path: a completed Big Picture board's items supplied directly as an export (`evals/fixtures/big-picture-board-export.md`) run through Bounded Context Discovery mechanically, without requiring a Miro connection. Distinct from the existing board-URL scenario, which still requires Miro to read a live board.
+
 ## [0.3.0]
 
 ### Added

@@ -1035,7 +1035,12 @@ function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRu
   if (!condition.approved) {
     return { attempted: true, approved: false, reason: condition.reason };
   }
-  return { attempted: true, approved: true, selectorId };
+  return {
+    attempted: true,
+    approved: true,
+    selectorId,
+    mode: usesRequiredInput ? "required-no-default" : "optional-default",
+  };
 }
 
 function failClosedSelectorConditionStatus(job, selectorId, selectorResultInput) {
@@ -1273,7 +1278,7 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     return {
       approved: unroutableFailure.approved,
       kind: unroutableFailure.approved ? "unroutable-failure" : "invalid",
-      route: { attempted: true },
+      route: { attempted: true, selectorId: unroutableFailure.selectorId },
       ...(unroutableFailure.reason ? { reason: unroutableFailure.reason } : {}),
     };
   }
@@ -1739,6 +1744,95 @@ function finding(rule, file, job, message) {
   return { rule, file, ...(job ? { job } : {}), message };
 }
 
+const COMMENT_HEX_TOKENS = /(?<=^|[^0-9a-f])[0-9a-f]{7,40}(?=[^0-9a-f]|$)/giu;
+
+// A hex run reads as a short-SHA claim only when it mixes digits and letters
+// (or is a full 40-character SHA): all-letter runs are ordinary English words
+// ("acceded") and all-digit runs are dates or counters, and flagging either
+// would fail closed on prose.
+function isShaClaim(token) {
+  return token.length === 40 || (/[0-9]/u.test(token) && /[a-f]/iu.test(token));
+}
+
+// Extract the pin and trailing comment from parsed workflow `uses` scalar
+// nodes, so YAML properties such as anchors remain supported while examples
+// inside run blocks or comments can never masquerade as executable references.
+function pinnedUsesEntries(source, workflow) {
+  const document = parseDocument(source, {
+    maxAliasCount: 0,
+    merge: false,
+    prettyErrors: true,
+    strict: true,
+    uniqueKeys: true,
+  });
+  const lineStarts = [0];
+  for (const match of source.matchAll(/\n/gu)) {
+    lineStarts.push(match.index + 1);
+  }
+  const lineIndexAt = (offset) => {
+    let low = 0;
+    let high = lineStarts.length;
+    while (low + 1 < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (lineStarts[middle] <= offset) low = middle;
+      else high = middle;
+    }
+    return low;
+  };
+
+  const entries = [];
+  for (const [jobId, job] of Object.entries(workflow?.jobs ?? {})) {
+    if (job === null || typeof job !== "object" || Array.isArray(job)) {
+      continue;
+    }
+    const paths = [["jobs", jobId, "uses"]];
+    if (Array.isArray(job.steps)) {
+      for (const index of job.steps.keys()) {
+        paths.push(["jobs", jobId, "steps", index, "uses"]);
+      }
+    }
+    for (const parts of paths) {
+      const node = document.getIn(parts, true);
+      const pinned =
+        typeof node?.value === "string" && node.value.match(/@(?<sha>[0-9a-f]{40})$/iu);
+      if (!pinned || !Array.isArray(node.range)) {
+        continue;
+      }
+      const trailing = source.slice(node.range[1], node.range[2] ?? node.range[1]);
+      const comment = trailing.match(/^\s+#\s*(?<comment>[^\r\n]*)(?:\r?\n)?$/u);
+      if (comment) {
+        entries.push({
+          comment: comment.groups.comment,
+          line: lineIndexAt(node.range[0]) + 1,
+          sha: pinned.groups.sha,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+function pinProvenanceFindings(source, file, workflow) {
+  const findings = [];
+  for (const { comment, line, sha } of pinnedUsesEntries(source, workflow)) {
+    for (const token of comment.match(COMMENT_HEX_TOKENS) ?? []) {
+      if (isShaClaim(token) && !sha.toLowerCase().startsWith(token.toLowerCase())) {
+        findings.push(
+          finding(
+            "pin-provenance-drift",
+            file,
+            undefined,
+            `line ${line}: pin comment claims commit ${token}, but the ` +
+              `reference pins ${sha.slice(0, 12)}; update the provenance ` +
+              "comment in the same change as the pin",
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
 async function repositoryWorkflowIndex(root) {
   const directory = path.join(root, ".github", "workflows");
   let entries;
@@ -1767,14 +1861,17 @@ async function repositoryWorkflowIndex(root) {
     if (!entry.isFile()) {
       continue;
     }
+    let source;
     try {
+      source = await readFile(absoluteFile, "utf8");
       records.set(file, {
         file,
         absoluteFile,
-        workflow: parseWorkflow(await readFile(absoluteFile, "utf8"), file),
+        source,
+        workflow: parseWorkflow(source, file),
       });
     } catch (error) {
-      records.set(file, { file, absoluteFile, error: error.message });
+      records.set(file, { file, absoluteFile, source, error: error.message });
     }
   }
   return records;
@@ -1857,11 +1954,16 @@ export async function auditRepository({
 
   for (const record of workflowIndex.values()) {
     const { file, workflow } = record;
+    if (record.source) {
+      findings.push(...pinProvenanceFindings(record.source, file, workflow));
+    }
     if (!workflow) {
       findings.push(finding("workflow-parse", file, undefined, record.error));
       continue;
     }
 
+    const requiredNoDefaultCallers = new Map();
+    const approvedFailureSentinels = new Map();
     for (const [jobId, job] of Object.entries(workflow.jobs)) {
       if (job === null || typeof job !== "object" || Array.isArray(job)) {
         findings.push(finding("job-shape", file, jobId, "job must be a mapping"));
@@ -1880,6 +1982,21 @@ export async function auditRepository({
         target !== undefined && Object.hasOwn(target, "route") && target.route.attempted === true;
       const runnerStrings = rawRunnerStrings(job, !selector.isSelector);
       const routingEnabled = config.visibility === "private" && config.selfHostedCi;
+      if (
+        routingEnabled &&
+        target?.kind === "selector-output" &&
+        target.approved &&
+        target.route.mode === "required-no-default"
+      ) {
+        const callers = requiredNoDefaultCallers.get(target.route.selectorId) ?? [];
+        callers.push(jobId);
+        requiredNoDefaultCallers.set(target.route.selectorId, callers);
+      }
+      if (routingEnabled && target?.kind === "unroutable-failure" && target.approved) {
+        const sentinels = approvedFailureSentinels.get(target.route.selectorId) ?? [];
+        sentinels.push(jobId);
+        approvedFailureSentinels.set(target.route.selectorId, sentinels);
+      }
       const seedLocalPermissionFlow =
         !isWorkflowCallExclusive(workflow) || !localIncomingFiles.has(file);
       if (routingEnabled && localCall?.approved && seedLocalPermissionFlow) {
@@ -2050,6 +2167,23 @@ export async function auditRepository({
         );
       } else if (exception) {
         consumedExceptions.add(key);
+      }
+    }
+
+    for (const [selectorId, callerIds] of requiredNoDefaultCallers) {
+      const sentinelIds = approvedFailureSentinels.get(selectorId) ?? [];
+      if (sentinelIds.length === 1) {
+        continue;
+      }
+      for (const jobId of callerIds) {
+        findings.push(
+          finding(
+            "selector-failure-sentinel-required",
+            file,
+            jobId,
+            `required no-default local runner calls using ${selectorId} require exactly one approved ${policy.governedReusableRunnerInput.failureSentinel} rejection job for the same selector in this workflow; found ${sentinelIds.length}`,
+          ),
+        );
       }
     }
   }

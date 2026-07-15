@@ -82,6 +82,21 @@
         "The `.claude/notes/` citation IS flagged as a ghost-ref despite the `<slug>` placeholder",
         "Output explains the location is retired, so the placeholder exemption does not apply to it"
       ]
+    },
+    {
+      "id": 8,
+      "name": "opt-out-and-section-exemptions-respected",
+      "prompt": "Declutter this file: read evals/fixtures/legit-optouts.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Reports zero Tier 1 / Tier 2 / Tier 3 findings. The `<!-- markdown-discipline-ignore -->` wrapped paragraph and the `<!-- markdown-discipline-ignore-line -->` wrapped line are both skipped entirely, and the `## ADR amendment block` (with its dated `### … amendment` subsections), `## Recheck triggers`, `## Cross-references`, `## Sources`, and `## History` sections are all respected as exempt per Section EXEMPTIONS.",
+      "files": ["evals/fixtures/legit-optouts.md"],
+      "expectations": [
+        "Respects the `<!-- markdown-discipline-ignore -->` paragraph-scope opt-out — does not flag the citation-shaped content in the wrapped paragraph",
+        "Respects the `<!-- markdown-discipline-ignore-line -->` line-scope opt-out — does not flag the citation-shaped content on the wrapped line",
+        "Does not flag the `## ADR amendment block` heading or its dated `### … amendment` subsections (amendment-block exemption)",
+        "Does not flag `## Recheck triggers`, `## Cross-references`, `## Sources`, or `## History` sections (Section EXEMPTIONS)",
+        "Reports zero Tier 1 findings overall",
+        "Reports zero Tier 2 findings overall"
+      ]
     }
   ]
 }

@@ -112,19 +112,19 @@ When invoked with `--evaluate`, run the iteration workflow against existing boar
 
 ## Bounded Context Discovery Protocol (`--discover-bcs`)
 
-When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (Ch. 6) against an existing Big Picture board. This is the architect's post-workshop homework — reproducible and evidence-based.
+When invoked with `--discover-bcs [board-url]`, run Brandolini's 6 heuristics (Ch. 6) against an existing Big Picture board. This is the architect's post-workshop homework — reproducible and evidence-based. The board data can arrive two ways: a board URL (live Miro read — requires Miro per the availability gate) or a directly-supplied board export (a structured-markdown board dump), which substitutes for the live read and needs no Miro.
 
 **Prerequisites:** A completed Big Picture board with People & Systems and Walk-through phases done. The more phases completed, the richer the signals.
 
 **Execution sequence:**
 
-1. **Read ALL board items** via `miro_list_board_items` (full pagination). Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
+1. **Read ALL board items** — via `miro_list_board_items` (full pagination) for a live board, or by parsing the supplied board export when one was provided instead of a URL. Parse into structured data: events by persona, people, external systems, hot spots, pivotal events.
 
 2. **Apply Brandolini's 6 boundary heuristics mechanically** against the parsed data — canonical definitions in `/event-storming:methodology --big-picture` "Heuristics for Discovering Boundaries". Board-data signals: pivotal-event stickies (`dark_blue` / `--- PIVOTAL ---`) mark business-phase boundaries (H1); persona y-offset rows reveal parallel swimlanes (H2); per-persona event density per timeline zone assigns ownership (H3/H4); `[DIVERGENCE]` / hot-spot markers and same-noun-different-meaning phrasings signal boundaries (H5/H6). Use short BC names (2-3 words).
 
 3. **Produce the BC analysis output** — a table of `# | BC Name (2-3 words) | Key Events | Primary Personas | Heuristic Evidence`, where the evidence column cites which heuristic fired (e.g. `H1: phase X→Y; H5: "Budget Approved" divergence; H6: "Ticket" means different things`).
 
-4. **Place BC labels** on the board as cyan stickies at y=7100 (the canonical BC Labels row — bottom of board, below all other content per the Big Picture Y-Coordinate Table in `@./reference/miro-integration.md`), with `[BC]` prefix.
+4. **Place BC labels** on the board as cyan stickies at y=7100 (the canonical BC Labels row — bottom of board, below all other content per the Big Picture Y-Coordinate Table in `@./reference/miro-integration.md`), with `[BC]` prefix. Live-board path only — when working from a supplied export there is no board to write; the step 3 table is the complete deliverable.
 
 5. **Cross-reference with arrow voting winner** — which BC does the winner scope to? Mark it as the recommended next exploration target.
 

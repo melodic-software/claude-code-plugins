@@ -3,6 +3,20 @@
 All notable changes to the `review-toolkit` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **Restored fanout regression evals.** `code-review-fanout`'s `evals/evals.json` gains 14 cases
+  (ids 7–20) covering behavior that was still documented but had lost eval coverage: dedup and
+  severity-derivation (Stage 3/4 cross-surface merge, content-derived severity for
+  no-native-severity surfaces), the fix-pass safety fence (correctness findings are never routed
+  to `/simplify`, branch-scoped findings lookup, mixed-class routing), and run-everything's
+  null-reconciliation and priority-ordering (named null leaves, the tier-1 barrier ahead of
+  tier-2). Also restored: per-tier surface routing and promotion, the large-tier ownerless-slice
+  exclusions, the findings-file shape contract, the clean-tree short-circuit, and graceful
+  orchestrator-absent degradation.
+
 ## [0.5.0]
 
 ### Added
