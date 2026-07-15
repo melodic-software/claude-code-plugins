@@ -137,6 +137,8 @@ Options:
 - Specific items: <enumerate by category>
 ```
 
+If the trap fires, document it in this session's retro — when the `session-flow` plugin is installed, surface it as an input to `/session-flow:retro`; otherwise note it in the completion summary.
+
 ## Step 4: Task Tracking and Phase-Boundary Handoff
 
 For non-trivial implementations (3+ steps), use TaskCreate at the start:

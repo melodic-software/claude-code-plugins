@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **Agent-team composition guidance in `/planning:architect` Step 4.5**: design for an agent team
+  when parallel-safe workers must message each other (vs independent fan-out sub-agents);
+  decompose by context boundary / disjoint clean-interface file-set, never by lifecycle role;
+  dependency-order the task list so blocked tasks auto-unblock; teammates are not
+  worktree-isolated, so disjoint file ownership is mandatory. The Step 4.5 routing enum regains
+  the agent-team surface.
+
+### Changed
+
+- **Baseline capture routes to the measurement SSOT**: `/planning:architect` Step 2 routes to
+  `/implementation:verify-improvement` (`performance baseline` / `metrics baseline`) when
+  installed instead of restating the measure/store/compare mechanism inline; manual capture
+  remains the degrade path.
+- **`/planning:devils-advocate` follow-ups regain the verification pointer**: suggests
+  `/implementation:verify-changes` (if installed) when code changes were involved.
+
 ## [0.8.0]
 
 ### Changed

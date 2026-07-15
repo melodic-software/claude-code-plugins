@@ -107,7 +107,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 
-**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: measure the pre-change state and store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
+**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: route to `/implementation:verify-improvement performance baseline` (perf) or `/implementation:verify-improvement metrics baseline` (code metrics) if installed — the measurement mechanism is SSOT there; this skill routes, never reimplements — or measure the pre-change state manually. Store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and compare through the same route (its `compare` phase reads the stored baseline, or re-measure manually) and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
@@ -164,7 +164,7 @@ After the phase plan is locked but before Step 5 approval, compute the execution
 6. **Author scope-fencing tables** — for each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per [context/plan-template.md](context/plan-template.md) "Scope-fencing tables"
 7. **Surface the cost** — parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback** — an explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface** — give each phase a routing row (`Phase | Surface | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work
+9. **Assign per-phase execution surface** — give each phase a routing row (`Phase | Surface | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other — route to agent team only when the environment has agent teams enabled (an experimental, default-off surface); otherwise fall back to sub-agent workers or sequential
 
 **Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
 
@@ -172,6 +172,7 @@ After the phase plan is locked but before Step 5 approval, compute the execution
 
 - Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
 - PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
+- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back — that execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; teammates are NOT worktree-isolated, so disjoint file ownership is mandatory, not optional. Agent teams are an experimental, default-off runtime surface — verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
 - The user's commit policy is unchanged — staging/commits happen per the consuming project's own rules, never silently by parallel agents
 
 ### Step 4.6: Tag unilateral decisions

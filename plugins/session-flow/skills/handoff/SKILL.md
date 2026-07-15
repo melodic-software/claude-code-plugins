@@ -223,7 +223,8 @@ fallback), then:
 ## Post-write enforcement checklist
 
 Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
-incomplete.
+incomplete. Known failure patterns live in `context/gotchas.md` — load on demand when a step feels
+ambiguous.
 
 **Full path:**
 

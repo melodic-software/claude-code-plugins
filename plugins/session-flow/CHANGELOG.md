@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## 0.4.0 — 2026-07-15
+
+Added:
+
+- retro: `reference/ecosystem-improvement-catalog.md` — placement decision
+  tree (project vs personal scope, laptop-dies test), per-target
+  recommendation formats (memory, rules, hooks, skills, agents, MCP
+  servers, settings), and a hook-event table verified against the current
+  official hooks docs. Loaded by session-mode Phase 3.
+- handoff: `context/gotchas.md` — failure patterns (prompt-only when
+  durability is required, plan-anticipated work dropped on batch pushback,
+  handoff without verifiable sanity-check evidence, continuing past an
+  explicit stop). Loaded on demand from the SKILL.md checklist.
+
 ## 0.3.0 — 2026-07-14
 
 Adopt the marketplace topic-docs convention

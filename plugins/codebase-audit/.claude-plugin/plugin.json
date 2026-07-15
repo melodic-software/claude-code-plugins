@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "codebase-audit",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Repo-wide drift audit between docs, config, code, and architecture: verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, and fixes or presents for review. Audit dimensions are configurable through a tracked .claude/codebase-audit.md config file written by the setup skill.",
   "author": {
     "name": "Melodic Software",
