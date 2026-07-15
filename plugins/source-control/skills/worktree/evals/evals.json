@@ -59,6 +59,45 @@
         "The skill detects it is on the default branch and guides toward creating a branch or worktree before writing code",
         "It suggests the project's branch-naming convention (default <type>/<kebab-description>) as guidance, not a hard-enforced gate"
       ]
+    },
+    {
+      "id": 6,
+      "name": "cleanup-dry-run-reports-only",
+      "prompt": "/worktree cleanup --dry-run",
+      "expected_output": "Identifies cleanup candidates across every worktree root the project uses (including a bare-clone hub, when detected) and reports them in a table without removing anything or running any destructive git command — no prune-then-remove, no branch deletion.",
+      "files": [],
+      "expectations": [
+        "Scans every worktree root the project uses for orphan directories and prunable/stale/merged candidates",
+        "Identifies each candidate by reason (orphaned directory / prunable / PR merged / stale)",
+        "Extracts the real branch name from `git worktree list --porcelain` output, not from the directory name",
+        "Takes NO action — reports candidates only and exits, running no removal or branch-deletion command"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "create-invalid-name-rejected",
+      "prompt": "/worktree create my bad name!",
+      "expected_output": "Detects the invalid characters (the spaces and the `!`) against the EnterWorktree name constraints, explains what is wrong, and asks for a corrected name — it does NOT call EnterWorktree with the invalid name.",
+      "files": [],
+      "expectations": [
+        "Identifies the space and `!` characters as invalid per the segment charset (letters, digits, dots, underscores, dashes only)",
+        "Explains the constraint being violated and asks the user for a corrected name",
+        "Does NOT call EnterWorktree with the invalid name — no worktree or branch is created"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "status-batched-gh-and-graceful-degrade",
+      "prompt": "/worktree status",
+      "expected_output": "Parses `git worktree list --porcelain` (CR-stripped), cross-references open PRs via a single batched `gh pr list` call (not one call per worktree), computes staleness against the WORKTREE_STALE_DAYS threshold (default 14), classifies each worktree, and presents a per-worktree table — degrading gracefully (skipping PR info with a note, not aborting) if `gh` is unavailable or fails.",
+      "files": [],
+      "expectations": [
+        "Runs `git worktree list --porcelain` and strips carriage returns on Windows/Git Bash",
+        "Runs `gh pr list` ONCE as a batch cross-reference, not once per worktree branch",
+        "Uses the WORKTREE_STALE_DAYS env var for the stale threshold, falling back to 14 when unset or invalid",
+        "Classifies each worktree (active / stale / in-review / merged / prunable / locked) in the presented table",
+        "Degrades gracefully when `gh` fails — skips PR info with a note instead of aborting the whole status report"
+      ]
     }
   ]
 }

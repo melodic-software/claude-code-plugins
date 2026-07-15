@@ -73,6 +73,47 @@
         "When blog consensus contradicts the primary source, the primary wins and the conflict is flagged explicitly",
         "No accepted claim is backed exclusively by Tier-2 secondary sources"
       ]
+    },
+    {
+      "id": 7,
+      "name": "floor-scaling-single-product",
+      "prompt": "We're deciding whether to adopt a particular open-source in-process cache library for a new service. Before committing, research its actual production readiness: current stability/release maturity, adapter support across the data stores we use, history of breaking changes, integration story with our dependency-injection container, testing/mocking support, and any documented limitations.",
+      "expected_output": "Single-product topic — broad-topic auto-detect does not fire (one library named, no comparison), so standard floors apply. The written Phase 1 gap list surfaces well more than 3 open questions (release/stability status, adapter maturity, breaking-change history, DI integration, testing support, known limitations), and Phase 2 runs one query per gap rather than stopping at the 3-query floor. Includes the mandatory falsification query, primaries fetched directly, and the outcome gate before presenting.",
+      "files": [],
+      "expectations": [
+        "Does not treat this as a broad-topic / comparison — only one library is named, so standard (non-doubled) minimums apply",
+        "Phase 1 launches 3+ parallel queries across 3+ source categories (official docs, upstream repo/changelog, AI-synthesis or web)",
+        "Emits a WRITTEN Phase 1 analysis block — numbered gaps + numbered conflicts + leading hypothesis — before composing any Phase 2 query",
+        "The written gap list has 5 or more numbered entries (e.g., release/stability status, adapter/connector maturity, breaking-change history, DI/framework integration, testing/mocking support, known limitations) — a production-readiness sweep surfaces well past the 3-query floor",
+        "Phase 2 query count matches or exceeds the run's own written gap count — it does NOT stop at 3 queries while numbered gaps remain open; the floor is treated as a starting point, not a target",
+        "Each Phase 2 query traces to a named entry in the written gap/conflict block — no padding queries beyond the gap surface either",
+        "Phase 2 includes exactly one falsification query against the Phase 1 leading hypothesis (e.g., searching for 'deprecated', 'known limitations', or a maintainer disclaimer contradicting the hypothesis)",
+        "Each claim's primary is fetched directly (the library's official docs / GitHub repo / changelog) this turn — not accepted from a synthesis or SERP summary",
+        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims",
+        "Runs the outcome gate before presenting — any claim below the 1-primary + 2-corroborator bar is reported as a Gap, not a finding",
+        "Includes a project-fit check against the consuming project's own conventions"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "broad-topic-triple-tool-comparison",
+      "prompt": "We're choosing among three competing message-queue libraries for a new service — Queue Tool A, Queue Tool B, and Queue Tool C. Research which is the better fit for our throughput and durability requirements.",
+      "expected_output": "Broad-topic auto-detect fires — 3 tools named in an explicit X vs Y vs Z comparison — so doubled minimums apply: 6+ queries per phase, 12+ total, 5+ distinct tool types across the topic, 4+ Tier 0/1 sources per claim. A written Phase 1 gap/conflict/hypothesis block drives Phase 2, which includes the mandatory falsification query. Phase 3 uses the tool-ecosystem fallback (Path B) since no preferred-source author covers these three placeholder tools. Outcome gate runs before presenting.",
+      "files": [],
+      "expectations": [
+        "Detects the broad-topic trigger (3 distinct tools named, explicit comparison) and applies DOUBLED minimums — 6+ Phase 1 queries, 12+ total queries across all phases, 5+ distinct tool types, 4+ Tier 0/1 sources per accepted claim",
+        "Phase 1 launches 6+ queries (not the standard 3+) using 3+ distinct tool types",
+        "Emits a WRITTEN Phase 1 analysis block — leading hypothesis + numbered gaps + numbered conflicts + tool-diversity audit + recency status + falsification candidate — before composing any Phase 2 query",
+        "Phase 2 query count scales to the numbered gaps/conflicts from Phase 1, not a flat 6; each query traces to a named entry in the written block",
+        "Phase 2 includes exactly one mandatory falsification query attempting to break the Phase 1 leading hypothesis (e.g., 'Queue Tool A durability guarantees disputed' or 'Queue Tool B does NOT support clustering')",
+        "Phase 2 fetches each of the three tools' primary docs/changelog directly this turn rather than accepting a SERP or synthesis summary",
+        "Phase 3 fires the tool-ecosystem fallback (Path B) because no preferred-source roster names an author covering these three placeholder tools — cites official maintainer source, upstream changelog/releases, and one recognized industry authority for each",
+        "Evidence table tracks Tier + tool-diversity + confidence per claim; rejects any claim whose sources are all Tier 2 or all from one tool category",
+        "Source-tier ratio enforced — every accepted claim has >=1 Tier 0/1 source plus >=2 independent corroborators; three citations of the same secondary pool count as one source, not three",
+        "Confidence calibration applied — every comparison claim marked HIGH/MEDIUM/LOW; LOW-confidence claims are not used as the basis for a recommendation",
+        "Runs the outcome gate before presenting — all 8 binary criteria checked against the evidence table and written gap lists; reports pass or the failing criterion and what was re-run",
+        "Output names an explicit per-tool comparison conclusion, or explicitly reports insufficient evidence as a Gap, rather than picking a favorite without evidence backing"
+      ]
     }
   ]
 }

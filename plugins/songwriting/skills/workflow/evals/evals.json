@@ -1,0 +1,45 @@
+{
+  "skill_name": "workflow",
+  "evals": [
+    {
+      "id": 1,
+      "name": "brainstorm-blank-page",
+      "prompt": "/songwriting:workflow brainstorm I want to write a song but I have no idea where to start. Just a blank page.",
+      "expected_output": "Routes to the brainstorm action (Scenario 8). Loads context/pat-pattison/research/brainstorm.md and templates/brainstorm-opener.md. Presents 3-4 entry paths (sense-bound timed write / lived-input pull / recent envy / title cascade) without pushing for a title or form decision, and asks the writer to pick one path. Runs response-filter Coaching posture before emission.",
+      "files": [],
+      "expectations": [
+        "Loads brainstorm.md and/or templates/brainstorm-opener.md via the `brainstorm` action",
+        "Presents at least 3 distinct entry paths",
+        "Does NOT ask for a title or form decision yet",
+        "Includes a timed-write option (e.g. a 10-minute dive) per Pat's discipline",
+        "Names the response-filter Coaching posture section's pass/fail/skip status before emission"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "idea-to-title-from-seed",
+      "prompt": "/songwriting:workflow idea \"the feeling of walking past your old apartment building five years later\"",
+      "expected_output": "Routes to the idea action. Loads idea-to-title.md, templates/idea-to-title-prompt.md, and object-writing.md. Walks through seed distillation (what / who / to whom / why now / underneath emotion) before generating titles. Proposes 10-15 title candidates with stressed-vowel and form-fit analysis, surfaces 2-3 finalists, and lets the writer choose rather than picking a winner.",
+      "files": [],
+      "expectations": [
+        "Asks distillation questions (what/who/to whom/why now/underlying emotion) before generating titles",
+        "Generates 10-15 title candidates",
+        "Per candidate: notes stressed vowel, stress count, and form fit",
+        "Does NOT recommend a single title — surfaces finalists and lets the writer choose"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "fragment-development",
+      "prompt": "/songwriting:workflow fragment \"she keeps the porch light burning\"",
+      "expected_output": "Routes to the fragment action. Loads fragment-development.md, templates/fragment-development-prompt.md, and verse-development.md. Inventories the fragment (shape, likely position, what's strong/missing), surfaces implications (speaker, audience, time, place, tone), and recommends object-writing the implied world before drafting outward.",
+      "files": [],
+      "expectations": [
+        "Inventories the fragment (shape, position-tendency, what's strong, what's missing)",
+        "Surfaces implications (speaker, audience, time, place, tone)",
+        "Recommends a timed object-write of the implied world BEFORE drafting",
+        "Does NOT immediately draft verses around the fragment"
+      ]
+    }
+  ]
+}

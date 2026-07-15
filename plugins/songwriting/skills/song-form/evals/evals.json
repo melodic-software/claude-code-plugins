@@ -1,0 +1,32 @@
+{
+  "skill_name": "song-form",
+  "evals": [
+    {
+      "id": 1,
+      "name": "second-verse-stagnation-box-model",
+      "prompt": "/songwriting:song-form box-model my second verse repeats the first — same scene, same speaker, same time. how do I fix it?",
+      "expected_output": "Routes to the box-model action. Loads box-model.md and verse-development.md. Names the travelogue diagnosis and proposes a division-of-labor formula (You-I-We or Past-Present-Future or another axis), surfacing what verse 2 should DO that verse 1 doesn't, and mentions a 'what came before' diagnostic or equivalent reframing.",
+      "files": [],
+      "expectations": [
+        "Loads box-model.md and/or verse-development.md",
+        "Names the travelogue diagnosis",
+        "Proposes at least one division-of-labor formula (You-I-We / Past-Present-Future / other axis)",
+        "Mentions a 'what came before' diagnostic OR an equivalent reframing question"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bridge-or-no-bridge",
+      "prompt": "/songwriting:song-form bridge I have a V/Ch/V/Ch and it feels long. Do I need a bridge or should I cut?",
+      "expected_output": "Routes to the bridge action. Loads bridge.md, templates/bridge-writing-prompt.md, form.md, and song-forms.md. Asks the missing-angle question (what hasn't the song said yet?), names the bridge functions, and — if no missing angle exists — recommends an alternative (e.g. distillation) instead of a bridge.",
+      "files": [],
+      "expectations": [
+        "Loads bridge.md via the `bridge` action",
+        "Asks what the song hasn't said yet",
+        "Names at least 2 of the bridge's documented functions",
+        "If no missing angle is identified, recommends an alternative (distill, reshape form, etc.) instead of a bridge",
+        "Does NOT auto-prescribe a bridge without checking for a missing angle first"
+      ]
+    }
+  ]
+}

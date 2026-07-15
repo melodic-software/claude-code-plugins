@@ -16,14 +16,23 @@
     },
     {
       "id": 2,
-      "name": "audit-is-read-only",
-      "prompt": "/compress audit docs/",
-      "expected_output": "Runs the audit action only: a read-only dry-run that classifies each target SKIP / COMPRESS / UNCERTAIN with an expected-yield estimate. No file is edited and no semantic-diff subagent is dispatched.",
-      "files": [],
+      "name": "audit-classification-table",
+      "prompt": "Run /compress audit against evals/fixtures/audit-fixture-dir (relative to the skill directory) — a directory of three files: an author-time-disciplined reference doc, a verbose prose doc, and a mixed doc.",
+      "expected_output": "Runs the audit action only: a read-only dry-run using the author-time-signal heuristic in context/target-types.md. No file is edited and no semantic-diff subagent is dispatched. Output is a markdown table with columns target/expected_yield_pct/classify/reason, one row per file, sorted lexically. `lean.md` classifies SKIP (signal 4: explicit compression-discipline citation fires). `verbose.md` classifies COMPRESS (signal 5 fallback: verbose-prose baseline, no code-token or cross-reference density). `mixed.md` classifies UNCERTAIN or COMPRESS (signals 2/3 borderline on a small mixed-density file).",
+      "files": [
+        "evals/fixtures/audit-fixture-dir/lean.md",
+        "evals/fixtures/audit-fixture-dir/verbose.md",
+        "evals/fixtures/audit-fixture-dir/mixed.md"
+      ],
       "expectations": [
         "The run classifies targets as SKIP / COMPRESS / UNCERTAIN rather than editing them",
         "No file is modified (audit is read-only)",
-        "No semantic-diff subagent is dispatched (dispatch is default-action only, not audit)"
+        "No semantic-diff subagent is dispatched (dispatch is default-action only, not audit)",
+        "Output is a markdown table with exactly 3 data rows (one per fixture file), columns target/expected_yield_pct/classify/reason",
+        "`lean.md` classifies SKIP, citing the explicit compression-discipline citation (signal 4)",
+        "`verbose.md` classifies COMPRESS, citing the verbose-prose fallback (signal 5)",
+        "`mixed.md` classifies UNCERTAIN or COMPRESS",
+        "Rows sorted lexically by target (deterministic ordering)"
       ]
     },
     {

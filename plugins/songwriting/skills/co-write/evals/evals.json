@@ -1,0 +1,34 @@
+{
+  "skill_name": "co-write",
+  "evals": [
+    {
+      "id": 1,
+      "name": "title-game-cascade",
+      "prompt": "/songwriting:co-write title-game run me the Title Game starting from \"last call\"",
+      "expected_output": "Routes to the title-game action. Loads title-game.md, templates/title-game-prompt.md, and co-writing.md. Confirms cascade constraints (vowel rule, stress count, POV, genre, duration) before starting, chains 10-15 titles derived from the prior title's stressed vowel, mines the strongest 2-3 at the end, and names a next step for developing the chosen title.",
+      "files": [],
+      "expectations": [
+        "Loads title-game.md via the `title-game` action",
+        "Sets or proposes cascade constraints before starting",
+        "Identifies the stressed vowel of each generated title",
+        "Generates 10-15 chained titles",
+        "Mines the strongest 2-3 at the end",
+        "Names a next step for developing the chosen title (e.g. `co-write title` or `workflow idea`) rather than stopping at the raw list"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "co-write-protocol-with-title-game",
+      "prompt": "/songwriting:co-write co-write session starting tonight. how do I open it with my writing partner?",
+      "expected_output": "Routes to the co-write (default) action. Loads co-writing.md, templates/co-write-session-opener.md, and process.md. Reads aloud the No-Free-Zone rules, recommends the Title Game as a warmup, proposes a session structure (open, seed, central section, trade verses, cliche check, revise solo), and does not skip the No-Free-Zone read.",
+      "files": [],
+      "expectations": [
+        "Loads co-writing.md and references the No-Free-Zone protocol",
+        "Includes the No-Free-Zone rules (read aloud)",
+        "Recommends the Title Game as warmup OR an equivalent shared-seed exercise",
+        "Recommends agreement on the central section before drafting outward",
+        "Includes a 'revise solo later' follow-up step"
+      ]
+    }
+  ]
+}

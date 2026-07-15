@@ -61,6 +61,32 @@
         "A code fix is gated on researched multi-source consensus about the cause, not a hunch",
         "It respects the max 3 CI fix iterations guard rather than looping fix-push-fail indefinitely"
       ]
+    },
+    {
+      "id": 6,
+      "name": "readiness-blocks-on-security-failure",
+      "prompt": "Is PR #161 ready to merge? Its live gh state is captured in evals/fixtures/ci-status-security-fail.md relative to the skill directory.",
+      "expected_output": "Reports NOT ready. Per readiness.md Gate 3, the security check-run FAILURE is surfaced as a blocking finding requiring triage before merge, every non-pass check is classified, and the absence of reviewer comments is treated as 'cooldown still pending' (Gate 5), not 'ready'.",
+      "files": ["evals/fixtures/ci-status-security-fail.md"],
+      "expectations": [
+        "Reports the PR as NOT ready to merge",
+        "Classifies the security check-run FAILURE explicitly and requires security triage before any merge suggestion, even if it may be a test-fixture false positive",
+        "Treats zero reviewer comments as cooldown-pending (Gate 5), not as evidence of readiness",
+        "Does not suggest or perform a merge while an unclassified FAILURE check exists (Gate 1/Gate 2/Gate 3 all open)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "mixed-actor-bot-fixed-human-paused-same-turn",
+      "prompt": "Address the open review comments on PR #150; the branch is checked out. A bot reviewer left a comment flagging a missing null check on line 42. A human reviewer separately left a comment asking to rename a function for clarity. Handle both.",
+      "expected_output": "In the same turn, the bot finding is verified against the actual code, confirmed real, and fixed autonomously (react + reply + scoped fix) without waiting for user approval. The human reviewer's comment, evaluated in the same turn, pauses for explicit user approval before any reaction, reply, or fix — and the human-authored thread is never auto-resolved.",
+      "files": [],
+      "expectations": [
+        "Distinguishes the bot actor from the human actor and applies different handling rules to each, within the same turn",
+        "Verifies the bot's finding against the actual code, then reacts, replies, and applies the fix autonomously once confirmed VALID — no user-approval pause for the bot finding",
+        "Pauses for explicit user approval before reacting to, replying to, or acting on the human reviewer's comment, even though the bot finding in the same turn was handled autonomously",
+        "Does not auto-resolve the human-authored review thread"
+      ]
     }
   ]
 }
