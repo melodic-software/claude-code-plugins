@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## 0.5.1 — 2026-07-15
+
+### Fixed
+
+- **`/discovery:setup` reports `vault_backend: gitbook` as deferred and non-writable.** Offering or
+  preserving the key now cites the ADR (`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`)
+  and states that durable writes still target `docs`; the skill never configures or tests a GitBook
+  API, MCP, or Git Sync writer.
+
 ## 0.5.0 — 2026-07-15
 
 ### Added

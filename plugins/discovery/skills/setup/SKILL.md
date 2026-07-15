@@ -34,7 +34,12 @@ Idempotent: re-running reads the current state and offers an update rather than 
    `vault_backend: docs` — RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
    solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
-   existing file carries — a re-run never drops one; do not invent options beyond the schema.
+   existing file carries — a re-run never drops one; do not invent options beyond the schema. `gitbook`
+   is reserved but not enabled as a `vault_backend` value (see
+   `docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`): when offering or preserving it, report
+   that it is deferred and non-writable — durable writes still target `docs` until a later reviewed
+   decision enables the backend — and never configure or test a GitBook API, MCP, or Git Sync writer;
+   offer to replace the key with `docs` only if the user chooses that change.
 4. **Guard, then persist.** Run the conflict check first — only when the chosen tier is `branch`
    (local mode has no committed tier to guard): `git check-ignore -v` on a representative
    file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory
