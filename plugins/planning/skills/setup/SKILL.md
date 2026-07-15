@@ -45,8 +45,9 @@ Idempotent: re-running reads the current state and offers an update rather than 
    `.gitignore`** (or any ignore file) yourself.
 5. **Persist.** Write `.claude/topic-docs.yaml` (tracked, team-shared), recording only the keys
    the user chose — absent keys mean the documented defaults, so an all-defaults answer may
-   yield a file with `contract_tier: branch` alone or nothing beyond a comment header. Preserve
-   every schema key an existing file carries.
+   yield a file with `contract_tier: branch` alone or the schema-valid empty mapping `{}`
+   (optionally followed by comments), never a comment-only document, which YAML parses as null.
+   Preserve every schema key an existing file carries.
 
 ## Output
 

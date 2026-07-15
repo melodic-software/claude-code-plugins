@@ -107,8 +107,35 @@ TS=$(date -u +%Y%m%dT%H%M%SZ)              # ISO basic — Windows-safe, no colo
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
 MEMORY_ROOT=.work                          # the concern file's memory_dir when set — resolve it
                                            # first, never assume the literal .work
-DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live"
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+
+# Refuse a memory root at/above the repo root before the self-ignore guard can
+# touch the consumer's root .gitignore.
+memory_root_is_repo_root() {
+  local raw="${1//\\//}" segment
+  local -a segments=() stack=()
+  IFS='/' read -r -a segments <<< "$raw"
+  for segment in "${segments[@]}"; do
+    case "$segment" in
+      '' | .) ;;
+      ..)
+        ((${#stack[@]} > 0)) || return 0 # at or above the repo root is invalid
+        unset 'stack[${#stack[@]}-1]'
+        ;;
+      *) stack+=("$segment") ;;
+    esac
+  done
+  ((${#stack[@]} == 0))
+}
+REPO_ROOT=$(git rev-parse --show-toplevel)
+MEMORY_ROOT_COMPARE="${MEMORY_ROOT//\\//}"
+if memory_root_is_repo_root "$MEMORY_ROOT" ||
+  [[ "${MEMORY_ROOT_COMPARE%/}" == "${REPO_ROOT%/}" ]]; then
+  echo "Invalid memory_dir: must resolve to a dedicated directory below the repository root" >&2
+  exit 1
+fi
+
+DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live"
 
 # Candidate prior handoff (newest by timestamp) for the chain pointer — but
 # only USE it when this session is a continuation of that handoff's task

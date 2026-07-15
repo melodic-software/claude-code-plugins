@@ -155,7 +155,7 @@ EOF
 tax_out="$(bash "$DETECT" "$TAXONOMY")"
 assert_contains "concrete contract-slice path is a ghost ref" "$tax_out" "Finding shape: ghost-ref"
 
-# --- 9. Retired .claude/notes/ location always flags ----------------------------------
+# --- 9. Retired .claude artifact locations always flag -------------------------------
 
 NOTES="$TEST_TMPDIR/notes.md"
 cat >"$NOTES" <<'EOF'
@@ -174,6 +174,24 @@ Move .claude/notes/<slug>/ content into .work/<slug>/ before the sunset.
 EOF
 mig_out="$(bash "$DETECT" "$MIGRATE")"
 assert_contains ".claude/notes/ flags even beside convention placeholders" "$mig_out" "Finding shape: ghost-ref"
+
+HANDOFFS="$TEST_TMPDIR/retired-handoffs.md"
+cat >"$HANDOFFS" <<'EOF'
+# Retired handoffs fixture
+
+Prior save-points sit under .claude/handoffs/<timestamp>-handoff-<topic>.md.
+EOF
+handoffs_out="$(bash "$DETECT" "$HANDOFFS")"
+assert_contains "retired .claude/handoffs/ citation flags" "$handoffs_out" "Finding shape: ghost-ref"
+
+REVIEW="$TEST_TMPDIR/retired-review.md"
+cat >"$REVIEW" <<'EOF'
+# Retired review fixture
+
+Prior findings sit under .claude/review/<branch-slug>/self.md.
+EOF
+review_out="$(bash "$DETECT" "$REVIEW")"
+assert_contains "retired .claude/review/ citation flags" "$review_out" "Finding shape: ghost-ref"
 
 # --- 10. Per-match exemption: convention tokens never mask concrete ghost refs --------
 

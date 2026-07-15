@@ -47,8 +47,10 @@ declutter_convention_roots_pattern() {
 # non-default roots from the concern file scan alongside the defaults.
 declutter_line_has_ghost_ref() {
   local rest="$1" path root seg after roots
-  # Retired location: stale even in placeholder form.
-  [[ "$rest" == *'.claude/notes/'* ]] && return 0
+  # Retired locations: stale even in placeholder form.
+  [[ "$rest" == *'.claude/notes/'* ||
+    "$rest" == *'.claude/handoffs/'* ||
+    "$rest" == *'.claude/review/'* ]] && return 0
   roots="$(declutter_convention_roots_pattern)"
   while [[ "$rest" =~ ($roots)/([a-z0-9][a-z0-9_-]*)/ ]]; do
     path="${BASH_REMATCH[0]}"
