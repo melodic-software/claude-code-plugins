@@ -52,6 +52,32 @@
         "Does not assume MERGE_HEAD exists or substitute a merge-only history command",
         "Continues with git cherry-pick --continue only after the semantic sweep and project gates pass"
       ]
+    },
+    {
+      "id": 5,
+      "name": "merge-intent-reads-full-incoming-range-not-just-tip",
+      "prompt": "A merge stopped with a conflict in config/retry.yaml. The branch being merged in has three commits; the first one changed config/retry.yaml, but the tip commit only touched an unrelated file. Recover the incoming side's intent and resolve it.",
+      "expected_output": "The skill does not rely on `git show MERGE_HEAD -- config/retry.yaml` alone to recover the incoming intent — that command is silently empty here because the tip commit never touched the path. Instead it reads the full incoming range from the merge base to MERGE_HEAD (e.g. `git log -p \"$BASE\"..MERGE_HEAD -- config/retry.yaml`) and finds the earlier commit that actually changed the file, states its intent from that commit's patch and message, and only then composes the resolution.",
+      "files": [],
+      "expectations": [
+        "The skill does not treat `git show MERGE_HEAD -- <path>` as sufficient by itself for incoming-intent recovery",
+        "It reads the full merge-base..MERGE_HEAD range for the conflicted path (e.g. git log -p) rather than only the tip commit",
+        "It correctly locates and states the intent of the earlier commit that actually touched the conflicted path, not the unrelated tip commit",
+        "It does not proceed to resolve the hunk until the incoming side's actual intent (from the earlier commit) has been stated"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "revert-conflict-concludes-with-revert-continue",
+      "prompt": "I ran git revert on an old commit and it stopped with a conflict in src/auth/session.ts. Resolve it and wrap up the revert.",
+      "expected_output": "The skill identifies the stop as a revert (REVERT_HEAD present), reads current-side history plus the REVERT_HEAD commit's patch to recover the original change being inverted, resolves the hunk, sweeps for semantic conflicts, runs the project's gates, stages surgically, and concludes with git revert --continue — not git merge --continue or git cherry-pick --continue.",
+      "files": [],
+      "expectations": [
+        "The skill recognizes the revert operation via REVERT_HEAD, not MERGE_HEAD or CHERRY_PICK_HEAD",
+        "It reads REVERT_HEAD's patch to recover the original change whose inverse is being applied, before editing any hunk",
+        "It concludes the operation with git revert --continue, matching git's own documented revert sequencer form",
+        "It does not substitute git merge --continue or git cherry-pick --continue for a revert stop"
+      ]
     }
   ]
 }

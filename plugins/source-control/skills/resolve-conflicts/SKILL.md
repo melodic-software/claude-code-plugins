@@ -35,7 +35,7 @@ Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry
 
      | Operation | Current-side history | Incoming/replayed intent |
      |-----------|----------------------|--------------------------|
-     | Merge | `BASE=$(git merge-base HEAD MERGE_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git log --oneline "$BASE"..MERGE_HEAD -- <path>` and `git show MERGE_HEAD -- <path>` |
+     | Merge | `BASE=$(git merge-base HEAD MERGE_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git log -p "$BASE"..MERGE_HEAD -- <path>` — the incoming branch can carry multiple commits touching `<path>`; `git show MERGE_HEAD -- <path>` alone only shows the tip commit and is silently empty when an earlier commit on the branch (not the tip) touched the path |
      | Rebase | `BASE=$(git merge-base HEAD REBASE_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline REBASE_HEAD -- <path>` then `git show REBASE_HEAD -- <path>` — this exact commit is the patch being replayed |
      | Cherry-pick | `BASE=$(git merge-base HEAD CHERRY_PICK_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline CHERRY_PICK_HEAD -- <path>` then `git show CHERRY_PICK_HEAD -- <path>` — this exact commit is being picked |
      | Revert | `BASE=$(git merge-base HEAD REVERT_HEAD)` then `git log --oneline "$BASE"..HEAD -- <path>` | `git show --stat --oneline REVERT_HEAD -- <path>` then `git show REVERT_HEAD -- <path>` — recover the original change whose inverse is being applied |
@@ -63,7 +63,7 @@ Owns HOW conflicts get resolved once an integration — merge, rebase, or cherry
 
 5. **Verify and conclude.**
    - Present the resolution table: every path from step 1's inventory, one line each — resolution taken (composed / kept-ours-with-evidence / kept-theirs-with-evidence) and why.
-   - Confirm gates are green, stage the resolved paths (surgically, per `/commit`'s staging discipline — never `git add -A`), and conclude with the operation's own continuation: `git merge --continue`, `git rebase --continue` (repeating steps 1–5 at each subsequent stop until the rebase completes), or `git cherry-pick --continue`. The concluding commit message is machine-prepared by git, which is why this concludes via `--continue` rather than composing `/commit`.
+   - Confirm gates are green, stage the resolved paths (surgically, per `/commit`'s staging discipline — never `git add -A`), and conclude with the operation's own continuation: `git merge --continue`, `git rebase --continue` (repeating steps 1–5 at each subsequent stop until the rebase completes), `git cherry-pick --continue`, or `git revert --continue`. The concluding commit message is machine-prepared by git, which is why this concludes via `--continue` rather than composing `/commit`.
 
 ## Never abort — and what to do instead
 
