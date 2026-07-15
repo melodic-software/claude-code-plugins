@@ -116,8 +116,8 @@ for (const path of lifecycleProtocolCopies) {
 
 const aiBriefingRoot = join(pluginRoot, "ai-briefing");
 for (const legacyPath of [
-  join(aiBriefingRoot, "skills", "ai-briefing", "scripts"),
-  join(aiBriefingRoot, "skills", "ai-briefing", "seed"),
+  join(aiBriefingRoot, "skills", "generate", "scripts"),
+  join(aiBriefingRoot, "skills", "generate", "seed"),
 ]) {
   if (filesUnder(legacyPath).length > 0) {
     fail(legacyPath, "legacy automated-X collectors must not be shipped");
@@ -133,7 +133,7 @@ for (const path of aiBriefingFiles.filter((path) => /\.(?:js|json|md|sh)$/.test(
   }
 }
 
-const aiBriefingSkill = join(aiBriefingRoot, "skills", "ai-briefing", "SKILL.md");
+const aiBriefingSkill = join(aiBriefingRoot, "skills", "generate", "SKILL.md");
 if (existsSync(aiBriefingSkill)) {
   const content = read(aiBriefingSkill);
   if (!content.includes("${user_config.active_profile}")) {
@@ -162,7 +162,7 @@ if (existsSync(aiBriefingSetup)) {
 const aiBriefingBuildRoot = join(
   aiBriefingRoot,
   "skills",
-  "ai-briefing",
+  "generate",
   "output",
   "build",
 );

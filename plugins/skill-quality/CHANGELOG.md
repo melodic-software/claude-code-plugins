@@ -3,6 +3,14 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- Renamed the `skill-quality` skill → `check`. Update any `/skill-quality:skill-quality` invocations
+  to `/skill-quality:check`; the plugin ID (`skill-quality`) is unchanged, only the skill's leaf name
+  moved.
+
 ## [0.3.0]
 
 ### Added
