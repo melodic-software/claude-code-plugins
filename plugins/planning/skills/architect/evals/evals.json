@@ -73,6 +73,18 @@
         "Output reports what is missing or weak (e.g. missing test strategy, unassessed blast radius) rather than only praising the plan",
         "The run does not write or edit source code"
       ]
+    },
+    {
+      "id": 7,
+      "name": "gitbook-backend-degrades-to-docs-without-writing",
+      "prompt": "/planning:architect close-out\n\nThe approved plan is complete. This repo's .claude/topic-docs.yaml says vault_backend: gitbook. Graduate the durable decision now.",
+      "expected_output": "Reports that GitBook is a deferred, non-writable backend and follows the documented docs fallback: it promotes the durable decision with a guarded, history-preserving git mv into docs/adr or docs/specs. It does not invoke or configure a GitBook API, MCP operation, or Git Sync writer.",
+      "files": [],
+      "expectations": [
+        "Reports that vault_backend: gitbook is deferred and non-writable rather than treating it as an enabled remote backend",
+        "Uses the documented docs promotion path for the durable artifact",
+        "Does not invoke or configure GitBook API, MCP, or Git Sync writes"
+      ]
     }
   ]
 }

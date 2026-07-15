@@ -18,10 +18,12 @@
       "id": 2,
       "name": "rerun-preserves-existing-concern-file-keys",
       "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
-      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
+      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. It explicitly reports that GitBook is deferred and non-writable, so durable writes still use docs and no GitBook API, MCP, or Git Sync writer is configured. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
         "Reports the existing file's effective values (absent keys = documented defaults) as the interview baseline",
+        "Reports vault_backend: gitbook as preserved but deferred and non-writable, with docs as the effective promotion target",
+        "Does not configure, test, or invoke a GitBook API, MCP, or Git Sync writer",
         "Preserves every key the existing concern file carries — a re-run never drops one",
         "Does not invent knobs beyond the schema",
         "Writes nothing until the user accepts the values"

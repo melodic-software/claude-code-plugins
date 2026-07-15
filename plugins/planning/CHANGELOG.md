@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Fixed
+
+- **GitBook remains non-writable throughout planning close-out**: `/planning:architect` and the
+  topic-docs binding now route `vault_backend: gitbook` to the in-repo `docs` promotion path without
+  invoking GitBook API/MCP or Git Sync writes. `/planning:setup` preserves an existing key while
+  reporting its deferred, non-writable status instead of implying that it enables a writer.
+
 ## [0.9.0]
 
 ### Added

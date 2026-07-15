@@ -36,7 +36,11 @@ Idempotent: re-running reads the current state and offers an update rather than 
    memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`,
    `memory_dir`, and `vault_backend` at their defaults unless the repo's own conventions say
    otherwise — but offer every schema key and preserve every key an existing file carries (a
-   re-run never drops one); do not invent knobs beyond the schema.
+   re-run never drops one); do not invent knobs beyond the schema. When an existing file carries
+   `vault_backend: gitbook`, preserve it but report that GitBook is deferred and non-writable: the
+   effective writable promotion target remains `docs` until a later reviewed decision enables the
+   backend. Do not configure or test a GitBook API, MCP, or Git Sync writer; offer to replace the
+   key with `docs` only if the user chooses that change.
 4. **Run the conflict check before writing** — only when the chosen tier is `branch` (local mode
    has no committed tier to guard). `git check-ignore -v` on a representative file path
    inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory misses
