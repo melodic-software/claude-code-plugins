@@ -28,13 +28,15 @@
     },
     {
       "id": 3,
-      "name": "slot-variable-not-flagged-as-ghost-ref",
-      "prompt": "Declutter a rule file whose body contains the schema placeholder path `.work/<slug>/PLAN.md` used to describe the working-notes convention (not a literal directory name). Classify it.",
-      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and does NOT flag it as a ghost-ref. Only concrete literal paths into ephemeral directories are ghost-refs.",
+      "name": "convention-paths-not-flagged-as-ghost-refs",
+      "prompt": "Declutter a rule file whose body cites the topic-docs convention as examples: the schema placeholder paths `.work/<slug>/PLAN.md` and `docs/topics/<slug>/PLAN.md`, the bare concern-scoped roots `.work/handoffs/` and `.work/reviews/`, and the tracked concern file `.claude/topic-docs.yaml` (none are literal directory names). One line mixes a convention token with a concrete slice: 'See docs/topics/auth-fix/PLAN.md and the concern file .claude/topic-docs.yaml'. Another cites a concrete review report `.work/reviews/pr-123-auth/20260101T000000Z-self.md`. Classify it.",
+      "expected_output": "Recognizes `<slug>` as a slot-variable / schema placeholder and the BARE concern-scoped roots plus `.claude/topic-docs.yaml` as citable convention surfaces; flags none of those as ghost-refs. Exemption is per matched path, not per line: the mixed line's concrete `docs/topics/auth-fix/PLAN.md` IS flagged despite the concern-file token beside it, and the concrete child `.work/reviews/pr-123-auth/…` IS flagged because the concern-root exemption covers only the bare root (or a placeholder child).",
       "files": [],
       "expectations": [
-        "The `<slug>` placeholder path is NOT flagged as a ghost-ref",
-        "Output states that slot-variable / schema-placeholder tokens are exempt from the ghost-ref shape"
+        "The `<slug>` placeholder paths under `.work/` and `docs/topics/` are NOT flagged as ghost-refs",
+        "Bare `.work/handoffs/`, `.work/reviews/`, and `.claude/topic-docs.yaml` citations are NOT flagged as ghost-refs",
+        "The concrete `docs/topics/auth-fix/PLAN.md` on the mixed line IS flagged — a convention token never exempts a concrete ghost ref sharing its line",
+        "The concrete child `.work/reviews/pr-123-auth/20260101T000000Z-self.md` IS flagged — the concern-root exemption covers the bare root only"
       ]
     },
     {
@@ -68,6 +70,17 @@
       "expectations": [
         "Output flags the preamble on the Reference-quadrant file with a STRIP / replace-with-one-sentence treatment",
         "Output distinguishes the Reference-quadrant STRIP from the Explanation-quadrant KEEP case"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "retired-claude-notes-citation-flags",
+      "prompt": "Declutter a durable rule file that points readers at `.claude/notes/<slug>/` for prior drafts. Classify the reference.",
+      "expected_output": "Flags the `.claude/notes/` citation as a ghost-ref (Tier 2): the location is retired under the topic-docs convention, so a durable doc citing it is stale even when the path uses a `<slug>` placeholder rather than a concrete name.",
+      "files": [],
+      "expectations": [
+        "The `.claude/notes/` citation IS flagged as a ghost-ref despite the `<slug>` placeholder",
+        "Output explains the location is retired, so the placeholder exemption does not apply to it"
       ]
     }
   ]

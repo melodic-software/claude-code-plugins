@@ -27,7 +27,9 @@ cover the flavor, noise, duplication, boundary, and rename axes of doc upkeep.
 The bundled defaults are repo-agnostic: detectors run against the repository
 they are invoked in, output destinations default to conventional locations
 (e.g. `.claude/rules/<topic>.md` for an extracted rule), and ephemeral-path
-conventions default to a `.work/<slug>/` example. Refine any of these through
+detection follows the marketplace topic-docs convention (memory slices under
+`.work/<slug>/`, branch-pruned contract slices under `docs/topics/<slug>/`,
+retired `.claude/notes/`). Refine any of these through
 your own repository's `CLAUDE.md` / `.claude/rules` — the skills read the
 consuming project's context; nothing requires editing the plugin.
 

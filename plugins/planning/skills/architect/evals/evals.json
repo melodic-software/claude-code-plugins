@@ -53,7 +53,7 @@
     {
       "id": 5,
       "name": "design-gate-blocks-without-artifact",
-      "prompt": "/planning:architect design and add a new Notifications module with its own types, contracts, and package topology. No /design has been run and there is no design artifact in the notes directory yet.",
+      "prompt": "/planning:architect design and add a new Notifications module with its own types, contracts, and package topology. No /design has been run and there is no design artifact in the topic's contract slice yet.",
       "expected_output": "The prerequisite check classifies this as design-significant (Tier A), finds no design artifact, and STOPS before planning — offering to run /design or to document an early-exit design-resolution.md — instead of re-deriving the design inline.",
       "files": [],
       "expectations": [

@@ -136,7 +136,8 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
      `docs/conventions/hook-telemetry/`; first instance:
-     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
+     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md); second
+     instance: [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)).
    - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
      *audience* or *deployment* — a different framing, ranking lens, or branding per team / client /
      context — add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default

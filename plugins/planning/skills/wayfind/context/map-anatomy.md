@@ -15,7 +15,7 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Notes
 
-- Pointers to `.work/<slug>/` execution artifacts, prior research, upstream context.
+- Pointers to `<memory_dir>/<slug>/` (default `.work/`) execution artifacts, prior research, upstream context.
 - Links, not recaps.
 
 ## Decisions-so-far
@@ -61,8 +61,10 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    close. A dangling "resolved" comment on an open item is a broken close-out — finish it.
 3. **The map holds decisions, not build work.** A buildable item means the decision already
    graduated — move it to the ordinary tracker (`/work-items`), off the map.
-4. **Coordination on the tracker, execution artifacts in `.work/`.** The map never cites a
-   concrete `.work/<slug>/` path as a coordination surface; `.work/` never holds map state.
+4. **Coordination on the tracker, execution artifacts in the memory tier.**
+   `<memory_dir>/<slug>/` (default `.work/`) is the topic-docs convention's memory tier (never
+   committed; slug spec shared with the pipeline skills). The map never cites a concrete
+   `<memory_dir>/<slug>/` path as a coordination surface; the memory tier never holds map state.
 
 ## Graduation and closure
 

@@ -3,41 +3,41 @@
   "evals": [
     {
       "id": 1,
-      "name": "infers-notes-dir-and-interviews-before-writing",
+      "name": "resolves-topic-docs-state-and-interviews-before-writing",
       "prompt": "/planning:setup",
-      "expected_output": "Reads the current effective notes_dir across scopes (querying only that single key, not whole settings files) and reports the effective value and its scope. When none is set, it infers a landing location from the repo — a working-notes convention declared in CLAUDE.md/AGENTS.md/.claude/rules, else an existing notes/working-artifacts directory, else the documented .claude/notes default — and presents that single knob with a recommendation, writing nothing until the user accepts.",
+      "expected_output": "Reads the current state in ladder order — an existing .claude/topic-docs.yaml, a working-docs convention declared in CLAUDE.md/.claude/rules, an inferred conforming layout — and reports what it found. When nothing is configured, it presents the one load-bearing decision, contract_tier, with branch marked RECOMMENDED and presented first (local as the solo/offline alternative), keeps contract_dir and memory_dir at the documented defaults (docs/topics and .work) unless the repo declares otherwise, and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reads the effective notes_dir narrowly (only the pluginConfigs notes_dir key), never loading a settings file wholesale",
-        "Infers the value from the repo (declared working-notes convention, existing notes directory, else the .claude/notes default) rather than guessing",
-        "Presents the single notes_dir knob with a recommendation and invents no further options",
-        "Writes nothing until the user accepts the value"
+        "Reads .claude/topic-docs.yaml first, then a declared working-docs convention, then an inferred conforming layout — in that order",
+        "Presents the single contract_tier decision with branch as the RECOMMENDED first option and invents no further knobs",
+        "Keeps contract_dir and memory_dir at the documented defaults unless the repo's own conventions say otherwise",
+        "Writes nothing until the user accepts the values"
       ]
     },
     {
       "id": 2,
-      "name": "surfaces-convention-shadowing-and-idempotent",
-      "prompt": "/planning:setup",
-      "expected_output": "When notes_dir already carries a value, re-running reports it and its scope and proposes changes against that baseline rather than overwriting blind. Even with a value set, it inspects the repo for a declared working-notes convention and, when one conflicts with the effective value, surfaces the shadowing explicitly — the declared convention wins at write time — and offers to reconcile. It also flags when a higher-precedence Managed or Local layer will shadow the project value it writes.",
+      "name": "rerun-preserves-existing-concern-file-keys",
+      "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
+      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
-        "Reports the existing effective notes_dir and its scope before proposing changes",
-        "Inspects for a declared working-notes convention even when a value is set, and surfaces the shadowing when it conflicts (convention wins at write time)",
-        "Warns when a higher-precedence Managed or Local layer will shadow the project-scope write",
-        "Does not overwrite the existing value blind"
+        "Reports the existing file's effective values (absent keys = documented defaults) as the interview baseline",
+        "Preserves every key the existing concern file carries — a re-run never drops one",
+        "Does not invent knobs beyond the schema",
+        "Writes nothing until the user accepts the values"
       ]
     },
     {
       "id": 3,
-      "name": "persists-portable-value-to-tracked-project-not-plugin",
-      "prompt": "/planning:setup\n\nLand planning artifacts in docs/planning for the whole team.",
-      "expected_output": "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json, creating the pluginConfigs/options path without disturbing unrelated keys. It never propagates a machine-absolute or personal value into the shared team scope — routing a personal-only override to .claude/settings.local.json instead — offers the local overlay plus gitignore convention, and never writes into the plugin directory or plugin data directory.",
+      "name": "conflict-check-and-write-guards",
+      "prompt": "/planning:setup\n\nUse the defaults; this repo's .gitignore contains a docs/ ignore rule.",
+      "expected_output": "Before writing, runs git check-ignore -v on the chosen contract root and, because an ignore rule matches docs/topics, stops and surfaces the exact rule and its source line rather than silently producing an uncommittable contract tier. It never edits the consumer's root .gitignore (resolving the rule is the user's edit), writes only the tracked .claude/topic-docs.yaml once the conflict is cleared — recording only non-default keys — and never writes the plugin directory or the plugin data directory.",
       "files": [],
       "expectations": [
-        "Writes a portable, project-relative notes_dir to the consumer's tracked project .claude/settings.json",
-        "Never propagates a machine-absolute or personal value into the shared team scope, routing a personal-only override to .claude/settings.local.json",
-        "Offers the .claude/settings.local.json personal overlay and gitignore convention",
-        "Does not write into the plugin directory or plugin data directory"
+        "Runs git check-ignore -v on the contract root before writing and surfaces the exact matching rule and source",
+        "Never edits the consumer's root .gitignore or any ignore file",
+        "Persists to the tracked .claude/topic-docs.yaml, recording only the keys the user chose",
+        "Does not write the plugin directory or the plugin data directory"
       ]
     }
   ]

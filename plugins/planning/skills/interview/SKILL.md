@@ -32,7 +32,7 @@ The **pre-clarity** stage — upstream of exploration, research, and `/architect
 
 ## Emit checklist
 
-For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into `${user_config.notes_dir}/<topic-slug>/interview-checklist.md` (**one ledger per topic** — not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
+For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic** — not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
 ## Action Router
 
@@ -117,13 +117,13 @@ Five steps. Step 1 (Survey) runs every action. Step 1.5 (Auto-detect) runs on `a
 
 ### Step 1 — Survey before you ask
 
-Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, check `${user_config.notes_dir}/<topic-slug>/` for prior PLAN.md / exploration / research artifacts.
+Spend the first turn grounding yourself. Read the project's `CLAUDE.md` / `AGENTS.md` if not already in context, Glob/Grep keywords, scan `git log --oneline -20`, climb to the nearest domain-vocabulary file, list relevant project rules, check the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) for a prior PLAN.md / PRD / design artifacts and its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) for exploration / research artifacts.
 
 Survey output: one paragraph "Here is what I see in the repo."
 
 **Classify the domain** from what the survey shows — *engineering* (a build or behavior-change task, or a technical subject that yields a build artifact) or *general* (a decision or idea with no build surface). The deciding signal is the **task/build surface itself**, not the working directory: a general decision raised from inside a code repo is still general, and the engineering machinery must never engage on cwd alone. Repo/cwd is context that breaks the tie only when the task surface is genuinely indeterminate — then lean engineering inside a code repo, else general. This is inferred, never asked; honor any explicit user override. The domain governs which machinery engages and what the session produces (see Purpose "Domain-routed"); it is orthogonal to the `me`/`auto`/`lock` action.
 
-**Engineering sessions only** — if a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to a sibling `history.md` in the topic directory before rewriting). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
+**Engineering sessions only** — if a prior PLAN.md Brief exists, ask whether to **resume**, **revise**, or **start fresh** (the latter appends a dated scope-change note to the top of the Brief capturing why before rewriting, and the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history). A general session never creates or edits a PLAN.md Brief, so it skips this prompt.
 
 Then route per action.
 
@@ -156,17 +156,17 @@ Stop when every load-bearing unknown is resolved OR captured as named assumption
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`); session artifacts live in `${user_config.notes_dir}/<topic-slug>/`, and a consuming project's declared working-notes convention (in its `CLAUDE.md` or rules) wins over that default. *What* gets persisted follows the Step 1 domain classification.
+Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`). The contract lands in the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`); working ledgers land in the memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) — roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
 
-**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to that location, or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
+**General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
 
-**Engineering sessions** write the Brief section into `${user_config.notes_dir}/<topic-slug>/PLAN.md`. The rest of this step — everything below — is the Brief machinery and is engineering-only.
+**Engineering sessions** write the Brief section into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the memory slice under `contract_tier: local`) — a contract document, committed on the task branch as it locks. The rest of this step — everything below — is the Brief machinery and is engineering-only.
 
-**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic directory) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
+**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/architect` fills it.
 
-If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to a sibling `history.md` before rewriting — never silently overwrite.
+If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting — never silently overwrite — and let the commit message carry the pivot rationale.
 
 Section schema: write the literal `## Brief` template — TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions — per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". Each **Deferred question** carries an **arbiter tag** (`/architect` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints) — load-bearing; loop.md covers when to use which.
 
@@ -188,7 +188,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 - **Does not deep-dive the codebase** — Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
 - **Does not plan implementation** — the Brief says *what* and *what we are assuming*; `/architect` says *how*. Resist drafting an approach mid-interview
-- **Does not write code or run tests** — discovery skill. In an engineering session it DOES write domain docs outside the notes directory when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs are first-class interview outputs alongside the Brief (a general session writes none)
+- **Does not write code or run tests** — discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs are first-class interview outputs alongside the Brief (a general session writes none)
 - **Does not adversarially attack the user's idea** — that is `/devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics — it is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
 - **Does not gate truly mechanical work** — typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default** — auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
 - **Does not fudge gaps in `lock` mode** — if a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing

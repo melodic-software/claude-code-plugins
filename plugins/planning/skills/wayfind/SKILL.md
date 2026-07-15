@@ -34,7 +34,10 @@ resolved, either sharpens the map or graduates to the destination. The moment th
 is coherent, the map closes and the normal pipeline (`/interview → /design → /architect →
 /implement`) takes over. Fog-of-war framing adapted from Matt Pocock's wayfinder — this skill
 diverges by persisting the map as native tracker primitives, routing each decision to a
-first-party skill, and keeping execution artifacts in `.work/` rather than the map.
+first-party skill, and keeping execution artifacts in `<memory_dir>/<slug>/` (default
+`.work/`) — the topic-docs convention's memory tier, slug spec and all (see
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
+— rather than the map.
 
 **Two modes.** `chart` builds or extends a map (interactive only). `work` picks one item off
 the map's frontier and drives it to resolution. The default action auto-detects: an existing
@@ -69,7 +72,7 @@ Charting is a human-in-the-loop session. If the session is non-interactive
 (`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop), STOP and report that charting needs
 an interactive session — do not fabricate a map.
 
-1. **Survey + fog test.** Ground in the effort (read any existing `.work/<slug>/`, recent
+1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
    commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
    decision item; foggy → *Not-yet-specified* prose.
 2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
@@ -78,7 +81,7 @@ an interactive session — do not fabricate a map.
    created ad hoc: if any are missing, STOP and report them for a github-iac PR (or the repo's
    own provisioning for an opt-out repo). Then create one issue labelled bare `work-map`
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
-   fog clears) / **Notes** (pointers to `.work/` artifacts, research, prior context) /
+   fog clears) / **Notes** (pointers to memory-tier `<memory_dir>/` artifacts, research, prior context) /
    **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's
    resolution comment, never recopied here) / **Not-yet-specified** (fog, prose) /
    **Out-of-scope**. Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
@@ -152,8 +155,9 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
   an agent standing in for the user (inviolable). Non-interactive frontier filters them out.
 - **Does not chart non-interactively.** Charting burns assumptions that need a human in the
   loop; the `chart` action refuses non-interactive sessions.
-- **Does not store coordination in `.work/`.** The map (coordination) lives on the tracker;
-  `.work/<slug>/` holds execution artifacts only (journals, research scratch, evidence).
+- **Does not store coordination in the memory tier.** The map (coordination) lives on the
+  tracker; `<memory_dir>/<slug>/` (default `.work/`) holds execution artifacts only (journals,
+  research scratch, evidence).
 - **Does not invent a second claim/mode mechanism.** Claims use the sibling `/work-items`
   model; mode is the `needs-human` label — no parallel taxonomy.
 

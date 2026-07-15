@@ -21,7 +21,7 @@ Quality is partly subjective, but some aspects ARE measurable:
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy** — "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies (`git show <base>:<file> | wc -l`, complexity count, dependency count). Store in the baselines directory beside the plan artifact and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies (`git show <base>:<file> | wc -l`, complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verify-improvement metrics`)
 
