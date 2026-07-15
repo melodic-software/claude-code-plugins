@@ -57,7 +57,10 @@ plugin's tool under the `mcp__plugin_miro_miro__` prefix.
 
 Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--crc`,
 `--discover-bcs` with a board URL) require Miro — if it's absent, say so and offer path 2, since
-there is no board to read.
+there is no board to read. One check precedes that gate: for a BC-name input, `--design-level`
+resolves its prerequisite first — the run-state store lookup (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)
+needs no Miro, so a missing Process Modeling board is surfaced as the missing prerequisite (offer
+`--process-model` first) before any Miro gating.
 
 ## Running a Simulation (`--simulate`)
 
