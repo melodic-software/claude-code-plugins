@@ -64,11 +64,12 @@
     "governedReusableRunnerInput": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "expression", "default"],
+      "required": ["name", "expression", "default", "failureSentinel"],
       "properties": {
         "name": { "$ref": "#/$defs/nonWhitespaceString" },
         "expression": { "$ref": "#/$defs/nonWhitespaceString" },
-        "default": { "$ref": "#/$defs/nonWhitespaceString" }
+        "default": { "$ref": "#/$defs/nonWhitespaceString" },
+        "failureSentinel": { "const": "ci-runner-selection-failed" }
       }
     },
     "forbiddenHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },

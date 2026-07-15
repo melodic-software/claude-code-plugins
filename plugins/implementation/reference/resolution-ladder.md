@@ -18,7 +18,8 @@ conforming to the contract's `ecosystem.schema.json`. Command keys are **opaque 
 
 Plus `globs` (required — classify changed files), and optional `enabled` (default `true`; a consumer
 sets `false` to disable an ecosystem without deleting its file), `anchor`, `project-discovery`,
-`opt-in`, `install-hint`, `gates`, `notes`. Placeholders substituted by the running skill:
+`opt-in`, `install-hint`, `tool-pin` (pinned tool versions keyed by tool name — the running skill
+warns on installed-vs-pinned drift; inert when absent), `gates`, `notes`. Placeholders substituted by the running skill:
 `<files>` (changed-files list scoped to this ecosystem), `<solution-or-project-file>` (resolved per
 `anchor`), `<project-dir>` (each root from `project-discovery`), `$REPO_ROOT`
 (`git rev-parse --show-toplevel`).

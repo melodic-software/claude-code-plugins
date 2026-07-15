@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## 0.5.0 — 2026-07-15
+
+### Added
+
+- Research floor-scaling and broad-topic-minimums evals in `skills/research/evals/evals.json`:
+  `floor-scaling-single-product` pins that Phase 2 query count tracks the Phase 1 written gap
+  count rather than stopping at the 3-query floor (SKILL.md's "floor is a starting point, not a
+  target"); `broad-topic-triple-tool-comparison` pins that a 3-tool comparison topic fires the
+  doubled phase/query/source minimums (SKILL.md item 8, discipline.md's "Broad-topic
+  auto-detect").
+
 ## 0.4.0 — 2026-07-14
 
 Adopt the marketplace topic-docs convention, contract v1.0.0

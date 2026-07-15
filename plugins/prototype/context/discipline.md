@@ -14,7 +14,7 @@ change.
 
 When the model reaches for a prototype without an explicit request to spike, **STOP** and confirm
 scope before writing any throwaway code. Do not detour out of an active workflow without
-checkpointing your current work first.
+checkpointing your current work first (`/session-flow:handoff` when installed).
 
 ## Rules (both facets)
 
@@ -46,3 +46,12 @@ prototype so the answer gets filled in before deletion. Then delete the throwawa
 - **Does not explore what IS** — reading and tracing the codebase understands what exists; a
   prototype tests what *could* be.
 - **Does not generalize** — no "what if we wanted to support X later." One question, one answer.
+
+## Composition
+
+| When | Skill | How it composes |
+|------|-------|-----------------|
+| Product intent locked | `/planning:prd` (when installed) | PRD says "users need X" — prototype proves X works |
+| Architecture discovery surfaced a design question | `/improve-architecture:improve-architecture` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
+| Prototype answered the question | `/planning:architect` (when installed) | Validated decision feeds the plan |
+| Logic module worth keeping | `/implementation:implement` (when installed) | Lift the pure module into production; delete the TUI shell |

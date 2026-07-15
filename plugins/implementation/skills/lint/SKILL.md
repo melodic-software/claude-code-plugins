@@ -79,6 +79,8 @@ Per-project walking (ecosystems with `project-discovery`):
 
 Tool presence: verify tools on `PATH` before each ecosystem; report `skip` with `install-hint` when missing.
 
+Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin (a pin typically mirrors the consumer's own CI pin). No pin, no check.
+
 Cross-cutting: resolve `$EC_BIN` for editorconfig-checker binary-name variants before substituting into the check command:
 
 ```bash

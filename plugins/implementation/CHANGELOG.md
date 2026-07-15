@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Optional `tool-pin` version-drift warning in `/lint`.** The ecosystem-commands contract gains an
+  optional `tool-pin` key (pinned tool versions keyed by tool name; contract 1.1.0): when the resolved
+  config pins a tool version, `/lint` warns if the installed version drifts from the pin (a pin
+  typically mirrors the consumer's own CI pin). Inert when absent — no pin, no check.
+- **`/implement` over-correction trap logs to the session retro.** When the Step 3.5 over-correction
+  guard fires, document it in the session's retro — surfaced to `/session-flow:retro` when the
+  `session-flow` plugin is installed; otherwise noted in the completion summary.
+
 ## [0.4.0]
 
 ### Changed

@@ -62,6 +62,19 @@
         "Presents a verified non-issues list showing what was checked",
         "When no discrepancies are found, states explicitly that all claims verified as correct rather than padding with marginal issues"
       ]
+    },
+    {
+      "id": 6,
+      "name": "boundary-route-to-settings-audit",
+      "prompt": "/codebase-audit:codebase-audit\n\nCheck my .claude/settings.json and .mcp.json for schema drift, and tell me whether my hooks and permissions are misconfigured.",
+      "expected_output": "Recognizes that settings.json / .mcp.json schema-drift and hook/permission validation is the adjacent claude-config-audit lane, not this skill's factual-claim-drift lane. Declines to run its own claim-extraction fan-out over the settings schema. When the claude-config-audit plugin is installed, routes the user to /claude-config-audit:settings-audit; otherwise states the request is out of scope.",
+      "files": [],
+      "expectations": [
+        "Identifies settings.json / .mcp.json / hooks / permissions schema-drift as out of scope for this skill's claim-verification lane",
+        "When claude-config-audit is installed, routes the user to /claude-config-audit:settings-audit rather than a bare or differently-named skill",
+        "When claude-config-audit is not installed, states the request is out of scope instead of routing to a nonexistent skill",
+        "Does not run its own claim-extraction fan-out over the settings/MCP schema"
+      ]
     }
   ]
 }

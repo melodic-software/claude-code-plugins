@@ -73,6 +73,35 @@
         "Output does not fabricate some other arbitrary domain as if the user had specified it",
         "Output honors the Miro preflight — proceeding on-board when Miro is available, or offering the structured-markdown / connect-and-retry degradation when Miro is absent — rather than assuming an unconditional board run"
       ]
+    },
+    {
+      "id": 7,
+      "name": "design-level-missing-prerequisite",
+      "prompt": "--design-level Enrollment",
+      "expected_output": "Design-Level deep-dive routing that first requires the prerequisite: an existing Process Modeling board for the Enrollment bounded context. It should look up the PM board URL in the run-state store (${CLAUDE_PLUGIN_DATA}/history.jsonl) and, finding no prior board, surface the missing prerequisite — offering to run --process-model first — rather than fabricating a process model or aggregates from scratch. It routes to Design-Level behavior (Blank Aggregates technique), not to Big Picture or the interactive-discovery flow.",
+      "files": [],
+      "expectations": [
+        "Recognizes Design-Level requires an existing Process Modeling board for the bounded context and looks up the board URL in ${CLAUDE_PLUGIN_DATA}/history.jsonl before proceeding",
+        "On finding no prior Process Modeling board, surfaces the missing prerequisite (offering to run --process-model first) instead of fabricating a process model or aggregates from scratch",
+        "Routes to Design-Level behavior (e.g. Blank Aggregates), not to Big Picture or the no-args interactive discovery flow"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "discover-bcs-offline-export-mechanical-output",
+      "prompt": "--discover-bcs — no Miro MCP server is available this session, and no board URL is being given. Instead, treat evals/fixtures/big-picture-board-export.md (relative to the skill directory) as an already-exported set of board items from a completed Big Picture board (People & Systems and Walk-through phases done). Run bounded-context discovery against that export.",
+      "expected_output": "This is not the read-a-live-board-by-URL scenario: no board URL was given, and the caller already supplied the exported board items directly as input. Because Bounded Context Discovery applies Brandolini's 6 heuristics mechanically against parsed board data rather than by making live Miro calls itself, the skill runs the full analysis directly against the supplied export and produces an architect's post-workshop BC table (not a workshop output), with a per-heuristic evidence citation per row, WITHOUT requiring or requesting a Miro connection. It should surface the 'Enrollment' language divergence, the parallel authoring/learning zones, and the phase splits at the pivotal events; use short 2-3 word BC names; and tie the arrow-voting winner (refund disputes) to a recommended next-exploration BC.",
+      "files": ["evals/fixtures/big-picture-board-export.md"],
+      "expectations": [
+        "Does not ask to connect Miro or claim it cannot proceed without a live board connection — the supplied export substitutes for a live board read",
+        "Applies Brandolini's 6 heuristics (H1 business phases, H2 swimlanes, H3/H4 people/hovering, H5 hot spots/divergence, H6 language divergence) to the exported board data",
+        "Produces a bounded-context table that includes a per-heuristic evidence column giving traceability for each BC",
+        "Frames bounded-context discovery as the architect's post-workshop homework, NOT as a workshop phase or participant output",
+        "Names bounded contexts with short 2-3 word names",
+        "Identifies the '\"Enrollment\" means two different things' divergence (platform signup vs course access) as a context boundary signal",
+        "Cross-references the arrow-voting winner (refund disputes) to recommend which BC to explore next",
+        "Does not contradict the board-URL scenario (eval 3): a live Miro board reached by URL still requires Miro to read, but a directly-supplied export does not"
+      ]
     }
   ]
 }

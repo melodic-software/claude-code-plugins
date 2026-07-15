@@ -151,6 +151,10 @@ findings.
 Code configuration: verify it against current official docs before presenting — never recommend
 features from training-data assumptions.
 
+**Load the catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/retro/reference/ecosystem-improvement-catalog.md`
+before filling the table — the placement decision tree and the per-target recommendation formats
+(memory, rules, hooks, skills, agents, MCP servers, settings) live there.
+
 Present as a GFM table with a **Scope** column distinguishing:
 
 - **project** — git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)

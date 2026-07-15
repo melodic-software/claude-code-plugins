@@ -58,6 +58,8 @@ const validatePolicyStructure = SCHEMA_VALIDATOR.compile(POLICY_SCHEMA);
 const validateRepositoryPolicyStructure = SCHEMA_VALIDATOR.compile(REPOSITORY_POLICY_SCHEMA);
 const RUNNER_OUTPUT =
   /^\s*\$\{\{\s*needs\.(?<selectorId>[A-Za-z0-9_-]+)\.outputs\.runner\s*\|\|\s*'(?<fallback>[^'\r\n]+)'\s*}}\s*$/;
+const REQUIRED_RUNNER_OUTPUT =
+  /^\s*\$\{\{\s*needs\.(?<selectorId>[A-Za-z0-9_-]+)\.outputs\.runner\s*}}\s*$/;
 const MATRIX_OUTPUT = /^\$\{\{ matrix\.([A-Za-z0-9_-]+) }}$/;
 const FULL_SHA = /^[0-9a-f]{40}$/i;
 const REUSABLE_WORKFLOW_PATH =
@@ -215,6 +217,19 @@ function validatePolicy(value) {
   if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.default)) {
     throw new ConfigurationError(
       "policy.governedReusableRunnerInput.default must be an approved hosted runner label",
+    );
+  }
+  if (
+    approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel) ||
+    forbiddenHostedRunnerLabels.has(
+      value.governedReusableRunnerInput.failureSentinel.toLowerCase(),
+    ) ||
+    managedLabelRegexes.some((pattern) =>
+      pattern.test(value.governedReusableRunnerInput.failureSentinel),
+    )
+  ) {
+    throw new ConfigurationError(
+      "policy.governedReusableRunnerInput.failureSentinel must remain outside every hosted and managed runner label set",
     );
   }
   const hostedMatrixAxes = new Map();
@@ -562,10 +577,18 @@ function localReusableWorkflowStatus(callerFile, job, policy, workflowIndex) {
       isLocal: true,
       approved: false,
       reason:
-        "repository-local runner-input workflows must use workflow_call exclusively and declare the governed optional runner default",
+        "repository-local runner-input workflows must use workflow_call exclusively and declare either the governed optional runner default or a required runner with no default",
     };
   }
-  return { isLocal: true, approved: true, record, routing };
+  const runnerInput =
+    routing === "runner-input" ? governedReusableRunnerStatus(record.workflow, policy) : undefined;
+  return {
+    isLocal: true,
+    approved: true,
+    record,
+    routing,
+    ...(runnerInput?.mode ? { runnerInputMode: runnerInput.mode } : {}),
+  };
 }
 
 function permissionCapability(workflow, job, inherited = "may-write") {
@@ -848,18 +871,140 @@ function reusableWorkflowStatus(job, policy) {
   return { isReusable: true, approved: true, contract };
 }
 
-function routeStatus(jobId, target, job, jobs, policy, reusableContract) {
-  const match = RUNNER_OUTPUT.exec(target);
+function normalizedConditionExpression(value) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const wrapper = /^\$\{\{ (.*) }}$/.exec(normalized);
+  return wrapper?.[1];
+}
+
+function selfHostedSelectorConditionStatus(job, selectorId) {
+  const cancellation = cancellationSafeConditionStatus(job.if);
+  if (!cancellation.approved) {
+    return cancellation;
+  }
+  const expression = normalizedConditionExpression(job.if);
+  const suffix = [
+    `needs.${selectorId}.result == 'success'`,
+    `needs.${selectorId}.outputs.route == 'self-hosted'`,
+    `needs.${selectorId}.outputs.runner != ''`,
+    `needs.${selectorId}.outputs.runner == vars.CI_SELF_HOSTED_LABEL`,
+  ].join(" && ");
+  if (expression !== `!cancelled() && ${suffix}` && !expression?.endsWith(` && ${suffix}`)) {
+    return {
+      approved: false,
+      reason:
+        "required local runner inputs must be guarded by selector success, the exact self-hosted route, a nonempty runner, and the governed self-hosted label",
+    };
+  }
+  return { approved: true };
+}
+
+function unroutableFailureStatus(jobId, target, job, jobs, policy) {
+  if (target !== policy.governedReusableRunnerInput.failureSentinel) {
+    return undefined;
+  }
+  const prerequisites = normalizeNeeds(job.needs);
+  if (prerequisites.length !== 1) {
+    return {
+      approved: false,
+      reason: `${jobId} must declare exactly one selector job in needs to use the unroutable failure sentinel`,
+    };
+  }
+  const [selectorId] = prerequisites;
+  const selector = jobs[selectorId];
+  const selectorResult = selectorStatus(selector, policy);
+  if (!selectorResult.isSelector || !selectorResult.approved) {
+    return {
+      approved: false,
+      reason: selectorResult.reason ?? `${selectorId} does not call an approved selector workflow`,
+    };
+  }
+  const expectedCondition =
+    `!cancelled() && (needs.${selectorId}.result != 'success' || ` +
+    `!(needs.${selectorId}.outputs.route == 'self-hosted' && ` +
+    `needs.${selectorId}.outputs.runner != '' && ` +
+    `needs.${selectorId}.outputs.runner == vars.CI_SELF_HOSTED_LABEL))`;
+  if (normalizedConditionExpression(job.if) !== expectedCondition) {
+    return {
+      approved: false,
+      reason:
+        "the unroutable failure sentinel requires the exact complement of a successful governed self-hosted selector route",
+    };
+  }
+  const allowedJobKeys = new Set([
+    "name",
+    "needs",
+    "if",
+    "runs-on",
+    "timeout-minutes",
+    "permissions",
+    "steps",
+  ]);
+  const extraJobKeys = Object.keys(job).filter((key) => !allowedJobKeys.has(key));
+  if (extraJobKeys.length > 0) {
+    return {
+      approved: false,
+      reason: `the unroutable failure sentinel job has forbidden keys: ${extraJobKeys.join(", ")}`,
+    };
+  }
+  if (
+    job["timeout-minutes"] !== 1 ||
+    job.permissions === null ||
+    typeof job.permissions !== "object" ||
+    Array.isArray(job.permissions) ||
+    Object.keys(job.permissions).length !== 0
+  ) {
+    return {
+      approved: false,
+      reason: "the unroutable failure sentinel job requires timeout-minutes: 1 and permissions: {}",
+    };
+  }
+  if (!Array.isArray(job.steps) || job.steps.length !== 1) {
+    return {
+      approved: false,
+      reason: "the unroutable failure sentinel job requires exactly one rejecting shell step",
+    };
+  }
+  const [step] = job.steps;
+  const stepKeys =
+    step !== null && typeof step === "object" && !Array.isArray(step) ? Object.keys(step) : [];
+  const lines = typeof step?.run === "string" ? step.run.trim().split(/\r?\n/) : [];
+  if (
+    stepKeys.some((key) => key !== "name" && key !== "run") ||
+    typeof step?.name !== "string" ||
+    step.name.trim() === "" ||
+    lines.length !== 2 ||
+    !/^echo "::error::[A-Za-z0-9][A-Za-z0-9 .:_-]*"$/.test(lines[0].trim()) ||
+    lines[1].trim() !== "exit 1"
+  ) {
+    return {
+      approved: false,
+      reason:
+        "the unroutable failure sentinel step must only emit a static error annotation and exit 1",
+    };
+  }
+  return { approved: true, selectorId };
+}
+
+function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRunnerInputMode) {
+  const fallbackMatch = RUNNER_OUTPUT.exec(target);
+  const requiredMatch = REQUIRED_RUNNER_OUTPUT.exec(target);
   const configuredDefault = policy.governedReusableRunnerInput.default;
-  if (!match || match.groups.fallback !== configuredDefault) {
+  const usesOptionalDefault =
+    fallbackMatch !== null && fallbackMatch.groups.fallback === configuredDefault;
+  const usesRequiredInput = requiredMatch !== null && localRunnerInputMode === "required";
+  if (!usesOptionalDefault && !usesRequiredInput) {
     return {
       attempted: target.includes("outputs.runner"),
       approved: false,
-      reason: `runner routing must use exactly needs.<selector-job>.outputs.runner || '${configuredDefault}'`,
+      reason: `runner routing must use exactly needs.<selector-job>.outputs.runner || '${configuredDefault}', or a raw selector output passed to a required no-default repository-local runner input`,
     };
   }
 
-  const selectorId = match.groups.selectorId;
+  const selectorId = (fallbackMatch ?? requiredMatch).groups.selectorId;
   if (!normalizeNeeds(job.needs).includes(selectorId)) {
     return {
       attempted: true,
@@ -882,13 +1027,20 @@ function routeStatus(jobId, target, job, jobs, policy, reusableContract) {
   if (!status.approved) {
     return { attempted: true, approved: false, reason: status.reason };
   }
-  const condition = reusableContract?.selectorResultInput
-    ? failClosedSelectorConditionStatus(job, selectorId, reusableContract.selectorResultInput)
-    : cancellationSafeConditionStatus(job.if);
+  const condition = usesRequiredInput
+    ? selfHostedSelectorConditionStatus(job, selectorId)
+    : reusableContract?.selectorResultInput
+      ? failClosedSelectorConditionStatus(job, selectorId, reusableContract.selectorResultInput)
+      : cancellationSafeConditionStatus(job.if);
   if (!condition.approved) {
     return { attempted: true, approved: false, reason: condition.reason };
   }
-  return { attempted: true, approved: true, selectorId };
+  return {
+    attempted: true,
+    approved: true,
+    selectorId,
+    mode: usesRequiredInput ? "required-no-default" : "optional-default",
+  };
 }
 
 function failClosedSelectorConditionStatus(job, selectorId, selectorResultInput) {
@@ -1022,17 +1174,21 @@ function governedReusableRunnerStatus(workflow, policy) {
       reason: `${contract.expression} requires on.workflow_call.inputs.${contract.name}`,
     };
   }
-  if (
-    declaration.type !== "string" ||
-    declaration.default !== contract.default ||
-    declaration.required === true
-  ) {
+  const optionalDefault =
+    declaration.type === "string" &&
+    declaration.default === contract.default &&
+    (declaration.required === undefined || declaration.required === false);
+  const requiredNoDefault =
+    declaration.type === "string" &&
+    declaration.required === true &&
+    !Object.hasOwn(declaration, "default");
+  if (!optionalDefault && !requiredNoDefault) {
     return {
       approved: false,
-      reason: `on.workflow_call.inputs.${contract.name} must be an optional string defaulting to ${contract.default}`,
+      reason: `on.workflow_call.inputs.${contract.name} must be either an optional string defaulting to ${contract.default} or a required string with no default`,
     };
   }
-  return { approved: true };
+  return { approved: true, mode: requiredNoDefault ? "required" : "optional-default" };
 }
 
 function hostedMatrixStatus(job, target, policy) {
@@ -1117,6 +1273,16 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     };
   }
 
+  const unroutableFailure = unroutableFailureStatus(jobId, target, job, jobs, policy);
+  if (unroutableFailure) {
+    return {
+      approved: unroutableFailure.approved,
+      kind: unroutableFailure.approved ? "unroutable-failure" : "invalid",
+      route: { attempted: true, selectorId: unroutableFailure.selectorId },
+      ...(unroutableFailure.reason ? { reason: unroutableFailure.reason } : {}),
+    };
+  }
+
   const route = routeStatus(
     jobId,
     target,
@@ -1124,6 +1290,7 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
     jobs,
     policy,
     !local.approved && reusable.approved ? reusable.contract : undefined,
+    local.approved ? local.runnerInputMode : undefined,
   );
   if (route.approved) {
     return { approved: true, kind: "selector-output", route };
@@ -1577,6 +1744,95 @@ function finding(rule, file, job, message) {
   return { rule, file, ...(job ? { job } : {}), message };
 }
 
+const COMMENT_HEX_TOKENS = /(?<=^|[^0-9a-f])[0-9a-f]{7,40}(?=[^0-9a-f]|$)/giu;
+
+// A hex run reads as a short-SHA claim only when it mixes digits and letters
+// (or is a full 40-character SHA): all-letter runs are ordinary English words
+// ("acceded") and all-digit runs are dates or counters, and flagging either
+// would fail closed on prose.
+function isShaClaim(token) {
+  return token.length === 40 || (/[0-9]/u.test(token) && /[a-f]/iu.test(token));
+}
+
+// Extract the pin and trailing comment from parsed workflow `uses` scalar
+// nodes, so YAML properties such as anchors remain supported while examples
+// inside run blocks or comments can never masquerade as executable references.
+function pinnedUsesEntries(source, workflow) {
+  const document = parseDocument(source, {
+    maxAliasCount: 0,
+    merge: false,
+    prettyErrors: true,
+    strict: true,
+    uniqueKeys: true,
+  });
+  const lineStarts = [0];
+  for (const match of source.matchAll(/\n/gu)) {
+    lineStarts.push(match.index + 1);
+  }
+  const lineIndexAt = (offset) => {
+    let low = 0;
+    let high = lineStarts.length;
+    while (low + 1 < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (lineStarts[middle] <= offset) low = middle;
+      else high = middle;
+    }
+    return low;
+  };
+
+  const entries = [];
+  for (const [jobId, job] of Object.entries(workflow?.jobs ?? {})) {
+    if (job === null || typeof job !== "object" || Array.isArray(job)) {
+      continue;
+    }
+    const paths = [["jobs", jobId, "uses"]];
+    if (Array.isArray(job.steps)) {
+      for (const index of job.steps.keys()) {
+        paths.push(["jobs", jobId, "steps", index, "uses"]);
+      }
+    }
+    for (const parts of paths) {
+      const node = document.getIn(parts, true);
+      const pinned =
+        typeof node?.value === "string" && node.value.match(/@(?<sha>[0-9a-f]{40})$/iu);
+      if (!pinned || !Array.isArray(node.range)) {
+        continue;
+      }
+      const trailing = source.slice(node.range[1], node.range[2] ?? node.range[1]);
+      const comment = trailing.match(/^\s+#\s*(?<comment>[^\r\n]*)(?:\r?\n)?$/u);
+      if (comment) {
+        entries.push({
+          comment: comment.groups.comment,
+          line: lineIndexAt(node.range[0]) + 1,
+          sha: pinned.groups.sha,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+function pinProvenanceFindings(source, file, workflow) {
+  const findings = [];
+  for (const { comment, line, sha } of pinnedUsesEntries(source, workflow)) {
+    for (const token of comment.match(COMMENT_HEX_TOKENS) ?? []) {
+      if (isShaClaim(token) && !sha.toLowerCase().startsWith(token.toLowerCase())) {
+        findings.push(
+          finding(
+            "pin-provenance-drift",
+            file,
+            undefined,
+            `line ${line}: pin comment claims commit ${token}, but the ` +
+              `reference pins ${sha.slice(0, 12)}; update the provenance ` +
+              "comment in the same change as the pin",
+          ),
+        );
+      }
+    }
+  }
+  return findings;
+}
+
 async function repositoryWorkflowIndex(root) {
   const directory = path.join(root, ".github", "workflows");
   let entries;
@@ -1605,14 +1861,17 @@ async function repositoryWorkflowIndex(root) {
     if (!entry.isFile()) {
       continue;
     }
+    let source;
     try {
+      source = await readFile(absoluteFile, "utf8");
       records.set(file, {
         file,
         absoluteFile,
-        workflow: parseWorkflow(await readFile(absoluteFile, "utf8"), file),
+        source,
+        workflow: parseWorkflow(source, file),
       });
     } catch (error) {
-      records.set(file, { file, absoluteFile, error: error.message });
+      records.set(file, { file, absoluteFile, source, error: error.message });
     }
   }
   return records;
@@ -1695,11 +1954,16 @@ export async function auditRepository({
 
   for (const record of workflowIndex.values()) {
     const { file, workflow } = record;
+    if (record.source) {
+      findings.push(...pinProvenanceFindings(record.source, file, workflow));
+    }
     if (!workflow) {
       findings.push(finding("workflow-parse", file, undefined, record.error));
       continue;
     }
 
+    const requiredNoDefaultCallers = new Map();
+    const approvedFailureSentinels = new Map();
     for (const [jobId, job] of Object.entries(workflow.jobs)) {
       if (job === null || typeof job !== "object" || Array.isArray(job)) {
         findings.push(finding("job-shape", file, jobId, "job must be a mapping"));
@@ -1718,6 +1982,21 @@ export async function auditRepository({
         target !== undefined && Object.hasOwn(target, "route") && target.route.attempted === true;
       const runnerStrings = rawRunnerStrings(job, !selector.isSelector);
       const routingEnabled = config.visibility === "private" && config.selfHostedCi;
+      if (
+        routingEnabled &&
+        target?.kind === "selector-output" &&
+        target.approved &&
+        target.route.mode === "required-no-default"
+      ) {
+        const callers = requiredNoDefaultCallers.get(target.route.selectorId) ?? [];
+        callers.push(jobId);
+        requiredNoDefaultCallers.set(target.route.selectorId, callers);
+      }
+      if (routingEnabled && target?.kind === "unroutable-failure" && target.approved) {
+        const sentinels = approvedFailureSentinels.get(target.route.selectorId) ?? [];
+        sentinels.push(jobId);
+        approvedFailureSentinels.set(target.route.selectorId, sentinels);
+      }
       const seedLocalPermissionFlow =
         !isWorkflowCallExclusive(workflow) || !localIncomingFiles.has(file);
       if (routingEnabled && localCall?.approved && seedLocalPermissionFlow) {
@@ -1844,6 +2123,9 @@ export async function auditRepository({
         continue;
       }
 
+      if (target?.kind === "unroutable-failure" && target.approved) {
+        continue;
+      }
       if (target?.kind === "selector-output" && target.approved) {
         continue;
       }
@@ -1885,6 +2167,23 @@ export async function auditRepository({
         );
       } else if (exception) {
         consumedExceptions.add(key);
+      }
+    }
+
+    for (const [selectorId, callerIds] of requiredNoDefaultCallers) {
+      const sentinelIds = approvedFailureSentinels.get(selectorId) ?? [];
+      if (sentinelIds.length === 1) {
+        continue;
+      }
+      for (const jobId of callerIds) {
+        findings.push(
+          finding(
+            "selector-failure-sentinel-required",
+            file,
+            jobId,
+            `required no-default local runner calls using ${selectorId} require exactly one approved ${policy.governedReusableRunnerInput.failureSentinel} rejection job for the same selector in this workflow; found ${sentinelIds.length}`,
+          ),
+        );
       }
     }
   }

@@ -3,6 +3,20 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **Behavioral evals restored, adapted to the multi-skill split.** The `pat-pattison` mega-skill's
+  full eval suite (13 cases) shipped zero replacement coverage when it decomposed in 0.2.0. All 13
+  cases are ported forward, each adapted to the concern skill and action that now owns its behavior:
+  `workflow` (brainstorm, idea, fragment — 3 cases), `diagnosis` (demo, audit, variations — 3 cases),
+  `rhyme` (rhyme, datamuse — 2 cases), `song-form` (box-model, bridge — 2 cases), `co-write`
+  (title-game, co-write — 2 cases), and `object-writing` (metaphor-recipe — 1 case). No case was
+  dropped — every behavior the original suite exercised still exists in the split. Prompts and
+  expectations are updated to the plugin's `/songwriting:<skill> <action>` invocation form and
+  current `SKILL.md` contracts.
+
 ## [0.3.0]
 
 ### Added

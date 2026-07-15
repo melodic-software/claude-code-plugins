@@ -10,7 +10,8 @@
     "melodic-software": [
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952"
     ]
   },
   "approvedReusableWorkflowContracts": {
@@ -106,7 +107,7 @@
       "allowedInputs": ["runner", "prerequisite-result"],
       "allowedSecrets": {}
     },
-    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@35f2684ac953794b854bac1959df00e74eeca1d9": {
       "routing": "hosted-only",
       "allowedInputs": ["dry-run", "targets"],
       "allowedSecrets": {
@@ -159,7 +160,8 @@
   "governedReusableRunnerInput": {
     "name": "runner",
     "expression": "${{ inputs.runner }}",
-    "default": "ubuntu-24.04"
+    "default": "ubuntu-24.04",
+    "failureSentinel": "ci-runner-selection-failed"
   },
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
   "managedLabelPatterns": [

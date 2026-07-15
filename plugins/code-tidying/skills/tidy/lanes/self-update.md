@@ -48,6 +48,13 @@ npx markdownlint-cli2 <changed .md files>
 bash skills/tidy/scripts/open-pr-count.test.sh    # if the script changed (it shouldn't in this lane)
 ```
 
+Markdown lint does not cover the frontmatter parse contract — a broken `---` fence in a SKILL.md would block the next session's skill discovery. Run from the plugin root:
+
+```bash
+# Stdlib-only (no PyYAML): confirms each SKILL.md's `---` fences are present and the frontmatter between them is non-empty.
+python -c "import glob,sys; bad=[p for p in glob.glob('skills/*/SKILL.md') if (lambda s: len(s)!=3 or s[0] or not s[1].strip())(open(p,encoding='utf-8').read().split('---',2))]; sys.exit('broken frontmatter: '+', '.join(bad)) if bad else print('OK')"
+```
+
 ## Conventional Commits type
 
 `chore(tidy):`. Example title: `chore(tidy): self-update — fix typos in lane file headers`.
