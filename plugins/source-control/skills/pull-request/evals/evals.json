@@ -66,7 +66,7 @@
       "id": 6,
       "name": "readiness-blocks-on-security-failure",
       "prompt": "Is PR #161 ready to merge? Its live gh state is captured in evals/fixtures/ci-status-security-fail.md relative to the skill directory.",
-      "expected_output": "Reports NOT ready. Per readiness.md Gate 3, the security check-run FAILURE is surfaced as a blocking finding requiring triage before merge, every non-pass check is classified, and the absence of reviewer comments is treated as 'cooldown still pending' (Gate 5), not 'ready'.",
+      "expected_output": "Reports NOT ready. Per readiness.md Gate 3, the security check-run FAILURE is surfaced as a blocking finding requiring triage before merge, every non-pass check is classified, and the absence of reviewer comments is treated as 'cooldown still pending' (Gate 5), not 'ready'. A naive 'mostly green' read must not produce a ready verdict.",
       "files": [
         "evals/fixtures/ci-status-security-fail.md"
       ],

@@ -1,8 +1,6 @@
 # Fixture: CI + comment state on PR #161 (readiness check)
 
-The user is asking whether this PR is ready to merge. Most checks are green, but
-one check is a FAILURE from a security check-run and no reviewer has commented yet.
-A naive read of "mostly green" would wrongly declare ready.
+Captured `gh` command output for PR #161.
 
 ## `gh pr view 161 --json state,mergeable`
 
