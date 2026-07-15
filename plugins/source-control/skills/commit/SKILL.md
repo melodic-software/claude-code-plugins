@@ -54,6 +54,9 @@ When the project enforces its convention with a commit-msg git hook (lefthook, h
 Use the **Bash tool**, not the PowerShell tool. Bash heredoc is the canonical form across all platforms (Git Bash, Linux, macOS).
 
 ```bash
+# --trailer line below applies only when the resolved trailer_policy calls for one
+# (default: yes). trailer_policy "none" -> drop the --trailer line entirely.
+# trailer_policy naming a different template -> substitute that template's text.
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer, placeholders filled>" \
   <<'EOF'
@@ -106,6 +109,8 @@ Always `git add <specific-files>`, never `git add -A` or `git add .`. The risk i
 When the index already holds staged files OUTSIDE this commit's scope — concurrent Claude Code sessions on the same branch, pre-existing mixed WIP — a bare `git commit` would sweep them all in. Instead, limit the commit by pathspec:
 
 ```bash
+# Same trailer_policy conditionality as the canonical form above: drop --trailer
+# entirely when trailer_policy is "none"; substitute a named alternate template.
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer>" \
   -- <path> [<path>...] <<'EOF'
