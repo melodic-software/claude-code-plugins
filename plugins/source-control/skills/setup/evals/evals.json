@@ -41,12 +41,14 @@
       "id": 4,
       "name": "verifies-tracked-not-ignored",
       "prompt": "/source-control:setup\n\nUse the recommended Conventional Commits default.",
-      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore. If a pattern excludes it, surfaces the matching pattern and offers to fix .gitignore before reporting success.",
+      "expected_output": "After writing .claude/source-control.md, runs git check-ignore -v .claude/source-control.md to confirm it is not excluded by .gitignore, then runs git ls-files --error-unmatch .claude/source-control.md to confirm it is actually present in the index (check-ignore reporting nothing does not by itself prove the file is tracked). If a .gitignore pattern excludes it, surfaces the matching pattern and offers to fix .gitignore; if it is unignored but not yet in the index, stages it and prompts the user to commit. Reports success only once both checks pass.",
       "files": [],
       "expectations": [
         "Runs git check-ignore -v .claude/source-control.md after writing the file",
-        "Reports success only when the file is confirmed tracked, not ignored",
-        "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success"
+        "Also checks the index (e.g. git ls-files --error-unmatch) rather than treating a clean check-ignore result alone as proof of tracked status",
+        "Reports success only when the file is confirmed both unignored and present in the index",
+        "If ignored, surfaces the matching .gitignore pattern and offers a fix rather than silently reporting success",
+        "If unignored but untracked, stages the file and prompts the user to commit rather than silently reporting success"
       ]
     },
     {

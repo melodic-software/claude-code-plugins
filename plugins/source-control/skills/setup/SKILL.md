@@ -110,10 +110,18 @@ safe default (Conventional Commits).
 
    Drop any section with no content (`type_list` for a non-Conventional-Commits pattern;
    `trailer_policy` when there is no trailer convention) rather than leaving it empty. Then verify the
-   file is tracked, not ignored: run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/.claude/source-control.md"`
-   — it must report nothing. A non-empty result means a `.gitignore` pattern excludes it; surface the
-   matching pattern and offer to fix `.gitignore` before reporting success, since this file is
-   team-shared and must be committed to take effect.
+   file is actually tracked before reporting success — `git check-ignore -v` alone does not prove this:
+   it only reports a matching `.gitignore` pattern, and reports nothing for both a properly tracked file
+   and a plain untracked one, so a freshly written file in a fresh repo would pass it while still being
+   invisible to teammates.
+   - Run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/.claude/source-control.md"` — a non-empty result
+     means a `.gitignore` pattern excludes it; surface the matching pattern and offer to fix
+     `.gitignore` first.
+   - Then, with no ignore match, confirm the file is actually in the index: run
+     `git -C "${CLAUDE_PROJECT_DIR}" ls-files --error-unmatch .claude/source-control.md`. A non-zero
+     exit means the file is untracked — stage it (`git add`) and prompt the user to commit, since this
+     file is team-shared and must be committed to take effect. Only report success once both checks
+     pass: not ignored, and present in the index.
 
 ## Output
 
