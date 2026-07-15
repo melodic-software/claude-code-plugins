@@ -9,9 +9,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-	detectFrameworks,
-	detectRepoStructure,
-	parseGitHubUrl,
+  detectFrameworks,
+  detectRepoStructure,
+  parseGitHubUrl,
 } from "@melodic/repo-analysis";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
@@ -32,15 +32,15 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  * @returns {Promise<boolean>}
  */
 export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
-	return new Promise((resolve) => {
-		const child = spawnFn(
-			"git",
-			["clone", "--depth", "1", "--single-branch", "--", url, destDir],
-			{ stdio: "ignore" },
-		);
-		child.on("close", (code) => resolve(code === 0));
-		child.on("error", () => resolve(false));
-	});
+  return new Promise((resolve) => {
+    const child = spawnFn(
+      "git",
+      ["clone", "--depth", "1", "--single-branch", "--", url, destDir],
+      { stdio: "ignore" },
+    );
+    child.on("close", (code) => resolve(code === 0));
+    child.on("error", () => resolve(false));
+  });
 }
 
 /**
@@ -52,7 +52,7 @@ export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
  * @returns {string}
  */
 export function sanitizePathSegment(segment) {
-	return segment.replace(/[^\w.-]/g, "_");
+  return segment.replace(/[^\w.-]/g, "_");
 }
 
 /**
@@ -60,11 +60,11 @@ export function sanitizePathSegment(segment) {
  * @returns {string[]}
  */
 export function filterGitHubUrls(links) {
-	const urls = [];
-	for (const link of links) {
-		if (parseGitHubUrl(link.url)) urls.push(link.url);
-	}
-	return [...new Set(urls)];
+  const urls = [];
+  for (const link of links) {
+    if (parseGitHubUrl(link.url)) urls.push(link.url);
+  }
+  return [...new Set(urls)];
 }
 
 /**
@@ -78,64 +78,64 @@ export function filterGitHubUrls(links) {
  * @returns {Promise<HarvestedRepoAnalysis[]>}
  */
 export async function analyzeHarvestedRepos(
-	sliceDir,
-	{
-		clone = shallowCloneGitHubRepo,
-		detectStructure = detectRepoStructure,
-		detectFrameworksFn = detectFrameworks,
-	} = {},
+  sliceDir,
+  {
+    clone = shallowCloneGitHubRepo,
+    detectStructure = detectRepoStructure,
+    detectFrameworksFn = detectFrameworks,
+  } = {},
 ) {
-	const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
-	const raw = await fs.readFile(harvestPath, "utf8");
-	const links = JSON.parse(raw);
-	const githubUrls = filterGitHubUrls(links);
+  const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
+  const raw = await fs.readFile(harvestPath, "utf8");
+  const links = JSON.parse(raw);
+  const githubUrls = filterGitHubUrls(links);
 
-	/** @type {HarvestedRepoAnalysis[]} */
-	const analyses = [];
-	const tempRoot = await fs.mkdtemp(
-		path.join(os.tmpdir(), "youtube-repo-analysis-"),
-	);
+  /** @type {HarvestedRepoAnalysis[]} */
+  const analyses = [];
+  const tempRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "youtube-repo-analysis-"),
+  );
 
-	try {
-		for (const url of githubUrls) {
-			const parsed = parseGitHubUrl(url);
-			if (!parsed) continue;
+  try {
+    for (const url of githubUrls) {
+      const parsed = parseGitHubUrl(url);
+      if (!parsed) continue;
 
-			const cloneDir = path.join(
-				tempRoot,
-				`${sanitizePathSegment(parsed.owner)}-${sanitizePathSegment(parsed.repo)}`,
-			);
-			// Clone the canonical repo URL, not the harvested deep link (e.g.
-			// `.../blob/main/README.md`), which git cannot clone.
-			const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
-			const cloned = await clone(cloneUrl, cloneDir);
-			if (!cloned) continue;
+      const cloneDir = path.join(
+        tempRoot,
+        `${sanitizePathSegment(parsed.owner)}-${sanitizePathSegment(parsed.repo)}`,
+      );
+      // Clone the canonical repo URL, not the harvested deep link (e.g.
+      // `.../blob/main/README.md`), which git cannot clone.
+      const cloneUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
+      const cloned = await clone(cloneUrl, cloneDir);
+      if (!cloned) continue;
 
-			analyses.push({
-				url,
-				owner: parsed.owner,
-				repo: parsed.repo,
-				structure: detectStructure(cloneDir),
-				frameworks: detectFrameworksFn(cloneDir),
-			});
-		}
-	} finally {
-		await fs.rm(tempRoot, { recursive: true, force: true });
-	}
+      analyses.push({
+        url,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        structure: detectStructure(cloneDir),
+        frameworks: detectFrameworksFn(cloneDir),
+      });
+    }
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
 
-	const outputPath = lanePath(
-		sliceDir,
-		LANES.source,
-		"harvested-repo-analysis.json",
-	);
-	await fs.mkdir(path.dirname(outputPath), { recursive: true });
-	await fs.writeFile(
-		outputPath,
-		`${JSON.stringify(analyses, null, 2)}\n`,
-		"utf8",
-	);
+  const outputPath = lanePath(
+    sliceDir,
+    LANES.source,
+    "harvested-repo-analysis.json",
+  );
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(
+    outputPath,
+    `${JSON.stringify(analyses, null, 2)}\n`,
+    "utf8",
+  );
 
-	return analyses;
+  return analyses;
 }
 
 /**
@@ -143,33 +143,33 @@ export async function analyzeHarvestedRepos(
  * @returns {Promise<number>}
  */
 export async function runAnalyzeHarvestedReposCli(argv) {
-	const sliceDir = argv[2];
-	if (!sliceDir) {
-		process.stderr.write(
-			"Usage: node harvesting/analyze-harvested-repos.js <slice-dir>\n",
-		);
-		return 1;
-	}
+  const sliceDir = argv[2];
+  if (!sliceDir) {
+    process.stderr.write(
+      "Usage: node harvesting/analyze-harvested-repos.js <slice-dir>\n",
+    );
+    return 1;
+  }
 
-	const analyses = await analyzeHarvestedRepos(sliceDir);
-	process.stdout.write(
-		`${JSON.stringify({ count: analyses.length, analyses }, null, 2)}\n`,
-	);
-	return 0;
+  const analyses = await analyzeHarvestedRepos(sliceDir);
+  process.stdout.write(
+    `${JSON.stringify({ count: analyses.length, analyses }, null, 2)}\n`,
+  );
+  return 0;
 }
 
 const isMain =
-	process.argv[1] &&
-	path.resolve(process.argv[1]) ===
-		path.resolve(fileURLToPath(import.meta.url));
+  process.argv[1] &&
+  path.resolve(process.argv[1]) ===
+    path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-	runAnalyzeHarvestedReposCli(process.argv)
-		.then((code) => process.exit(code))
-		.catch((err) => {
-			process.stderr.write(
-				`${err instanceof Error ? err.message : String(err)}\n`,
-			);
-			process.exit(1);
-		});
+  runAnalyzeHarvestedReposCli(process.argv)
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      process.stderr.write(
+        `${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      process.exit(1);
+    });
 }
