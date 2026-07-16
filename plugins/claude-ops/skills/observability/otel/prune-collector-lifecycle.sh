@@ -49,24 +49,33 @@ default_running() {
 
 stop_collector() {
   if [[ -n "${CC_OTEL_STOP_CMD:-}" ]]; then
-    "$CC_OTEL_STOP_CMD"
-    return
+    # Capture explicitly rather than a bare `return` after the command: under `set -e`,
+    # a caller-side conditional (this is invoked from `if !`/`while` sites) suppresses
+    # errexit for the whole dynamic scope, and bash's propagation of the suppressed
+    # command's $? through an implicit `return` differs across bash versions (observed:
+    # lost on bash 5.2, preserved on 5.3). `|| rc=$?` + explicit `return "$rc"` is
+    # version-independent.
+    local rc=0
+    "$CC_OTEL_STOP_CMD" || rc=$?
+    return "$rc"
   fi
   default_stop
 }
 
 start_collector() {
   if [[ -n "${CC_OTEL_START_CMD:-}" ]]; then
-    "$CC_OTEL_START_CMD"
-    return
+    local rc=0
+    "$CC_OTEL_START_CMD" || rc=$?
+    return "$rc"
   fi
   default_start
 }
 
 collector_running() {
   if [[ -n "${CC_OTEL_RUNNING_CMD:-}" ]]; then
-    "$CC_OTEL_RUNNING_CMD"
-    return
+    local rc=0
+    "$CC_OTEL_RUNNING_CMD" || rc=$?
+    return "$rc"
   fi
   default_running
 }
