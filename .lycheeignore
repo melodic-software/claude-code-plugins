@@ -5,3 +5,11 @@
 # upstream sibling files that are deliberately not vendored — do not check
 # links that resolve into a vendor directory.
 /plugins/[^/]+/skills/[^/]+/vendor/
+
+# Claude Code expands these runtime variables after loading an installed
+# plugin. In source Markdown they are intentionally not filesystem paths.
+CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
+
+# Synthetic ai-briefing eval fixtures use a fictional release feed. The URLs
+# are test data for ranking/deduplication behavior, not external dependencies.
+github\.com/meridian-labs/agent-cli/releases/tag/

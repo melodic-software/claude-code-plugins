@@ -59,7 +59,11 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 1. **Depth-first Q&A loop** — ONE question at a time, resolve the load-bearing one, then surface the next; rank questions by architectural blast radius — the answer that would change the most downstream work goes first
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
-4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer surfaces a domain term and the project keeps a domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`), update it IMMEDIATELY between questions, not batched at end. Decisions, gotchas, and conventions likewise go to their proper homes (ADR, project rules, side note) in the same response. A general session writes no repo docs — it drives to a shared-understanding summary only
+4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
+   term, invoke `/planning:domain-modeling` IMMEDIATELY between questions, not batched at end. Route
+   decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
+   same response. A general session writes no repo docs — it drives to a shared-understanding summary
+   only
 
 **Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:explore blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
@@ -108,7 +112,10 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 
 - **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
 - **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
-- **inline vocabulary update** *(engineering sessions only)* — write resolved terms to the project's domain-vocabulary file immediately, if it keeps one. Keep that file pure: terms and tight *what it IS* definitions, project-specific terms only — never a spec, scratchpad, or implementation detail. When several words name one concept, pick one canonical term and record the rejected synonyms so usage converges (follow the file's own convention; a readable `Avoid:` line if it has none). Discover the file and its shape by climbing to it — never prescribe a filename or format
+- **inline vocabulary update** *(engineering sessions only)* — when a term resolves, invoke
+  `/planning:domain-modeling` immediately. That skill owns discovery-first placement, the consumer's
+  file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview
+  resumes after the update
 - **ADR, offered sparingly** *(engineering sessions only)* — propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer — never prescribe a location or format
 
 ## The interview loop

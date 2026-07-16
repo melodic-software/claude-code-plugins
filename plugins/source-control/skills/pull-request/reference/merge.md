@@ -54,17 +54,24 @@ Reuse the worktree for next task by creating a new branch from the latest defaul
 # 0. Resolve the repo's default branch (repo-agnostic — not every repo uses main)
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 
-# 1. Get the latest default branch
+# 1. Preserve unrelated local work before changing branches. Non-conflicting
+# edits otherwise carry silently onto the next task branch.
+if [ -n "$(git status --porcelain)" ]; then
+  git stash push -u -m "pre-merge-cleanup: <old-branch>"
+  echo "Stashed uncommitted changes before worktree reuse."
+fi
+
+# 2. Get the latest default branch
 git fetch origin "$DEFAULT_BRANCH"
 
-# 2. Create new branch from it (NOT checkout of the default branch — that's blocked in a worktree)
+# 3. Create new branch from it (NOT checkout of the default branch — that's blocked in a worktree)
 git checkout -b <new-type>/<new-desc> "origin/$DEFAULT_BRANCH"
 
-# 3. Delete old merged branch (squash merge needs -D not -d)
+# 4. Delete old merged branch (squash merge needs -D not -d)
 git branch -D <old-branch>
 ```
 
-Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
+If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
 
 Worktree reuse (new branch from latest default branch in the same directory) is faster than remove+recreate and preserves gitignored files; the alternative is `ExitWorktree` + a fresh `EnterWorktree` for a clean slate.
 

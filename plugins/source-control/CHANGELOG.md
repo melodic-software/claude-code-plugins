@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Exec-bit check in `/source-control:commit`.** Immediately after staging, newly-added files whose
+  first line is a shebang (`#!`) are checked against the index and fixed with
+  `git update-index --chmod=+x` when staged non-executable. Closes the gap where a new `.sh`/`.py`
+  script lands as mode `100644` and is only caught by a CI exec-bit lint lane after the push
+  round-trip. Runs after the format-before-push check below (not before), because re-staging a
+  formatter's fixes reads the worktree file mode and would otherwise silently undo an
+  already-applied `--chmod=+x`.
+- **Format-before-push check in `/source-control:commit`.** Before drafting the commit message, the
+  skill now checks the consuming repo for an already-configured formatter/linter (`package.json`
+  scripts, `biome.json`, a `Makefile` target, `.editorconfig` + `editorconfig-checker`, or an
+  equivalent repo-native tool) and runs it against the files staged for that commit, re-staging any
+  fixes. Scoped to this commit's paths, not the full index, so it never mutates or blocks on staged
+  work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
+  skips silently when none is discoverable.
+
+## [0.4.1]
+
+### Fixed
+
+- Require a branch-derived issue to be open before adding `Closes #N`, preserve
+  merge-commit branch history when integrating the default branch during PR
+  babysitting, and stash a dirty worktree before reusing it for the next task.
+
 ## [0.4.0]
 
 ### Added

@@ -1,5 +1,11 @@
 # Changelog — topic-docs convention
 
+## 1.0.1 — 2026-07-15
+
+- Reserve `vault_backend: gitbook` without enabling writes: concern files preserve the key, skills
+  report its deferred state, and durable promotion uses `docs` without GitBook API/MCP or Git Sync
+  writes. A mirror requires separately reviewed automation that keeps git authoritative.
+
 ## 1.0.0 — 2026-07-14
 
 Initial contract. Replaces four divergent conventions

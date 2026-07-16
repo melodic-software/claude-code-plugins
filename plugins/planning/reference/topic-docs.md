@@ -31,5 +31,17 @@ the contract's solo/offline mode. Roots are configurable via the concern file's 
 
 `/planning:architect` owns describing the contract-slice close-out. Its promotion step resolves
 the concern file's `vault_backend`: `docs` (default) → a guarded, history-preserving `git mv`
-into `docs/adr/` / `docs/specs/`; any other value → the backend the consuming repo documents,
-degrading to `docs` when that backend's tools are absent.
+into `docs/adr/` / `docs/specs/`; an enabled non-`docs` value → the backend the consuming repo
+documents, degrading to `docs` when that backend's tools are absent.
+
+`gitbook` is reserved but **not enabled** as a writable backend. Preserve the key when it already
+exists, report that it is deferred, and promote durable content to `docs`; never call GitBook's
+API/MCP write operations or configure Git Sync as a planning close-out action. A consumer may
+publish a mirror only through separately reviewed automation that keeps git authoritative. This is
+an explicit repository policy because GitBook documents both a writable API and a bidirectional Git
+Sync product; neither is a safe implicit fallback:
+
+- <https://gitbook.com/docs/developers/gitbook-api/quickstart>
+- <https://gitbook.com/docs/developers/gitbook-api/api-reference>
+- <https://gitbook.com/docs/getting-started/git-sync>
+- <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md>

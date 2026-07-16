@@ -31,7 +31,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 - [`architecture`](plugins/architecture) — Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, and locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and runs an interview loop on the selected candidate before handing off for planning.
 - [`prototype`](plugins/prototype) — Builds throwaway code to answer a design question before committing to architecture — a logic facet (an interactive terminal app over a portable state model) and a UI facet (radically different visual variants on one route).
-- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate — persisting PRD.md / PLAN.md / design artifacts for fresh-session handoff.
+- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, actively maintain resolved domain language, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.
 - [`event-storming`](plugins/event-storming) — EventStorming for domain discovery — a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops that produce a structured-markdown model by default; a live Miro-board rendering path is available when the first-party miro plugin is enabled).
 - [`miro`](plugins/miro) — Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token.
 
@@ -72,6 +72,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 - [`code-tidying`](plugins/code-tidying) — Code tidying and comment hygiene: /code-tidying:tidy proactively hunts a rotated, glob-scoped lane for Beck-style tidyings under a research-backed scope budget and ships one tight PR; /code-tidying:batch-simplify sweeps recently changed files through grouped, dependency-ordered simplification waves with a never-drop deferred-items contract; /code-tidying:comment-residue is a read-only classifier that flags history, plan, conversational, and ticket/PR residue in code comments for author-applied deletion. Project-specific tidy lanes are scaffolded into a tracked .claude/tidy-lanes/ config folder by a re-runnable setup skill.
 - [`repo-hygiene`](plugins/repo-hygiene) — Repo hygiene action-router: /repo-hygiene:clean sweeps reclaimable caches, build artifacts, and stale git metadata, and can realign the working tree to a fresh-pull state — dry-run-first, with destructive tiers gated behind explicit confirmation and a session-scoped destructive-command guard. Ecosystem targets are detected at runtime; secrets, runtime dependencies, and skill data are preserved by default.
 - [`repo-fleet-hygiene`](plugins/repo-fleet-hygiene) — Read-only Git/GitHub fleet audit for merged local branches, orphaned or mismatched worktree registrations, and repository transfers or renames. Findings are confidence-tiered and hand off exact targets to existing per-repository cleanup tools; this plugin never deletes branches or worktrees.
+- [`disk-hygiene`](plugins/disk-hygiene) — Context-aware disk hygiene for arbitrary directory trees: inventories orphaned and temporary artifacts, classifies evidence into review tiers, and offers exact-path cleanup only after a fresh safety preview and explicit per-tier approval. The target is read-only by default; OS-managed paths, links and mount points, VCS-tracked content, changed entries, and live-handle uncertainty fail closed.
 
 ### Claude Code
 
@@ -84,7 +85,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Six safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, and (advisory) un-throttled Workflow fan-out that risks burst 529s — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
@@ -121,9 +122,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `plugins/` — one directory per plugin.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration gate, and the local development loop.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
-- `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
-- `docs/evals-coverage.md` — point-in-time skill-eval coverage snapshot: which skills warrant evals, which are owed backfill, and the explicit skips.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).

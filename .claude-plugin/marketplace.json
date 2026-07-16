@@ -191,7 +191,7 @@
       "name": "planning",
       "source": "./plugins/planning",
       "category": "design",
-      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
+      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
     },
     {
       "name": "review",
@@ -252,6 +252,12 @@
       "source": "./plugins/repo-fleet-hygiene",
       "category": "maintenance",
       "tags": ["maintenance", "git", "github", "repository", "fleet", "hygiene", "worktree", "audit", "skill"]
+    },
+    {
+      "name": "disk-hygiene",
+      "source": "./plugins/disk-hygiene",
+      "category": "maintenance",
+      "tags": ["maintenance", "disk", "hygiene", "cleanup", "artifacts", "temporary-files", "audit", "skill"]
     },
     {
       "name": "event-storming",

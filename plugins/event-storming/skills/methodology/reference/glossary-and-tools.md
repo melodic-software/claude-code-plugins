@@ -53,8 +53,13 @@ Ubiquitous Language stickies are session artifacts — the terms they resolve sh
 
 - One entry per term: the term, a 1–2 sentence definition of what it IS, and a plain `Avoid:` line listing the rejected synonyms the workshop ruled out
 - Project-context terms only — EventStorming mechanics vocabulary (the tables above) stays out
-- If the repo keeps no committed glossary yet, offer to create one lazily: a single file at the repo root, or per-context files plus a root map once multiple bounded contexts each own their own language
-- When the `planning` plugin is installed, `/planning:design` owns this format — defer to it for format details; without it, the shape above is the complete contract
+- If the repo keeps no committed glossary yet, offer discovery-first lazy creation: infer placement
+  and shape from consumer conventions; ask when ambiguous; never prescribe a universal filename
+- When `/planning:domain-modeling` is available in the current session, delegate graduation to it; the
+  skill owns active maintenance and routing among already-known contexts. Without it, the shape above
+  is the complete fallback contract
+- Do not use glossary graduation to discover bounded contexts; this section consumes boundaries the
+  workshop or project has already established
 
 ---
 

@@ -60,6 +60,19 @@
         "Output does NOT emit implementation phases or file-level work items",
         "Output defers implementation planning to /architect"
       ]
+    },
+    {
+      "id": 6,
+      "name": "resolved-terms-delegate-to-domain-modeling",
+      "prompt": "/planning:design terminology — the user just confirmed that Shipment is canonical and Parcel is a rejected synonym. Sync the terminology and continue the design pass.",
+      "expected_output": "Records the terminology decision in the type inventory and invokes /planning:domain-modeling to maintain the consumer glossary, then continues the design workflow. It does not reimplement or prescribe glossary format/location itself.",
+      "files": [],
+      "expectations": [
+        "Invokes /planning:domain-modeling for the resolved Shipment vocabulary",
+        "Does not prescribe a glossary filename, path, or duplicate entry format inside the design workflow",
+        "Records the terminology decision in the design artifact as well as routing the glossary update",
+        "Continues the design workflow after domain-modeling returns"
+      ]
     }
   ]
 }

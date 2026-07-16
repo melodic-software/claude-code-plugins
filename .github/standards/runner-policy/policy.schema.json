@@ -128,6 +128,33 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/nonWhitespaceString" }
     },
+    "readWritePermissionAccess": { "enum": ["read", "write", "none"] },
+    "readPermissionAccess": { "enum": ["read", "none"] },
+    "writePermissionAccess": { "enum": ["write", "none"] },
+    "githubPermissionMap": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "actions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "artifact-metadata": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "attestations": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "checks": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "code-quality": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "contents": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "deployments": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "discussions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "id-token": { "$ref": "#/$defs/writePermissionAccess" },
+        "issues": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "models": { "$ref": "#/$defs/readPermissionAccess" },
+        "packages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pull-requests": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "security-events": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "statuses": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "vulnerability-alerts": { "$ref": "#/$defs/readPermissionAccess" }
+      }
+    },
     "reusableWorkflowContract": {
       "oneOf": [{ "$ref": "#/$defs/runnerInputContract" }, { "$ref": "#/$defs/hostedOnlyContract" }]
     },
@@ -140,7 +167,8 @@
         "runnerInput": { "$ref": "#/$defs/inputName" },
         "selectorResultInput": { "$ref": "#/$defs/inputName" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
-        "allowedSecrets": { "$ref": "#/$defs/stringMap" }
+        "allowedSecrets": { "$ref": "#/$defs/stringMap" },
+        "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" }
       }
     },
     "hostedOnlyContract": {
