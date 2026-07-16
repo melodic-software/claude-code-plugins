@@ -44,11 +44,13 @@ When the project enforces its convention with a commit-msg git hook (lefthook, h
 ## Task
 
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
-2. Stage the intended files, but first check each path against two pre-existing conditions — *before* this step touches anything:
+2. Stage the intended files, but first check each path against four pre-existing conditions — *before* this step touches anything:
    - **Already-staged deletion.** `git diff --cached --name-status -- <path>` reports `D` (e.g. from a prior `git rm --cached <path>`). A deletion staged this way can leave a file present in the worktree (untracked or otherwise), so `git diff --stat -- <path>` reads empty and would not flag it as a partial-staging split — but a blanket `git add <path>` would re-add the file and silently clear the intended deletion. Skip any path already staged as `D` entirely; never `git add` over it.
+   - **Staged rename, old side.** `git diff --cached --name-status -- <path>` reports an `R<score> <old> <new>` entry whose `<old>` falls under `<path>` — including when `<path>` is a directory containing that old pathname. A staged rename can leave an untracked replacement file sitting at the old pathname; that replacement is invisible to `git diff --stat -- <path>` (untracked files are never reported by `git diff`), so it slips past both the deletion check above and the partial-staging-split check below. A blanket `git add <path>` (or `git add <dir>`) then stages that replacement as a new add, turning the intended rename into an add-plus-modify. Skip the old side of any staged `R` entry entirely; never `git add` over it.
+   - **Untracked files under a directory path.** When `<path>` is a directory, neither `git diff --cached --name-status -- <path>` nor `git diff --stat -- <path>` reports untracked files sitting under it — `git diff` only ever compares tracked/staged content. A blanket `git add <path>` on a directory stages every untracked file underneath it too, sweeping in secrets, build artifacts, or other unrelated new files the user never approved. Before staging a directory path, check `git status --porcelain -- <path>` for `??` entries; if any exist, stop and surface them to the user instead of blanket-adding the directory — enumerate the specific intended files instead.
    - **Partial-staging split.** `git diff --cached --stat -- <path>` non-empty AND `git diff --stat -- <path>` also non-empty. A path already in that state has hunks the user deliberately left unstaged, so leave it as-is rather than running `git add <path>` over it — a blanket add would sweep those unstaged hunks in too.
 
-   Run `git add <path>...` only for paths not already staged as `D` and not already in a partial-staging split.
+   Run `git add <path>...` only for paths not already staged as `D`, not the old side of a staged `R`, not a directory path with untracked files under it, and not already in a partial-staging split.
 3. Run the format-before-push check below against the files just staged for this commit (not the full staged set — see the pathspec note in that check), if a local formatter/linter is discoverable, re-staging any fixes.
 4. Run the exec-bit check below on any newly-added file — **after** step 3, not before: a formatter re-stage in step 3 reads the worktree file mode, so setting the exec bit any earlier would be silently undone by that later `git add`.
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
@@ -190,20 +192,20 @@ Semantics (per `git-commit(1)` default `--only` mode): the commit records the **
 
 For every named path whose `git diff --cached --name-status -- <path>` reports `D`, check whether the file is still present on disk (the `git rm --cached` case above); expand any directory pathspec to its member files first, the same expansion the format-before-push check already documents. If a path is still present, the default `--only` read would silently drop the deletion per Semantics. Root cause is that `--only` mode has no flag to commit a path's cached state instead of its worktree state, so the fix is to make the worktree briefly match the already-staged deletion — not to delete the file outright, since `git rm --cached` means the user wants to stop tracking it while keeping the local copy.
 
-Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration:
+Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration. Every probe of a hide path uses `-e ... -o -L ...`, not `-e` alone: if the hidden original was a symlink whose target is missing, `-e` on the moved `.__commit_hide__` path is false (it only follows the link and checks the target), so an `-e`-only test would leave that dangling symlink un-restored on exit and would miss it as a pre-existing collision too.
 
 ```bash
 hidden=()
 restore_hidden() {
   for f in "${hidden[@]}"; do
-    [ -e "$f.__commit_hide__" ] && mv -- "$f.__commit_hide__" "$f"
+    [ -e "$f.__commit_hide__" -o -L "$f.__commit_hide__" ] && mv -- "$f.__commit_hide__" "$f"
   done
 }
 trap restore_hidden EXIT
 
 for f in <D-status paths still present on disk>; do
   hide="$f.__commit_hide__"
-  if [ -e "$hide" ]; then
+  if [ -e "$hide" -o -L "$hide" ]; then
     echo "refusing to hide $f: $hide already exists" >&2
     exit 1
   fi
