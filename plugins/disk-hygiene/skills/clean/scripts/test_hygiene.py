@@ -43,6 +43,15 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
 
 
 class HygieneTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Keep every load_policy(None) call independent of the developer
+        # machine's real standing policy files.
+        patcher = mock.patch.object(
+            hygiene, "standing_policy_paths", return_value=[]
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def test_scan_is_read_only_and_hints_are_not_verdicts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -659,6 +668,178 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual("work product", untouched.read_text(encoding="utf-8"))
 
 
+class StandingPolicyTests(unittest.TestCase):
+    @staticmethod
+    def write_policy(root: Path, body: dict[str, object]) -> Path:
+        path = root / ".claude" / "disk-hygiene.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": 1, **body}), encoding="utf-8")
+        return path
+
+    @staticmethod
+    def hint(hint_id: str, pattern: str) -> dict[str, object]:
+        return {
+            "id": hint_id,
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": pattern,
+            "confidence_ceiling": "medium",
+            "reason": "fixture standing-policy hint",
+        }
+
+    def test_standing_layers_apply_user_global_then_project(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            project = Path(temporary) / "project"
+            user_path = self.write_policy(
+                home,
+                {
+                    "additional_hints": [self.hint("user-hint", "user-*")],
+                    "additional_protected_path_globs": ["user-keep/**"],
+                },
+            )
+            project_path = self.write_policy(
+                project,
+                {
+                    "additional_hints": [self.hint("project-hint", "proj-*")],
+                    "additional_protected_path_globs": ["proj-keep/**"],
+                },
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, project)
+            ids = {hint["id"] for hint in policy["hints"]}
+            self.assertIn("user-hint", ids)
+            self.assertIn("project-hint", ids)
+            self.assertEqual(
+                ["user-keep/**", "proj-keep/**"],
+                policy["additional_protected_path_globs"],
+            )
+            self.assertEqual(
+                ["baseline", str(user_path), str(project_path)],
+                policy["policy_sources"],
+            )
+
+    def test_explicit_policy_replaces_standing_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            self.write_policy(
+                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            )
+            explicit = Path(temporary) / "explicit.json"
+            explicit.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "additional_hints": [self.hint("explicit-hint", "exp-*")],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(explicit, Path(temporary) / "project")
+            ids = {hint["id"] for hint in policy["hints"]}
+            self.assertIn("explicit-hint", ids)
+            self.assertNotIn("user-hint", ids)
+            self.assertEqual(["baseline", str(explicit)], policy["policy_sources"])
+
+    def test_cross_layer_duplicate_hint_id_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            project = Path(temporary) / "project"
+            self.write_policy(
+                home, {"additional_hints": [self.hint("shared-id", "user-*")]}
+            )
+            self.write_policy(
+                project, {"additional_hints": [self.hint("shared-id", "proj-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                with self.assertRaisesRegex(
+                    hygiene.HygieneError, "already exists"
+                ):
+                    hygiene.load_policy(None, project)
+
+    def test_standing_layers_cannot_weaken_protections(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            self.write_policy(
+                home, {"additional_protected_path_globs": ["extra-keep/**"]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, None)
+            self.assertIn("NTUSER.DAT", policy["protected_exact_names"])
+            self.assertIn("extra-keep/**", policy["additional_protected_path_globs"])
+
+    def test_validation_names_never_read_standing_policy(self) -> None:
+        def explode(_project_dir):
+            raise AssertionError("validation must not touch standing policy")
+
+        with mock.patch.object(
+            hygiene, "standing_policy_paths", side_effect=explode
+        ):
+            names = hygiene.baseline_protected_names()
+        self.assertIn("NTUSER.DAT", names)
+
+    def test_baseline_ships_agent_leak_signatures(self) -> None:
+        with mock.patch.object(
+            hygiene, "standing_policy_paths", return_value=[]
+        ):
+            policy = hygiene.load_policy(None)
+        matched = {
+            name: [
+                hint["id"]
+                for hint in hygiene.matching_hints(name, name, policy)
+            ]
+            for name in (
+                ".claude.json.tmp.25020.a926d229fa70",
+                "temp_git_clone_1234",
+                ".pulumi-write-test-42",
+            )
+        }
+        self.assertIn(
+            "claude-json-failed-atomic-write",
+            matched[".claude.json.tmp.25020.a926d229fa70"],
+        )
+        self.assertIn("agent-temp-git-scratch", matched["temp_git_clone_1234"])
+        self.assertIn(
+            "pulumi-writability-probe", matched[".pulumi-write-test-42"]
+        )
+
+
+class OsAutocleanAdvisoryTests(unittest.TestCase):
+    def test_zone_outside_temp_has_no_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            unrelated = Path(temporary) / "unrelated"
+            unrelated.mkdir()
+            with mock.patch.object(
+                hygiene.tempfile,
+                "gettempdir",
+                return_value=os.fspath(Path(temporary) / "temp-root"),
+            ):
+                (Path(temporary) / "temp-root").mkdir()
+                self.assertIsNone(hygiene.os_autoclean_advisory(unrelated))
+
+    def test_temp_zone_reports_platform_mechanism(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            temp_root = Path(temporary) / "temp-root"
+            temp_root.mkdir()
+            with mock.patch.object(
+                hygiene.tempfile, "gettempdir", return_value=os.fspath(temp_root)
+            ):
+                advisory = hygiene.os_autoclean_advisory(temp_root)
+        self.assertIsNotNone(advisory)
+        assert advisory is not None
+        expected = {
+            "win32": "windows-storage-sense",
+            "linux": "systemd-tmpfiles",
+        }.get(
+            "win32"
+            if hygiene.sys.platform == "win32"
+            else ("linux" if hygiene.sys.platform.startswith("linux") else "other"),
+            "not-detected",
+        )
+        self.assertEqual(expected, advisory["mechanism"])
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
@@ -834,6 +1015,35 @@ class GuardTests(unittest.TestCase):
             "deny",
             self.run_guard(malformed)["hookSpecificOutput"]["permissionDecision"],
         )
+
+    def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --policy p",
+            f"{base} --project-dir d",
+            f"{base} --policy p --project-dir d",
+            f"{base} --project-dir d --policy p",
+        )
+        denied = (
+            f"{base} --policy p --policy q",
+            f"{base} --project-dir d --project-dir e",
+            f"{base} --unknown v",
+            f"{base} --policy",
+            f"{base} --policy p --project-dir",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
 
 
 if __name__ == "__main__":

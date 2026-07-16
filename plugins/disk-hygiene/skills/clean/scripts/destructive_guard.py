@@ -115,15 +115,28 @@ def classify_exact_engine_command(command: str) -> str | None:
         return None
 
     if tokens[2] == "scan":
-        valid = (
-            len(tokens) in {7, 9}
-            and tokens[3] == "--target"
-            and _argument(tokens[4])
-            and tokens[5] == "--output"
-            and _argument(tokens[6])
-            and (len(tokens) == 7 or (tokens[7] == "--policy" and _argument(tokens[8])))
-        )
-        return "scan" if valid else None
+        if (
+            len(tokens) not in {7, 9, 11}
+            or tokens[3] != "--target"
+            or not _argument(tokens[4])
+            or tokens[5] != "--output"
+            or not _argument(tokens[6])
+        ):
+            return None
+        optional = tokens[7:]
+        seen: list[str] = []
+        while optional:
+            flag = optional[0]
+            if (
+                flag not in {"--policy", "--project-dir"}
+                or flag in seen
+                or len(optional) < 2
+                or not _argument(optional[1])
+            ):
+                return None
+            seen.append(flag)
+            optional = optional[2:]
+        return "scan"
     if tokens[2] == "preview":
         valid = (
             len(tokens) == 7

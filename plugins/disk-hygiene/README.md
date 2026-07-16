@@ -67,7 +67,7 @@ at preview. Backups remain the recovery boundary for user data.
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 
-The optional policy file has this shape:
+Policy files all share one shape:
 
 ```json
 {
@@ -78,17 +78,29 @@ The optional policy file has this shape:
       "id": "my-tool-staging",
       "os": ["all"],
       "kind": "name_glob",
-      "pattern": "temp_git_*",
+      "pattern": "my-tool-stage-*",
       "confidence_ceiling": "medium",
-      "reason": "My tool's documented clone-staging convention"
+      "reason": "My tool's documented staging-directory convention"
     }
   ],
   "additional_protected_path_globs": ["client-deliverables/**"]
 }
 ```
 
+Without `--policy`, standing policy files layer over the baseline when present:
+`~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
+`.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and
+replaces both standing layers. The scan output records which sources applied.
+
 Candidate hints can be disabled or extended. Consumer protection globs are additive. Hard safety
-predicates and the baseline protected-name/root rules are non-overridable.
+predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
+file can only add protections, add hints, or disable discovery hints (which can only cause junk to
+be missed, never removed).
+
+When the audited zone overlaps the user temp directory, the scan also reports an `os_autoclean`
+advisory naming the OS mechanism that should own it (Windows Storage Sense, systemd-tmpfiles) and,
+when that mechanism is off or set to fire only on low disk space, recommends enabling it rather than
+hand-cleaning the zone.
 
 ## Relationship to other tools
 
@@ -109,8 +121,11 @@ predicates and the baseline protected-name/root rules are non-overridable.
   construction, or downloads are used. Paths cross the process boundary as JSON or individually
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
-- **Configuration:** no `userConfig` and no credentials. Optional policy is an explicit invocation
-  argument and contains patterns only.
+- **Configuration:** no `userConfig` and no credentials. Policy comes from an explicit invocation
+  argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
+  `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
+  hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
+  cannot widen the destructive surface.
 - **Isolation:** bundled assets resolve from `${CLAUDE_PLUGIN_ROOT}`; generated state belongs under
   `${CLAUDE_PLUGIN_DATA}`. The audited target is read, then mutated only through the gated lane.
 - **Egress:** none. `git` and `lsof` are local read-only subprocesses.

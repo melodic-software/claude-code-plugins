@@ -16,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -272,18 +273,50 @@ def hard_protection(
     return sorted(set(reasons))
 
 
-def load_policy(overlay_path: Path | None) -> dict[str, Any]:
+def standing_policy_paths(project_dir: Path | None) -> list[Path]:
+    layers = [Path.home() / ".claude" / "disk-hygiene.json"]
+    if project_dir is not None:
+        layers.append(project_dir / ".claude" / "disk-hygiene.json")
+    return [path for path in layers if path.is_file()]
+
+
+def baseline_policy() -> dict[str, Any]:
     baseline = load_json(BASELINE_POLICY)
     if baseline.get("version") != SCHEMA_VERSION:
         raise HygieneError("unsupported baseline policy version")
-    result = {
+    return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
+        "policy_sources": ["baseline"],
     }
-    if overlay_path is None:
-        return result
+
+
+def baseline_protected_names() -> set[str]:
+    """Bundled protected names only — validation paths must never depend on
+    ambient standing policy; an approved snapshot stays previewable even if a
+    standing file is later edited or malformed."""
+    return set(baseline_policy()["protected_exact_names"])
+
+
+def load_policy(
+    overlay_path: Path | None, project_dir: Path | None = None
+) -> dict[str, Any]:
+    result = baseline_policy()
+    # An explicit --policy is the invocation-specific choice and wins outright;
+    # otherwise standing user-global and project files layer additively.
+    overlays = (
+        [overlay_path]
+        if overlay_path is not None
+        else standing_policy_paths(project_dir)
+    )
+    for path in overlays:
+        apply_policy_overlay(result, path)
+    return result
+
+
+def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     overlay = load_json(overlay_path)
     allowed = {
         "version",
@@ -293,9 +326,11 @@ def load_policy(overlay_path: Path | None) -> dict[str, Any]:
     }
     unknown = sorted(set(overlay) - allowed)
     if unknown:
-        raise HygieneError(f"unknown policy fields: {', '.join(unknown)}")
+        raise HygieneError(
+            f"unknown policy fields in {overlay_path}: {', '.join(unknown)}"
+        )
     if overlay.get("version") != SCHEMA_VERSION:
-        raise HygieneError("policy version must be 1")
+        raise HygieneError(f"policy version must be 1: {overlay_path}")
     disabled = overlay.get("disabled_hint_ids", [])
     additions = overlay.get("additional_hints", [])
     protections = overlay.get("additional_protected_path_globs", [])
@@ -309,15 +344,17 @@ def load_policy(overlay_path: Path | None) -> dict[str, Any]:
     for hint in additions:
         validate_hint(hint)
         if hint["id"] in known_ids:
-            raise HygieneError(f"additional hint ID already exists: {hint['id']}")
+            raise HygieneError(
+                f"additional hint ID already exists ({overlay_path}): {hint['id']}"
+            )
         known_ids.add(hint["id"])
     disabled_set = set(disabled)
     result["hints"] = [
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
-    result["additional_protected_path_globs"] = protections
-    return result
+    result["additional_protected_path_globs"].extend(protections)
+    result["policy_sources"].append(str(overlay_path))
 
 
 def validate_hint(hint: Any) -> None:
@@ -405,6 +442,95 @@ def discover_enclosing_git(target: Path) -> tuple[list[Path], list[str]]:
     if marker_root is not None:
         return [marker_root.resolve()], [f"{marker_root}: git-state-unverified"]
     return [], []
+
+
+def windows_storage_sense_state() -> dict[str, Any]:
+    import winreg
+
+    key_path = (
+        r"Software\Microsoft\Windows\CurrentVersion"
+        r"\StorageSense\Parameters\StoragePolicy"
+    )
+    state: dict[str, Any] = {
+        "enabled": None,
+        "temporary_files_cleanup": None,
+        "cadence_days": None,
+    }
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            for name, field in (
+                ("01", "enabled"),
+                ("04", "temporary_files_cleanup"),
+            ):
+                try:
+                    state[field] = bool(winreg.QueryValueEx(key, name)[0])
+                except OSError:
+                    pass
+            try:
+                state["cadence_days"] = int(winreg.QueryValueEx(key, "2048")[0])
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return state
+
+
+def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
+    """Report-only: name the OS auto-clean mechanism that should own this zone.
+
+    Mirrors the managed-state rule for products: when the OS already ships a
+    garbage collector for a zone, recommend enabling/tuning it instead of
+    hand-cleaning. Never authorizes or blocks anything.
+    """
+    try:
+        temp_root = Path(tempfile.gettempdir()).resolve()
+    except OSError:
+        return None
+    resolved = target.resolve()
+    covers_target = is_within(resolved, temp_root) or is_within(temp_root, resolved)
+    if not covers_target:
+        return None
+    if sys.platform == "win32":
+        state = windows_storage_sense_state()
+        effective = (
+            state["enabled"] is True
+            and state["temporary_files_cleanup"] is True
+            # Cadence 0 = "during low free disk space", which may never fire.
+            and (state["cadence_days"] or 0) > 0
+        )
+        return {
+            "mechanism": "windows-storage-sense",
+            "state": state,
+            "recommendation": None
+            if effective
+            else (
+                "This zone includes the user temp directory, which Windows "
+                "Storage Sense can clean automatically. Recommend enabling "
+                "temporary-file cleanup on a scheduled cadence (Settings > "
+                "System > Storage) instead of hand-cleaning it here."
+            ),
+        }
+    if sys.platform.startswith("linux"):
+        configured = any(
+            Path(root).is_dir()
+            for root in ("/etc/tmpfiles.d", "/run/tmpfiles.d", "/usr/lib/tmpfiles.d")
+        )
+        return {
+            "mechanism": "systemd-tmpfiles",
+            "state": {"config_present": configured},
+            "recommendation": None
+            if configured
+            else (
+                "This zone includes the temp directory, which systemd-tmpfiles "
+                "normally ages out. Recommend configuring tmpfiles.d instead of "
+                "hand-cleaning it here."
+            ),
+        }
+    return {
+        "mechanism": "not-detected",
+        "state": {},
+        "recommendation": None,
+    }
 
 
 def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
@@ -625,6 +751,10 @@ def validate_plan(
                 f"candidate owner must be named or unmanaged: {relative}"
             )
         if owner != "unmanaged":
+            # Managed candidates are permanently report-only (preview and apply
+            # block them unconditionally). This gate exists so the report can
+            # name a proven-runnable native-GC command, and so managed state
+            # whose native GC is not even eligible is never proposed at all.
             native = candidate.get("native_gc_evidence")
             if (
                 not isinstance(native, dict)
@@ -946,7 +1076,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         or snapshot.get("engine") != "disk-hygiene-python-1"
     ):
         raise HygieneError("unsupported snapshot version")
-    baseline_exact_names = set(load_policy(None)["protected_exact_names"])
+    baseline_exact_names = baseline_protected_names()
     target_input = Path(snapshot.get("target", "")).absolute()
     if has_linkish_component(target_input):
         raise HygieneError("snapshot target now traverses a link or reparse point")
@@ -1197,7 +1327,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         candidate_blockers = hard_protection(
             candidate_path,
             target,
-            set(load_policy(None)["protected_exact_names"])
+            baseline_protected_names()
             | set(snapshot.get("policy", {}).get("protected_exact_names", [])),
             known_mounts,
         )
@@ -1235,7 +1365,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             fresh_protections = hard_protection(
                 path,
                 target,
-                set(load_policy(None)["protected_exact_names"]),
+                baseline_protected_names(),
                 fresh_mounts,
             )
             if any(
@@ -1309,6 +1439,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--target", required=True)
     scan.add_argument("--output", required=True)
     scan.add_argument("--policy")
+    scan.add_argument("--project-dir")
     for name in ("preview", "apply"):
         command = subparsers.add_parser(name)
         command.add_argument("--snapshot", required=True)
@@ -1350,7 +1481,10 @@ def main(argv: list[str] | None = None) -> int:
                     "filesystem and OS-managed roots are not valid audit targets"
                 )
             policy = load_policy(
-                Path(args.policy).expanduser().absolute() if args.policy else None
+                Path(args.policy).expanduser().absolute() if args.policy else None,
+                Path(args.project_dir).expanduser().absolute()
+                if args.project_dir
+                else None,
             )
             if has_protected_path_component(
                 target, set(policy["protected_exact_names"])
@@ -1370,6 +1504,8 @@ def main(argv: list[str] | None = None) -> int:
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
                     "errors": snapshot["errors"],
+                    "policy_sources": policy["policy_sources"],
+                    "os_autoclean": os_autoclean_advisory(target),
                     "note": "Hints are discovery signals, never cleanup verdicts.",
                 }
             )
