@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "read-only-default-classifies-not-deletes",
-      "prompt": "/disk-hygiene:clean C:/Users/example/scratch-audit",
+      "prompt": "/disk-hygiene:clean <user>/scratch-audit",
       "expected_output": "Creates a read-only snapshot, investigates context, and reports tiered findings without preparing or applying deletion because --execute was not requested.",
       "files": [],
       "expectations": [
