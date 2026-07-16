@@ -167,7 +167,7 @@ gh pr comment <pr_number> --body-file - <<'EOF'
 EOF
 ```
 
-Omit the "Deferred items" section entirely when nothing was deferred — don't post an empty table either; skip the whole comment if Phase D found nothing to report beyond what's already in the PR body.
+The comment itself is never optional when a PR was created — "Tidyings applied" is never empty at that point (Phase D's empty-PR-avoidance rule means no PR gets created when there's nothing to tidy), and it's the only place this content appears now that the canonical body template has no slot for it. Only the "Deferred items" subsection is conditional: omit it when nothing was deferred, and never post it as an empty table.
 
 If `source-control` isn't installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo — e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker. In this fallback path only, the Tidyings-applied/Deferred-items sections stay in the PR body itself (there is no canonical gate to conflict with).
 
