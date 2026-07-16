@@ -213,6 +213,8 @@ for f in <D-status paths still present on disk>; do
   hidden+=("$f")
 done
 
+# Same trailer_policy conditionality as the canonical form above: drop --trailer
+# entirely when trailer_policy is "none"; substitute a named alternate template.
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer>" \
   -- <path> [<path>...] <<'EOF'
