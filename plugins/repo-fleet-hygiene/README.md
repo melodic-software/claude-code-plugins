@@ -32,13 +32,13 @@ Audit the current project repository (zero configuration):
 Audit one or more repository-tree roots:
 
 ```text
-/repo-fleet-hygiene:audit --root D:/repos/github.com --root D:/work/internal
+/repo-fleet-hygiene:audit --root <repo-root>/github.com --root <other-root>/internal
 ```
 
 Audit exact repositories without recursive discovery:
 
 ```text
-/repo-fleet-hygiene:audit --repo D:/repos/github.com/acme/api --repo D:/repos/github.com/acme/web
+/repo-fleet-hygiene:audit --repo <repo-root>/github.com/acme/api --repo <repo-root>/github.com/acme/web
 ```
 
 The skill automatically uses `.claude/repo-fleet-hygiene.conf` in the consumer project when present,

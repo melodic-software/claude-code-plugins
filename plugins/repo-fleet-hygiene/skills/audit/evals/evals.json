@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "canonical-override-precedes-discovered-checkout",
-      "prompt": "The discovered dotfiles clone is D:/repos/acme/dotfiles, but config maps github.com/acme/dotfiles to C:/Users/me/.local/share/chezmoi. The registrations live only in the latter. Which checkout is audited?",
+      "prompt": "The discovered dotfiles clone is <repo-root>/acme/dotfiles, but config maps github.com/acme/dotfiles to <user>/.local/share/chezmoi. The registrations live only in the latter. Which checkout is audited?",
       "expected_output": "The configured canonical checkout is used for branch/common-dir/worktree evidence, while both discovered and canonical paths are disclosed. The obvious clone is not queried for worktree state after the override is validated.",
       "files": [],
       "expectations": [
