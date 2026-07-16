@@ -248,6 +248,12 @@
       "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
     },
     {
+      "name": "disk-hygiene",
+      "source": "./plugins/disk-hygiene",
+      "category": "maintenance",
+      "tags": ["maintenance", "disk", "hygiene", "cleanup", "artifacts", "temporary-files", "audit", "skill"]
+    },
+    {
       "name": "event-storming",
       "source": "./plugins/event-storming",
       "category": "design",
