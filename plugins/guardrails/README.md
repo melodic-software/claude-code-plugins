@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling six **safety guards** that catch risky agent
+A Claude Code plugin bundling seven **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -14,9 +14,10 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
+| **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Direct `git commit` (missing the canonical `-F -` stdin form + `--trailer` Co-Authored-By line) or any `gh pr create`, bypassing this marketplace's own `/commit` / `/pull-request create` skills. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
 
 The four blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The two advisory guards surface their findings the same
+actionable fix guidance. The three advisory guards surface their findings the same
 way but always allow the operation.
 
 ### Scope notes
@@ -45,6 +46,16 @@ way but always allow the operation.
   (`echo "$(python3 -c 'import pathlib …')"`) is **not** caught — the strip
   treats the quoted span as inert. Same friction-guard, not-a-sandbox posture as
   `block-no-verify`.
+- **`flag-commit-pr-skill-bypass` is a nudge, not a gate.** Detection is a
+  literal-stripped top-level regex match, not a full argv-grammar parser — it
+  does not evaluate shell variable / command substitution, and a determined
+  author can construct a form that evades it. It cannot tell "the skill ran
+  this exact command" from "someone hand-typed the same shape" — for
+  `git commit` it targets the anti-pattern (`-m` without the canonical
+  `-F -` + `--trailer`), not literal `/commit` invocation; for `gh pr create`
+  there is no command-shape signature at all, so every direct call is flagged.
+  Always advisory (never blocks) — `create.md` itself documents a legitimate
+  inline fallback when skill discovery is broken.
 
 ## Per-hook kill switches
 
@@ -60,6 +71,7 @@ guard without touching the others.
 | block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
 | cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
 | workflow-resilience-check | `HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED` |
+| flag-commit-pr-skill-bypass | `HOOK_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` |
 
 Set them in your settings `env` block:
 
@@ -88,6 +100,14 @@ repo-specific policy of their own:
   (`claude gh dotnet docker npm kubectl terraform az aws`); override with
   `HOOK_CLI_FLAG_VERIFY_BINS=bin1,bin2,…` and skip specific binaries with
   `HOOK_CLI_FLAG_VERIFY_SKIP_BINS=bin1,bin2`.
+- **Skill-availability gating.** `flag-commit-pr-skill-bypass` reads
+  `enabledPlugins` from the consuming project's own `.claude/settings.json`
+  (`.claude/settings.local.json` as an override, only for a key already present
+  in `settings.json` — CC ignores a local-only key per
+  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247))
+  to confirm `source-control@…` is actually enabled before advising toward its
+  skills. Missing/uncertain state (no settings file, no jq, key absent) fails
+  quiet — never advises toward a skill the project doesn't have installed.
 
 ## Telemetry (opt-in)
 

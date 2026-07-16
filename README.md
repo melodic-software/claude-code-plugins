@@ -83,7 +83,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Six safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, and (advisory) un-throttled Workflow fan-out that risks burst 529s — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
@@ -120,9 +120,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `plugins/` — one directory per plugin.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration gate, and the local development loop.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
-- `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
-- `docs/evals-coverage.md` — point-in-time skill-eval coverage snapshot: which skills warrant evals, which are owed backfill, and the explicit skips.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
