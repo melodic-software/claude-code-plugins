@@ -283,6 +283,8 @@ run_git_probe -c alias.remote='!touch /tmp/pwned' remote >/dev/null 2>&1 && forb
 run_git_probe -C "$TMP/repo-b" branch -D main >/dev/null 2>&1 && forbidden_rejected=false
 run_git_probe -C "$TMP/repo-b" remote set-url origin https://example.invalid >/dev/null 2>&1 &&
   forbidden_rejected=false
+run_git_probe config --file "$TMP/config/repo-fleet-hygiene.conf" --get-regexp -z '.*' >/dev/null 2>&1 &&
+  forbidden_rejected=false
 run_bounded_gh api repos/acme/repo-b --hostname github.com --method POST --template x >/dev/null 2>&1 &&
   forbidden_rejected=false
 run_bounded_gh pr merge --repo github.com/acme/repo-b >/dev/null 2>&1 && forbidden_rejected=false
