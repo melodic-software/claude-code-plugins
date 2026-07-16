@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **Cross-repo `REVIEW.md` citation dereferencing** in `code-reviewer`, `security-reviewer`, and
+  `architecture-guardian`. Each now recognizes a code-span citation in a consuming project's
+  `REVIEW.md` shaped like `<relative-path>.md#<heading>`, splits it into the file path and heading
+  anchor, and Reads only the `.md` file — which may live outside the current repository, mounted via
+  `--add-dir` — before locating the referenced heading for the full criterion behind a thin
+  `REVIEW.md` line before finalizing an overlapping finding. An unresolved citation (mount absent,
+  wrong path) is noted in the agent's report rather than dropped silently or treated as a hard
+  failure. Whether a `--add-dir`-mounted path is visible to a plugin subagent's `Read` tool the same
+  way it is to the main session is not yet empirically verified against a live cross-repo mount.
+
 ## [0.8.0]
 
 ### Changed
