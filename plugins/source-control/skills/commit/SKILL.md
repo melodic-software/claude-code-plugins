@@ -194,6 +194,8 @@ For every named path whose `git diff --cached --name-status -- <path>` reports `
 
 Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration. Every probe of a hide path uses `-e ... -o -L ...`, not `-e` alone: if the hidden original was a symlink whose target is missing, `-e` on the moved `.__commit_hide__` path is false (it only follows the link and checks the target), so an `-e`-only test would leave that dangling symlink un-restored on exit and would miss it as a pre-existing collision too. The pre-hide collision check also queries the index (`git ls-files --error-unmatch`), not just the disk: a hide path that is a tracked file currently absent from disk or staged for deletion passes a disk-only check, and the `mv` would then land the hidden original on a still-tracked pathname that the same pathspec commit silently records as a modification.
 
+Build the candidate list with `-z` (NUL-delimited), not plain `--name-status`: a bare newline-split read is unsafe for paths containing spaces or newlines, and a rename's status field carries a variable similarity score (`R087`, `R100`, ...), so match the `R` prefix rather than a literal `R100`.
+
 ```bash
 hidden=()
 restore_hidden() {
@@ -203,7 +205,26 @@ restore_hidden() {
 }
 trap restore_hidden EXIT
 
-for f in <D-status paths, and R old-sides, still present on disk>; do
+hide_candidates=()
+while IFS= read -r -d '' status; do
+  case "$status" in
+    D)
+      IFS= read -r -d '' path
+      hide_candidates+=("$path")
+      ;;
+    R*)
+      IFS= read -r -d '' old
+      IFS= read -r -d '' _new  # new side isn't this loop's concern, just consume it
+      hide_candidates+=("$old")
+      ;;
+    *)
+      IFS= read -r -d '' _path  # A/M/etc. — consume and discard
+      ;;
+  esac
+done < <(git diff --cached --name-status -z -- <path>)
+
+for f in "${hide_candidates[@]}"; do
+  [ -e "$f" -o -L "$f" ] || continue  # only disk-present candidates need hiding
   hide="$f.__commit_hide__"
   if [ -e "$hide" -o -L "$hide" ] || git ls-files --error-unmatch -- "$hide" >/dev/null 2>&1; then
     echo "refusing to hide $f: $hide already exists" >&2
