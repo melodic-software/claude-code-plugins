@@ -149,6 +149,8 @@ TEMPLATE=$(cat <<'EOF'
 
 ## Test plan
 - ...
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )
 

@@ -83,7 +83,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Six safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, and (advisory) un-throttled Workflow fan-out that risks burst 529s — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
