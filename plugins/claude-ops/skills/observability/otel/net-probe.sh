@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # net-probe.sh — portable "is 127.0.0.1:<port> already bound?" probe.
-# Sourced by Collector health checks and start-collector.sh; not an entry point.
+# Sourced by Collector health checks; not an entry point.
 # Self-contained: defines port_status, requires nothing from the caller.
 
 # Report whether something is already listening on 127.0.0.1:<port>.

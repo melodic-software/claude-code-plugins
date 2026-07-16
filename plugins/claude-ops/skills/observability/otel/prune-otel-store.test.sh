@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Black-box contract tests for prune-otel-store.sh.
-# Drives the script as a subprocess against a FIXTURE store with the Collector stop/running/
-# verify/restart/compact hooks stubbed (CC_OTEL_*_CMD / CC_OTEL_START_SCRIPT seams) — it never
+# Drives the script as a subprocess against a FIXTURE store with the Collector service
+# stop/running/start and verify/compact hooks stubbed (CC_OTEL_*_CMD seams) — it never
 # touches the real machine Collector or the real store.
 #
 # Two fixture grades:
@@ -17,6 +17,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly SCRIPT="$SCRIPT_DIR/prune-otel-store.sh"
+readonly LIFECYCLE="$SCRIPT_DIR/prune-collector-lifecycle.sh"
 
 FAILED=0
 CASE_NUM=0
@@ -116,14 +117,14 @@ run_prune() { # <store_dir> <args...>; running-check=false (gone immediately), v
     CC_OTEL_RUNNING_CMD=false \
     CC_OTEL_VERIFY_CMD=true \
     CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
-    CC_OTEL_START_SCRIPT="$START_STUB" \
+    CC_OTEL_START_CMD="$START_STUB" \
     bash "$SCRIPT" "${@:2}" 2>&1
 }
 run_prune_real() { # <store_dir> <args...>; machine-protection stubs only — REAL duckdb verify + compaction
   CC_OTEL_STORE="$1" \
     CC_OTEL_STOP_CMD="$STOP_STUB" \
     CC_OTEL_RUNNING_CMD=false \
-    CC_OTEL_START_SCRIPT="$START_STUB" \
+    CC_OTEL_START_CMD="$START_STUB" \
     bash "$SCRIPT" "${@:2}" 2>&1
 }
 
@@ -141,6 +142,16 @@ sql_path() { # path safe to embed in a SQL string (native duckdb.exe cannot read
 }
 HAS_DUCKDB=false
 command -v duckdb >/dev/null 2>&1 && HAS_DUCKDB=true
+
+# --- lifecycle contract: fixed Windows service verbs, never process-name killing ---
+lifecycle_source="$(cat "$LIFECYCLE")"
+assert_contains "lifecycle targets the fixed collector service" "$lifecycle_source" \
+  "COLLECTOR_SERVICE_NAME='otelcol-contrib'"
+assert_contains "lifecycle stops through the service controller" "$lifecycle_source" "Stop-Service -Name"
+assert_contains "lifecycle starts through the service controller" "$lifecycle_source" "Start-Service -Name"
+assert_contains "lifecycle polls service status" "$lifecycle_source" "Get-Service -Name"
+assert_not_contains "lifecycle no longer kills processes" "$lifecycle_source" "Stop-Process"
+assert_not_contains "lifecycle no longer matches process command lines" "$lifecycle_source" "Win32_Process"
 
 # --- 1. --help: exit 0, prints usage ---
 out="$(bash "$SCRIPT" --help 2>&1)"
@@ -204,7 +215,39 @@ if [[ -f "$TMP/stopped.marker" ]]; then pass "real run stopped the Collector"; e
 if [[ -f "$TMP/restarted.marker" ]]; then pass "real run restarted the Collector"; else fail "real run restarted the Collector" "restarted.marker" "absent"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "sentinel removed after run" "absent" "present"; else pass "sentinel removed after run"; fi
 
-# --- 5b. all-stale: every record older than cutoff -> file emptied (kept==0 path) ---
+# --- 5a. stop denial/failure: abort before mutation and do not attempt a start ---
+S="$(new_store stopfail)"
+rm -f "$TMP/restarted.marker"
+{
+  log_line "$RECENT" "$RECENT"
+  log_line "$OLD" "$OLD"
+} >"$S/cc-logs.json"
+before="$(cat "$S/cc-logs.json")"
+out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD=false CC_OTEL_RUNNING_CMD=false \
+  CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
+  CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" 2>&1)"
+rc=$?
+assert_eq "stop failure exits nonzero" "1" "$rc"
+assert_eq "stop failure leaves the store byte-identical" "$before" "$(cat "$S/cc-logs.json")"
+if [[ -d "$S/.prune-in-progress" ]]; then fail "stop failure removes sentinel" "absent" "present"; else pass "stop failure removes sentinel"; fi
+assert_not_contains "stop failure does not start a service it never stopped" "$(ls "$TMP")" "restarted.marker"
+
+# --- 5b. start failure: trim lands, sentinel clears, and failure is visible ---
+S="$(new_store startfail)"
+{
+  log_line "$RECENT" "$RECENT"
+  log_line "$OLD" "$OLD"
+} >"$S/cc-logs.json"
+out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false \
+  CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
+  CC_OTEL_START_CMD=false bash "$SCRIPT" 2>&1)"
+rc=$?
+assert_eq "start failure exits nonzero" "1" "$rc"
+assert_contains "start failure is visible" "$out" "failed to restart Collector service"
+assert_eq "start failure occurs after the verified trim" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
+if [[ -d "$S/.prune-in-progress" ]]; then fail "start failure removes sentinel" "absent" "present"; else pass "start failure removes sentinel"; fi
+
+# --- 5c. all-stale: every record older than cutoff -> file emptied (kept==0 path) ---
 S="$(new_store allstale)"
 rm -f "$TMP/stopped.marker"
 {
@@ -267,7 +310,7 @@ S="$(new_store verifyfail)"
 } >"$S/cc-logs.json"
 out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false \
   CC_OTEL_VERIFY_CMD=false CC_OTEL_COMPACT_CMD="$COMPACT_STUB" \
-  CC_OTEL_START_SCRIPT="$START_STUB" bash "$SCRIPT" 2>&1)"
+  CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "verify-fail exits 1" "1" "$rc"
 assert_contains "verify-fail action" "$out" "action=error-verify-failed"
@@ -322,7 +365,7 @@ cp "$S/cc-logs.json" "$TMP/compactfail-logs.bak"
 cp "$S/cc-metrics.json" "$TMP/compactfail-metrics.bak"
 out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false \
   CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD=false \
-  CC_OTEL_START_SCRIPT="$START_STUB" bash "$SCRIPT" 2>&1)"
+  CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "compact-fail exits 1" "1" "$rc"
 assert_contains "compact-fail action" "$out" "action=error-compact-failed"
@@ -371,7 +414,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
     real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
   } >"$S/cc-logs.json"
   out="$(CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false \
-    CC_OTEL_START_SCRIPT="$START_STUB" CC_OTEL_COLD_KEEP_USER_PROMPTS=1 bash "$SCRIPT" 2>&1)"
+    CC_OTEL_START_CMD="$START_STUB" CC_OTEL_COLD_KEEP_USER_PROMPTS=1 bash "$SCRIPT" 2>&1)"
   rc=$?
   glob="$(sql_path "$S")/cold/cc-logs-*.parquet"
   assert_eq "toggle run exits 0" "0" "$rc"

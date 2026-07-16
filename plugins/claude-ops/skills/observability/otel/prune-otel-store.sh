@@ -17,11 +17,9 @@
 #
 # Lock-safe cycle (only runs when records actually need dropping — see dry-check below):
 #   1. acquire an mkdir-atomic sentinel (.prune-in-progress) in the store dir. The mkdir is the
-#      mutual-exclusion lock (a second prune fails to create it) AND the revival-race signal:
-#      start-collector.sh checks for this dir and refuses to respawn while it exists, so a new
-#      session's SessionStart backstop cannot reopen a file mid-trim.
-#   2. stop the Collector; poll until the process is gone (the OS releases the open file handle
-#      at process exit — polling :4318 alone can free slightly before teardown).
+#      mutual-exclusion lock: a second prune fails to create it and exits without mutation.
+#   2. stop the provisioning-owned otelcol-contrib Windows service; poll Get-Service until it is
+#      Stopped so its file exporter has released the store handles.
 #   3. per store file: awk-route each line to a kept temp / dropped temp / surgery temp in the
 #      SAME dir, COMPACT the dropped (aged-out) lines to a cold Parquet file under
 #      <store>/cold/ (see compact_dropped in prune-compact.sh — content-scrubbed for logs,
@@ -31,8 +29,8 @@
 #      verify-before-replace: the original is only ever replaced after its aged records are
 #      safely in cold AND by a verified-good temp, so a failure at any point leaves the hot
 #      store intact — no backup/rollback needed.
-#   4. release the sentinel + restart the Collector (idempotent). Done in the EXIT trap, so ANY
-#      exit path (success or error mid-cycle) leaves the sentinel gone and the Collector running.
+#   4. release the sentinel + start the service. Done in the EXIT trap, so every trim exit path
+#      attempts recovery; a failed restart makes an otherwise successful prune fail visibly.
 #
 # Comparison is at SECOND granularity: a 19-digit nano (~1.78e18) exceeds awk's exact-integer
 # range (IEEE-754 double, exact only to 2^53 ≈ 9.0e15), so a raw-nano awk compare silently
@@ -61,9 +59,9 @@
 #   CC_OTEL_COLD_KEEP_USER_PROMPTS
 #                          =1 keeps user_prompt bodies + the `prompt` attribute in the cold
 #                          tier un-scrubbed (default: off — body NULLed, prompt scrubbed)
-#   CC_OTEL_START_SCRIPT   start-collector.sh path (default: alongside this script) — test seam
-#   CC_OTEL_STOP_CMD       command that stops the Collector (default: platform taskkill/pkill) — test seam
-#   CC_OTEL_RUNNING_CMD    command exiting 0 iff the Collector is running (default: platform) — test seam
+#   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
+#   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
+#   CC_OTEL_RUNNING_CMD    command exiting 0 iff the service is not Stopped — test seam
 #   CC_OTEL_VERIFY_CMD     command (receives temp path as $1) exiting 0 iff the temp parses
 #                          (default: duckdb read_json_auto) — test seam
 #   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
@@ -111,13 +109,13 @@ Env:
   CC_OTEL_STORE                absolute store dir (default: <repo-root>/.claude/observability/otel)
   CC_OTEL_COLD_KEEP_USER_PROMPTS
                                =1 keeps user_prompt bodies + prompt attribute in cold (default: off)
-  CC_OTEL_START_SCRIPT         start-collector.sh path (default: alongside this script)
+  Lifecycle                    Windows service: otelcol-contrib (requires provisioning's scoped
+                               SERVICE_STOP and SERVICE_START grant for the runtime user)
 EOF
 }
 
-# Resolve the consumer project root. Mirrors start-collector.sh so prune +
-# spawn + duckdb queries all resolve the SAME store: CLAUDE_PROJECT_DIR when the
-# harness sets it, else the git worktree containing the CWD, else the CWD.
+# Resolve the consumer project root so prune + duckdb queries resolve the same fallback store:
+# CLAUDE_PROJECT_DIR when the harness sets it, else the git worktree containing the CWD, else CWD.
 resolve_repo_root() {
   local root
   root="${CLAUDE_PROJECT_DIR:-}"
@@ -198,7 +196,6 @@ main() {
   local repo_root store_dir cutoff_seconds body_cutoff_seconds
   repo_root="$(resolve_repo_root)"
   store_dir="${CC_OTEL_STORE:-$repo_root/.claude/observability/otel}"
-  START_SCRIPT="${CC_OTEL_START_SCRIPT:-$SCRIPT_DIR/start-collector.sh}"
   SENTINEL="$store_dir/.prune-in-progress"
   cutoff_seconds=$((EPOCHSECONDS - retention_days * SECONDS_PER_DAY))
   body_cutoff_seconds=$((EPOCHSECONDS - body_retention_days * SECONDS_PER_DAY))
@@ -259,7 +256,7 @@ main() {
   # live compaction can own them). The .tmp suffix never matches the cold *-*.parquet glob.
   rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
 
-  # Stop the Collector, then wait for the process (and its file handle) to be gone.
+  # Stop the Collector service, then wait for its Stopped state (and released file handles).
   stop_collector
   STOPPED=true
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
@@ -333,7 +330,7 @@ main() {
   done
 
   printf 'action=pruned total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
-  # cleanup (EXIT trap) removes the sentinel and restarts the Collector.
+  # cleanup (EXIT trap) removes the sentinel and starts the Collector service.
 }
 
 main "$@"

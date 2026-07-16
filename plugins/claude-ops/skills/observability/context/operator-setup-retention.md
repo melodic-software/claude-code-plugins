@@ -36,7 +36,7 @@ bodies — so retention is also a privacy bound (see [operator-setup-emission-pr
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh --dry-run   # cutoffs + per-class counts, mutates nothing
-bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh             # prune if needed (stop/compact/trim/restart)
+bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh             # prune if needed (stop/compact/trim/start)
 CC_OTEL_RETENTION_DAYS=14 bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh   # one-off override
 ```
 
@@ -64,28 +64,31 @@ Two override surfaces with different reach — pick by which consumers must hono
 
 ### Safety properties
 
-It is **lock-safe** around the machine-singleton Collector: it holds an mkdir-atomic sentinel
-(`.prune-in-progress`) that [`../otel/start-collector.sh`](../otel/start-collector.sh) honors (no respawn
-mid-trim — closes the revival race), stops the Collector, then per file: compacts aged lines
+It is **lock-safe** around the machine-singleton Collector: it holds a mkdir-atomic sentinel
+(`.prune-in-progress`) so concurrent prunes cannot overlap, stops the provisioning-owned
+`otelcol-contrib` Windows service, then per file: compacts aged lines
 to cold, surgically strips aged body records, verifies the trimmed temp parses (`duckdb
 read_json_auto`), and only then atomically replaces the hot file. **Compact-before-trim +
 verify-before-replace**: every failure path (cold write, cold verify, surgery, hot verify)
 aborts with the hot store untouched. A crash between the cold write and the hot replace
 re-compacts the same lines next run — duplicate cold rows, never lost ones. It **dry-checks
-first** — when nothing exceeds either window it skips the stop/compact/trim/restart entirely,
+first** — when nothing exceeds either window it skips the stop/compact/trim/start entirely,
 so a routine run on recent data never churns the Collector. On days with many aged body
-lines the jq surgery lengthens the Collector stop from seconds to ~1–2 minutes; the
-SessionStart backstop honors the sentinel, so there is no revival race. Also wired into
-`/observability clean` (one entry covering the JSONL layers + this OTEL store;
+lines the jq surgery lengthens the Collector stop from seconds to ~1–2 minutes. The service has
+no independent recovery restart, so the prune owns the complete stop → trim → start cycle. Also
+wired into `/observability clean` (one entry covering the JSONL layers + this OTEL store;
 the JSONL layers keep their own 30-day `--keep-days` window).
 
 ### Windows — per-user Scheduled Task (no admin)
 
-Like the Collector task, the registration carries machine-specific absolute paths, so it is
-**generated from your machine's paths** and never committed. Unlike the Collector daemon — which
-invokes the binary directly to avoid a Git Bash dependency at logon — the prune is a bash script,
-so the task must invoke `bash.exe` by full path. The script ships inside the installed plugin and
-sources sibling helpers, so the task must point at the plugin's own directory: resolve
+The limited runtime user must first have the scoped `SERVICE_STOP | SERVICE_START` grant
+converged by machine provisioning ([provisioning#125](https://github.com/melodic-software/provisioning/issues/125)).
+The grant intentionally includes no service-configuration or ACL-writing rights.
+
+The registration carries machine-specific absolute paths, so it is **generated from your
+machine's paths** and never committed. Unlike the boot-time Collector service, the prune is a
+bash script, so the task must invoke `bash.exe` by full path. The script ships inside the
+installed plugin and sources sibling helpers, so the task must point at the plugin's own directory: resolve
 `${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/prune-otel-store.sh` from a Claude Code
 session and substitute that absolute path below (`<plugin-prune-script>`). The plugin cache path
 changes on plugin updates — re-register the task after updating the plugin. Daily, off-peak
@@ -103,10 +106,9 @@ recipe above (user env vars are the only surface the task sees).
 `schtasks /run /tn "ClaudeCodeOtelPrune"` then re-run a `--dry-run` to confirm the window held.
 **Reversal:** `schtasks /delete /tn "ClaudeCodeOtelPrune" /f`.
 
-### macOS / Linux — deferred (recipe)
+### macOS / Linux — lifecycle integration required
 
-A `launchd` LaunchAgent with a `StartCalendarInterval` (daily), or a `systemd --user` timer
-(`cc-otel-prune.timer` + `.service`), or a cron entry — each running the installed plugin's
-`prune-otel-store.sh` (resolve via `${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/`;
-re-point after plugin updates) with `CC_OTEL_STORE` exported. Not implemented (Windows-first);
-the manual invocation above always works.
+`--dry-run` remains portable, but a mutating prune is Windows-first because its safe file-handle
+cycle targets the provisioning-owned Windows service. Do not schedule a mutating prune on macOS
+or Linux until machine provisioning owns an equivalent service and the lifecycle helper supports
+that service manager.
