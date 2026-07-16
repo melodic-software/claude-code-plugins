@@ -1,0 +1,14 @@
+# Cross-plugin shared-source-file clusters that are expected to stay
+# byte-identical across every plugin that carries them, and already have a
+# dedicated drift check elsewhere. Read by check-cross-plugin-source-drift.sh
+# --check: an identical cluster not listed here fails as "unregistered" (a
+# new shared-copy pattern needing a decision); a listed cluster whose copies
+# no longer match fails as "drifted".
+#
+# One path-within-plugin per line, relative to each plugin's own root.
+
+# Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync)
+hooks/hook-utils.sh
+
+# Dedicated check: scripts/validate-plugin-contracts.mjs (lifecycleProtocolCopies)
+reference/artifact-protocol.md
