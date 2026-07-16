@@ -12,7 +12,8 @@ All schema and behavior claims below were verified against the official docs on 
 project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
-2026-07-15 against the skills doc). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
+Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
 ## Organization — one plugin per cohesive concern
 
@@ -36,6 +37,42 @@ plugin per hook.
   (`HOOK_<PLUGIN>_ENABLED`), a `matcher`, or an `if` guard — author-managed control inside the bundle,
   the ecosystem norm.
 - **Whole-product / vendor-brand bundles** driven by distribution are a separate, allowed shape.
+
+### Decompose an oversized skill before packaging it
+
+Migration is the point to correct a mega-skill boundary, not preserve it accidentally. Apply this
+procedure before choosing plugin and skill directories:
+
+1. **Inventory the source contract.** Record each responsibility, output, supporting asset,
+   cross-skill reference, eval, and auto-invocation phrase from `description` plus `when_to_use`.
+   Claude Code uses that listing text to decide whether to load a skill, so trigger phrases are
+   behavior, not marketing copy
+   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16).
+2. **Classify the seams by discovery intent.** Facets of one capability stay in one plugin but may
+   become focused sibling skills when users reach for them with different vocabulary. Capabilities
+   with independent purpose, lifecycle, or trust surface become separate plugins. Subcommands and
+   depth variants remain arguments; they are not decomposition seams.
+3. **Name the focused skills by KIND.** Action skills take focused action verbs; knowledge skills
+   take focused noun phrases. When the split is facets-of-one-capability, keep the parent concept as
+   the plugin name and move only the focused leaves below it. `prototype` is the worked precedent:
+   one throwaway-prototyping capability, distinct `logic` and `ui` discovery intents, shared
+   discipline at plugin scope.
+4. **Preserve common policy once.** Put genuinely shared instructions/assets at plugin scope and
+   have each sibling skill cite them. Do not duplicate a former mega-skill preamble into every leaf.
+5. **Prove trigger continuity.** Build a migration table mapping every old trigger phrase to one
+   successor skill's quoted `Use when:` phrase. Add explicit negative routing boundaries where sibling
+   intent could overlap. Run `/skill-quality:check` with `CHECK_SKILL_BASE_REF` for every same-path
+   rewrite or rename; check 3 fails when a quoted trigger disappears. A split creates new paths, so
+   the checker deliberately skips them — the cross-skill migration table and focused routing evals
+   are the required evidence that the union of successor descriptions still covers the source.
+6. **Update callers and exercise routing.** Rewrite slash references for the new namespaced leaves,
+   validate every manifest and eval file, then exercise both automatic invocation and explicit slash
+   invocation from a clean consumer repo. Do not retire the source skill until each mapped trigger
+   routes to its intended successor and ambiguous prompts choose the correct facet.
+
+The result is a smaller loading surface per invocation without losing discovery behavior. Do not
+split merely to shorten a file: progressive disclosure into supporting files handles size when the
+skill still has one discovery intent.
 
 **Why capability, not grab-bag.** Enabling and disabling happen at the plugin level, and the
 `skillOverrides` setting explicitly *excludes* plugin skills (those are managed through `/plugin`), so
@@ -517,7 +554,8 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 For each skill/hook/agent being migrated:
 
 1. **Research fresh.** WebFetch the official docs for every component involved (see `CLAUDE.md`).
-2. **Scope one capability.** One cohesive plugin; no grab-bags.
+2. **Scope one capability.** One cohesive plugin; no grab-bags. If the source is oversized, run
+   "Decompose an oversized skill before packaging it" and retain its trigger-migration evidence.
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
    consumer's context.
 4. **Bundle + isolate.** Move required assets inside the plugin; reference via `${CLAUDE_PLUGIN_ROOT}`.
