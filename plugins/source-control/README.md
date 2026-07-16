@@ -1,15 +1,17 @@
 # source-control
 
-A Claude Code plugin bundling the git/GitHub delivery workflow as four
+A Claude Code plugin bundling the git/GitHub delivery workflow as five
 composable skills — commit mechanics, the full PR lifecycle, worktree
-lifecycle management, and merge-conflict resolution.
+lifecycle management, convention setup, and merge-conflict resolution.
 
 ## Skills
 
 ### `/source-control:commit`
 
-Builds a commit the safe way: drafts a **Conventional Commits** subject
-(11-type vocabulary, consumer convention wins), pre-checks it against the
+Builds a commit the safe way: drafts a subject matching the resolved
+convention — `.claude/source-control.md` (written by `/source-control:setup`)
+→ the consuming project's own `CLAUDE.md`/rules/commit-msg hook → Conventional
+Commits (11-type vocabulary) as the default — pre-checks it against the
 pattern before git runs, appends a `Co-Authored-By: Claude …` trailer, and
 feeds the message via Bash heredoc (`git commit -F - --cleanup=verbatim`) —
 never PowerShell here-strings, never scratch files in `.git/`. Stages
@@ -54,6 +56,15 @@ batched PR cross-reference, staleness classification), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
 destructive branch deletion for the user), `audit` (configuration health).
 
+### `/source-control:setup`
+
+Interviews the repo and writes the tracked `.claude/source-control.md`
+commit-subject / PR-title convention config — inferring first from the repo's
+own `CLAUDE.md`/rules, commit-msg hook, or git log history before asking.
+Offers Conventional Commits (11-type vocabulary) as the recommended default,
+or a custom pattern (e.g. a ticket-prefix regex) for orgs that don't use
+Conventional Commits. Re-runnable to reconfigure.
+
 ### `/source-control:resolve-conflicts`
 
 Resolves in-progress merge/rebase/cherry-pick conflicts intent-first: reads
@@ -76,11 +87,13 @@ user decision to abandon the integration.
   agent, a GitHub-events push channel — are used when your environment
   provides them and replaced by inline guidance when absent. No phase blocks
   on a missing tool.
-- **Reads your conventions, assumes none.** Commit-message convention, branch
-  naming, PR template, merge style, and bot-identity wrappers come from the
-  consuming project's own `CLAUDE.md`, rules, and hooks. Defaults (
-  Conventional Commits, squash merge) apply only when the project declares
-  nothing.
+- **Reads your conventions, assumes none.** Commit-subject / PR-title
+  convention resolves from the tracked `.claude/source-control.md` (written by
+  `/source-control:setup`) first, then the consuming project's own
+  `CLAUDE.md`, rules, and hooks; branch naming, PR template, merge style, and
+  bot-identity wrappers also come from the project's own `CLAUDE.md` and
+  rules. Defaults (Conventional Commits, squash merge) apply only when the
+  project declares nothing.
 
 ## Install
 
@@ -91,7 +104,10 @@ user decision to abandon the integration.
 
 ## Configuration
 
-No `userConfig`. Optional environment variables:
+No `userConfig`. Run **`/source-control:setup`** to interview your repo and
+write the tracked `.claude/source-control.md` commit-subject / PR-title
+convention config — it is idempotent and safe to re-run to reconfigure.
+Optional environment variables:
 
 | Variable | Used by | Effect |
 |---|---|---|
