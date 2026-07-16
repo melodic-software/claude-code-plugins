@@ -27,10 +27,8 @@
 # Future backends (Grafana-class, etc.) attach as additional exporters on the apps (or cc)
 # pipelines — no topology change needed.
 #
-# Dashboards are ensured at session start by the SessionStart hook (cc-telemetry-ensure.sh)
-# via detached start-dashboard.sh spawns; manual start:
-#   bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/start-dashboard.sh          # CC (18888)
-#   bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/start-dashboard.sh --role apps  # apps (19888)
+# Dashboard lifecycle is machine-owned by melodic-software/provisioning's
+# common/local-otel-dashboards.compose.yaml (`restart: always`); Claude sessions do not spawn it.
 #
 # Start the Collector via the wrapper (resolves + exports an absolute CC_OTEL_STORE,
 # creates the store dir, idempotent — no-op if :4318 is already bound):
@@ -112,8 +110,8 @@ exporters:
   # Aspire standalone dashboards (OPTIONAL live human tails). gRPC OTLP; insecure: true
   # because the local anonymous dashboard endpoints are plaintext (no TLS). If a dashboard
   # is down its exporter drops-and-continues — file export is unaffected (viewer, not a sink).
-  # Host ports are published by start-dashboard.sh (NOT 4317/4318: those are this
-  # Collector's own receiver).
+  # Host ports are published by provisioning's local-otel-dashboards Compose stack
+  # (NOT 4317/4318: those are this Collector's own receiver).
   otlp_grpc/cc_dashboard:
     endpoint: 127.0.0.1:18889
     tls:

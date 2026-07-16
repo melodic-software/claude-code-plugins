@@ -1,9 +1,9 @@
 # Local Claude Code observability
 
 Index for local Claude Code (CLI) OpenTelemetry capture into a per-developer store, plus the
-optional Aspire dashboard live tail. The pipeline shape and start commands live in the
-[`../otel/otel-collector.yaml`](../otel/otel-collector.yaml) header; this file provides the
-**Naming** section and the topic dispatch table below — detail lives in the linked concern docs.
+optional Aspire dashboard live tail. Machine provisioning owns Collector and dashboard
+lifecycle; this file provides the **Naming** section and topic dispatch table below — detail
+lives in the linked concern docs.
 
 **Agents:** read routing — [`read-routing.md`](read-routing.md). Scope reports — `/observability`.
 
@@ -22,18 +22,19 @@ Claude Code → OTLP `http://127.0.0.1:4318` → OTel Collector → fan-out:
 - file exporter → `.claude/observability/otel/{cc-logs,cc-metrics,cc-traces}.json` (persistent
   store, gitignored, **`append: true`** so a Collector restart appends rather than truncating;
   DuckDB `read_json_auto` queries via [`../otel/cc-otel.sql`](../otel/cc-otel.sql))
-- `otlp_grpc/dashboard` → Aspire standalone dashboard (**all three signals** — optional live UI;
+- `otlp_grpc/cc_dashboard` → Aspire standalone dashboard (**all three signals** — optional live UI;
   in-memory, bounded by the dashboard's built-in telemetry caps; restart resets it)
 
-Full receiver/exporter/pipeline config + dashboard/Collector start commands: the
-[`../otel/otel-collector.yaml`](../otel/otel-collector.yaml) header and [`../otel/start-dashboard.sh`](../otel/start-dashboard.sh)
-(container naming + labels documented in those file headers).
+The machine-owned receiver/exporter configuration is
+[`common/otel-collector.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/otel-collector.yaml),
+and the dashboard stack is
+[`common/local-otel-dashboards.compose.yaml`](https://github.com/melodic-software/provisioning/blob/main/common/local-otel-dashboards.compose.yaml).
 
 ## Detail (by concern)
 
 | Topic | Doc |
 | --- | --- |
-| Always-on Collector + optional Aspire dashboard + OS logon tasks | [`operator-setup-collector-daemon.md`](operator-setup-collector-daemon.md) |
+| Always-on Collector service + optional Aspire dashboard ownership | [`operator-setup-collector-daemon.md`](operator-setup-collector-daemon.md) |
 | Hot/cold retention, prune script, scheduled prune task | [`operator-setup-retention.md`](operator-setup-retention.md) |
 | Emission tiers, content-capture keys, privacy, revert to structure-only | [`operator-setup-emission-privacy.md`](operator-setup-emission-privacy.md) |
 | DuckDB queries, Aspire live API | [`otel-queries.md`](otel-queries.md) |

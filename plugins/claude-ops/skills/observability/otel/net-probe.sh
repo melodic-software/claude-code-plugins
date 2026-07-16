@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # net-probe.sh — portable "is 127.0.0.1:<port> already bound?" probe.
-# Sourced by start-collector.sh and start-dashboard.sh; not an entry point.
+# Sourced by Collector health checks and start-collector.sh; not an entry point.
 # Self-contained: defines port_status, requires nothing from the caller.
 
 # Report whether something is already listening on 127.0.0.1:<port>.
@@ -8,7 +8,7 @@
 #
 # Why not bash /dev/tcp alone: net-redirection is compiled OUT on MSYS2/Git-Bash
 # (the repo's primary Windows shell), where the raw probe ALWAYS fails and falsely
-# reads "free" -> a doomed Collector/dashboard respawn every session. curl is the
+# reads "free" -> an incorrect Collector health result. curl is the
 # portable check (Git for Windows bundles it; near-universal on Linux/macOS), with
 # bash net-redirection kept as the no-curl fallback (Linux/macOS/Cygwin).
 # (bash/conventions.md "Known Git Bash quirks": No /dev/tcp -> use curl or nc.)
