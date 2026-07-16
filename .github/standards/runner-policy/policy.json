@@ -91,6 +91,12 @@
       "allowedSecrets": {},
       "fixedRunsOn": ["ubuntu-24.04"]
     },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@09dd32ae40e270614e251fddafa16bab9a487de5": {
+      "routing": "hosted-only",
+      "allowedInputs": ["args"],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
     "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": [],
