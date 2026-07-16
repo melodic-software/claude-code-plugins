@@ -39,7 +39,7 @@ Tick each step as completed.
 Before selecting, clear stale claims left by crashed or abandoned sessions (an idempotent entry step). Enumerate currently-assigned items (adapter: "List items", assigned filter — the rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run the seam `reclaim` verb on each id — idempotent; outcome + activity-check semantics per `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol".
 
 ```bash
-TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" reclaim "<id>"
 ```
@@ -85,7 +85,7 @@ For each tier, emit the corresponding query:
 - **Frontier tiers (2, 3):** the seam derives the frontier (open ∧ `blocked_by_count == 0` ∧ unassigned); filter its output by the tier's category/recurring criteria core-side:
 
   ```bash
-  TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+  TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
   "$TRACKER" list-frontier --autonomous
   ```
@@ -128,7 +128,7 @@ On user confirmation ("yes"):
 1. **Claim via the seam** — the atomic, race-safe acquisition (assign `@me` → lease → back off on a foreign earlier lease):
 
    ```bash
-   TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+   TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
    [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" claim "<id>"
    ```

@@ -20,7 +20,7 @@ plugin's engine by default, and a repo that vendors its own copy still works —
 from any subdirectory:
 
 ```bash
-TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" <verb>
 ```

@@ -15,7 +15,7 @@ Claim a work item through the seam (assignee + lease record).
 1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable — `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 
    ```bash
-   TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+   TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
    [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" get-item "<id>"
    "$TRACKER" reclaim "<id>"
@@ -26,7 +26,7 @@ Claim a work item through the seam (assignee + lease record).
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash
-   TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+   TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
    [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" claim "<id>"
    ```

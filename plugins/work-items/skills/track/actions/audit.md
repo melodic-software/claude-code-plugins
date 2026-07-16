@@ -20,7 +20,7 @@ comparison in this audit.
 A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check + outcome semantics: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Enumerate currently-assigned items (adapter: "List items", assigned filter — rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run `reclaim` on each id — idempotent, safe to run repeatedly:
 
 ```bash
-TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" reclaim "<id>"
 ```

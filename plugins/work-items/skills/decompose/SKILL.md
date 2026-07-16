@@ -119,7 +119,7 @@ BODY_FILE=$(mktemp)
 # not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
 # interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
 # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
-TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
   --type "<Bug|Feature|Task>" \
