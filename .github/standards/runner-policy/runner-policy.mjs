@@ -739,6 +739,12 @@ function auditLocalPermissionFlow({
   return findings;
 }
 
+function canonicalExpectation(expected) {
+  return Array.isArray(expected)
+    ? `one of ${JSON.stringify(expected)}`
+    : `exactly ${JSON.stringify(expected)}`;
+}
+
 function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   if (actual === null || typeof actual !== "object" || Array.isArray(actual)) {
     return `${location} must be an explicit mapping`;
@@ -748,14 +754,20 @@ function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   if (unexpected.length > 0) {
     return `${location} has unapproved properties: ${unexpected.join(", ")}`;
   }
+  // A canonical value is either one exact governed expression or an exact set of
+  // them (e.g. the default and review-tier self-hosted-label variables). Set
+  // membership stays fail-closed: any expression outside the reviewed set is
+  // rejected, and a single-string value keeps identical exact-match behavior.
   for (const [name, expected] of Object.entries(required)) {
-    if (actual[name] !== expected) {
-      return `${location}.${name} must be exactly ${JSON.stringify(expected)}`;
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    if (!allowed.includes(actual[name])) {
+      return `${location}.${name} must be ${canonicalExpectation(expected)}`;
     }
   }
   for (const [name, expected] of Object.entries(optional)) {
-    if (Object.hasOwn(actual, name) && actual[name] !== expected) {
-      return `${location}.${name} must be exactly ${JSON.stringify(expected)}`;
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    if (Object.hasOwn(actual, name) && !allowed.includes(actual[name])) {
+      return `${location}.${name} must be ${canonicalExpectation(expected)}`;
     }
   }
   return undefined;
