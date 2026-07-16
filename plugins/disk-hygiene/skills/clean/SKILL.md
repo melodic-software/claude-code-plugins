@@ -22,13 +22,13 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 
 Parse `$ARGUMENTS` as optional `--execute`, optional `--policy <file>`, and one target directory.
 `--execute` means “offer the gated lane”; it is not approval. With no target, ask once. Reject a
-filesystem root, OS-managed root, protected shell-folder root or descendant, missing directory,
-symlink, or junction.
+filesystem root, mount target, OS-managed root, protected shell-folder root or descendant, missing
+directory, symlink, or Windows reparse point.
 
 - Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
-  product, research and run its documented dry-run/prune/GC command. Do not infer eligibility from age,
-  names, or apparent duplicate versions.
+  product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
+  never eligible for this engine, even when a native dry-run calls it eligible.
 - Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
 - If `HOOK_DISK_HYGIENE_ENABLED=false`, audit only and explain why execution is disabled. If Python
@@ -102,9 +102,9 @@ Only when `--execute` was requested, write `<run-dir>/plan-<tier>.json`; never m
 }
 ```
 
-For managed state, set `owner` to the product name and add
-`"native_gc_evidence": {"command": "<documented dry-run>", "result": "eligible"}`. Missing evidence
-invalidates the plan. Paths are snapshot-relative, exact, non-overlapping, and never globs.
+For managed state, report the documented native command and its current dry-run result, but do not add
+the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
+non-overlapping, and never globs.
 
 ## 5. Preview, then ask
 
@@ -116,7 +116,9 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" preview \
 ```
 
 It rechecks containment, identity and full descendant set, hard protections, Git's index, and live
-handles. Any blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
+handles from current state rather than trusting snapshot annotations. It also proves Linux mount and
+directory-descriptor prerequisites. Windows and macOS return `execution-platform-unsupported`. Any
+blocker means no approval prompt and no deletion. Fix nothing behind the gate; rescan.
 
 When status is `ready-for-explicit-approval`, show a table naming every path, the single tier, logical
 bytes, and the preview's approval token. Use `AskUserQuestion` to ask whether to remove **exactly that
@@ -147,11 +149,17 @@ sparse files, hard links, compression, and delayed allocation affect it.
 
 ## Gotchas
 
-- POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux/macOS
+- POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
-- Windows share modes differ from POSIX. The engine probes files and directories with an exclusive
-  `CreateFile` handle and reports access failures as needs-elevation instead of prompting for it.
+- Python 3.11 has no `os.path.isjunction`; the engine reads the Windows reparse attribute from `lstat`
+  and treats every reparse point as protected. Windows execution remains disabled.
+- `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
+  parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
+- Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,
+  verifies the descriptor identity, and removes only by descriptor-relative `unlink`/`rmdir`.
 - A directory's contents can change after preview. Apply revalidates each captured entry and removes
   bottom-up; it never follows a new link or recursively discovers new entries.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
+- The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
+  research uses non-Bash read-only tools; only exact bundled scan, preview, and apply shapes pass.

@@ -19,9 +19,10 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 
 - target containment and no filesystem/OS-managed roots;
 - no target root, protected shell-folder root, OS registry/profile hive, VCS metadata or tracked file;
-- no symlink, Windows junction/reparse traversal, or nested mount point;
+- no symlink, Windows reparse traversal, target mount, nested mount, or Linux bind mount;
 - exact file identity and complete descendant set unchanged since snapshot;
-- Git index queried with `git ls-files` whenever a worktree is present;
+- repository markers re-discovered from live filesystem state and the Git index queried with
+  `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
 - live-handle state proven clear; missing authority or tooling blocks;
 - no elevation and no handle closing;
 - one confidence tier per plan and approval.
@@ -40,9 +41,15 @@ the caller's authority and may be slow; a timeout, diagnostic, absent binary, or
 `handle-state-unverified`. The plugin never substitutes deletion failure because POSIX may unlink an
 open file while the process retains the underlying object.
 
-The check and deletion cannot be one atomic cross-platform operation. Apply therefore repeats identity
-and handle checks immediately before each removal, walks only snapshot entries bottom-up, and reports
-partial outcomes. A backup remains the recovery mechanism.
+Execution is intentionally not cross-platform. Linux requires readable `/proc/self/mountinfo`,
+`O_NOFOLLOW`, and descriptor-relative stat/unlink/rmdir. Apply anchors the target and every parent to
+directory descriptors, verifies those descriptor identities, repeats live mount/protection/Git/handle
+checks immediately before each operation, and walks only snapshot entries bottom-up. Windows and
+macOS return `execution-platform-unsupported`; their audit and report behavior is unchanged.
+
+Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
+report-only handoff because this engine cannot independently authenticate the owning product's state
+or cleanup contract.
 
 ## Outcome vocabulary
 
@@ -57,11 +64,14 @@ partial outcomes. A backup remains the recovery mechanism.
 
 ## Primary references
 
-Verified 2026-07-15: [Claude skills](https://code.claude.com/docs/en/skills),
+Verified 2026-07-16: [Claude skills](https://code.claude.com/docs/en/skills),
 [PreToolUse hooks](https://code.claude.com/docs/en/hooks),
-[Python `os`](https://docs.python.org/3/library/os.html),
-[Python `os.path`](https://docs.python.org/3/library/os.path.html),
+[Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),
+[Python 3.11 `os.path`](https://docs.python.org/3.11/library/os.path.html),
 [Git `ls-files`](https://git-scm.com/docs/git-ls-files),
 [Windows `CreateFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew),
+[Windows reparse points](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations),
+[`GetLogicalDrives`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives),
+[Linux `mountinfo`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html),
 [`lsof`](https://lsof.readthedocs.io/en/stable/), and
 [Linux `unlink(2)`](https://man7.org/linux/man-pages/man2/unlink.2.html).

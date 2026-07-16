@@ -16,24 +16,27 @@ unvalidated tree.
   remote, or otherwise unattended sessions audit and stop.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path and its logical byte count.
-- Filesystem roots, OS-managed roots, user shell-folder roots, VCS metadata/tracked content, mount
-  points, symlinks/junctions, entries changed since the scan, and paths outside the target are hard
-  stops. These predicates cannot be disabled by policy.
+- Filesystem roots, mount targets, OS-managed roots on every Windows volume, user shell-folder roots,
+  VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
+  point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
+  predicates cannot be disabled by policy.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
-- A managed directory is handed to its owning product's documented cleanup/GC command. A manual
-  candidate for managed state is invalid without recorded evidence from that command.
-- The skill-scoped guard denies shell deletion bypasses and returns a final `ask` decision for the
-  exact engine apply command, so even a pre-approved Bash rule cannot silently skip the mutation prompt.
+- Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
+  A dry-run result is evidence for the report, never authorization for this engine to remove it.
+- The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
+  calls, returns `ask` for the one canonical apply shape, and denies every other Bash command.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
   directory non-empty and therefore skipped. The report separates removed, locked, changed,
   protected, needs-elevation, and unverified outcomes and records logical bytes plus observed free-space
   delta.
 
-No guard can eliminate filesystem time-of-check/time-of-use races. This implementation narrows the
-window by revalidating identity and handles immediately before each operation and fails closed on any
-uncertainty. Backups remain the recovery boundary for user data.
+The execution lane is Linux-only. It reads the current mount namespace from `/proc/self/mountinfo`,
+re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,
+checks the descriptor identities against the snapshot, and calls descriptor-relative `unlink`/`rmdir`.
+Windows and macOS retain the complete audit/report lane but return `execution-platform-unsupported`
+at preview. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
@@ -41,9 +44,12 @@ uncertainty. Backups remain the recovery boundary for user data.
   cleanup. The plugin never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
-- Windows uses only Python's standard library and Win32 APIs exposed by the OS. It never invokes UAC.
-- Linux and macOS require `lsof` for the optional execution lane. Without it, audits and previews work,
-  but cleanup fails closed. `lsof` warnings or authority gaps also block cleanup.
+- Windows uses Python 3.11's `lstat` reparse metadata plus Win32 APIs exposed by the OS. It never
+  invokes UAC and never enters the execution lane.
+- Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
+  the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
+- macOS supports audit/report only because this implementation has no authoritative bind-mount and
+  descriptor-anchoring proof for its execution lane.
 
 ## Usage
 
@@ -83,16 +89,17 @@ predicates and the baseline protected-name/root rules are non-overridable.
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
-  records the native result; it does not infer eligibility from version-like names or age alone.
+  records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
   tracked path and does not emulate Git's path rules.
 
 ## Plugin-acceptance security review
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
-  guard blocks direct shell deletion during the workflow and forces a final permission prompt for the
-  exact engine command. No `eval`, dynamic shell construction, or
-  downloads are used. Paths cross the process boundary as JSON or individually quoted CLI arguments.
+  guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
+  forces a final permission prompt for the canonical engine apply call. No `eval`, dynamic shell
+  construction, or downloads are used. Paths cross the process boundary as JSON or individually
+  quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** no `userConfig` and no credentials. Optional policy is an explicit invocation
   argument and contains patterns only.
@@ -106,7 +113,7 @@ credential, dependency, or MCP surface reopens this review.
 
 ## Sources
 
-Verified 2026-07-15 against current primary documentation:
+Verified 2026-07-16 against current primary documentation:
 
 - [Create plugins](https://code.claude.com/docs/en/plugins) and
   [plugins reference](https://code.claude.com/docs/en/plugins-reference) — plugin structure, cache
@@ -115,14 +122,19 @@ Verified 2026-07-15 against current primary documentation:
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks) — current `PreToolUse` decision output.
 - [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces) — relative plugin sources.
-- [Python filesystem APIs](https://docs.python.org/3/library/os.html) and
-  [path APIs](https://docs.python.org/3/library/os.path.html) — non-following metadata, junction, and
+- [Python 3.11 filesystem APIs](https://docs.python.org/3.11/library/os.html) and
+  [path APIs](https://docs.python.org/3.11/library/os.path.html) — non-following metadata, junction, and
   mount detection.
+- [Windows reparse-point operations](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations)
+  and [`GetLogicalDrives`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives)
+  — the reparse attribute and available-volume enumeration.
+- [Linux `mountinfo`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html) — current mount
+  namespace and bind-mount targets, which `os.path.ismount` cannot reliably identify.
 - [Git `ls-files`](https://git-scm.com/docs/git-ls-files) — the index/tracked-file authority.
 - [Windows `CreateFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
   — sharing conflicts and directory handles via `FILE_FLAG_BACKUP_SEMANTICS`.
-- [`lsof` maintained documentation](https://lsof.readthedocs.io/en/stable/) — open-file lookup and
-  Linux/macOS support; the recursive `+D` authority limitation is why diagnostics fail closed.
+- [`lsof` maintained documentation](https://lsof.readthedocs.io/en/stable/) — open-file lookup; the
+  recursive `+D` authority limitation is why diagnostics fail closed.
 - [POSIX `unlink`](https://pubs.opengroup.org/onlinepubs/9799919799/functions/unlink.html) and
   [Linux `unlink(2)`](https://man7.org/linux/man-pages/man2/unlink.2.html) — open-file unlink semantics
   motivate an explicit preflight rather than relying on deletion failure.

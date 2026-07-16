@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill-scoped PreToolUse guard: route deletion only through hygiene.py."""
+"""Fail-closed skill hook: allow only exact bundled hygiene-engine commands."""
 
 from __future__ import annotations
 
@@ -7,19 +7,9 @@ import json
 import os
 import re
 import shlex
+import shutil
 import sys
 from pathlib import Path
-
-DELETE_PATTERNS = [
-    r"(^|[\s;&|])rm\s+",
-    r"(^|[\s;&|])(rmdir|rd|unlink)\s+",
-    r"(^|[\s;&|])(del|erase)\s+",
-    r"\bRemove-Item\b",
-    r"\bfind\b.*\s-delete(\s|$)",
-    r"\b(os\.(remove|unlink|rmdir)|shutil\.rmtree)\s*\(",
-    r"\.(unlink|rmdir)\s*\(",
-    r"\[(System\.)?IO\.(File|Directory)\]::Delete\s*\(",
-]
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -32,42 +22,85 @@ def decision(value: str, reason: str) -> dict[str, object]:
     }
 
 
-def is_exact_engine_apply(command: str) -> bool:
-    expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
+def _is_current_python(value: str) -> bool:
+    resolved = shutil.which(value)
+    if not resolved:
+        return False
+    if value.casefold() in {"python", "python.exe"}:
+        return True
+    try:
+        return Path(resolved).resolve() == Path(sys.executable).resolve()
+    except OSError:
+        return False
+
+
+def _argument(value: str) -> bool:
+    return bool(value) and not value.startswith("-")
+
+
+def classify_exact_engine_command(command: str) -> str | None:
+    """Return scan/preview/apply only for one complete, canonical invocation."""
     if any(
         value in command for value in (";", "|", "&", "\r", "\n", "`", "$(", ">", "<")
     ):
-        return False
+        return None
     try:
         tokens = shlex.split(command, posix=True)
     except ValueError:
-        return False
-    if len(tokens) != 14:
-        return False
+        return None
+    if len(tokens) < 3 or not _is_current_python(tokens[0]):
+        return None
+    expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
     normalized_script = expected_script.replace("\\", "/").casefold()
-    candidate_script = tokens[1].replace("\\", "/").casefold()
-    return all(
-        (
-            tokens[0].casefold() in {"python", "python.exe"},
-            candidate_script == normalized_script,
-            tokens[2:5] == ["apply", "--execute", "--snapshot"],
-            tokens[5] != "",
-            tokens[6] == "--plan",
-            tokens[7] != "",
-            tokens[8] == "--confirm-tier",
-            tokens[9] in {"high", "medium", "low"},
-            tokens[10] == "--approval-token",
-            re.fullmatch(r"[0-9a-f]{24}", tokens[11]) is not None,
-            tokens[12] == "--report",
-            tokens[13] != "",
+    if tokens[1].replace("\\", "/").casefold() != normalized_script:
+        return None
+
+    if tokens[2] == "scan":
+        valid = (
+            len(tokens) in {7, 9}
+            and tokens[3] == "--target"
+            and _argument(tokens[4])
+            and tokens[5] == "--output"
+            and _argument(tokens[6])
+            and (len(tokens) == 7 or (tokens[7] == "--policy" and _argument(tokens[8])))
         )
-    )
+        return "scan" if valid else None
+    if tokens[2] == "preview":
+        valid = (
+            len(tokens) == 7
+            and tokens[3] == "--snapshot"
+            and _argument(tokens[4])
+            and tokens[5] == "--plan"
+            and _argument(tokens[6])
+        )
+        return "preview" if valid else None
+    if tokens[2] == "apply":
+        if len(tokens) != 14:
+            return None
+        valid = all(
+            (
+                tokens[3] == "--execute",
+                tokens[4] == "--snapshot",
+                _argument(tokens[5]),
+                tokens[6] == "--plan",
+                _argument(tokens[7]),
+                tokens[8] == "--confirm-tier",
+                tokens[9] in {"high", "medium", "low"},
+                tokens[10] == "--approval-token",
+                re.fullmatch(r"[0-9a-f]{24}", tokens[11]) is not None,
+                tokens[12] == "--report",
+                _argument(tokens[13]),
+            )
+        )
+        return "apply" if valid else None
+    return None
+
+
+def is_exact_engine_apply(command: str) -> bool:
+    return classify_exact_engine_command(command) == "apply"
 
 
 def main() -> int:
-    if os.environ.get("HOOK_DISK_HYGIENE_ENABLED", "true").lower() == "false":
-        print("{}")
-        return 0
     try:
         payload = json.load(sys.stdin)
         command = payload["tool_input"]["command"]
@@ -83,7 +116,20 @@ def main() -> int:
             )
         )
         return 0
-    if is_exact_engine_apply(command):
+
+    command_kind = classify_exact_engine_command(command)
+    enabled = os.environ.get("HOOK_DISK_HYGIENE_ENABLED", "true").lower() != "false"
+    if command_kind in {"scan", "preview"}:
+        print(
+            json.dumps(
+                decision(
+                    "allow",
+                    "Exact bundled disk-hygiene read-only gate invocation.",
+                )
+            )
+        )
+        return 0
+    if command_kind == "apply" and enabled:
         print(
             json.dumps(
                 decision(
@@ -93,30 +139,12 @@ def main() -> int:
             )
         )
         return 0
-    if "hygiene.py" in command and " apply " in f" {command} ":
-        print(
-            json.dumps(
-                decision(
-                    "deny",
-                    "The disk-hygiene apply command did not reference this plugin's exact bundled engine or was not a single complete command.",
-                )
-            )
-        )
-        return 0
-    if any(
-        re.search(pattern, command, flags=re.IGNORECASE | re.DOTALL)
-        for pattern in DELETE_PATTERNS
-    ):
-        print(
-            json.dumps(
-                decision(
-                    "deny",
-                    "Direct deletion is blocked while /disk-hygiene:clean is active. Run hygiene.py preview, obtain explicit per-tier approval, then use its exact apply command.",
-                )
-            )
-        )
-        return 0
-    print("{}")
+    reason = (
+        "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
+        if command_kind == "apply"
+        else "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations. Use non-Bash read-only tools for supporting inspection."
+    )
+    print(json.dumps(decision("deny", reason)))
     return 0
 
 

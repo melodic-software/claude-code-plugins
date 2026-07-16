@@ -23,6 +23,16 @@ SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
+FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+WINDOWS_VOLUME_SYSTEM_NAMES = {
+    "$Recycle.Bin",
+    "Program Files",
+    "Program Files (x86)",
+    "ProgramData",
+    "Recovery",
+    "System Volume Information",
+    "Windows",
+}
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_POLICY = (
     Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
@@ -88,10 +98,88 @@ def is_within(path: Path, parent: Path) -> bool:
 
 
 def is_linkish(path: Path) -> bool:
-    if path.is_symlink():
+    """Return true for every link-like Windows reparse point, including on 3.11."""
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode):
         return True
-    checker = getattr(os.path, "isjunction", None)
-    return bool(checker and checker(path))
+    return bool(getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def has_linkish_component(path: Path, stop: Path | None = None) -> bool:
+    current = path
+    while True:
+        if is_linkish(current):
+            return True
+        if current == stop or current.parent == current:
+            return False
+        current = current.parent
+
+
+def _decode_mountinfo_path(value: str) -> str:
+    result = bytearray()
+    index = 0
+    encoded = os.fsencode(value)
+    while index < len(encoded):
+        if (
+            encoded[index : index + 1] == b"\\"
+            and index + 3 < len(encoded)
+            and all(48 <= byte <= 55 for byte in encoded[index + 1 : index + 4])
+        ):
+            result.append(int(encoded[index + 1 : index + 4], 8))
+            index += 4
+        else:
+            result.append(encoded[index])
+            index += 1
+    return os.fsdecode(result)
+
+
+def linux_mount_points() -> tuple[set[Path], str | None]:
+    if os_key() != "linux":
+        return set(), None
+    try:
+        lines = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+        points = {
+            Path(_decode_mountinfo_path(fields[4])).absolute()
+            for line in lines
+            if len(fields := line.split()) >= 10 and "-" in fields[6:]
+        }
+    except (OSError, UnicodeError, ValueError) as exc:
+        return set(), f"cannot read /proc/self/mountinfo: {exc}"
+    if not points:
+        return set(), "no mount points were reported by /proc/self/mountinfo"
+    return points, None
+
+
+def mount_state(
+    path: Path, known_linux_mounts: set[Path] | None = None
+) -> tuple[bool, str | None]:
+    if os_key() == "linux":
+        points = known_linux_mounts
+        error = None
+        if points is None:
+            points, error = linux_mount_points()
+        if error:
+            return False, error
+        return path.absolute() in points, None
+    try:
+        return os.path.ismount(path), None
+    except OSError as exc:
+        return False, str(exc)
+
+
+def windows_drive_roots() -> list[Path]:
+    if os.name != "nt":
+        return []
+    get_logical_drives = ctypes.WinDLL("kernel32", use_last_error=True).GetLogicalDrives
+    get_logical_drives.argtypes = []
+    get_logical_drives.restype = ctypes.c_uint32
+    mask = get_logical_drives()
+    if not mask:
+        raise OSError(ctypes.get_last_error(), "GetLogicalDrives failed")
+    return [Path(f"{chr(65 + index)}:\\") for index in range(26) if mask & (1 << index)]
 
 
 def has_protected_name(path: Path, exact_names: set[str]) -> bool:
@@ -118,12 +206,9 @@ def system_roots() -> list[Path]:
             os.environ.get("ProgramFiles(x86)"),
             os.environ.get("ProgramData"),
         ]
-        drive = os.environ.get("SystemDrive")
-        if drive:
-            candidates.extend(
-                [f"{drive}\\$Recycle.Bin", f"{drive}\\System Volume Information"]
-            )
         roots.extend(Path(value).absolute() for value in candidates if value)
+        for drive_root in windows_drive_roots():
+            roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
     elif os_key() == "macos":
         roots.extend(
             Path(value)
@@ -149,19 +234,28 @@ def system_roots() -> list[Path]:
     return roots
 
 
-def hard_protection(path: Path, target: Path, exact_names: set[str]) -> list[str]:
+def hard_protection(
+    path: Path,
+    target: Path,
+    exact_names: set[str],
+    known_linux_mounts: set[Path] | None = None,
+) -> list[str]:
     reasons: list[str] = []
     if path == target or path.parent == path:
         reasons.append("target-or-filesystem-root")
-    if is_linkish(path):
-        reasons.append("symlink-or-junction")
-    try:
-        if path != target and os.path.ismount(path):
-            reasons.append("nested-mount-point")
-    except OSError:
-        reasons.append("mount-state-unverified")
     current = path
-    while current != target and is_within(current, target):
+    while is_within(current, target):
+        if is_linkish(current):
+            reasons.append("symlink-junction-or-reparse-point")
+        mounted, mount_error = mount_state(current, known_linux_mounts)
+        if mount_error:
+            reasons.append("mount-state-unverified")
+        elif mounted:
+            reasons.append(
+                "target-is-mount-point" if current == target else "nested-mount-point"
+            )
+        if current == target:
+            break
         if has_protected_name(current, exact_names):
             reasons.append("baseline-protected-name")
         if current.name.casefold() in VCS_NAMES:
@@ -314,6 +408,9 @@ def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
     errors: list[dict[str, str]] = []
     repositories, repo_errors = discover_enclosing_git(target)
     exact_names = set(policy["protected_exact_names"])
+    known_mounts, mount_error = linux_mount_points()
+    if mount_error:
+        errors.append({"path": ".", "error": mount_error})
 
     def visit(directory: Path) -> int:
         total = 0
@@ -328,7 +425,7 @@ def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
         for child in children:
             path = Path(child.path)
             relative = path.relative_to(target).as_posix()
-            protections = hard_protection(path, target, exact_names)
+            protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
             if any(
@@ -540,10 +637,16 @@ def validate_plan(
 
 def current_descendants(root: Path, candidate: Path) -> set[str]:
     paths: set[str] = set()
+    known_mounts, mount_error = linux_mount_points()
+    if mount_error:
+        raise HygieneError(mount_error)
 
     def visit(path: Path) -> None:
         paths.add(path.relative_to(root).as_posix())
-        if is_linkish(path) or not path.is_dir() or os.path.ismount(path):
+        mounted, error = mount_state(path, known_mounts)
+        if error:
+            raise HygieneError(error)
+        if is_linkish(path) or not path.is_dir() or mounted:
             return
         with os.scandir(path) as iterator:
             children = [Path(entry.path) for entry in iterator]
@@ -559,9 +662,14 @@ def same_identity(path: Path, entry: dict[str, Any]) -> bool:
         info = path.lstat()
     except OSError:
         return False
+    return same_stat_identity(info, entry)
+
+
+def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
     kind = (
         "link"
-        if is_linkish(path)
+        if stat.S_ISLNK(info.st_mode)
+        or bool(getattr(info, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
         else "directory"
         if stat.S_ISDIR(info.st_mode)
         else "file"
@@ -580,9 +688,108 @@ def same_identity(path: Path, entry: dict[str, Any]) -> bool:
     )
 
 
-def tracked_blocker(candidate: Path, snapshot: dict[str, Any]) -> str | None:
-    repositories = [Path(value) for value in snapshot.get("repositories", [])]
-    if snapshot.get("repository_errors"):
+def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
+    """Compare stable object identity without mutable directory size/timestamps."""
+    return all(
+        (
+            stat.S_ISDIR(info.st_mode) and entry.get("kind") == "directory",
+            info.st_dev == entry.get("device"),
+            info.st_ino == entry.get("inode"),
+            stat.S_IFMT(info.st_mode) == entry.get("mode"),
+        )
+    )
+
+
+def marker_exists(path: Path, errors: list[str]) -> bool:
+    try:
+        path.lstat()
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        errors.append(f"{path}: marker state unverified: {exc}")
+        return False
+
+
+def discover_current_repositories(
+    target: Path, candidate: Path
+) -> tuple[list[Path], list[str]]:
+    """Rediscover enclosing and nested repository markers from live state."""
+    marker_roots: set[Path] = set()
+    errors: list[str] = []
+    current = candidate if candidate.is_dir() else candidate.parent
+    while True:
+        git_marker = current / ".git"
+        if marker_exists(git_marker, errors):
+            marker_roots.add(current)
+        if any(marker_exists(current / name, errors) for name in (".hg", ".svn")):
+            errors.append(f"{current}: non-Git VCS state is not independently verified")
+        if current.parent == current:
+            break
+        current = current.parent
+
+    known_mounts, mount_error = linux_mount_points()
+    if mount_error:
+        errors.append(mount_error)
+
+    def visit(directory: Path) -> None:
+        try:
+            with os.scandir(directory) as iterator:
+                children = list(iterator)
+        except OSError as exc:
+            errors.append(f"{directory}: {exc}")
+            return
+        names = {entry.name.casefold() for entry in children}
+        if names & VCS_NAMES:
+            if ".git" not in names:
+                errors.append(
+                    f"{directory}: non-Git VCS state is not independently verified"
+                )
+            marker_roots.add(directory)
+            return
+        for entry in children:
+            path = Path(entry.path)
+            mounted, current_mount_error = mount_state(path, known_mounts)
+            if current_mount_error:
+                errors.append(current_mount_error)
+                return
+            if (
+                entry.is_dir(follow_symlinks=False)
+                and not is_linkish(path)
+                and not mounted
+            ):
+                visit(path)
+
+    if candidate.is_dir() and not is_linkish(candidate):
+        visit(candidate)
+
+    git = shutil.which("git")
+    if not git:
+        return sorted(marker_roots), (["git-not-found"] if marker_roots else errors)
+
+    run = subprocess.run(
+        [
+            git,
+            "-C",
+            str(candidate.parent if candidate.is_file() else candidate),
+            "rev-parse",
+            "--show-toplevel",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if run.returncode == 0 and run.stdout.strip():
+        marker_roots.add(Path(run.stdout.strip()).resolve())
+    elif marker_roots:
+        errors.append("git-worktree-state-unverified")
+    return sorted(marker_roots), errors
+
+
+def tracked_blocker(candidate: Path, target: Path) -> str | None:
+    repositories, errors = discover_current_repositories(target, candidate)
+    if errors:
         return "vcs-state-unverified"
     git = shutil.which("git")
     if repositories and not git:
@@ -606,6 +813,19 @@ def tracked_blocker(candidate: Path, snapshot: dict[str, Any]) -> str | None:
         if run.stdout:
             return "vcs-tracked-content"
     return None
+
+
+def execution_blockers() -> list[str]:
+    """Return reasons why the mutation lane cannot be proven safe on this host."""
+    if os_key() != "linux":
+        return ["execution-platform-unsupported"]
+    required = (os.open, os.stat, os.unlink, os.rmdir)
+    if not all(function in os.supports_dir_fd for function in required):
+        return ["dirfd-anchoring-unavailable"]
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        return ["dirfd-anchoring-unavailable"]
+    _, error = linux_mount_points()
+    return ["mount-state-unverified"] if error else []
 
 
 def windows_handle_state(path: Path) -> tuple[str, str | None]:
@@ -699,11 +919,20 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     ):
         raise HygieneError("unsupported snapshot version")
     baseline_exact_names = set(load_policy(None)["protected_exact_names"])
-    target = Path(snapshot.get("target", "")).resolve(strict=True)
+    target_input = Path(snapshot.get("target", "")).absolute()
+    if has_linkish_component(target_input):
+        raise HygieneError("snapshot target now traverses a link or reparse point")
+    target = target_input.resolve(strict=True)
+    known_mounts, mount_error = linux_mount_points()
+    target_mounted, target_mount_error = mount_state(target, known_mounts)
     if target.parent == target or any(
         is_within(target, root.absolute()) for root in system_roots()
     ):
         raise HygieneError("snapshot target is now a filesystem or OS-managed root")
+    if mount_error or target_mount_error:
+        raise HygieneError("snapshot target mount state is unverified")
+    if target_mounted:
+        raise HygieneError("snapshot target is a mount point")
     if has_protected_path_component(target, baseline_exact_names):
         raise HygieneError(
             "snapshot target is now a protected shell-folder or profile-hive root"
@@ -720,7 +949,10 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     for candidate in candidates:
         relative = candidate["path"]
         path = target.joinpath(*PurePosixPath(relative).parts)
-        blockers = hard_protection(path, target, exact_names)
+        blockers = hard_protection(path, target, exact_names, known_mounts)
+        blockers.extend(execution_blockers())
+        if candidate["owner"] != "unmanaged":
+            blockers.append("native-managed-report-only")
         expected_paths = {
             name
             for name in entries
@@ -739,11 +971,19 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         for name in expected_paths:
             entry = entries[name]
             current = target.joinpath(*PurePosixPath(name).parts)
-            if entry.get("protected_reasons"):
-                blockers.extend(entry["protected_reasons"])
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
-        vcs = tracked_blocker(path, snapshot)
+            blockers.extend(hard_protection(current, target, exact_names, known_mounts))
+            relative_current = current.relative_to(target).as_posix()
+            if any(
+                fnmatch.fnmatchcase(relative_current, pattern)
+                for pattern in snapshot.get("policy", {}).get(
+                    "additional_protected_path_globs", []
+                )
+                if isinstance(pattern, str)
+            ):
+                blockers.append("consumer-protected-path")
+        vcs = tracked_blocker(path, target)
         if vcs:
             blockers.append(vcs)
         state, detail = candidate_handle_state(target, path, expected_paths)
@@ -793,25 +1033,127 @@ def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[s
     )
 
 
+def open_anchored_parent(
+    target_fd: int, relative: str, entries: dict[str, dict[str, Any]]
+) -> tuple[int, str]:
+    parts = PurePosixPath(relative).parts
+    parent_fd = os.dup(target_fd)
+    walked: list[str] = []
+    try:
+        for part in parts[:-1]:
+            walked.append(part)
+            next_fd = os.open(
+                part,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            os.close(parent_fd)
+            parent_fd = next_fd
+            expected = entries.get(PurePosixPath(*walked).as_posix())
+            if expected is None or not same_object_identity(
+                os.fstat(parent_fd), expected
+            ):
+                raise HygieneError("anchored parent changed since the snapshot")
+        return parent_fd, parts[-1]
+    except BaseException:
+        os.close(parent_fd)
+        raise
+
+
+def anchored_remove(
+    target_fd: int,
+    relative: str,
+    entry: dict[str, Any],
+    entries: dict[str, dict[str, Any]],
+    target: Path,
+) -> None:
+    parent_fd, name = open_anchored_parent(target_fd, relative, entries)
+    try:
+        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if not same_stat_identity(current, entry):
+            raise HygieneError("anchored entry changed since the snapshot")
+        expected_parent = target.joinpath(*PurePosixPath(relative).parts[:-1]).resolve(
+            strict=True
+        )
+        actual_parent = Path(f"/proc/self/fd/{parent_fd}").resolve(strict=True)
+        if actual_parent != expected_parent:
+            raise HygieneError("anchored parent is no longer at its expected path")
+        if entry["kind"] == "directory":
+            os.rmdir(name, dir_fd=parent_fd)
+        elif entry["kind"] == "file":
+            os.unlink(name, dir_fd=parent_fd)
+        else:
+            raise HygieneError("only regular files and directories are removable")
+    finally:
+        os.close(parent_fd)
+
+
 def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
-    target = Path(snapshot["target"])
+    target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
+    candidates = validate_plan(plan, entries)
+    platform_blockers = execution_blockers()
+    if platform_blockers:
+        return {
+            "status": "completed-with-skips",
+            "tier": plan["tier"],
+            "target": str(target),
+            "removed": [],
+            "skipped": [
+                {
+                    "path": item["path"],
+                    "outcome": "protected",
+                    "detail": ", ".join(platform_blockers),
+                }
+                for item in candidates
+            ],
+            "logical_bytes_removed": 0,
+            "observed_free_space_delta_bytes": 0,
+        }
+    checked = preview(snapshot, plan)
+    if checked["status"] != "ready-for-explicit-approval":
+        by_path = {item["path"]: item for item in checked["candidates"]}
+        return {
+            "status": "completed-with-skips",
+            "tier": plan["tier"],
+            "target": str(target),
+            "removed": [],
+            "skipped": [
+                {
+                    "path": item["path"],
+                    "outcome": "protected",
+                    "detail": ", ".join(by_path[item["path"]]["blockers"]),
+                }
+                for item in candidates
+            ],
+            "logical_bytes_removed": 0,
+            "observed_free_space_delta_bytes": 0,
+        }
     before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     logical_removed = 0
-    for candidate in validate_plan(plan, entries):
+    target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    if not same_stat_identity(os.fstat(target_fd), snapshot["target_identity"]):
+        os.close(target_fd)
+        raise HygieneError("anchored target changed since the snapshot")
+    known_mounts, mount_error = linux_mount_points()
+    if mount_error:
+        os.close(target_fd)
+        raise HygieneError(mount_error)
+    for candidate in candidates:
         candidate_path = target.joinpath(*PurePosixPath(candidate["path"]).parts)
         candidate_blockers = hard_protection(
             candidate_path,
             target,
             set(load_policy(None)["protected_exact_names"])
             | set(snapshot.get("policy", {}).get("protected_exact_names", [])),
+            known_mounts,
         )
         selected = removal_entries(candidate["path"], entries)
-        if any(entries[name].get("protected_reasons") for name in selected):
-            candidate_blockers.append("snapshot-protected-content")
-        vcs = tracked_blocker(candidate_path, snapshot)
+        if candidate["owner"] != "unmanaged":
+            candidate_blockers.append("native-managed-report-only")
+        vcs = tracked_blocker(candidate_path, target)
         if vcs:
             candidate_blockers.append(vcs)
         if candidate_blockers:
@@ -829,6 +1171,42 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             if not same_identity(path, entry) or is_linkish(path):
                 skipped.append({"path": relative, "outcome": "changed-or-link"})
                 continue
+            fresh_mounts, fresh_mount_error = linux_mount_points()
+            if fresh_mount_error:
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "protected",
+                        "detail": "mount-state-unverified",
+                    }
+                )
+                continue
+            fresh_protections = hard_protection(
+                path,
+                target,
+                set(load_policy(None)["protected_exact_names"]),
+                fresh_mounts,
+            )
+            if any(
+                fnmatch.fnmatchcase(relative, pattern)
+                for pattern in snapshot.get("policy", {}).get(
+                    "additional_protected_path_globs", []
+                )
+                if isinstance(pattern, str)
+            ):
+                fresh_protections.append("consumer-protected-path")
+            fresh_vcs = tracked_blocker(path, target)
+            if fresh_vcs:
+                fresh_protections.append(fresh_vcs)
+            if fresh_protections:
+                skipped.append(
+                    {
+                        "path": relative,
+                        "outcome": "protected",
+                        "detail": ", ".join(sorted(set(fresh_protections))),
+                    }
+                )
+                continue
             state, detail = handle_state(path)
             if state != "clear":
                 outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
@@ -839,15 +1217,12 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 )
                 continue
             try:
-                if entry["kind"] == "directory":
-                    path.rmdir()
-                elif entry["kind"] == "file":
-                    path.unlink()
-                else:
-                    skipped.append(
-                        {"path": relative, "outcome": "protected-non-regular-entry"}
-                    )
-                    continue
+                anchored_remove(target_fd, relative, entry, entries, target)
+            except HygieneError as exc:
+                skipped.append(
+                    {"path": relative, "outcome": "changed-or-link", "detail": str(exc)}
+                )
+                continue
             except PermissionError as exc:
                 skipped.append(
                     {"path": relative, "outcome": "needs-elevation", "detail": str(exc)}
@@ -863,6 +1238,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             )
             logical_removed += logical
             removed.append({"path": relative, "logical_bytes": logical})
+    os.close(target_fd)
     after = shutil.disk_usage(target).free
     return {
         "status": "completed-with-skips" if skipped else "completed",
@@ -904,10 +1280,18 @@ def main(argv: list[str] | None = None) -> int:
             if (
                 not target_input.exists()
                 or not target_input.is_dir()
-                or is_linkish(target_input)
+                or has_linkish_component(target_input)
             ):
-                raise HygieneError("target must be an existing, non-link directory")
+                raise HygieneError(
+                    "target must be an existing directory with no link or reparse-point component"
+                )
             target = target_input.resolve(strict=True)
+            known_mounts, mount_error = linux_mount_points()
+            mounted, target_mount_error = mount_state(target, known_mounts)
+            if mount_error or target_mount_error:
+                raise HygieneError("target mount state is unverified")
+            if mounted:
+                raise HygieneError("mount points are not valid audit targets")
             if target.parent == target or any(
                 is_within(target, root.absolute()) for root in system_roots()
             ):
