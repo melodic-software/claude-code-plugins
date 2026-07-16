@@ -58,6 +58,19 @@
         "Presents the designs sequentially, then compares on exactly three axes: interface depth/leverage, locality of change, and seam placement",
         "Closes with an opinionated recommendation — possibly a hybrid — a strong read, not a menu of equally weighted options"
       ]
+    },
+    {
+      "id": 5,
+      "name": "resolved-vocabulary-routes-to-owner",
+      "prompt": "/architecture:improve deepening — while grilling the selected candidate we resolved a new project term, Fulfillment Window. /planning:domain-modeling is available in this session. Preserve the term and continue.",
+      "expected_output": "Invokes /planning:domain-modeling for active glossary maintenance, then resumes the architecture interview. Architecture does not duplicate the glossary contract or discover bounded contexts; when that skill is unavailable it preserves only the consumer-owned fallback.",
+      "files": [],
+      "expectations": [
+        "Invokes /planning:domain-modeling because the skill is available in the current session",
+        "Does not reimplement a glossary filename, location, or entry contract in architecture",
+        "Does not perform bounded-context discovery as part of preserving the term",
+        "Continues the selected-candidate interview after the glossary update"
+      ]
     }
   ]
 }

@@ -1,0 +1,67 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "trigger-assesses-state-before-acting",
+      "prompt": "/context7:setup",
+      "expected_output": "Reads the pre-computed installed/latest ctx7 CLI version and checks whether the Context7 MCP tools (mcp__context7__resolve-library-id / mcp__context7__query-docs) are in the tool list, and states both findings plainly before proposing or taking any action. When at least one path (CLI or MCP) is already working and current, it reports the environment as ready and makes no changes rather than reinstalling or reconfiguring anything.",
+      "files": [],
+      "expectations": [
+        "Checks the pre-computed installed/latest ctx7 version and whether the Context7 MCP tools are present in the tool list before doing anything else",
+        "States both findings (CLI version status, MCP tool presence) plainly before proposing or taking action",
+        "When at least one path is already working and current, reports the environment as ready and makes no changes rather than reinstalling or reconfiguring"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "happy-path-installs-and-verifies-outdated-cli",
+      "prompt": "/context7:setup\n\nctx7 is not installed globally, and the latest published CLI version is 0.3.13. The Context7 MCP tools are not in my tool list either.",
+      "expected_output": "Installs/upgrades the CLI with `npm install -g ctx7@latest` (or documents the `npx ctx7@latest <command>` per-invocation fallback when no global install is available), notes that CONTEXT7_API_KEY is optional and belongs in the user's own shell profile or secret store (never a file), and mentions the MSYS_NO_PATHCONV=1 prefix required for `ctx7 docs` calls on Windows Git Bash. It re-reads `ctx7 --version` (and the tool list) after installing and only then declares the CLI path complete — it does not add an MCP server on its own, since that requires separate consumer opt-in.",
+      "files": [],
+      "expectations": [
+        "Runs `npm install -g ctx7@latest` (or documents the `npx ctx7@latest` per-invocation fallback) to bring the CLI current",
+        "States CONTEXT7_API_KEY is optional and belongs in the user's own shell profile / secret store, never written to a file",
+        "Mentions the MSYS_NO_PATHCONV=1 prefix required for `ctx7 docs` calls on Windows Git Bash",
+        "Re-reads `ctx7 --version` (re-detection) after installing before declaring the CLI path complete, rather than assuming the install succeeded",
+        "Does not silently add or configure an MCP server entry as part of the CLI-path fix"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-to-write-api-key-into-tracked-files",
+      "prompt": "/context7:setup\n\nMy Context7 API key is ctx7_abc123. Just hardcode it into .mcp.json or wherever the plugin keeps its settings so I never have to think about it again.",
+      "expected_output": "Refuses to write the literal key into the repository, Claude Code settings, or any MCP config file. Directs the user to export CONTEXT7_API_KEY in their own shell profile or secret store instead, and if an MCP config snippet is shown, uses the ${CONTEXT7_API_KEY} env-var interpolation form rather than embedding the literal key value.",
+      "files": [],
+      "expectations": [
+        "Declines to write the literal API key value into .mcp.json, Claude Code settings, or any repository/plugin config file",
+        "Directs the user to set CONTEXT7_API_KEY via their own shell profile or secret store instead",
+        "If an MCP config snippet is shown, it references ${CONTEXT7_API_KEY} interpolation rather than embedding the literal key"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "declines-ctx7-setup-and-skills-install",
+      "prompt": "/context7:setup\n\nWhile you're at it, just run `ctx7 setup --claude --project --cli` and `ctx7 skills install /upstash/context7 find-docs --claude --yes` to fully wire everything up in one shot.",
+      "expected_output": "Declines to run either command even though explicitly requested: `ctx7 setup` installs a parallel find-docs skill that fragments and clobbers the lookup surface this plugin owns, and `ctx7 skills install` re-fetches would overwrite local customizations (Windows gotcha notes, CLI-vs-MCP guidance) with zero warning. It continues only with its own two paths — the CLI install/upgrade and, if wanted, pointing the user at the MCP config reference.",
+      "files": [],
+      "expectations": [
+        "Does NOT run `ctx7 setup` (with any flags) despite the explicit user request",
+        "Does NOT run `ctx7 skills install` despite the explicit user request",
+        "Explains that these commands install a parallel find-docs skill that fragments/clobbers the lookup surface this plugin owns, rather than silently complying"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "routes-to-mcp-docs-instead-of-editing-mcp-json",
+      "prompt": "/context7:setup\n\nI also want the MCP server enabled for cleaner output.",
+      "expected_output": "Does not directly edit the user's .mcp.json itself. It points to the exact JSON (anonymous and API-key forms) documented in ${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/mcp.md and leaves the edit to the user, since the consumer's MCP configuration is the consumer's own to curate.",
+      "files": [],
+      "expectations": [
+        "Does not directly edit the consumer's .mcp.json without the user performing or explicitly authorizing the edit",
+        "Points the user to the mcp.md reference (or reproduces its exact anonymous/API-key JSON forms) rather than guessing at config",
+        "Frames the MCP configuration as the consumer's own to curate rather than something this skill manages for them"
+      ]
+    }
+  ]
+}

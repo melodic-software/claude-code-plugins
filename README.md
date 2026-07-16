@@ -31,7 +31,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 - [`architecture`](plugins/architecture) — Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, and locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and runs an interview loop on the selected candidate before handing off for planning.
 - [`prototype`](plugins/prototype) — Builds throwaway code to answer a design question before committing to architecture — a logic facet (an interactive terminal app over a portable state model) and a UI facet (radically different visual variants on one route).
-- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate — persisting PRD.md / PLAN.md / design artifacts for fresh-session handoff.
+- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, actively maintain resolved domain language, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.
 - [`event-storming`](plugins/event-storming) — EventStorming for domain discovery — a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops that produce a structured-markdown model by default; a live Miro-board rendering path is available when the first-party miro plugin is enabled).
 - [`miro`](plugins/miro) — Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Bundles a local stdio MCP server (single self-contained Node artifact); installs disabled — opt in and supply a Miro API token.
 
@@ -83,7 +83,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Six safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, and (advisory) un-throttled Workflow fan-out that risks burst 529s — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
@@ -120,9 +120,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `plugins/` — one directory per plugin.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration gate, and the local development loop.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
-- `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
-- `docs/evals-coverage.md` — point-in-time skill-eval coverage snapshot: which skills warrant evals, which are owed backfill, and the explicit skips.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).

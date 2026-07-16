@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- Require a branch-derived issue to be open before adding `Closes #N`, preserve
+  merge-commit branch history when integrating the default branch during PR
+  babysitting, and stash a dirty worktree before reusing it for the next task.
+
 ## [0.4.0]
 
 ### Added

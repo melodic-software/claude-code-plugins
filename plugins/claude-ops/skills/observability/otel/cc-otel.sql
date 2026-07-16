@@ -1,7 +1,7 @@
 -- cc-otel.sql — DuckDB init for querying the local Claude Code OTEL store.
 --
 -- Usage: the view paths resolve via ${CC_OTEL_STORE} (the absolute store dir set by
--- start-collector.sh / the logon daemon / onboard), so queries work from ANY worktree.
+-- machine provisioning), so queries work from ANY worktree.
 -- When CC_OTEL_STORE is unset the views fall back to the repo-root-relative path, so a
 -- manual run must be FROM THE REPO ROOT:
 --   duckdb -init ${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/cc-otel.sql
@@ -47,8 +47,8 @@
 -- whose store file does not exist yet (a fresh machine whose Collector has never run, or a
 -- store with only one of the two files) fails at CREATE time. `.bail off` below makes that
 -- non-fatal: the failing view prints its error and is skipped, the rest of this file still
--- loads (start the Collector + a CC session, then re-run the init — see README.md and
--- otel-collector.yaml). The COLD surfaces are zero-arg-callable TABLE MACROS (not views)
+-- loads (after the machine Collector receives a CC session, re-run the init). The COLD
+-- surfaces are zero-arg-callable TABLE MACROS (not views)
 -- so they cannot even hit that bind: cold/*.parquet is an EMPTY glob until the first
 -- aged-out prune run compacts something, and a macro with a defaulted src parameter defers
 -- binding to query time — cc_logs_cold() / cc_metrics_cold() error lazily ("No files
