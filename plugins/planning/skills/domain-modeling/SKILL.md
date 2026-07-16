@@ -45,7 +45,8 @@ writing; do not silently treat either source as authoritative.
 
 Discover before choosing:
 
-1. Read the consuming project's `CLAUDE.md`, `.claude/rules`, and declared documentation conventions.
+1. Read the consuming project's `AGENTS.md`, `CLAUDE.md`, `.claude/rules`, and declared documentation
+   conventions.
 2. From the files and domain area in scope, walk toward the repository root looking for an existing
    domain-vocabulary file or context map.
 3. Prefer the nearest applicable existing convention; preserve its filename, location, headings,
