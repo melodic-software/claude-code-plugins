@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Fixed
+
+- **GitBook remains non-writable throughout planning close-out**: `/planning:architect` and the
+  topic-docs binding now route `vault_backend: gitbook` to the in-repo `docs` promotion path without
+  invoking GitBook API/MCP or Git Sync writes. `/planning:setup` reports the deferred, non-writable
+  status whenever the effective value is `gitbook` — preserved from an existing file, inferred from
+  the repo's own conventions, or chosen during the interview — instead of implying that any of those
+  paths enables a writer.
+- **`/planning:architect` Action Router recognizes `close-out`**: the PR-time close-out procedure was
+  documented but unreachable through the router, so `close-out` fell through to full planning instead
+  of running the close-out steps. The router now routes it directly, and the eval that exercises the
+  GitBook-deferral close-out path is reachable again.
+
 ## [0.11.0]
 
 ### Added

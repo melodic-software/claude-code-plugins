@@ -72,10 +72,17 @@ vault_backend: docs         # durable-tier backend; 'docs' = in-repo git mv
 `vault_backend` names the knowledge-vault seam backend for the durable
 tier. `docs` (the default) promotes via history-preserving `git mv` into
 the in-repo `docs/` tree. Any other value names a backend the consuming
-repo documents (e.g. a GitBook space reached through its MCP server);
-promotion steps resolve this key and degrade to `docs` when the named
-backend's tools are unavailable. Setup skills preserve and offer every
-schema key — a re-run never drops one.
+repo documents; promotion steps resolve this key and degrade to `docs`
+when the named backend's tools are unavailable. GitBook specifically is
+reserved but not enabled as a `vault_backend` value — see
+`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md` — and is
+usable today only in a mirror role governed by separately reviewed
+automation that keeps git authoritative, not as a backend skills write
+through. GitBook documents its Git Sync product as
+[bidirectional](https://gitbook.com/docs/getting-started/git-sync), so
+this convention does not configure it as a writer. Setup skills preserve
+and offer every schema key — a re-run never drops one — while reporting
+the GitBook value as deferred and using `docs` for durable writes.
 
 `contract_tier: local` is the solo/offline mode: contract kinds join the
 memory tier under `<memory_dir>/<slug>/` and the PR-description paste becomes
@@ -191,10 +198,15 @@ credentials. Raw output stays in the memory slice `<memory_dir>/<slug>/`
 - **Vault edge** — durable knowledge goes through the knowledge-vault
   seam: named verbs (publish, update, link-back), default backend the
   in-repo `docs/` tree (zero external dependencies), remote backends
-  (e.g. GitBook via its MCP server, Notion/Confluence-class systems)
-  resolving through the concern file when a consumer configures one.
-  Skills degrade gracefully: no configured vault backend means the
-  in-repo default, never a hard failure.
+  (e.g. Notion/Confluence-class systems) resolving through the concern
+  file when a consumer configures one. GitBook via its MCP server is
+  deferred as a write target — see
+  `docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md` — and is
+  usable today only in a mirror role governed by separately reviewed
+  automation that keeps git authoritative. GitBook's documented Git Sync
+  product is bidirectional, so skills neither configure it nor invoke
+  GitBook API/MCP writes. Skills degrade gracefully: no enabled vault
+  backend means the in-repo default, never a hard failure.
 
 ## Adoption (clean break)
 

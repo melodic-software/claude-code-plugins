@@ -3,6 +3,15 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Fixed
+
+- **`/toolchain:setup` reports `vault_backend: gitbook` as deferred and non-writable.** Offering
+  or preserving the key now cites the ADR
+  (`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`) and states that durable writes still
+  target `docs`; the skill never configures or tests a GitBook API, MCP, or Git Sync writer.
+
 ## [0.1.0]
 
 ### Added

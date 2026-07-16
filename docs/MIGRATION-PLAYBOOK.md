@@ -920,7 +920,7 @@ accepted).
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
 
-## Knowledge-artifacts consuming repo + integration flow — decision record (2026-07-13)
+## Knowledge-corpus consuming repo + integration flow — decision record (2026-07-13)
 
 The `knowledge` plugin's ingest artifacts (transcripts, keyframes, source media, syntheses) get a
 single dedicated consuming home rather than living in any one product repo, so a session can analyze
@@ -928,7 +928,7 @@ the whole corpus and fit relevant findings into *any* target repo. Decided with 
 interview session against medley EPIC #1273 / wave-2 map #1369 (issue #1393); recorded here because
 the wave's codification requirement puts convention decisions in tracked docs, not issue comments.
 
-- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Organization ownership was
+- **Repo:** `melodic-software/knowledge-corpus`, private, org-owned. Organization ownership was
   chosen because source media is retained and storage/bandwidth usage belongs with the shared corpus,
   not a personal account. Created pure-IaC via the `melodic-software/github-iac` governed registry
   (no ad-hoc `gh`, no import/drift window); the repo comes into being at the Pulumi deploy.
