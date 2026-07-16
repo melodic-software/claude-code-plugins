@@ -769,6 +769,16 @@ class StandingPolicyTests(unittest.TestCase):
             self.assertIn("NTUSER.DAT", policy["protected_exact_names"])
             self.assertIn("extra-keep/**", policy["additional_protected_path_globs"])
 
+    def test_validation_names_never_read_standing_policy(self) -> None:
+        def explode(_project_dir):
+            raise AssertionError("validation must not touch standing policy")
+
+        with mock.patch.object(
+            hygiene, "standing_policy_paths", side_effect=explode
+        ):
+            names = hygiene.baseline_protected_names()
+        self.assertIn("NTUSER.DAT", names)
+
     def test_baseline_ships_agent_leak_signatures(self) -> None:
         with mock.patch.object(
             hygiene, "standing_policy_paths", return_value=[]

@@ -280,19 +280,30 @@ def standing_policy_paths(project_dir: Path | None) -> list[Path]:
     return [path for path in layers if path.is_file()]
 
 
-def load_policy(
-    overlay_path: Path | None, project_dir: Path | None = None
-) -> dict[str, Any]:
+def baseline_policy() -> dict[str, Any]:
     baseline = load_json(BASELINE_POLICY)
     if baseline.get("version") != SCHEMA_VERSION:
         raise HygieneError("unsupported baseline policy version")
-    result = {
+    return {
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "policy_sources": ["baseline"],
     }
+
+
+def baseline_protected_names() -> set[str]:
+    """Bundled protected names only — validation paths must never depend on
+    ambient standing policy; an approved snapshot stays previewable even if a
+    standing file is later edited or malformed."""
+    return set(baseline_policy()["protected_exact_names"])
+
+
+def load_policy(
+    overlay_path: Path | None, project_dir: Path | None = None
+) -> dict[str, Any]:
+    result = baseline_policy()
     # An explicit --policy is the invocation-specific choice and wins outright;
     # otherwise standing user-global and project files layer additively.
     overlays = (
@@ -1065,7 +1076,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         or snapshot.get("engine") != "disk-hygiene-python-1"
     ):
         raise HygieneError("unsupported snapshot version")
-    baseline_exact_names = set(load_policy(None)["protected_exact_names"])
+    baseline_exact_names = baseline_protected_names()
     target_input = Path(snapshot.get("target", "")).absolute()
     if has_linkish_component(target_input):
         raise HygieneError("snapshot target now traverses a link or reparse point")
@@ -1316,7 +1327,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         candidate_blockers = hard_protection(
             candidate_path,
             target,
-            set(load_policy(None)["protected_exact_names"])
+            baseline_protected_names()
             | set(snapshot.get("policy", {}).get("protected_exact_names", [])),
             known_mounts,
         )
@@ -1354,7 +1365,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             fresh_protections = hard_protection(
                 path,
                 target,
-                set(load_policy(None)["protected_exact_names"]),
+                baseline_protected_names(),
                 fresh_mounts,
             )
             if any(
