@@ -177,10 +177,19 @@ Semantics (per `git-commit(1)` default `--only` mode): the commit records the **
 
 ### Preserving a staged deletion in a pathspec commit
 
-For every named path whose `git diff --cached --name-status -- <path>` reports `D`, check whether the file is still present on disk (the `git rm --cached` case above). If it is, the default `--only` read would silently drop the deletion per Semantics. Root cause is that `--only` mode has no flag to commit a path's cached state instead of its worktree state, so the fix is to make the worktree briefly match the already-staged deletion — not to delete the file outright, since `git rm --cached` means the user wants to stop tracking it while keeping the local copy:
+For every named path whose `git diff --cached --name-status -- <path>` reports `D`, check whether the file is still present on disk (the `git rm --cached` case above); expand any directory pathspec to its member files first, the same expansion the format-before-push check already documents. If a path is still present, the default `--only` read would silently drop the deletion per Semantics. Root cause is that `--only` mode has no flag to commit a path's cached state instead of its worktree state, so the fix is to make the worktree briefly match the already-staged deletion — not to delete the file outright, since `git rm --cached` means the user wants to stop tracking it while keeping the local copy.
+
+Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration:
 
 ```bash
 hidden=()
+restore_hidden() {
+  for f in "${hidden[@]}"; do
+    [ -e "$f.__commit_hide__" ] && mv -- "$f.__commit_hide__" "$f"
+  done
+}
+trap restore_hidden EXIT
+
 for f in <D-status paths still present on disk>; do
   hide="$f.__commit_hide__"
   if [ -e "$hide" ]; then
@@ -190,13 +199,6 @@ for f in <D-status paths still present on disk>; do
   mv -- "$f" "$hide"
   hidden+=("$f")
 done
-
-restore_hidden() {
-  for f in "${hidden[@]}"; do
-    [ -e "$f.__commit_hide__" ] && mv -- "$f.__commit_hide__" "$f"
-  done
-}
-trap restore_hidden EXIT
 
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer>" \
