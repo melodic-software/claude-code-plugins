@@ -700,6 +700,28 @@ def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
     )
 
 
+def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
+    """Compare stable identity fields for two observations of one object."""
+    return all(
+        (
+            left.st_dev == right.st_dev,
+            left.st_ino == right.st_ino,
+            stat.S_IFMT(left.st_mode) == stat.S_IFMT(right.st_mode),
+        )
+    )
+
+
+def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
+    """Allow expected directory metadata churn while preserving object identity."""
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if entry.get("kind") == "directory":
+        return same_object_identity(info, entry)
+    return same_stat_identity(info, entry)
+
+
 def marker_exists(path: Path, errors: list[str]) -> bool:
     try:
         path.lstat()
@@ -821,6 +843,8 @@ def execution_blockers() -> list[str]:
         return ["execution-platform-unsupported"]
     required = (os.open, os.stat, os.unlink, os.rmdir)
     if not all(function in os.supports_dir_fd for function in required):
+        return ["dirfd-anchoring-unavailable"]
+    if os.scandir not in os.supports_fd:
         return ["dirfd-anchoring-unavailable"]
     if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
         return ["dirfd-anchoring-unavailable"]
@@ -1070,8 +1094,6 @@ def anchored_remove(
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
         current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        if not same_stat_identity(current, entry):
-            raise HygieneError("anchored entry changed since the snapshot")
         expected_parent = target.joinpath(*PurePosixPath(relative).parts[:-1]).resolve(
             strict=True
         )
@@ -1079,8 +1101,33 @@ def anchored_remove(
         if actual_parent != expected_parent:
             raise HygieneError("anchored parent is no longer at its expected path")
         if entry["kind"] == "directory":
-            os.rmdir(name, dir_fd=parent_fd)
+            if not same_object_identity(current, entry):
+                raise HygieneError("anchored directory changed since the snapshot")
+            directory_fd = os.open(
+                name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            try:
+                opened = os.fstat(directory_fd)
+                if not same_object_identity(opened, entry) or not same_open_object(
+                    current, opened
+                ):
+                    raise HygieneError("anchored directory changed since the snapshot")
+                with os.scandir(directory_fd) as iterator:
+                    if next(iterator, None) is not None:
+                        raise HygieneError("anchored directory is not empty")
+                named = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if not same_object_identity(named, entry) or not same_open_object(
+                    opened, named
+                ):
+                    raise HygieneError("anchored directory changed since the snapshot")
+                os.rmdir(name, dir_fd=parent_fd)
+            finally:
+                os.close(directory_fd)
         elif entry["kind"] == "file":
+            if not same_stat_identity(current, entry):
+                raise HygieneError("anchored entry changed since the snapshot")
             os.unlink(name, dir_fd=parent_fd)
         else:
             raise HygieneError("only regular files and directories are removable")
@@ -1168,7 +1215,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         for relative in selected:
             entry = entries[relative]
             path = target.joinpath(*PurePosixPath(relative).parts)
-            if not same_identity(path, entry) or is_linkish(path):
+            if not same_removal_identity(path, entry) or is_linkish(path):
                 skipped.append({"path": relative, "outcome": "changed-or-link"})
                 continue
             fresh_mounts, fresh_mount_error = linux_mount_points()

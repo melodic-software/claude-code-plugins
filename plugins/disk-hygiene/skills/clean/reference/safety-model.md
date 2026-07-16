@@ -44,8 +44,16 @@ open file while the process retains the underlying object.
 Execution is intentionally not cross-platform. Linux requires readable `/proc/self/mountinfo`,
 `O_NOFOLLOW`, and descriptor-relative stat/unlink/rmdir. Apply anchors the target and every parent to
 directory descriptors, verifies those descriptor identities, repeats live mount/protection/Git/handle
-checks immediately before each operation, and walks only snapshot entries bottom-up. Windows and
-macOS return `execution-platform-unsupported`; their audit and report behavior is unchanged.
+checks immediately before each operation, and walks only snapshot entries bottom-up. Once captured
+children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
+device/inode/type identity, proves it empty through that descriptor, rechecks the name-to-descriptor
+identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
+`execution-platform-unsupported`; their audit and report behavior is unchanged.
+
+The skill-scoped Bash guard accepts only complete literal words in the three declared engine command
+shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
+escape, and compound-command form before validating arguments. Canonical script-path comparison uses
+the host platform's path case rules; POSIX path identity is never case-folded.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
@@ -66,6 +74,7 @@ or cleanup contract.
 
 Verified 2026-07-16: [Claude skills](https://code.claude.com/docs/en/skills),
 [PreToolUse hooks](https://code.claude.com/docs/en/hooks),
+[GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html),
 [Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),
 [Python 3.11 `os.path`](https://docs.python.org/3.11/library/os.path.html),
 [Git `ls-files`](https://git-scm.com/docs/git-ls-files),

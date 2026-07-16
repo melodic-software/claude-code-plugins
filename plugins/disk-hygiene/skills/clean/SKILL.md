@@ -156,10 +156,13 @@ sparse files, hard links, compression, and delayed allocation affect it.
 - `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
   parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
 - Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,
-  verifies the descriptor identity, and removes only by descriptor-relative `unlink`/`rmdir`.
+  verifies the descriptor identity, and removes only by descriptor-relative `unlink`/`rmdir`. A
+  directory is reopened without following links, matched by device/inode/type, and proven empty after
+  its captured children are removed.
 - A directory's contents can change after preview. Apply revalidates each captured entry and removes
   bottom-up; it never follows a new link or recursively discovers new entries.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
-  research uses non-Bash read-only tools; only exact bundled scan, preview, and apply shapes pass.
+  research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
+  pass. Shell expansions, globs, splitting/escape forms, operators, and redirections fail closed.

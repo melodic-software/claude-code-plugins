@@ -6,10 +6,12 @@ from __future__ import annotations
 import json
 import os
 import re
-import shlex
 import shutil
 import sys
 from pathlib import Path
+
+
+_SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -26,10 +28,13 @@ def _is_current_python(value: str) -> bool:
     resolved = shutil.which(value)
     if not resolved:
         return False
-    if value.casefold() in {"python", "python.exe"}:
+    if os.path.normcase(value) in {
+        os.path.normcase("python"),
+        os.path.normcase("python.exe"),
+    }:
         return True
     try:
-        return Path(resolved).resolve() == Path(sys.executable).resolve()
+        return os.path.samefile(resolved, sys.executable)
     except OSError:
         return False
 
@@ -38,21 +43,67 @@ def _argument(value: str) -> bool:
     return bool(value) and not value.startswith("-")
 
 
-def classify_exact_engine_command(command: str) -> str | None:
-    """Return scan/preview/apply only for one complete, canonical invocation."""
-    if any(
-        value in command for value in (";", "|", "&", "\r", "\n", "`", "$(", ">", "<")
+def _literal_shell_words(command: str) -> list[str] | None:
+    """Parse only space-delimited literal words with optional whole-word quotes."""
+    if not command or any(
+        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
     ):
         return None
+    words: list[str] = []
+    index = 0
+    while index < len(command):
+        if command[index] == " ":
+            index += 1
+            continue
+        quote = command[index] if command[index] in {"'", '"'} else None
+        if quote:
+            end = command.find(quote, index + 1)
+            if end < 0:
+                return None
+            word = command[index + 1 : end]
+            if not word or "'" in word or '"' in word:
+                return None
+            if quote == '"' and "\\\\" in word:
+                return None
+            index = end + 1
+            if index < len(command) and command[index] != " ":
+                return None
+        else:
+            end = command.find(" ", index)
+            if end < 0:
+                end = len(command)
+            word = command[index:end]
+            if (
+                not word
+                or "\\" in word
+                or "'" in word
+                or '"' in word
+                or any(value.isspace() for value in word)
+            ):
+                return None
+            index = end
+        words.append(word)
+    return words
+
+
+def _script_path_key(value: str) -> str | None:
+    """Return a canonical local-path key with the host platform's case rules."""
     try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
+        resolved = Path(value).resolve(strict=True)
+    except OSError:
+        return None
+    return os.path.normcase(os.fspath(resolved))
+
+
+def classify_exact_engine_command(command: str) -> str | None:
+    """Return scan/preview/apply only for one complete, canonical invocation."""
+    tokens = _literal_shell_words(command)
+    if tokens is None:
         return None
     if len(tokens) < 3 or not _is_current_python(tokens[0]):
         return None
     expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
-    normalized_script = expected_script.replace("\\", "/").casefold()
-    if tokens[1].replace("\\", "/").casefold() != normalized_script:
+    if _script_path_key(tokens[1]) != _script_path_key(expected_script):
         return None
 
     if tokens[2] == "scan":

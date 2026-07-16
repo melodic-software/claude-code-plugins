@@ -26,11 +26,15 @@ unvalidated tree.
 - Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
   A dry-run result is evidence for the report, never authorization for this engine to remove it.
 - The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
-  calls, returns `ask` for the one canonical apply shape, and denies every other Bash command.
+  calls made from literal shell words, returns `ask` for the one canonical apply shape, and denies
+  every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
+  filename, redirection, and operator syntax is rejected before argument parsing.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
-  directory non-empty and therefore skipped. The report separates removed, locked, changed,
-  protected, needs-elevation, and unverified outcomes and records logical bytes plus observed free-space
-  delta.
+  directory non-empty and therefore skipped. After captured children are removed, a directory is
+  reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
+  type immediately before descriptor-relative `rmdir`. The report separates removed, locked, changed,
+  protected, needs-elevation, and unverified outcomes and records logical bytes plus observed
+  free-space delta.
 
 The execution lane is Linux-only. It reads the current mount namespace from `/proc/self/mountinfo`,
 re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,
@@ -97,7 +101,9 @@ predicates and the baseline protected-name/root rules are non-overridable.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
-  forces a final permission prompt for the canonical engine apply call. No `eval`, dynamic shell
+  forces a final permission prompt for the canonical engine apply call. The guard rejects shell
+  expansion and operator syntax instead of validating only the post-split argument vector; script
+  identity follows the host path rules and remains case-sensitive on POSIX. No `eval`, dynamic shell
   construction, or downloads are used. Paths cross the process boundary as JSON or individually
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
@@ -122,6 +128,9 @@ Verified 2026-07-16 against current primary documentation:
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks) — current `PreToolUse` decision output.
 - [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces) — relative plugin sources.
+- [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
+  — expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
+  filename-expansion families rejected by the literal-command guard.
 - [Python 3.11 filesystem APIs](https://docs.python.org/3.11/library/os.html) and
   [path APIs](https://docs.python.org/3.11/library/os.path.html) — non-following metadata, junction, and
   mount detection.

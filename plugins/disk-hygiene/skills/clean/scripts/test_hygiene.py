@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -616,6 +617,44 @@ class HygieneTests(unittest.TestCase):
         self.assertTrue(opened.call_args.kwargs["dir_fd"] == 100)
         self.assertTrue(opened.call_args.args[1] & 0x20000)
 
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "descriptor-relative removal is Linux-only"
+    )
+    def test_nested_directory_candidate_removes_only_snapshotted_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            nested = root / "candidate" / "nested"
+            nested.mkdir(parents=True)
+            payload = nested / "captured.tmp"
+            payload.write_text("temporary fixture", encoding="utf-8")
+            untouched = root / "keep.txt"
+            untouched.write_text("work product", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("candidate")],
+            }
+            with (
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "hard_protection", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+            ):
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual("completed", report["status"])
+            self.assertEqual(
+                {"candidate/nested/captured.tmp", "candidate/nested", "candidate"},
+                {item["path"] for item in report["removed"]},
+            )
+            self.assertFalse((root / "candidate").exists())
+            self.assertEqual("work product", untouched.read_text(encoding="utf-8"))
+
 
 class GuardTests(unittest.TestCase):
     def run_guard(self, command: str) -> dict[str, object]:
@@ -705,6 +744,43 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual(
                     "deny", result["hookSpecificOutput"]["permissionDecision"]
                 )
+
+    def test_guard_denies_every_shell_expansion_family(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        template = f'python "{script}" scan --target {{payload}} --output snapshot.json'
+        payloads = [
+            "target{one,two}",
+            "$TARGET",
+            '"$TARGET"',
+            "target*",
+            "target?",
+            "target[12]",
+            "~/target",
+            "$(printf target)",
+            "`printf target`",
+            "$((1 + 1))",
+            "<(printf target)",
+            "target\\ value",
+            "target\tvalue",
+        ]
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                result = self.run_guard(template.format(payload=payload))
+                self.assertEqual(
+                    "deny", result["hookSpecificOutput"]["permissionDecision"]
+                )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX path case is tested on POSIX")
+    def test_script_path_key_preserves_posix_case(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            upper = Path(temporary) / "HYGIENE.py"
+            lower = Path(temporary) / "hygiene.py"
+            upper.touch()
+            lower.touch()
+            self.assertNotEqual(
+                guard._script_path_key(os.fspath(upper)),
+                guard._script_path_key(os.fspath(lower)),
+            )
 
     def test_guard_allows_only_exact_read_only_engine_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
