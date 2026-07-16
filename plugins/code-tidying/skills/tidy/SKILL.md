@@ -132,7 +132,11 @@ Self-review by the producing context is enough here — a fresh-context verifier
 
 ### Phase H — Ship
 
-Create the PR (`gh pr create`) with title:
+Never call `git commit` or `gh pr create` directly — Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
+
+If the `source-control` plugin is installed, invoke `/pull-request create`. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content:
+
+Title:
 
 ```text
 <lane-default-type>(<lane-area>): <what was tidied>
@@ -144,12 +148,14 @@ Examples:
 - `docs(skills): repair stale cross-references`
 - `chore(tools): apply shellcheck/shfmt drift across tools/*.sh`
 
-PR body sections:
+Body sections:
 
 - **Summary** — 1-3 bullets: which lane, which tidyings, anchor commit.
 - **Tidyings applied** — table: tidying type → file → line range → LOC delta.
 - **Deferred items** — if the scope budget capped the run, link filed issue numbers.
 - **Test plan** — verification commands run + results.
+
+If `source-control` isn't installed, apply the same invariants inline: resolve issue-linkage before writing a closing keyword (`Closes #N` only after confirming issue #N exists in this repo — e.g. `gh issue view N`; otherwise state `No related issue: <reason>`), assemble the body via a quoted heredoc (`<<'EOF'`) plus parameter-expansion concat rather than an unquoted `<<EOF` (which would execute any `$(...)` embedded in prompt-derived text), and refuse to call `gh pr create` until the assembled body contains a valid closing keyword or the opt-out marker.
 
 Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot findings: verify each against the current code — fix the correct ones, rebut the incorrect ones with evidence. **Manual merge by a human** — this skill does NOT auto-merge.
 
