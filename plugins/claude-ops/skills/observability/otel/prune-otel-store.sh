@@ -29,7 +29,7 @@
 #      verify-before-replace: the original is only ever replaced after its aged records are
 #      safely in cold AND by a verified-good temp, so a failure at any point leaves the hot
 #      store intact — no backup/rollback needed.
-#   4. release the sentinel + start the service. Done in the EXIT trap, so every trim exit path
+#   4. start the service + release the sentinel last. Done in the EXIT trap, so every trim exit path
 #      attempts recovery; a failed restart makes an otherwise successful prune fail visibly.
 #
 # Comparison is at SECOND granularity: a 19-digit nano (~1.78e18) exceeds awk's exact-integer
@@ -61,7 +61,8 @@
 #                          tier un-scrubbed (default: off — body NULLed, prompt scrubbed)
 #   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
 #   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
-#   CC_OTEL_RUNNING_CMD    command exiting 0 iff the service is not Stopped — test seam
+#   CC_OTEL_RUNNING_CMD    service query command: exit 0 = running/not Stopped, 1 = Stopped,
+#                          2+ = query error — hermetic test seam
 #   CC_OTEL_VERIFY_CMD     command (receives temp path as $1) exiting 0 iff the temp parses
 #                          (default: duckdb read_json_auto) — test seam
 #   CC_OTEL_COMPACT_CMD    command (receives <dropped-temp> <cold-temp>) replacing the duckdb
@@ -259,10 +260,19 @@ main() {
   # Stop the Collector service, then wait for its Stopped state (and released file handles).
   stop_collector
   STOPPED=true
+  local wait_rc
   # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-  if ! wait_collector_gone; then
-    err "Collector still running after stop — aborting before trim (store untouched)"
-    printf 'action=error-collector-not-stopped\n'
+  if wait_collector_gone; then
+    :
+  else
+    wait_rc=$?
+    if ((wait_rc == 2)); then
+      err "failed to query Collector service status — aborting before trim (store untouched)"
+      printf 'action=error-collector-status-query\n'
+    else
+      err "Collector still running after stop — aborting before trim (store untouched)"
+      printf 'action=error-collector-not-stopped\n'
+    fi
     return 1
   fi
 

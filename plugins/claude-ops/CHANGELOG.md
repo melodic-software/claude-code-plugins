@@ -8,7 +8,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ### Changed
 
 - Rewired OTEL retention to stop, poll, and start the provisioning-owned `otelcol-contrib`
-  Windows service. A failed stop aborts before mutation, and a failed restart is now visible.
+  Windows service. A failed stop or status query aborts before mutation; the prune lock remains
+  held through restart, and a failed restart is visible to the caller.
 
 ### Removed
 

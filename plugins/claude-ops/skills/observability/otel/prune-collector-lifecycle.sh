@@ -43,7 +43,7 @@ default_start() {
 default_running() {
   require_windows_service || return 1
   powershell.exe -NoProfile -NonInteractive -Command \
-    "\$ErrorActionPreference='Stop'; if ((Get-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop).Status -eq 'Stopped') { exit 1 }" \
+    "\$ErrorActionPreference='Stop'; try { if ((Get-Service -Name '$COLLECTOR_SERVICE_NAME' -ErrorAction Stop).Status -eq 'Stopped') { exit 1 }; exit 0 } catch { Write-Error \$_; exit 2 }" \
     >/dev/null
 }
 
@@ -80,30 +80,42 @@ collector_running() {
   default_running
 }
 
-# Poll until the service reaches Stopped. Returns 1 if still running after POLL_MAX_TRIES.
+# Poll until the service reaches Stopped. Returns 1 if still running after POLL_MAX_TRIES and
+# 2 when service state cannot be queried. A query error is not evidence that the service stopped.
 wait_collector_gone() {
-  local tries=0
-  while collector_running; do
-    ((tries += 1)) || true
-    if ((tries >= POLL_MAX_TRIES)); then return 1; fi
-    sleep "$POLL_INTERVAL_SECONDS"
+  local tries=0 query_rc
+  while true; do
+    if collector_running; then
+      ((tries += 1)) || true
+      if ((tries >= POLL_MAX_TRIES)); then return 1; fi
+      sleep "$POLL_INTERVAL_SECONDS"
+      continue
+    else
+      query_rc=$?
+    fi
+    if ((query_rc == 1)); then return 0; fi
+    return 2
   done
-  return 0
 }
 
 cleanup() {
   local original_rc=$?
-  if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then
-    rmdir "$SENTINEL" 2>/dev/null || true
-  fi
   # Restart only if this prune stopped it. A restart failure must be visible: silently leaving
   # the machine telemetry service down is worse than converting an otherwise successful prune
-  # into a failure.
+  # into a failure. Keep the sentinel through this attempt so another prune cannot start while
+  # the Collector is still down or restarting.
   if [[ "$STOPPED" == true ]]; then
-    if ! start_collector; then
+    if start_collector; then
+      :
+    else
       err "failed to restart Collector service '$COLLECTOR_SERVICE_NAME'"
       if ((original_rc == 0)); then original_rc=1; fi
     fi
+  fi
+  # Release last: the sentinel covers the complete stop -> mutate -> restart lifecycle, including
+  # a failed restart attempt. The next operator run may then retry recovery explicitly.
+  if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then
+    rmdir "$SENTINEL" 2>/dev/null || true
   fi
   trap - EXIT
   exit "$original_rc"
