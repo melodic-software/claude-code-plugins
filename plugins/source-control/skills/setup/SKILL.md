@@ -22,12 +22,17 @@ Apply the convention-resolution ladder — config present → use it and offer u
 from the repo and persist what the user accepts; cannot infer → ask and offer to persist; else the
 safe default (Conventional Commits).
 
-0. **Anchor at the repo root before any read or write.** Resolve it via `${CLAUDE_PROJECT_DIR}` (fall
-   back to `git rev-parse --show-toplevel` if that variable is unset) and use that root for every path
-   below — never a path relative to the current working directory. Invoked from a nested directory, a
-   cwd-relative path would read and write the wrong `.claude/source-control.md`, and a later
-   `/commit` or `/pull-request` run from the repo root would miss the persisted convention.
-1. **Read the current config first.** If `${CLAUDE_PROJECT_DIR}/.claude/source-control.md` exists, load
+0. **Anchor at the repo root before any read, write, or git command below.** Resolve it once: use
+   `${CLAUDE_PROJECT_DIR}` when set, otherwise run `git rev-parse --show-toplevel` and take its output.
+   Call the result `REPO_ROOT` and reuse that literal resolved path — never the bare
+   `${CLAUDE_PROJECT_DIR}` reference — for every path below, never a path relative to the current
+   working directory. A Read/Write tool call needs a literal path, not a shell variable, and a separate
+   Bash tool call starts a fresh shell with none of a prior call's variables, so re-resolve (or re-inline
+   the same `${CLAUDE_PROJECT_DIR}` fallback) `REPO_ROOT` at the top of every self-contained Bash
+   invocation in this skill run rather than assuming it persists across tool calls. Invoked from a nested
+   directory, a cwd-relative path would read and write the wrong `.claude/source-control.md`, and a
+   later `/commit` or `/pull-request` run from the repo root would miss the persisted convention.
+1. **Read the current config first.** If `REPO_ROOT/.claude/source-control.md` exists, load
    it and present a short summary (`subject_pattern`, `type_list` if present, `pr_title_pattern`,
    `trailer_policy` if present). The interview proposes changes against that baseline; nothing is
    overwritten without the user confirming.
@@ -78,7 +83,7 @@ safe default (Conventional Commits).
      attribution trailer, and its exact template. Recommend keeping `/commit`'s default
      (`Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`) unless the user states
      otherwise. Omit this section entirely if the repo has no trailer convention.
-5. **Write the config.** Materialize `${CLAUDE_PROJECT_DIR}/.claude/source-control.md` with these
+5. **Write the config.** Materialize `REPO_ROOT/.claude/source-control.md` with these
    sections:
 
    ```markdown
@@ -118,22 +123,32 @@ safe default (Conventional Commits).
    tracked before the rewrite, so that check exits 0 even though the new content is still an unstaged
    working-tree modification — success would be reported while the updated convention stays local and
    uncommitted.
-   - Run `git check-ignore -v "${CLAUDE_PROJECT_DIR}/.claude/source-control.md"` — a non-empty result
-     means a `.gitignore` pattern excludes it; surface the matching pattern and offer to fix
-     `.gitignore` first.
-   - Then, with no ignore match, run
-     `git -C "${CLAUDE_PROJECT_DIR}" status --porcelain -- .claude/source-control.md` and read the
-     second (worktree) column: `??` (untracked) or a non-blank worktree column (` M`, `MM`, etc.) means
-     the just-written content is not yet staged — run
-     `git -C "${CLAUDE_PROJECT_DIR}" add .claude/source-control.md`. This covers both the fresh-file case
-     and the reconfiguration case (an already-tracked file whose rewritten content hadn't been staged
-     yet), unlike an index-presence check alone. After staging, confirm nothing is left unstaged with
-     `git -C "${CLAUDE_PROJECT_DIR}" diff --quiet -- .claude/source-control.md` (exit 0 = worktree
-     matches the index). This skill stages but does not commit — `git status --porcelain` legitimately
-     keeps printing `A ` / `M ` for a staged-but-uncommitted file, so success does **not** require
-     porcelain to be fully empty, only that no *unstaged* changes remain. Prompt the user to commit,
-     since this file is team-shared and must be committed to take effect. Only report success once both
-     checks pass: not ignored, and no unstaged changes remain for the path.
+
+   Run these as one Bash tool call so `REPO_ROOT` only needs resolving once for the whole sequence (per
+   step 0 — a later, separate Bash call would start a fresh shell and must re-resolve it):
+
+   ```bash
+   REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+   # Non-empty result means a .gitignore pattern excludes the file; surface the matching pattern
+   # and offer to fix .gitignore first.
+   git check-ignore -v "$REPO_ROOT/.claude/source-control.md"
+   # With no ignore match, read the two-character XY status: `??` (untracked) or a non-blank
+   # worktree (Y) column — a letter such as `M` in the second position, as in `XM`, `MM`, etc. —
+   # means the just-written content is not yet staged.
+   git -C "$REPO_ROOT" status --porcelain -- .claude/source-control.md
+   # If unstaged (per the check above), stage it. This covers both the fresh-file case and the
+   # reconfiguration case (an already-tracked file whose rewritten content hadn't been staged yet),
+   # unlike an index-presence check alone.
+   git -C "$REPO_ROOT" add .claude/source-control.md
+   # Confirm nothing is left unstaged (exit 0 = worktree matches the index).
+   git -C "$REPO_ROOT" diff --quiet -- .claude/source-control.md
+   ```
+
+   This skill stages but does not commit — `git status --porcelain` legitimately keeps printing an
+   index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file, so
+   success does **not** require porcelain to be fully empty, only that no *unstaged* changes remain.
+   Prompt the user to commit, since this file is team-shared and must be committed to take effect. Only
+   report success once both checks pass: not ignored, and no unstaged changes remain for the path.
 
 ## Output
 
