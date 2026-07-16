@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.2]
+## [0.11.1]
 
 ### Fixed
 
@@ -17,6 +17,20 @@ All notable changes to the `planning` plugin are documented here. Format follows
   documented but unreachable through the router, so `close-out` fell through to full planning instead
   of running the close-out steps. The router now routes it directly, and the eval that exercises the
   GitBook-deferral close-out path is reachable again.
+
+## [0.11.0]
+
+### Added
+
+- Added `/planning:domain-modeling`, the active owner for committed project-glossary changes:
+  discovery-first consumer format/location resolution, canonical terms plus rejected synonyms,
+  tight what-it-IS definitions, purity/admission guards, and routing among already-known bounded
+  contexts. It deliberately does not discover bounded contexts or create speculative empty files.
+
+### Changed
+
+- `/planning:interview` and `/planning:design` now invoke the domain-modeling owner when vocabulary
+  resolves instead of maintaining parallel glossary disciplines.
 
 ## [0.10.1]
 

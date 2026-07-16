@@ -3,6 +3,15 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Workshop and simulation glossary graduation now delegates to `/planning:domain-modeling` when that
+  skill is available. The standalone fallback remains discovery-first and lazy, and the boundary is
+  explicit: glossary maintenance consumes already-established contexts and never performs context
+  discovery.
+
 ## [0.5.0]
 
 ### Added

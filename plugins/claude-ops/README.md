@@ -12,7 +12,7 @@ per-hook execution telemetry Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
-| `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
+| `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:troubleshoot` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
 | `/claude-ops:setup` | Validates the troubleshooting-registry and skill-usage-log destinations, including path containment, and routes personal option changes through Claude Code's plugin configuration prompt. |
@@ -113,9 +113,10 @@ your own repository's context:
 ## Requirements
 
 Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
-Optional, for the OTEL pipeline: `otelcol-contrib` (collector), `duckdb`
-(store queries), Docker (Aspire dashboard), and `npx` for ccusage. Every
-skill reports missing optional tooling instead of failing.
+Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
+`otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
+plugin observes them but does not start them. Every skill reports missing optional tooling
+instead of failing.
 
 ## Configuration
 

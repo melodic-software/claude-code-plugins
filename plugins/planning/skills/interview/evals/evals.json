@@ -73,6 +73,19 @@
         "Output does NOT run a Q&A loop or produce a Brief for it",
         "Output tells the user the task does not warrant an interview"
       ]
+    },
+    {
+      "id": 7,
+      "name": "engineering-term-resolution-delegates",
+      "prompt": "/planning:interview me — in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
+      "expected_output": "Invokes /planning:domain-modeling immediately for the resolved engineering vocabulary, then resumes the one-question-at-a-time interview. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
+      "files": [],
+      "expectations": [
+        "Invokes /planning:domain-modeling immediately for the resolved term",
+        "Does not prescribe or reimplement glossary format/location in the interview skill",
+        "Resumes the interview loop after the vocabulary update",
+        "Keeps the repository write explicitly scoped to an engineering session"
+      ]
     }
   ]
 }
