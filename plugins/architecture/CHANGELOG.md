@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- Deepening now delegates resolved vocabulary to `/planning:domain-modeling` when that skill is
+  available, while retaining a discovery-first consumer-owned fallback when it is unavailable.
+
 ## [0.3.0]
 
 ### Changed

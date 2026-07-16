@@ -4,8 +4,8 @@ A Claude Code plugin for the **pre-implementation planning pipeline** — everyt
 between a rough idea and approved, executable work. Eight pipeline skills covering
 charting a too-big, foggy effort as a decision map, divergence, product intent, the
 engineering contract, design exploration, the design→plan gate, adversarial review,
-and the implementation plan itself — plus a re-runnable `setup` action that settles
-where artifacts land in the consuming repo.
+and the implementation plan itself — plus an active domain-language maintainer and a
+re-runnable `setup` action that settles where artifacts land in the consuming repo.
 
 | Skill | Stage | What it does |
 |---|---|---|
@@ -13,6 +13,7 @@ where artifacts land in the consuming repo.
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers — one-pager, consumer-feature, B2B-internal — with a synthesize path and a review mode. |
 | `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief — synthesizing when intent is clear, running depth-first Q&A when it isn't, or interviewing relentlessly on request. |
+| `/planning:domain-modeling` | Domain language | Maintains the consuming project's active ubiquitous-language glossary: resolves ambiguous terms, records canonical language and rejected synonyms, and routes entries to already-known contexts without discovering boundaries. |
 | `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts; its `handoff` action delegates to `/planning:design-handoff`. |
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
@@ -22,7 +23,8 @@ where artifacts land in the consuming repo.
 The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
 design-handoff → architect` with `devils-advocate` attacking the plan before
-approval — but every skill also works standalone.
+approval — while `domain-modeling` is invoked whenever those workflows resolve vocabulary.
+Every skill also works standalone.
 
 ## Works in any repo
 
