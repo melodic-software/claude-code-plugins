@@ -125,7 +125,13 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling.
+  a sibling. **Execution tier counts as structural:** a variant that changes execution *topology* — an
+  isolated forked subagent (`context: fork`) or a heavier dispatch tier (workflow engine, forked
+  subagent, or inline fallback) — is fixed in frontmatter and cannot be a runtime argument, so it earns
+  a sibling. `discovery`'s `explore-deep` (a `context: fork` variant of `explore`) and `research-deep`
+  (a dispatch variant of `research`) are siblings on this axis; the `-deep` suffix names that isolation
+  tier, not a depth knob on the same execution path — a true effort knob on one execution path still
+  takes an argument.
 - **A vendor-CLI plugin names its skills after the vendor's own CLI verbs.** A tool-scoped plugin
   wrapping a CLI mirrors that CLI's verb vocabulary — `/playwright:test` mirrors
   `npx playwright test`; a firecrawl decomposition would use `scrape` / `crawl` / `map` per
@@ -283,9 +289,9 @@ from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`
 `codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
-Coverage against this rule is snapshotted per audit in
-[`evals-coverage.md`](evals-coverage.md); that doc is the point-in-time record, this section is the
-policy.
+This section is the policy; current coverage is verified on demand — a live glob of
+`plugins/*/skills/*/evals/evals.json` against the tree, read against the warrant rule above — never a
+checked-in snapshot that decays the moment a skill lands.
 
 **Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
 description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
