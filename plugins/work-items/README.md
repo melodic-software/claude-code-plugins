@@ -43,15 +43,16 @@ about work items, tracked work, or what to do next):
 
 ## The tracker seam
 
-Every tracker operation goes through the **work-item-tracker seam** — the skills
-call `tools/work-item-tracker/work-item-tracker.sh <verb>` and the bound
-provider adapter executes it (contract:
-`tools/work-item-tracker/CONTRACT.md`). Coordination — create, claim
+Every tracker operation goes through the **work-item-tracker seam**, which ships
+bundled with this plugin. The skills resolve the seam dispatcher plugin-dir
+canonical with a project-root fallback (`"$TRACKER" <verb>`) and the bound
+provider adapter executes it (contract + resolution:
+`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). Coordination — create, claim
 (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier
 selection, single-item fetch — uses seam verbs directly. Operations without a
 core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
-(GitHub: `tools/work-item-tracker/adapters/github/README.md`). The skill core
+(GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`). The skill core
 inlines no provider commands, so swapping the backend is swapping the bound
 adapter, not editing the skills.
 
@@ -73,10 +74,14 @@ enough that one skill no longer predicts its contents.
 
 ## Requirements
 
-- **The work-item-tracker seam.** The consuming repo provides the seam at
-  `tools/work-item-tracker/` and binds its active provider in
-  `.work-item-tracker.json`. The seam's contract and per-adapter mechanics are
-  documented alongside it (`tools/work-item-tracker/CONTRACT.md`).
+- **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
+  `lib/`, and the `github` + `local-markdown` adapters) under
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
+  its active provider in `.work-item-tracker.json` (run `/work-items:setup`). A repo
+  may add or shadow an adapter consumer-local at
+  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`. The seam's
+  contract and per-adapter mechanics are documented in
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`.
 - **The bound provider's client.** For the GitHub adapter that is the **`gh`
   CLI**, authenticated against the repository's host; the adapter is the only
   thing that leaves the machine.

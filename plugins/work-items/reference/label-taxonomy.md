@@ -64,7 +64,7 @@ not permission to fall back silently. Two constraints on remapping:
 
 ## Project-specific axes
 
-The consuming repo defines the members of these axes to match its own architecture surface, domain categorization, and language/toolchain mix. Discover the live set from the bound adapter's label listing (for the GitHub adapter, `tools/work-item-tracker/adapters/github/README.md` — e.g. `gh label list`).
+The consuming repo defines the members of these axes to match its own architecture surface, domain categorization, and language/toolchain mix. Discover the live set from the bound adapter's label listing (for the GitHub adapter, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` — e.g. `gh label list`).
 
 | Axis | Prefix | What it encodes |
 |------|--------|-----------------|

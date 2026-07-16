@@ -17,10 +17,12 @@ comparison in this audit.
 
 ### 1. Stale claims
 
-A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check + outcome semantics: `tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Enumerate currently-assigned items (adapter: "List items", assigned filter — rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run `reclaim` on each id — idempotent, safe to run repeatedly:
+A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check + outcome semantics: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Enumerate currently-assigned items (adapter: "List items", assigned filter — rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run `reclaim` on each id — idempotent, safe to run repeatedly:
 
 ```bash
-"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" reclaim "<id>"
+TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" reclaim "<id>"
 ```
 
 Present each item the verb reports `reclaimed: true` (released — the `reason` field says why); `reclaimed: false` means still-held or lease-renewed, left in place. Legacy label-based holds from before the seam are migrated by the label-reconciliation pass, not here.
@@ -43,7 +45,7 @@ The recurring workflow titles items `[Maintenance] {title}`, so strip the prefix
 
 ### 3. Unlabeled items + label conflicts
 
-Items missing their **type** classification (org repos: no native Issue Type set; personal / non-org repos: no `type:*` label), missing an expected `category:*` label, or carrying conflicting labels (e.g. two `priority:*`) surface via the hygiene projections in the bound adapter's operations reference (GitHub: `tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads). On org repos the type axis is a native Issue Type, so absence of a `type:*` label is **not** a defect — read the native type field for the presence check.
+Items missing their **type** classification (org repos: no native Issue Type set; personal / non-org repos: no `type:*` label), missing an expected `category:*` label, or carrying conflicting labels (e.g. two `priority:*`) surface via the hygiene projections in the bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads). On org repos the type axis is a native Issue Type, so absence of a `type:*` label is **not** a defect — read the native type field for the presence check.
 
 ## Output
 

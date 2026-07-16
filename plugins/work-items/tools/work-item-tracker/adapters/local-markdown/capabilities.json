@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "provider": "local-markdown",
+  "verbs": {
+    "create-item": true,
+    "get-item": true,
+    "claim": true,
+    "renew-lease": true,
+    "reclaim": false,
+    "link-blocks": true,
+    "add-sub-item": true,
+    "list-items": true,
+    "capabilities": true
+  },
+  "features": {
+    "cross_repo_edges": false,
+    "sub_items": true,
+    "leases": true,
+    "labels": true
+  },
+  "limits": {
+    "sub_items_per_parent": 100000,
+    "sub_item_depth": 100000,
+    "dependencies_per_type": 100000,
+    "list_items_max": 100000
+  }
+}

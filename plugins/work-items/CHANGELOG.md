@@ -3,6 +3,35 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+Bundle the work-item-tracker seam into the plugin so installing it delivers the engine and the
+shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam distribution decision.
+
+### Added
+
+- **The seam ships with the plugin.** The dispatcher, `lib/`, `CONTRACT.md`, the `github` and
+  `local-markdown` adapters, and the conformance suite now live under
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`. A consuming repo gets the seam by installing the
+  plugin; it no longer has to vendor `tools/work-item-tracker/` itself.
+- **Two-rule resolution.** Seam code resolves **plugin-dir canonical, project-root fallback**;
+  adapters resolve **consumer-local-first, plugin-bundled fallback** (first match wins). A repo can
+  add a provider the plugin does not ship, or shadow a bundled adapter with a local copy it owns, at
+  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` — without forking the plugin
+  (CONTRACT.md "Adapter resolution").
+- **Provider binding in setup.** `/work-items:setup` now seeds `.work-item-tracker.json` (provider +
+  non-secret config) as the once-per-repo binding step, alongside the recurring-schedule and
+  role-label passes. The seam still hard-errors (exit 3) at call time when no binding is present.
+
+### Changed
+
+- **Skill seam invocations resolve the bundled dispatcher first.** Each executable snippet resolves
+  `"$TRACKER"` plugin-dir-canonical with a project-root fallback, then invokes it; doc citations point
+  at `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/...`.
+- **Adapter operations reference and CONTRACT are provider-neutral.** The GitHub adapter reference and
+  the contract no longer cite a specific consuming repo's convention docs or bot-auth wrapper; writes
+  optionally route through a bot wrapper when the consuming repo provides one, otherwise bare `gh`.
+
 ## [0.7.0]
 
 Split the single `work-items` action-router skill into five focused skills. The capability set is

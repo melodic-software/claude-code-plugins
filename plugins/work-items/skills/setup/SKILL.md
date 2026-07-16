@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the work-items plugin for this repository: interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, write the tracked .github/recurring-schedule.json, and optionally remap the canonical role labels (autonomous-eligible / human-gated / recurring-maintenance) in the tracker binding. Use when: 'set up work-items', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the work-items plugin for this repository: bind the tracker provider (seed .work-item-tracker.json with the provider + non-secret config), interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, write the tracked .github/recurring-schedule.json, and optionally remap the canonical role labels (autonomous-eligible / human-gated / recurring-maintenance) in the tracker binding. Use when: 'set up work-items', 'bind the tracker provider', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
 disable-model-invocation: true
@@ -8,21 +8,85 @@ disable-model-invocation: true
 
 ## Purpose
 
-Write (or update) the consuming repo's tracked recurring-schedule config at
-`.github/recurring-schedule.json` so the `due`, `recheck`, and `work` actions resolve a real schedule
-instead of degrading to "no recurring schedule configured". This is the bulk / initial-config path;
-the per-item `add --recurring` path (which appends a single row as a side effect of filing its work
-item) stays as-is. Idempotent: re-running reads the existing file and offers updates rather than
-overwriting blind. The schedule file is a plain tracked JSON file the skill reads and writes directly
-(Read / Write / `jq`) — it is not a tracker record, so it does not route through the work-item-tracker
-seam; only operations on the work items themselves (labels, item lookups, edits) go through the bound
-provider. Setup also owns the optional canonical-role → label remap in the tracker binding (see
-"Canonical role labels" below).
+Configure the work-items plugin for the consuming repo. Three concerns, in order: **bind the tracker
+provider** (seed the tracked `.work-item-tracker.json` — the once-per-repo declaration the seam needs
+before any verb runs; see "Provider binding" below), then write (or update) the tracked
+recurring-schedule config at `.github/recurring-schedule.json` so the `due`, `recheck`, and `work`
+actions resolve a real schedule instead of degrading to "no recurring schedule configured", and
+finally the optional canonical-role → label remap in the binding (see "Canonical role labels" below).
+The recurring-schedule pass is the bulk / initial-config path; the per-item `add --recurring` path
+(which appends a single row as a side effect of filing its work item) stays as-is. Idempotent: every
+pass re-reads the on-disk file and offers updates rather than overwriting blind. The schedule file is a
+plain tracked JSON file the skill reads and writes directly (Read / Write / `jq`) — it is not a tracker
+record, so it does not route through the work-item-tracker seam; only operations on the work items
+themselves (labels, item lookups, edits) go through the bound provider.
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md) (step "If
 `--recurring`" and the Cadence Duration Table). This skill produces rows in that exact shape — read
 that file for the authoritative field list before writing.
+
+## Provider binding (the tracker seam)
+
+Run this FIRST — the recurring-schedule and role-label passes below resolve the binding. The tracker
+seam runs against exactly one provider per repo, declared in a tracked `.work-item-tracker.json` at the
+project root; every seam verb resolves the bound provider from it, and with no binding the seam
+hard-errors (exit 3). The seam **ships with this plugin** and bundles the `github` and `local-markdown`
+adapters — installing the plugin is enough; a repo only declares which one it uses. Binding shape,
+discovery, and adapter resolution are the seam contract's
+[`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
+"Setup (binding file)" and "Adapter resolution".
+
+Resolve the binding at the project root, never a bare relative path:
+
+```bash
+BINDING="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.work-item-tracker.json"
+```
+
+1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
+   bound `provider` and `config`. RECOMMENDED: keep it — re-bind only to switch providers or fix
+   config. If it is absent, say so and continue to the interview.
+2. **Choose the provider**, recommendation first:
+   - **`github`** (RECOMMENDED) — coordination over GitHub Issues via the ambient `gh` CLI; needs no
+     provider config beyond the lease TTL. Confirm `gh` is installed and authenticated (`gh auth
+     status`); the seam hard-errors at call time when `gh` ≥ 2.94 is absent.
+   - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
+     coordination surface. Requires `config.storage_dir` (no baked default) — a tracked directory the
+     items live in (e.g. `.work-items`).
+   - **another provider** — supply its adapter consumer-local at
+     `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` (the seam resolves
+     consumer-local adapters ahead of the bundled set, so a repo can add an unshipped provider or
+     shadow a bundled one without forking the plugin); set `provider` to its name here.
+3. **Settle the config — all non-secret:**
+   - `lease_ttl_hours` (REQUIRED, every provider) — claim-lease lifetime in hours. RECOMMENDED `24`.
+   - `storage_dir` (REQUIRED for `local-markdown` only) — the item-store directory.
+   - **Secrets never go in this file** — it is tracked in git. A provider that needs an API token
+     references it by env-var name / the repo's secret-store convention from inside its adapter, never
+     as a literal here. `github` needs none (ambient `gh`).
+4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
+   merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any other
+   keys. Write `schema_version: "1.0"`, the chosen `provider`, and the `config`. Confirm the file is
+   tracked, not ignored.
+
+Example (`github`):
+
+```json
+{
+  "schema_version": "1.0",
+  "provider": "github",
+  "config": { "lease_ttl_hours": 24 }
+}
+```
+
+Example (`local-markdown`):
+
+```json
+{
+  "schema_version": "1.0",
+  "provider": "local-markdown",
+  "config": { "lease_ttl_hours": 24, "storage_dir": ".work-items" }
+}
+```
 
 ## Resolving the schedule path
 
@@ -159,15 +223,23 @@ binding shape live in the plugin's
 
 ## Output
 
-A tracked `.github/recurring-schedule.json` in the consuming repo, plus a one-paragraph summary of the
-items written (id, cadence, next_due), whether any labels were created, any role→label remap written
-to `.work-item-tracker.json`, and how to re-run this setup to reconfigure.
+A tracked `.work-item-tracker.json` binding (provider + non-secret config) and a tracked
+`.github/recurring-schedule.json`, both in the consuming repo, plus a one-paragraph summary: the bound
+provider and config, the recurring items written (id, cadence, next_due), whether any labels were
+created, any role→label remap written to `.work-item-tracker.json`, and how to re-run this setup to
+reconfigure.
 
 ## What this skill does NOT do
 
-- File work items or run a recurring check — that is `/work-items:track` (`add`, `due`, `recheck`)
-  and `/work-items:work`. Setup only writes the schedule config.
+- Run tracker operations — no item is created, claimed, or closed here. Filing and coordination are
+  `/work-items:track` (`add`, `due`, `recheck`), `/work-items:work`, and `/work-items:triage`. Setup
+  only seeds config: the provider binding, the recurring schedule, and the optional role→label remap.
 - Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring item;
   setup is the bulk / initial-config path that seeds or reshapes the whole schedule.
-- Write machine-local state — the schedule lives in the consumer's tracked `.github/`, never in the
-  plugin directory or plugin data directory.
+- Author or vendor a provider adapter — the seam ships the `github` and `local-markdown` adapters; a
+  consumer-supplied adapter lives in the consuming repo at
+  `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
+- Store secrets — the binding is tracked in git and carries non-secret config only (a provider token is
+  referenced by name from inside its adapter, never written here).
+- Write machine-local state — the binding and schedule live in the consumer's tracked tree, never in
+  the plugin directory or plugin data directory.

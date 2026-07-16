@@ -91,7 +91,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Project Management
 
-- [`work-items`](plugins/work-items) — Manages development work items through a provider-neutral tracker seam (GitHub the bound adapter today): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states). Canonical role labels remap via the tracker binding; the recurring-schedule seam (.github/recurring-schedule.json) is seeded and reshaped by the re-runnable setup skill.
+- [`work-items`](plugins/work-items) — Manages development work items through a provider-neutral tracker seam that ships with the plugin (bundled dispatcher plus github and local-markdown adapters; seam plugin-dir canonical, adapters consumer-local-first): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states). The re-runnable setup skill binds the provider (.work-item-tracker.json), seeds the recurring-schedule seam (.github/recurring-schedule.json), and remaps canonical role labels.
 
 ### Operations
 

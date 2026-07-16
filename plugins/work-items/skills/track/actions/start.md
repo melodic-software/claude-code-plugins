@@ -15,7 +15,8 @@ Claim a work item through the seam (assignee + lease record).
 1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable — `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 
    ```bash
-   TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
    "$TRACKER" get-item "<id>"
    "$TRACKER" reclaim "<id>"
    ```
@@ -25,13 +26,15 @@ Claim a work item through the seam (assignee + lease record).
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash
-   "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" claim "<id>"
+   TRACKER="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/tools/work-item-tracker/work-item-tracker.sh}"
+   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   "$TRACKER" claim "<id>"
    ```
 
-   - Exit `0` — claim held; the emitted object carries `holder`, `lease_comment_id`, `acquired_at`, `ttl_hours`. Record `lease_comment_id` if you may renew later (`tools/work-item-tracker/work-item-tracker.sh renew-lease "<id>" --lease-comment-id <n>`).
+   - Exit `0` — claim held; the emitted object carries `holder`, `lease_comment_id`, `acquired_at`, `ttl_hours`. Record `lease_comment_id` if you may renew later (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh renew-lease "<id>" --lease-comment-id <n>`).
    - Exit `7` — another session won; report it and pick a different item (do NOT retry the same one).
 
-   Claim identity is the authenticated session user, never the bot (seam identity routing: `tools/work-item-tracker/CONTRACT.md` "Identity routing (GitHub adapter)").
+   Claim identity is the authenticated session user, never the bot (seam identity routing: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Identity routing (GitHub adapter)").
 
 1. **Confirm:** "Claimed **`<id>`**: {title}. Ready to work — follow the project's development workflow."
 
@@ -64,5 +67,5 @@ Claim a work item through the seam (assignee + lease record).
 ## Notes
 
 - In GitHub Actions context, `@me` cannot resolve to a human — pass `--session-id "$GITHUB_ACTOR"` to `claim` for diagnostic attribution; the assignee is still the authenticated token identity.
-- The seam claim replaces the retired `status:considering` / `status:claimed` label hold protocol — coordination is assignee + lease, race-safe via lease-comment identity (`tools/work-item-tracker/CONTRACT.md` "Lease protocol").
+- The seam claim replaces the retired `status:considering` / `status:claimed` label hold protocol — coordination is assignee + lease, race-safe via lease-comment identity (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol").
 - Stale claims (expired lease, no activity) are cleared by the `reclaim` verb at session start (`/work-items:track audit`, `/work-items:work`).

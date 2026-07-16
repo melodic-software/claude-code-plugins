@@ -57,7 +57,7 @@ raw → verified → briefed → autonomous-eligible (role label, default agent-
  └→ close: wontfix | duplicate | already implemented
 ```
 
-Claiming stays coordination state, not a label — assignee + lease via the seam (`/work-items:track start`, `tools/work-item-tracker/CONTRACT.md` "Lease protocol"); `blocked` is a native `blocked-by` edge, not a `status:` label.
+Claiming stays coordination state, not a label — assignee + lease via the seam (`/work-items:track start`, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"); `blocked` is a native `blocked-by` edge, not a `status:` label.
 
 ## Attention view (no number)
 

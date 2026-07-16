@@ -34,4 +34,4 @@ The `#` column is a sequential index for this listing. When the user references 
 
 ## Search syntax
 
-Provider search qualifiers (label/exclude/assignee/sort/date) and the pass-through behavior of `--search` are documented in the bound adapter's operations reference — GitHub: `tools/work-item-tracker/adapters/github/README.md` "Search items".
+Provider search qualifiers (label/exclude/assignee/sort/date) and the pass-through behavior of `--search` are documented in the bound adapter's operations reference — GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".
