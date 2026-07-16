@@ -16,15 +16,29 @@ permissions:
   contents: read
 
 jobs:
+  select-runner:
+    name: Select runner
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+
   review:
-    # Privileged review remains hosted by policy. Skip it while strict local-only
-    # emergency routing is active; prefer-self-hosted restores the hosted lane.
-    if: ${{ vars.CI_RUNNER_POLICY != 'self-hosted-only' }}
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@4dbb0dfcc1fcbaf30e1a5573bf776af54e4e7e1a # 4dbb0df 2026-07-15
+    with:
+      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:
