@@ -164,14 +164,50 @@ git commit -F - --cleanup=verbatim \
 EOF
 ```
 
-Semantics (per `git-commit(1)` default `--only` mode): the commit records the **working-tree content** of the named paths, disregarding what is staged for all OTHER paths — concurrent-session staged work stays staged, untouched. Untracked files still need `git add` first; pathspec alone never picks them up.
+Semantics (per `git-commit(1)` default `--only` mode): the commit records the **working-tree content** of the named paths, disregarding what is staged for all OTHER paths — concurrent-session staged work stays staged, untouched. A path with no `HEAD` entry that was never `git add`ed still errors out (`pathspec '<path>' did not match any file(s) known to git`) — pathspec alone never picks up a genuinely untracked file.
+
+**A path staged as a deletion is a different case, and it fails silently instead of erroring.** `git rm --cached <path>` (the "Already-staged deletion" case in step 2) removes the path from the index but leaves it on disk, so `git status` shows it as both `D` (cached) and `??` (untracked) at once. Because the path still has a `HEAD` entry, `--only` mode *does* match it — but it reads the **working-tree content**, not the cached `D` status, finds the file still present, and re-adds it unchanged. The staged deletion is silently discarded instead of being committed alongside the commit's other paths. Verified empirically: with the file still on disk, `git commit -- <D-status path> <other paths>` commits that path unchanged (the deletion never happens); with the file absent from disk too (a plain `git rm <path>`, or `git rm --cached` followed by an on-disk `rm`), the same command correctly records the deletion — `--only` mode's worktree read only produces the right answer when the worktree already matches the deletion.
 
 **Safety preconditions — all required before offering this path:**
 
 - Every named path is fully this commit's work — no overlap with another session's in-flight scope (when unsure which session owns a file, ask).
-- For each named path, working tree == intended content (pathspec commits the worktree version, silently superseding any different staged version of that same path).
+- For each named path, working tree == intended content (pathspec commits the worktree version, silently superseding any different staged version of that same path) — **except** a path staged as `D` whose file is still on disk, which needs the hide/commit/restore sequence below instead of satisfying this precondition directly.
 - Verify scope with `git diff --cached --stat -- <pathspec>` and surface that stat in the review gate — the user greenlights exactly what the pathspec captures.
 - A directory pathspec (`-- path/to/dir/`) is acceptable only after confirming via `git status --porcelain -- <dir>` that nothing under it belongs to another scope; otherwise enumerate files.
+
+### Preserving a staged deletion in a pathspec commit
+
+For every named path whose `git diff --cached --name-status -- <path>` reports `D`, check whether the file is still present on disk (the `git rm --cached` case above). If it is, the default `--only` read would silently drop the deletion per Semantics. Root cause is that `--only` mode has no flag to commit a path's cached state instead of its worktree state, so the fix is to make the worktree briefly match the already-staged deletion — not to delete the file outright, since `git rm --cached` means the user wants to stop tracking it while keeping the local copy:
+
+```bash
+hidden=()
+for f in <D-status paths still present on disk>; do
+  hide="$f.__commit_hide__"
+  if [ -e "$hide" ]; then
+    echo "refusing to hide $f: $hide already exists" >&2
+    exit 1
+  fi
+  mv -- "$f" "$hide"
+  hidden+=("$f")
+done
+
+restore_hidden() {
+  for f in "${hidden[@]}"; do
+    [ -e "$f.__commit_hide__" ] && mv -- "$f.__commit_hide__" "$f"
+  done
+}
+trap restore_hidden EXIT
+
+git commit -F - --cleanup=verbatim \
+  --trailer "<Co-Authored-By trailer>" \
+  -- <path> [<path>...] <<'EOF'
+<subject>
+
+<body>
+EOF
+```
+
+The `trap ... EXIT` restores the file on every exit path — commit success, a rejecting commit-msg hook, or any other error — so the hide never outlives this one commit invocation. Verified empirically against a rejecting commit-msg hook: the trap still restores the file and the `D` stays staged for a retry. If a `<path>.__commit_hide__` collision is detected before hiding starts, stop and surface it instead of overwriting an unrelated file — do not guess which one the user meant.
 
 Default remains the plain index commit; reach for the pathspec form only when the index is verifiably shared/dirty.
 
