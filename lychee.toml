@@ -17,12 +17,16 @@ exclude_path = [
 ]
 
 # URL excludes for the online lane (the offline lane skips URLs entirely):
-# auth-walled hosts that block automated checkers, loopback, and placeholders.
+# exact bot-blocked URLs, auth-walled private repos, loopback, and placeholders.
 exclude = [
   '^https?://(www\.)?x\.com/',
   '^https?://twitter\.com/',
   '^https?://(www\.)?linkedin\.com/',
   '^https?://bsky\.app/',
+  '^https?://(www\.)?medium\.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f/?([?#].*)?$',
+  '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
+  '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
+  '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://example\.(com|org)',
@@ -35,4 +39,5 @@ exclude = [
   # HTTPS clone URLs: the dot after the repo name would otherwise miss the
   # [/#?] boundary.
   '^https?://github\.com/melodic-software/(claude-code-plugins|dotfiles|github-iac|medley|provisioning|standards)(\.git)?([/#?]|$)',
+  '^https?://raw\.githubusercontent\.com/melodic-software/(claude-code-plugins|dotfiles|github-iac|medley|provisioning|standards)/',
 ]
