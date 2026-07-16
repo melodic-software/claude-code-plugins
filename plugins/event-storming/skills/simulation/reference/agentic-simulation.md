@@ -836,7 +836,9 @@ Create a NEW Miro board. This is a different workshop with different participant
 **Round 2: Alternative Paths + Unfulfilled Expectations**
 
 - For each command: "What if it fails? What if it's rejected? What if it partially succeeds?"
-- Place happy path events on top (y=0), alternatives below (y=+250)
+- Place happy path events on the Main Flow row; route failure/rejection alternatives to the
+  Exception flows row and additional/secondary alternatives to the Secondary alternatives row
+  (see the Process Modeling Y-Coordinate Table in `miro-integration.md`)
 - **Events that are NOT happening** (Ch. 14): Model unfulfilled expectations via time-triggered events. "End of day happened before Greeting Received" models a forgotten birthday. Prompt agents: "What SHOULD happen but doesn't? What deadlines expire? What expectations go unfulfilled?" Making the time-frame explicit leads to interesting insights
 - Continue until all paths reach a stable state (System Happy + User Happy)
 
