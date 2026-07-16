@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "claude-memory",
+  "version": "0.1.0",
+  "description": "Audits the Claude Code instruction/memory layer — CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory — against a checklist derived from official Claude Code documentation. A deterministic script-backed spine (MEMORY.md index integrity, orphan always-loaded rules) yields identical findings on identical repo state; judgment-tier checks apply fixed criteria with model reading. Actions: audit (default), fix (per-item approval), update (refresh criteria from current docs), report.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["memory", "claude-md", "rules", "auto-memory", "instructions", "audit", "maintenance", "skill"]
+}

@@ -6,42 +6,45 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-Invoke it with `/work-items:work-items <action>` (or let Claude invoke it when
-you ask about work items, tracked work, or what to do next):
+The tracker's capabilities are split across five focused skills (plus a setup
+skill). Invoke the one that matches the job (or let Claude invoke it when you ask
+about work items, tracked work, or what to do next):
 
 ```text
-/work-items:work-items                 # stats dashboard (default)
-/work-items:work-items add "fix the flaky retry test" --type fix
-/work-items:work-items work            # auto-select + claim + execute one item
-/work-items:work-items triage 42
+/work-items:track                      # stats dashboard (default)
+/work-items:track add "fix the flaky retry test" --type fix
+/work-items:work                       # auto-select + claim + execute one item
+/work-items:triage 42
+/work-items:decompose                  # break the topic's PLAN.md into tickets
+/work-items:scan                       # sweep TODO/FIXME/HACK markers
 ```
 
 ## Skills
 
 | Skill | What it does |
 |---|---|
-| `/work-items:work-items` | The tracker itself — the action router below (stats, list, add, work, triage, …). |
-| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, and writes the tracked `.github/recurring-schedule.json` (re-runnable). |
+| `/work-items:track` | Backlog CRUD — the sub-action router over `stats`, `list`, `add`, `start`, `done`, `due`, `recheck`, `search`, `audit` (default: the stats dashboard). |
+| `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
+| `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
+| `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
+| `/work-items:scan` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
+| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, writes the tracked `.github/recurring-schedule.json`, and offers the canonical-role → label remap in the tracker binding (re-runnable). |
 
-## Actions
+## `/work-items:track` actions
 
 | Action | What it does |
 |--------|--------------|
-| `stats` | Dashboard: open/claimed counts, overdue recurring items, category breakdown |
+| `stats` | Dashboard: open/claimed counts, overdue recurring items, category breakdown (the default when invoked bare) |
 | `list` / `search` | Filtered listing / full-text search across open + closed items |
 | `add` | Create a work item with a label taxonomy, duplicate pre-flight, and an authorization gate against model-initiated filing |
-| `work` | Auto-select one item by priority tiers and execute it end-to-end |
 | `start` / `done` | Claim an item / close it with a completion comment and PR linkage |
 | `due` / `recheck` | Recurring-schedule checks and cadence advancement (optional consumer infrastructure) |
-| `scan` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each |
 | `audit` | Detect stale leases, orphaned recurring entries, label hygiene issues |
-| `decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering |
-| `triage` | Structured evaluation of incoming items, with an attention view |
 
 ## The tracker seam
 
-Every tracker operation goes through the **work-item-tracker seam** — the skill
-calls `tools/work-item-tracker/work-item-tracker.sh <verb>` and the bound
+Every tracker operation goes through the **work-item-tracker seam** — the skills
+call `tools/work-item-tracker/work-item-tracker.sh <verb>` and the bound
 provider adapter executes it (contract:
 `tools/work-item-tracker/CONTRACT.md`). Coordination — create, claim
 (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier
@@ -50,16 +53,23 @@ core verb (filtered listing, search, aggregation, close, label/comment edits)
 are provider-specific and route through the bound adapter's operations reference
 (GitHub: `tools/work-item-tracker/adapters/github/README.md`). The skill core
 inlines no provider commands, so swapping the backend is swapping the bound
-adapter, not editing the skill.
+adapter, not editing the skills.
 
 ## Multi-agent claim protocol
 
-`work` and `start` claim an item by **assigning it and writing a lease
-comment**, race-safe at the seam via lease-comment identity, so multiple
-concurrent agents never grab the same item. A session-start `reclaim` runs
-idempotently to recover the stale leases of crashed or abandoned sessions.
-Claim assignments always run on the session's own authenticated identity — never
-a shared bot — so the race check stays sound.
+`/work-items:work` and `/work-items:track start` claim an item by **assigning it
+and writing a lease comment**, race-safe at the seam via lease-comment identity,
+so multiple concurrent agents never grab the same item. A session-start
+`reclaim` runs idempotently to recover the stale leases of crashed or abandoned
+sessions. Claim assignments always run on the session's own authenticated
+identity — never a shared bot — so the race check stays sound.
+
+## Revisit condition
+
+`/work-items:track` holds the backlog-CRUD actions (dashboard, create, claim,
+close, recurring checks, audit) as one skill. Decompose it further only when its
+description approaches the skill-listing truncation limit, or its lanes diverge
+enough that one skill no longer predicts its contents.
 
 ## Requirements
 
@@ -73,11 +83,11 @@ a shared bot — so the race check stays sound.
 - **Labels** (optional but recommended): the universal `type:` / `priority:` /
   `status:` / meta groups, plus any project-specific `area:` / `category:` /
   `ecosystem:` groups the repo defines. The taxonomy and discovery command are
-  documented in the skill's `reference/label-taxonomy.md`.
+  documented in the plugin's `reference/label-taxonomy.md`.
 - **Recurring schedule** (optional): a `.github/recurring-schedule.json` in the
   consuming repo enables the `due` / `recheck` actions and the recurring
-  selection tiers of `work`. Seed or reshape it with `/work-items:setup`;
-  everything else works without it.
+  selection tiers of `/work-items:work`. Seed or reshape it with
+  `/work-items:setup`; everything else works without it.
 
 ## Install
 
@@ -89,10 +99,12 @@ a shared bot — so the race check stays sound.
 ## Configuration
 
 No `userConfig`. Project-specific behavior routes through the consuming repo's
-own surfaces: the bound provider in `.work-item-tracker.json`, its labels
+own surfaces: the bound provider in `.work-item-tracker.json` (including the
+optional `config.role_labels` canonical-role → label remap), its labels
 (taxonomy discovery through the adapter), its optional recurring schedule file,
+its optional rejected-concept ledger (`docs/out-of-scope/`, checked at intake),
 and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
-writes through a bot wrapper) and development workflow. The skill degrades
+writes through a bot wrapper) and development workflow. The skills degrade
 gracefully when any of these are absent.
 
 ## License

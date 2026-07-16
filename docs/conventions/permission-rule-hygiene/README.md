@@ -10,8 +10,8 @@ interpreter-wildcard grant, never a hardcoded machine path, and never a self-gra
 plugin ships expecting it to work.** The three anti-patterns below each break that in a different way;
 the [correct pattern](#the-correct-pattern) fixes all three at once.
 
-Enforced by the [`permission-hygiene`](../../../plugins/claude-config-audit/skills/permission-hygiene)
-skill in the `claude-config-audit` plugin, which scans skill/command/agent frontmatter `allowed-tools`
+Enforced by the [`permission-hygiene`](../../../plugins/claude-config/skills/permission-hygiene)
+skill in the `claude-config` plugin, which scans skill/command/agent frontmatter `allowed-tools`
 and `settings.json` / `settings.local.json` `permissions.allow` and flags each anti-pattern (checks
 P1/P2/P3).
 

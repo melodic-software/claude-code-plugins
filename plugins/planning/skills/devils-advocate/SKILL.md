@@ -162,9 +162,9 @@ If critical or high findings exist, present specific plan modifications:
 
 Based on findings, suggest relevant follow-up actions:
 
-- Verifying the changes end-to-end (`/implementation:verify-changes` if installed) if code changes were involved
+- Verifying the changes end-to-end (`/verification:confirm` if installed) if code changes were involved
 - Targeted research rounds (`/discovery:research` if installed, or the strongest research capability available) if critical assumptions remain unverified
-- Filing deferred research or monitoring items in the project's work-item tracker (`/work-items:work-items` if installed)
+- Filing deferred research or monitoring items in the project's work-item tracker (`/work-items:track` if installed)
 
 ## What This Skill Does NOT Do
 

@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- Workshop wrap-up points now offer resolved domain terms for graduation into the consumer repo's committed project glossary instead of leaving them session-scoped: one entry per term with a 1–2 sentence definition and a plain `Avoid:` line of rejected synonyms, project-context terms only, created lazily when the repo keeps no glossary (repo root, or per-context files plus a root map). When the `planning` plugin is installed, `/planning:design` owns the format. Landed at Big Picture Wrapping Up, Design-Level Wrap Up, the Ubiquitous Language notation and simulation capture points, and a canonical graduation section in the methodology glossary reference.
+
 ## [0.4.0]
 
 ### Added

@@ -1,0 +1,66 @@
+{
+  "skill_name": "lint",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-mode-detects-and-runs-lint-only",
+      "prompt": "/toolchain:lint — I touched a few TypeScript files and a bash script.",
+      "expected_output": "Auto-detects the affected ecosystems (typescript, bash) from git status, runs each ecosystem's resolved check-cmd in check mode only — reporting violations without modifying files — and presents a per-ecosystem lint/format results table. It runs lint+format, not a full build/test cycle.",
+      "files": [],
+      "expectations": [
+        "Auto-detects affected ecosystems (typescript, bash) from the changed files",
+        "Runs in check mode by default — reports violations WITHOUT modifying any files",
+        "Runs lint/format checks only, not a build or test cycle (that is /toolchain:build)",
+        "Presents a per-ecosystem results table with pass / FAIL / skip / — statuses"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fix-mode-parsed-and-auto-corrects",
+      "prompt": "/toolchain:lint dotnet --fix",
+      "expected_output": "Parses the --fix flag as fix mode and the dotnet filter, runs the ecosystem's fix-cmd to auto-correct where the linter supports it, and notes which ecosystems were auto-fixed versus which have no auto-fix (fix capability derives from a non-null fix-cmd in the config).",
+      "files": [],
+      "expectations": [
+        "Parses --fix as fix mode (auto-correct) rather than check mode, and dotnet as the ecosystem filter",
+        "Runs the resolved fix-cmd to auto-correct where the linter supports it",
+        "Reports which ecosystems were auto-fixed vs which are check-only (no non-null fix-cmd)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "owns-yaml-and-cross-cutting-surfaces",
+      "prompt": "/toolchain:lint all — the change set includes a GitHub Actions workflow YAML and touches several text files across the repo.",
+      "expected_output": "Runs the lint-only `yaml` and `cross-cutting` surfaces that /toolchain:build does not — yaml for the workflow file, and cross-cutting (typos/gitleaks/editorconfig-checker) when any text file changed and the repo opts into those tools — resolving the editorconfig-checker binary-name variant before substituting it in.",
+      "files": [],
+      "expectations": [
+        "Runs the `yaml` surface for the workflow file (a `/toolchain:lint`-only surface not covered by `/toolchain:build`)",
+        "Runs the `cross-cutting` surface when any text file changed AND the repo opts into its tools",
+        "Honors each ecosystem's opt-in — does not run cross-cutting tools the repo has not configured"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-tool-skips-file-outside-ecosystem-silent",
+      "prompt": "/toolchain:lint — the repo has a markdownlint config (the markdown surface is opted in), and the diff includes a .png image plus some markdown, but the markdownlint tool is not on PATH.",
+      "expected_output": "Because the markdown surface is opted in (config present) but the tool is missing, reports the markdown ecosystem as `skip` with the install-hint (tool missing is a skip, never a FAIL), and silently ignores the .png (a file outside any ecosystem produces no noise) — it does not fail the run for either.",
+      "files": [],
+      "expectations": [
+        "Reports the (opted-in) markdown ecosystem as `skip` with its install-hint when the markdownlint tool is missing from PATH — not FAIL",
+        "Silently skips the .png file (outside any ecosystem) without emitting a warning or failure for it",
+        "Does not fail the overall run because of the missing tool or the unclassified binary file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-changes-directs-to-lint-all",
+      "prompt": "/toolchain:lint — the working tree is clean and there is no branch diff versus the default branch.",
+      "expected_output": "When neither the working tree nor the branch diff yields changes and no ecosystem filter was given, it reports 'No changes found' and points the user to `/toolchain:lint all` (full-repo) or `/toolchain:lint <ecosystem>` — rather than silently running everything or erroring.",
+      "files": [],
+      "expectations": [
+        "Falls back to the branch diff before concluding there is nothing to lint",
+        "Reports 'No changes found' and suggests `/toolchain:lint all` or `/toolchain:lint <ecosystem>` when both detection paths are empty and no filter was given",
+        "Does not silently run every ecosystem when no changes and no filter are present"
+      ]
+    }
+  ]
+}

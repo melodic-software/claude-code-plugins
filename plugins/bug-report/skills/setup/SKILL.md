@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Confirm where `/bug-report:bug-report --file` writes reports without editing Claude Code settings.
+Confirm where `/bug-report:write --file` writes reports without editing Claude Code settings.
 `output_dir` is a personal `userConfig` value. Claude Code prompts for it when the plugin is
 enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs` entries in
 project and local settings on current releases.
@@ -40,6 +40,6 @@ rerun observes the new rendered value.
 
 ## Boundaries
 
-- Do not produce or file a bug report; use `/bug-report:bug-report`.
+- Do not produce or file a bug report; use `/bug-report:write`.
 - Do not write Claude Code settings.
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

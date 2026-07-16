@@ -11,7 +11,8 @@ All schema and behavior claims below were verified against the official docs on 
 "Reintegration" section's marketplace-settings claims — `extraKnownMarketplaces` / `enabledPlugins` in a
 project's `settings.json` — on 2026-06-29, against the discover-plugins "Configure team marketplaces"
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
-Code 2.1.207). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
+Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
+2026-07-15 against the skills doc). Re-verify fresh before acting — see `CLAUDE.md` "Fresh-docs mandate".
 
 ## Organization — one plugin per cohesive concern
 
@@ -23,6 +24,14 @@ plugin per hook.
 
 - **Skills group by capability.** Distinct capabilities are distinct plugins; a single capability's
   always-together facets bundle (e.g. a prototyping capability's `logic` and `ui` skills ship together).
+- **A skill splits only on distinct discovery intent, never per subcommand.** Two skills are
+  warranted when their trigger vocabularies differ — a user reaching for each says different things;
+  a capability's subcommands stay action arguments of one skill. The restraint has a context-cost
+  basis: the listing of skill names and descriptions loads into every session, and each entry's
+  combined description text is truncated at 1,536 characters in that listing
+  ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — every extra skill is an
+  always-paid context line. The standing exception is the `setup` lane, always its own skill with
+  `disable-model-invocation: true` — see the philosophy's "Setup is explicit and repeatable".
 - **Hooks group by concern.** Per-hook selectivity comes from an env kill-switch
   (`HOOK_<PLUGIN>_ENABLED`), a `matcher`, or an `if` guard — author-managed control inside the bundle,
   the ecosystem norm.
@@ -36,6 +45,16 @@ a single plugin. Hooks differ: the env kill-switch gives clean per-hook control 
 discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via env) versus
 **opt-in-per-invocation** components (skills — group by capability).
 
+**Buckets are catalog metadata, never structure.** Category grouping lives in `marketplace.json`
+`category` / `tags` and catalog docs only: the disk layout stays flat (`plugins/<name>`, no
+`plugins/<bucket>/<name>` nesting), and a bucket never appears in a plugin name or namespace.
+Namespaces name capability domains; categories are curation.
+
+**Boundaries are defended by design arguments, never incumbency.** A plugin's shape is justified by
+change-together, useful-alone, and distinct discovery intent — not by the fact that it already ships
+that way ("current state is evidence, never justification" — `melodic-software/standards`
+`conventions/engineering/engineering-philosophy.md`).
+
 ## Naming
 
 Name a plugin and its units by this precedence — an earlier rule wins on conflict:
@@ -47,20 +66,46 @@ Name a plugin and its units by this precedence — an earlier rule wins on confl
 3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
    no unit-type suffix (`-hook` / `-skill`) unless load-bearing; names track their semantic scope.
 
-Applying that precedence:
+Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`:
 
-- **Plugin `name` is a domain noun, kebab-case** (e.g. `feature-dev`, `pr-review-toolkit`).
-- **Skill name follows its KIND.** An action / user-invoked skill reads as a **verb-phrase**
-  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill is a **noun-phrase**
-  (`cqrs-implementation`, `agent-development`). The "reads-as-a-verb-phrase" heuristic scopes to action
-  skills only — a `noun:noun` name is correct for a knowledge skill.
-- **`/plugin:skill` doubling is idiomatic** (`/prototype:prototype`, first-party `/code-review:code-review`)
-  — docs-blessed, not an anti-pattern. Do not contort a name solely to avoid the doubling.
+- **The namespace (plugin `name`) is a noun, kebab-case — never a bare verb.** A **gerund** for an
+  activity domain (`planning`, `debugging`, `testing`); a **plain noun** for a subject domain
+  (`source-control`, `architecture`, `work-items`). Semantic accuracy binds the whole namespace:
+  the noun must be true of *every* skill under it.
+- **Skill name follows its KIND.** An action / user-invoked skill is an **action verb**
+  (`create-plugin`, `review-pr`); a knowledge / model-invoked skill may be a **noun-phrase**
+  (`principles`, `methodology`). The verb heuristic scopes to action skills only — a `noun:noun`
+  invocation is correct for a knowledge skill.
+- **`/name:name` doubling is a naming defect, not idiomatic.** A stutter means one of the two names
+  is failing at its job — the namespace is not naming the domain, or the skill is not naming its
+  action. Fix it by, in preference order: rename the skill to its real action verb; rename the
+  plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
+  intents (per the Organization section's split rule above). The one exemption is
+  **root-echo** — the domain's core action shares the domain's root word
+  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`); that is honest naming, not
+  a true doubling, and is accepted.
+- **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
+  first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
+  sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
+  A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
+  a sibling.
+- **A vendor-CLI plugin names its skills after the vendor's own CLI verbs.** A tool-scoped plugin
+  wrapping a CLI mirrors that CLI's verb vocabulary — `/playwright:test` mirrors
+  `npx playwright test`; a firecrawl decomposition would use `scrape` / `crawl` / `map` per
+  `firecrawl-cli` — the consumer already knows the vendor's verbs.
 - **Generic skill names are safe under namespacing** (`help`, `list`, `configure`) — the overloaded-term
   caution governs plugin *identity*, not a namespaced skill leaf.
 - **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
   plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
   — do not formalize such a split.
+
+**Built-in collisions never force a plugin skill's name.** "Plugin skills use a
+`plugin-name:skill-name` namespace, so they cannot conflict with other levels"
+([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — a shadow-dodge name is never
+*required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
+`batch-simplify`, `research-deep`) stand or evolve on their own merits, not out of collision fear.
+The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
+(auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
 
 ## Extensibility model — what works today
 
@@ -179,6 +224,13 @@ replaced on every update (the plugins-reference caching note), so its state does
 writes only the consumer configuration the plugin owns. Claude Code's native configuration surface
 collects `userConfig` and owns `pluginConfigs`; a setup skill never edits that key directly.
 
+## Upstream sync — every upstream-sourced plugin ships an update path
+
+A plugin that vendors or distills an upstream source — a docs site, a third-party playbook, a tool's
+own documentation — carries a drift-check/update path: either an inline maintainer `update` action on
+its skill or a dedicated update skill. A self-authored pack has no upstream to drift from; its update
+path states "no upstream" and names the regeneration trigger instead (e.g. a model-version change).
+
 ## Evals — warrant policy and consumer-verify recipe
 
 Evals are model-graded behavior fixtures at `plugins/<plugin>/skills/<skill>/evals/evals.json`,
@@ -188,10 +240,10 @@ a skill ships them only when they earn their keep.
 **Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
-from a knowledge corpus with no decision contract — `fable-5-playbook`, `tdd`, …) or lives in a **hook** plugin
+from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …) or lives in a **hook** plugin
 (deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
 `configure` skill *is* warrantable — it makes interview and write-config decisions (the
-`codebase-audit/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
+`codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
 Coverage against this rule is snapshotted per audit in

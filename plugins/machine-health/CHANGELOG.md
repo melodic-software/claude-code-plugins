@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- Renamed the `machine-health` skill → `check`. Update any `/machine-health:machine-health`
+  invocations to `/machine-health:check`; the plugin ID (`machine-health`) is unchanged, only the
+  skill's leaf name moved.
+
 ## [0.2.0]
 
 Behavior fixes from the publish-PR review, plus cadence-aware check selection. Addresses the

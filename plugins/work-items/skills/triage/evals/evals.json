@@ -1,0 +1,46 @@
+{
+  "skill_name": "triage",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triage-routes-unsolicited-pr-as-item-with-attached-code",
+      "prompt": "/work-items:triage 88 — #88 is a pull request from an outside contributor we never asked for, adding a caching layer",
+      "expected_output": "Runs the unsolicited PR through the same raw-intake state machine as an issue (raw -> verified -> briefed -> autonomous-eligible). Treats the diff as an attachment to evaluate — checks it out and runs the relevant tests to confirm it does what it claims — never as an obligation to merge. Recommends bug-vs-enhancement classification and a target state, and waits for user direction before mutating anything.",
+      "files": [],
+      "expectations": [
+        "Accepts a PR number — a PR is an item with attached code, entering the same intake as an issue",
+        "Evaluates the diff as an attachment (check out, run relevant tests) rather than treating the PR as an obligation to merge",
+        "Classifies the request bug vs enhancement (Type `Bug` vs `Feature`) before recommending a state",
+        "Recommends and waits for user direction before applying labels, commenting, or closing",
+        "Routes any label/comment/close writes through the bound adapter's mechanics and any item creation through the seam `create-item` — no inline provider commands"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "triage-verifies-bug-before-interviewing",
+      "prompt": "/work-items:triage 17 — #17 is an external bug report claiming exports silently drop rows; the description is thin",
+      "expected_output": "Attempts to reproduce the reported failure from the reporter's steps BEFORE asking the reporter or user any questions about the fix. On confirmed reproduction the item becomes verified and the brief gets stronger; on failure or insufficient detail it applies status:needs-info with a structured comment preserving what was established so far, rather than interviewing about an unconfirmed claim.",
+      "files": [],
+      "expectations": [
+        "Attempts reproduction of the reported failure BEFORE any interview — never asks about the fix for a claim nobody has confirmed",
+        "Reports the verification result explicitly: confirmed (with observed behavior), failed, or insufficient detail",
+        "On insufficient detail applies `status:needs-info` with the structured template (established-so-far + specific actionable questions), not a bare 'please provide more info'",
+        "A briefed outcome follows durability-over-precision: behavioral contracts and named interfaces, no file paths or line numbers, per the agent-brief reference",
+        "Applies the autonomous-eligible role label (default `agent-ready`) only after the item is both verified and briefed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "triage-never-reprocesses-decompose-output",
+      "prompt": "/work-items:triage 53 — #53 was created last week by /work-items:decompose from our approved PLAN.md",
+      "expected_output": "Declines to re-triage: items published by decompose are born triaged — classified, role-labeled, and briefed at creation — and never re-enter the intake flow. Explains that triage covers raw intake only (items the team did not author) and points at the item's existing role label/brief instead of re-running the state machine.",
+      "files": [],
+      "expectations": [
+        "Does NOT re-run the triage state machine on a decompose-published item — such items are born triaged (classified, role-labeled, briefed at creation)",
+        "States the exclusion rule: triage covers raw intake only — items the team did not author",
+        "Performs no triage writes on the item — no label changes, no needs-info comment, no close",
+        "Notes the attention view excludes decompose output by construction (born-labeled items never land in the unlabeled or needs-triage buckets)"
+      ]
+    }
+  ]
+}

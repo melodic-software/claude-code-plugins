@@ -60,6 +60,18 @@
         "The skill makes the commit but does NOT git push",
         "The skill does NOT open a PR — it directs the user to /pull-request create for push and PR creation"
       ]
+    },
+    {
+      "id": 6,
+      "name": "trailer-policy-none-honored-in-pathspec-form",
+      "prompt": "The index already has other unrelated staged files from another session. Commit only src/api/me.js with the null-user fix, scoped by pathspec.",
+      "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-Authored-By trailer is appended.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "The skill uses the pathspec-limited commit form (git commit ... -- <path>) since the index has unrelated staged files",
+        "trailer_policy: none from .claude/source-control.md is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
+        "No Co-Authored-By trailer appears in the resulting commit"
+      ]
     }
   ]
 }

@@ -1,7 +1,7 @@
 # Topic-docs placement — what this plugin reads and writes
 
-How `/work-items:work-items` actions resolve topic-document paths in a consuming repo. The skill
-reads this one document; it bakes no paths of its own.
+How the work-items skills (`track`, `work`, `triage`, `decompose`, `scan`) resolve topic-document
+paths in a consuming repo. The skills read this one document; they bake no paths of their own.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
@@ -21,9 +21,9 @@ the contract tier (`<contract_dir>/<slug>/`).
 
 ## What this plugin reads — the tier-selected plan lookup
 
-`decompose` (and any action sourcing a plan or PRD) selects the location from the concern file's
-`contract_tier` FIRST, then reads only that tier's slice — one topic never spans locations, and a
-stale slice in the other tier never shadows the live one:
+`/work-items:decompose` (and any skill sourcing a plan or PRD) selects the location from the concern
+file's `contract_tier` FIRST, then reads only that tier's slice — one topic never spans locations,
+and a stale slice in the other tier never shadows the live one:
 
 - `contract_tier: branch` (the default) → `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`).
 - `contract_tier: local` (solo/offline mode) → `<memory_dir>/<slug>/PLAN.md` (default `.work/`).

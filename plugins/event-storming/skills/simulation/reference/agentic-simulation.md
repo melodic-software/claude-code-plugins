@@ -449,7 +449,7 @@ The simulation produces:
 2. **Hot spots** — disagreements, questions, risks flagged by different personas
 3. **Bounded context candidates** — areas where language diverges between personas
 4. **Priority ranking** — arrow voting results across personas
-5. **Ubiquitous language seeds** — terms with persona-specific definitions
+5. **Ubiquitous language seeds** — terms with persona-specific definitions; terms the session resolves are offered at wrap-up for graduation into the consumer repo's committed project glossary rather than staying session-scoped
 
 ### Output Format
 
@@ -601,6 +601,8 @@ The legend MUST be incrementally updated as each phase introduces new building b
 
 **Ubiquitous Language capture (facilitator observation, not a formal phase):**
 Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during ANY phase — not as a dedicated step. Use gray stickies placed below the main flow. These are NOT Wikipedia definitions — just what each term means in THIS domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
+
+At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary — one entry per term with a 1–2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. If the repo keeps no committed glossary, offer to create one lazily (a single file at the repo root; per-context files plus a root map once multiple bounded contexts each own their own language). When the `planning` plugin is installed, `/planning:design` owns this format — defer to it for format details.
 
 **Bounded context identification (POST-WORKSHOP homework — not a workshop phase):**
 Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework AFTER the workshop, using these 6 heuristics from Ch. 6:

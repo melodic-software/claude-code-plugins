@@ -48,6 +48,14 @@ model context** — so review it before you commit or share it: treat the source
 book as untrusted input and confirm the distillation reflects the book rather than
 any instructions injected through its text.
 
+## Revisit condition
+
+`youtube` ships as a skill inside this plugin rather than a standalone plugin
+because a separate plugin cannot reach this one's vendored `video-digestion`
+package — plugins are isolated, with no sibling reach-outs. Extract a standalone
+`youtube` plugin once that package is independently distributable, or a consumer
+needs video without the rest of the knowledge stack.
+
 ## Requirements
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude

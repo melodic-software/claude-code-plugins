@@ -77,7 +77,7 @@ Produce a structured plan using the template in [context/plan-template.md](conte
 
 - **Goal**: what we're trying to achieve and why
 - **Approach**: the specific steps, in order
-- **Test strategy**: how we'll verify the changes work — **invoke `/tdd:tdd` (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical
+- **Test strategy**: how we'll verify the changes work — **invoke `/tdd:principles` (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical
 - **Files affected**: what gets created, modified, or deleted
 - **Alternatives considered**: what was rejected and why
 - **Risks and mitigations**: what could go wrong
@@ -107,7 +107,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 
-**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: route to `/implementation:verify-improvement performance baseline` (perf) or `/implementation:verify-improvement metrics baseline` (code metrics) if installed — the measurement mechanism is SSOT there; this skill routes, never reimplements — or measure the pre-change state manually. Store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and compare through the same route (its `compare` phase reads the stored baseline, or re-measure manually) and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
+**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: route to `/verification:measure performance baseline` (perf) or `/verification:measure metrics baseline` (code metrics) if installed — the measurement mechanism is SSOT there; this skill routes, never reimplements — or measure the pre-change state manually. Store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the baseline value + target in PLAN.md. After the change, re-measure and compare through the same route (its `compare` phase reads the stored baseline, or re-measure manually) and record the comparison in PLAN.md, referencing the stored capture — the contract carries the distilled numbers, never the raw output. Never claim an improvement without a baseline.
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
@@ -290,12 +290,16 @@ After the user approves the plan in Step 5, update the draft `<contract_dir>/<to
 
 Advance the phase tag (`[TODO]` → `[DOING]` → `[DONE]`) as implementation completes each phase — the tags are what a resuming session reads to know where to continue.
 
+PLAN.md is a multi-turn shared artifact: re-read it from disk before every write — another turn or agent may have modified it — and prefer appending or refining sections over wholesale rewrites.
+
 Write the plan even for small changes — future you or a fresh-session agent will thank you.
 
 **Close-out (PR time).** The contract slice is branch-lived; `/architect` owns describing its close-out:
 
 1. Paste the approved PLAN.md into the PR description inside a `<details>` block — the review-surface publication (PR bodies cap near 64 KB; paste the contract, reference the rest).
 2. Graduate durable outcomes through the knowledge-vault seam — resolve the concern file's `vault_backend`: `docs` (default) → a history-preserving `git mv` of the promoted doc into `docs/adr/` or `docs/specs/` (guard the command — create the target directory first); any other value → the backend the consuming repo documents, degrading to `docs` when its tools are absent (binding: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Actionable follow-ups go through the work-item tracker seam.
+
+   **ADR admission test** — a decision earns an ADR only when ALL three hold: **hard to reverse** (changing course later carries real cost), **surprising without context** (a future reader of the code would wonder why it was done this way), and **the result of a real trade-off** (genuine alternatives existed and one was picked for specific reasons). Any one missing → no ADR: an easily reversed decision just gets reversed, an unsurprising one raises no questions, and a no-alternative decision has nothing worth recording. Keep each ADR minimal — a title plus a few sentences covering context, decision, and why; optional sections (status, considered options, consequences) only when they earn their place. Prefer writing the ADR the moment the decision crystallizes during planning over batching candidates at graduation — this step then just moves the already-written file.
 3. Prune with pointer: a final commit before merge deletes the contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`), leaving context pointers (the PR body, the promoted-doc and tracker locations) in its place.
 
 Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
