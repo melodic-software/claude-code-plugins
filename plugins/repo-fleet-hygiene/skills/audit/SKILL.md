@@ -60,12 +60,14 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    each local branch in each repository. Identical branch names in another repository are unrelated.
    `HIGH` requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
    review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR.
-4. **Worktree:** parse only `git worktree list --porcelain -z` registrations. Directory naming is
+4. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
+   NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
    the canonical checkout's expected common dir. A mismatch is `HIGH` evidence of an administrative
    linkage problem but **manual review only**. Missing/prunable registrations never trigger pruning.
-   If the porcelain command fails, emit `UNKNOWN` and stop local branch/worktree classification for
-   that repository; an empty/failed inventory never means no branches are attached.
+   If either inventory command fails or emits malformed/partial output, discard it, emit `UNKNOWN`,
+   stop local branch/worktree classification, and do not count that repository as successfully
+   audited; an empty/failed inventory never means no branches are attached.
 5. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
    cleanup candidates. A merged worktree is routed to worktree dry-run first.
 
@@ -90,13 +92,16 @@ do not turn "no verified finding" into "fleet is clean".
 
 - Git missing or too old: stop before scanning and give the prerequisite error.
 - Invalid config/override/path: report the exact invalid input and stop; never silently fall back.
-- `gh` missing/unauthenticated, `timeout`/`gtimeout` missing, or API failure: continue Git/worktree
-  checks, report GitHub evidence as `UNKNOWN`, and make no merged/migration claim.
+- `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
+  evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
+  preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.
 - Non-GitHub or ambiguous remote: continue local checks; GitHub identity/PR evidence is `UNKNOWN`.
 - Canonical override is missing a GitHub remote or does not resolve to the same normalized GitHub
   identity as the discovered repo: surface `UNKNOWN`, stop that repository, and do not merge evidence.
 - Worktree porcelain fails: surface `UNKNOWN` and stop local branch/worktree classification for that
   repository so no branch can be mislabeled unattached.
+- Branch enumeration fails or is malformed: discard every partial record, surface `UNKNOWN`, stop
+  branch classification, and exclude the repository from the successful-audit count.
 
 ## Integration
 

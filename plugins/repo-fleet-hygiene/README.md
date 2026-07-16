@@ -82,23 +82,32 @@ Enterprise and other forges are not contacted.
 Absolute local paths appear only in local report output. The only network calls are authenticated,
 read-only `gh` queries to `github.com`; no report content, file content, or git object is uploaded.
 When `gh` is absent or unauthenticated, the Git/worktree portion still runs and all GitHub-backed
-claims become `UNKNOWN`. Each `gh` invocation has a 30-second deadline; a timeout degrades only the
-affected GitHub evidence instead of stalling the fleet.
+claims become `UNKNOWN`. Each `gh` invocation has a 30-second deadline followed by a five-second
+TERM-to-KILL grace; a timeout degrades only the affected GitHub evidence instead of stalling the
+fleet. GNU `timeout`/`gtimeout` is used when its kill-after capability is available, with a Bash
+watchdog fallback on other supported platforms.
+
+Every Git probe disables lazy fetching and optional locks, so a read cannot contact a promisor remote
+or refresh repository metadata as a side effect. Git and `gh` execution is fail-closed: the collector
+accepts only its documented command, option, operand, and environment shapes. A failed worktree or
+branch inventory becomes `UNKNOWN`; partial output is discarded and the repository is not counted as
+successfully audited.
 
 ## Requirements
 
 - Git with `git worktree list --porcelain -z` and `git rev-parse --path-format=absolute` support.
 - Bash (Claude Code's Bash tool; Git Bash is the supported Windows path).
-- Optional: authenticated GitHub CLI (`gh`) plus `timeout` (GNU/Linux and Git Bash) or `gtimeout`
-  (GNU coreutils on macOS) for bounded merged-PR and moved/renamed-repository evidence. Without either
-  timeout spelling, the GitHub portion reports unavailable rather than making an unbounded call.
+- Optional: authenticated GitHub CLI (`gh`) for bounded merged-PR and moved/renamed-repository
+  evidence. GNU `timeout` (GNU/Linux and Git Bash) or `gtimeout` (GNU coreutils on macOS) is preferred;
+  the collector provides its own finite Bash watchdog when neither compatible command is available.
 
 ## Security review
 
 The plugin-acceptance review is recorded in
 [`reference/security-review.md`](skills/audit/reference/security-review.md). The audit script uses no
 `eval`, never sources consumer configuration, never follows filesystem links during discovery, sends
-no local content to GitHub, and contains no mutating Git/GitHub command.
+no local content to GitHub, and exposes only an explicit allowlist of read-only Git/GitHub command
+shapes.
 
 The current official documentation and the decisions each source supports are recorded in
 [`reference/official-sources.md`](skills/audit/reference/official-sources.md).

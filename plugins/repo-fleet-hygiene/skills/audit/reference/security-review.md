@@ -12,7 +12,9 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 
 1. **Code execution:** one user-invoked Bash script. Required binaries: Bash, Git, and optional `gh`.
    It uses quoted argv arrays, no `eval`, no `source`, no dynamic shell execution, no downloads, and no
-   write/mutation commands. Consumer config is parsed as data by `git config --file`.
+   write/mutation commands. Consumer config is parsed as data by `git config --file`. A positive
+   command gate admits only the collector's exact Git/gh argv shapes; arbitrary global options,
+   aliases, subcommands, API methods, and extra flags fail before process execution.
 2. **MCP:** none.
 3. **Consumer config:** no `userConfig`, credentials, or secrets. Optional tracked/explicit config
    contains local discovery roots and canonical checkout paths only.
@@ -21,9 +23,11 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 5. **Data egress:** `git` reads local metadata. `gh api` and `gh pr list` contact only `github.com` and
    transmit repository/branch identifiers already represented by the configured GitHub remote. No
    file content, report, commit content, diff, environment value, or absolute local path is sent.
-   Non-GitHub hosts are not contacted, and every `gh` call has a 30-second deadline. **Accepted** as
-   necessary first-party metadata lookup. The collector disables GitHub CLI prompting, update checks,
-   and telemetry for every invocation.
+   Non-GitHub hosts are not contacted, and every `gh` call has a 30-second deadline plus a five-second
+   KILL grace. Compatible coreutils is feature-detected; a finite Bash watchdog covers other supported
+   platforms and has a TERM-ignoring regression test. **Accepted** as necessary first-party metadata
+   lookup. The collector pins `GH_HOST=github.com` and disables GitHub CLI prompting, update checks,
+   extension update checks, spinners, color, and telemetry for every invocation.
 6. **Provenance/trust:** Melodic Software authors and distributes the plugin under the repository's MIT
    license. Runtime trust is limited to locally installed Git and the official GitHub CLI; there is no
    third-party SaaS delegation beyond the repository's declared GitHub host. **Accepted.**
@@ -34,6 +38,14 @@ is explicit authenticated GitHub metadata lookup initiated by the user-invoked a
 - A malicious remote URL cannot redirect API calls to an arbitrary host; only `github.com` is queried.
 - Credentials embedded in a remote URL are stripped before reporting and never passed to `gh`.
 - Branch/path strings are passed as individual quoted arguments, not interpolated into commands.
+- Every Git probe runs with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, prompting disabled, and
+  inherited repository/config injection selectors neutralized. The regression harness verifies those
+  values at the fake-executable boundary.
+- The positive Git/gh allowlists reject representative fetch, branch deletion, remote mutation,
+  alias/config injection, PR merge, and non-GET API vectors without invoking either fake executable.
+- Branch refs and tips are buffered as NUL-delimited records with the `for-each-ref` exit status. A
+  partial producer failure discards every record, emits `UNKNOWN`, and does not increment the audited
+  repository count.
 - Filesystem discovery is bounded and does not follow symbolic links.
 - A 404 cannot be used to claim deletion/transfer because GitHub intentionally uses 404 for
   access-sensitive cases; it remains `UNKNOWN`.

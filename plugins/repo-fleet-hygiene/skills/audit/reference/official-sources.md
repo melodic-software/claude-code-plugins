@@ -17,6 +17,11 @@ plugin does not rely on remembered behavior.
 
 ## Git
 
+- [`git` environment and global options](https://git-scm.com/docs/git) — `GIT_NO_LAZY_FETCH=1`
+  prevents on-demand promisor-remote fetches, while `GIT_OPTIONAL_LOCKS=0` prevents optional
+  lock-taking side effects such as index refreshes.
+- [`git for-each-ref`](https://git-scm.com/docs/git-for-each-ref) — exact ref iteration fields and the
+  documented `%00` NUL and `%09` TAB format escapes used for branch/tip records.
 - [`git rev-parse`](https://git-scm.com/docs/git-rev-parse) — `--show-toplevel`,
   `--git-common-dir`, `--path-format=absolute`, and repository-layout-safe path resolution.
 - [`git remote`](https://git-scm.com/docs/git-remote) — `get-url` expands Git URL rewrite rules and
@@ -33,11 +38,19 @@ plugin does not rely on remembered behavior.
   [`gh api`](https://cli.github.com/manual/gh_api) — repository-qualified JSON/API lookup and
   formatted output.
 - [`gh environment`](https://cli.github.com/manual/gh_help_environment) — host, prompt, update-check,
-  and telemetry controls used to keep the audit non-interactive and constrain undeclared egress.
+  extension-update-check, and telemetry controls used to keep the audit non-interactive and constrain
+  undeclared egress.
 - [Get a repository REST endpoint](https://docs.github.com/en/rest/repos/repos#get-a-repository) —
   canonical `full_name`/`default_branch` response and documented 200, 301, 403, and 404 outcomes.
 - [Transferring a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository) —
   old repository URLs redirect after transfer, but GitHub recommends updating existing local remotes.
+
+## Process bounds
+
+- [GNU Coreutils `timeout`](https://www.gnu.org/software/coreutils/manual/html_node/timeout-invocation.html) —
+  `--kill-after` guarantees KILL escalation after the initial TERM deadline, including when the
+  managed command ignores or blocks TERM. The collector feature-detects this capability and otherwise
+  uses an equivalent finite Bash watchdog.
 
 ## Design consequences
 
@@ -48,3 +61,7 @@ plugin does not rely on remembered behavior.
   a 403/404 does not distinguish access, deletion, or absence and remains unknown.
 - All cleanup/repair/update operations are outside this plugin even though the official tools document
   them; this plugin reports the exact receiving-tool target only.
+- Every Git probe disables lazy fetch and optional locks. Every Git/gh call must match a fixed
+  command/option/environment allowlist; GitHub REST calls specify `--method GET` explicitly.
+- Worktree and branch inventories carry the producing Git command's status. Failed or partial output
+  is not evidence and degrades to `UNKNOWN` without a successful-repository count.

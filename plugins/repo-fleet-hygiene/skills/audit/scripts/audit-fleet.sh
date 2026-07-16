@@ -46,21 +46,179 @@ print_field() {
   printf '\n'
 }
 
-# GitHub CLI exposes no request-timeout flag or documented timeout environment variable. Bound every
-# outbound invocation with the platform's coreutils timeout command so one unreachable API cannot
-# stall an entire fleet. GitHub evidence degrades to unavailable when neither spelling exists.
+# Fail closed before executing either external state reader. The allowlists constrain command,
+# option order, arity, and dynamic operand shape; caller-controlled global options, aliases, config
+# injection, write-capable API methods, and all other Git/gh subcommands are rejected.
+git_probe_allowed() {
+  local key remote ref
+  case "${1:-}" in
+  config)
+    [[ "${2:-}" == "--file" && -n "${3:-}" ]] || return 1
+    if [[ $# -eq 4 && "$4" == "--list" ]]; then
+      return 0
+    fi
+    if [[ $# -eq 5 && "$4" == "--get" ]]; then
+      key="$5"
+      [[ "$key" == "fleet.maxDepth" || "$key" =~ ^canonical\.github\.com/[^/[:cntrl:]]+/[^/[:cntrl:]]+\.path$ ]]
+      return
+    fi
+    if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
+      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" ]]
+      return
+    fi
+    return 1
+    ;;
+  -C)
+    [[ $# -ge 4 && -n "${2:-}" ]] || return 1
+    case "$3" in
+    rev-parse)
+      [[ $# -eq 4 && "$4" == "--show-toplevel" ]] ||
+        [[ $# -eq 5 && "$4" == "--path-format=absolute" && "$5" == "--git-common-dir" ]]
+      ;;
+    remote)
+      if [[ $# -eq 3 ]]; then
+        return 0
+      fi
+      remote="${5:-}"
+      [[ $# -eq 5 && "$4" == "get-url" && -n "$remote" && "$remote" != -* &&
+        ! "$remote" =~ [[:cntrl:][:space:]] ]]
+      ;;
+    worktree)
+      [[ $# -eq 7 && "$4" == "list" && "$5" == "--porcelain" && "$6" == "-z" && "$7" == "--" ]]
+      ;;
+    symbolic-ref)
+      ref="${4:-}"
+      [[ $# -eq 4 && "$ref" == refs/remotes/*/HEAD && ! "$ref" =~ [[:cntrl:][:space:]] ]]
+      ;;
+    branch)
+      [[ $# -eq 4 && "$4" == "--show-current" ]]
+      ;;
+    for-each-ref)
+      [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" &&
+        "$5" == "--" && "$6" == "refs/heads/" ]]
+      ;;
+    merge-base)
+      ref="${6:-}"
+      [[ $# -eq 6 && "$4" == "--is-ancestor" && -n "${5:-}" && "${5:-}" != -* &&
+        ! "${5:-}" =~ [[:cntrl:][:space:]] && "$ref" == refs/remotes/* &&
+        ! "$ref" =~ [[:cntrl:][:space:]] ]]
+      ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+run_git_probe() {
+  if ! git_probe_allowed "$@"; then
+    printf 'Rejected non-allowlisted Git probe\n' >&2
+    return 126
+  fi
+  (
+    # Repository selectors and command-scoped config must come only from the validated argv above.
+    # GIT_CONFIG_COUNT=0 neutralizes inherited GIT_CONFIG_KEY_*/VALUE_* pairs even when the parent
+    # environment contains them; the older aggregate injection variable is removed explicitly.
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
+    export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 \
+      GIT_PAGER=cat GIT_TERMINAL_PROMPT=0
+    command git "$@"
+  )
+}
+
+gh_probe_allowed() {
+  case "${1:-}" in
+  auth)
+    [[ $# -eq 4 && "$2" == "status" && "$3" == "--hostname" && "$4" == "github.com" ]]
+    ;;
+  api)
+    [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
+      "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
+      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]]
+    ;;
+  pr)
+    [[ "${2:-}" == "list" && "${3:-}" == "--repo" &&
+      "${4:-}" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
+      "${5:-}" == "--state" && "${6:-}" == "merged" ]] || return 1
+    if [[ $# -eq 12 ]]; then
+      [[ "$7" == "--limit" && "$8" == "200" && "$9" == "--json" &&
+        "${10}" == "number,headRefName,headRefOid,mergedAt,url" && "${11}" == "--template" &&
+        "${12}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
+      return
+    fi
+    [[ $# -eq 14 && "$7" == "--head" && -n "$8" && "$8" != -* &&
+      ! "$8" =~ [[:cntrl:]] && "$9" == "--limit" && "${10}" == "100" &&
+      "${11}" == "--json" && "${12}" == "number,headRefName,headRefOid,mergedAt,url" &&
+      "${13}" == "--template" &&
+      "${14}" == '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' ]]
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+# GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
+# --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
+# escalates TERM to KILL after a finite grace period. The test switch can only shorten both bounds.
+GH_TIMEOUT_SECONDS=30
+GH_KILL_AFTER_SECONDS=5
+if [[ "${REPO_FLEET_TEST_FAST_TIMEOUTS:-}" == "1" ]]; then
+  GH_TIMEOUT_SECONDS=1
+  GH_KILL_AFTER_SECONDS=1
+fi
 GH_TIMEOUT_COMMAND=""
-if command -v timeout >/dev/null 2>&1; then
-  GH_TIMEOUT_COMMAND="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
-  GH_TIMEOUT_COMMAND="gtimeout"
+if [[ "${REPO_FLEET_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
+  for candidate in timeout gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+      "$candidate" --help 2>&1 | grep -Fq -- '--kill-after'; then
+      GH_TIMEOUT_COMMAND="$candidate"
+      break
+    fi
+  done
 fi
 
-run_bounded_gh() {
-  [[ -n "$GH_TIMEOUT_COMMAND" ]] || return 125
-  GH_PROMPT_DISABLED=1 GH_TELEMETRY=false GH_NO_UPDATE_NOTIFIER=1 \
-    "$GH_TIMEOUT_COMMAND" 30 gh "$@"
+run_with_bash_timeout() {
+  local child watchdog status
+  "$@" &
+  child=$!
+  (
+    sleep "$GH_TIMEOUT_SECONDS"
+    kill -TERM "$child" 2>/dev/null || exit 0
+    sleep "$GH_KILL_AFTER_SECONDS"
+    kill -KILL "$child" 2>/dev/null || true
+  ) &
+  watchdog=$!
+  wait "$child"
+  status=$?
+  kill -TERM "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  return "$status"
 }
+
+run_bounded_gh() {
+  if ! gh_probe_allowed "$@"; then
+    printf 'Rejected non-allowlisted gh probe\n' >&2
+    return 126
+  fi
+  (
+    unset GH_REPO GH_DEBUG DEBUG GH_FORCE_TTY GH_PAGER PAGER GH_EDITOR GIT_EDITOR VISUAL EDITOR \
+      GH_BROWSER BROWSER
+    export GH_HOST=github.com GH_PROMPT_DISABLED=1 GH_TELEMETRY=false GH_NO_UPDATE_NOTIFIER=1 \
+      GH_NO_EXTENSION_UPDATE_NOTIFIER=1 GH_SPINNER_DISABLED=1 NO_COLOR=1
+    if [[ -n "$GH_TIMEOUT_COMMAND" ]]; then
+      "$GH_TIMEOUT_COMMAND" --signal=TERM --kill-after="${GH_KILL_AFTER_SECONDS}s" \
+        "${GH_TIMEOUT_SECONDS}s" gh "$@"
+    else
+      run_with_bash_timeout gh "$@"
+    fi
+  )
+}
+
+# Tests source these fail-closed wrappers directly to exercise forbidden Git/gh vectors without
+# running discovery. Normal execution continues into the collector below.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
 
 command -v git >/dev/null 2>&1 || fail "git is required"
 
@@ -124,14 +282,14 @@ done
 if [[ -n "$CONFIG_FILE" ]]; then
   [[ -f "$CONFIG_FILE" ]] || fail "config file not found: $CONFIG_FILE"
   CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$CONFIG_FILE")"
-  git config --file "$CONFIG_FILE" --list >/dev/null 2>&1 || fail "invalid Git config: $CONFIG_FILE"
+  run_git_probe config --file "$CONFIG_FILE" --list >/dev/null 2>&1 || fail "invalid Git config: $CONFIG_FILE"
   CONFIG_DIR="$(dirname "$CONFIG_FILE")"
 else
   CONFIG_DIR=""
 fi
 
 if [[ -z "$MAX_DEPTH" && -n "$CONFIG_FILE" ]]; then
-  MAX_DEPTH="$(git config --file "$CONFIG_FILE" --get fleet.maxDepth 2>/dev/null || true)"
+  MAX_DEPTH="$(run_git_probe config --file "$CONFIG_FILE" --get fleet.maxDepth 2>/dev/null || true)"
 fi
 MAX_DEPTH="${MAX_DEPTH:-5}"
 [[ "$MAX_DEPTH" =~ ^[0-9]+$ && "$MAX_DEPTH" -ge 1 && "$MAX_DEPTH" -le 12 ]] ||
@@ -149,10 +307,10 @@ resolve_input_path() {
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     [[ -n "$value" ]] && ROOT_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(git config --file "$CONFIG_FILE" --null --get-all fleet.root 2>/dev/null || true)
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.root 2>/dev/null || true)
   while IFS= read -r -d '' value; do
     [[ -n "$value" ]] && REPO_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(git config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
 fi
 
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
@@ -174,9 +332,9 @@ TARGET_COMMON_KEYS=()
 add_target() {
   local candidate="$1" top common common_key existing
   [[ -d "$candidate" ]] || fail "repository directory not found: $candidate"
-  top="$(git -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" ||
+  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" ||
     fail "not a Git working tree: $candidate"
-  common="$(git -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
+  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
     fail "cannot resolve Git common directory: $candidate"
   common_key="$(path_key "$common")"
   for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
@@ -223,10 +381,10 @@ fi
 
 select_remote() {
   local repo="$1" remotes count
-  if git -C "$repo" remote get-url origin >/dev/null 2>&1; then
+  if run_git_probe -C "$repo" remote get-url origin >/dev/null 2>&1; then
     SELECTED_REMOTE="origin"
   else
-    remotes="$(git -C "$repo" remote 2>/dev/null | tr -d '\r')"
+    remotes="$(run_git_probe -C "$repo" remote 2>/dev/null | tr -d '\r')"
     count="$(printf '%s\n' "$remotes" | sed '/^$/d' | wc -l | tr -d ' ')"
     if [[ "$count" == "1" ]]; then
       SELECTED_REMOTE="$(printf '%s\n' "$remotes" | sed '/^$/d')"
@@ -235,7 +393,7 @@ select_remote() {
       return 1
     fi
   fi
-  SELECTED_URL="$(git -C "$repo" remote get-url "$SELECTED_REMOTE" 2>/dev/null | tr -d '\r')" || return 1
+  SELECTED_URL="$(run_git_probe -C "$repo" remote get-url "$SELECTED_REMOTE" 2>/dev/null | tr -d '\r')" || return 1
 }
 
 parse_github_url() {
@@ -273,7 +431,7 @@ lookup_override() {
     fi
   done
   if [[ -n "$CONFIG_FILE" ]]; then
-    configured="$(git config --file "$CONFIG_FILE" --get "canonical.$key.path" 2>/dev/null || true)"
+    configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.$key.path" 2>/dev/null || true)"
     if [[ -n "$configured" ]]; then
       OVERRIDE_VALUE="$(resolve_input_path "$configured" "$CONFIG_DIR")"
       return 0
@@ -289,7 +447,7 @@ github_identity() {
   GH_ID_DEFAULT=""
   GH_ID_REASON="GitHub CLI unavailable or unauthenticated"
   $GH_READY || return 1
-  if ! result="$(run_bounded_gh api "repos/$slug" --hostname github.com \
+  if ! result="$(run_bounded_gh api "repos/$slug" --hostname github.com --method GET \
     --template '{{printf "%s\t%s" .full_name .default_branch}}' 2>&1)"; then
     if [[ "$result" == *"HTTP 404"* ]]; then
       error="HTTP 404 (not found or inaccessible)"
@@ -340,9 +498,11 @@ analyze_repo() {
   local override_source="git-native" expected_actual="" expected_default="" expected_reason=""
   local canonical_actual="" canonical_reason="" github_repo="" default_branch="" current_branch=""
   local expected_common="" actual_common="" branch tip pr_match pr_any
-  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index is_main
+  local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
+  local ref_record branch_status=1 branch_inventory_valid=true
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
+  local -a BRANCH_NAMES=() BRANCH_TIPS=()
 
   select_remote "$discovered" && {
     discovered_remote="$SELECTED_REMOTE"
@@ -362,7 +522,7 @@ analyze_repo() {
         "override for $discovered_key is not a directory" "Stop for this repository" "Correct the override and rerun"
       return
     }
-    canonical="$(git -C "$OVERRIDE_VALUE" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
+    canonical="$(run_git_probe -C "$OVERRIDE_VALUE" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
       printf '\n'
       print_field Repo "$discovered"
       print_field Canonical unresolved
@@ -437,7 +597,7 @@ analyze_repo() {
     fi
   fi
 
-  expected_common="$(git -C "$canonical" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
+  expected_common="$(run_git_probe -C "$canonical" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
   [[ -n "$expected_common" ]] || {
     emit_finding UNKNOWN git-common-dir-unavailable "$canonical" "git could not resolve the canonical common directory" \
       "Stop for this repository" "Repair/replace the canonical override, then rerun"
@@ -466,7 +626,7 @@ analyze_repo() {
     *) ;;
     esac
   done < <(
-    git -C "$canonical" worktree list --porcelain -z 2>/dev/null
+    run_git_probe -C "$canonical" worktree list --porcelain -z -- 2>/dev/null
     printf '\0__repo_fleet_status__ %s\0' "$?"
   )
   if [[ "$worktree_status" != "0" ]]; then
@@ -506,10 +666,15 @@ analyze_repo() {
       fi
       continue
     fi
-    actual_common="$(git -C "$wt_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
-    if [[ -z "$actual_common" || "$(path_key "$actual_common")" != "$(path_key "$expected_common")" ]]; then
+    if ! actual_common="$(run_git_probe -C "$wt_path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
+      [[ -z "$actual_common" ]]; then
+      emit_finding UNKNOWN worktree-common-dir-unavailable "$wt_path${wt_branch:+ ($wt_branch)}" \
+        "git could not resolve the registered worktree common directory" \
+        "Do not infer an administrative mismatch" \
+        "Inspect the registered path and Git metadata, then rerun"
+    elif [[ "$(path_key "$actual_common")" != "$(path_key "$expected_common")" ]]; then
       emit_finding HIGH worktree-admin-mismatch "$wt_path${wt_branch:+ ($wt_branch)}" \
-        "expected common dir $expected_common; actual ${actual_common:-unresolvable}" \
+        "expected common dir $expected_common; actual $actual_common" \
         "Manual administrative-directory decision; never auto-repair/remove" \
         "Inspect both repositories; consider git worktree repair only after choosing the authority"
     fi
@@ -517,9 +682,52 @@ analyze_repo() {
 
   default_branch="$expected_default"
   if [[ -z "$default_branch" && -n "$canonical_remote" ]]; then
-    default_branch="$(git -C "$canonical" symbolic-ref "refs/remotes/$canonical_remote/HEAD" 2>/dev/null | sed "s|^refs/remotes/$canonical_remote/||" | tr -d '\r')"
+    default_branch="$(run_git_probe -C "$canonical" symbolic-ref "refs/remotes/$canonical_remote/HEAD" 2>/dev/null | sed "s|^refs/remotes/$canonical_remote/||" | tr -d '\r')"
   fi
-  current_branch="$(git -C "$canonical" branch --show-current 2>/dev/null | tr -d '\r')"
+  if ! current_branch="$(run_git_probe -C "$canonical" branch --show-current 2>/dev/null | tr -d '\r')"; then
+    emit_finding UNKNOWN current-branch-unavailable "$canonical" \
+      "git branch --show-current failed" \
+      "Stop local branch classification; the checked-out branch cannot be protected reliably" \
+      "Repair Git metadata or correct the canonical checkout, then rerun"
+    return
+  fi
+
+  # Git emits one LF after every custom for-each-ref format. Terminate each complete branch/tip
+  # record with an explicit NUL, strip only that Git-added record separator, and preserve the
+  # producer's exit status in a separate NUL field. Never classify partial output from a failed probe.
+  while IFS= read -r -d '' ref_record; do
+    while [[ "$ref_record" == $'\n'* || "$ref_record" == $'\r'* ]]; do
+      ref_record="${ref_record:1}"
+    done
+    [[ -n "$ref_record" ]] || continue
+    if [[ "$ref_record" == __repo_fleet_ref_status__\ * ]]; then
+      branch_status="${ref_record#__repo_fleet_ref_status__ }"
+      continue
+    fi
+    if [[ "$ref_record" != *$'\t'* ]]; then
+      branch_inventory_valid=false
+      continue
+    fi
+    branch="${ref_record%%$'\t'*}"
+    tip="${ref_record#*$'\t'}"
+    if [[ -z "$branch" || -z "$tip" || "$tip" == *$'\t'* ]]; then
+      branch_inventory_valid=false
+      continue
+    fi
+    BRANCH_NAMES+=("$branch")
+    BRANCH_TIPS+=("$tip")
+  done < <(
+    run_git_probe -C "$canonical" for-each-ref \
+      '--format=%(refname:short)%09%(objectname)%00' -- refs/heads/ 2>/dev/null
+    printf '\0__repo_fleet_ref_status__ %s\0' "$?"
+  )
+  if [[ "$branch_status" != "0" || "$branch_inventory_valid" != "true" ]]; then
+    emit_finding UNKNOWN branch-inventory-unavailable "$canonical" \
+      "git for-each-ref failed or returned a malformed branch/tip record" \
+      "Stop local branch classification for this repository" \
+      "Repair Git metadata or correct the canonical checkout, then rerun"
+    return
+  fi
 
   # One repository-scoped query avoids N network round trips while keeping same-named branches
   # isolated by --repo. A finite limit can cause a false negative, never a false merged claim.
@@ -535,8 +743,9 @@ analyze_repo() {
     fi
   fi
 
-  while IFS=$'\t' read -r branch tip; do
-    [[ -n "$branch" ]] || continue
+  for ((branch_index = 0; branch_index < ${#BRANCH_NAMES[@]}; branch_index++)); do
+    branch="${BRANCH_NAMES[$branch_index]}"
+    tip="${BRANCH_TIPS[$branch_index]}"
     attached=false
     is_main=false
     for ((wt_index = 0; wt_index < ${#WT_BRANCHES[@]}; wt_index++)); do
@@ -599,13 +808,21 @@ analyze_repo() {
       emit_finding MEDIUM merged-pr-tip-drift "$canonical :: $branch" \
         "GitHub PR #$pr_num MERGED at headRefOid $pr_oid, but current local tip is $tip" \
         "Manual review; not a cleanup candidate" "Inspect commits added after PR #$pr_num"
-    elif [[ "$protected" == "false" && "$attached" == "false" && -n "$canonical_remote" && -n "$default_branch" ]] &&
-      git -C "$canonical" merge-base --is-ancestor "$tip" "refs/remotes/$canonical_remote/$default_branch" 2>/dev/null; then
-      emit_finding LOW local-ancestry-only "$canonical :: $branch" \
-        "local tip is an ancestor of $canonical_remote/$default_branch; no matching GitHub merged-PR evidence" \
-        "Informational only" "Review in /repo-hygiene:clean git; do not infer PR merge"
+    elif [[ "$protected" == "false" && "$attached" == "false" && -n "$canonical_remote" && -n "$default_branch" ]]; then
+      run_git_probe -C "$canonical" merge-base --is-ancestor "$tip" \
+        "refs/remotes/$canonical_remote/$default_branch" 2>/dev/null
+      ancestry_status=$?
+      if [[ "$ancestry_status" == "0" ]]; then
+        emit_finding LOW local-ancestry-only "$canonical :: $branch" \
+          "local tip is an ancestor of $canonical_remote/$default_branch; no matching GitHub merged-PR evidence" \
+          "Informational only" "Review in /repo-hygiene:clean git; do not infer PR merge"
+      elif [[ "$ancestry_status" != "1" ]]; then
+        emit_finding UNKNOWN local-ancestry-unavailable "$canonical :: $branch" \
+          "git merge-base --is-ancestor failed with status $ancestry_status" \
+          "Do not infer local ancestry" "Repair Git metadata or restore missing objects, then rerun"
+      fi
     fi
-  done < <(git -C "$canonical" for-each-ref refs/heads/ --format='%(refname:short)%09%(objectname)' 2>/dev/null | tr -d '\r')
+  done
 
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
 }

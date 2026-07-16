@@ -18,5 +18,11 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   a failed attachment query from producing a cleanup candidate.
 - Control-safe report rendering: newline/ANSI-bearing paths are encoded as one field and cannot forge
   finding, confidence, or handoff lines.
+- Fail-closed Git/gh command allowlists, Git lazy-fetch/optional-lock suppression, and explicit GET-only
+  GitHub API access with non-interactive/update-free environment controls.
+- NUL-delimited branch inventory with producer-status capture; partial or failed ref enumeration is
+  discarded as `UNKNOWN` and does not increment the successful-repository count.
+- Bounded GitHub calls with a 30-second TERM deadline, five-second KILL escalation, compatible
+  coreutils detection, and a portable Bash watchdog fallback.
 - Confidence-tiered reports, exact non-destructive handoffs, setup/config documentation, contract
   tests, model evals, and a plugin-acceptance security review.

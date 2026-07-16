@@ -9,6 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
+  "$TMP/ref-fail" \
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/wt-a" "$TMP/wt-mismatch"
 : >"$TMP/calls.log"
@@ -16,6 +17,9 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 cat >"$MOCK_BIN/git" <<'EOF'
 #!/usr/bin/env bash
 set -u
+[[ "${GIT_NO_LAZY_FETCH:-}" == "1" && "${GIT_OPTIONAL_LOCKS:-}" == "0" &&
+  "${GIT_CONFIG_COUNT:-}" == "0" && "${GIT_TERMINAL_PROMPT:-}" == "0" ]] || exit 90
+[[ -z "${GIT_CONFIG_PARAMETERS+x}" && -z "${GIT_DIR+x}" && -z "${GIT_WORK_TREE+x}" ]] || exit 91
 printf 'git' >>"$CALL_LOG"
 printf ' %q' "$@" >>"$CALL_LOG"
 printf '\n' >>"$CALL_LOG"
@@ -41,6 +45,7 @@ rev-parse)
     bad-discovered) printf '%s\n' "$TEST_ROOT/bad-discovered" ;;
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
+    ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     *) exit 1 ;;
     esac
@@ -54,6 +59,7 @@ rev-parse)
     bad-discovered) printf '%s\n' "$TEST_ROOT/bad-discovered/.git" ;;
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical/.git" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
+    ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     *) exit 1 ;;
     esac
@@ -70,6 +76,7 @@ remote)
     bad-discovered) printf '%s\n' 'https://github.com/acme/bad.git' ;;
     bad-canonical) printf '%s\n' 'https://gitlab.com/other/unrelated.git' ;;
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
+    ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     *) exit 1 ;;
     esac
@@ -93,6 +100,9 @@ worktree)
     printf 'worktree %s\0HEAD old-main\0branch refs/heads/main\0\0' "$TEST_ROOT/old-repo"
     ;;
   wt-fail) exit 7 ;;
+  ref-fail)
+    printf 'worktree %s\0HEAD ref-main\0branch refs/heads/main\0\0' "$TEST_ROOT/ref-fail"
+    ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
@@ -104,20 +114,21 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
   case "$base" in
   canonical-a)
-    printf 'main\tmain-a\nfeature/shared\tsha-a\nstale/changed\tdrift-tip\nfeature/mismatch\tmismatch\n'
+    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\n'
     ;;
   repo-b)
-    printf 'main\tmain-b\nfeature/shared\tsha-b\n'
+    printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
     ;;
-  old-repo) printf 'main\told-main\n' ;;
-  wt-fail) printf 'main\twt-main\nfeature/fail\tfail-tip\n' ;;
-  root-repo) printf 'main\troot-main\n' ;;
+  old-repo) printf 'main\told-main\0\n' ;;
+  wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
+  ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
+  root-repo) printf 'main\troot-main\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -129,6 +140,10 @@ EOF
 cat >"$MOCK_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -u
+[[ "${GH_HOST:-}" == "github.com" && "${GH_PROMPT_DISABLED:-}" == "1" &&
+  "${GH_TELEMETRY:-}" == "false" && "${GH_NO_UPDATE_NOTIFIER:-}" == "1" &&
+  "${GH_NO_EXTENSION_UPDATE_NOTIFIER:-}" == "1" && "${GH_SPINNER_DISABLED:-}" == "1" ]] || exit 92
+[[ -z "${GH_REPO+x}" && -z "${GH_DEBUG+x}" ]] || exit 93
 printf 'gh' >>"$CALL_LOG"
 printf ' %q' "$@" >>"$CALL_LOG"
 printf '\n' >>"$CALL_LOG"
@@ -143,6 +158,7 @@ api)
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
+  repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
@@ -161,6 +177,7 @@ pr)
   github.com/acme/wt-fail)
     printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
     ;;
+  github.com/acme/ref-fail) ;;
   *) exit 1 ;;
   esac
   ;;
@@ -185,6 +202,7 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../old-repo
     repo = ../bad-discovered
     repo = ../wt-fail
+    repo = ../ref-fail
     maxDepth = 5
 [canonical "github.com/acme/repo-a"]
     path = ../canonical-a
@@ -193,7 +211,7 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
 EOF
 
 output="$TMP/output.txt"
-bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" >"$output"
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" >"$output"
 
 failures=0
 assert_contains() {
@@ -225,11 +243,14 @@ assert_contains "worktree common-dir mismatch" "Finding: worktree-admin-mismatch
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
 assert_contains "non-GitHub canonical override fails closed" "canonical override has a missing, ambiguous, credential-only, or non-github.com remote"
 assert_contains "worktree inventory failure is unknown" "Finding: worktree-inventory-unavailable"
+assert_contains "branch inventory failure is unknown" "Finding: branch-inventory-unavailable"
 assert_contains "control-bearing path was encoded" '\nFinding: forged\nConfidence: CRITICAL\nHandoff: injected-control'
 assert_contains "report remains non-mutating" "Mutation count: 0"
 assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/repo-b :: feature/shared"
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
+assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
+assert_contains "failed repositories not counted successful" "Summary: repositories=4"
 
 if grep -Fxq 'Handoff: injected-control' "$output" || LC_ALL=C grep -q $'\033' "$output"; then
   printf 'FAIL: control-bearing path injected report lines or terminal controls\n' >&2
@@ -238,12 +259,49 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
-if grep -E 'git .* (fetch|prune|repair|remove|branch -[dD]|remote set-url)|gh .* (delete|edit)' "$CALL_LOG" >/dev/null; then
-  printf 'FAIL: collector invoked a mutating command\n' >&2
-  cat "$CALL_LOG" >&2
+# Exercise the collector's own fail-closed command gate, rather than relying on a denylist that can
+# miss a new mutation spelling. None of these forbidden vectors may reach the fake executables.
+calls_before="$(wc -l <"$CALL_LOG")"
+# shellcheck source=audit-fleet.sh
+source "$SCRIPT"
+forbidden_rejected=true
+run_git_probe fetch origin >/dev/null 2>&1 && forbidden_rejected=false
+run_git_probe -c alias.remote='!touch /tmp/pwned' remote >/dev/null 2>&1 && forbidden_rejected=false
+run_git_probe -C "$TMP/repo-b" branch -D main >/dev/null 2>&1 && forbidden_rejected=false
+run_git_probe -C "$TMP/repo-b" remote set-url origin https://example.invalid >/dev/null 2>&1 &&
+  forbidden_rejected=false
+run_bounded_gh api repos/acme/repo-b --hostname github.com --method POST --template x >/dev/null 2>&1 &&
+  forbidden_rejected=false
+run_bounded_gh pr merge --repo github.com/acme/repo-b >/dev/null 2>&1 && forbidden_rejected=false
+run_bounded_gh alias set pr '!touch /tmp/pwned' >/dev/null 2>&1 && forbidden_rejected=false
+calls_after="$(wc -l <"$CALL_LOG")"
+if [[ "$forbidden_rejected" != "true" || "$calls_before" != "$calls_after" ]]; then
+  printf 'FAIL: exact command allowlist admitted a forbidden Git/gh vector\n' >&2
   failures=$((failures + 1))
 else
-  printf 'PASS: command log contains read-only operations only\n'
+  printf 'PASS: exact command allowlist rejected Git/gh mutation and config-injection vectors\n'
+fi
+
+# Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.
+HANG_BIN="$TMP/hang-bin"
+mkdir -p "$HANG_BIN"
+cat >"$HANG_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+trap '' TERM
+while :; do sleep 1; done
+EOF
+chmod +x "$HANG_BIN/gh"
+SECONDS=0
+if REPO_FLEET_FORCE_BASH_TIMEOUT=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  PATH="$HANG_BIN:$PATH" SCRIPT="$SCRIPT" bash -c \
+  'source "$SCRIPT"; run_bounded_gh auth status --hostname github.com' >/dev/null 2>&1; then
+  printf 'FAIL: TERM-ignoring gh unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+elif [[ "$SECONDS" -gt 4 ]]; then
+  printf 'FAIL: portable watchdog exceeded its finite TERM-to-KILL bound (%ss)\n' "$SECONDS" >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: portable watchdog killed a TERM-ignoring gh within the finite bound\n'
 fi
 
 if [[ "$failures" -ne 0 ]]; then
