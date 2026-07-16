@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Changed
+
+- Rewired OTEL retention to stop, poll, and start the provisioning-owned `otelcol-contrib`
+  Windows service. A failed stop or status query aborts before mutation; the prune lock remains
+  held through restart, and a failed restart is visible to the caller.
+
+### Removed
+
+- Removed the duplicate Collector configuration and the private/public `start-collector.sh`
+  process launchers. Machine provisioning is now the sole Collector lifecycle and configuration
+  owner.
+
 ## [0.7.0]
 
 ### Changed
