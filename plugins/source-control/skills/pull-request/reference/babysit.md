@@ -215,27 +215,46 @@ else
   CHECKOUT_MODE="full"
 fi
 
-# Branch freshness — rebase if behind the default branch (full mode only)
+# Branch freshness — preserve the branch's integration workflow (full mode only)
 if [ "$CHECKOUT_MODE" = "full" ]; then
   if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
-    echo "Branch $BRANCH is behind origin/$DEFAULT_BRANCH — rebasing"
-    if git rebase "origin/$DEFAULT_BRANCH"; then
-      REBASE_STATUS="rebased"
-      # Bare push — the branch's upstream was configured by `gh pr checkout`
-      # (fork PRs push to the HEAD repository, not the base repo's origin).
-      git push --force-with-lease
+    if git log --merges --format='%H' "origin/$DEFAULT_BRANCH..HEAD" | grep -q .; then
+      INTEGRATION_MODE="merge"
+      echo "Branch $BRANCH uses merge commits — merging origin/$DEFAULT_BRANCH"
+      git merge "origin/$DEFAULT_BRANCH"
+      INTEGRATION_EXIT=$?
+    else
+      INTEGRATION_MODE="rebase"
+      echo "Branch $BRANCH is behind origin/$DEFAULT_BRANCH — rebasing"
+      git rebase "origin/$DEFAULT_BRANCH"
+      INTEGRATION_EXIT=$?
+    fi
+
+    if [ "$INTEGRATION_EXIT" -eq 0 ]; then
+      REBASE_STATUS="integrated"
+      # A merge preserves existing commits and pushes normally. A rebase
+      # rewrites them and therefore needs a lease-protected force push.
+      if [ "$INTEGRATION_MODE" = "merge" ]; then
+        git push
+      else
+        git push --force-with-lease
+      fi
     else
       # Graduated conflict handling — attempt simple, abort complex.
-      # conflict-attempting is a TRANSIENT state: resolve it (rebase
-      # --continue) or abort BEFORE any further processing — never leave a
-      # rebase in progress (unmerged paths break later checkouts + parking).
+      # conflict-attempting is a TRANSIENT state: resolve it (merge/rebase
+      # --continue) or abort BEFORE any further processing — never leave an
+      # integration in progress (unmerged paths break later checkouts + parking).
       CONFLICT_COUNT=$(git diff --name-only --diff-filter=U | grep -c . || true)
       if [ "$CONFLICT_COUNT" -le 3 ]; then
         echo "Simple conflict ($CONFLICT_COUNT files) — attempting resolution"
         REBASE_STATUS="conflict-attempting"
       else
-        echo "Complex conflict ($CONFLICT_COUNT files) — aborting rebase"
-        git rebase --abort
+        echo "Complex conflict ($CONFLICT_COUNT files) — aborting $INTEGRATION_MODE"
+        if [ "$INTEGRATION_MODE" = "merge" ]; then
+          git merge --abort
+        else
+          git rebase --abort
+        fi
         REBASE_STATUS="conflict-aborted"
       fi
     fi
@@ -244,25 +263,26 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
   fi
 
   # conflict-attempting: resolve NOW — per file, take the mechanical
-  # resolution; if ANY file needs intent judgment, `git rebase --abort` and
-  # set REBASE_STATUS="conflict-aborted". On success: `git add <files>` +
-  # `git rebase --continue` + a bare `git push --force-with-lease` (upstream
-  # set by gh pr checkout), then REBASE_STATUS="rebased". Only terminal states pass this point.
+  # resolution; if ANY file needs intent judgment, abort the active merge or
+  # rebase and set REBASE_STATUS="conflict-aborted". On success: `git add
+  # <files>` + the matching `git merge --continue` / `git rebase --continue`,
+  # then plain `git push` for a merge or `git push --force-with-lease` for a
+  # rebase. Set REBASE_STATUS="integrated". Only terminal states pass this point.
 
   # Safe fallback: ONLY the terminal success states keep full mode. A
   # lingering conflict-attempting (resolution skipped) degrades to read-only
   # rather than granting write access mid-rebase.
-  if [ "$REBASE_STATUS" != "rebased" ] && [ "$REBASE_STATUS" != "current" ]; then
+  if [ "$REBASE_STATUS" != "integrated" ] && [ "$REBASE_STATUS" != "current" ]; then
     CHECKOUT_MODE="read-only"
   fi
 fi
 ```
 
-**Rebase conflict handling (graduated).** Check for merge commits first (`git log --merges origin/$DEFAULT_BRANCH..HEAD`) — a branch that previously merged the default branch integrates via `git merge origin/$DEFAULT_BRANCH`, not rebase. Then:
+**Integration conflict handling (graduated).** Check for merge commits first (`git log --merges origin/$DEFAULT_BRANCH..HEAD`) — a branch that previously merged the default branch integrates via `git merge origin/$DEFAULT_BRANCH` plus a plain push; other branches rebase and force-push with lease. Then:
 
-- **Zero conflicts** (`REBASE_STATUS=rebased`) — rebase succeeded, force-push with lease, continue normally
-- **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt resolution immediately; on success `git rebase --continue` + bare `git push --force-with-lease` → `rebased`; if ANY file requires intent judgment, `git rebase --abort` → `conflict-aborted`. Never proceed to comment processing, parking, or the next PR with a rebase in progress
-- **Complex conflicts** (>3 files, `REBASE_STATUS=conflict-aborted`) — abort the rebase, post a PR comment: `"⚠️ Branch is behind main with merge conflicts ({N} files). Manual rebase required before CI will trigger."`. If an interactive terminal, also surface to the user directly. Process comments read-only (classification + reply, no fixes — the code may be stale)
+- **Zero conflicts** (`REBASE_STATUS=integrated`) — merge or rebase succeeded, push with the mode-appropriate command, continue normally
+- **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt resolution immediately; on success continue the active merge/rebase and push with the mode-appropriate command → `integrated`; if ANY file requires intent judgment, abort the active integration → `conflict-aborted`. Never proceed to comment processing, parking, or the next PR with an integration in progress
+- **Complex conflicts** (>3 files, `REBASE_STATUS=conflict-aborted`) — abort the merge/rebase, post a PR comment: `"⚠️ Branch is behind main with integration conflicts ({N} files). Manual resolution is required before CI will trigger."`. If an interactive terminal, also surface to the user directly. Process comments read-only (classification + reply, no fixes — the code may be stale)
 - **Already current** (`REBASE_STATUS=current`) — no action needed
 
 **Why mandatory:** exploration and research read files from the working tree. Without checkout, findings are validated against the wrong code. Branch freshness prevents CI failures from stale code and ensures conflict detection happens proactively.
@@ -404,7 +424,7 @@ Every iteration MUST output a completed checklist with evidence per step. Free-f
 
 #### PR #<N> — <title> (<branch>)
 - [ ] **Branch:** checked out <branch> (mode: full/read-only)
-- [ ] **Branch freshness:** <current/rebased/conflict-aborted> — evidence: `git merge-base` output
+- [ ] **Branch freshness:** <current/integrated/conflict-aborted> — evidence: `git merge-base` output
 - [ ] **CI:** <pass/fail/pending> — evidence: `gh pr checks <N>` output
 - [ ] **Comments fetched:** <N> total from all 3 API surfaces (<M> self-replies filtered)
 - [ ] **Findings extracted:** <M> individual findings from <K> comments

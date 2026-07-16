@@ -106,17 +106,18 @@ if [[ -n "$ISSUE_NUM" ]]; then
   # GitHub auto-close only fires when the issue exists, lives in this repo,
   # and is open at merge time. A typo'd branch like
   # `feat/99999-foo` would otherwise ship a misleading `Closes #99999` line.
-  if gh issue view "$ISSUE_NUM" --json state,number >/dev/null 2>&1; then
+  ISSUE_STATE=$(gh issue view "$ISSUE_NUM" --json state --jq '.state' 2>/dev/null || true)
+  if [[ "$ISSUE_STATE" == "OPEN" ]]; then
     CLOSES_LINE="Closes #${ISSUE_NUM}"
   else
-    echo "⚠ Branch suggests Closes #${ISSUE_NUM} but no such issue in this repo. Falling back to interactive prompt." >&2
+    echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
     ISSUE_NUM=""   # fall through to orphan-PR 3-option prompt below
   fi
 fi
 # If still empty, the orphan-PR prompt populates CLOSES_LINE below.
 ```
 
-**Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When `gh issue view` confirms issue exists, `${CLOSES_LINE}` becomes `Closes #N`. If issue doesn't exist (typo / wrong repo / closed-and-deleted), flow falls through to orphan-PR prompt — never ship an unverified keyword.
+**Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When `gh issue view` confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt — never ship a stale or unverified keyword.
 
 **Multi-issue PR (same branch closes 2+ issues):** after primary line is set, ask user inline:
 

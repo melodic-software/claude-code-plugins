@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (interview the repo and write the tracked commit-subject / PR-title convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
