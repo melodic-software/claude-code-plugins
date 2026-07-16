@@ -81,7 +81,7 @@ remote)
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
-    discovered-c | canonical-c) printf '%s\n' 'https://github.com/Acme/Repo-C.git' ;;
+    discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     *) exit 1 ;;
     esac
   else

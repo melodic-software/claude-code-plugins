@@ -66,6 +66,11 @@ git_probe_allowed() {
       [[ "$6" == "fleet.root" || "$6" == "fleet.repo" ]]
       return
     fi
+    if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
+      # Fixed literal pattern only -- not an arbitrary caller-supplied regex.
+      [[ "$6" == '^canonical\.[^[:cntrl:]]+\.path$' ]]
+      return
+    fi
     return 1
     ;;
   -C)
@@ -422,7 +427,7 @@ parse_github_url() {
 }
 
 lookup_override() {
-  local key="$1" slug="$2" i configured
+  local key="$1" i configured entry name value
   OVERRIDE_VALUE=""
   for ((i = 0; i < ${#OVERRIDE_KEYS[@]}; i++)); do
     if [[ "${OVERRIDE_KEYS[$i]}" == "$key" ]]; then
@@ -432,11 +437,24 @@ lookup_override() {
   done
   if [[ -n "$CONFIG_FILE" ]]; then
     configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.$key.path" 2>/dev/null || true)"
-    if [[ -z "$configured" && -n "$slug" ]]; then
+    if [[ -z "$configured" ]]; then
       # git config subsection names are case-sensitive, so a config section
       # written with GitHub's display casing (the setup skill allows
-      # case-preserving owner/name) never matches the lowercase key above.
-      configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.github.com/$slug.path" 2>/dev/null || true)"
+      # case-preserving owner/name) never matches the lowercase key above --
+      # regardless of what casing the discovered remote itself happens to
+      # use, which need not match the config's casing either. Scan every
+      # canonical.*.path entry and compare case-insensitively.
+      while IFS= read -r -d '' entry; do
+        name="${entry%%$'\n'*}"
+        value="${entry#*$'\n'}"
+        name="${name#canonical.}"
+        name="${name%.path}"
+        if [[ "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')" == "$key" ]]; then
+          configured="$value"
+          break
+        fi
+      done < <(run_git_probe config --file "$CONFIG_FILE" --get-regexp -z \
+        '^canonical\.[^[:cntrl:]]+\.path$' 2>/dev/null || true)
     fi
     if [[ -n "$configured" ]]; then
       OVERRIDE_VALUE="$(resolve_input_path "$configured" "$CONFIG_DIR")"
@@ -519,7 +537,7 @@ analyze_repo() {
     fi
   }
 
-  if [[ -n "$discovered_key" ]] && lookup_override "$discovered_key" "$discovered_slug"; then
+  if [[ -n "$discovered_key" ]] && lookup_override "$discovered_key"; then
     [[ -d "$OVERRIDE_VALUE" ]] || {
       printf '\n'
       print_field Repo "$discovered"
