@@ -99,8 +99,9 @@ git_probe_allowed() {
       [[ $# -eq 4 && "$4" == "--show-current" ]]
       ;;
     for-each-ref)
-      [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" &&
-        "$5" == "--" && "$6" == "refs/heads/" ]]
+      [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$5" == "--" ]] || return 1
+      [[ "$6" == "refs/heads/" ]] && return 0
+      [[ "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
       ;;
     merge-base)
       ref="${6:-}"
@@ -524,9 +525,10 @@ analyze_repo() {
   local expected_common="" actual_common="" branch tip pr_match pr_any
   local pr_num pr_branch pr_oid pr_merged pr_url attached wt_index branch_index is_main ancestry_status
   local ref_record branch_status=1 branch_inventory_valid=true
+  local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
-  local -a BRANCH_NAMES=() BRANCH_TIPS=()
+  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=()
 
   select_remote "$discovered" && {
     discovered_remote="$SELECTED_REMOTE"
@@ -753,6 +755,43 @@ analyze_repo() {
     return
   fi
 
+  # Every local branch name is a candidate for the exact per-branch GitHub query below, but only
+  # a branch already represented on the remote may actually be sent there -- this repo's security
+  # posture (security-review.md) promises GitHub sees only identifiers the remote already carries.
+  # Enumerate remote-tracking branches purely locally (no network) so that promise holds even for
+  # a branch that only ever existed on this machine.
+  if [[ -n "$canonical_remote" ]]; then
+    while IFS= read -r -d '' remote_ref_record; do
+      while [[ "$remote_ref_record" == $'\n'* || "$remote_ref_record" == $'\r'* ]]; do
+        remote_ref_record="${remote_ref_record:1}"
+      done
+      [[ -n "$remote_ref_record" ]] || continue
+      if [[ "$remote_ref_record" == __repo_fleet_ref_status__\ * ]]; then
+        remote_branch_status="${remote_ref_record#__repo_fleet_ref_status__ }"
+        continue
+      fi
+      [[ "$remote_ref_record" == *$'\t'* ]] || continue
+      remote_branch_short="${remote_ref_record%%$'\t'*}"
+      # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
+      # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
+      # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
+      if [[ "$remote_branch_short" == "$canonical_remote/"* ]]; then
+        remote_branch_short="${remote_branch_short#"$canonical_remote"/}"
+        [[ -n "$remote_branch_short" ]] && REMOTE_BRANCH_NAMES+=("$remote_branch_short")
+      fi
+    done < <(
+      run_git_probe -C "$canonical" for-each-ref \
+        '--format=%(refname:short)%09%(objectname)%00' -- "refs/remotes/$canonical_remote/" 2>/dev/null
+      printf '\0__repo_fleet_ref_status__ %s\0' "$?"
+    )
+    if [[ "$remote_branch_status" != "0" ]]; then
+      emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
+        "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
+        "Exact per-branch GitHub lookups are skipped for every branch in this repository" \
+        "Repair Git metadata or correct the canonical checkout, then rerun"
+    fi
+  fi
+
   # One repository-scoped query avoids N network round trips while keeping same-named branches
   # isolated by --repo. A finite limit can cause a false negative, never a false merged claim.
   if [[ -n "$github_repo" && "$GH_READY" == "true" ]]; then
@@ -795,22 +834,30 @@ analyze_repo() {
       done <<<"$repo_pr_rows"
       # The batch is an optimization, not an evidence boundary. An exact repository+head fallback
       # prevents an older local branch from becoming a false negative outside the recent-PR window.
+      # Only send a branch name GitHub can already see: --head transmits it verbatim to github.com,
+      # so a purely local branch (never pushed) must never reach this query at all.
       if [[ -z "$pr_match" ]]; then
-        if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit 100 \
-          --json number,headRefName,headRefOid,mergedAt,url \
-          --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)"; then
-          while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
-            [[ -n "$pr_num" && "$pr_branch" == "$branch" ]] || continue
-            [[ -z "$pr_any" ]] && pr_any="$pr_num|$pr_oid|$pr_merged|$pr_url"
-            if [[ "$pr_oid" == "$tip" ]]; then
-              pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
-              break
-            fi
-          done <<<"$exact_pr_rows"
-        else
-          emit_finding UNKNOWN github-pr-evidence-unavailable "$canonical :: $branch" \
-            "exact repository-and-head merged-PR query failed" "Do not infer branch merge state" \
-            "Restore GitHub access/authentication and rerun"
+        remote_branch_known=false
+        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]}"; do
+          [[ "$remote_branch_short" == "$branch" ]] && { remote_branch_known=true; break; }
+        done
+        if [[ "$remote_branch_known" == "true" ]]; then
+          if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit 100 \
+            --json number,headRefName,headRefOid,mergedAt,url \
+            --template '{{range .}}{{printf "%v\t%s\t%s\t%s\t%s\n" .number .headRefName .headRefOid .mergedAt .url}}{{end}}' 2>/dev/null)"; then
+            while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
+              [[ -n "$pr_num" && "$pr_branch" == "$branch" ]] || continue
+              [[ -z "$pr_any" ]] && pr_any="$pr_num|$pr_oid|$pr_merged|$pr_url"
+              if [[ "$pr_oid" == "$tip" ]]; then
+                pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
+                break
+              fi
+            done <<<"$exact_pr_rows"
+          else
+            emit_finding UNKNOWN github-pr-evidence-unavailable "$canonical :: $branch" \
+              "exact repository-and-head merged-PR query failed" "Do not infer branch merge state" \
+              "Restore GitHub access/authentication and rerun"
+          fi
         fi
       fi
     fi

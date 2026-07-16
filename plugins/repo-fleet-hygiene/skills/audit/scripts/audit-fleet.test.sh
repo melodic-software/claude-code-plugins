@@ -125,6 +125,16 @@ branch)
   esac
   ;;
 for-each-ref)
+  # refs/remotes/<remote>/ scans (case-branch below) prove a local-only branch never becomes a
+  # --head argument to gh: canonical-a's remote mirror deliberately omits feature/mismatch.
+  if [[ "${3:-}" == refs/remotes/*/ ]]; then
+    case "$base" in
+    canonical-a)
+      printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
+      ;;
+    esac
+    exit 0
+  fi
   case "$base" in
   canonical-a)
     printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\n'
@@ -264,6 +274,19 @@ assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
 assert_contains "failed repositories not counted successful" "Summary: repositories=5"
+
+if grep -Fq -- '--head feature/mismatch' "$CALL_LOG"; then
+  printf 'FAIL: local-only branch name was sent to GitHub via --head\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: local-only branch name never sent to GitHub\n'
+fi
+if grep -Fq -- '--head stale/changed' "$CALL_LOG"; then
+  printf 'PASS: remote-known branch still queried via exact-fallback\n'
+else
+  printf 'FAIL: remote-known branch was not queried via exact-fallback\n' >&2
+  failures=$((failures + 1))
+fi
 
 if grep -Fxq 'Handoff: injected-control' "$output" || LC_ALL=C grep -q $'\033' "$output"; then
   printf 'FAIL: control-bearing path injected report lines or terminal controls\n' >&2
