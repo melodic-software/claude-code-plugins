@@ -62,7 +62,7 @@ procedure before choosing plugin and skill directories:
 5. **Prove trigger continuity.** Build a migration table mapping every old trigger phrase to one
    successor skill's quoted `Use when:` phrase. Add explicit negative routing boundaries where sibling
    intent could overlap. Run `/skill-quality:check` with `CHECK_SKILL_BASE_REF` for every same-path
-   rewrite or rename; check 3 fails when a quoted trigger disappears. A split creates new paths, so
+   rewrite; check 3 fails when a quoted trigger disappears. A rename or split creates new paths, so
    the checker deliberately skips them — the cross-skill migration table and focused routing evals
    are the required evidence that the union of successor descriptions still covers the source.
 6. **Update callers and exercise routing.** Rewrite slash references for the new namespaced leaves,
