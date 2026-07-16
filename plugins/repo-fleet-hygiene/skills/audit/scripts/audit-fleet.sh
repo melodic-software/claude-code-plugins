@@ -422,7 +422,7 @@ parse_github_url() {
 }
 
 lookup_override() {
-  local key="$1" i configured
+  local key="$1" slug="$2" i configured
   OVERRIDE_VALUE=""
   for ((i = 0; i < ${#OVERRIDE_KEYS[@]}; i++)); do
     if [[ "${OVERRIDE_KEYS[$i]}" == "$key" ]]; then
@@ -432,6 +432,12 @@ lookup_override() {
   done
   if [[ -n "$CONFIG_FILE" ]]; then
     configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.$key.path" 2>/dev/null || true)"
+    if [[ -z "$configured" && -n "$slug" ]]; then
+      # git config subsection names are case-sensitive, so a config section
+      # written with GitHub's display casing (the setup skill allows
+      # case-preserving owner/name) never matches the lowercase key above.
+      configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.github.com/$slug.path" 2>/dev/null || true)"
+    fi
     if [[ -n "$configured" ]]; then
       OVERRIDE_VALUE="$(resolve_input_path "$configured" "$CONFIG_DIR")"
       return 0
@@ -513,7 +519,7 @@ analyze_repo() {
     fi
   }
 
-  if [[ -n "$discovered_key" ]] && lookup_override "$discovered_key"; then
+  if [[ -n "$discovered_key" ]] && lookup_override "$discovered_key" "$discovered_slug"; then
     [[ -d "$OVERRIDE_VALUE" ]] || {
       printf '\n'
       print_field Repo "$discovered"

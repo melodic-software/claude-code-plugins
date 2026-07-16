@@ -11,7 +11,8 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
   "$TMP/ref-fail" \
   "$TMP/root/acme/root-repo/.git" \
-  "$TMP/wt-a" "$TMP/wt-mismatch"
+  "$TMP/wt-a" "$TMP/wt-mismatch" \
+  "$TMP/discovered-c" "$TMP/canonical-c"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -47,6 +48,7 @@ rev-parse)
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
+    discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -61,6 +63,7 @@ rev-parse)
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
+    discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -78,6 +81,7 @@ remote)
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
+    discovered-c | canonical-c) printf '%s\n' 'https://github.com/Acme/Repo-C.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -106,6 +110,9 @@ worktree)
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
+  canonical-c)
+    printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
+    ;;
   esac
   ;;
 symbolic-ref)
@@ -114,7 +121,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | canonical-c) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -129,6 +136,7 @@ for-each-ref)
   wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
   root-repo) printf 'main\troot-main\0\n' ;;
+  canonical-c) printf 'main\tmain-c\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -160,6 +168,7 @@ api)
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
+  repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
   ;;
@@ -173,7 +182,7 @@ pr)
     printf '18\tfeature/shared\tsha-a\t2026-07-01T00:00:00Z\thttps://github.com/acme/repo-a/pull/18\n'
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
     ;;
-  github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo) ;;
+  github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
   github.com/acme/wt-fail)
     printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
     ;;
@@ -203,11 +212,14 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../bad-discovered
     repo = ../wt-fail
     repo = ../ref-fail
+    repo = ../discovered-c
     maxDepth = 5
 [canonical "github.com/acme/repo-a"]
     path = ../canonical-a
 [canonical "github.com/acme/bad"]
     path = ../bad-canonical
+[canonical "github.com/Acme/Repo-C"]
+    path = ../canonical-c
 EOF
 
 output="$TMP/output.txt"
@@ -235,6 +247,7 @@ assert_not_contains() {
 }
 
 assert_contains "canonical override used" "Canonical: $TMP/canonical-a"
+assert_contains "mixed-case canonical config section honored" "Canonical: $TMP/canonical-c"
 assert_contains "bounded root discovery used" "Repo: $TMP/root/acme/root-repo"
 assert_contains "same-name branch scoped to repo A" "Target: $TMP/canonical-a :: feature/shared"
 assert_contains "merged worktree evidence" "Finding: merged-worktree"
@@ -250,7 +263,7 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=4"
+assert_contains "failed repositories not counted successful" "Summary: repositories=5"
 
 if grep -Fxq 'Handoff: injected-control' "$output" || LC_ALL=C grep -q $'\033' "$output"; then
   printf 'FAIL: control-bearing path injected report lines or terminal controls\n' >&2
