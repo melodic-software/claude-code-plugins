@@ -49,7 +49,7 @@
       "propertyNames": { "$ref": "#/$defs/reusableWorkflowReference" },
       "additionalProperties": { "$ref": "#/$defs/reusableWorkflowContract" }
     },
-    "canonicalSelectorInputs": { "$ref": "#/$defs/nonEmptyStringMap" },
+    "canonicalSelectorInputs": { "$ref": "#/$defs/canonicalSelectorInputMap" },
     "optionalCanonicalSelectorInputs": { "$ref": "#/$defs/stringMap" },
     "canonicalSelectorSecrets": { "$ref": "#/$defs/nonEmptyStringMap" },
     "approvedHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
@@ -116,6 +116,17 @@
       "minProperties": 1,
       "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
       "additionalProperties": { "$ref": "#/$defs/nonWhitespaceString" }
+    },
+    "canonicalSelectorInputMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/nonWhitespaceString" },
+          { "$ref": "#/$defs/nonEmptyUniqueStringArray" }
+        ]
+      }
     },
     "uniqueStringArray": {
       "type": "array",
