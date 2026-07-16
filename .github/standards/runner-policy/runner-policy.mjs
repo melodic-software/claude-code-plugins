@@ -182,6 +182,24 @@ function validatePolicy(value) {
           );
         }
       }
+      if (
+        Object.hasOwn(contract, "allowedCallerPermissions") &&
+        !Object.values(contract.allowedCallerPermissions).includes("write")
+      ) {
+        throw new ConfigurationError(
+          `reusable workflow contract ${reference}.allowedCallerPermissions must include at least one write permission`,
+        );
+      }
+      if (Object.hasOwn(contract, "allowedCallerPermissions")) {
+        for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
+          const expected = `\${{ secrets.${name} }}`;
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) || expression !== expected) {
+            throw new ConfigurationError(
+              `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly ${JSON.stringify(expected)} when allowedCallerPermissions is present`,
+            );
+          }
+        }
+      }
     } else {
       const unknownLabel = contract.fixedRunsOn.find(
         (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
@@ -201,6 +219,14 @@ function validatePolicy(value) {
       allowedInputs: new Set(contract.allowedInputs),
       allowedSecrets: contract.allowedSecrets,
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
+      ...(contract.allowedCallerPermissions
+        ? {
+            allowedCallerPermissions: Object.freeze({
+              ...contract.allowedCallerPermissions,
+            }),
+            allowedCallerPermissionNames: new Set(Object.keys(contract.allowedCallerPermissions)),
+          }
+        : {}),
       ...(contract.fixedRunsOn ? { fixedRunsOn: new Set(contract.fixedRunsOn) } : {}),
     });
   }
@@ -812,7 +838,7 @@ function selectorStatus(job, policy) {
   return { approved: true, isSelector: true };
 }
 
-function reusableWorkflowStatus(job, policy) {
+function reusableWorkflowStatus(job, policy, workflow) {
   if (typeof job?.uses !== "string") {
     return { isReusable: false, approved: false };
   }
@@ -867,6 +893,18 @@ function reusableWorkflowStatus(job, policy) {
       approved: false,
       reason: `the reviewed reusable workflow must receive its ${contract.runnerInput} input explicitly`,
     };
+  }
+  if (contract.allowedCallerPermissions) {
+    const permissionError = exactCanonicalMap(
+      effectivePermissions(workflow, job),
+      contract.allowedCallerPermissions,
+      {},
+      contract.allowedCallerPermissionNames,
+      "reusable workflow caller permissions",
+    );
+    if (permissionError) {
+      return { isReusable: true, approved: false, reason: permissionError };
+    }
   }
   return { isReusable: true, approved: true, contract };
 }
@@ -1240,7 +1278,7 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
   if (local.approved && local.routing === "internal-routing") {
     return { approved: true, kind: "transparent-local-reusable" };
   }
-  const reusable = reusableWorkflowStatus(job, policy);
+  const reusable = reusableWorkflowStatus(job, policy, workflow);
   if (!local.approved && reusable.isReusable && !reusable.approved) {
     return { approved: false, kind: "invalid", reason: reusable.reason };
   }
@@ -1674,11 +1712,17 @@ function credentialAction(job, policy) {
 }
 
 function privilegedHostedRequirement(workflow, job, selector, target, policy, localCall) {
-  const permissionRequirement = localCall?.approved
-    ? undefined
-    : permissionHostedRequirement(workflow, job, {
-        requireExplicitReadOnly: target?.kind === "selector-output",
-      });
+  const reusable = reusableWorkflowStatus(job, policy, workflow);
+  const reviewedCallerPermissions =
+    target?.kind === "selector-output" &&
+    reusable.approved &&
+    reusable.contract.allowedCallerPermissions !== undefined;
+  const permissionRequirement =
+    localCall?.approved || reviewedCallerPermissions
+      ? undefined
+      : permissionHostedRequirement(workflow, job, {
+          requireExplicitReadOnly: target?.kind === "selector-output",
+        });
   if (permissionRequirement) {
     return permissionRequirement;
   }
@@ -1699,7 +1743,10 @@ function privilegedHostedRequirement(workflow, job, selector, target, policy, lo
     };
   }
 
-  const credentialRequirement = localCredentialRequirement(workflow, job);
+  const credentialJob = reviewedCallerPermissions
+    ? Object.fromEntries(Object.entries(job).filter(([name]) => name !== "secrets"))
+    : job;
+  const credentialRequirement = localCredentialRequirement(workflow, credentialJob);
   if (credentialRequirement) {
     return {
       reason: "privileged-control-plane",
