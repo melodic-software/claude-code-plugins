@@ -221,7 +221,7 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
     if git log --merges --format='%H' "origin/$DEFAULT_BRANCH..HEAD" | grep -q .; then
       INTEGRATION_MODE="merge"
       echo "Branch $BRANCH uses merge commits — merging origin/$DEFAULT_BRANCH"
-      git merge "origin/$DEFAULT_BRANCH"
+      git merge --no-edit "origin/$DEFAULT_BRANCH"
       INTEGRATION_EXIT=$?
     else
       INTEGRATION_MODE="rebase"
