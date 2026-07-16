@@ -44,7 +44,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 - [`eol-normalizer`](plugins/eol-normalizer) — Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
 - [`powershell-format`](plugins/powershell-format) — Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo — using the consuming repo's own analyzer settings.
 - [`actionlint`](plugins/actionlint) — Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.
-- [`source-control`](plugins/source-control) — Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), /worktree (create, status, cleanup, audit for parallel-session isolation), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort).
+- [`source-control`](plugins/source-control) — Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (interview the repo and write the tracked commit-subject / PR-title convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.
 - [`implementation`](plugins/implementation) — Disciplined implementation stage: execute approved plans inline (`/implementation:implement`) or via orchestrated worker subagents (`/implementation:implement-dispatch`) with incremental validation, TDD-by-default cadence, green-checkpoint commits, scope-fence drift detection, and divergence detection that routes back to planning. Build/test/lint, testing, and outcome verification live in the companion `toolchain`, `testing`, and `verification` plugins, invoked when installed.
 - [`toolchain`](plugins/toolchain) — Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, YAML, and cross-cutting surfaces (`/toolchain:build`, `/toolchain:lint`), plus a re-runnable `/toolchain:setup` that writes the tracked per-ecosystem command config those skills resolve first.
 
@@ -83,7 +83,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Six safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, and (advisory) un-throttled Workflow fan-out that risks burst 529s — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
@@ -120,9 +120,7 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `plugins/` — one directory per plugin.
 - `docs/MIGRATION-PLAYBOOK.md` — design charter, extensibility model, the per-plugin migration gate, and the local development loop.
 - `docs/extensibility-contract-smoke-tests.md` — verified behavior for gaps the official docs leave open.
-- `docs/extensibility-contract-grading.md` — point-in-time grade of every shipped plugin against the contract.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
-- `docs/evals-coverage.md` — point-in-time skill-eval coverage snapshot: which skills warrant evals, which are owed backfill, and the explicit skips.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
 - `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).

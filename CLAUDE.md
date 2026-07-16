@@ -54,3 +54,9 @@ The durable design rules live in [`docs/PLUGIN-PHILOSOPHY.md`](docs/PLUGIN-PHILO
 extensibility model, plugin-form caveats, per-plugin migration gate, and plugin-acceptance security
 review live in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow both for every
 migration.
+
+## Branching & PRs
+
+PRs required; squash merge; branch `<type>/<description>`. PR title follows Conventional Commits,
+enforced here by `.github/workflows/pr-title.yml` (squash merge sets the commit subject to the PR
+title). Org convention home: `melodic-software/standards` `conventions/`.
