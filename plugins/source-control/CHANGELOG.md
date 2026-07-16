@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.0]
+## [0.5.0]
 
 ### Added
 
@@ -21,6 +21,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fixes. Scoped to this commit's paths, not the full index, so it never mutates or blocks on staged
   work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
   skips silently when none is discoverable.
+
+## [0.4.0]
+
+### Added
+
+- `/source-control:setup` skill: interviews the repo and writes the tracked
+  `.claude/source-control.md` commit-subject / PR-title convention config —
+  inferring first from the repo's own `CLAUDE.md`/rules, commit-msg hook, or
+  git log history before asking. Offers Conventional Commits (11-type
+  vocabulary) as the recommended default, or a custom pattern for orgs that
+  don't use Conventional Commits. Re-runnable to reconfigure. Ships evals.
 
 ## [0.3.1]
 

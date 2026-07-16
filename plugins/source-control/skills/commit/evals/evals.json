@@ -76,6 +76,18 @@
         "The other session's staged paths outside the given pathspec are left staged and untouched",
         "After the commit, the deletion is recorded in the commit and the file is still present on disk as untracked (git rm --cached's 'stop tracking, keep locally' intent is preserved)"
       ]
+    },
+    {
+      "id": 7,
+      "name": "trailer-policy-none-honored-in-pathspec-form",
+      "prompt": "The index already has other unrelated staged files from another session. Commit only src/api/me.js with the null-user fix, scoped by pathspec.",
+      "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-Authored-By trailer is appended.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "The skill uses the pathspec-limited commit form (git commit ... -- <path>) since the index has unrelated staged files",
+        "trailer_policy: none from .claude/source-control.md is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
+        "No Co-Authored-By trailer appears in the resulting commit"
+      ]
     }
   ]
 }

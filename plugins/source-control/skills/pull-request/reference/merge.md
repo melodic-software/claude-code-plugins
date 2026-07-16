@@ -40,7 +40,7 @@ Default merge mode is squash — one squashed commit per PR onto the default bra
 gh pr merge <pr_number> --squash --delete-branch
 ```
 
-**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title (conventional commits format) becomes the squash commit message.
+**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title — shaped to satisfy the resolved subject/title convention, see pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default) — becomes the squash commit message.
 
 ## 4.3 Worktree transition and next-task setup
 

@@ -1,6 +1,6 @@
 ---
 name: commit
-description: "Create a git commit with a Conventional Commits subject, a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
+description: "Create a git commit with a subject matching the resolved convention (`.claude/source-control.md` → project convention → Conventional Commits default), a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
 ---
@@ -20,7 +20,11 @@ Encapsulates the canonical mechanic for building a commit message that honors a 
 - **`git commit -m "<multi-line>"`** flattens newlines unpredictably across shells.
 - **`git add -A` / `git add .`** stages secrets, build artifacts, unrelated edits — the convention is surgical staging.
 
-The default subject convention (WHAT shape a subject must take) is **Conventional Commits (11-type vocabulary)**. Every subject must match this anchored pattern:
+The subject convention (WHAT shape a subject must take) resolves via a ladder, checked in order:
+
+1. **`${CLAUDE_PROJECT_DIR}/.claude/source-control.md`** (fall back to `$(git rev-parse --show-toplevel)/.claude/source-control.md` if that variable is unset) — always resolve this path from the repo root, never from the current working directory. Invoked from a nested directory, a cwd-relative `.claude/source-control.md` read looks for `<subdir>/.claude/source-control.md`, misses the repo-root config `/source-control:setup` writes, and silently falls through to a lower rung of this ladder. If the consuming repo has this tracked config (written by `/source-control:setup`), its declared `subject_pattern` (and `type_list`, when Conventional-Commits-shaped) is authoritative. Before pre-checking, expand `subject_pattern`: the literal keyword `Conventional Commits` expands to the anchored pattern in step 3 below; anything else is already an anchored regex (or any-of list) and is used as-is. Likewise expand `pr_title_pattern` when it reads `Same as subject_pattern` — resolve it to the same expanded value.
+2. **The consuming project's own `CLAUDE.md`, `AGENTS.md`, rules, or commit-msg hook** — if no config file exists but the project declares (or enforces via lefthook, husky, commitlint, or a plain `.git/hooks/`) a different convention, follow that instead. (Existing behavior — unchanged.)
+3. **Conventional Commits (11-type vocabulary)** — the default when neither of the above is present. Every subject must match this anchored pattern:
 
 ```text
 ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+
@@ -33,7 +37,9 @@ Compliant examples:
 - `docs: clarify rebase guidance`
 - `refactor(skills)!: rename /simplify to /code-review`
 
-**Consumer convention wins.** If the consuming project's own `CLAUDE.md`, rules, or commit-msg hook declare a different message convention, follow that instead — this skill's pattern is the default, not an override. When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate; this skill's pre-check exists to fast-fail client-side before the hook round-trip.
+The 11 types — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test` — come from the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional` source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact set. `security` is **not** a Conventional Commits type in any of them — never add it.
+
+When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail client-side before the hook round-trip. When no config exists and nothing is inferable from the project's own files, point the user at `/source-control:setup` to persist a convention instead of re-inferring one every commit.
 
 ## Task
 
@@ -47,7 +53,7 @@ Compliant examples:
 4. Run the exec-bit check below on any newly-added file — **after** step 3, not before: a formatter re-stage in step 3 reads the worktree file mode, so setting the exec bit any earlier would be silently undone by that later `git add`.
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject convention (default: the Conventional Commits pattern above).
 6. Pre-check the subject against the pattern (fast-fail before invoking git).
-7. Invoke `git commit -F -` via the Bash tool, heredoc-piped, with `--trailer` for `Co-Authored-By` per the trailer template below.
+7. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` for `Co-Authored-By` per the trailer template below only when the resolved `trailer_policy` calls for one (default: yes; skip or substitute per an explicit `.claude/source-control.md` `trailer_policy` of `none` or a different trailer).
 8. Surface the resulting commit SHA + subject to the user.
 
 ## Canonical bash form
@@ -55,6 +61,9 @@ Compliant examples:
 Use the **Bash tool**, not the PowerShell tool. Bash heredoc is the canonical form across all platforms (Git Bash, Linux, macOS).
 
 ```bash
+# --trailer line below applies only when the resolved trailer_policy calls for one
+# (default: yes). trailer_policy "none" -> drop the --trailer line entirely.
+# trailer_policy naming a different template -> substitute that template's text.
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer, placeholders filled>" \
   <<'EOF'
@@ -92,7 +101,7 @@ On mismatch, surface the convention name and the compliant examples as actionabl
 
 The trailer body is `Co-Authored-By: Claude <model> (<context>) <noreply@anthropic.com>`. Fill the `<model>` and `<context>` placeholders from your own knowledge of the running session — e.g. model = `Opus 4.8` or `Fable 5`, context = `1M context`. If uncertain, invoke `/usage` to confirm before committing.
 
-There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If the consuming project's conventions specify a different attribution trailer (or none), follow those.
+There is no environment variable that auto-fills these — the trailer is part of the message body sent to `git commit`, not git config. Hardcoding stale values is worse than asking; the trailer becomes a git-history claim about which model / context authored the change. If `.claude/source-control.md` declares a `trailer_policy`, follow it exactly: a policy of `none` means omit `--trailer` from the `git commit` invocation entirely (do not append an empty or default trailer), and a policy naming a different template means substitute that template in place of the one above. Otherwise, if the consuming project's conventions specify a different attribution trailer (or none), follow those instead of the default.
 
 ## Unrelated uncommitted changes
 
@@ -155,6 +164,8 @@ Scope this to files newly added in the current change set, not a full-repo sweep
 When the index already holds staged files OUTSIDE this commit's scope — concurrent Claude Code sessions on the same branch, pre-existing mixed WIP — a bare `git commit` would sweep them all in. Instead, limit the commit by pathspec:
 
 ```bash
+# Same trailer_policy conditionality as the canonical form above: drop --trailer
+# entirely when trailer_policy is "none"; substitute a named alternate template.
 git commit -F - --cleanup=verbatim \
   --trailer "<Co-Authored-By trailer>" \
   -- <path> [<path>...] <<'EOF'
