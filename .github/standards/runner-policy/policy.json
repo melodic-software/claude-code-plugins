@@ -64,6 +64,14 @@
       },
       "fixedRunsOn": ["ubuntu-24.04"]
     },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@df54d0e8c899baa7e57344c3633f033129da6632": {
+      "routing": "hosted-only",
+      "allowedInputs": ["skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "fixedRunsOn": ["ubuntu-24.04"]
+    },
     "melodic-software/ci-workflows/.github/workflows/claude-review.yml@4dbb0dfcc1fcbaf30e1a5573bf776af54e4e7e1a": {
       "routing": "runner-input",
       "runnerInput": "runner",
