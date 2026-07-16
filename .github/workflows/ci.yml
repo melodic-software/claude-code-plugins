@@ -217,6 +217,21 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  cross-plugin-source-drift:
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check for unregistered or drifted cross-plugin source clusters
+        run: scripts/check-cross-plugin-source-drift.sh --check
+      - name: Run cross-plugin-source-drift tests
+        run: bash scripts/check-cross-plugin-source-drift.test.sh
+
   plugin-gate:
     needs: select-runner
     if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
@@ -341,6 +356,7 @@ jobs:
     needs:
       - hygiene
       - hook-utils-sync
+      - cross-plugin-source-drift
       - plugin-gate
       - miro-plugin
       - runner-policy
