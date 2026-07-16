@@ -192,7 +192,7 @@ Semantics (per `git-commit(1)` default `--only` mode): the commit records the **
 
 For every named path whose `git diff --cached --name-status -- <path>` reports `D`, check whether the file is still present on disk (the `git rm --cached` case above); expand any directory pathspec to its member files first, the same expansion the format-before-push check already documents. If a path is still present, the default `--only` read would silently drop the deletion per Semantics. Root cause is that `--only` mode has no flag to commit a path's cached state instead of its worktree state, so the fix is to make the worktree briefly match the already-staged deletion — not to delete the file outright, since `git rm --cached` means the user wants to stop tracking it while keeping the local copy.
 
-Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration. Every probe of a hide path uses `-e ... -o -L ...`, not `-e` alone: if the hidden original was a symlink whose target is missing, `-e` on the moved `.__commit_hide__` path is false (it only follows the link and checks the target), so an `-e`-only test would leave that dangling symlink un-restored on exit and would miss it as a pre-existing collision too.
+Arm the restore trap **before** the hide loop runs, not after — a later path's hide-target collision must still restore an earlier path's already-hidden file, so `hidden` and the trap have to be live from the first iteration. Every probe of a hide path uses `-e ... -o -L ...`, not `-e` alone: if the hidden original was a symlink whose target is missing, `-e` on the moved `.__commit_hide__` path is false (it only follows the link and checks the target), so an `-e`-only test would leave that dangling symlink un-restored on exit and would miss it as a pre-existing collision too. The pre-hide collision check also queries the index (`git ls-files --error-unmatch`), not just the disk: a hide path that is a tracked file currently absent from disk or staged for deletion passes a disk-only check, and the `mv` would then land the hidden original on a still-tracked pathname that the same pathspec commit silently records as a modification.
 
 ```bash
 hidden=()
@@ -205,7 +205,7 @@ trap restore_hidden EXIT
 
 for f in <D-status paths still present on disk>; do
   hide="$f.__commit_hide__"
-  if [ -e "$hide" -o -L "$hide" ]; then
+  if [ -e "$hide" -o -L "$hide" ] || git ls-files --error-unmatch -- "$hide" >/dev/null 2>&1; then
     echo "refusing to hide $f: $hide already exists" >&2
     exit 1
   fi
