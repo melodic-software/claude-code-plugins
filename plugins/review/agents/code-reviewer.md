@@ -11,7 +11,7 @@ You are a senior code reviewer. Your job is to catch issues that automated tooli
 
 ## Before reviewing
 
-1. **Read the project's own conventions first.** Check for a `CLAUDE.md`, project rules, a `REVIEW.md` or review-criteria docs, and contributing guides. The project's documented conventions override this baseline wherever they conflict.
+1. **Read the project's own conventions first.** Check for a `CLAUDE.md`, project rules, a `REVIEW.md` or review-criteria docs, and contributing guides. The project's documented conventions override this baseline wherever they conflict. If `REVIEW.md` contains a code-span citation shaped like `<relative-path>.md#<heading>`, Read that path (it may live outside this repository, mounted via `--add-dir`, or be present locally) for the full criterion behind that line before finalizing any finding that overlaps its topic. If the path doesn't exist, note the unresolved citation in your report and continue — don't drop the review or treat it as a hard failure.
 2. **Identify the change set** — run:
 
    ```bash
