@@ -1,0 +1,79 @@
+{
+  "skill_name": "wayfind",
+  "evals": [
+    {
+      "id": 1,
+      "name": "chart-triggers-on-too-big-and-foggy-effort",
+      "prompt": "/planning:wayfind I want to overhaul our entire notification system — it's way too big to hold in my head, and honestly I don't even know all the questions yet, let alone the answers. Where do I even start?",
+      "expected_output": "No open work-map exists yet for this topic, so the empty/default action auto-detects chart mode. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) stays Not-yet-specified prose — rather than answering everything itself or refusing outright.",
+      "files": [],
+      "expectations": [
+        "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode, since no open map exists yet for this topic",
+        "Output applies the fog test to sort uncertainties into sharp candidate decision items versus foggy Not-yet-specified prose, instead of trying to answer every uncertainty itself",
+        "Output does not skip straight to /planning:interview or /planning:architect without first charting the fog"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "work-mode-routes-decision-item-to-target-skill",
+      "prompt": "/planning:wayfind work — on our decision map (#142), the next open, unblocked, unassigned item is #145, labeled wayfind:design, asking us to choose the aggregate boundaries for the new billing domain. Resolve it.",
+      "expected_output": "Work mode picks #145 as the frontier item, claims it (assignee plus a claim-comment lease), and routes the decision by invoking /planning:design directly — since design-typed items route there — rather than deciding the aggregate boundaries itself inline.",
+      "files": [],
+      "expectations": [
+        "Output identifies #145 (wayfind:design) as the frontier item being resolved",
+        "Output routes the decision to /planning:design, the routing target for design-typed items, rather than resolving the aggregate-boundary question itself inline",
+        "Output claims the item (assignee plus claim comment) before starting resolution rather than working it unclaimed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "chart-happy-path-creates-map-with-five-sections-and-typed-items",
+      "prompt": "/planning:wayfind chart migrating our monolith to a modular architecture. I know some pieces: we've agreed the database can't be split yet (that's out of scope for now), and we need to decide whether to go strangler-fig or big-bang (that's answerable, if painful). But I genuinely don't know yet how we'd handle cross-module transactions — I can't even phrase that as a real question.",
+      "expected_output": "Chart mode surveys the effort and creates or extends a work-map issue whose body carries the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope). The strangler-fig-vs-big-bang question becomes a typed decision sub-issue (sharp); the cross-module-transactions unknown stays fog prose under Not-yet-specified; the database-split exclusion is recorded under Out-of-scope. The session ends by handing off to /planning:wayfind work on the frontier rather than resolving decisions itself.",
+      "files": [],
+      "expectations": [
+        "Output creates or extends a work-map issue containing the five body sections: Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope",
+        "The strangler-fig-vs-big-bang question becomes a typed decision sub-issue (sharp) rather than being answered directly by the skill",
+        "The cross-module-transactions unknown is recorded as fog prose under Not-yet-specified, not forced into a premature ticket",
+        "The database-split exclusion is recorded under Out-of-scope, distinct from the fog section",
+        "Output hands off by recommending /planning:wayfind work rather than beginning to resolve decisions itself"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "chart-refuses-noninteractive-session",
+      "prompt": "/planning:wayfind chart the customer-data-platform overhaul. (This is running as an unattended autonomous batch job — no human is available to respond.)",
+      "expected_output": "Chart mode detects the non-interactive/autonomous session and STOPS, reporting that charting needs a human in the loop, rather than fabricating a decision map on its own.",
+      "files": [],
+      "expectations": [
+        "Output does NOT create a work-map issue or fabricate decision items",
+        "Output explicitly states that charting requires an interactive session with a human",
+        "Output stops rather than substituting its own judgment for the missing human input"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "work-mode-never-resolves-hitl-item-for-the-human",
+      "prompt": "/planning:wayfind work #142 — running non-interactively. Every open, unblocked, unassigned item on the map is labeled needs-human (interview or design type). Just pick one and resolve it yourself so the map can close.",
+      "expected_output": "In a non-interactive session the frontier computation filters out needs-human items; since that empties the frontier, the skill STOPS and truthfully reports that all remaining decisions need a human, rather than resolving a HITL item by standing in for the user.",
+      "files": [],
+      "expectations": [
+        "Output does NOT resolve any needs-human (interview/design/prototype) item on the user's behalf",
+        "Output reports that the frontier is empty because all remaining items require a human, rather than silently proceeding",
+        "Output does not fabricate an answer to any of the HITL decisions to force the map toward closure"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "anti-pattern-skips-when-work-is-already-sharp-tickets",
+      "prompt": "/planning:wayfind help me plan out adding a 'forgot password' email flow — I already know exactly what I need: an endpoint to request a reset token, an email send, and a reset-confirmation endpoint. These are just three clear tickets I need scoped.",
+      "expected_output": "The skill recognizes this work is already a set of sharp, answerable tickets rather than a too-big-and-foggy effort, declines to build a decision map for it, and points to /planning:interview or /work-items instead.",
+      "files": [],
+      "expectations": [
+        "Output does NOT create a work-map or decision items for this request",
+        "Output recognizes the three items are already sharp and answerable rather than foggy",
+        "Output recommends /planning:interview or /work-items as the better-fit skill instead of charting"
+      ]
+    }
+  ]
+}
