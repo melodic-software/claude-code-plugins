@@ -129,9 +129,15 @@ safe default (Conventional Commits).
 
    ```bash
    REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-   # Non-empty result means a .gitignore pattern excludes the file; surface the matching pattern
-   # and offer to fix .gitignore first.
-   git check-ignore -v "$REPO_ROOT/.claude/source-control.md"
+   # `git check-ignore -v` exits 0 (and prints the matching rule) only when a .gitignore pattern
+   # excludes the file; it exits non-zero with no output otherwise. Branch on the exit code — do
+   # NOT fall through to add/diff on a match: `git add` would silently refuse the ignored path, and
+   # `git diff --quiet` on an ignored untracked file exits 0 trivially, so the sequence would report
+   # false success with nothing actually staged for teammates.
+   if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/.claude/source-control.md")"; then
+     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH"
+     exit 1
+   fi
    # With no ignore match, read the two-character XY status: `??` (untracked) or a non-blank
    # worktree (Y) column — a letter such as `M` in the second position, as in `XM`, `MM`, etc. —
    # means the just-written content is not yet staged.
@@ -143,6 +149,11 @@ safe default (Conventional Commits).
    # Confirm nothing is left unstaged (exit 0 = worktree matches the index).
    git -C "$REPO_ROOT" diff --quiet -- .claude/source-control.md
    ```
+
+   If the guard stops the sequence (non-zero exit, `IGNORE_MATCH` reported), do not report success:
+   tell the user the matching `.gitignore` pattern and ask them to either fix `.gitignore` so
+   `.claude/source-control.md` is no longer excluded, or choose a different tracked location for the
+   shared config, then re-run this step.
 
    This skill stages but does not commit — `git status --porcelain` legitimately keeps printing an
    index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file, so
