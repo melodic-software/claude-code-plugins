@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -25,18 +24,27 @@ def decision(value: str, reason: str) -> dict[str, object]:
 
 
 def _is_current_python(value: str) -> bool:
-    resolved = shutil.which(value)
-    if not resolved:
+    if not os.path.isabs(value):
         return False
-    if os.path.normcase(value) in {
-        os.path.normcase("python"),
-        os.path.normcase("python.exe"),
-    }:
-        return True
     try:
-        return os.path.samefile(resolved, sys.executable)
+        runtime = Path(sys.executable).resolve(strict=True)
+        candidate = Path(value).absolute()
+        return (
+            os.path.normcase(os.fspath(candidate))
+            == os.path.normcase(os.fspath(runtime))
+            and os.path.samefile(candidate, runtime)
+        )
     except OSError:
         return False
+
+
+def _display_python() -> str:
+    """Return the hook interpreter in a Bash-friendly absolute spelling."""
+    try:
+        runtime = Path(sys.executable).resolve(strict=True)
+    except OSError:
+        runtime = Path(sys.executable).absolute()
+    return os.fspath(runtime).replace("\\", "/")
 
 
 def _argument(value: str) -> bool:
@@ -193,7 +201,8 @@ def main() -> int:
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
         if command_kind == "apply"
-        else "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations. Use non-Bash read-only tools for supporting inspection."
+        else "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations using the hook's absolute Python interpreter "
+        f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them. Use non-Bash read-only tools for supporting inspection.'
     )
     print(json.dumps(decision("deny", reason)))
     return 0

@@ -9,7 +9,8 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "python \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py\""
+          command: "python"
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py"]
 ---
 
 # Disk hygiene
@@ -31,9 +32,14 @@ directory, symlink, or Windows reparse point.
   never eligible for this engine, even when a native dry-run calls it eligible.
 - Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
-- If `HOOK_DISK_HYGIENE_ENABLED=false`, audit only and explain why execution is disabled. If Python
-  3.11+ is unavailable as `python`, stop with the declared prerequisite instead of improvising a
-  different scanner or deletion path.
+- If `HOOK_DISK_HYGIENE_ENABLED=false`, audit only and explain why execution is disabled. The hook
+  runs in shell-free exec form and reports its absolute Python interpreter in denial guidance. Use
+  that exact path as `<hook-python>` for every engine call; bare `python`/`python3` is rejected because
+  Bash aliases and functions can replace them. If the path is not known yet, submit the otherwise
+  exact scan shape once with bare `python`: the guard must deny it and report `<hook-python>`, after
+  which retry the scan with that absolute path. If the reported interpreter is older than Python
+  3.11, stop with the declared prerequisite instead of improvising a different scanner or deletion
+  path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
 ## 1. Create a read-only snapshot
@@ -42,7 +48,7 @@ Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, pl
 stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"]
 ```
 
@@ -111,7 +117,7 @@ non-overlapping, and never globs.
 Run the deterministic gate:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" preview \
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" preview \
   --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json"
 ```
 
@@ -131,7 +137,7 @@ and question.
 After an affirmative answer in this interactive session, run only:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" apply --execute \
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" apply --execute \
   --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json" \
   --confirm-tier "<tier>" --approval-token "<token>" --report "<run-dir>/report-<tier>.json"
 ```
@@ -165,4 +171,5 @@ sparse files, hard links, compression, and delayed allocation affect it.
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
   research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
-  pass. Shell expansions, globs, splitting/escape forms, operators, and redirections fail closed.
+  using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
+  forms, operators, redirections, aliases, and exported functions fail closed.

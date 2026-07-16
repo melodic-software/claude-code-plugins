@@ -133,7 +133,7 @@ def _decode_mountinfo_path(value: str) -> str:
         else:
             result.append(encoded[index])
             index += 1
-    return os.fsdecode(result)
+    return os.fsdecode(bytes(result))
 
 
 def linux_mount_points() -> tuple[set[Path], str | None]:
@@ -197,9 +197,12 @@ def has_protected_path_component(path: Path, exact_names: set[str]) -> bool:
     )
 
 
-def system_roots() -> list[Path]:
+def system_roots(
+    platform_key: str | None = None, windows_roots: list[Path] | None = None
+) -> list[Path]:
     roots: list[Path] = []
-    if os.name == "nt":
+    current_platform = platform_key or os_key()
+    if current_platform == "windows":
         candidates = [
             os.environ.get("SystemRoot"),
             os.environ.get("ProgramFiles"),
@@ -207,9 +210,10 @@ def system_roots() -> list[Path]:
             os.environ.get("ProgramData"),
         ]
         roots.extend(Path(value).absolute() for value in candidates if value)
-        for drive_root in windows_drive_roots():
+        drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
+        for drive_root in drive_roots:
             roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
-    elif os_key() == "macos":
+    elif current_platform == "macos":
         roots.extend(
             Path(value)
             for value in ("/System", "/Library", "/Applications", "/private")

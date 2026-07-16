@@ -127,21 +127,24 @@ class HygieneTests(unittest.TestCase):
             self.assertTrue(hygiene.has_linkish_component(target))
 
     def test_windows_system_folders_are_protected_on_every_drive(self) -> None:
-        with (
-            mock.patch.object(hygiene.os, "name", "nt"),
-            mock.patch.object(
-                hygiene,
-                "windows_drive_roots",
-                return_value=[Path("C:/"), Path("D:/")],
-            ),
-        ):
-            roots = {
-                str(path).replace("\\", "/").casefold()
-                for path in hygiene.system_roots()
-            }
+        roots = {
+            str(path).replace("\\", "/").casefold()
+            for path in hygiene.system_roots(
+                platform_key="windows", windows_roots=[Path("C:/"), Path("D:/")]
+            )
+        }
         self.assertIn("c:/system volume information", roots)
         self.assertIn("d:/system volume information", roots)
         self.assertIn("d:/$recycle.bin", roots)
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "real mountinfo is available only on Linux"
+    )
+    def test_linux_mountinfo_scans_current_namespace(self) -> None:
+        points, error = hygiene.linux_mount_points()
+        self.assertIsNone(error)
+        self.assertIn(Path("/"), points)
+        self.assertTrue(all(path.is_absolute() for path in points))
 
     def test_linux_mountinfo_detects_same_device_bind_mount_target(self) -> None:
         target = Path("/srv/bound")
@@ -657,6 +660,10 @@ class HygieneTests(unittest.TestCase):
 
 
 class GuardTests(unittest.TestCase):
+    @staticmethod
+    def python_command() -> str:
+        return guard._display_python()
+
     def run_guard(self, command: str) -> dict[str, object]:
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
@@ -697,32 +704,60 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_chained_delete_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'python "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r; rm -rf x'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r; rm -rf x'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_single_shell_operator_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'python "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r | tee report'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r | tee report'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_forces_final_prompt_for_exact_engine_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'python "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'python "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         result = self.run_guard_disabled(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
-        command = f"python C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {'a' * 24} --report r"
+        command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_guard_denies_bare_python_even_when_it_resolves_to_hook_runtime(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        command = f'python "{script}" scan --target t --output s'
+        result = self.run_guard(command)
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        self.assertIn(
+            self.python_command(),
+            result["hookSpecificOutput"]["permissionDecisionReason"],
+        )
+
+    @unittest.skipUnless(os.name == "posix", "exported Bash functions are POSIX-only")
+    def test_absolute_python_bypasses_exported_same_name_function(self) -> None:
+        completed = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'python() { printf hijacked; }; export -f python; "$1" -c '
+                "'import sys; print(sys.executable)'",
+                "bash",
+                self.python_command(),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotIn("hijacked", completed.stdout)
+        self.assertTrue(Path(completed.stdout.strip()).is_absolute())
 
     def test_guard_denies_unknown_and_mutation_capable_bypass_forms(self) -> None:
         commands = [
@@ -747,7 +782,7 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        template = f'python "{script}" scan --target {{payload}} --output snapshot.json'
+        template = f'"{self.python_command()}" "{script}" scan --target {{payload}} --output snapshot.json'
         payloads = [
             "target{one,two}",
             "$TARGET",
@@ -784,9 +819,9 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_allows_only_exact_read_only_engine_shapes(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        scan = f'python "{script}" scan --target t --output s'
-        preview = f'python "{script}" preview --snapshot s --plan p'
-        malformed = f'python "{script}" preview --plan p --snapshot s'
+        scan = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        preview = f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+        malformed = f'"{self.python_command()}" "{script}" preview --plan p --snapshot s'
         self.assertEqual(
             "allow",
             self.run_guard(scan)["hookSpecificOutput"]["permissionDecision"],
