@@ -49,7 +49,8 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
-  --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"]
+  --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
+  --project-dir "${CLAUDE_PROJECT_DIR}"
 ```
 
 For a large root, first map its immediate children and fan out read-only analysis by subtree. Each
@@ -57,8 +58,17 @@ worker receives a bounded subtree and returns evidence only. The parent owns cla
 report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
-and protected names. An optional policy can disable/add hints and add protected globs; it cannot weaken
-hard guards. Treat scan errors and unvisited protected roots as coverage gaps, not clean results.
+and protected names. Without `--policy`, the engine also layers standing policy files when present:
+`~/.claude/disk-hygiene.json` (user-global), then `<project>/.claude/disk-hygiene.json` via
+`--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
+layers. Every overlay can only disable/add hints and add protected globs; none can weaken hard guards.
+The scan output names its `policy_sources`. Treat scan errors and unvisited protected roots as
+coverage gaps, not clean results.
+
+The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
+mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
+report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring the managed-state
+rule below.
 
 ## 2. Establish evidence and ownership
 

@@ -96,6 +96,30 @@
         "Does not run hygiene.py apply",
         "Returns the tiered audit and states that interactive confirmation is required"
       ]
+    },
+    {
+      "id": 9,
+      "name": "standing-policy-files-layer-additively",
+      "prompt": "/disk-hygiene:clean ~/scratch — my user-global ~/.claude/disk-hygiene.json protects 'client-deliverables/**' and this project's .claude/disk-hygiene.json adds a staging hint.",
+      "expected_output": "The scan without --policy layers the user-global then project standing policy files over the baseline, reports which policy sources applied, and honors the added protections; no layer can weaken hard guards.",
+      "files": [],
+      "expectations": [
+        "Runs scan without --policy and the output's policy_sources lists baseline plus both standing files",
+        "Treats standing policy input as additive: added protections and hints only",
+        "An explicit --policy file replaces the standing layers instead of stacking on them"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "os-managed-temp-zone-recommends-the-os-mechanism",
+      "prompt": "/disk-hygiene:clean --execute my user temp directory, it has gigabytes of stale files.",
+      "expected_output": "The audit surfaces the os_autoclean advisory: the OS ships an auto-clean mechanism for this zone (e.g. Windows Storage Sense), so the report recommends enabling/tuning it rather than hand-deleting, mirroring the managed-state handoff rule.",
+      "files": [],
+      "expectations": [
+        "Surfaces the scan's os_autoclean recommendation in the report",
+        "Prefers enabling the OS mechanism over manual cleanup of the OS-owned zone",
+        "Still performs the read-only audit and never treats the advisory as deletion authority"
+      ]
     }
   ]
 }
