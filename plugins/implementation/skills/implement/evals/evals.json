@@ -67,11 +67,11 @@
       "id": 6,
       "name": "autonomous-run-chains-to-implement-dispatch",
       "prompt": "/implementation:implement — execute the approved plan. This is an autonomous goal-loop run with no human in the turn cycle and the plan routes phases to worker subagents.",
-      "expected_output": "Detects orchestration mode (autonomous run / worker-routed phases) and, after the Step 1 prerequisite check passes, chains to /implement-dispatch via the Skill tool for those phases instead of running the inline Step 2 cadence — but Step 1's branch/plan/dirty-tree preflight still runs.",
+      "expected_output": "Detects orchestration mode (autonomous run / worker-routed phases) and, after the Step 1 prerequisite check passes, chains to /implementation:implement-dispatch via the Skill tool for those phases instead of running the inline Step 2 cadence — but Step 1's branch/plan/dirty-tree preflight still runs.",
       "files": [],
       "expectations": [
         "Detects orchestration mode from the autonomous / worker-routed signal rather than defaulting to inline execution",
-        "Chains to /implement-dispatch (via the Skill tool) for the worker-routed phases instead of editing inline",
+        "Chains to /implementation:implement-dispatch (via the Skill tool) for the worker-routed phases instead of editing inline",
         "Still runs the Step 1 prerequisite preflight (branch/plan/dirty-tree) even in the orchestrated path — dispatch does not skip it"
       ]
     }

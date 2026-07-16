@@ -56,7 +56,7 @@ exclusions, and verification commands.
   `${CLAUDE_PLUGIN_ROOT}`.
 - Graceful degrade: if the `discovery` plugin is installed, explore/research
   phases use `/discovery:explore` + `/discovery:research`; if `work-items` is
-  installed, deferrals file through `/work-items:work-items add`; if
+  installed, deferrals file through `/work-items:track add`; if
   `pr-review-toolkit` is installed, batch-simplify uses its `code-simplifier`
   agent. Absent any of them, the skills fall back to inline
   exploration/research, `gh issue create`, and general-purpose agents.

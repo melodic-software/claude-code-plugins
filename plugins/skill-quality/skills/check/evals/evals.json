@@ -1,0 +1,78 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-default-action",
+      "prompt": "check my-skill",
+      "expected_output": "Routes to the default check action: resolves the skills root (user_config.skills_root, else ${CLAUDE_PROJECT_DIR}/.claude/skills) and runs the bundled check-skill.sh over my-skill, reporting PASS/FAIL from the exit code with FAIL: lines surfaced verbatim and WARN: lines grouped after. If the resolved skills root or the my-skill directory does not exist, it reports that (and may offer /skill-quality:setup) rather than fabricating a PASS.",
+      "files": [],
+      "expectations": [
+        "Output routes to the static contract gate (the check action / check-skill.sh) for the named skill, not another action",
+        "When the skill and its skills root exist, output reports a PASS or FAIL verdict from the script exit code, surfacing FAIL lines verbatim and separating advisory WARN lines",
+        "When the skills root or the my-skill directory is absent, output reports the missing directory (optionally offering /skill-quality:setup) rather than fabricating check results"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "validate-evals-routes-to-schema-check",
+      "prompt": "validate-evals my-skill",
+      "expected_output": "Routes to the validate-evals action: locates <skills-root>/my-skill/evals/evals.json and validates it against the bundled schema (via a JSON-schema validator if available, else a structural check that skill_name and a non-empty evals array are present and each case has id + prompt), reporting each violation with its JSON path or confirming conformance. If that skill or its evals file does not exist, it reports the file is absent (evals are warranted, not mandatory) rather than inventing a validation result.",
+      "files": [],
+      "expectations": [
+        "Output runs the validate-evals (schema) path, not the static contract gate",
+        "When the evals file exists, output validates it against the bundled schema and reports conformance or per-violation JSON paths",
+        "Output does not attempt to run the eval cases (it is a schema/structure check, not a model-graded run)",
+        "When my-skill or its evals/evals.json is absent, output reports the file is absent rather than fabricating a validation pass or failure"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "absent-evals-is-not-a-failure",
+      "prompt": "When validate-evals is run on a skill that exists but ships no evals/evals.json file, is that a validation failure, and what should it report?",
+      "expected_output": "It is NOT a failure. For an existing skill with no evals/evals.json, validate-evals reports that the skill ships no evals and treats it as not-a-failure (evals are warranted, not mandatory) rather than emitting a schema-validation error.",
+      "files": [],
+      "expectations": [
+        "Output states that an existing skill without an evals/evals.json file is NOT a validation failure",
+        "Output does NOT characterize the missing evals file as a schema validation failure or error",
+        "Output reflects the warranted-not-mandatory policy (validate-evals reports 'ships no evals' rather than failing)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "surface-fail-verbatim-hand-verify-ref",
+      "prompt": "The skill-quality check on skill X returned this line: `FAIL: broken skill-internal ref: reference/big-picture.md (no such file under the skill dir; cited at SKILL.md:42 — hand-verify the line before fixing, may be an illustrative example)`. Interpret it and decide what to do.",
+      "expected_output": "The skill surfaces the FAIL line verbatim rather than re-deriving its meaning, and before editing it hand-verifies SKILL.md:42 — the cited reference may be an illustrative example path rather than a real broken reference — instead of blindly rewriting or deleting reference/big-picture.md.",
+      "files": [],
+      "expectations": [
+        "Output surfaces the FAIL line verbatim (the exact 'FAIL: broken skill-internal ref: ...' text) rather than only paraphrasing or re-deriving its meaning",
+        "Output hand-verifies the cited SKILL.md:42 line before editing, acknowledging it could be an illustrative example path rather than a real broken ref",
+        "Output does not blindly rewrite or delete reference/big-picture.md without first checking the cited line"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "not-for-authoring-new-skills",
+      "prompt": "Use skill-quality to write me a brand-new skill for parsing CSV files.",
+      "expected_output": "The skill declines: it is a static QA gate (check / validate-evals), not a skill-authoring tool. It routes the user to skill authoring (e.g. skill-creator) rather than generating a new SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Output does NOT author a new skill / SKILL.md",
+        "Output states that skill-quality is a QA/validation gate, not an authoring tool",
+        "Output redirects the user to an appropriate skill-authoring path"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "outside-git-repo-is-env-error-not-silent-pass",
+      "prompt": "Run the skill-quality check from a working directory that is not inside any git repository. What happens?",
+      "expected_output": "The checker resolves the repo root via `git rev-parse --show-toplevel` BEFORE it resolves the skills root, so invoking it from outside any git repository finds no toplevel and the script exits 2 with an environment error ('not in a git repo') rather than silently passing. The skill reports the environment error, not a clean PASS.",
+      "files": [],
+      "expectations": [
+        "Output explains the checker exits 2 (environment error) when it is invoked from outside any git repository",
+        "Output does NOT characterize the run as a clean PASS when it is run outside a git repo",
+        "Output attributes the exit-2 gate to the git repo-root detection that runs before skills-root resolution, not to a skills directory merely living outside the repo"
+      ]
+    }
+  ]
+}

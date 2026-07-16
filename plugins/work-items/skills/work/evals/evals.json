@@ -1,0 +1,33 @@
+{
+  "skill_name": "work",
+  "evals": [
+    {
+      "id": 1,
+      "name": "work-auto-selects-one-item-via-seam-claim",
+      "prompt": "/work-items:work",
+      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it via the full 8-step workflow. The claim identity is the authenticated session user, never the bot.",
+      "files": [],
+      "expectations": [
+        "Runs an idempotent session-start reclaim (`work-item-tracker.sh reclaim`) before selecting — never releases a live lease",
+        "Selects exactly ONE item to work — never claims multiple at once",
+        "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
+        "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
+        "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
+        "Executes the selected item through the 8-step workflow (/discovery:explore -> /discovery:research -> /planning:architect -> /implementation:implement -> /testing:plan -> /review:quality-gate -> /verification:confirm outcome -> /session-flow:retro)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "work-excludes-and-cross-references-remapped-recurring-role",
+      "prompt": "/work-items:work\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep. Both due maintenance and ordinary frontier items exist.",
+      "expected_output": "The work flow resolves recurring-maintenance to scheduled-upkeep before selection. It excludes scheduled-upkeep items from the non-recurring frontier tiers and uses scheduled-upkeep when listing open items for the recurring tiers. It never compares against or queries the default recurring literal.",
+      "files": [],
+      "expectations": [
+        "Resolves the recurring-maintenance label before any tracker read",
+        "Excludes items carrying scheduled-upkeep from non-recurring frontier tiers",
+        "Uses --label scheduled-upkeep when cross-referencing recurring candidates",
+        "Does not fall back to the recurring literal after a valid remap"
+      ]
+    }
+  ]
+}

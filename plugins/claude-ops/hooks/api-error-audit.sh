@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # StopFailure hook: emit a telemetry envelope for API-level turn failures
 # (rate_limit, billing_error, server_error, ...). Feeds a consumer's
-# rate-limit velocity tracking (e.g. the claude-observability skill).
+# rate-limit velocity tracking (e.g. the observability skill).
 #
 # ADVISORY: StopFailure output and exit code are ignored — always exit 0.
 # The subject is the StopFailure `error` type only: `error_details` may carry

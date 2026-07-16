@@ -11,8 +11,8 @@ This directory is the source of truth: `ecosystem.schema.json` (per-file schema)
 ## Why this contract exists
 
 Before it, the same command truth was encoded independently in at least three places across this
-marketplace — the `implementation` plugin's `/build` reference table, its `/lint` reference table
-(already divergent from `/build`'s), and the `review-toolkit` `ecosystem-specialist` agent's inline
+marketplace — the `toolchain` plugin's `/toolchain:build` reference table, its `/toolchain:lint` reference table
+(already divergent from `/toolchain:build`'s), and the `review` `ecosystem-specialist` agent's inline
 defaults — with no consumer-declared source any of them could defer to. The concern is cross-plugin
 by demonstrated fact, so the contract lives here in marketplace conventions (the same reasoning as
 `docs/conventions/hook-telemetry/`), not inside any one plugin.
@@ -66,7 +66,7 @@ Extensibility contract v2.1 seam 2 names tracked rich config by *plugin* (`.clau
 or `.claude/<plugin>/**`). This contract intentionally names the folder by **concern**
 (`.claude/ecosystems/`) instead — a recorded PRECEDENT-EXTENSION, one increment past the folder form:
 
-- The concern is consumed by more than one plugin (`implementation`, `review-toolkit`, any future
+- The concern is consumed by more than one plugin (`implementation`, `review`, any future
   verification-adjacent plugin). Plugin-naming would couple every other consumer — and the consuming
   repo's tracked files — to one plugin's name.
 - Plugin boundaries are the volatile axis (skills move between plugins across restructures); the

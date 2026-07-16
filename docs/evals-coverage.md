@@ -7,8 +7,23 @@ the warrant rule and the consumer-verify recipe are policy and live in the
 This table records where each plugin stood on the stamp date and which backfill issue owns each gap.
 Empirical claims decay: a row is only true as of the stamp below.
 
-Stamped 2026-07-12, built from the per-skill eval presence read this session against the 42 plugins
-in `.claude-plugin/marketplace.json` and the class column of
+> **Reconciliation — 2026-07-15 (taxonomy reorg).** The plugin-taxonomy reorg renamed, split, and
+> merged plugins (43 → 45), so this document carries two layers, kept apart by a single temporal line:
+>
+> - **Current-state layer — re-scanned 2026-07-15, authoritative.** The *Current coverage* section
+>   below, plus the *Deferred* and *Skip* classifications, were re-derived from a fresh glob of
+>   `plugins/*/skills/*/evals/evals.json` across the live 45-plugin tree and use post-reorg names.
+> - **Program-record layer — frozen at 2026-07-12.** The *Backfill program* batch table and the
+>   *Future coverage* section are the dated record of the `melodic-software/medley` wave-2 backfill
+>   program. They keep the pre-reorg plugin/skill identities the medley issues were filed against and
+>   are **not** name-swept — the renames map in `.claude-plugin/marketplace.json` and the split
+>   changelogs (`implementation` 0.6.0, `work-items` 0.7.0, `claude-config` 0.5.0) are the
+>   authoritative old→new mapping.
+>
+> Only eval *presence* was re-verified this session; no skill's warrant classification was re-graded.
+
+Stamped 2026-07-12, built from the per-skill eval presence read that session against the 42 plugins
+then in `.claude-plugin/marketplace.json` and the class column of
 [`extensibility-contract-grading.md`](extensibility-contract-grading.md) (retrofit-audit
 `melodic-software/medley#1388`, which graded 41 — the `miro` MCP-server plugin landed after that audit
 and is classified below). Presence was read per-skill from each `plugins/<p>/skills/<s>/evals/evals.json`;
@@ -16,13 +31,21 @@ because sibling workers backfill concurrently, that read is accurate only at its
 table's Status column carries the reconciliation and the live tree is the source of truth.
 Emitter: evals-backfill `melodic-software/medley#1396`.
 
-> **Live-ledger caveat.** This is a stamp-time plan in a concurrently-backfilled marketplace, not a
-> live ledger. Between the stamp and any read, other workers land evals — during this document's own
-> authoring, `discovery`'s `explore`/`explore-deep`/`research`/`research-deep` skills and
-> `claude-config-audit/memory-health` were backfilled by sibling work. The batch issues below therefore
-> instruct each author to re-check every listed skill against the live tree and **skip any that already
-> ship `evals/evals.json`**. Treat the per-skill lists and counts as stamp-time identification; re-scan
-> before acting.
+## Current coverage (re-scanned 2026-07-15)
+
+Fresh glob across the live 45-plugin tree: **92 of 102 skills carry `evals/evals.json`.** The wave-2
+backfill program (batch table below) has essentially landed — every skill listed in those batches now
+ships an eval. The 10 remaining uncovered skills fall into three buckets:
+
+- **Genuine gaps — warranted, unowned (2).** `context7/setup` and `planning/wayfind` (a skill that
+  postdates the wave-2 batches). Neither is owned by a listed batch (#1447 covered planning's seven
+  behavior skills, not `wayfind`; the setup self-scan #1462 did not list `context7`). Identified here;
+  **no backfill issue has been filed** — filing lands in `melodic-software/medley`, out of scope for
+  this repo.
+- **Deferred (6).** `knowledge` (`book-distill`, `setup` — `youtube` and `course-digest` now ship
+  evals) and `songwriting` (`daily-practice`, `meter-prosody`, `setup`, `suno` — the other six skills
+  now ship evals). Both plugins are under open move-out gates; see *Deferred* below.
+- **Skip — pure-reference (2).** `tdd/principles` and `playbooks/fable-5`; see *Skip* below.
 
 ## Warrant rule (summary)
 
@@ -33,39 +56,19 @@ pure-reference (answers from a corpus, no decision contract) or a **hook** (dete
 `.test.sh`, no model-invoked skill). Gray-zone skills are marked **author-confirm**: the backfill
 session re-checks the warrant against the live `SKILL.md` and records a skip verdict if it dissolves.
 
-## Verdict summary
+## Backfill program — 2026-07-12 record (frozen)
 
-Counts below are **at stamp**; concurrent backfill has since covered many of the "owed" skills — the
-batch table's Status column carries the current reconciliation, and the live tree is authoritative.
-
-- **Covered (fully) at stamp: 7 plugins** — every behavior skill already shipped evals: `bug-report`,
-  `code-tidying`, `codebase-audit`, `work-items`, `mcp-tool-audit`, `improve-architecture`,
-  `repo-hygiene`.
-- **Covered (partial) at stamp: 2 plugins** — `claude-config-audit` (`memory-health` was the gap, now
-  backfilled) and `implementation` (`implement`, `implement-dispatch`, `build`, `lint`, `setup`
-  uncovered).
-- **Warranted, uncovered at stamp: 19 more plugins** — see the batch table + Status column.
-- **Deferred (do not backfill in this repo now): 2 plugins** — `songwriting` and `knowledge`, each
-  slated to move out of the marketplace under an open decision gate; author evals in the destination
-  once separation lands.
-- **Skip (explicit): 12 plugins** — 2 pure-reference + 9 hooks + 1 MCP-server (`miro`).
-- **~54 warranted skills identified as uncovered** (51 at stamp + 3 setup skills that shipped uncovered
-  since), grouped into **11 one-session batches** (`melodic-software/medley#1447`–`#1455`, `#1458`,
-  `#1462`). Concurrent sibling backfill has since covered many; **as of the latest reconciliation ~29
-  remain uncovered** (see the Status column below). The precise number keeps moving as batches land and
-  new setup skills ship — the live tree, not this line, is authoritative.
-
-## Backfill batches emitted
+Frozen at the 2026-07-12 stamp with the pre-reorg identities each medley issue was filed against.
+**Per the 2026-07-15 live scan every skill listed below is now covered**; the table is retained as the
+dated program record, not a live to-do list.
 
 One issue per batch, each sized to one agent-session, sub-issue-linked under wave-2 map
 `melodic-software/medley#1369`, `agent-ready`. Each batch issue carries the authoring recipe, the
-schema path, and the per-skill warrant re-check instruction.
+schema path, and the per-skill warrant re-check instruction. The **Status** column is the
+reconciliation as it stood at the 2026-07-12 stamp — `DONE` = all listed skills covered by concurrent
+sibling backfill; `PARTIAL` = some remained; `OPEN` = none covered yet.
 
-The **Status** column is the reconciliation as of the latest re-scan — `DONE` = all listed skills were
-covered by concurrent sibling backfill (the issue is a no-op, close it); `PARTIAL` = some remain;
-`OPEN` = none covered yet. Status decays; re-scan the tree before acting.
-
-| Batch issue | Skills | Status (reconciled) |
+| Batch issue | Skills | Status (at stamp) |
 |---|---|---|
 | `melodic-software/medley#1447` | planning: architect, brainstorm, design, design-handoff, devils-advocate, interview, prd (7) | **DONE** — all 7 backfilled concurrently |
 | `melodic-software/medley#1448` | discovery: explore, explore-deep, research, research-deep, setup; claude-config-audit: memory-health (6) | **PARTIAL** — only `discovery/setup` remains; the other 5 backfilled concurrently |
@@ -81,49 +84,51 @@ covered by concurrent sibling backfill (the issue is a no-op, close it); `PARTIA
 
 ## Deferred — author in the destination repo once separation lands
 
-Recorded as decisions, not silent omissions, each with a revisit trigger (playbook defer-record pattern):
+Recorded as decisions, not silent omissions, each with a revisit trigger (playbook defer-record
+pattern). Classifications reflect the 2026-07-15 scan; the move-out gates are preserved unchanged —
+taxonomy placement did not resolve them.
 
-- **`songwriting` (10 skills: co-write, daily-practice, diagnosis, meter-prosody, object-writing,
-  rhyme, song-form, suno, workflow, and the now-shipped `setup`)** — wave map
-  `melodic-software/medley#1369` slates songwriting for a
-  dedicated personal repo, and its corpus/home is under an open decision gate
-  (`melodic-software/medley#1402`, needs-human). Authoring 10 skills of evals in the marketplace now
-  risks migrated/wasted work. **Revisit trigger:** #1402 resolves songwriting's home → author the
-  evals for all 10 skills (including `setup`) in whichever repo the plugin lands (evals travel with the
-  skill dir).
-- **`knowledge` (book-distill, setup, and the now-shipped youtube; course-digest pending
-  `melodic-software/medley#1409`)** — the knowledge artifacts move to a dedicated repo
-  (`repo(knowledge-artifacts)` `melodic-software/medley#1393`, needs-human) and the skill set is still
-  growing. Both the home and the skill set are unsettled, so the whole plugin is deferred regardless of
-  which individual skills already carry evals (`youtube` ships one). **Revisit trigger:** #1393 fixes
-  the plugin's home → author evals for whatever skills still lack them, in the destination repo.
+- **`songwriting`** — wave map `melodic-software/medley#1369` slates songwriting for a dedicated
+  personal repo, and its corpus/home is under an open decision gate (`melodic-software/medley#1402`,
+  needs-human). Six of its ten skills now ship evals (`co-write`, `diagnosis`, `object-writing`,
+  `rhyme`, `song-form`, `workflow`); four remain uncovered (`daily-practice`, `meter-prosody`, `setup`,
+  `suno`). Authoring the remainder in the marketplace now risks migrated/wasted work. **Revisit
+  trigger:** #1402 resolves songwriting's home → author the missing evals in whichever repo the plugin
+  lands (evals travel with the skill dir).
+- **`knowledge`** — the knowledge artifacts move to a dedicated repo (`repo(knowledge-artifacts)`
+  `melodic-software/medley#1393`, needs-human) and the skill set is still growing (`course-digest`
+  landed pending `melodic-software/medley#1409`). `youtube` and `course-digest` now ship evals;
+  `book-distill` and `setup` remain uncovered. Both the home and the skill set are unsettled, so the
+  whole plugin is deferred regardless of which individual skills already carry evals. **Revisit
+  trigger:** #1393 fixes the plugin's home → author the missing evals in the destination repo.
 
-## Future coverage — setup-action skills (self-scanning batch)
+## Future coverage — setup-action skills (self-scanning batch) — 2026-07-12 record
 
-The setup-action retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) ship net-new
-`setup`/`configure` skills over time, and several have landed *without* evals. The ideal home for a new
-skill's eval is the retrofit PR that ships it — `code-tidying` #1431 did exactly this (its `setup`
-shipped with an eval) — but when a retrofit ships a setup skill uncovered, the gap falls to this
-program. To stop chasing each landing individually, **`melodic-software/medley#1462` is a self-scanning
-catch-all**: it scans `plugins/*/skills/setup/` for any setup skill lacking `evals/evals.json` and
-backfills those not already owned by a plugin-family batch (`discovery/setup` #1448,
-`implementation/setup` #1449, `machine-health`/`skill-quality` setup #1454) or deferred (`knowledge`,
-`songwriting`). A config-writer skill is warrantable (the `codebase-audit/setup` eval is the model).
-Its first pass covered `bug-report/setup`, `claude-ops/setup`, `work-items/setup`, `ai-briefing/setup`, and
-`planning/setup` (the last two caught as post-filing landings — a scaffold/dep-install setup and a
+Frozen at the 2026-07-12 stamp (pre-reorg identities); retained as program record. The setup-action
+retrofits (`melodic-software/medley#1428`–`#1432`, `#1435`) ship net-new `setup`/`configure` skills
+over time, and several landed *without* evals. The ideal home for a new skill's eval is the retrofit PR
+that ships it — `code-tidying` #1431 did exactly this (its `setup` shipped with an eval) — but when a
+retrofit ships a setup skill uncovered, the gap falls to this program. To stop chasing each landing
+individually, **`melodic-software/medley#1462` is a self-scanning catch-all**: it scans
+`plugins/*/skills/setup/` for any setup skill lacking `evals/evals.json` and backfills those not
+already owned by a plugin-family batch (`discovery/setup` #1448, `implementation/setup` #1449,
+`machine-health`/`skill-quality` setup #1454) or deferred (`knowledge`, `songwriting`). A config-writer
+skill is warrantable (the `codebase-audit/setup` eval is the model). Its first pass covered
+`bug-report/setup`, `claude-ops/setup`, `work-items/setup`, `ai-briefing/setup`, and `planning/setup`
+(the last two caught as post-filing landings — a scaffold/dep-install setup and a
 `.claude/topic-docs.yaml` concern-file writer, each with no other eval owner).
 
-## Skip — pure-reference plugins (2)
+## Skip — pure-reference (2)
 
-Knowledge-only single-skill plugins; the only argument is knowledge navigation or a query, with no
-mutation, refusal, or external side-effect contract to guard. Explicit skip. (`boris` and
-`thariq-skills` were graded pure-reference too, but each additionally ships a mutating `update` action
-and is therefore warranted — batch #1458 above.)
+Knowledge-only skills; the only argument is knowledge navigation or a query, with no mutation, refusal,
+or external side-effect contract to guard. Explicit skip. (The `boris` and `thariq` skills in
+`playbooks` were graded pure-reference too, but each additionally ships a mutating `update` action and
+is therefore warranted — both now carry evals; see the frozen #1458 row.)
 
 | Plugin / skill | Verdict |
 |---|---|
-| fable-5-playbook/fable-5-playbook | skip — pure-reference (`[full \| <chapter>]` is knowledge navigation, no mutation) |
-| tdd/tdd | skip — pure-reference (`[question or concept]` Q&A, no mutation) |
+| playbooks/fable-5 | skip — pure-reference (`[full \| <chapter>]` is knowledge navigation, no mutation) |
+| tdd/principles | skip — pure-reference (`[question or concept]` Q&A, no mutation) |
 
 ## Skip — hook plugins (9)
 
@@ -135,10 +140,8 @@ not model-graded evals. Explicit skip.
 
 ## Skip — MCP-server plugins (1)
 
-Bundle a stdio MCP server (`.mcp.json` + a TypeScript/Node package), not model-invoked skills — no
-`SKILL.md`, so there is no per-skill behavioral contract for a model-graded eval. Server behavior is
-guarded by the plugin's own package tests (`vitest`), not evals. Explicit skip.
-
-| Plugin | Verdict |
-|---|---|
-| miro | skip — MCP-server plugin, no skills (tests are `vitest`, not evals) |
+`miro` bundles a stdio MCP server (`.mcp.json` + a TypeScript/Node package) whose behavior is guarded
+by the plugin's own package tests (`vitest`), not model-graded evals — the server exposes no
+`SKILL.md`, so there is no per-skill behavioral contract to grade. It additionally ships a `setup`
+skill, which **does** carry an eval (present per the 2026-07-15 scan). Explicit skip for the server;
+the setup skill is covered.

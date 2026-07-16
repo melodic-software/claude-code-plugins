@@ -160,7 +160,7 @@ After all groups complete, consolidate the deferred items collected in Phase 6. 
 
 3. **Present to the user** — before filing, show the consolidated list grouped by priority with proposed titles. Default to filing High + Medium automatically when running non-interactively; ask for Low and Do-not-file items.
 
-4. **File work items** — one per deferred concern (not per site): via `/work-items:work-items add` when that plugin is installed, else `gh issue create` (or present the list when no tracker is reachable). Use Conventional Commits-style titles: `refactor(<area>): <what>`. The body should include the rationale the agent recorded, the specific files/lines, and the scope estimate.
+4. **File work items** — one per deferred concern (not per site): via `/work-items:track add` when that plugin is installed, else `gh issue create` (or present the list when no tracker is reachable). Use Conventional Commits-style titles: `refactor(<area>): <what>`. The body should include the rationale the agent recorded, the specific files/lines, and the scope estimate.
 
 5. **Record issue numbers** in the Phase 8 summary report so the user can cross-reference.
 

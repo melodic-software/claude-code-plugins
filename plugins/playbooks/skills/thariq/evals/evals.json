@@ -1,0 +1,17 @@
+{
+  "skill_name": "thariq",
+  "evals": [
+    {
+      "id": 1,
+      "name": "knowledge-query-routes-to-playbook",
+      "prompt": "How should I structure a SKILL.md file for a skill with several reference topics?",
+      "expected_output": "A skill-authoring answer sourced from the playbook content (progressive disclosure: SKILL.md hub + spoke files). The skill serves its distilled body and does NOT run scripts/update.sh or read vendor/SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Output answers from the skill-authoring playbook content (e.g. hub SKILL.md dispatches, spoke files do the work / progressive disclosure)",
+        "The run does NOT run scripts/update.sh or attempt a drift-check / update action (updating is the separate /playbooks:update skill)",
+        "The run does NOT read vendor/SKILL.md for this plain knowledge query"
+      ]
+    }
+  ]
+}

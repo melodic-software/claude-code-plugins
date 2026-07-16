@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "implementation",
-  "version": "0.5.0",
-  "description": "Disciplined implementation stage: execute approved plans inline or via orchestrated workers, run polyglot build/test/lint verification, author and diagnose tests, drive live E2E checks, and prove changes achieved their intended outcome — with measurable-improvement claims verified against planning-time baselines.",
+  "version": "0.6.0",
+  "description": "Disciplined implementation stage: execute approved plans inline (`/implementation:implement`) or via orchestrated worker subagents (`/implementation:implement-dispatch`) with incremental validation, TDD-by-default cadence, green-checkpoint commits, scope-fence drift detection, and divergence detection that routes back to planning. Build/test/lint, testing, and outcome verification live in the companion `toolchain`, `testing`, and `verification` plugins, invoked when installed.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -10,13 +10,10 @@
   "license": "MIT",
   "keywords": [
     "implementation",
-    "build",
-    "lint",
-    "setup",
-    "testing",
+    "implement",
+    "orchestration",
+    "execution",
     "tdd",
-    "e2e",
-    "verification",
     "skill"
   ]
 }

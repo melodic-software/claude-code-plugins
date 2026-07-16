@@ -1,0 +1,17 @@
+{
+  "skill_name": "boris",
+  "evals": [
+    {
+      "id": 1,
+      "name": "knowledge-query-routes-to-reference",
+      "prompt": "How does Boris recommend running parallel Claude Code sessions?",
+      "expected_output": "A knowledge answer sourced from the reference content (the worktrees / parallel-sessions tips) — the skill reads the matching reference/*.md file and does NOT run scripts/update.sh or read vendor/SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Output answers the parallel-sessions question from the skill's reference content (e.g. git worktrees, 3-5 sessions)",
+        "The run does NOT run scripts/update.sh or attempt a drift-check / update action (updating is the separate /playbooks:update skill)",
+        "The run does NOT read vendor/SKILL.md for this plain knowledge query"
+      ]
+    }
+  ]
+}

@@ -12,7 +12,7 @@ pretending coverage.
 
 | Skill | What it does |
 |---|---|
-| `/machine-health:machine-health` | Runs the audit — load catalog + machine overlay, dispatch checks under per-check timeouts, apply trend-aware severity, run approved remediations (non-dry runs), render the dated report, append history. |
+| `/machine-health:check` | Runs the audit — load catalog + machine overlay, dispatch checks under per-check timeouts, apply trend-aware severity, run approved remediations (non-dry runs), render the dated report, append history. |
 | `/machine-health:setup` | Configures this machine — walks pending proposals, tunes the check catalog via a machine-local overlay, registers custom checks, and seeds remediation approvals. |
 
 ## The audit
@@ -71,11 +71,11 @@ by `/machine-health:setup`. No hooks, no MCP servers.
 
 ## Tests
 
-A Pester 5.7+ suite ships with the plugin (`skills/machine-health/tests/`). Windows-only — it
+A Pester 5.7+ suite ships with the plugin (`skills/check/tests/`). Windows-only — it
 mocks Win32/MSFT CIM types that resolve only there:
 
 ```powershell
-pwsh -NoProfile -File plugins/machine-health/skills/machine-health/tests/Invoke-MachineHealthTests.ps1
+pwsh -NoProfile -File plugins/machine-health/skills/check/tests/Invoke-MachineHealthTests.ps1
 ```
 
 ## License

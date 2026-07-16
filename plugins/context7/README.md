@@ -5,27 +5,29 @@ references, and code examples** via [Context7](https://context7.com) — so
 answers about libraries, frameworks, SDKs, and cloud services come from live
 docs instead of stale training data.
 
-Invoke it with `/context7:context7` (or let Claude invoke it automatically when
-a question names a library):
+Run a lookup with `/context7:lookup` (or let Claude invoke it automatically when
+a question names a library); configure the environment with `/context7:setup`:
 
 ```text
-/context7:context7 react "useEffect cleanup"
-/context7:context7 configure
-/context7:context7 update
+/context7:lookup react "useEffect cleanup"
+/context7:setup
+/context7:lookup update
 ```
 
-## What it does
+## Skills
 
-- **`lookup <library> <query>`** (default) — the two-step Context7 workflow:
-  resolve the library name to a `/org/project` ID, then query its docs. Works
-  through the `ctx7` CLI, or through the Context7 MCP server when the consuming
-  project has one configured (same backend, ~1.8× more content per call).
-- **`configure`** — CLI install, `CONTEXT7_API_KEY` auth, and the Windows Git
-  Bash `MSYS_NO_PATHCONV=1` gotcha.
-- **`update`** — checks the installed `ctx7` CLI against the latest npm release
-  (`--fix` upgrades it) and diffs Upstash's upstream reference skills against
-  the plugin's bundled `vendor/` baselines, reporting anything new for manual
-  review. It never auto-rewrites the skill.
+- **`/context7:lookup <library> <query>`** (default) — the two-step Context7
+  workflow: resolve the library name to a `/org/project` ID, then query its
+  docs. Works through the `ctx7` CLI, or through the Context7 MCP server when
+  the consuming project has one configured (same backend, ~1.8× more content
+  per call). Also exposes a maintainer **`update`** action
+  (`/context7:lookup update`) that checks the installed `ctx7` CLI against the
+  latest npm release (`--fix` upgrades it) and diffs Upstash's upstream
+  reference skills against the plugin's bundled `vendor/` baselines, reporting
+  anything new for manual review. It never auto-rewrites the skill.
+- **`/context7:setup`** — first-time, idempotent configuration: `ctx7` CLI
+  install, `CONTEXT7_API_KEY` auth, optional Context7 MCP server wiring, and the
+  Windows Git Bash `MSYS_NO_PATHCONV=1` gotcha. Safe to rerun.
 
 ## Requirements
 

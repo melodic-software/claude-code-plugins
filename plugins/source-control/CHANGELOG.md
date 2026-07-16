@@ -22,6 +22,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
   skips silently when none is discoverable.
 
+## [0.3.1]
+
+### Changed
+
+- Synced the pull-request verify-gate example to the reorganized taxonomy:
+  `/verify-changes` / `/build` are now `/verification:confirm` / `/toolchain:build`.
+
 ## [0.3.0]
 
 ### Added
