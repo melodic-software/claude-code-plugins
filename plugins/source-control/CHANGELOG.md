@@ -3,14 +3,10 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.0]
+## [0.4.0]
 
 ### Added
 
-- `/resolve-conflicts` skill: intent-first resolution of in-progress merge/rebase/cherry-pick
-  conflicts — both sides' history read before any hunk is edited, compose-by-default with
-  evidence-gated side-dropping, a post-resolution semantic-conflict sweep (build/tests before
-  done), and a hard never-`--abort` discipline. Ships three evals.
 - **Exec-bit check in `/source-control:commit`.** Immediately after staging, newly-added files whose
   first line is a shebang (`#!`) are checked against the index and fixed with
   `git update-index --chmod=+x` when staged non-executable. Closes the gap where a new `.sh`/`.py`
@@ -25,6 +21,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   fixes. Scoped to this commit's paths, not the full index, so it never mutates or blocks on staged
   work outside this commit's scope. Runs only tooling that already exists in the consuming repo;
   skips silently when none is discoverable.
+
+## [0.3.0]
+
+### Added
+
+- `/resolve-conflicts` skill: intent-first resolution of in-progress merge/rebase/cherry-pick
+  conflicts — both sides' history read before any hunk is edited, compose-by-default with
+  evidence-gated side-dropping, a post-resolution semantic-conflict sweep (build/tests before
+  done), and a hard never-`--abort` discipline. Ships three evals.
 
 ## [0.2.0]
 
