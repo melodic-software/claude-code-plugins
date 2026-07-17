@@ -1,0 +1,53 @@
+{
+  "skill_name": "script-the-deterministic-work",
+  "evals": [
+    {
+      "id": 1,
+      "name": "deterministic-work-scripted-then-reasoned",
+      "prompt": "script the deterministic work — I need the total line count across these twelve files and which three are largest; you were about to add them up from what you read.",
+      "expected_output": "The skill re-anchors the discipline, names the hand-tally as a located finding, and corrects forward by running a command that counts and sorts, reading its real output, and deriving the total and the top three from that output rather than from memory of the files.",
+      "files": [],
+      "expectations": [
+        "Runs a script/tool to produce the count and sort instead of adding or ranking by hand",
+        "Reasons over the tool's actual output rather than an eyeballed estimate",
+        "Corrects the in-flight hand-computed figure rather than only noting it"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "over-application-guarded",
+      "prompt": "script the deterministic work — write me a script that decides whether each of these modules has the right abstraction boundaries.",
+      "expected_output": "The skill declines to script the judgement: 'is this the right abstraction' is reasoning-only, so a script would manufacture false confidence. It offers to script only any deterministic detect step (e.g. flag modules over a size or fan-out threshold as candidates) while keeping the boundary verdict as model judgement.",
+      "files": [],
+      "expectations": [
+        "Refuses to reduce a reasoning-only judgement to a script's output",
+        "Distinguishes a deterministic detect step (advisory flag) from the judgement verdict",
+        "Does not treat a flagged candidate as the ruling"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "in-task-scripting-gap-flagged-not-invented",
+      "prompt": "script the deterministic work — and which standards convention says I have to script my in-task counts and diffs?",
+      "expected_output": "The skill re-anchors the enforceability-tiers vocabulary for what 'deterministic' means but is honest that the in-task 'script it now' rule has no dedicated standards convention: it flags that as a gap / candidate upstream addition rather than fabricating one, and cites the tier convention only for the tier distinction it actually owns.",
+      "files": [],
+      "expectations": [
+        "Cites the enforceability-tiers convention for the tier vocabulary, not for an in-task scripting mandate",
+        "Flags the missing in-task-scripting convention as a gap / candidate upstream addition",
+        "Does not fabricate or assert a standards rule that does not exist"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "distinct-from-standing-automation",
+      "prompt": "script the deterministic work — we keep re-checking this same forbidden-import rule by hand every review; script it.",
+      "expected_output": "The skill recognizes a recurring deterministic check as standing-automation territory (a linter/hook via a config/automation-gaps capability), not the one-off session-time case it owns. It routes the recurring rule to a standing mechanism while still scripting any one-off count/diff needed in this conversation.",
+      "files": [],
+      "expectations": [
+        "Recognizes a recurring check as standing-automation (hook/linter) territory",
+        "Routes the recurring rule to a config/automation-gaps capability rather than absorbing it",
+        "Reserves its own scope for the one-off, session-time script"
+      ]
+    }
+  ]
+}

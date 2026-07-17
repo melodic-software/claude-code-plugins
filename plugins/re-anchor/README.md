@@ -17,6 +17,7 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
 | `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
 | `/re-anchor:tighten-your-output` | Terseness — fewer words or lines with no loss of meaning or correctness |
+| `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -110,6 +111,24 @@ simplify capability (code).
 
 ```shell
 /re-anchor:tighten-your-output     # re-anchor + audit + correct
+```
+
+### script-the-deterministic-work
+
+Re-anchors the discipline of offloading deterministic sub-work to a script:
+when a sub-task's answer follows mechanically from its input (counting,
+diffing, sorting, transforming, matching, sweeping, arithmetic), write and
+run a script, read its real output, and reason only afterward over that
+output. The tier boundary re-anchors the consuming org's enforceability-tiers
+convention — deterministic work gets scripted, detect-then-judge gets only
+its detect half scripted while the verdict stays judgement, and
+reasoning-only is never scripted. The in-task "script it now" application has
+no standards doc yet, so the skill flags that gap. Distinct from a
+standing-automation capability: recurring checks belong in a hook, this
+corrector owns the one-off, session-time script.
+
+```shell
+/re-anchor:script-the-deterministic-work   # re-anchor + audit + correct
 ```
 
 ## Consumer conventions
