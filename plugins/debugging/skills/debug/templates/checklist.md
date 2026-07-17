@@ -1,4 +1,4 @@
-# /diagnose Checklist
+# /debugging:debug Checklist
 
 Copy into your project's working-notes location, or track inline. Tick as each phase completes.
 

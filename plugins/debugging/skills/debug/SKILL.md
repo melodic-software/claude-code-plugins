@@ -1,7 +1,7 @@
 ---
-name: diagnose
+name: debug
 description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesise → instrument → fix + regression test → cleanup. Use when: \"diagnose this\", \"debug this\", \"why is X broken\", \"X is throwing\", \"something is wrong with\", \"investigate this bug\", \"performance regression\", \"this is slow\", \"intermittent failure\", broken behavior in UI / logs / production / screenshot, flaky test traced to root cause — any OBSERVED FAILURE without a pre-existing reproduction. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap — cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
-argument-hint: "[bug description or observation] (e.g., /debugging:diagnose checkout times out for orders over $1k)"
+argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -22,7 +22,7 @@ Hard bugs are won or lost in **Phase 1**. Without a fast, deterministic, agent-r
 
 This skill enforces the discipline. Six phases, each with a clear gate before the next. The middle three (hypothesise → instrument → fix) are mechanical once Phase 1 is solid; the bookends (loop, cleanup) are the load-bearing work.
 
-Scope boundary — this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill — cycle that test directly (reproduce → fix → retest → regression). What `/diagnose` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding** — filed as an architectural recommendation, not a forced test in the wrong place.
+Scope boundary — this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill — cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding** — filed as an architectural recommendation, not a forced test in the wrong place.
 
 ## Adapting to your environment (graceful degrade)
 
@@ -30,7 +30,7 @@ This skill is self-contained. Where a phase below names an adjacent capability �
 
 ## Emit checklist
 
-For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/templates/checklist.md` — if your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
+For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md` — if your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
 
 ## Phase 1 — Build a tight feedback loop
 
@@ -56,7 +56,7 @@ Spend disproportionate effort here. Be aggressive. Be creative. Refuse to give u
 7. **Property / fuzz loop** — for "sometimes wrong output", run 1000 random inputs and look for the failure mode
 8. **Bisection harness** — if the bug appeared between two known states (commit, dataset, version), automate "boot at state X, check, repeat" so `git bisect run` works
 9. **Differential loop** — same input through old-version vs new-version (or two configs), diff outputs
-10. **HITL bash script** — last resort. If a human must click, copy the bundled template at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/scripts/hitl-loop.template.sh`, customize the steps, and ask the **user** to run it in their terminal (the Bash tool cannot satisfy interactive `read` prompts). Have them paste the `--- Captured ---` KEY=VALUE stdout back into the session so the loop stays structured
+10. **HITL bash script** — last resort. If a human must click, copy the bundled template at `${CLAUDE_PLUGIN_ROOT}/skills/debug/scripts/hitl-loop.template.sh`, customize the steps, and ask the **user** to run it in their terminal (the Bash tool cannot satisfy interactive `read` prompts). Have them paste the `--- Captured ---` KEY=VALUE stdout back into the session so the loop stays structured
 
 ### Loop-recursion hazard
 
@@ -70,7 +70,7 @@ Treat the loop as a product. Once *a* loop exists, ask:
 - Can the **signal be sharper**? Assert on the specific symptom, not "didn't crash"
 - Can it be **more deterministic**? Pin time, seed RNG, isolate filesystem, freeze network
 
-A 30-second flaky loop is barely better than no loop. A 2-second deterministic loop is a debugging superpower. Per-ecosystem timing-injection patterns (and other I/O-seam abstractions) live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/reference/ecosystem-debugging.md` — see the `timing-injection` row for your stack. The universal principle: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in.
+A 30-second flaky loop is barely better than no loop. A 2-second deterministic loop is a debugging superpower. Per-ecosystem timing-injection patterns (and other I/O-seam abstractions) live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md` — see the `timing-injection` row for your stack. The universal principle: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in.
 
 ### Non-deterministic bugs
 
@@ -120,7 +120,7 @@ Tool preference, in order:
 
 **Tag every debug log** with a unique short prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single `grep -r "\[DEBUG-a4f2\]"`. Untagged debug logs survive across PRs; tagged logs die on cue.
 
-Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug instrumentation), banned debug-output APIs, and the required tag-prefix convention live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/diagnose/reference/ecosystem-debugging.md` — see the `logging` + `banned-output` rows for your stack.
+Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug instrumentation), banned debug-output APIs, and the required tag-prefix convention live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md` — see the `logging` + `banned-output` rows for your stack.
 
 **Performance branch.** For perf regressions, logs are usually wrong. Instead: establish a **baseline measurement** using your ecosystem's standard timing / benchmark primitives, then bisect against the baseline. **Measure first, fix second.** Per-ecosystem perf-tooling references (micro-bench libraries, query-plan inspection, profile primitives) live in the reference — see the `perf-tooling` row for your stack.
 
@@ -156,7 +156,7 @@ Required before declaring done:
 - Throwaway prototypes deleted (or moved to a clearly-marked sandbox location)
 - The hypothesis that turned out correct is stated in the **commit message / PR description** — so the next debugger learns
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
-- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix — if your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/diagnose` DOES the fix + regression test; a verifier VERIFIES the outcome
+- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix — if your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` DOES the fix + regression test; a verifier VERIFIES the outcome
 
 **Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling, missing abstraction):
 
