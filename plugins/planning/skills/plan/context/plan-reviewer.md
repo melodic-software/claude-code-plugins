@@ -1,6 +1,6 @@
 # Plan Reviewer — Sub-Agent Dispatch
 
-Fresh-context plan stress-test for `/architect` Step 3. The producing planner MUST NOT run this checklist inline.
+Fresh-context plan stress-test for `/planning:plan` Step 3. The producing planner MUST NOT run this checklist inline.
 
 ## Orchestrator inputs
 

@@ -92,7 +92,7 @@ to re-run this setup to reconfigure or migrate.
 
 - Run a planning stage — that is the pipeline skills (`/planning:brainstorm`, `/planning:prd`,
   `/planning:interview`, `/planning:design`, `/planning:design-handoff`,
-  `/planning:devils-advocate`, `/planning:architect`).
+  `/planning:devils-advocate`, `/planning:plan`).
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create — the
   conflict check surfaces rules; the user resolves them. (The memory root's own self-ignoring
   `.gitignore` is created by the first memory-tier write, announced — not by setup. The single

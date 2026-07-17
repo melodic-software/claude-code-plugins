@@ -1,6 +1,6 @@
 ---
 name: design
-description: "Explore and resolve design decisions — types, contracts, package topology, module boundaries — through collaborative discussion rounds before /architect plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use for 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', or entering /architect without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
+description: "Explore and resolve design decisions — types, contracts, package topology, module boundaries — through collaborative discussion rounds before /planning:plan plans implementation, producing capability-matrix / type-inventory / design-threads / topology artifacts. Use for 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', or entering /planning:plan without exploring the design space first; scales from a single-file early-exit to a multi-session design effort."
 argument-hint: "[scope] [action] (e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff)"
 user-invocable: true
 disable-model-invocation: false
@@ -16,17 +16,17 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Design exploration answers WHAT before `/architect` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology. This skill structures the exploratory work so that every `/architect` plan starts from a design the user has validated through iterative discussion.
+Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
 
-This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/architect` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
+This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
 
 The depth of design exploration scales to the work:
 
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason — then proceed to `/architect`
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason — then proceed to `/planning:plan`
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
-Early-exit is diagnostic, not failure. The stage always runs; depth scales to signal. **Gate artifact:** Tier C and light Tier B early-exits MUST produce `design-resolution.md` in the topic's design slice (`<contract_dir>/<topic-slug>/design/`, default `docs/topics/`; the memory slice under `contract_tier: local`) so `/architect`'s prerequisite check can verify the gate without relying on conversation memory.
+Early-exit is diagnostic, not failure. The stage always runs; depth scales to signal. **Gate artifact:** Tier C and light Tier B early-exits MUST produce `design-resolution.md` in the topic's design slice (`<contract_dir>/<topic-slug>/design/`, default `docs/topics/`; the memory slice under `contract_tier: local`) so `/planning:plan`'s prerequisite check can verify the gate without relying on conversation memory.
 
 ### design-resolution.md (early-exit artifact)
 
@@ -64,7 +64,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/architect`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/architect`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`) — the topic's contract slice, committed on the task branch (under `contract_tier: local` it joins the memory slice): the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs travel together, because `/planning:plan`'s gate and any fresh worktree or clone must see them. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
@@ -105,8 +105,8 @@ Derive types from capabilities:
 - Contracts: interfaces with method signatures
 - Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions) — read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/planning:domain-modeling` the moment a domain term resolves so the active glossary owner
-  applies the consumer's existing format, placement, and context routing
+- Invoke `/domain-driven-design:ubiquitous-language` the moment a domain term resolves so the
+  active glossary owner applies the consumer's existing format, placement, and context routing
 
 Produce: `type-inventory.md`
 
@@ -134,7 +134,7 @@ Systematic gap-finding. For each round:
 3. Present findings to user for discussion
 4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
 
-Continue rounds until no new gaps surface — then run the `handoff` action to delegate to `/planning:design-handoff` for the binary gate and /architect-ready summary.
+Continue rounds until no new gaps surface — then run the `handoff` action to delegate to `/planning:design-handoff` for the binary gate and plan-ready summary.
 
 ## Terminology pass (`terminology` action)
 
@@ -144,12 +144,12 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/planning:domain-modeling` to sync resolved terms and rejected synonyms into the
-   consuming project's active glossary
+5. Invoke `/domain-driven-design:ubiquitous-language` to sync resolved terms and rejected synonyms
+   into the consuming project's active glossary
 
 ## Handoff gate (`handoff` action)
 
-The in-session shortcut to the design→plan gate. Delegate to `/planning:design-handoff` — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the /architect-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+The in-session shortcut to the design→plan gate. Delegate to `/planning:design-handoff` — the single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
 
 ## Scope-specific artifacts
 
@@ -169,14 +169,14 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
 - **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write — another turn or agent may have modified them — and prefer appending or refining over wholesale rewrites
-- **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/architect` can sequence phases correctly
+- **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
 - **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if installed). When the session tail is reached, suggest the `terminology` then `handoff` actions
 - **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes — when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
 
-- **Implementation planning** — that's `/architect` (phases, sanity checks, file-level work items)
+- **Implementation planning** — that's `/planning:plan` (phases, sanity checks, file-level work items)
 - **Code writing** — that's the implementation stage
 - **External research** — that's the research capability (this skill synthesizes research results into design decisions)
 - **UI/UX design** — use dedicated frontend design and UI/UX tooling
@@ -189,8 +189,8 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 | Skill | Relationship |
 |-------|-------------|
 | `/interview` | **Before.** `/interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
-| `/planning:domain-modeling` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
+| `/domain-driven-design:ubiquitous-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
 | `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/design` creates what SHOULD exist |
 | `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/design` synthesizes them. Deferred research items can run in parallel |
-| `/design-handoff` | **The gate.** Owns the design→plan gate criteria and the /architect-ready summary; this skill's `handoff` action delegates to it |
-| `/architect` | **After the handoff gate.** `/design` produces WHAT. `/architect` produces HOW (implementation plan with phases). When design artifacts exist, `/architect` consumes them instead of re-deriving design inline |
+| `/design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
+| `/planning:plan` | **After the handoff gate.** `/design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |

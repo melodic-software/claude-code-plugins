@@ -62,11 +62,11 @@
     {
       "id": 5,
       "name": "resolved-vocabulary-routes-to-owner",
-      "prompt": "/architecture:improve deepening — while grilling the selected candidate we resolved a new project term, Fulfillment Window. /planning:domain-modeling is available in this session. Preserve the term and continue.",
-      "expected_output": "Invokes /planning:domain-modeling for active glossary maintenance, then resumes the architecture interview. Architecture does not duplicate the glossary contract or discover bounded contexts; when that skill is unavailable it preserves only the consumer-owned fallback.",
+      "prompt": "/architecture:improve deepening — while grilling the selected candidate we resolved a new project term, Fulfillment Window. /domain-driven-design:ubiquitous-language is available in this session. Preserve the term and continue.",
+      "expected_output": "Invokes /domain-driven-design:ubiquitous-language for active glossary maintenance, then resumes the architecture interview. Architecture does not duplicate the glossary contract or discover bounded contexts; when that skill is unavailable it preserves only the consumer-owned fallback.",
       "files": [],
       "expectations": [
-        "Invokes /planning:domain-modeling because the skill is available in the current session",
+        "Invokes /domain-driven-design:ubiquitous-language because the skill is available in the current session",
         "Does not reimplement a glossary filename, location, or entry contract in architecture",
         "Does not perform bounded-context discovery as part of preserving the term",
         "Continues the selected-candidate interview after the glossary update"

@@ -43,7 +43,7 @@ Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` f
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW
 items only when the work is genuinely orthogonal to the current session, large enough to need its
-own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting
+own `/planning:plan` pass, or needs research the current session isn't positioned to do. Auto-suggesting
 `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and
 surface what was fixed in the commit message / PR description.
 

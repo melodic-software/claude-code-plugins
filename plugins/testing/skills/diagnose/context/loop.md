@@ -91,7 +91,7 @@ After fixing one instance, ask: is this a pattern? Could the same bug exist in s
 If after 3 iterations the fix keeps breaking other things:
 
 - The code may need redesign, not a patch
-- Route back to the planning skill (`/planning:architect review` when installed) for a broader replanning
+- Route back to the planning skill (`/planning:plan review` when installed) for a broader replanning
 - Don't push through — that's how technical debt compounds
 
 ## Integration with /implementation:implement

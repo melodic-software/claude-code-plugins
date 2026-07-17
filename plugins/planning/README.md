@@ -1,11 +1,11 @@
 # planning
 
 A Claude Code plugin for the **pre-implementation planning pipeline** — everything
-between a rough idea and approved, executable work. Nine pipeline skills covering
+between a rough idea and approved, executable work. Eight pipeline skills covering
 charting a too-big, foggy effort as a decision map, divergence, product intent, the
-engineering contract, active domain-language maintenance, design exploration, the
-design→plan gate, adversarial review, and the implementation plan itself — plus a
-re-runnable `setup` action that settles where artifacts land in the consuming repo.
+engineering contract, design exploration, the design→plan gate, adversarial review,
+and the implementation plan itself — plus a re-runnable `setup` action that settles
+where artifacts land in the consuming repo.
 
 | Skill | Stage | What it does |
 |---|---|---|
@@ -13,18 +13,18 @@ re-runnable `setup` action that settles where artifacts land in the consuming re
 | `/planning:brainstorm` | Diverge | Turns a rough problem into codebase-grounded candidate approaches ordered cheapest→most ambitious; the user reacts, then work routes onward scoped. |
 | `/planning:prd` | Product intent | Produces a Product Requirements Document (problem, users, success metrics) in three tiers — one-pager, consumer-feature, B2B-internal — with a synthesize path and a review mode. |
 | `/planning:interview` | Engineering contract | Locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief — synthesizing when intent is clear, running depth-first Q&A when it isn't, or interviewing relentlessly on request. |
-| `/planning:domain-modeling` | Domain language | Maintains the consuming project's active ubiquitous-language glossary: resolves ambiguous terms, records canonical language and rejected synonyms, and routes entries to already-known contexts without discovering boundaries. |
 | `/planning:design` | Design space | Explores types, contracts, module boundaries, and package topology through collaborative discussion rounds, producing capability-matrix / type-inventory / design-threads / topology artifacts; its `handoff` action delegates to `/planning:design-handoff`. |
-| `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:architect` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the architect-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
+| `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
-| `/planning:architect` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
+| `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
 | `/planning:setup` | Configuration | Interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
 
 The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
-design-handoff → architect` with `devils-advocate` attacking the plan before
-approval — while `domain-modeling` is invoked whenever those workflows resolve vocabulary.
-Every skill also works standalone.
+design-handoff → plan` with `devils-advocate` attacking the plan before
+approval — while `/domain-driven-design:ubiquitous-language` is invoked whenever
+those workflows resolve vocabulary (this plugin declares a dependency on the
+`domain-driven-design` plugin, so it auto-installs). Every skill also works standalone.
 
 ## Works in any repo
 

@@ -5,10 +5,10 @@
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARCHITECT="$PLUGIN_DIR/skills/architect/SKILL.md"
+ARCHITECT="$PLUGIN_DIR/skills/plan/SKILL.md"
 SETUP="$PLUGIN_DIR/skills/setup/SKILL.md"
-TEMPLATE="$PLUGIN_DIR/skills/architect/context/plan-template.md"
-REVIEWER="$PLUGIN_DIR/skills/architect/context/plan-reviewer.md"
+TEMPLATE="$PLUGIN_DIR/skills/plan/context/plan-template.md"
+REVIEWER="$PLUGIN_DIR/skills/plan/context/plan-reviewer.md"
 
 PASS=0
 FAIL=0
@@ -24,9 +24,9 @@ ok() {
 # --- grounding subsection exists exactly once, inside Step 2 ----------------
 count=$(grep -c "Ground in consumer standards" "$ARCHITECT")
 if [[ "$count" -eq 1 ]]; then
-  ok "architect SKILL.md carries exactly one grounding heading"
+  ok "plan SKILL.md carries exactly one grounding heading"
 else
-  fail "expected exactly 1 'Ground in consumer standards' in architect SKILL.md, got $count"
+  fail "expected exactly 1 'Ground in consumer standards' in plan SKILL.md, got $count"
 fi
 
 step2=$(grep -n "^### Step 2: Formulate the Plan" "$ARCHITECT" | cut -d: -f1 | head -1)
@@ -49,9 +49,9 @@ done
 
 # --- pointer discipline: the ladder is cited, never restated ----------------
 if grep -q "Resolution ladder" "$ARCHITECT"; then
-  ok "architect SKILL.md points at the binding's Resolution ladder section"
+  ok "plan SKILL.md points at the binding's Resolution ladder section"
 else
-  fail "architect SKILL.md lost its pointer to the binding's Resolution ladder section"
+  fail "plan SKILL.md lost its pointer to the binding's Resolution ladder section"
 fi
 # Distinctive contract-only phrasings; their presence means a rung or the setup
 # procedure got restated into skill prose (single-home violation).

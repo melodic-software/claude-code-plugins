@@ -3,11 +3,11 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.0]
+## [0.16.0]
 
 ### Added
 
-- **Proactive standards grounding in `/planning:architect`**: Step 2 opens with a "Ground in
+- **Proactive standards grounding in `/planning:plan`**: Step 2 opens with a "Ground in
   consumer standards" formulation input that resolves the consumer's standards index through the
   new `reference/standards-contract.md` binding (synced from the marketplace's standards
   convention), matches task surfaces against the index's Applies-when clues, selectively loads
@@ -25,6 +25,24 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ## [0.13.0]
 
 ### Changed
+
+- **BREAKING: `/planning:domain-modeling` moved out of this plugin** — it now lives in the new
+  `domain-driven-design` plugin as `/domain-driven-design:ubiquitous-language`. The skill maintains
+  vocabulary only and explicitly refuses bounded-context discovery, so "domain-modeling"
+  over-promised; the concern is DDD language stewardship, not planning-stage task shaping. Invokers
+  of `/planning:domain-modeling` must switch to the new command.
+- **Declared a dependency on `domain-driven-design`**, so installing `planning` auto-installs the
+  glossary steward and the pipeline's inline vocabulary updates (`interview`, `design`) keep working
+  cross-plugin.
+- **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
+  `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
+  before plugins, a flat local skill named `plan` would have collided with surfaces already using
+  that word, so the skill shipped under `architect`. Plugin namespacing removed that constraint —
+  `/planning:plan` is unambiguous and says what the skill produces. Claude Code's built-in `/plan`
+  (the plan-mode toggle) is unaffected: plugin skills have no bare command form, so the full
+  invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
+  `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
+  "architect this" remains a trigger phrase in the skill description.
 
 - **`/planning:interview` asks in frontier rounds instead of one question at a time** (behavioral
   change): each round asks every question whose prerequisites are settled as one numbered set, each
