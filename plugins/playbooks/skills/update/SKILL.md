@@ -1,6 +1,6 @@
 ---
 name: update
-description: "Maintainer-facing drift-check and upstream sync for the playbooks plugin's vendored packs (boris, thariq). Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and --apply (refresh vendored baselines). Not for consumers — consumers update via /plugin marketplace update."
+description: "Maintainer-facing drift-check and upstream sync for the playbooks plugin's vendored packs (boris, skill-authoring). Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and --apply (refresh vendored baselines). Not for consumers — consumers update via /plugin marketplace update."
 argument-hint: "[--check | --apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -25,7 +25,7 @@ skill — it is user/maintainer-invoked only.
 | Pack | Upstream | Update path |
 |---|---|---|
 | `boris` | howborisusesclaudecode.com | `bash "${CLAUDE_PLUGIN_ROOT}/skills/boris/scripts/update.sh" [--check\|--apply]` |
-| `thariq` | howborisusesclaudecode.com/api/install-thariq | `bash "${CLAUDE_PLUGIN_ROOT}/skills/thariq/scripts/update.sh" [--check\|--apply]` |
+| `skill-authoring` | howborisusesclaudecode.com/api/install-thariq | `bash "${CLAUDE_PLUGIN_ROOT}/skills/skill-authoring/scripts/update.sh" [--check\|--apply]` |
 | `fable-5` | none (self-authored) | No drift-check path — see below |
 
 Each pack script self-locates from its own path (`BASH_SOURCE`), so it resolves its
@@ -46,7 +46,7 @@ take no action against it here.
 1. Confirm you are in a **working-tree checkout** of this plugin (the marketplace clone,
    or a directory loaded via `--plugin-dir`), never an installed marketplace copy. If you
    cannot verify that, stop and say so — do not mutate an installed cache.
-2. For each upstreamed pack (`boris`, then `thariq`), run its update script in the
+2. For each upstreamed pack (`boris`, then `skill-authoring`), run its update script in the
    requested mode (`--check` is the default; `--apply` only when the invocation asked for
    it). Capture each script's exit code.
 3. For `fable-5`, run nothing — report the self-authored / no-upstream status.
