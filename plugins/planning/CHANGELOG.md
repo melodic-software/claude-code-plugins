@@ -7,6 +7,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
+- **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
+  `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
+  before plugins, a flat local skill named `plan` would have collided with surfaces already using
+  that word, so the skill shipped under `architect`. Plugin namespacing removed that constraint —
+  `/planning:plan` is unambiguous and says what the skill produces. Claude Code's built-in `/plan`
+  (the plan-mode toggle) is unaffected: plugin skills have no bare command form, so the full
+  invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
+  `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
+  "architect this" remains a trigger phrase in the skill description.
+
 - **`/planning:interview` asks in frontier rounds instead of one question at a time** (behavioral
   change): each round asks every question whose prerequisites are settled as one numbered set, each
   with a recommendation; the answers recompute the frontier, and dependent questions wait for the

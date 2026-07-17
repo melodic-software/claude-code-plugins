@@ -73,5 +73,5 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
   the map for `/work-items`.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
   coherent. Close the map and hand the destination to the pipeline entry that fits it
-  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:architect` → PLAN). The
+  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The
   map's lifecycle ends exactly where the normal planning pipeline's begins.

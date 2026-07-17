@@ -171,7 +171,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
-**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/devils-advocate` and `/architect` can attack it later.
+**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/devils-advocate` and `/planning:plan` can attack it later.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
@@ -179,7 +179,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 ### Brief template (the literal shape)
 
-Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
+Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
 
 ```markdown
 ## Brief
@@ -203,10 +203,10 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 - <thing the user raised and explicitly excluded>
 
 ### Deferred questions
-- <question> — defer until <when>; **arbiter: /architect** (default — /architect resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /architect approval gate; /architect proposes, user resolves)
+- <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
 ## Plan
-<empty — populated by /architect>
+<empty — populated by /planning:plan>
 ```
 
-**Arbiter tag is load-bearing.** Default `/architect` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/architect` surface it at approval time.
+**Arbiter tag is load-bearing.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.

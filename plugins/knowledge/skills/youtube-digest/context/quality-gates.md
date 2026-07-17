@@ -144,7 +144,7 @@ When `watch.json` / `selection.json` sets `highVolume: true`:
 | `recommendations/questions.md` | Yes |
 | `recommendations/interview.md` | Yes |
 | `README.md` updated | Yes — per `templates/readme-journey.md` |
-| Auto-implement | **No** — `/interview` → `/architect` → `/implement` |
+| Auto-implement | **No** — `/interview` → `/planning:plan` → `/implement` |
 
 ## Complete slice
 

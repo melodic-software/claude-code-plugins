@@ -1,7 +1,7 @@
 ---
-name: architect
+name: plan
 description: "Produce structured implementation plans with goal, approach, test strategy, blast-radius assessment, parallelism analysis, and a user approval gate before any code is written — persisting PLAN.md for fresh-session handoff. Use for 'plan this', 'architect this', 'how should we implement', 'implementation plan', proactively before executing without a formalized plan, or 'review this plan' to audit an existing plan's completeness."
-argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:architect add caching to query handlers, /planning:architect review, /planning:architect close-out)"
+argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -28,7 +28,7 @@ This skill takes the outputs of the earlier stages — exploration (local unders
 
 ## Emit checklist
 
-For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/architect-checklist.md` (default `.work/`). Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
+For multi-step planning sessions (almost always — Steps 1-5 of this skill), copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`). Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks — stress-test before presenting, always.
 
 **Skip when:** mid-flight `review` replan only — append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
@@ -53,7 +53,7 @@ Before the prerequisite checklist runs, apply a pre-planning discipline checklis
 
 Before planning, verify the knowledge base is ready:
 
-- **Is the effort coherent enough to plan?** — If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/architect` is premature — a plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
+- **Is the effort coherent enough to plan?** — If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/planning:plan` is premature — a plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
 - **Is product intent clear?** — For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that the topic's contract slice holds `PRD.md` (`<contract_dir>/<topic-slug>/PRD.md`, default `docs/topics/`; the memory slice under `contract_tier: local`) OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes) — `/prd` does not apply
 - **Has exploration been done?** — Check if the conversation contains exploration findings for the relevant area. If not, suggest running the exploration capability first (`/discovery:explore` if installed). Don't plan in the dark
 - **Has research been done?** — Check if external research has been completed for technical claims the plan will rely on. If not, suggest running the research capability first (`/discovery:research` if installed). Plans built on assumptions instead of evidence lead to rework
@@ -65,7 +65,7 @@ Before planning, verify the knowledge base is ready:
 | **B — light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** minimal `type-inventory.md` OR `design/design-resolution.md` documenting early-exit with type sketch |
 | **C — no design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 
-Check the topic's contract slice `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`; the memory slice under `contract_tier: local`) for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/architect` consumes design artifacts — do not re-derive design inline when design-significant.
+Check the topic's contract slice `<contract_dir>/<topic-slug>/design/` (default `docs/topics/`; the memory slice under `contract_tier: local`) for design artifacts OR `design-resolution.md` at that path. If Tier A/B requirements are unmet, **stop** — offer `/design` or document the early-exit artifact. The user may override via `AskUserQuestion` only when they explicitly accept skipping design exploration. `/planning:plan` consumes design artifacts — do not re-derive design inline when design-significant.
 
 - **Is the scope clear?** — If the task is ambiguous, ask clarifying questions before planning. A plan for "improve performance" is useless; a plan for "add a cache to the GetOrderById query handler" is actionable. When 2–4 discrete options exist (e.g. cache scope, eviction policy, key derivation), use `AskUserQuestion`; for open-ended ambiguity use prose, one question at a time
 - **Open Decisions surfaced BEFORE plan body** — scan the resume prompt + conversation context + Brief for unresolved decisions (scope cuts, technique choices, ordering, exclusions) that the downstream plan body would otherwise lock inline. Surface them as a numbered "Open Decisions" block with research-backed recommendations + trade-offs per decision; resolve via `AskUserQuestion` (≤4 decisions) or single-prompt prose (≥5). Resolving once up front is cheaper than iterating during Step 5 approval
@@ -203,7 +203,7 @@ Present the final plan to the user. The plan is a proposal, not a commitment —
 3. Stress-test summary (from Step 4, if run) — or "Skipped: blast radius LOW, no triggers matched"
 4. **Execution shape** (from Step 4.5) — parallelism shape AND per-phase routing table. Skipped for single-phase plans
 5. **Decisions made (gate-passed)** (from Step 4.6) — TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence)`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here — they were interviewed before the plan locked. An empty section ("no unilateral decisions — every PLAN item traces to brief") is also valid output
-6. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /architect's discretion — flag any you want changed."
+6. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion — flag any you want changed."
 
 **Presentation order — tweak-likelihood first.** Order the presentation by what the user is most likely to change on review: data-model/schema choices, type interfaces and public contracts, and user-facing surfaces LEAD (flag close calls with their alternatives); mechanical refactoring and low-judgment work sits at the bottom. Presentation order only — phase EXECUTION order stays integration-first per Step 2. Optionally offer a self-contained HTML plan view (decisions-first layout, flagged choices with toggleable alternatives); PLAN.md stays the tracked record.
 
@@ -221,7 +221,7 @@ Before handing off to implementation, verify the branch name matches the approve
 
 Derive the conventional type from plan content: new capability → `feat/`, bug fix → `fix/`, restructuring → `refactor/`, tooling/maintenance → `chore/`, docs-only → `docs/`, tests-only → `test/`, build config → `build/`, performance → `perf/`.
 
-**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/architect review` to re-plan rather than pushing through a broken approach.
+**After approval:** the plan feeds into implementation. Suggest the consuming environment's implementation workflow (an `/implement`-style skill if it ships one, otherwise structured inline execution reading PLAN.md). If implementation diverges from the plan, chain back to `/planning:plan review` to re-plan rather than pushing through a broken approach.
 
 ## Plan Mode Integration
 
@@ -283,7 +283,7 @@ After the user approves the plan in Step 5, update the draft `<contract_dir>/<to
 <actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
 
 ### Execution shape ([EXEC-SHAPE] tagged)
-<orchestration choices /architect made: parallel waves OR sequential, the per-phase routing table, agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, sub-topic promotion, sanity-check criteria per phase>
+<orchestration choices /planning:plan made: parallel waves OR sequential, the per-phase routing table, agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, sub-topic promotion, sanity-check criteria per phase>
 
 ### Mechanical work
 <commit boundaries, verification checkpoints, sequential fallback path (when parallel recommended). Standard implementation boilerplate — rarely needs user-specific override>
@@ -295,7 +295,7 @@ PLAN.md is a multi-turn shared artifact: re-read it from disk before every write
 
 Write the plan even for small changes — future you or a fresh-session agent will thank you.
 
-**Close-out (PR time).** The contract slice is branch-lived; `/architect` owns describing its close-out — invoke with the `close-out` argument once the plan is approved:
+**Close-out (PR time).** The contract slice is branch-lived; `/planning:plan` owns describing its close-out — invoke with the `close-out` argument once the plan is approved:
 
 1. Paste the approved PLAN.md into the PR description inside a `<details>` block — the review-surface publication (PR bodies cap near 64 KB; paste the contract, reference the rest).
 2. Graduate durable outcomes through the knowledge-vault seam — resolve the concern file's `vault_backend`: `docs` (default) → a history-preserving `git mv` of the promoted doc into `docs/adr/` or `docs/specs/` (guard the command — create the target directory first); `gitbook` → report that writes are deferred and use the `docs` path without invoking GitBook API/MCP or Git Sync; any other enabled value → the backend the consuming repo documents, degrading to `docs` when its tools are absent (binding: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Actionable follow-ups go through the work-item tracker seam.
@@ -323,7 +323,7 @@ Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN
 - **NEVER skip Step 3 plan stress-test.** Dispatch the fresh-context plan-reviewer sub-agent every time — the producing planner must not self-critique inline. If the user finds a gap in 5 seconds that the reviewer missed, tighten the reviewer brief. MANDATORY regardless of blast radius
 - **Don't skip the prerequisite check.** Plans built without exploration miss existing patterns. Plans without research repeat mistakes others have solved. The prerequisite check is 30 seconds; the rework is 30 minutes
 - **Scale the plan to the task.** A 50-line plan for a typo fix is over-engineering. A 3-bullet plan for a cross-cutting refactor is under-engineering. Match depth to blast radius
-- **Don't confuse this skill with built-in plan mode.** Plan mode is a read-only permission mode. `/architect` is a planning discipline. If a user types "plan this", they want the discipline, not the permission mode
+- **Don't confuse this skill with built-in plan mode.** Plan mode is a read-only permission mode. `/planning:plan` is a planning discipline. If a user types "plan this", they want the discipline, not the permission mode
 - **Research-iterate has a ceiling.** 3 iterations max before escalating to the user. Infinite loops waste context on diminishing returns. If 3 rounds can't resolve it, the approach may need to change, not just the evidence
 - **The plan is a proposal.** Never start executing without user approval. The approval gate is the point — it's where human judgment enters the loop
 - **Step 4.5 (Execution shape) is default ON for ≥2-phase plans.** Skip explicitly only for single-phase plans or trivial fixes — skipped = all-main-session execution, stated in one line

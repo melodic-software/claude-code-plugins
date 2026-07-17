@@ -42,12 +42,12 @@
       "id": 4,
       "name": "brief-persisted-not-plan",
       "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
-      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /architect — it produces the WHAT contract, not an implementation approach.",
+      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
       "files": [],
       "expectations": [
         "Output writes a Brief with goal, constraints, and testable acceptance criteria",
-        "Output does NOT draft an implementation plan / approach (that is /architect's job)",
-        "Output recommends a next step (explore, research, or /architect) rather than starting to code"
+        "Output does NOT draft an implementation plan / approach (that is /planning:plan's job)",
+        "Output recommends a next step (explore, research, or /planning:plan) rather than starting to code"
       ]
     },
     {
