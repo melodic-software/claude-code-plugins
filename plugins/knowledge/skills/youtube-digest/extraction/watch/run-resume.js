@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI: resume interrupted `/youtube watch` from phase-map state.
+ * CLI: resume interrupted `/youtube-digest watch` from phase-map state.
  *
  * Usage: node watch/run-resume.js <video-slug>
  */

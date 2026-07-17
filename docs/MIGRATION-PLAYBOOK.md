@@ -847,7 +847,7 @@ point every consuming skill's `file:` link and `setup-deps.mjs` fingerprint at t
 byte-drift CI gate are needed — there is only one committed copy, so nothing can drift. The
 invariant that **replaces** the byte-drift gate is delivery-by-version: editing the shared source
 obligates a plugin `version` bump, since the version is the update cache key. (`knowledge`'s
-`repo-analysis` + `video-digestion`, shared by its `youtube` and `course-digest` skills, is the
+`repo-analysis` + `video-digestion`, shared by its `youtube-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
 

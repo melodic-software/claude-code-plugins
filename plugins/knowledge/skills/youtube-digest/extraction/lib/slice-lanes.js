@@ -1,5 +1,5 @@
 /**
- * Single source of truth for the `/youtube watch` slice's concern-lane directory names.
+ * Single source of truth for the `/youtube-digest watch` slice's concern-lane directory names.
  *
  * Every writer, consumer, eval gate, and lib validator joins lane paths through this
  * registry instead of inlining `context/` / `watching/` / `.bootstrap/` / `media/key-frames/`
