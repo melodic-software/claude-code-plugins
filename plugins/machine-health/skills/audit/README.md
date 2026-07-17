@@ -54,7 +54,7 @@ From a clone of this marketplace repository:
 
 ```powershell
 # Dry run into a scratch folder (safe — no remediations, no user-profile pollution)
-& "plugins\machine-health\skills\check\scripts\windows\Invoke-MachineHealthCheck.ps1" `
+& "plugins\machine-health\skills\audit\scripts\windows\Invoke-MachineHealthCheck.ps1" `
     -OutputBase "$env:TEMP\machine-health-scratch" -RunMode first-run -DryRun
 ```
 
@@ -62,7 +62,7 @@ Without `-StateBase`, state and logs land under the output base (or `CLAUDE_PLUG
 environment variable is set). A single check can run in isolation:
 
 ```powershell
-& "plugins\machine-health\skills\check\scripts\windows\checks\Test-DiskHealth.ps1" -Human
+& "plugins\machine-health\skills\audit\scripts\windows\checks\Test-DiskHealth.ps1" -Human
 ```
 
 ## Extending the skill

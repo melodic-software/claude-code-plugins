@@ -1,6 +1,6 @@
 ---
-name: check
-description: "Audit and report on local workstation health: runs OS-specific checks (disk, OS updates, security posture, CISA KEV) from a versioned catalog with trend-aware severity and optional auto-remediation. Use when: 'machine health check', 'system health', 'workstation audit', 'check my computer', 'run health check', 'workstation status report', or when a scheduled weekly routine fires. Outputs a dated markdown report; updates append-only history state. Windows fully implemented; macOS/Linux scaffolded (reports UNKNOWN and stops)."
+name: audit
+description: "Audits local workstation health and emits a findings report: runs OS-specific checks (disk, OS updates, security posture, CISA KEV) from a versioned catalog with trend-aware severity; remediation only when pre-approved. Use when: 'machine health check', 'health check', 'audit my machine', 'system health', 'workstation audit', 'check my computer', 'run health check', 'workstation status report', or when a scheduled weekly routine fires. Outputs a dated markdown report; updates append-only history state. Windows fully implemented; macOS/Linux scaffolded (reports UNKNOWN and stops)."
 ---
 
 # machine-health
@@ -9,7 +9,7 @@ description: "Audit and report on local workstation health: runs OS-specific che
 
 This skill performs a **weekly workstation health audit** with a fail-safe posture: surface issues over silently fixing them. Findings always include reproduction commands so the human can rerun the check outside the skill. Remediations are narrow, logged, and only attempted when the OS-specific `remediation-policy.md` authorizes them. Severity is always trend-aware — a single reading is rarely load-bearing; history is consulted before finalizing severity.
 
-The skill is stateless about scheduling; a separate routine (e.g., a Monday 08:00 scheduled task, or an ad-hoc `/machine-health:check` invocation) calls into it.
+The skill is stateless about scheduling; a separate routine (e.g., a Monday 08:00 scheduled task, or an ad-hoc `/machine-health:audit` invocation) calls into it.
 
 **Progressive disclosure by OS.** The skill detects the host OS and loads only matching references and scripts. Windows is fully implemented. macOS and Linux are scaffolded as `NOT_IMPLEMENTED` stubs so they can be populated in future passes without restructuring.
 
