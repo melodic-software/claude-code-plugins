@@ -107,7 +107,7 @@ worktree-semantics smoke tests → Phase 4 (gates Phase 5 R1/R2); per-plugin `re
 Phase 6 (per-plugin, during the metadata wave); Windows `sensitive` userConfig storage → Phase 7
 (before any userConfig-wave issue touching secrets is filed).
 
-### Phase 1: PLUGIN-PHILOSOPHY.md doctrine revision [TODO]
+### Phase 1: PLUGIN-PHILOSOPHY.md doctrine revision [DONE]
 
 Covers D3, D4, D6, D7, D8, D9, D10, D11.
 
@@ -143,7 +143,7 @@ Work items:
 - `npx markdownlint-cli2 --config .markdownlint-cli2.jsonc docs/PLUGIN-PHILOSOPHY.md` exit 0 (CI's
   pinned action is authoritative; local run uses the repo config).
 
-### Phase 2: MIGRATION-PLAYBOOK.md consistency pass [TODO]
+### Phase 2: MIGRATION-PLAYBOOK.md consistency pass [DONE]
 
 Depends on Phase 1 (doctrine wording is SSOT; playbook points, never restates).
 
@@ -165,7 +165,7 @@ Work items:
   both `Component` and `Stance` columns (Read assertion — pointers naming the section are fine).
 - `npx markdownlint-cli2 --config .markdownlint-cli2.jsonc docs/MIGRATION-PLAYBOOK.md` exit 0.
 
-### Phase 3: docs/OFFICIAL-DOCS.md index + CLAUDE.md pointer [TODO]
+### Phase 3: docs/OFFICIAL-DOCS.md index + CLAUDE.md pointer [DOING]
 
 Covers D14. Parallel-safe with Phase 2 (disjoint files); component list comes from the Brief/Phase 1
 stance table.
@@ -191,7 +191,7 @@ Work items:
   repo's offline link-integrity check passes on the new file (external-URL lychee lane is advisory
   weekly — spot-check a sample of new URLs via WebFetch instead).
 
-### Phase 4: Worktree-semantics empirical verification (throwaway spike) [TODO]
+### Phase 4: Worktree-semantics empirical verification (throwaway spike) [DOING]
 
 Feasibility spike (might change Phase 5's shape) — results are evidence, no kept code. Parallel-safe
 with Phases 1–3 (touches scratchpad + throwaway worktrees only).
