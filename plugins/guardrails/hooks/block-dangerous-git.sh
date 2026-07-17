@@ -105,13 +105,20 @@ abbrev_match() {
   [[ "$full" == "$p"* ]]
 }
 
-# Is an operand a worktree-wide pathspec? `.` from the repo root, and the
-# root-magic forms `:/` and `:(top…)` from anywhere (gitglossary pathspec
-# magic), all address the whole tree.
+# Is an operand a worktree-wide pathspec? `.` from the repo root, the
+# root-magic short form `:/`, and long-form magic whose comma list carries
+# `top` in any position (`:(top)`, `:(literal,top)` — gitglossary pathspec
+# magic) all address the whole tree.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
+  local magic
   case "$1" in
-  "." | ":/" | ":(top"*) return 0 ;;
+  "." | ":/") return 0 ;;
+  ":("*")"*)
+    magic="${1#:(}"
+    magic="${magic%%)*}"
+    [[ ",${magic}," == *",top,"* ]]
+    ;;
   *) return 1 ;;
   esac
 }
@@ -261,10 +268,12 @@ check_segment() {
     done
     ;;
   checkout)
-    # Worktree-wide discard: a bare `.` operand. Path-scoped checkouts
-    # (`checkout .github/x`) tokenize as different words and never match.
-    # Skip values of value-taking options so a branch named "." cannot be
-    # created but its option value never false-matches the operand scan.
+    # Worktree-wide discard: a tree-wide pathspec operand, or a forced
+    # checkout (`-f`/`--force` throws away local modifications even while
+    # switching branches). Path-scoped checkouts (`checkout .github/x`)
+    # tokenize as different words and never match. Skip values of
+    # value-taking options so a branch named "." cannot be created but its
+    # option value never false-matches the operand scan.
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -273,13 +282,39 @@ check_segment() {
         ((k += 2))
         continue
         ;;
+      # Attached branch-name values (`-bname`) are values, not flag bundles.
+      -b?* | -B?*)
+        ((k++))
+        continue
+        ;;
       *)
+        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
+          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+          block "checkout-force" \
+            "BLOCKED: git checkout -f/--force throws away local modifications." \
+            "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
+        fi
         is_tree_wide_pathspec "$x" && block "checkout-dot" \
           "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
           "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
         ;;
       esac
       ((k++))
+    done
+    ;;
+  switch)
+    # switch -f/--force (alias --discard-changes) throws away local
+    # modifications the same way forced checkout does. `--d` alone is
+    # ambiguous with --detach, so the abbreviation floor is --disc.
+    for ((k = sub_idx + 1; k < nseg; k++)); do
+      x="${w[k]}"
+      if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
+        || abbrev_match "discard-changes" "$x" 4 \
+        || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+        block "checkout-force" \
+          "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
+          "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
+      fi
     done
     ;;
   restore)

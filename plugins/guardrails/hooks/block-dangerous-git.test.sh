@@ -85,6 +85,16 @@ run "git restore --source HEAD~1 file (source value, allowed)" "git restore --so
 run "git checkout :/ (root-magic pathspec, blocked)" "git checkout :/" 2
 run "git restore :/ (root-magic pathspec, blocked)" "git restore :/" 2
 run "git restore ':(top)' (top-magic pathspec, blocked)" "git restore ':(top)'" 2
+run "git restore ':(literal,top)' (reordered top magic, blocked)" "git restore ':(literal,top)'" 2
+run "git restore ':(literal)x' (non-top magic, allowed)" "git restore ':(literal)x'" 0
+run "git checkout -f (forced discard, blocked)" "git checkout -f" 2
+run "git checkout --force main (forced switch, blocked)" "git checkout --force main" 2
+run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main" 2
+run "git checkout -bf (attached branch name f, allowed)" "git checkout -bf" 0
+run "git switch -f main (forced switch, blocked)" "git switch -f main" 2
+run "git switch --discard-changes main (blocked)" "git switch --discard-changes main" 2
+run "git switch main (plain switch, allowed)" "git switch main" 0
+run "git switch -c feat/x (create, allowed)" "git switch -c feat/x" 0
 
 # --- not blocked by design ----------------------------------------------------
 run "git branch -D feat/x (reflog-recoverable, allowed)" "git branch -D feat/x" 0

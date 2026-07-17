@@ -9,10 +9,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **`block-dangerous-git` guard** (PreToolUse on Bash, blocking): stops irreversible git operations
   before they run — `push --force`/`-f` (never `--force-with-lease`), the equivalent
-  leading-`+` refspec and `--mirror` force-push forms, `reset --hard`, `clean` with a
-  force flag (a dry-run flag anywhere disarms the check — git honors it regardless of order), and
-  worktree-wide `checkout .` / `restore .` (path-scoped forms and index-only
-  `restore --staged .` pass). The parse-cap fail-closed path never consults the allow-list. `branch -D` is deliberately not blocked: deleted refs are
+  leading-`+` refspec and `--mirror` force-push forms (a push dry-run disarms), `reset --hard`,
+  `clean` with a force flag (a dry-run flag anywhere disarms the check — git honors it regardless
+  of order), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, and long-form magic carrying
+  `top`; path-scoped forms and index-only `restore --staged .` pass), and forced
+  `checkout -f`/`--force` and `switch -f`/`--discard-changes` (both throw away local
+  modifications). Accepted unique-prefix abbreviations of the blocked long options match too
+  (git parse-options accepts them: `reset --h` runs `--hard`). The parse-cap fail-closed path
+  never consults the allow-list. `branch -D` is deliberately not blocked: deleted refs are
   reflog-recoverable and sanctioned skill flows issue it inline. Per-repo/per-user allow-list via
   `HOOK_BLOCK_DANGEROUS_GIT_ALLOW` (comma list of `push-force`, `reset-hard`, `clean-force`,
   `checkout-dot`, `restore-dot`) in a settings `env` block; kill switch
