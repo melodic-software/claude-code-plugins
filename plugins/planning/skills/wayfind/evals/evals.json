@@ -10,7 +10,7 @@
       "expectations": [
         "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode, since no open map exists yet for this topic",
         "Output applies the fog test to sort uncertainties into sharp candidate decision items versus foggy Not-yet-specified prose, instead of trying to answer every uncertainty itself",
-        "Output does not skip straight to /planning:interview or /planning:architect without first charting the fog"
+        "Output does not skip straight to /planning:interview or /planning:plan without first charting the fog"
       ]
     },
     {

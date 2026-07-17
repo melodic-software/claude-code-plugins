@@ -8,10 +8,10 @@ Topic: adding token-refresh to an auth module. Derived slug:
 
 ```text
 docs/topics/auth-token-refresh/     <- contract slice, committed on branch
-  PLAN.md                           interview writes Brief; architect appends Plan
+  PLAN.md                           interview writes Brief; plan appends Plan
   PRD.md                            prd (status: locked)
   design/
-    design-threads.md               all RESOLVED -> architect's gate passes
+    design-threads.md               all RESOLVED -> plan's gate passes
     design-resolution.md
   verification/
     20260714T161500Z-outcomes.md    distilled manifest, verified_at_sha-keyed

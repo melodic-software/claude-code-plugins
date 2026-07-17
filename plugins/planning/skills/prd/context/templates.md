@@ -2,7 +2,7 @@
 
 All three tiers cover the same seven required sections. Tier governs verbosity, not section presence. Loaded on demand by `/prd` once tier is chosen.
 
-**Prototype snippet exception:** if a logic prototype (e.g. `/prototype:logic`, if installed) produced a snippet that encodes a design decision more precisely than prose (state machine, reducer, schema, type shape), inline the decision-rich parts in the Open questions section and note it came from a prototype. The PRD defers implementation details to `/architect`, but prototype-validated design constraints are product-level — they belong here.
+**Prototype snippet exception:** if a logic prototype (e.g. `/prototype:logic`, if installed) produced a snippet that encodes a design decision more precisely than prose (state machine, reducer, schema, type shape), inline the decision-rich parts in the Open questions section and note it came from a prototype. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level — they belong here.
 
 ---
 
@@ -44,7 +44,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 - <dependency or risk> — <mitigation or owner>
 
 ## Open questions
-- <question that /architect needs answered>
+- <question that /planning:plan needs answered>
 ```
 
 ### Example — "Add gig calendar to dashboard"
@@ -84,7 +84,7 @@ Solo and band artists who play 2+ gigs/month.
 - Risk: overlapping with planned rehearsal-scheduling feature → coordinate with that PRD
 
 ## Open questions
-- Show full month or rolling 14-day window? (architect to evaluate based on data density)
+- Show full month or rolling 14-day window? (/planning:plan to evaluate based on data density)
 ```
 
 ---
@@ -142,7 +142,7 @@ Each metric must have a measurement window and a numeric or qualitative threshol
 - **Risk**: <top risk> — <mitigation>
 
 ## Open questions
-- <Question /architect needs answered before a plan is realistic.>
+- <Question /planning:plan needs answered before a plan is realistic.>
 - <Question that needs market or user-research data before locking — defer to research.>
 ```
 
@@ -231,7 +231,7 @@ Each metric named with owner — "who watches the dashboard" matters in tier-3.
 - **Communication**: <who is notified, when, with what runbook>
 
 ## Open questions
-- <Question /architect needs answered.>
+- <Question /planning:plan needs answered.>
 - <Question for sponsor / compliance / legal.>
 - <Question that needs research before locking.>
 ```

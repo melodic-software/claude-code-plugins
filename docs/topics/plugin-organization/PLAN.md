@@ -81,9 +81,9 @@ history; grouping lives in marketplace metadata.
 
 ### Deferred questions
 
-- Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/architect`.
+- Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/planning:plan`.
 - session-flow category label `workflow` — judgment call (no marketplace precedent); revisit if a stronger authoritative label emerges.
 
 ## Plan
 
-(unfilled — /architect)
+(unfilled — /planning:plan)

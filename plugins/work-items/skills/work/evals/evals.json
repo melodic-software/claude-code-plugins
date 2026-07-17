@@ -13,7 +13,7 @@
         "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
         "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
         "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
-        "Executes the selected item through the 8-step workflow (/discovery:explore -> /discovery:research -> /planning:architect -> /implementation:implement -> /testing:plan -> /review:quality-gate -> /verification:confirm outcome -> /session-flow:retro)"
+        "Executes the selected item through the 8-step workflow (/discovery:explore -> /discovery:research -> /planning:plan -> /implementation:implement -> /testing:plan -> /review:quality-gate -> /verification:confirm outcome -> /session-flow:retro)"
       ]
     },
     {

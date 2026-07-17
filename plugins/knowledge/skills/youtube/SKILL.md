@@ -266,7 +266,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-resea
    - `recommendations/questions.md` — open questions for the user
    - Update `README.md` per `templates/readme-journey.md`
    - **Offer an HTML view** — optionally render a self-contained HTML dashboard of the prioritized recommendations menu (markdown stays the tracked record); follow your project's HTML-vs-markdown convention when one exists.
-   - **No auto-implement** — `/interview` → `/architect` → `/implement`
+   - **No auto-implement** — `/interview` → `/planning:plan` → `/implement`
 
 2. **Interview handoff** — write `recommendations/interview.md` with menu + *"Should we go further?"*; suggest `/interview` for POC/full-slice items.
 

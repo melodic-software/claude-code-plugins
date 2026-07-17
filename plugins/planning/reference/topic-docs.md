@@ -17,10 +17,10 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | Artifact (writer) | Tier | Location (default) |
 |---|---|---|
 | `PRD.md` (`/planning:prd`) | Contract | `docs/topics/<topic-slug>/`, committed on the task branch |
-| `PLAN.md` — Brief (`/planning:interview`), Plan (`/planning:architect`) | Contract | same slice |
+| `PLAN.md` — Brief (`/planning:interview`), Plan (`/planning:plan`) | Contract | same slice |
 | `design/` — ALL design artifacts, including the `design-threads.md` / `design-resolution.md` gate files (`/planning:design`, gated by `/planning:design-handoff`; gate files must travel with the branch) | Contract | `docs/topics/<topic-slug>/design/` |
-| `interview-checklist.md`, `architect-checklist.md` | Memory | `.work/<topic-slug>/` — never committed |
-| `baselines/` — machine-bound captures from the architect's baseline step | Memory | `.work/<topic-slug>/baselines/` |
+| `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/` — never committed |
+| `baselines/` — machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
 | Opt-in `brainstorm.md` (`/planning:brainstorm` — never a default write) | Memory | `.work/<topic-slug>/` |
 
 `contract_tier: local` moves the contract rows into the memory slice with an identical layout —
@@ -29,7 +29,7 @@ the contract's solo/offline mode. Roots are configurable via the concern file's 
 
 ## Close-out — the vault seam
 
-`/planning:architect` owns describing the contract-slice close-out. Its promotion step resolves
+`/planning:plan` owns describing the contract-slice close-out. Its promotion step resolves
 the concern file's `vault_backend`: `docs` (default) → a guarded, history-preserving `git mv`
 into `docs/adr/` / `docs/specs/`; an enabled non-`docs` value → the backend the consuming repo
 documents, degrading to `docs` when that backend's tools are absent.

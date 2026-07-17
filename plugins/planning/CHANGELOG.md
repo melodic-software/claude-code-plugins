@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
+  `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
+  before plugins, a flat local skill named `plan` would have collided with surfaces already using
+  that word, so the skill shipped under `architect`. Plugin namespacing removed that constraint —
+  `/planning:plan` is unambiguous and says what the skill produces. Claude Code's built-in `/plan`
+  (the plan-mode toggle) is unaffected: plugin skills have no bare command form, so the full
+  invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
+  `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
+  "architect this" remains a trigger phrase in the skill description.
+
 ## [0.12.0]
 
 ### Changed
