@@ -254,7 +254,7 @@ assert_contains "plain [P-num] under-decomposed -> blocked" "$r" "READINESS_BLOC
 # --- Case: [P4]+ outside the documented P0-P3 range never counts -------------
 # Incidental bracketed tokens like a "[P7]" section label are not severity
 # markers from any documented reviewer; counting them would false-BLOCK an
-# otherwise clean PR (claude[bot] PR #300 finding 2).
+# otherwise clean PR.
 F=$(mkjson plain-pseverity-out-of-range '[
   {author:"some-reviewer[bot]", body:"Table [P7] shows throughput; appendix [P9] has raw data."}
 ]')
