@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /playbooks:update (thariq pack) — drift detection + vendor sync.
+# /playbooks:update (skill-authoring pack) — drift detection + vendor sync.
 #
 # Maintainer-facing: run against a working-tree checkout of this plugin (the
 # marketplace clone, or a directory loaded via --plugin-dir), never against an
@@ -30,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FRONTMATTER_FILE="${SKILL_DIR}/SKILL.md"
 VENDOR_FILE="${SKILL_DIR}/vendor/SKILL.md"
-TMPDIR_RUN=$(mktemp -d -t thariq-update-XXXXXX)
+TMPDIR_RUN=$(mktemp -d -t skill-authoring-update-XXXXXX)
 
 cleanup() {
   rm -rf "$TMPDIR_RUN"
@@ -141,7 +141,7 @@ run_check() {
 
   section "Summary"
   if [[ $drift -eq 0 ]]; then
-    log "No drift. thariq pack in sync with upstream v${upstream_ver}."
+    log "No drift. skill-authoring pack in sync with upstream v${upstream_ver}."
     return 0
   fi
   log "Drift detected. Run '/playbooks:update --apply' to sync vendor + frontmatter."
@@ -191,7 +191,7 @@ run_apply() {
   log "     git diff HEAD -- \"$VENDOR_FILE\""
   log "2. Integrate deltas into the distilled SKILL.md body (preserve its framing)."
   log "3. Bump the playbooks plugin version in its .claude-plugin/plugin.json so consumers update."
-  log "4. Commit: chore(playbooks): sync thariq pack to upstream v${upstream_ver}"
+  log "4. Commit: chore(playbooks): sync skill-authoring pack to upstream v${upstream_ver}"
   return 0
 }
 
@@ -199,7 +199,7 @@ print_help() {
   cat <<'EOF'
 Usage: update.sh [--check | --apply | --help]
 
-Vendor-backed update helper for the thariq pack (playbooks plugin). Maintainer-
+Vendor-backed update helper for the skill-authoring pack (playbooks plugin). Maintainer-
 facing: run in a working-tree checkout of the plugin, not an installed copy.
 
   --check  (default) Read-only drift report: upstream frontmatter version +

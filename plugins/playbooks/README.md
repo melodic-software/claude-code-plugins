@@ -10,13 +10,13 @@ no work of its own.
 | Skill | Invoke | What it provides |
 |---|---|---|
 | `boris` | `/playbooks:boris` | Boris Cherny's Claude Code workflow tips (howborisusesclaudecode.com) — 107 tips across 95 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, and orchestration, routed through a hub + topic reference files. |
-| `thariq` | `/playbooks:thariq` | Anthropic's internal skill-authoring playbook — 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
+| `skill-authoring` | `/playbooks:skill-authoring` | Anthropic's internal skill-authoring playbook — 9 skill categories and 9 authoring tips (gotchas sections, progressive disclosure, description-as-trigger, first-run setup, persistent storage, effort-aware behavior, helper scripts, on-demand hooks) plus distribution guidance. |
 | `fable-5` | `/playbooks:fable-5` | Claude Fable 5's operating doctrine — twelve trigger-routed chapters of introspected standing instructions (calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, trust boundaries) plus an Opus-adaptation chapter. Bare arms the session; `full` preloads every chapter; a chapter name reads one. |
 | `update` | `/playbooks:update` | Maintainer-facing drift-check and upstream sync for the vendored packs. `--check` (default) reports drift read-only; `--apply` refreshes the vendored baselines. Not for consumers. |
 
 ## Updating the packs
 
-`boris` and `thariq` vendor a verbatim upstream baseline for drift detection.
+`boris` and `skill-authoring` vendor a verbatim upstream baseline for drift detection.
 `/playbooks:update` (maintainers) dispatches to each pack's self-locating update
 script: `--check` (default) reports upstream version and vendor SHA drift
 read-only; `--apply` refreshes the vendored baseline and frontmatter metadata.
