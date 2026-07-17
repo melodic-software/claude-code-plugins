@@ -6,7 +6,7 @@ via a disciplined six-phase loop. It is the discipline that separates a fixed
 bug from a lucky one: no phase proceeds without a fast, deterministic,
 agent-runnable pass/fail signal.
 
-Invoke it with `/debugging:diagnose <bug description>`, or let Claude reach for it
+Invoke it with `/debugging:debug <bug description>`, or let Claude reach for it
 when you describe broken behavior with no pre-existing reproduction.
 
 ## The six phases
