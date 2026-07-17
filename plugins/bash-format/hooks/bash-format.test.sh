@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Black-box contract test for bash-lint.sh (the bash-lint plugin hook).
+# Black-box contract test for bash-format.sh (the bash-format plugin hook).
 #
 # Proves WIRING: the hook fires on *.sh/*.bash, skips otherwise, surfaces
 # ShellCheck findings via additionalContext (advisory, exit 0), honors the
@@ -17,7 +17,7 @@
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOK="$HOOK_DIR/bash-lint.sh"
+HOOK="$HOOK_DIR/bash-format.sh"
 
 PASS=0
 FAIL=0
@@ -31,7 +31,7 @@ ok() {
 }
 
 if ! command -v shellcheck >/dev/null 2>&1; then
-  echo "SKIP: shellcheck not on PATH -- bash-lint hook tests skipped"
+  echo "SKIP: shellcheck not on PATH -- bash-format hook tests skipped"
   exit 0
 fi
 HAVE_SHFMT=0
@@ -87,12 +87,12 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_BASH_LINT_ENABLED=true bash "$HOOK"
+      | env -u CLAUDE_PROJECT_DIR HOOK_BASH_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
 # Same as run_hook but with caller-supplied extra env (NAME=VALUE ...) and an
-# optional override of HOOK_BASH_LINT_ENABLED, passed through env.
+# optional override of HOOK_BASH_FORMAT_ENABLED, passed through env.
 run_hook_env() {
   local file_path="$1"
   shift
@@ -159,7 +159,7 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-shell ext -> exit 0 silent"; else fail "non-shell not skipped (rc=$RC out=$OUT)"; fi
 
 # --- Case 5: kill switch bypasses hook --------------------------------------
-OUT=$(run_hook_env "$REPO/violation.sh" HOOK_BASH_LINT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/violation.sh" HOOK_BASH_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent despite violation"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 
@@ -254,7 +254,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.sh" -u HOOK_TELEMETRY_SINK HOOK_BASH_LINT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.sh" -u HOOK_TELEMETRY_SINK HOOK_BASH_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -265,7 +265,7 @@ fi
 # --- Stub sink + violation -> envelope status ok with findings --------------
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/violation.sh" HOOK_BASH_LINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/violation.sh" HOOK_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -276,7 +276,7 @@ if [[ -s "$TEL" ]]; then
       fail "envelope: $field missing ($(cat "$TEL"))"
     fi
   done
-  if [[ "$(jq -r '.hook' "$TEL")" == "bash-lint" ]]; then ok "envelope: hook is bash-lint"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
+  if [[ "$(jq -r '.hook' "$TEL")" == "bash-format" ]]; then ok "envelope: hook is bash-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
@@ -292,7 +292,7 @@ rm -f "$TEL"
 # --- Stub sink + clean file -> status ok, findings [] -----------------------
 TELC="$(mktemp)"
 SINKC="$(make_sink "cat >\"$TELC\"")"
-run_hook_env "$REPO/clean.sh" HOOK_BASH_LINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
+run_hook_env "$REPO/clean.sh" HOOK_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
 wait_for_sink "$TELC"
 if [[ -s "$TELC" ]]; then
   if [[ "$(jq -r '.status' "$TELC")" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status=$(jq -r '.status' "$TELC")"; fi

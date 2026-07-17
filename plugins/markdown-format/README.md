@@ -1,4 +1,4 @@
-# markdown-formatter
+# markdown-format
 
 A Claude Code plugin that auto-formats and lints Markdown the moment you edit it.
 On every `Write` or `Edit` of a `.md` or `.mdc` file it runs
@@ -60,7 +60,7 @@ the advisory to appear again.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install markdown-formatter@melodic-software
+/plugin install markdown-format@melodic-software
 ```
 
 ## Configuration
