@@ -251,4 +251,15 @@ r=$(run_gate "$F")
 assert_contains "plain [P-num] markers -> findings=2" "$r" "findings=2"
 assert_contains "plain [P-num] under-decomposed -> blocked" "$r" "READINESS_BLOCKED reason=under-decomposed"
 
+# --- Case: [P4]+ outside the documented P0-P3 range never counts -------------
+# Incidental bracketed tokens like a "[P7]" section label are not severity
+# markers from any documented reviewer; counting them would false-BLOCK an
+# otherwise clean PR (claude[bot] PR #300 finding 2).
+F=$(mkjson plain-pseverity-out-of-range '[
+  {author:"some-reviewer[bot]", body:"Table [P7] shows throughput; appendix [P9] has raw data."}
+]')
+r=$(run_gate "$F")
+assert_contains "out-of-range [P-num] -> findings=0" "$r" "findings=0"
+assert_contains "out-of-range [P-num] -> OK" "$r" "READINESS_OK"
+
 [[ $FAILED -eq 0 ]] || exit 1

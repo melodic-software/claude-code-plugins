@@ -230,10 +230,10 @@ rebase and force-push with lease. Then:
   next PR with an integration in progress. Resolve via `/source-control:resolve-conflicts`
   discipline (understand both sides' intent; compose, don't side-pick)
 - **Complex conflicts** (>3 files, `REBASE_STATUS=conflict-aborted`) — abort the merge/rebase,
-  post a PR comment: `"⚠️ Branch is behind main with integration conflicts ({N} files). Manual
-  resolution is required before CI will trigger."`. If an interactive terminal, also surface to
-  the user directly. Process comments read-only (classification + reply, no fixes — the code
-  may be stale)
+  post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
+  files). Manual resolution is required before CI will trigger."`. If an interactive terminal,
+  also surface to the user directly. Process comments read-only (classification + reply, no
+  fixes — the code may be stale)
 - **Already current** (`REBASE_STATUS=current`) — no action needed
 
 **Why mandatory:** exploration and research read files from the working tree. Without checkout,

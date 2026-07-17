@@ -172,11 +172,13 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # word char in `shields.io/badge/...`).
 SEVERITY_WORDS_RE='CRITICAL|IMPORTANT|SUGGESTION'
 SEVERITY_BADGE_RE='/badge/P[0-3]-'
-# Plain bracketed P-severity markers ([P1] .. [P3]) — a common reviewer format
+# Plain bracketed P-severity markers ([P0] .. [P3]) — a common reviewer format
 # with neither a severity word nor a shields badge. The badge alt text is
 # `![PN Badge]` (space before the closing bracket), so this pattern cannot  # spellchecker:disable-line
-# double-count a badge finding.
-SEVERITY_PLAIN_RE='\[P[0-9]\]'
+# double-count a badge finding. Bounded to P0-P3 (the documented reviewer
+# range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
+# the finding count into a false READINESS_BLOCKED.
+SEVERITY_PLAIN_RE='\[P[0-3]\]'
 CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
