@@ -16,7 +16,7 @@ When tests fail, investigate — never dismiss, never retry blindly. Activates w
    | "Unknown option" from test runner | Bad CLI flags (e.g. `--nologo` against xUnit v3 MTP) | Strip the offending flag; confirm the runner version the project uses |
    | Timeout / hung test | Async deadlock, missing cancellation | Check for sync-over-async (`.Result` / `.Wait()`) |
    | Intermittent pass/fail | Shared static state, race condition | Check for process-global singletons, parallel execution |
-   | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build via `/toolchain:build` first; verify project references |
+   | FileNotFoundException for assembly | Missing project reference or build | Run the ecosystem's build via `/toolchain:check` first; verify project references |
 
 3. **Reproduce deterministically** — run the failing test in isolation. Use the ecosystem's per-framework filter syntax (e.g. `--filter "FullyQualifiedName~TestClassName.TestMethodName"` for xUnit; `-k <pattern>` for pytest; `--testNamePattern` for vitest).
 

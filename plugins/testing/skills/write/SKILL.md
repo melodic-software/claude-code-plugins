@@ -1,6 +1,6 @@
 ---
 name: write
-description: "Write and place tests across all ecosystems — TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use for 'write tests', 'test this', 'where should this test go', or when code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:build."
+description: "Write and place tests across all ecosystems — TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use for 'write tests', 'test this', 'where should this test go', or when code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /testing:write organize)"
 user-invocable: true
 disable-model-invocation: false
@@ -13,7 +13,7 @@ Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "cl
 
 ## Purpose
 
-Authoring discipline for tests: what to test, how to name it, which test type fits, and where the test lives. `/implementation:implement` calls this skill during its TDD cadence; `/toolchain:build` owns test INVOCATION (the actual commands, SSOT). Test STRUCTURE configuration (frameworks, project locations, naming, fixture conventions) belongs to the consuming project — read its testing conventions (its `CLAUDE.md` / rules / test-structure docs) before writing tests, and infer from existing test projects when nothing is documented.
+Authoring discipline for tests: what to test, how to name it, which test type fits, and where the test lives. `/implementation:implement` calls this skill during its TDD cadence; `/toolchain:check` owns test INVOCATION (the actual commands, SSOT). Test STRUCTURE configuration (frameworks, project locations, naming, fixture conventions) belongs to the consuming project — read its testing conventions (its `CLAUDE.md` / rules / test-structure docs) before writing tests, and infer from existing test projects when nothing is documented.
 
 ## Arguments
 
@@ -43,14 +43,14 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 
 ## Handoff
 
-- Run the new tests via `/toolchain:build` (or the project's own test command when the `toolchain` plugin is absent), then continue implementation — `/implementation:implement` when that plugin is installed
+- Run the new tests via `/toolchain:check` (or the project's own test command when the `toolchain` plugin is absent), then continue implementation — `/implementation:implement` when that plugin is installed
 - **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session) — rubber-duck checkpoint before commit. Lightweight cross-model critique catches false-green or brittle tests before slow CI runs — the author writing tests for their own code is the producer verifying its own work, and this cross-model pass is that independence seam. Skip for trivial test additions
 - After an `organize` decision: proceed to authoring for the new test project
 - Coverage gaps still open → `/testing:plan`; failures while running → `/testing:diagnose`
 
 ## What this skill does NOT do
 
-- **Does not run test commands** — `/toolchain:build` is SSOT for CLI invocation
+- **Does not run test commands** — `/toolchain:check` is SSOT for CLI invocation
 - **Does not diagnose failures** — `/testing:diagnose`
 - **Does not replace the project's testing conventions** — the consuming project's rules are the source of truth for frameworks, naming, organization; this skill defers to them
 

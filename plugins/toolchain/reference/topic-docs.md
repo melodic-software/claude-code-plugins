@@ -1,6 +1,6 @@
 # Topic-docs concern file — what `/toolchain:setup` offers
 
-This plugin's skills (`/toolchain:build`, `/toolchain:lint`, `/toolchain:setup`) write no lifecycle
+This plugin's skills (`/toolchain:check`, `/toolchain:lint`, `/toolchain:setup`) write no lifecycle
 documents of their own. `/toolchain:setup` reads this binding to offer the consuming repo the tracked
 `.claude/topic-docs.yaml` concern file — the shared, consumer-side source of truth that companion
 lifecycle plugins resolve for artifact placement.

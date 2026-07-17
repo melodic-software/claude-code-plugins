@@ -58,7 +58,7 @@ Choose the scope based on what changed:
 | Files in a single project | That project's `.csproj` | `dotnet build path/to/Project.csproj` |
 | Files spanning multiple projects | Full solution | `dotnet build <solution>` |
 | Shared build config (`.props`, `.targets`, `.editorconfig`) | Full solution | `dotnet build <solution>` |
-| Nothing (clean tree, `/toolchain:build all`) | Full solution | `dotnet build <solution>` |
+| Nothing (clean tree, `/toolchain:check all`) | Full solution | `dotnet build <solution>` |
 
 To find the `.csproj` for a changed file, walk up from the file's directory until you find a `.csproj`.
 

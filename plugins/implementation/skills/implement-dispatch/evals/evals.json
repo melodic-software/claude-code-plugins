@@ -30,12 +30,12 @@
       "id": 3,
       "name": "verifies-worker-return-against-direct-evidence",
       "prompt": "/implementation:implement-dispatch phase-2 — the worker for phase 2 reported back: 'Done, all files updated and the build is green.' Accept the phase and move on.",
-      "expected_output": "Treats the worker return as synthesis, not ground truth: promotes its claims to direct evidence (diff read, grep, file Read) and runs /toolchain:build itself main-side before accepting the edits — it never accepts the worker's green claim as the build signal.",
+      "expected_output": "Treats the worker return as synthesis, not ground truth: promotes its claims to direct evidence (diff read, grep, file Read) and runs /toolchain:check itself main-side before accepting the edits — it never accepts the worker's green claim as the build signal.",
       "files": [],
       "expectations": [
         "Does NOT accept the worker's 'build is green' claim as the authoritative build signal",
         "Verifies the worker's claims against direct evidence (reads the diff / greps / reads files) before building on them",
-        "Runs /toolchain:build itself from the main window rather than trusting the worker's report"
+        "Runs /toolchain:check itself from the main window rather than trusting the worker's report"
       ]
     },
     {

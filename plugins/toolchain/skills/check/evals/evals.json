@@ -1,10 +1,10 @@
 {
-  "skill_name": "build",
+  "skill_name": "check",
   "evals": [
     {
       "id": 1,
       "name": "auto-detects-affected-ecosystems-from-git-status",
-      "prompt": "/toolchain:build — I just edited a couple of .cs files and a pyproject-managed .py module.",
+      "prompt": "/toolchain:check — I just edited a couple of .cs files and a pyproject-managed .py module.",
       "expected_output": "Classifies the changed files from git status against each covered ecosystem's globs, detects the dotnet and python ecosystems, resolves each one's command surface via the ladder, and runs build -> test -> lint per ecosystem — reporting a per-ecosystem results table. It does not run ecosystems with no changed files.",
       "files": [],
       "expectations": [
@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "missing-tool-reports-skip-not-fail",
-      "prompt": "/toolchain:build python — but `uv` is not installed on this machine.",
+      "prompt": "/toolchain:check python — but `uv` is not installed on this machine.",
       "expected_output": "Verifies the tool is on PATH before running; since uv is missing it reports the python ecosystem as `skip` with the ecosystem's install-hint — it does NOT report FAIL for a missing tool.",
       "files": [],
       "expectations": [
@@ -29,7 +29,7 @@
     {
       "id": 3,
       "name": "consumer-ecosystem-config-wins-over-bundled-default",
-      "prompt": "/toolchain:build dotnet — the repo has a tracked `.claude/ecosystems/dotnet.yaml` with a project-specific test-cmd.",
+      "prompt": "/toolchain:check dotnet — the repo has a tracked `.claude/ecosystems/dotnet.yaml` with a project-specific test-cmd.",
       "expected_output": "Resolves the dotnet command surface through the four-rung ladder with the consumer's tracked `.claude/ecosystems/dotnet.yaml` authoritative (rung 1) — the bundled portable default is only the rung-4 fallback. It runs the consumer's declared commands, not the bundled ones.",
       "files": [],
       "expectations": [
@@ -41,19 +41,19 @@
     {
       "id": 4,
       "name": "build-scope-excludes-lint-only-surfaces",
-      "prompt": "/toolchain:build all — the working tree changed a GitHub Actions workflow YAML and a plain README, among other files.",
-      "expected_output": "Runs only the ecosystems /toolchain:build covers (dotnet, python, typescript, bash, powershell, markdown). It does NOT run the lint-only `yaml` or `cross-cutting` surfaces — those belong to /toolchain:lint, and cross-cutting's `**` glob is never matched here.",
+      "prompt": "/toolchain:check all — the working tree changed a GitHub Actions workflow YAML and a plain README, among other files.",
+      "expected_output": "Runs only the ecosystems /toolchain:check covers (dotnet, python, typescript, bash, powershell, markdown). It does NOT run the lint-only `yaml` or `cross-cutting` surfaces — those belong to /toolchain:lint, and cross-cutting's `**` glob is never matched here.",
       "files": [],
       "expectations": [
-        "Runs only the six ecosystems `/toolchain:build` covers (dotnet, python, typescript, bash, powershell, markdown)",
+        "Runs only the six ecosystems `/toolchain:check` covers (dotnet, python, typescript, bash, powershell, markdown)",
         "Does NOT run the `yaml` surface for the workflow file — that surface is `/toolchain:lint`-only",
-        "Does NOT run the `cross-cutting` surface — its `**` glob is never matched by `/toolchain:build` (both `yaml` and `cross-cutting` are `/toolchain:lint`-only surfaces)"
+        "Does NOT run the `cross-cutting` surface — its `**` glob is never matched by `/toolchain:check` (both `yaml` and `cross-cutting` are `/toolchain:lint`-only surfaces)"
       ]
     },
     {
       "id": 5,
       "name": "clean-tree-falls-back-to-branch-diff",
-      "prompt": "/toolchain:build — every block was already committed on this feature branch, so the working tree is clean.",
+      "prompt": "/toolchain:check — every block was already committed on this feature branch, so the working tree is clean.",
       "expected_output": "With a clean working tree it falls back to the branch diff (git diff against the merge-base with the default branch) so checkpoint-committed work still gets classified and verified — rather than reporting 'no changes' and exiting.",
       "files": [],
       "expectations": [
@@ -65,7 +65,7 @@
     {
       "id": 6,
       "name": "malformed-consumer-config-degrades-not-hard-stops",
-      "prompt": "/toolchain:build dotnet — the repo's tracked `.claude/ecosystems/dotnet.yaml` exists but is malformed (invalid YAML / missing required keys).",
+      "prompt": "/toolchain:check dotnet — the repo's tracked `.claude/ecosystems/dotnet.yaml` exists but is malformed (invalid YAML / missing required keys).",
       "expected_output": "A malformed consumer ecosystem file warns and degrades to inference (rung 2) rather than hard-stopping — the ladder is tolerant, so a bad consumer file never aborts the build; it still resolves a command surface and runs.",
       "files": [],
       "expectations": [

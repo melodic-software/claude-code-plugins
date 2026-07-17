@@ -7,13 +7,13 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 
 | Skill | What it does |
 |---|---|
-| `/toolchain:build` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status; resolves each ecosystem's commands through the shared four-rung ladder. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
+| `/toolchain:check` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status; resolves each ecosystem's commands through the shared four-rung ladder. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
 | `/toolchain:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it; also owns the `yaml` and `cross-cutting` lint surfaces. |
-| `/toolchain:setup` | Configure the plugin for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/toolchain:build` and `/toolchain:lint` resolve first, and offer the tracked `.claude/topic-docs.yaml` concern file. Re-runnable. |
+| `/toolchain:setup` | Configure the plugin for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/toolchain:check` and `/toolchain:lint` resolve first, and offer the tracked `.claude/topic-docs.yaml` concern file. Re-runnable. |
 
 ## Works in any repo
 
-- **Consumer conventions win — via the ecosystem-commands seam.** `/toolchain:build`
+- **Consumer conventions win — via the ecosystem-commands seam.** `/toolchain:check`
   and `/toolchain:lint` resolve each ecosystem's build/test/lint commands through a
   four-rung ladder: your repo's tracked `.claude/ecosystems/<ecosystem>.yaml`
   (authoritative when present, additive over a `~/.claude/ecosystems/` user-global
