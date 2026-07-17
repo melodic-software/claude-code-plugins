@@ -51,6 +51,19 @@
         "Routes the missing criterion up into the consuming org's naming conventions (a standards change)",
         "Proceeds with generation and scoring against the resolved source of truth, ending at a human pick"
       ]
+    },
+    {
+      "id": 5,
+      "name": "tournament-preserves-reject-and-collision-filters",
+      "prompt": "/naming:name-it-better tournament — you already suggested `OrderManager` for this and I rejected it, and it must not collide with the existing `OrderService` type. This is the public API name, very hard to change later.",
+      "expected_output": "The tournament action widens to ~5 generators and runs elimination rounds, but first carries `OrderManager` as a main-thread reject list and treats `OrderService` as an existing-vocabulary collision. Both the rejected incumbent and the colliding candidate are disqualified before the elimination rounds begin, so neither can enter the bracket or reach the finalist. It presents a finalist plus runners-up for the human to pick.",
+      "files": [],
+      "expectations": [
+        "Carries `OrderManager` as a main-thread reject list even in tournament mode",
+        "Disqualifies the rejected incumbent and any candidate colliding with `OrderService` BEFORE the elimination rounds begin, not just at the finalist",
+        "Neither the rejected incumbent nor a colliding candidate appears as the finalist or among the runners-up",
+        "Still widens to ~5 generators, runs elimination rounds with independent judges, and ends at a human pick"
+      ]
     }
   ]
 }

@@ -75,6 +75,12 @@ models), then run elimination rounds with independent scoring judges until
 one candidate remains, and present it plus the runners-up for the human
 choice.
 
+The reject-list and collision disqualification from the default pass's
+merge step still apply: pool the widened candidates and disqualify any that
+match the rejected incumbent or collide with the existing vocabulary BEFORE
+the elimination rounds begin — a rejected or colliding name must never enter
+the bracket, let alone reach the finalist.
+
 HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
 software-naming technique. This mode ADAPTS elimination brackets plus
 pairwise social-choice scoring as a convergence mechanism — see
