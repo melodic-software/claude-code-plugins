@@ -119,6 +119,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 **Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits — confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers) — live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
 
+### 7. Orphaned path removal (destructive, on explicit request only)
+
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/remove-path.sh <target>` — default `--dry-run`. Removes a whole clone or leftover directory under the ghq root (`--root` overrides) — e.g. a local clone whose upstream repository was deleted. Not composed into any tier and never inferred: run it only when the user explicitly asks to delete that path. Guards refuse the containment root, symlink targets, linked worktrees (that lifecycle belongs to `git worktree remove`), and any repo with uncommitted changes, stashes, registered worktrees, ignored secret-class files (`--include-secrets` to discard), or unpushed refs (`--allow-unpushed` to discard).
+
+**Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` in the confirmation. Autonomous sessions: abort.
+
 ## Integration
 
 | Surface | Relationship |
