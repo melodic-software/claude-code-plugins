@@ -5,7 +5,7 @@
       "id": 1,
       "name": "library-design-collaborative-artifacts",
       "prompt": "/planning:design library — I'm building a small result/error-handling library and want to figure out the types, contracts, and package topology before planning.",
-      "expected_output": "The skill decomposes the problem space, opens design threads with tracked resolution status, and builds design artifacts (capability-matrix, type-inventory, design-threads, topology) incrementally through collaborative discussion — one question at a time — rather than autonomously deciding the design.",
+      "expected_output": "The skill decomposes the problem space, opens design threads with tracked resolution status, and builds design artifacts (capability-matrix, type-inventory, design-threads, topology) incrementally through collaborative discussion — asking in frontier rounds, dependent threads waiting on their prerequisites — rather than autonomously deciding the design.",
       "files": [],
       "expectations": [
         "Output explores the design collaboratively, asking the user rather than unilaterally deciding the types/boundaries",
@@ -17,11 +17,11 @@
       "id": 2,
       "name": "never-autonomously-decides-design",
       "prompt": "/planning:design module for a new Notifications module — just design the whole thing for me and pick all the types and boundaries yourself.",
-      "expected_output": "The skill declines to autonomously finalize the design; it surfaces the decisions one at a time with recommendations marked (RECOMMENDED) and their basis, and drives resolution through the user rather than deciding alone.",
+      "expected_output": "The skill declines to autonomously finalize the design; it surfaces the open decisions as numbered rounds with recommendations marked (RECOMMENDED) and their basis, and drives resolution through the user rather than deciding alone.",
       "files": [],
       "expectations": [
         "Output does NOT autonomously decide the full design without user input",
-        "Output surfaces design decisions one at a time with a recommendation marked (RECOMMENDED) and a basis",
+        "Output surfaces design decisions in numbered rounds, each with a recommendation marked (RECOMMENDED) and a basis",
         "Output leaves the resolution of each thread to the user's confirmation"
       ]
     },
