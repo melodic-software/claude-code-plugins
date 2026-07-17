@@ -142,13 +142,13 @@ From a clone of the marketplace repository:
 
 ```powershell
 # All tests
-pwsh -NoProfile -File plugins/machine-health/skills/check/tests/Invoke-MachineHealthTests.ps1
+pwsh -NoProfile -File plugins/machine-health/skills/audit/tests/Invoke-MachineHealthTests.ps1
 
 # Single check
-pwsh -NoProfile -File plugins/machine-health/skills/check/tests/Invoke-MachineHealthTests.ps1 -Filter 'Test-DiskHealth'
+pwsh -NoProfile -File plugins/machine-health/skills/audit/tests/Invoke-MachineHealthTests.ps1 -Filter 'Test-DiskHealth'
 
 # With coverage
-pwsh -NoProfile -File plugins/machine-health/skills/check/tests/Invoke-MachineHealthTests.ps1 -Coverage
+pwsh -NoProfile -File plugins/machine-health/skills/audit/tests/Invoke-MachineHealthTests.ps1 -Coverage
 ```
 
 ## Fixture refresh
