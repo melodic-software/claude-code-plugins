@@ -47,14 +47,14 @@ Repo: <slug> · Branch: <name>
 | Hook | Event | n | p50 ms | p95 ms | p99 ms | err % | Severity |
 |---|---|---:|---:|---:|---:|---:|---|
 | sarif-diagnostics | PostToolUse | 142 | 850 | 3200 | 4100 | 0% | HIGH |
-| bash-lint | PostToolUse | 67 | 120 | 380 | 520 | 0% | INFO |
+| bash-format | PostToolUse | 67 | 120 | 380 | 520 | 0% | INFO |
 
 ## Recurring patterns
 
 3-grams appearing 5+ times:
 
-- `12× PostToolUse:bash-lint → PostToolUse:bash-lint → PostToolUse:bash-lint`
-- `7× PostToolUse:eol-normalizer → PostToolUse:bash-lint → PostToolUse:typescript-format`
+- `12× PostToolUse:bash-format → PostToolUse:bash-format → PostToolUse:bash-format`
+- `7× PostToolUse:eol-normalizer → PostToolUse:bash-format → PostToolUse:typescript-format`
 
 Failed-then-fixed retries:
 

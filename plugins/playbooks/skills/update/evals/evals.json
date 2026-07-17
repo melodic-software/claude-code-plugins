@@ -5,10 +5,10 @@
       "id": 1,
       "name": "update-check-is-read-only",
       "prompt": "/playbooks:update --check",
-      "expected_output": "A read-only drift report. For each upstreamed pack (boris, then thariq) it dispatches to that pack's scripts/update.sh in check mode and reports the pack's drift status + exit code. It modifies no files — no vendor sync, no frontmatter bump. fable-5 is reported as self-authored with no upstream (nothing is run for it).",
+      "expected_output": "A read-only drift report. For each upstreamed pack (boris, then skill-authoring) it dispatches to that pack's scripts/update.sh in check mode and reports the pack's drift status + exit code. It modifies no files — no vendor sync, no frontmatter bump. fable-5 is reported as self-authored with no upstream (nothing is run for it).",
       "files": [],
       "expectations": [
-        "The run dispatches to the boris and thariq scripts/update.sh in check mode (--check, the default)",
+        "The run dispatches to the boris and skill-authoring scripts/update.sh in check mode (--check, the default)",
         "The run reports per-pack drift status and exit code (0 in-sync, 1 drift, 2 prereq/network) without modifying any file",
         "The run does NOT sync any pack's vendor/SKILL.md or bump frontmatter metadata",
         "The run reports fable-5 as self-authored with no upstream / no drift-check path and runs nothing for it"
@@ -18,10 +18,10 @@
       "id": 2,
       "name": "update-apply-syncs-vendor-only",
       "prompt": "/playbooks:update --apply",
-      "expected_output": "For each upstreamed pack (boris, thariq) runs scripts/update.sh --apply, which replaces that pack's vendor/SKILL.md verbatim and bumps its SKILL.md frontmatter metadata (upstream-version + synced). Integrating the upstream delta into each pack's distilled body and reference/context files stays a manual, reviewed step, as does bumping the playbooks plugin version. fable-5 is skipped (no upstream).",
+      "expected_output": "For each upstreamed pack (boris, skill-authoring) runs scripts/update.sh --apply, which replaces that pack's vendor/SKILL.md verbatim and bumps its SKILL.md frontmatter metadata (upstream-version + synced). Integrating the upstream delta into each pack's distilled body and reference/context files stays a manual, reviewed step, as does bumping the playbooks plugin version. fable-5 is skipped (no upstream).",
       "files": [],
       "expectations": [
-        "The run dispatches to the boris and thariq scripts/update.sh --apply",
+        "The run dispatches to the boris and skill-authoring scripts/update.sh --apply",
         "The sync scope is limited to each pack's vendor/SKILL.md plus its SKILL.md frontmatter metadata (upstream-version, synced)",
         "The run does NOT silently rewrite any pack's distilled SKILL.md body or reference/context content to integrate the upstream delta",
         "Output surfaces distilled-body integration and the plugin version bump as manual, reviewed follow-up steps (advisory contract)",

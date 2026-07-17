@@ -4,7 +4,7 @@ All course data lives under the invoking project's `library_dir` seam (or `${CLA
 
 ## Platform naming
 
-Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manning`, `oreilly`. Single public YouTube videos use `/knowledge:youtube` and its own slice layout — not this course data tree.
+Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manning`, `oreilly`. Single public YouTube videos use `/knowledge:youtube-digest` and its own slice layout — not this course data tree.
 
 ## Slug naming
 

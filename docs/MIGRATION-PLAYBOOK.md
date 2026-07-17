@@ -260,16 +260,17 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
 value, infers-and-records, or asks — never guesses silently.
 
-## Setup action — every configurable plugin ships one
+## Setup action — required iff the criteria hold
 
-Every plugin that carries any `userConfig` or tracked-config seam ships a re-runnable `setup`
-skill (the canonical verb per the philosophy's Naming section) that interviews the consumer and
-writes the tracked config. It is
-idempotent — safe to re-run to reconfigure. The Thariq `config.json` first-run pattern is **rejected**
-for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGIN_ROOT}`, which is
-replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
-writes only the consumer configuration the plugin owns. Claude Code's native configuration surface
-collects `userConfig` and owns `pluginConfigs`; a setup skill never edits that key directly.
+Whether a plugin needs a `setup` skill, and the uniform contract it follows (`setup` name,
+`disable-model-invocation: true`, `check` + `apply` actions, non-interactive completion), is owned
+by [PLUGIN-PHILOSOPHY.md § Setup is explicit and repeatable](PLUGIN-PHILOSOPHY.md). Migration work
+applies it as-is. Playbook-specific additions: the Thariq `config.json` first-run pattern is
+**rejected** for plugins — it is not an official mechanism, and it writes into
+`${CLAUDE_PLUGIN_ROOT}`, which is replaced on every update (the plugins-reference caching note), so
+its state does not survive. Setup writes only the consumer configuration the plugin owns; Claude
+Code's native configuration surface collects `userConfig` and owns `pluginConfigs` — a setup skill
+never edits that key directly.
 
 ## Upstream sync — every upstream-sourced plugin ships an update path
 
@@ -323,7 +324,7 @@ against the plugin you actually invoked. Then:
    partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
    `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
-   so a warranted non-router skill (e.g. `diagnose`) passes `check` without flagging the gap. Rely on the
+   so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
 2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
    `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
@@ -569,15 +570,22 @@ For each skill/hook/agent being migrated:
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
    consumer's context.
 4. **Bundle + isolate.** Move required assets inside the plugin; reference via `${CLAUDE_PLUGIN_ROOT}`.
-5. **Expose extensibility.** Declare `userConfig` for consumer choices; document each option.
+5. **Expose extensibility.** Declare `userConfig` for consumer choices; document each option. Apply
+   the userConfig full-potential criterion and the exec-form hook rule from
+   [PLUGIN-PHILOSOPHY.md § Configuration ownership and scope](PLUGIN-PHILOSOPHY.md): no custom
+   config channel where the native schema fits, and no `${user_config.*}` in shell-form hooks.
 6. **Strip PII / secrets.** Hard gate — before the first commit.
-7. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
-8. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
+7. **Check component stances.** Every component the plugin ships conforms to the component stance
+   table in [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md) — no `commands/`, no unjustified
+   `settings.json` `agent`, wait-listed components absent; setup criteria applied per its setup
+   section; runtime prerequisites degrade per its failure-behavior rules.
+8. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
+9. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
    source repo (proves repo-agnosticism).
-9. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
+10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
    consumer depends on records the change in the plugin's changelog — see "Version pinning and update
    delivery" above.
-10. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
+11. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
@@ -613,7 +621,8 @@ license-gated units to per-item triage rather than a blanket hold. The ordering 
 A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted
 here — new, or a version bump that adds a trust surface — passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
-Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `CLAUDE.md` fresh-docs mandate.
+Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
+plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
 
 1. **Code execution — hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
@@ -650,9 +659,15 @@ Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `
    third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
    don't design around that.
+7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
+   consumer's main thread — prohibited by default per the component stance table in
+   [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification
+   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
+   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
+   is reviewed like any hook script.
 
-Record accept/deny + rationale for any plugin touching surfaces 2, 5, or 6; a later version bump that
-introduces a new surface re-triggers this review.
+Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
+that introduces a new surface re-triggers this review.
 
 ## Local development loop
 
@@ -851,7 +866,7 @@ point every consuming skill's `file:` link and `setup-deps.mjs` fingerprint at t
 byte-drift CI gate are needed — there is only one committed copy, so nothing can drift. The
 invariant that **replaces** the byte-drift gate is delivery-by-version: editing the shared source
 obligates a plugin `version` bump, since the version is the update cache key. (`knowledge`'s
-`repo-analysis` + `video-digestion`, shared by its `youtube` and `course-digest` skills, is the
+`repo-analysis` + `video-digestion`, shared by its `youtube-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
 

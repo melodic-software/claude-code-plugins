@@ -1,6 +1,6 @@
 # Shared tracker context — every work-items skill
 
-The five work-items skills (`track`, `triage`, `work`, `decompose`, `scan`) share one tracker
+The five work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`) share one tracker
 seam, one label taxonomy, one canonical-role remap, and one topic-docs binding. Those invariants
 live here so each skill states them once by reference rather than restating them. Read this document
 (and the references it links) at the start of any work-items skill invocation.
@@ -39,7 +39,7 @@ Coordination claims are race-safe at the seam (assignee + lease comment; `tools/
 
 ## Default = fix, not file
 
-Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan` for small / medium drift
+Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` for small / medium drift
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW
 items only when the work is genuinely orthogonal to the current session, large enough to need its
