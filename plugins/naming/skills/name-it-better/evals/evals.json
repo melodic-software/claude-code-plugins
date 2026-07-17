@@ -1,0 +1,54 @@
+{
+  "skill_name": "name-it-better",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rejected-name-blind-retry-to-human-pick",
+      "prompt": "name it better — you suggested `DataManager` for the class that validates and persists orders and I don't like it.",
+      "expected_output": "The skill distills a context brief (responsibility, scope, constraints, surrounding vocabulary, overloaded-term blocklist), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
+      "files": [],
+      "expectations": [
+        "Distills a context brief and seeds the generators with the brief ONLY (blind to the conversation), not the rejected name",
+        "Fans out ~3 fresh-context generators across distinct lenses (responsibility-literal, moment-of-use, domain-lore)",
+        "Presents a ranked shortlist with one marked RECOMMENDED pick listed first",
+        "STOPS for the human to choose — does not auto-lock or apply a name"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "collision-check-disqualifies",
+      "prompt": "name it better for a new module — the surrounding codebase already has a `Session` type and a `Context` type, don't collide with those.",
+      "expected_output": "Candidates are collision-checked against the existing vocabulary BEFORE scoring; a candidate that collides with `Session` or `Context` is disqualified rather than shortlisted, even if it would otherwise score well.",
+      "files": [],
+      "expectations": [
+        "Collision-checks candidates against the existing vocabulary before scoring",
+        "Disqualifies a colliding candidate rather than ranking it",
+        "Still ends at a human choice over the surviving shortlist"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "tournament-honest-framing",
+      "prompt": "/naming:name-it-better tournament — this is the public package name, very hard to change later.",
+      "expected_output": "The tournament action widens to ~5 generators and runs elimination rounds with independent scoring judges, presenting the finalist plus runners-up for the human choice. It frames the tournament HONESTLY as an adaptation of elimination brackets plus pairwise scoring, not as a documented naming technique.",
+      "files": [],
+      "expectations": [
+        "Widens to ~5 generators and runs elimination rounds with independent judges",
+        "Explicitly frames tournament mode as an adaptation, not an established naming standard",
+        "Presents the finalist plus runners-up for the human to pick"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-criterion-routes-upstream",
+      "prompt": "name it better, and also our team wants a new naming rule that every repository name must start with the product code — bake that into how you score.",
+      "expected_output": "The skill scores against the resolved criteria source of truth and does NOT hardcode the new rule into itself: it routes the missing criterion UP into the consuming org's conventions (a standards change) rather than embedding it in the skill, then proceeds with the naming pass.",
+      "files": [],
+      "expectations": [
+        "Does not bake the new criterion into the skill itself",
+        "Routes the missing criterion up into the consuming org's naming conventions (a standards change)",
+        "Proceeds with generation and scoring against the resolved source of truth, ending at a human pick"
+      ]
+    }
+  ]
+}

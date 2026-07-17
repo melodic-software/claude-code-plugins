@@ -194,6 +194,12 @@
       "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "architect", "stress-test", "skill"]
     },
     {
+      "name": "naming",
+      "source": "./plugins/naming",
+      "category": "design",
+      "tags": ["naming", "name", "rename", "identifier", "candidates", "anti-anchoring", "skill"]
+    },
+    {
       "name": "review",
       "source": "./plugins/review",
       "category": "quality",
