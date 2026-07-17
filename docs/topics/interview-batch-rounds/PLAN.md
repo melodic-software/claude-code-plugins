@@ -82,7 +82,7 @@ An interview session resolves the same decision tree in far fewer round-trips: t
 - `grep -c 'Per-round loop' plugins/planning/skills/interview/SKILL.md` returns 0 (stale citation gone)
 - `grep -cwi "grill\|grills\|grilling" plugins/planning/skills/interview/SKILL.md` returns 0 — OR exactly the approved trigger-phrase occurrences if the approval gate keeps `'grill me'` as a trigger
 
-### Phase 2: Satellite surfaces (gotchas, checklist template, evals) [TODO]
+### Phase 2: Satellite surfaces (gotchas, checklist template, evals) [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|

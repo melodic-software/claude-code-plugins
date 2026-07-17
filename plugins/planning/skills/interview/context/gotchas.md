@@ -4,7 +4,11 @@ Failure patterns from real sessions. Loaded on demand from `/interview` SKILL.md
 
 ## Q&A surface
 
-- **`AskUserQuestion` for sequential decisions** — dependent questions fragment interrogation. Use prose one-question-at-a-time.
+- **Dependent question in its prerequisite's round** — a question whose framing depends on another question still open in the same round forces the user to guess or answer out of order. Sloppy frontier computation; the dependent question belongs to a later round.
+
+- **`AskUserQuestion` without the opt-in, or beyond its cap** — the card surface requires the `use_ask_user_question` user config AND a round of ≤4 mutually independent questions. Prose otherwise; when in doubt, prose.
+
+- **Silently resolving an unanswered round question to its recommendation** — a partial reply resolves only what was answered; the rest stays OPEN and re-surfaces next round. Only an explicit accept-shorthand ("accept all recommendations") resolves unanswered questions.
 
 - **Silent capture of user design choices** — when a decision has real tradeoffs and no codebase answer, STOP and ask; do not fold into the Brief as an assumption.
 

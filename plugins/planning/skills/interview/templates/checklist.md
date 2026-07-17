@@ -6,7 +6,7 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 
 - [ ] Step 1: Survey before you ask — read existing context, the topic's contract and memory slices, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only) — if intent already crisp from survey, route to direct synthesis (skip Q&A loop)
-- [ ] Step 2: Drive the depth-first loop — one question at a time, **inline prose** (the one-at-a-time loop never uses `AskUserQuestion`; `lock` synthesizes without Q&A); resolve load-bearing first; restate decided/open after each answer
+- [ ] Step 2: Drive the frontier-rounds loop — each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` synthesizes without Q&A); order rounds by blast radius; restate decided/open after each round
 - [ ] Step 3: Recognize the stop condition — remaining-open is empty OR user signals "good, proceed"
 - [ ] Step 4: Persist the contract — engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in; flush before context overflows)
 - [ ] Step 5: Hand off — engineering: recommend the next skill (exploration/research for engineering-internal; chain after `/prd` for product-driven); general: deliver the summary and stop, no pipeline handoff
