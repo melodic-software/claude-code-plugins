@@ -67,10 +67,15 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+DATA_ROOT_OVERRIDE: str | None = None
+
+
 def state_output_path(path: Path) -> Path:
-    data_value = os.environ.get("CLAUDE_PLUGIN_DATA")
+    data_value = DATA_ROOT_OVERRIDE or os.environ.get("CLAUDE_PLUGIN_DATA")
     if not data_value:
-        raise HygieneError("CLAUDE_PLUGIN_DATA is required for generated state")
+        raise HygieneError(
+            "a generated-state root is required: pass --data-root or set CLAUDE_PLUGIN_DATA"
+        )
     data_root = Path(data_value).expanduser().resolve(strict=False)
     path = path.expanduser().resolve(strict=False)
     if is_within(path, PLUGIN_ROOT):
@@ -78,7 +83,7 @@ def state_output_path(path: Path) -> Path:
             "generated state must not be written inside the plugin install directory"
         )
     if not is_within(path, data_root):
-        raise HygieneError("generated state must stay inside CLAUDE_PLUGIN_DATA")
+        raise HygieneError("generated state must stay inside the data root")
     return path
 
 
@@ -533,16 +538,19 @@ def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
     }
 
 
-def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
+def scan_tree(
+    target: Path, policy: dict[str, Any], max_depth: int | None = None
+) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    truncated: list[str] = []
     repositories, repo_errors = discover_enclosing_git(target)
     exact_names = set(policy["protected_exact_names"])
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         errors.append({"path": ".", "error": mount_error})
 
-    def visit(directory: Path) -> int:
+    def visit(directory: Path, depth: int = 1) -> int:
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -573,8 +581,11 @@ def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
                         subtotal = 0
                     elif protections:
                         subtotal = 0
+                    elif max_depth is not None and depth >= max_depth:
+                        subtotal = 0
+                        truncated.append(relative)
                     else:
-                        subtotal = visit(path)
+                        subtotal = visit(path, depth + 1)
                     data = metadata(path, kind, subtotal)
                     total += subtotal
                 elif child.is_file(follow_symlinks=False):
@@ -597,8 +608,11 @@ def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
             )
             if len(entries) > MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
-                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; split the audit into bounded subtrees"
+                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
+                    "--max-depth or split the audit into bounded subtrees"
                 )
+            if len(entries) % 25_000 == 0:
+                print(f"scanned {len(entries)} entries...", file=sys.stderr)
         return total
 
     total_size = visit(target)
@@ -617,6 +631,8 @@ def scan_tree(target: Path, policy: dict[str, Any]) -> dict[str, Any]:
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
         "errors": errors,
+        "max_depth": max_depth,
+        "truncated_paths": sorted(truncated),
         "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
 
@@ -1099,6 +1115,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         raise HygieneError("target root changed since the snapshot")
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
+    truncated_paths = {
+        value
+        for value in snapshot.get("truncated_paths", [])
+        if isinstance(value, str)
+    }
     exact_names = baseline_exact_names | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
     )
@@ -1111,6 +1132,13 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         blockers.extend(execution_blockers())
         if candidate["owner"] != "unmanaged":
             blockers.append("native-managed-report-only")
+        if any(
+            name == relative
+            or name.startswith(relative + "/")
+            or relative.startswith(name + "/")
+            for name in truncated_paths
+        ):
+            blockers.append("truncated-not-inventoried")
         expected_paths = {
             name
             for name in entries
@@ -1440,10 +1468,13 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--output", required=True)
     scan.add_argument("--policy")
     scan.add_argument("--project-dir")
+    scan.add_argument("--data-root")
+    scan.add_argument("--max-depth", type=int)
     for name in ("preview", "apply"):
         command = subparsers.add_parser(name)
         command.add_argument("--snapshot", required=True)
         command.add_argument("--plan", required=True)
+        command.add_argument("--data-root")
         if name == "apply":
             command.add_argument("--execute", action="store_true")
             command.add_argument("--confirm-tier", required=True, choices=sorted(TIERS))
@@ -1457,6 +1488,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if sys.version_info < (3, 11):
             raise HygieneError("disk-hygiene requires Python 3.11 or newer")
+        global DATA_ROOT_OVERRIDE
+        DATA_ROOT_OVERRIDE = args.data_root
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if (
@@ -1492,8 +1525,21 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError(
                     "protected shell-folder and profile-hive roots are not valid audit targets"
                 )
+            if args.max_depth is not None and args.max_depth < 1:
+                raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
-            snapshot = scan_tree(target, policy)
+            advisory = os_autoclean_advisory(target)
+            try:
+                snapshot = scan_tree(target, policy, args.max_depth)
+            except HygieneError as exc:
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": str(exc),
+                        "os_autoclean": advisory,
+                    },
+                    2,
+                )
             write_json(output_path, snapshot)
             hinted = sum(1 for entry in snapshot["entries"] if entry["hints"])
             return emit(
@@ -1503,9 +1549,10 @@ def main(argv: list[str] | None = None) -> int:
                     "snapshot": str(output_path),
                     "entries": len(snapshot["entries"]),
                     "hinted_entries": hinted,
+                    "truncated_paths": snapshot["truncated_paths"],
                     "errors": snapshot["errors"],
                     "policy_sources": policy["policy_sources"],
-                    "os_autoclean": os_autoclean_advisory(target),
+                    "os_autoclean": advisory,
                     "note": "Hints are discovery signals, never cleanup verdicts.",
                 }
             )
