@@ -59,22 +59,7 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-# Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
-# env-assignment prefixes stripped and the token basenamed. Never the full
-# command.
-bash_subject() {
-  local cmd="$1" tok
-  tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
-    cmd="${cmd#*[[:space:]]}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    tok="${cmd%%[[:space:]]*}"
-  done
-  printf 'Bash:%s' "${tok##*/}"
-}
-
-SUBJECT=$(bash_subject "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
