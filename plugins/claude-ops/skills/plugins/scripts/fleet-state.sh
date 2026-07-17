@@ -129,6 +129,13 @@ known_ids=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson 
 effective_map=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson l "$local_map" \
   '$u + $p + $l')
 
+# ids explicitly set to false in ANY scope — a deliberate opt-out, even for a
+# plugin never installed at all (e.g. a team pre-declares "we're not using
+# this" in project settings before anyone runs install). "Missing" (needing
+# an install prompt) excludes these; sync never installs over an opt-out.
+explicit_false_ids=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson l "$local_map" \
+  '[($u, $p, $l) | to_entries[] | select(.value == false) | .key] | unique')
+
 # --- Normalized current-project root, for the `currentProject` install flag
 current_project_norm=""
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
@@ -190,7 +197,7 @@ emit_marketplace() {
   catalog=$(jq -c '[.plugins[]?.name // empty] | unique' "$catalog_json")
 
   local catalog_ids
-  catalog_ids=$(jq -r --arg mp "$name" '.[] | . + "@" + $mp' <<<"$catalog")
+  catalog_ids=$(jq -c --arg mp "$name" '[.[] | . + "@" + $mp]' <<<"$catalog")
 
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
@@ -215,18 +222,22 @@ emit_marketplace() {
   ' "$INSTALLED_JSON" | jq -cs '.')
 
   local installed_ids
-  installed_ids=$(jq -r '[.[].id] | unique | .[]' <<<"$installed")
+  installed_ids=$(jq -c '[.[].id] | unique' <<<"$installed")
 
+  # catalog minus installed minus any id explicitly opted out (false) in any
+  # scope, even one never installed at all.
   local missing_from_install
-  missing_from_install=$(comm -23 \
-    <(sort -u <<<"$catalog_ids") \
-    <(sort -u <<<"${installed_ids:-}") | grep -v '^$' | jq -R . | jq -sc .)
+  missing_from_install=$(jq -cn \
+    --argjson catalog "$catalog_ids" \
+    --argjson installed "$installed_ids" \
+    --argjson falseIds "$explicit_false_ids" \
+    '($catalog - $installed) - $falseIds')
 
   local known_at_mp
   known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
 
   local missing_from_enabled
-  missing_from_enabled=$(jq -cn --argjson installed_ids "$(jq -c '[.[].id] | unique' <<<"$installed")" --argjson known "$known_at_mp" \
+  missing_from_enabled=$(jq -cn --argjson installed_ids "$installed_ids" --argjson known "$known_at_mp" \
     '$installed_ids - $known')
 
   local enabled_at_mp

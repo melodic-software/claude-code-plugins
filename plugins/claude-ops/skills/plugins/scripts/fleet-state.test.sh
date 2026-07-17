@@ -127,6 +127,21 @@ actionable_count=$(jq '[.divergences[] | select(.versionsMatch == false)] | leng
 assert_eq "benign multi-scope: zero actionable (version-behind) divergences" "0" "$actionable_count"
 
 # ============================================================================
+# Case: explicit enabledPlugins:false opt-out on a NEVER-INSTALLED plugin
+# excludes it from missing_from_install too — sync must not offer to install
+# something explicitly declined, even pre-install
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": false}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+missing_install=$(jq -cS '.missing_from_install' <<<"$out" 2>/dev/null)
+assert_eq "opt-out before install: excluded from missing_from_install" '["beta@market1"]' "$missing_install"
+
+# ============================================================================
 # Case: plugin missing from installs
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
