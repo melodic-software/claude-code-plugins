@@ -104,8 +104,13 @@ default recorded in the marketplace entry; a plugin whose `defaultEnabled: false
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).
 
-For each remaining id, and for each scope where that id has an install
-record (from `installed[]`) but no raw entry in that scope's own `enabledPlugins` map:
+For each remaining id, and for each *verifiable* scope where that id has an install record (from
+`installed[]`) but no raw entry in that scope's own `enabledPlugins` map — **`user` scope, or
+`project`/`local` scope with `currentProject: true`, never a `project`/`local` record for a different
+repo** (same restriction as `missing_from_enabled` itself, for the same reason: this invocation never
+reads another repo's settings files, so it cannot know whether that record is genuinely unmentioned
+there or already has its own entry — running `enable -s project|local` for it would risk mutating the
+current repo or an unread repo instead):
 
 ```bash
 claude plugin enable <id> -s <that scope>
