@@ -89,7 +89,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Workflow
 
-- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of four skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), retro (structured session retrospective with transcript metrics and learning codification), and orchestration-brief (arm a session or worker with proactive-orchestration imperatives).
+- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of four skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), retro (structured session retrospective with transcript metrics and learning codification), and orchestrate (arm a session or worker with proactive-orchestration imperatives).
 
 ### Project Management
 

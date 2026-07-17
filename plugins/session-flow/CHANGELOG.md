@@ -1,5 +1,25 @@
 # Changelog — session-flow plugin
 
+## 0.6.0 — 2026-07-16
+
+Changed:
+
+- orchestration-brief renamed to `orchestrate`. The default action
+  arms/primes the current session — the skill's primary job — which the old
+  name undersold by foregrounding the secondary export brief; the verb also
+  matches the action-skill naming convention. Invocation is now
+  `/session-flow:orchestrate`; the old `/session-flow:orchestration-brief`
+  token no longer resolves. Export modes are unchanged (`handoff` / `worker`
+  args), and the exported document is still an orchestration brief.
+
+Added:
+
+- orchestrate: seventh imperative CALIBRATE TO CONDITIONS — size the whole
+  orchestration (whether to delegate at all, fan-out width, nesting depth) to
+  the active model's capability, advisor/verifier availability, context
+  pressure, and concurrent-session / rate-limit headroom, with
+  small/medium/large fan-out sizing and single-agent as the floor.
+
 ## 0.5.0 — 2026-07-15
 
 Added:

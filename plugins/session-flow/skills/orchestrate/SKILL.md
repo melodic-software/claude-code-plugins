@@ -1,6 +1,6 @@
 ---
-name: orchestration-brief
-description: "Arm the CURRENT session for an orchestration-heavy task by loading six proactive-orchestration imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested subagents, surface drift) as active standing instructions; optionally export them as a paste-ready brief for a spawned worker or fresh session. Use when: 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
+name: orchestrate
+description: "Arm the CURRENT session for an orchestration-heavy task by loading seven proactive-orchestration imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested subagents, surface drift, calibrate-to-conditions) as active standing instructions; optionally export them as a paste-ready brief for a spawned worker or fresh session. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
 argument-hint: "[<task>] | handoff [compact] | worker [compact]"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ disable-model-invocation: false
 ## Purpose
 
 Invoking this skill **arms the current session** for an orchestration-heavy task: it loads the
-expanded six-imperative operational form into active working context, and it declares deliberate
+expanded seven-imperative operational form into active working context, and it declares deliberate
 intent to orchestrate the work about to start, so the triggers get evaluated actively rather than
 sitting passively in background rules. That is the default — no paste, no rails, just preloaded
 context.
@@ -57,6 +57,15 @@ told:
    nesting level.
 6. SURFACE DRIFT — the moment you notice a stale reference, broken citation, or convention
    conflict adjacent to your task, flag it in one line; don't fix it silently, don't deep-dive.
+7. CALIBRATE TO CONDITIONS — size the whole orchestration (whether to delegate at all, fan-out
+   width, nesting depth) to the conditions in play, never a fixed recipe: the active model's
+   capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
+   and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
+   (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
+   / rate-limit headroom (thin headroom caps how many workers you run at once). Sizing is
+   small/medium/large — a small ask stays single-agent, a medium one fans out a few, only a large
+   genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
+   fallback.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis — verify
@@ -70,7 +79,7 @@ surfaces.
 
 ## Export modes (handoff / worker) — paste-ready brief
 
-Only for a target that LEAVES the session. Emit the six imperatives above between two full-width
+Only for a target that LEAVES the session. Emit the seven imperatives above between two full-width
 `─` (U+2500) dashed rails — top rail, brief, bottom rail, nothing else between them; the
 `/clear`/paste instruction or any commentary sits above the top rail or below the bottom rail,
 never between (NOT a code fence — the user copies the text between the rails, not fence markers).
@@ -82,7 +91,7 @@ Live shape: bare `─` rails, no fence — shown inside a fence here for display
 ORCHESTRATION BRIEF — standing instructions for the whole task, regardless of which model or tool runs you.
 
 At each decision boundary, evaluate these and ACT on a match without waiting to be told:
-[the six numbered imperatives above, verbatim]
+[the seven numbered imperatives above, verbatim]
 
 Discipline: [the Discipline line above, verbatim]
 ──────────────────────────────────────────────────────────
@@ -92,7 +101,7 @@ Discipline: [the Discipline line above, verbatim]
 - `worker` — insert as the FIRST line between the rails: `You are a spawned worker and did NOT
   inherit the parent session's context or the repo's conditional rules — these instructions are
   your only copy.`
-- `compact` — emit only the six numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
+- `compact` — emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
   SPAWN`, …) plus the closing Discipline line; drop every sub-clause.
 
 ## What this skill does NOT do

@@ -1,11 +1,11 @@
 {
-  "skill_name": "orchestration-brief",
+  "skill_name": "orchestrate",
   "evals": [
     {
       "id": 1,
       "name": "default-primes-no-paste",
-      "prompt": "Orchestration brief — I'm about to fan out a big multi-file audit across the codebase.",
-      "expected_output": "The default action PRIMES the current session: it acknowledges tersely that the six orchestration imperatives are now active for the upcoming task, with one line orienting to the audit. It does NOT re-emit the imperatives as paste text and does NOT print dashed rails — loading them into context IS the priming.",
+      "prompt": "Orchestrate — I'm about to fan out a big multi-file audit across the codebase.",
+      "expected_output": "The default action PRIMES the current session: it acknowledges tersely that the seven orchestration imperatives are now active for the upcoming task, with one line orienting to the audit. It does NOT re-emit the imperatives as paste text and does NOT print dashed rails — loading them into context IS the priming.",
       "files": [],
       "expectations": [
         "The response is a terse acknowledgment that the orchestration imperatives are now active for the upcoming task",
@@ -16,11 +16,11 @@
     {
       "id": 2,
       "name": "handoff-export-rails",
-      "prompt": "/orchestration-brief handoff — give me the brief to paste into a fresh session after I /clear.",
-      "expected_output": "The handoff export emits the six orchestration imperatives plus the closing Discipline line between two full-width U+2500 dashed rails, framed for a fresh session, with any /clear-or-paste commentary above the top rail or below the bottom rail — never between.",
+      "prompt": "/orchestrate handoff — give me the brief to paste into a fresh session after I /clear.",
+      "expected_output": "The handoff export emits the seven orchestration imperatives plus the closing Discipline line between two full-width U+2500 dashed rails, framed for a fresh session, with any /clear-or-paste commentary above the top rail or below the bottom rail — never between.",
       "files": [],
       "expectations": [
-        "The six imperatives and the Discipline line are emitted between two full-width U+2500 dashed rails, not a markdown fence",
+        "The seven imperatives and the Discipline line are emitted between two full-width U+2500 dashed rails, not a markdown fence",
         "Nothing sits between the rails except the brief — commentary/instructions are above the top rail or below the bottom rail",
         "The brief is framed for a fresh session (handoff framing), not a spawned worker"
       ]
@@ -28,23 +28,23 @@
     {
       "id": 3,
       "name": "worker-export-inherit-line",
-      "prompt": "/orchestration-brief worker — I'm spawning a subagent and need the standing instructions for it.",
-      "expected_output": "The worker export inserts, as the FIRST line between the rails, the did-not-inherit-context line ('You are a spawned worker and did NOT inherit the parent session's context...'), then the six imperatives and Discipline line, all between two dashed rails.",
+      "prompt": "/orchestrate worker — I'm spawning a subagent and need the standing instructions for it.",
+      "expected_output": "The worker export inserts, as the FIRST line between the rails, the did-not-inherit-context line ('You are a spawned worker and did NOT inherit the parent session's context...'), then the seven imperatives and Discipline line, all between two dashed rails.",
       "files": [],
       "expectations": [
         "The first line between the rails is the did-not-inherit-context notice for a spawned worker",
-        "The six imperatives and the Discipline line follow between the same two dashed U+2500 rails",
+        "The seven imperatives and the Discipline line follow between the same two dashed U+2500 rails",
         "The export omits the priming addendum about agent teams / dynamic workflows (a spawned worker cannot reach those surfaces)"
       ]
     },
     {
       "id": 4,
       "name": "compact-headlines-only",
-      "prompt": "/orchestration-brief handoff compact",
-      "expected_output": "The compact modifier emits only the six numbered HEADLINES (1. DELEGATE / FAN OUT, 2. SPEC EVERY SPAWN, ...) plus the closing Discipline line between the rails, dropping every sub-clause.",
+      "prompt": "/orchestrate handoff compact",
+      "expected_output": "The compact modifier emits only the seven numbered HEADLINES (1. DELEGATE / FAN OUT, 2. SPEC EVERY SPAWN, ...) plus the closing Discipline line between the rails, dropping every sub-clause.",
       "files": [],
       "expectations": [
-        "Only the six numbered headlines plus the Discipline line appear between the rails",
+        "Only the seven numbered headlines plus the Discipline line appear between the rails",
         "The per-imperative sub-clauses are dropped",
         "It is still emitted as a paste-ready dashed-rail export (handoff framing)"
       ]
