@@ -66,6 +66,14 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
+**Carried-ignored-file guard (before ANY removal, plain or forced):** `git worktree remove`
+succeeds on a worktree whose only edits are gitignored files — `status --porcelain` does not show
+them, so plain removal silently discards them. When the repo root has a `.worktreeinclude`, diff
+each carried file against the main checkout's copy first (same per-pattern loop as
+`/pull-request create`'s pre-flight: expand each pattern from the worktree toplevel, skip
+unmatched globs, compare against `MAIN_ROOT`). Any differing or new carried file → offer the
+copy-to-main sync before removing; removal without that offer loses the edits with exit 0.
+
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log --branches --not --remotes --oneline | head` (unpushed commits). If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 
 ```bash
