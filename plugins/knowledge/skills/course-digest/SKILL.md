@@ -1,6 +1,6 @@
 ---
 name: course-digest
-description: "Extract and synthesize online video courses into repo-applicable recommendations via browser automation (Playwright + claude-in-chrome), transcript extraction, frame analysis, and LLM synthesis. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', user shares a Dometrain/Pluralsight/Udemy course URL, or wants course patterns applied to their codebase. Single public YouTube videos → use /knowledge:youtube. Actions: full pipeline (default), extract (phases 1-2 only), analyze (phases 3-5 only), status (list all digested courses), resume <slug> (continue extraction), continue <slug> (resume from saved session state)."
+description: "Extract and synthesize online video courses into repo-applicable recommendations via browser automation (Playwright + claude-in-chrome), transcript extraction, frame analysis, and LLM synthesis. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', user shares a Dometrain/Pluralsight/Udemy course URL, or wants course patterns applied to their codebase. Single public YouTube videos → use /knowledge:youtube-digest. Actions: full pipeline (default), extract (phases 1-2 only), analyze (phases 3-5 only), status (list all digested courses), resume <slug> (continue extraction), continue <slug> (resume from saved session state)."
 argument-hint: "[action] [url|slug] (e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status)"
 user-invocable: true
 disable-model-invocation: false
@@ -135,7 +135,7 @@ Adapters are thin composition layers — delegate to shared `lib/players/` and `
 |---|---|---|---|
 | `dometrain.com` | Dometrain | `adapters/dometrain.js` | [reference/adapters/dometrain.md](reference/adapters/dometrain.md) |
 | `*.teachable.com`, `courses.*.tech` | Teachable (Hotmart video) | `adapters/teachable.js` | [reference/adapters/teachable.md](reference/adapters/teachable.md) |
-| Single public YouTube videos | — | use /knowledge:youtube | — |
+| Single public YouTube videos | — | use /knowledge:youtube-digest | — |
 | `pluralsight.com` | Pluralsight | (future) | — |
 | `udemy.com` | Udemy | (future) | — |
 

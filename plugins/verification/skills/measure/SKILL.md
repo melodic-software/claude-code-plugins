@@ -40,7 +40,7 @@ Each context file owns its family's full discipline: claim-to-metric mapping, me
 
 ## Prerequisite — green mechanical state (both phases)
 
-Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase — `baseline` capture or `compare` — confirm the mechanical pass is green: reuse a `/toolchain:build` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:build` when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
+Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase — `baseline` capture or `compare` — confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
 
 ## Integration
 
@@ -56,7 +56,7 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 - **Does not confirm intent/outcome** — "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).
 - **Does not review for ship-readiness** — that's the project's review gate; the measure-delta vs review-for-ship boundary is stated in "Purpose" above.
 - **Does not capture baselines after the fact** — a post-change "baseline" is not a baseline. Missing baseline → honest "cannot quantify", plus a current-state measurement for the record.
-- **Does not run the mechanical pass** — `/toolchain:build` owns build+test+lint; this skill only requires its result to be green.
+- **Does not run the mechanical pass** — `/toolchain:check` owns build+test+lint; this skill only requires its result to be green.
 
 ## Gotchas
 

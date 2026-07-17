@@ -63,7 +63,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 ### Execution cadence
 
 1. **Implement one logical block** — a single concern, function, class, or feature slice. Not the entire plan at once
-2. **Build check** — invoke `/toolchain:build` (via Skill tool) for the affected ecosystem after each block when the `toolchain` plugin is installed; otherwise run the project's own build/test command directly. Catch compilation errors immediately, not after 5 files of changes. In non-interactive runs, tier the in-loop cost: typecheck/compile and the touched test files run per block; the broader affected-ecosystem test suite runs at phase boundaries and Step 5 — early detection stays, redundant full-suite passes go
+2. **Build check** — invoke `/toolchain:check` (via Skill tool) for the affected ecosystem after each block when the `toolchain` plugin is installed; otherwise run the project's own build/test command directly. Catch compilation errors immediately, not after 5 files of changes. In non-interactive runs, tier the in-loop cost: typecheck/compile and the touched test files run per block; the broader affected-ecosystem test suite runs at phase boundaries and Step 5 — early detection stays, redundant full-suite passes go
 3. **Test (TDD by default)** — when the `tdd` plugin is installed, invoke `/tdd:principles` via Skill tool **before writing the first test** for authoritative guidance on what to test, which testing style fits (output/state/communication), and when to mock. Then follow Red-Green-Refactor **one test at a time**: write a single failing test for the smallest slice of behavior, confirm it fails (red), implement the minimum to pass (green), refactor — then move to the next slice. **Do not write all tests upfront** — writing one at a time keeps each red signal observable (proving the test can fail before code makes it pass) and stops you over-fitting code to tests written against a design that doesn't exist yet. TDD is the default — skip only when genuinely impractical (e.g., pure infrastructure wiring with no testable logic, or UI rendering with no logic behind the seam). Honor the consuming project's own testing conventions (its `CLAUDE.md` / rules)
 4. **Commit checkpoint** — commit after tests pass. Each commit should represent a green state. See below for commit discipline
 5. **Repeat** until the plan is complete
@@ -172,7 +172,7 @@ In orchestrated runs, the orchestrator may stay resident across phase boundaries
 
 When all planned work is done:
 
-1. **Final build check** — invoke `/toolchain:build` via the Skill tool for all affected ecosystems when the `toolchain` plugin is installed; otherwise run the project's own build/test command
+1. **Final build check** — invoke `/toolchain:check` via the Skill tool for all affected ecosystems when the `toolchain` plugin is installed; otherwise run the project's own build/test command
 2. **Run all affected tests** — not just the ones you wrote, but tests that could be impacted by your changes
 3. **Self-review (a floor, not the final verdict)** — the producing context converges on approval, so this catches slips but does not render the outcome verdict (step 5 hands to `/verification:confirm`, which renders it from outside the producing loop). Read through changes (`git diff HEAD~N`) looking for:
    - Consistency with existing patterns
@@ -187,7 +187,7 @@ When all planned work is done:
 | Condition | Action |
 |-----------|--------|
 | Before writing first test | Invoke `/tdd:principles` via Skill tool (when installed) for test design guidance |
-| After each logical block | Invoke `/toolchain:build` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
+| After each logical block | Invoke `/toolchain:check` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
 | At every phase boundary | Run the Step 4 ritual (plan marks + handoff entry + status + commit + resume prompt) |
 | Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
 | Divergence detected (major) | Route back to the planning skill (`/planning:plan review` when installed) |
@@ -201,7 +201,7 @@ When all planned work is done:
 - **Does not auto-execute plans** — guides execution with checkpoints and validation. Code changes are still judgment calls
 - **Does not replace `/verification:confirm`** — the `verification` plugin's outcome-verification skill (a separate plugin, when installed) does comprehensive build + test + lint + outcome verification. This skill does incremental validation during implementation
 - **Does not produce plans** — a planning pass does. If the plan needs revision, this skill routes back to it
-- **Does not replace `/toolchain:build`** — the `toolchain` plugin's build skill (a separate plugin, when installed) is the SSOT for build commands; this skill invokes it at the right moments and falls back to the project's own build command when that plugin is absent
+- **Does not replace `/toolchain:check`** — the `toolchain` plugin's check skill (a separate plugin, when installed) is the SSOT for build commands; this skill invokes it at the right moments and falls back to the project's own build command when that plugin is absent
 - **Does not orchestrate workers** — `/implementation:implement-dispatch` owns the orchestrated dispatch cadence for worker-routed phases and autonomous runs. This skill detects the routing and chains to it
 
 ## Gotchas

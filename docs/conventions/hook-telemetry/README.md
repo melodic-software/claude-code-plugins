@@ -132,7 +132,7 @@ runtime gate.
 
 The emit function is **co-located in each plugin's `hooks/hook-utils.sh`** — plugins are runtime-isolated
 under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. The first implementer
-(`markdown-formatter`) carries its own copy. **The moment a second hook needs to emit, extract a canonical
+(`markdown-format`) carries its own copy. **The moment a second hook needs to emit, extract a canonical
 copy and add a drift-check in the same change** — copy once, then consolidate, so the two copies never drift
 unwatched. This mirrors the standards-repo "adopt by copy" seam.
 
@@ -152,7 +152,8 @@ producers without coordinating with them or each other.
 
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
-| `markdown-formatter` plugin | `markdown-format` | `data/markdown-format.schema.json` |
+| `markdown-format` plugin | `markdown-format` | `data/markdown-format.schema.json` |
+| `bash-format` plugin | `bash-format` | `data/bash-format.schema.json` |
 | `desktop-notification` plugin | `desktop-notification` | `data/desktop-notification.schema.json` |
 | `guardrails` plugin | `secret-pattern-detection` | `data/secret-pattern-detection.schema.json` |
 | `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |

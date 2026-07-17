@@ -3,6 +3,17 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- **BREAKING: `/toolchain:build` renamed to `/toolchain:check`.** The skill runs build + test + lint
+  as a deterministic pass/fail gate, and per the marketplace naming grammar `check` = gate; "build"
+  is also a null phase for several covered ecosystems (Python, Markdown). The skill directory,
+  frontmatter `name`, and every repo-wide reference move together; no `renames`-map entry is added
+  (clean breaking change while the marketplace is settling). Invoke `/toolchain:check` where you
+  previously invoked `/toolchain:build`; behavior, arguments, and the resolution ladder are unchanged.
+
 ## [0.1.1]
 
 ### Fixed

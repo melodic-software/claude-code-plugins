@@ -16,7 +16,7 @@ Ingests Claude Code changelog entries and integrates them into the repo. Covers 
 
 Distinct from:
 
-- `/troubleshoot` — tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
+- `/known-issues` — tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
 - Any release-triage automation the consumer runs (issue filing per release) — this skill IMPLEMENTS changes, holistically across a release
 
 ## Input modes

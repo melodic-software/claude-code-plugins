@@ -12,7 +12,7 @@ How `/compress` composes with sibling skills in this plugin and with a consuming
 | `/audit-encapsulation` | parallel concern | No invocation either direction. `/audit-encapsulation` detects external citations into skill-private surfaces; `/compress` edits the markdown targets it is given. The two skills do not interact at runtime |
 | A pre-PR quality gate (if the consumer has one) | calls `/compress` | When a pre-PR check surfaces uncommitted `.md` files in the working tree, the user may invoke `/compress` (empty arg auto-detects) before PR prep. `/compress` does not auto-trigger from any gate; user-gated |
 
-Boundaries with the other bundled siblings — `/declutter` (noise classification, not flavor) and `/extract-ssot` (content relocation across 3+ files, not flavor) — are defined in `../SKILL.md` "What this skill is NOT".
+Boundaries with the other bundled siblings — `/audit-noise` (noise classification, not flavor) and `/extract-ssot` (content relocation across 3+ files, not flavor) — are defined in `../SKILL.md` "What this skill is NOT".
 
 ## Public-surface invocation forms
 
@@ -47,4 +47,4 @@ NEVER cite this skill's `context/` files, its scripts, or any heading anchor ins
 ## Cross-references
 
 - `../SKILL.md` "Action router" — public-surface action set the composition table cites
-- `../SKILL.md` "What this skill is NOT" — boundaries against lint front-ends, code review, `/declutter`, `/extract-ssot`
+- `../SKILL.md` "What this skill is NOT" — boundaries against lint front-ends, code review, `/audit-noise`, `/extract-ssot`

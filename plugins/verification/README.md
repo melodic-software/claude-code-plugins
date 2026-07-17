@@ -14,7 +14,7 @@ green build into confirmed outcomes.
 
 - **Delegates the mechanical pass, degrades gracefully.** `/verification:confirm`
   delegates its build/test/lint prerequisite to the `toolchain` plugin's
-  `/toolchain:build` and `/toolchain:lint` when installed, and runs the project's own
+  `/toolchain:check` and `/toolchain:lint` when installed, and runs the project's own
   ecosystem-native commands otherwise — the STOP-on-fail gate is unchanged, only the
   executor differs. Live-app verification prefers the `testing` plugin's
   `/testing:e2e` when installed and falls back to Claude Code's bundled `/verify` +

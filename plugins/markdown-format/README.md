@@ -1,0 +1,83 @@
+# markdown-format
+
+A Claude Code plugin that auto-formats and lints Markdown the moment you edit it.
+On every `Write` or `Edit` of a `.md` or `.mdc` file it runs
+[`markdownlint-cli2 --fix`](https://github.com/DavidAnson/markdownlint-cli2) from
+the file's repository root, applying every auto-fixable rule and surfacing the
+residual (unfixable) findings back to Claude as advisory context.
+
+It uses **your repository's own markdownlint configuration** — it ships none and
+imposes no rules of its own.
+
+## Behavior
+
+- **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
+  trailing spaces, …) are corrected in place.
+- **Advisory, never blocking.** The hook always exits `0`. Unfixable findings are
+  reported via `additionalContext`; they never reject the edit. Make a commit
+  hook or CI your hard gate.
+- **Config from the consumer.** `markdownlint-cli2` discovers config
+  (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) by walking up from the
+  repository root. The hook `cd`s to that root before linting so the right
+  cascade applies regardless of the session's working directory.
+
+## Requirements
+
+The hook requires the following tools:
+
+- Bash 3.2 or later. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run this Bash hook; WSL is also supported.
+- [`jq`](https://jqlang.org/) to parse hook input and emit structured context.
+- [`markdownlint-cli2`](https://github.com/DavidAnson/markdownlint-cli2),
+  installed explicitly either on `PATH` or as a pinned dependency in the consuming
+  repository. For the latter, the hook uses the extensionless
+  `node_modules/.bin/markdownlint-cli2` shim that npm supplies for POSIX shells and Git
+  Bash. It resolves symlinks first and rejects a shim whose physical target escapes the
+  repository's `node_modules` tree.
+
+Missing prerequisites do not block an edit. Following Claude Code's
+[PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
+the hook exits `0` and reports a visible `additionalContext` warning. It never
+falls back to `npx`, installs a package, or performs a network request during a
+hook run.
+
+Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
+envelope is skipped while formatting still runs.
+
+### Configuration trust boundary
+
+`markdownlint-cli2` supports executable `.cjs`/`.mjs` configuration and can
+load custom rules, Markdown-it plugins, and output formatters. Because the hook
+runs the consuming repository's configuration, enable it only for repositories
+whose configuration and installed dependencies you trust. Prefer declarative
+JSONC or YAML when executable configuration is unnecessary. Before running a
+risky configuration, the hook emits a non-blocking trust advisory once for each
+repository and configuration-content state; changing that configuration causes
+the advisory to appear again.
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install markdown-format@melodic-software
+```
+
+## Configuration
+
+This plugin has no `userConfig` — its only "configuration" is the markdownlint
+config already in your repository, which it reads automatically. To change the
+rules, edit your repo's markdownlint config.
+
+### Disable without uninstalling
+
+Set the kill switch in your settings `env` block:
+
+```json
+{ "env": { "HOOK_MARKDOWN_FORMAT_ENABLED": "false" } }
+```
+
+## License
+
+MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
+melodic-software/claude-code-plugins repository.
