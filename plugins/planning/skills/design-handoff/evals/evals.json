@@ -4,14 +4,14 @@
     {
       "id": 1,
       "name": "gate-passes-all-threads-accounted",
-      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-all-resolved.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and, if it passes, hand off to /planning:architect.",
-      "expected_output": "The binary gate confirms every thread is RESOLVED (with recorded rationale), directional (agreed + research tag), or TAGGED-DEFERRED, so it PASSES and emits the architect-ready handoff summary sourced from the artifact — resolved decisions with rationale, deferred research tags, and dependency order.",
+      "prompt": "/planning:design-handoff — treat evals/fixtures/design-threads-all-resolved.md (relative to the skill directory) as the topic's design-threads.md. Run the gate and, if it passes, hand off to /planning:plan.",
+      "expected_output": "The binary gate confirms every thread is RESOLVED (with recorded rationale), directional (agreed + research tag), or TAGGED-DEFERRED, so it PASSES and emits the plan-ready handoff summary sourced from the artifact — resolved decisions with rationale, deferred research tags, and dependency order.",
       "files": ["evals/fixtures/design-threads-all-resolved.md"],
       "expectations": [
         "Output evaluates each thread against the artifact and reports a PASS",
-        "Output emits an /architect-ready handoff summary sourced from the artifact (resolved decisions with rationale, deferred research tags)",
+        "Output emits a plan-ready handoff summary sourced from the artifact (resolved decisions with rationale, deferred research tags)",
         "The summary is drawn from the artifact content, not recalled from conversation memory",
-        "Output emits a resume prompt so a fresh session can pick up at /planning:architect"
+        "Output emits a resume prompt so a fresh session can pick up at /planning:plan"
       ]
     },
     {
@@ -24,7 +24,7 @@
         "Output reports a FAIL rather than handing off",
         "Output names the specific offending thread that is unresolved AND untagged (the stop-word / stemming thread)",
         "Output routes back to /planning:design to resolve or tag the gap",
-        "Output does NOT emit an /architect-ready handoff summary"
+        "Output does NOT emit a plan-ready handoff summary"
       ]
     },
     {

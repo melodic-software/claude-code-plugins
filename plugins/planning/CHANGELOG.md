@@ -15,6 +15,39 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **Declared a dependency on `domain-driven-design`**, so installing `planning` auto-installs the
   glossary steward and the pipeline's inline vocabulary updates (`interview`, `design`) keep working
   cross-plugin.
+- **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
+  `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
+  before plugins, a flat local skill named `plan` would have collided with surfaces already using
+  that word, so the skill shipped under `architect`. Plugin namespacing removed that constraint —
+  `/planning:plan` is unambiguous and says what the skill produces. Claude Code's built-in `/plan`
+  (the plan-mode toggle) is unaffected: plugin skills have no bare command form, so the full
+  invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
+  `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
+  "architect this" remains a trigger phrase in the skill description.
+
+- **`/planning:interview` asks in frontier rounds instead of one question at a time** (behavioral
+  change): each round asks every question whose prerequisites are settled as one numbered set, each
+  with a recommendation; the answers recompute the frontier, and dependent questions wait for the
+  round after their prerequisite resolves. A frontier of one question degenerates to the previous
+  behavior. Partial replies resolve only what was answered — unanswered questions re-surface next
+  round, and accept-shorthands ("accept all recommendations", "yes to Q5–Q7") are honored. Adapted
+  from Matt Pocock's batch-grill-me rounds model.
+- The `me`-mode canonical framing now splits facts from decisions: facts are resolved from the
+  environment (with non-blocking sub-agent dispatch for slow lookups — only downstream questions
+  wait), and decisions always go to the user; the blanket "explore the environment instead of
+  asking" clause is gone.
+- The stop condition gains an explicit confirmation gate for `me`/`auto`: an empty frontier is not
+  sufficient — the user confirms the restated shared understanding before the contract persists.
+  `lock` is exempt (invoking it is the confirmation).
+
+### Added
+
+- `use_ask_user_question` user config (boolean, default `false`): opt in to rendering a round of
+  up to 4 independent questions through the `AskUserQuestion` tool; inline prose stays the default
+  and remains the fallback for larger or dependency-carrying rounds.
+- Question-budget guidance: upstream artifacts (research, exploration, PRD, design) count as
+  settled prerequisites, and a ballooning frontier routes to `/planning:wayfind` instead of a
+  marathon session. No numeric question cap.
 
 ## [0.12.0]
 

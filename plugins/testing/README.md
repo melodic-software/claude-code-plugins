@@ -19,7 +19,7 @@ behavior with tests.
   project's `CLAUDE.md` / rules and existing test projects; the skills infer from what
   exists when nothing is documented.
 - **Cross-plugin refs degrade gracefully.** Test invocation defers to the `toolchain`
-  plugin's `/toolchain:build` when installed and to the project's own test command
+  plugin's `/toolchain:check` when installed and to the project's own test command
   otherwise; TDD design questions route to `/tdd:principles`, browser mechanics to
   `/playwright:playwright`, outcome sign-off to `/verification:confirm`, and the
   implement loop to `/implementation:implement` — each used when installed and

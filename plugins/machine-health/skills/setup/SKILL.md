@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Write (or update) the machine-local configuration that customizes `/machine-health:check`
+Write (or update) the machine-local configuration that customizes `/machine-health:audit`
 on this host: the catalog overlay at `<StateBase>/catalog/checks.local.jsonc` and the remediation
 approvals at `<StateBase>/state/approvals.json`. Idempotent: re-running reads the existing files and
 offers updates rather than overwriting blind.
@@ -23,7 +23,7 @@ machine-local by design — a workstation's check tuning does not belong in any 
 ## Task
 
 1. **Read current state first.** Load the shipped catalog
-   (`${CLAUDE_PLUGIN_ROOT}/skills/check/catalog/checks.jsonc`), the existing overlay and
+   (`${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/checks.jsonc`), the existing overlay and
    approvals files when present, and `<StateBase>/TODO.md` (pending proposals from prior runs).
    Present a short summary: checks shipped, checks patched by the overlay, approvals granted,
    proposals awaiting a decision.
@@ -38,7 +38,7 @@ machine-local by design — a workstation's check tuning does not belong in any 
    `<StateBase>/scripts/windows/checks/Test-<Thing>.ps1` (single JSON object per
    `references/shared/output-schema.md`, `-Human` mode included), then add a full schema-valid
    entry to the overlay with `script` set to `scripts/windows/checks/Test-<Thing>.ps1`. Merge and
-   resolution semantics: `${CLAUDE_PLUGIN_ROOT}/skills/check/references/shared/catalog-overlay.md`.
+   resolution semantics: `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`.
 5. **Offer remediation approvals.** The two shipped remediations (`restart-stopped-service`,
    `clear-temp-files`) default to not approved. Present each with its risk posture from
    `references/windows/remediation-policy.md`; on an explicit yes, write the approval to
@@ -55,7 +55,7 @@ plus a one-paragraph summary of what changed and how to re-run this setup to rec
 
 ## What this skill does NOT do
 
-- Run the audit — that is `/machine-health:check`.
+- Run the audit — that is `/machine-health:audit`.
 - Edit the shipped catalog or anything inside the plugin install directory — a plugin update
   replaces it; machine-local changes live only under `<StateBase>`.
 - Approve remediations silently — every approval is an explicit user decision.

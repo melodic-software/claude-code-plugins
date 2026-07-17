@@ -16,13 +16,13 @@
     },
     {
       "id": 2,
-      "name": "youtube-url-routes-to-youtube-skill",
+      "name": "youtube-url-routes-to-youtube-digest-skill",
       "prompt": "Can you digest this for me? https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "expected_output": "The skill declines to run the course pipeline and routes the user to /knowledge:youtube, because a single public YouTube video is out of scope for course-digest (which targets multi-lesson course platforms like Dometrain/Teachable).",
+      "expected_output": "The skill declines to run the course pipeline and routes the user to /knowledge:youtube-digest, because a single public YouTube video is out of scope for course-digest (which targets multi-lesson course platforms like Dometrain/Teachable).",
       "files": [],
       "expectations": [
         "Recognizes the URL is a single public YouTube video, not a supported course-platform URL",
-        "Routes the user to `/knowledge:youtube` instead of running the course-digest pipeline",
+        "Routes the user to `/knowledge:youtube-digest` instead of running the course-digest pipeline",
         "Does NOT begin Phase 1 discovery or launch extraction for the YouTube URL"
       ]
     },

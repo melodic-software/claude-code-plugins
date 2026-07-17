@@ -16,7 +16,7 @@ Ingests Claude Code changelog entries and integrates them into the repo. Covers 
 
 Distinct from:
 
-- `/troubleshoot` — tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
+- `/known-issues` — tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
 - Any release-triage automation the consumer runs (issue filing per release) — this skill IMPLEMENTS changes, holistically across a release
 
 ## Input modes
@@ -49,7 +49,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 
 | Action | Description | Detail |
 |--------|-------------|--------|
-| `apply` | Full pipeline: ingest → explore → research → interview → architect → implement → verify → close issues | See "Action: apply" below |
+| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for version(s). Read-only | See "Action: fetch" below |
 | `diff` | Fetch + orient on repo impact. Read-only analysis table | See "Action: diff" below |
 | `status` | Show applied versions, open issues, pending work | See "Action: status" below |
@@ -69,7 +69,7 @@ If action is unknown, show action table.
 detects a new CC release in conversation, default to `fetch` or `diff` and offer `apply` — do not
 auto-start the pipeline.
 
-The full pipeline runs explore → research → interview → architect → implement → verify as the phases below. If the consumer project ships its own stage skills for these, prefer them at each phase.
+The full pipeline runs explore → research → interview → plan → implement → verify as the phases below. If the consumer project ships its own stage skills for these, prefer them at each phase.
 
 ### Phase 0 — Ingest
 
@@ -127,7 +127,7 @@ User picks scope: "all P1+P2", "just P1", or specific items by number.
 
 Lock brief: confirmed scope becomes implementation contract.
 
-### Phase 4 — Architect
+### Phase 4 — Plan
 
 Plan concrete edits with cross-cutting awareness:
 
@@ -140,7 +140,7 @@ Plan concrete edits with cross-cutting awareness:
 
 Execute plan:
 
-1. Edit files per architect plan
+1. Edit files per the approved plan
 2. Run the consumer repo's markdown linter on every touched `.md` file (e.g. `npx markdownlint-cli2`), when one is configured
 3. If hook scripts touched: run their tests with the consumer repo's test runner
 4. If settings.json touched: `jq empty .claude/settings.json`

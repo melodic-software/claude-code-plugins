@@ -27,6 +27,7 @@ from a fetched page this session, treat it as unverified and say so.
 | MCP | https://code.claude.com/docs/en/mcp |
 | Tools reference (monitors) | https://code.claude.com/docs/en/tools-reference |
 | Docs index (discover any other page) | https://code.claude.com/docs/llms.txt |
+| Official-doc index (all plugin-relevant pages) | docs/OFFICIAL-DOCS.md |
 
 Machine-readable JSON Schemas (editor validation for the JSON in this repo; Claude Code ignores the
 `$schema` field at load time): `marketplace.json` →

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/bash-format.schema.json",
+  "title": "bash-format telemetry data",
+  "description": "Per-hook `data` payload for the bash-format hook. Discovered from the envelope `hook` value \"bash-format\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook (Write or Edit)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the checked shell file, relative to the consuming repo root."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ShellCheck findings remaining for the file, one per line. Empty array = clean."
+    }
+  }
+}

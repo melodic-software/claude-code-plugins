@@ -1,6 +1,6 @@
 ---
 name: comment-residue
-description: "Classify code comments for four residue shapes — history narration (\"used to… now…\"), plan/session references (\"Task 2 replaces the old…\", \"in this PR\"), conversational antecedents (\"per your request\", \"as you asked\"), and ticket/PR/branch back-references a future reader will never see — emitting Tier 1 (remove) and Tier 2 (review) findings with treatment guidance; read-only, no edits applied. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', or before committing agent-written code — not for removing ALL comments, restating-the-code redundancy (that is /code-tidying:tidy's Beck tidyings), or markdown noise (use /declutter)."
+description: "Classify code comments for four residue shapes — history narration (\"used to… now…\"), plan/session references (\"Task 2 replaces the old…\", \"in this PR\"), conversational antecedents (\"per your request\", \"as you asked\"), and ticket/PR/branch back-references a future reader will never see — emitting Tier 1 (remove) and Tier 2 (review) findings with treatment guidance; read-only, no edits applied. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', or before committing agent-written code — not for removing ALL comments, restating-the-code redundancy (that is /code-tidying:tidy's Beck tidyings), or markdown noise (use /audit-noise)."
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -58,7 +58,7 @@ rules; the classifier's shapes and tiers above are the skill's built-in baseline
 
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops. The author owns every deletion.
 - **Tier semantics.** Tier 1 = residue to remove; Tier 2 = review needed (a ticket reference may be a legitimate `TODO`).
-- **Code files only.** Markdown is `/declutter`'s territory and is skipped; a `.md` target yields no findings here.
+- **Code files only.** Markdown is `/audit-noise`'s territory and is skipped; a `.md` target yields no findings here.
 - **Comment-scoped detection.** Only the comment portion of a line is classified — residue-shaped words in code (identifiers, string literals) are not flagged.
 - **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` marker tracking real work is never flagged as ticket residue.
 - **Opt-out markers respected.** `comment-residue-ignore` on a line (or the line before it) skips it.
@@ -90,7 +90,7 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 
 - **Not "delete all comments."** It targets residue, not comments that carry a non-obvious why or an interface/design-intent contract — those stay.
 - **Not `/code-tidying:tidy`.** `tidy` APPLIES structural tidyings (including Beck's "Delete Redundant Comment" for comments that restate the code); `comment-residue` is a read-only CLASSIFIER for the out-of-context residue class. Different concern, different mode.
-- **Not `/declutter`.** `/declutter` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
+- **Not `/audit-noise`.** `/audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies deletions.
 
 ## Sources

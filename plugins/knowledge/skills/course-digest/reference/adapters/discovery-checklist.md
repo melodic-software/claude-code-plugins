@@ -62,7 +62,7 @@ Run JavaScript to detect video delivery system:
 }
 ```
 
-**YouTube iframes:** when the player detect shows `youtube: true` or iframe hostnames include YouTube, stop — single public YouTube videos are handled by `/knowledge:youtube`, not course-digest adapters.
+**YouTube iframes:** when the player detect shows `youtube: true` or iframe hostnames include YouTube, stop — single public YouTube videos are handled by `/knowledge:youtube-digest`, not course-digest adapters.
 
 **Critical distinction**: video player may be inside a **cross-origin iframe**. If so, parent page's JS cannot access player's DOM or API. This fundamentally changes extraction strategy.
 
@@ -218,7 +218,7 @@ Some platforms expose transcripts via API:
 
 - **Teachable**: `/api/v2/hotmart/private_video?attachment_id={id}` — returns video metadata (video_id, duration, signature) but NOT transcripts
 - **Wistia Data API**: has a captions endpoint but requires the account owner's API token — unusable for third-party courses
-- **Single public YouTube videos**: use `/knowledge:youtube` (`transcript` / `watch` actions) — caption acquisition via yt-dlp is `/knowledge:youtube`'s concern, not course adapters
+- **Single public YouTube videos**: use `/knowledge:youtube-digest` (`transcript` / `watch` actions) — caption acquisition via yt-dlp is `/knowledge:youtube-digest`'s concern, not course adapters
 
 ### 3.5 Fallback: audio extraction + Whisper
 

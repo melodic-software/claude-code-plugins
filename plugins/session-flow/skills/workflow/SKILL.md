@@ -29,7 +29,7 @@ map — it defines the stages, detects the current position, and suggests what c
 This skill adapts to the consuming repo rather than imposing structure:
 
 - **Stage execution.** When the consuming repo defines a skill for a stage (its skill listing or
-  `CLAUDE.md` names one — e.g. an explore, research, plan/architect, or implement skill), suggest
+  `CLAUDE.md` names one — e.g. an explore, research, plan, or implement skill), suggest
   invoking that skill. Otherwise execute the stage inline following its definition in
   `context/steps.md`. Never invent skill names — check what actually exists.
 - **Artifact location.** When persisting stage outputs or checklists, honor the consuming repo's
