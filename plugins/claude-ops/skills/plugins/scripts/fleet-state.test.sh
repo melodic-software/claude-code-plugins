@@ -338,30 +338,44 @@ assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
 # ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found
 # ============================================================================
-# Strip every PATH directory that resolves a jq executable (rather than
-# rebuilding PATH from scratch via symlinks) so bash, dirname, and every other
-# tool the script needs stay resolvable — symlinking coreutils individually is
-# unreliable on Windows without elevated rights. `command -v jq` only reports
-# the FIRST match: a GitHub Actions ubuntu runner ships jq in more than one
-# PATH directory, so stripping just that one left a second jq resolvable and
-# this case silently exercised the "jq present" path instead of "jq missing"
-# — walk every PATH entry and drop each one that actually contains a jq.
-# Route through run_state's fixture builder (not a bare script invocation) so
-# jq-absence is the only variable under test — a bare invocation relies on
-# default file paths, which a dev machine's real Claude Code install happens
-# to satisfy but a clean CI runner does not, surfacing "installed_plugins.json
-# not found" before the script ever reaches its jq check.
+# A directory-exclusion PATH filter (drop every PATH dir containing a jq
+# executable) is NOT safe in general: `command -v jq` only reports the first
+# match, and on this dev machine jq lives in its own directory separate from
+# bash/coreutils, so excluding it is harmless — but a GitHub Actions
+# ubuntu runner colocates jq with bash and coreutils in /usr/bin, so
+# excluding jq's directory there also removes bash, and the case fails with
+# "env: 'bash': No such file or directory" before it ever reaches the
+# script's own jq check. `command -v` also does not skip a shadowed
+# non-executable file and fall through to a later PATH entry (verified
+# empirically: a chmod-000 decoy at the front of PATH is skipped and the
+# real jq further down PATH is still found) — so shadowing can't hide jq
+# either.
+#
+# The only universally safe approach: build an isolated PATH containing
+# COPIES (never symlinks — those need elevation on Windows) of just the
+# specific tools fleet-state.sh invokes before its jq check (`dirname`) plus
+# bash itself to launch the interpreter, with jq deliberately excluded.
+# Copying a Linux ELF binary elsewhere is safe (glibc resolves shared libs
+# via the system loader, not the binary's own directory) — but bash.exe on
+# Windows/MSYS needs a colocated msys-2.0.dll, so any *.dll sitting next to
+# the real bash binary is copied alongside it too (a harmless no-op on
+# Linux, where no such files exist).
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": []}'
 ARGS=(--marketplace market1)
-filtered_path=""
-while IFS= read -r dir; do
-  [[ -n "$dir" && -x "$dir/jq" ]] && continue
-  filtered_path="${filtered_path:+$filtered_path:}$dir"
-done < <(printf '%s' "$PATH" | tr ':' '\n')
-out=$(run_state "$case_dir" "PATH=$filtered_path")
+bash_bin=$(command -v bash)
+dirname_bin=$(command -v dirname)
+bash_dir=$(dirname "$bash_bin")
+safe_bin_dir="$case_dir/jq-missing-bin"
+mkdir -p "$safe_bin_dir"
+cp "$bash_bin" "$safe_bin_dir/"
+cp "$dirname_bin" "$safe_bin_dir/"
+shopt -s nullglob
+for dll in "$bash_dir"/*.dll; do cp "$dll" "$safe_bin_dir/"; done
+shopt -u nullglob
+out=$(run_state "$case_dir" "PATH=$safe_bin_dir")
 rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
 assert_contains "jq missing: actionable notice" "$out" "jq required"
