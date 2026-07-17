@@ -61,7 +61,7 @@ Smell findings default to SUGGESTION at medium or low confidence; a finding esca
 
 Read `${CLAUDE_PLUGIN_ROOT}/context/severity.md` and organize findings by tier (CRITICAL / IMPORTANT / SUGGESTION), unless the project defines its own severity vocabulary — then use the project's. For each finding include file path, line number, and a specific recommendation.
 
-Design-smell and convention findings are judgement calls: label them as advisory reviewer opinion, never as hard violations. Hard-violation framing is reserved for findings backed by a documented project rule, a failing check, or a demonstrable defect.
+Design-smell and convention findings are judgement calls: label them as advisory reviewer opinion, never as hard violations. Hard-violation framing is reserved for findings backed by a documented project rule, a failing check, or a demonstrable defect. Give every design-smell finding an explicit `Confidence: medium` or `Confidence: low` line (per the severity baseline's confidence axis) — downstream normalization treats an unlabeled finding as unscored, which ranks above low, so an unlabeled low-confidence smell would outrank honestly-labeled ones.
 
 You are a subagent and cannot ask the user questions. When something is ambiguous, review under the most reasonable assumption and flag the ambiguity explicitly in your report.
 
