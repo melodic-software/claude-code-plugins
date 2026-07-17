@@ -139,7 +139,7 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
   `scrape` / `crawl` / `map` per `firecrawl-cli` — the consumer already knows the vendor's verbs.
   While it remains a single-skill router, the wrapper-echo exemption above applies instead.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `configure`) — the overloaded-term
+- **Generic skill names are safe under namespacing** (`help`, `list`, `update`) — the overloaded-term
   caution governs plugin *identity*, not a namespaced skill leaf.
 - **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
   plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
@@ -262,8 +262,9 @@ value, infers-and-records, or asks — never guesses silently.
 
 ## Setup action — every configurable plugin ships one
 
-Every plugin that carries any `userConfig` or tracked-config seam ships a re-runnable `setup` /
-`configure` action (a skill) that interviews the consumer and writes the tracked config. It is
+Every plugin that carries any `userConfig` or tracked-config seam ships a re-runnable `setup`
+skill (the canonical verb per the philosophy's Naming section) that interviews the consumer and
+writes the tracked config. It is
 idempotent — safe to re-run to reconfigure. The Thariq `config.json` first-run pattern is **rejected**
 for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGIN_ROOT}`, which is
 replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
@@ -287,8 +288,8 @@ a skill ships them only when they earn their keep.
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
 from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …) or lives in a **hook** plugin
-(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
-`configure` skill *is* warrantable — it makes interview and write-config decisions (the
+(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup`
+skill *is* warrantable — it makes interview and write-config decisions (the
 `codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
