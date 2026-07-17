@@ -119,6 +119,7 @@ of truth:
 
 ## Configuration
 
-No `userConfig`. No persistent state, no network calls — each skill reads
-the conversation and the consuming project's own instruction layer, and
-resolves any external standards source the consumer declares.
+No `userConfig`, no persistent state — each skill reads the conversation and
+the consuming project's own instruction layer. `follow-our-standards` may
+fetch a remote standards source when the consumer declares one and no local
+checkout exists.

@@ -29,9 +29,6 @@ content here. Resolve the source of truth per the method doc's ladder:
   inventories, or defaults into tracked files; place the citation at the
   sentence that defers to it; a stored external value needs a recheck
   trigger.
-- **Personal layer.** A global engineering-quality rule (e.g. your
-  `~/.claude/CLAUDE.md`) that says never duplicate content and never restate
-  what a source already makes ascertainable.
 
 Read those where they live. When a consuming project declares none of them,
 re-anchor the portable baseline: provide a link or citation to the living

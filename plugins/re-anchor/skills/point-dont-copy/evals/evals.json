@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "copied-doc-content-corrected-to-pointer",
-      "prompt": "point don't copy — review the onboarding doc I just wrote. It pastes in the framework's configuration reference and rewors its retry-policy section in my own words.",
+      "prompt": "point don't copy — review the onboarding doc I just wrote. It pastes in the framework's configuration reference and rewords its retry-policy section in my own words.",
       "expected_output": "The skill re-anchors pointer-over-copy discipline, then audits the doc and names two located findings — the pasted config reference and the reworded retry-policy paraphrase — flagging that a paraphrase drifts the same as a verbatim copy, and corrects each forward by replacing it with a pointer/citation to the living source.",
       "files": [],
       "expectations": [
