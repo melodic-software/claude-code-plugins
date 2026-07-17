@@ -96,7 +96,7 @@ An interview session resolves the same decision tree in far fewer round-trips: t
 - `jq empty plugins/planning/skills/interview/evals/evals.json` exit 0
 - eval count = prior count + 1 (`jq` length assertion against the pre-change count captured at implementation start)
 
-### Phase 3: Manifest, userConfig, CHANGELOG [TODO]
+### Phase 3: Manifest, userConfig, CHANGELOG [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
