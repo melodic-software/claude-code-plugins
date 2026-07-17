@@ -18,7 +18,9 @@ graduate into. One paragraph. This is the map's success condition.>
 - Durable pointers only: PRs, committed docs, prior items, external links.
 - Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local — distill what matters into a
   line here instead of pointing at a path other readers cannot resolve.
-- Links, not recaps.
+- Links, not recaps — for anything durably linkable. The memory-tier distillation above is the
+  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
+  preserved context.
 
 ## Decisions-so-far
 
