@@ -118,6 +118,12 @@ explicit confirmation before any conversion (see Setup and migration).
   same frontmatter key); when absent, degrade to glob discovery of
   `*.md` files there.
 - Location fixed in v1; relocation is deferred until a real need appears.
+- **Accepted cost:** this location sits outside the working directory, so
+  the first read may raise a permission prompt (working-directory reads
+  are prompt-free; outside reads are not). Consumers who want it silent
+  may allowlist reads of `~/.claude/standards/` in their permission
+  settings; skills never treat the prompt (or a denial) as an error —
+  a denied user-global read just means that layer contributes nothing.
 
 ## Concern file — `.claude/standards.yaml`
 

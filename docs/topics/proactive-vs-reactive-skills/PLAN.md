@@ -159,7 +159,7 @@ Fresh-docs re-fetch (skills page) before edits.
 - `jq -r .version plugins/review/.claude-plugin/plugin.json` = `0.10.0`; CHANGELOG head entry matches
 - `grep -rniE "melodic-software|kyle" plugins/review/skills/` returns 0 hits in changed files
 
-### Phase 5: Verification, exercise, and gates [TODO]
+### Phase 5: Verification, exercise, and gates [DONE]
 
 Review: security
 
@@ -185,6 +185,39 @@ Runbook results distill into this PLAN's verification notes; raw transcripts sta
 - Every fixture-exercise row above recorded with PASS + evidence pointer in this PLAN before merge
 - `grep -rn "docs/standards" plugins/planning plugins/review --include="*.md" -l` hits only files that present the path as the *documented default*, never a hardcoded absolute/org path
 - `git diff --name-only origin/main -- plugins/ | xargs grep -lniE "melodic-software|kyle|D:\\\\|/Users/|C:\\\\"` returns 0 hits (sweeps ALL changed plugin files incl. evals and context files — reviewer F6)
+
+### Phase 5 verification record (2026-07-17)
+
+Raw transcripts: `.work/proactive-vs-reactive-skills/fixtures/` (memory tier). Probes ran headless
+(`claude -p --plugin-dir … --setting-sources project --add-dir <worktree> --permission-mode acceptEdits`)
+in clean temp non-source git repos.
+
+| Fixture row | Probe(s) | Verdict | Evidence |
+|---|---|---|---|
+| Mechanical gates | — | PASS | `claude plugin validate --strict` exit 0 both plugins; sync `--check` 0; drift check 0; tripwires 9/9 + 8/8; shellcheck/actionlint/markdownlint clean |
+| index-present (plan side) | p01 | PASS | plan cites `csharp.md` sections; canary honored (direct DbContext, repository pattern refused); violating untracked file flagged |
+| index-present (review symmetry) | p02 | PASS | criteria resolve via binding ladder: csharp row + external row loaded, testing row skipped (selective); canary direct hit |
+| canary anti-theater (review verdict) | p03 | PASS | code mode flags repository pattern CRITICAL citing `csharp.md` (Step 1.3 rewire — all modes inherit) |
+| index-absent | p04 | PASS | infers from `docs/CONTRIBUTING.md`; assumption surfaced; zero standards writes |
+| mixed/external + broken row | p05 (re-confirmed p15/p15b) | PASS | broken `architecture` row surfaced + fix offered, never silent; plan proceeds non-blocked |
+| trivial-scale | p06 | PASS | abbreviated plan, no standards fetch, zero canary mention |
+| setup idempotency (planning) | p07/p08 | PASS | run 1 writes skeleton index @1.0.0 + setup-owned `.gitignore`; run 2 short-circuits — run twice, no diff |
+| setup idempotency (review) | p09/p10 | PASS | same semantics via `/review:setup` |
+| personal overlay | p11 | PASS | ADD (mutation testing) applied w/ personal provenance; CONFLICT (test-after) loses to team test-first |
+| user-global layer | p15 + p15b | PASS | denied read handled per contract (not an error, layer contributes nothing, reported); readable run: glob discovery, SEC-CANARY applied w/ user-global provenance |
+| version skew (setup) | p12 | PASS | newer index → zero writes, no migration offer, "update the review plugin", no nag loop |
+| version skew (grounding) | p13 rerun | PASS | after prose fix (explicit frontmatter compare in grounding step): skew surfaced, best-effort, "update the planning plugin" |
+| pre-existing README | p14 | PASS | presence test fails → confirmation gate holds; blanket pre-acceptance judged insufficient for conversion; nothing written |
+| security review | sub-agent | PASS | plugin-acceptance criteria: no code-exec surface added beyond CI-side sync script, no MCP, no secrets, `${CLAUDE_PLUGIN_ROOT}`-only references, no egress; verdict PASS, zero blocking findings |
+
+STOP gate (reviewer F2) FIRED and resolved: outside-cwd reads are permission-gated (empirical:
+headless denials on plugin-root and `~/.claude/standards/` paths). User accepted the cost
+(2026-07-17); contract README's User-global layer section now carries the accepted-cost note
+(denied read = layer contributes nothing, never an error) — synced to both bindings.
+
+Probe-environment notes (not defects): headless slash invocation of quality-gate dies silently on
+its `gh pr list` preflight permission denial (pre-existing plugin behavior; prose invocation used
+for p02); plugin-root context files are unreadable to headless sessions without `--add-dir`.
 
 ## Blast radius
 
