@@ -153,6 +153,7 @@ producers without coordinating with them or each other.
 | Producer | `hook` value | Data schema |
 |----------|--------------|-------------|
 | `markdown-format` plugin | `markdown-format` | `data/markdown-format.schema.json` |
+| `bash-format` plugin | `bash-format` | `data/bash-format.schema.json` |
 | `desktop-notification` plugin | `desktop-notification` | `data/desktop-notification.schema.json` |
 | `guardrails` plugin | `secret-pattern-detection` | `data/secret-pattern-detection.schema.json` |
 | `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |
