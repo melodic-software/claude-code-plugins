@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## 0.8.0 — 2026-07-17
+
+Changed:
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states
+  handoffs and the workflow checklist are checkout-local; the checklist is the stage-ledger kind
+  the contract's `.worktreeinclude` template carries into new worktrees, while handoffs are
+  session-scoped and deliberately not carried.
+
 ## 0.7.0 — 2026-07-17
 
 Added:

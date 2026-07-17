@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` names the
+  tracker as the contract's cross-lane index — tickets point, never store primary artifacts;
+  `/work-items:decompose` ticket provenance now cites the PR carrying the source plan instead of
+  the contract-slice path, which is pruned before merge and would dangle.
+
 ## [0.8.0]
 
 ### Changed (breaking)

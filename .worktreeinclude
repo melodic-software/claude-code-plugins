@@ -1,0 +1,7 @@
+# Memory-tier files worth carrying into new worktrees (one-way, creation-time
+# copy; gitignored-only). Never baselines or raw scratch — machine-bound.
+.work/*/EXPLORE.md
+.work/*/EXPLORE-*.md
+.work/*/RESEARCH.md
+.work/*/RESEARCH-*.md
+.work/*/*-checklist.md

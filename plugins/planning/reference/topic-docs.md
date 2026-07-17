@@ -27,6 +27,11 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /
 `memory_dir` keys.
 
+Baselines are machine-bound memory-tier captures, invisible outside the writing checkout: per the
+contract's pointer discipline (≥ 2.0.0), `PLAN.md` records **distilled baseline values only** and
+never cites a memory-slice capture path. Checklists are the stage-ledger kind the contract's
+`.worktreeinclude` template carries into new worktrees where the consuming repo materializes it.
+
 ## Close-out — the vault seam
 
 `/planning:architect` owns describing the contract-slice close-out. Its promotion step resolves

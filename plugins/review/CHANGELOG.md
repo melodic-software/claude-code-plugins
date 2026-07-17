@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states review
+  reports are lane-local (invisible to sibling worktrees and clones) and cross-lane findings
+  graduate through the work-item tracker as tickets that point, never as pasted report bodies.
+
 ## [0.9.0]
 
 ### Added

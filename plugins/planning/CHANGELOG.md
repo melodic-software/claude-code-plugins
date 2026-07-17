@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` records that
+  baselines are checkout-local and `PLAN.md` carries distilled values only;
+  `/planning:architect`'s baseline step no longer directs `PLAN.md` to reference the stored
+  memory-slice capture (pointer discipline — the path is invisible outside the writing checkout).
+
 ## [0.12.0]
 
 ### Changed

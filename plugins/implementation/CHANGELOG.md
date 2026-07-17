@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` ties the
+  phase-commit rule to the contract's visibility guarantee — isolated contexts see the contract
+  slice as committed state only — and states the by-value return rule for dispatched workers.
+
 ## [0.6.0]
 
 ### Changed — nine skills extracted into three new plugins (migration required to retain them)

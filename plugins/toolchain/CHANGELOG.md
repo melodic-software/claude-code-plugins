@@ -3,6 +3,15 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` clarifies the
+  contract's visibility mechanisms are consumer-repo root materializations outside the concern
+  file's schema, and `/toolchain:setup` does not write them today (a setup-skill apply action is
+  the contract's recorded follow-on).
+
 ## [0.1.1]
 
 ### Fixed

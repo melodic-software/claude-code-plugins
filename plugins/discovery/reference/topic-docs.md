@@ -25,3 +25,11 @@ Discovery writes **memory tier only** — working documents nothing downstream e
 Discovery never writes the contract tier; the `contract_tier` setting does not change where its
 artifacts land. `/discovery:explore-deep` and a Tier-2 research subagent operate under the
 contract's **non-interactive / forked mode** rule.
+
+## Visibility (contract ≥ 2.0.0)
+
+These artifacts are memory-tier, so they exist only in the checkout that wrote them. They are
+exactly the cross-checkout-useful kind the contract's `.worktreeinclude` template carries into new
+worktrees (one-way, at creation time) where the consuming repo materializes it. Isolated workers
+(`-deep` variants, forked subagents) return findings **by value**; the parent session writes the
+memory slice in its own checkout — a worker's checkout-local writes are not the record.

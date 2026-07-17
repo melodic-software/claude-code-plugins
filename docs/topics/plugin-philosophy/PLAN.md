@@ -100,7 +100,11 @@ resume it.
 > **Program log.** 2026-07-17: PR A (#257, Phases 1–3 + P4 evidence) squash-merged to main; all
 > review findings (2 Codex inline + 2 follow-ups + 6 Claude-review) classified, fixed, and
 > verified; contract slice pruned on that branch and re-committed here on `docs/topic-docs-2.0.0`
-> (the PR B branch, cut from post-squash main). Next: Phase 5 wave on this branch.
+> (the PR B branch, cut from post-squash main). Phase 5 wave executed on this branch (fresh-fetched
+> worktrees + settings pages; all sanity checks green: drift `--check`, validate-plugins incl.
+> catalog `--check`, markdownlint, delta-doc/table parity, 8-plugin bump coverage). Implementers
+> table also corrected: verification manifest/baselines moved off the implementation row to a new
+> verification row. Next: PR B.
 
 Seven phases. Doctrine docs land first (D16 ordering), the topic-docs contract major version ships as
 one wave, marketplace metadata follows, and the fleet audit runs last against the landed doctrine.
@@ -243,7 +247,7 @@ Work items:
   (else verdict is invalid by construction).
 - This PLAN's "Empirical verification results" table row 1 is filled (no `(pending)`).
 
-### Phase 5: Topic-docs contract 2.0.0 + seam fixes R1–R6 (one wave) [TODO]
+### Phase 5: Topic-docs contract 2.0.0 + seam fixes R1–R6 (one wave) [DONE]
 
 Covers D13. Contract-major change: every implementer adopts in the same wave (no compatibility
 machinery). Gated by Phase 4 verdicts.
@@ -301,24 +305,24 @@ File inventory (checkbox discipline — tick as processed):
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `docs/conventions/topic-docs/README.md` | MODIFY | R6 rewrite, visibility matrix, R4/R5 text |
-| [ ] `docs/conventions/topic-docs/CHANGELOG.md` | MODIFY | 2.0.0 entry |
-| [ ] `docs/conventions/topic-docs/topic-docs.schema.json` | KEEP (audit) | no key changes expected |
-| [ ] `docs/conventions/topic-docs/examples/*` | AUDIT | update only if matrix/mechanisms change examples |
-| [ ] `.claude/settings.json` | CREATE | R1 `worktree.baseRef` |
-| [ ] `.worktreeinclude` | CREATE | R2 patterns |
-| [ ] `plugins/discovery/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/implementation/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/planning/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/review/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/session-flow/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/toolchain/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/verification/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/work-items/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
-| [ ] `plugins/work-items/skills/decompose/SKILL.md` | MODIFY | R3 ticket provenance |
-| [ ] `plugins/planning/skills/architect/SKILL.md` | MODIFY | R3 baseline recording |
-| [ ] 8–10 × `plugins/*/plugin.json` + `CHANGELOG.md` | MODIFY | semver bump per touched plugin |
-| [ ] `plugins/knowledge/…`, `plugins/claude-ops/…`, `plugins/docs-hygiene/…` | AUDIT | implementer-table rows without delta docs — verify no stale convention text |
+| [x] `docs/conventions/topic-docs/README.md` | MODIFY | R6 rewrite, visibility matrix, R4/R5 text |
+| [x] `docs/conventions/topic-docs/CHANGELOG.md` | MODIFY | 2.0.0 entry |
+| [x] `docs/conventions/topic-docs/topic-docs.schema.json` | KEEP (audit) | no key changes — untouched |
+| [x] `docs/conventions/topic-docs/examples/*` | AUDIT | layout unaffected by matrix/mechanisms — untouched |
+| [x] `.claude/settings.json` | CREATE | R1 `worktree.baseRef` |
+| [x] `.worktreeinclude` | CREATE | R2 patterns (+ `.claude/worktrees/` gitignored) |
+| [x] `plugins/discovery/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/implementation/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/planning/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/review/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/session-flow/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/toolchain/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/verification/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/work-items/reference/topic-docs.md` | MODIFY | 2.0.0 adoption |
+| [x] `plugins/work-items/skills/decompose/SKILL.md` | MODIFY | R3 ticket provenance |
+| [x] `plugins/planning/skills/architect/SKILL.md` | MODIFY | R3 baseline recording |
+| [x] 8 × `plugins/*/plugin.json` + `CHANGELOG.md` | MODIFY | minor bump per touched plugin |
+| [x] `plugins/knowledge/…`, `plugins/claude-ops/…`, `plugins/docs-hygiene/…` | AUDIT | no stale convention text found — untouched; table annotates by-reference rationale |
 
 **Sanity Check:**
 

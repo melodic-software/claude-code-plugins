@@ -29,4 +29,8 @@ Verification manifests and baselines are the `verification` plugin's artifacts (
 their placement); this plugin does not write them.
 
 **Phase-commit rule:** each implementation phase's plan updates ride the same commit as that
-phase's source changes — one commit, one story; memory-tier files never enter the commit.
+phase's source changes — one commit, one story; memory-tier files never enter the commit. Per the
+contract's visibility rules (≥ 2.0.0) this is also what makes plan progress visible to isolated
+contexts: a spawned worktree or dispatched worker sees the contract slice only as **committed**
+state, so uncommitted plan marks are invisible outside the writing checkout. Dispatched workers
+return results by value; this session writes both tiers in its own checkout.

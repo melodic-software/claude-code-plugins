@@ -22,6 +22,11 @@ Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` per the contract's filename spec
 is configurable via the concern file's `memory_dir` key; session-flow never writes the contract
 tier.
 
+Both artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff written
+in one worktree is invisible to a session resuming in another. The workflow checklist is a stage
+ledger the contract's `.worktreeinclude` template carries into new worktrees where the consuming
+repo materializes it; handoffs are session-scoped and deliberately not carried.
+
 ## Resolution (the contract's five-rung order, earlier wins)
 
 1. `.claude/topic-docs.yaml` present → use its `memory_dir`.
