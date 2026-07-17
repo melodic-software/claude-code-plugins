@@ -203,6 +203,31 @@ missing_enabled=$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)
 assert_eq "missing-enabled: other repo's already-enabled project install excluded, not false-flagged" '[]' "$missing_enabled"
 
 # ============================================================================
+# Case: a marketplace-entry defaultEnabled:false install with no explicit
+# enabledPlugins entry is a deliberate publisher opt-in-required default, NOT
+# missing_from_enabled — auto-enabling it would override the publisher's
+# intent (per plugins-reference.md: the marketplace entry's defaultEnabled
+# takes precedence over plugin.json's, and "the user turns it on with
+# claude plugin enable" is the documented opt-in path, not sync auto-enabling
+# on their behalf)
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "defaultEnabled": false}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+missing_enabled=$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)
+assert_eq "default-disabled: no explicit entry is the publisher's intended state, not missing_from_enabled" '[]' "$missing_enabled"
+
+# ============================================================================
 # Case: explicit enabledPlugins:false is an opt-out, NOT missing_from_enabled
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))

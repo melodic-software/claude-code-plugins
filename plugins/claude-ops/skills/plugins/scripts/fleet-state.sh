@@ -225,6 +225,15 @@ emit_marketplace() {
   local catalog_ids
   catalog_ids=$(jq -c --arg mp "$name" '[.[] | . + "@" + $mp]' <<<"$catalog")
 
+  # Ids the marketplace entry ships with defaultEnabled:false — a publisher's
+  # deliberate opt-in-required default (takes precedence over the plugin's own
+  # plugin.json field; see plugins-reference.md's "Default enablement"). No
+  # enabledPlugins entry anywhere for one of these is the INTENDED state, not
+  # a completeness gap — never auto-enable it.
+  local default_disabled_ids
+  default_disabled_ids=$(jq -c --arg mp "$name" \
+    '[.plugins[]? | select(.defaultEnabled == false) | .name + "@" + $mp]' "$catalog_json")
+
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   local installed
@@ -275,7 +284,8 @@ emit_marketplace() {
 
   local missing_from_enabled
   missing_from_enabled=$(jq -cn --argjson verifiable_ids "$verifiable_ids" --argjson known "$known_at_mp" \
-    '$verifiable_ids - $known')
+    --argjson defaultDisabled "$default_disabled_ids" \
+    '($verifiable_ids - $known) - $defaultDisabled')
 
   local enabled_at_mp
   enabled_at_mp=$(jq -cn --argjson known "$known_at_mp" --argjson eff "$effective_map" \

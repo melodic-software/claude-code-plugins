@@ -95,7 +95,16 @@ memory of "I removed this on purpose." If that's not the intent, uninstall AND d
 ## Step 5 — `enabledPlugins` completeness
 
 Take `fleet-state.sh`'s `missing_from_enabled` — ids installed somewhere but never mentioned (true
-or false) in any scope's `enabledPlugins`. For each, and for each scope where that id has an install
+or false) in any scope's `enabledPlugins`, already excluding ids the marketplace ships with
+`defaultEnabled: false`. That field is a publisher's deliberate opt-in-required default (it takes
+precedence over the plugin's own `plugin.json` field — see
+[scope-semantics.md](scope-semantics.md)); no explicit `enabledPlugins` entry for one of those ids is
+the *intended* state, not a completeness gap — never run `enable` for it. This only catches the
+default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
+own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
+reads the marketplace's catalog file, never each installed plugin's own manifest).
+
+For each remaining id, and for each scope where that id has an install
 record (from `installed[]`) but no raw entry in that scope's own `enabledPlugins` map:
 
 ```bash
