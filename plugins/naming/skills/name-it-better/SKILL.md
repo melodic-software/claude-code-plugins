@@ -3,7 +3,6 @@ name: name-it-better
 description: "Generate and evaluate fresh name candidates for anything — a variable, function, file, module, skill, repo, or domain term — then let the human pick. Use when: 'name it better', 'better name', 'rename this', 'that name is wrong', 'suggest names', 'what should I call this', 'need a name for', 'come up with a name'. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
 argument-hint: "[tournament]"
 user-invocable: true
-disable-model-invocation: true
 ---
 
 # Name it better
@@ -55,9 +54,11 @@ its own context, never from a baked-in path:
 
    Running them blind and independent is deliberate anti-anchoring; the
    method grounding is in [`context/sources.md`](context/sources.md).
-3. **Merge and score.** Pool the candidates, dedupe, check each for
-   collisions against the existing vocabulary, and score every survivor
-   against the criteria resolved above.
+3. **Merge and score.** Pool the candidates, dedupe, and disqualify any
+   candidate that matches the rejected incumbent (if any) — carried by the
+   main thread as an explicit reject list, never shared with the
+   generators — or that collides with the existing vocabulary. Score every
+   surviving candidate against the criteria resolved above.
 4. **Shortlist + recommend.** Present a short ranked list with a
    one-line rationale per candidate and a single RECOMMENDED pick, marked
    and listed first.
@@ -105,6 +106,10 @@ degrade to prose guidance when it is absent.
 - If the generators are fed the conversation instead of just the brief,
   the anti-anchoring purpose is defeated — they will re-derive the
   rejected name. Seed them with the brief ONLY.
+- A blind generator can still independently re-derive the rejected
+  incumbent (common for generic labels like `Manager` or `Context`). That
+  is not a blinding failure — the main thread's reject list disqualifies
+  it at merge time regardless of how a candidate was produced.
 - A candidate that scores well but collides with existing vocabulary is
   disqualified, not shortlisted — collision-check before scoring.
 - `tournament` costs several generators plus judges; reserve it for names

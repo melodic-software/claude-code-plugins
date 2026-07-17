@@ -10,6 +10,8 @@
       "expectations": [
         "Distills a context brief and seeds the generators with the brief ONLY (blind to the conversation), not the rejected name",
         "Fans out ~3 fresh-context generators across distinct lenses (responsibility-literal, moment-of-use, domain-lore)",
+        "Carries `DataManager` as a main-thread reject list and disqualifies it at merge time, even if a generator independently re-derives it",
+        "The rejected incumbent (`DataManager`) does not appear in the final shortlist",
         "Presents a ranked shortlist with one marked RECOMMENDED pick listed first",
         "STOPS for the human to choose — does not auto-lock or apply a name"
       ]
