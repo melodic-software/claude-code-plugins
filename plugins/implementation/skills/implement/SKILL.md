@@ -52,7 +52,7 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use t
 
 Before writing code, verify the knowledge base:
 
-- **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first — `/planning:architect` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
+- **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first — `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
 - **Is the branch correct?** Check pre-computed branch. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one (`git checkout -b <type>/<description>`, or `/source-control:worktree` when that plugin is installed)
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it — don't mix concerns in one commit
 
@@ -74,7 +74,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 
 - **Build fails** → fix immediately. Don't add more code on top of broken code
 - **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
-- **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan — route back to the planning skill (`/planning:architect review` when installed) rather than expanding scope silently
+- **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan — route back to the planning skill (`/planning:plan review` when installed) rather than expanding scope silently
 - **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:wayfind` to the user — it charts the fog as a decision map upstream of the plan. Guide, never auto-switch
 
 ### Commit discipline
@@ -108,7 +108,7 @@ Most important discipline in execution. Plans are hypotheses — implementation 
 3. **Assess severity:**
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting — don't settle for workarounds when a proper solution may exist
-   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (`/discovery:research` when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (`/planning:architect review` when installed) to re-plan. The user approved a plan that no longer works — they need to approve the new direction, informed by fresh research
+   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (`/discovery:research` when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (`/planning:plan review` when installed) to re-plan. The user approved a plan that no longer works — they need to approve the new direction, informed by fresh research
 4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs" — Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
@@ -190,7 +190,7 @@ When all planned work is done:
 | After each logical block | Invoke `/toolchain:check` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
 | At every phase boundary | Run the Step 4 ritual (plan marks + handoff entry + status + commit + resume prompt) |
 | Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
-| Divergence detected (major) | Route back to the planning skill (`/planning:architect review` when installed) |
+| Divergence detected (major) | Route back to the planning skill (`/planning:plan review` when installed) |
 | Technical question mid-implementation | `/discovery:research` (when installed), otherwise disciplined multi-source research |
 | HIGH/CRITICAL change at completion | Call the `advisor` tool — rubber-duck checkpoint before review |
 | All implementation complete, tests pass | `/verification:confirm` (when the `verification` plugin is installed; else self-verify against intent), then suggest the project's review/PR flow (`/review:quality-gate`, `/source-control:pull-request` when installed) |

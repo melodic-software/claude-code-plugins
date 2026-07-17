@@ -11,6 +11,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   phase-commit rule to the contract's visibility guarantee — isolated contexts see the contract
   slice as committed state only — and states the by-value return rule for dispatched workers.
 
+## [0.6.2]
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
 ## [0.6.1]
 
 ### Changed

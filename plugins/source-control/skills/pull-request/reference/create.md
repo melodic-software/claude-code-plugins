@@ -15,6 +15,9 @@
    GIT_COMMON=$(git rev-parse --git-common-dir 2>/dev/null)
    GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
    if [[ "$GIT_COMMON" != "$GIT_DIR" ]]; then
+     # .worktreeinclude lives at the repo root and its globs are root-relative —
+     # run from the worktree toplevel, not wherever the session happens to be.
+     cd "$(git rev-parse --show-toplevel)" || return
      MAIN_ROOT=$(git worktree list | head -1 | awk '{print $1}')
      # Read .worktreeinclude patterns (one per line, .gitignore syntax)
      while IFS= read -r pattern; do

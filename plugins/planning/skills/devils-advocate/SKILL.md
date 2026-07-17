@@ -175,6 +175,6 @@ Based on findings, suggest relevant follow-up actions:
 
 ## Workflow position
 
-Runs as the stress-test step between `/architect`'s plan formulation and user approval: ... → `/architect` → **stress-test (this skill)** → targeted research iteration if needed → user approval → execute.
+Runs as the stress-test step between `/planning:plan`'s plan formulation and user approval: ... → `/planning:plan` → **stress-test (this skill)** → targeted research iteration if needed → user approval → execute.
 
 For plans that don't warrant a full stress-test (single-file edits, simple config changes with well-understood behavior), prior research validation is sufficient. Use judgment — the trigger is complexity and blast radius, not every plan.

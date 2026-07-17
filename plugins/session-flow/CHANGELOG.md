@@ -9,6 +9,12 @@ Changed:
   the contract's `.worktreeinclude` template carries into new worktrees, while handoffs are
   session-scoped and deliberately not carried.
 
+## 0.7.1
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
 ## 0.7.0 — 2026-07-17
 
 Added:

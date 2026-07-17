@@ -20,11 +20,11 @@ Arguments: `$ARGUMENTS`
 
 Most rework comes from acting on assumptions the user never made and the agent never surfaced. `/interview` prevents it: a structured pass driving every load-bearing unknown to a decision OR capturing it as a named, explicit assumption — before exploration, planning, or execution start.
 
-The **pre-clarity** stage — upstream of exploration, research, and `/architect`. `/architect` presupposes a coherent task; `/interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
+The **pre-clarity** stage — upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
 
 **Supportive, not adversarial.** `/devils-advocate` attacks an existing artifact after the fact. `/interview` walks alongside the user to extract a clear contract from the start.
 
-**Domain-routed.** The interview loop is universal — it interviews any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/architect`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface — the problem itself decides, with repo and working directory as context that never suffices alone — never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "interview me on this decision").
+**Domain-routed.** The interview loop is universal — it interviews any plan, decision, or idea. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/planning:plan`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface — the problem itself decides, with repo and working directory as context that never suffices alone — never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery — codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff — engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "interview me on this decision").
 
 **Two invocation modes, one schema.** When intent is fuzzy, `/interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain — a PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly.
 
@@ -60,7 +60,8 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
-   term, invoke `/planning:domain-modeling` IMMEDIATELY between questions, not batched at end. Route
+   term, invoke `/domain-driven-design:ubiquitous-language` IMMEDIATELY between questions, not
+   batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs — it drives to a shared-understanding summary
    only
@@ -115,7 +116,8 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 - **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
 - **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)* — when a term resolves, invoke
-  `/planning:domain-modeling` immediately. That skill owns discovery-first placement, the consumer's
+  `/domain-driven-design:ubiquitous-language` immediately. That skill owns discovery-first
+  placement, the consumer's
   file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview
   resumes after the update
 - **ADR, offered sparingly** *(engineering sessions only)* — propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer — never prescribe a location or format
@@ -167,7 +169,7 @@ Stop when the frontier is empty — every load-bearing unknown resolved OR captu
 
 ### Step 4 — Persist the contract
 
-Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/architect`). The contract lands in the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`); working ledgers land in the memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) — roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
+Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 chars — shared with `/prd`, `/design`, `/planning:plan`). The contract lands in the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`); working ledgers land in the memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) — roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). *What* gets persisted follows the Step 1 domain classification.
 
 **General (non-engineering) sessions** persist a shared-understanding summary — the decisions reached and their rationale — to the memory slice (nothing downstream enforces against it), or inline when the user wants no artifact. NEVER create or edit a PLAN.md Brief for a general decision: the `## Brief`/`## Plan` structure is the engineering shape. In `me` mode, the incremental-persistence and context-pressure-flush discipline below still applies, with the summary standing in for the Brief.
 
@@ -175,11 +177,11 @@ Derive `<topic-slug>` from the task or current branch name (kebab-case, ≤40 ch
 
 **`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves — so a crash, context clear, or overflow never loses resolved branches. **Context-pressure flush:** if the conversation is getting heavy, force-flush the current ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) before continuing. Target the light V1-spec Brief shape (scope / schema / code-surface bullets) — keep it terse.
 
-PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/architect` fills it.
+PLAN.md holds `## Brief` + `## Plan` sections. `/interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
 If a PLAN.md Brief exists and user chose **revise**, edit the Brief in-place. If **start fresh**, append a dated scope-change note to the top of the Brief capturing why before rewriting — never silently overwrite — and let the commit message carry the pivot rationale.
 
-Section schema: write the literal `## Brief` template — TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions — per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". Each **Deferred question** carries an **arbiter tag** (`/architect` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints) — load-bearing; loop.md covers when to use which.
+Section schema: write the literal `## Brief` template — TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions — per [`context/loop.md`](context/loop.md) "Brief template (the literal shape)". Each **Deferred question** carries an **arbiter tag** (`/planning:plan` default, or `USER-RESERVED` when its resolution could change acceptance criteria / out-of-scope / constraints) — load-bearing; loop.md covers when to use which.
 
 ### Step 5 — Hand off
 
@@ -187,7 +189,7 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if installed — it reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
-- **Already understand the codebase and the externals** → `/architect`
+- **Already understand the codebase and the externals** → `/planning:plan`
 - **Task is small and the contract IS the plan** → proceed directly to implementation
 - **Interview outgrew one session (many branches, context filling)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume — the ledger + Brief survive; resume continues from the first open branch
 
@@ -198,7 +200,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 - `context/gotchas.md` — failure patterns from real sessions
 
 - **Does not deep-dive the codebase** — Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
-- **Does not plan implementation** — the Brief says *what* and *what we are assuming*; `/architect` says *how*. Resist drafting an approach mid-interview
+- **Does not plan implementation** — the Brief says *what* and *what we are assuming*; `/planning:plan` says *how*. Resist drafting an approach mid-interview
 - **Does not write code or run tests** — discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs are first-class interview outputs alongside the Brief (a general session writes none)
 - **Does not adversarially attack the user's idea** — that is `/devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics — it is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
 - **Does not gate truly mechanical work** — typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default** — auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
@@ -212,10 +214,10 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 | Product intent fuzzy (whose problem, what success) | `/prd` | Upstream of `/interview`; PRD answers *what for whom and why* |
 | Need codebase grounding | `/discovery:explore` (if installed) | Reads PLAN.md Brief as scope |
 | Need external evidence | `/discovery:research` (if installed) | Reads PLAN.md Brief as scope |
-| Plan the implementation | `/architect` | Reads PLAN.md Brief + explore + research findings |
-| Stress-test the plan | `/devils-advocate` | Adversarial pass on `/architect` output |
+| Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
+| Stress-test the plan | `/devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Pause and resume later | `/session-flow:handoff` (if installed) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
 
 **Mid-interview composition (`me` mode):** research, exploration, and handoff are not only downstream — invoke them *during* the interview when a recommendation needs external/codebase grounding or when branches outgrow the session. Return to the open branch after.
 
-`/interview` is sister to `/architect`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.
+`/interview` is sister to `/planning:plan`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.

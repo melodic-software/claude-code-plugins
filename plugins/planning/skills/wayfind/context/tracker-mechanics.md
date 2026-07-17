@@ -137,5 +137,5 @@ gh issue close <item#> --reason completed
 
 ```shell
 gh issue close <map#> --reason completed \
-  --comment "Destination coherent — handed to <\/planning:interview | \/planning:prd | \/planning:architect>."
+  --comment "Destination coherent — handed to <\/planning:interview | \/planning:prd | \/planning:plan>."
 ```

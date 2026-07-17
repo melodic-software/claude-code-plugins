@@ -30,7 +30,7 @@
       "id": 3,
       "name": "major-divergence-routes-back-to-planning",
       "prompt": "/implementation:implement — I approved a plan that assumed the vendor SDK exposes a streaming API, but partway through it's clear the SDK only supports batch calls, so the whole approach doesn't fit. Keep going and make it work.",
-      "expected_output": "Recognizes this as major divergence (a fundamental plan assumption was wrong), STOPS writing code rather than forcing workarounds, runs external research for alternative approaches first, then routes back to the planning skill (/planning:architect review when installed) so the user can approve the new direction — it does not silently push through with hacks.",
+      "expected_output": "Recognizes this as major divergence (a fundamental plan assumption was wrong), STOPS writing code rather than forcing workarounds, runs external research for alternative approaches first, then routes back to the planning skill (/planning:plan review when installed) so the user can approve the new direction — it does not silently push through with hacks.",
       "files": [],
       "expectations": [
         "Classifies the wrong SDK-capability assumption as major divergence, not a minor inline fixup",

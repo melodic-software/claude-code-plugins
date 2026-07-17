@@ -13,6 +13,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   the contract-slice path, which is pruned before merge and would dangle. Pre-PR publishes record
   slug + phase (a label, not a path) and backfill the PR reference as a comment once it opens.
 
+## [0.8.1]
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
 ## [0.8.0]
 
 ### Changed (breaking)
