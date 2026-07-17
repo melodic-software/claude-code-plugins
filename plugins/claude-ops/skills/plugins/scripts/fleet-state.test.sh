@@ -306,9 +306,12 @@ assert_eq "windows-path: native backslash projectPath matches Git Bash cwd" "tru
 # currentProject comparison used to case-fold unconditionally, so on a
 # case-sensitive POSIX host, e.g. GitHub's ubuntu CI runner, a fixture
 # projectPath differing only by case from the real project dir would
-# false-positive as the same repo). Same fixture, run twice: once forcing a
-# POSIX OSTYPE (must NOT match — case-sensitive), once with this host's real
-# OSTYPE (must still match on a case-insensitive filesystem — no regression).
+# false-positive as the same repo). Same fixture, run twice with an EXPLICIT
+# OSTYPE override each time (never "this host's ambient OSTYPE" — this suite
+# itself runs on both a case-insensitive dev host and a case-sensitive CI
+# runner, so asserting against the ambient value is not deterministic across
+# them): forcing linux-gnu must NOT match (case-sensitive); forcing msys must
+# still match (case-insensitive — no regression to the existing behavior).
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -325,9 +328,9 @@ ARGS=(--marketplace market1)
 out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir" OSTYPE="linux-gnu")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "case-sensitivity: differently-cased sibling does not match on a POSIX (case-sensitive) host" "false" "$current_flag"
-out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir")
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir" OSTYPE="msys")
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
-assert_eq "case-sensitivity: still matches on this host's real (case-insensitive) OSTYPE — no regression" "true" "$current_flag"
+assert_eq "case-sensitivity: still matches under a forced case-insensitive OSTYPE — no regression" "true" "$current_flag"
 
 # ============================================================================
 # Case: CLAUDE_PROJECT_DIR unset falls back to the cwd's git toplevel —
