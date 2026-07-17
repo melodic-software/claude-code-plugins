@@ -25,6 +25,14 @@ exclude = [
   '^https?://bsky\.app/',
   '^https?://(www\.)?medium\.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f/?([?#].*)?$',
   '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
+  # naming plugin method sources — authoritative citations whose hosts block
+  # or refuse automated checks: arlobelshee.com is DNS-unreachable (the source
+  # file itself flags this and corroborates via digdeeproots), and science.org
+  # and oreilly.com return 403 to non-browser clients. The Tversky-Kahneman
+  # paper also has an open-PDF mirror (cs.tufts.edu) that stays checked.
+  '^https?://(www\.)?arlobelshee\.com/good-naming-is-a-process-not-a-single-step/?([?#].*)?$',
+  '^https?://(www\.)?science\.org/doi/10\.1126/science\.185\.4157\.1124/?([?#].*)?$',
+  '^https?://(www\.)?oreilly\.com/library/view/clean-code-a/9780136083238/chapter02\.xhtml/?([?#].*)?$',
   '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
   '^https?://localhost',
