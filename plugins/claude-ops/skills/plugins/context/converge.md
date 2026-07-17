@@ -31,15 +31,24 @@ Call `fleet-state.sh` (default marketplace, named one, or the current invocation
 
 ## Step 2 — Preview per-plugin intent
 
-For each actionable divergence, decide the consolidation strategy from its `scopes[]`:
+For each actionable divergence, first find which of its `scopes[]` holds the **highest version**
+(compare `scopes[].version` — semver dotted-numeric compare, not string/lexicographic). Never choose
+a strategy from scope identity alone ("does a user entry exist") without this comparison first —
+`fleet-state.sh` only proves the scopes *disagree*, never that `user` scope is the newer one. A repo
+pinning `project: 0.9.0` against a stale `user: 0.8.0` has the project pin as the newest version
+present; uninstalling it to "fall through to user scope" would regress the effective loaded version,
+the opposite of bringing the fleet current.
 
-- **A `user`-scope entry exists** → the default strategy is to make the *project/local* scope
-  fall through to it: `claude plugin uninstall <id> -s project` (or `-s local`) removes the
+Then decide the consolidation strategy:
+
+- **`user` scope holds the highest version** → the default strategy is to make the *project/local*
+  scope fall through to it: `claude plugin uninstall <id> -s project` (or `-s local`) removes the
   redundant lower-precedence pin, and scope precedence (local > project > user) means the project
   now loads whatever `user` scope has — always current from here on without a standing project pin.
-- **No `user`-scope entry** (only multiple `project`/`local`-scope pins across different repos, no
-  user baseline) → the default strategy is to bring the lagging scope(s) up to the newest version
-  present: `claude plugin update <id> -s <that scope>`.
+- **A `project`/`local` scope holds the highest version** (including when there's no `user`-scope
+  entry at all — only multiple `project`/`local`-scope pins across different repos) → the default
+  strategy is to bring every lagging scope, `user` scope included, up to that version:
+  `claude plugin update <id> -s <that scope>` for each scope below the highest.
 
 **Every `project`/`local`-scope command targets its row's own `scopes[].projectPath`, never the
 current working directory.** `-s project`/`-s local` have no path/target flag — the CLI always
