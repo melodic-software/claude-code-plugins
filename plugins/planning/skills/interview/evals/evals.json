@@ -79,10 +79,10 @@
       "id": 7,
       "name": "engineering-term-resolution-delegates",
       "prompt": "/planning:interview me — in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
-      "expected_output": "Invokes /planning:domain-modeling immediately for the resolved engineering vocabulary, then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
+      "expected_output": "Invokes /domain-driven-design:ubiquitous-language immediately for the resolved engineering vocabulary, then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
       "files": [],
       "expectations": [
-        "Invokes /planning:domain-modeling immediately for the resolved term",
+        "Invokes /domain-driven-design:ubiquitous-language immediately for the resolved term",
         "Does not prescribe or reimplement glossary format/location in the interview skill",
         "Resumes the interview loop after the vocabulary update",
         "Keeps the repository write explicitly scoped to an engineering session"

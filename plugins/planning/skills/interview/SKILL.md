@@ -60,7 +60,8 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
-   term, invoke `/planning:domain-modeling` IMMEDIATELY between questions, not batched at end. Route
+   term, invoke `/domain-driven-design:ubiquitous-language` IMMEDIATELY between questions, not
+   batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs — it drives to a shared-understanding summary
    only
@@ -115,7 +116,8 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 - **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
 - **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)* — when a term resolves, invoke
-  `/planning:domain-modeling` immediately. That skill owns discovery-first placement, the consumer's
+  `/domain-driven-design:ubiquitous-language` immediately. That skill owns discovery-first
+  placement, the consumer's
   file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview
   resumes after the update
 - **ADR, offered sparingly** *(engineering sessions only)* — propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. Write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer — never prescribe a location or format

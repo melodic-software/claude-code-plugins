@@ -1,6 +1,6 @@
 ---
-name: domain-modeling
-description: "Actively maintain a consuming project's ubiquitous-language glossary as domain understanding changes: resolve ambiguous or overloaded terms, choose canonical language, record rejected synonyms, sharpen what-it-IS definitions, and route terms to an already-known bounded context. Use when: 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', or planning resolves domain language worth preserving. Not for passive glossary lookup, general dictionary definitions, or bounded-context discovery."
+name: ubiquitous-language
+description: "Actively maintain a consuming project's ubiquitous-language glossary as domain understanding changes: resolve ambiguous or overloaded terms, choose canonical language, record rejected synonyms, sharpen what-it-IS definitions, and route terms to an already-known bounded context. Use when: 'update the domain glossary', 'define this domain term', 'standardize this vocabulary', 'these names conflict', domain modeling resolves vocabulary, or planning resolves domain language worth preserving. Not for passive glossary lookup, general dictionary definitions, or bounded-context discovery."
 argument-hint: "[term, ambiguity, or resolved vocabulary]"
 user-invocable: true
 disable-model-invocation: false
@@ -92,15 +92,17 @@ Return:
 - file updated or created
 - any unresolved ambiguity or observed drift that needs a separate change
 
-## Invocation by sibling workflows
+## Invocation by consuming workflows
 
 `/planning:interview` and `/planning:design` invoke this skill the moment an engineering discussion
-resolves project vocabulary. They continue their own workflow after the glossary update; this skill
-does not take ownership of the Brief or design artifacts.
+resolves project vocabulary (the `planning` plugin declares a dependency on this plugin). They
+continue their own workflow after the glossary update; this skill does not take ownership of the
+Brief or design artifacts.
 
-Other plugins may invoke `/planning:domain-modeling` when it is available in the current session. When
-it is unavailable, they may preserve their existing minimal fallback: update an already-declared
-glossary in its own shape, or offer a discovery-first lazy creation without inventing a filename.
+Other plugins may invoke `/domain-driven-design:ubiquitous-language` when it is available in the
+current session. When it is unavailable, they may preserve their existing minimal fallback: update
+an already-declared glossary in its own shape, or offer a discovery-first lazy creation without
+inventing a filename.
 
 ## Boundaries
 

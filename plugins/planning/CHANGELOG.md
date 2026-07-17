@@ -7,6 +7,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
+- **BREAKING: `/planning:domain-modeling` moved out of this plugin** — it now lives in the new
+  `domain-driven-design` plugin as `/domain-driven-design:ubiquitous-language`. The skill maintains
+  vocabulary only and explicitly refuses bounded-context discovery, so "domain-modeling"
+  over-promised; the concern is DDD language stewardship, not planning-stage task shaping. Invokers
+  of `/planning:domain-modeling` must switch to the new command.
+- **Declared a dependency on `domain-driven-design`**, so installing `planning` auto-installs the
+  glossary steward and the pipeline's inline vocabulary updates (`interview`, `design`) keep working
+  cross-plugin.
 - **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
   `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
   before plugins, a flat local skill named `plan` would have collided with surfaces already using

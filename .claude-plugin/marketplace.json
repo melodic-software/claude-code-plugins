@@ -194,6 +194,12 @@
       "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
     },
     {
+      "name": "domain-driven-design",
+      "source": "./plugins/domain-driven-design",
+      "category": "design",
+      "tags": ["ddd", "domain-driven-design", "ubiquitous-language", "glossary", "domain-modeling", "skill"]
+    },
+    {
       "name": "naming",
       "source": "./plugins/naming",
       "category": "design",
