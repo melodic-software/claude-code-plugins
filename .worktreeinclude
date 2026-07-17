@@ -1,5 +1,8 @@
 # Memory-tier files worth carrying into new worktrees (one-way, creation-time
 # copy; gitignored-only). Never baselines or raw scratch — machine-bound.
+# The self-ignore file rides along so carried files stay ignored in the new
+# worktree from creation, not only after the first memory-tier write heals it.
+.work/.gitignore
 .work/*/EXPLORE.md
 .work/*/EXPLORE-*.md
 .work/*/RESEARCH.md

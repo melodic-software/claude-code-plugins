@@ -5,9 +5,11 @@
 ### Changed
 
 - Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states that
-  `EXPLORE.md` / `RESEARCH.md` are checkout-local, are the cross-checkout-useful kind the
-  contract's `.worktreeinclude` template carries into new worktrees, and that forked/deep workers
-  return findings by value with the parent session writing the memory slice.
+  `EXPLORE.md` / `RESEARCH.md` are checkout-local and are the cross-checkout-useful kind the
+  contract's `.worktreeinclude` template carries into new worktrees. The by-value boundary is the
+  checkout, not the process: the `-deep` forks run in the parent's checkout and write the
+  artifacts there directly; only workers dispatched into their own checkout return findings by
+  value for the parent to write.
 
 ## 0.5.1 — 2026-07-15
 

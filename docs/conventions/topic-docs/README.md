@@ -109,13 +109,16 @@ Four native mechanisms, no custom machinery:
   (machine-bound). Caveat: a `WorktreeCreate` hook replaces the default
   worktree creation entirely and `.worktreeinclude` is **not
   processed** — the hook script owns any copying.
-- **By-value returns** — an isolated worker (subagent worktree,
-  background session, dispatched fanout) returns its results **by
+- **By-value returns** — a worker running in its **own checkout**
+  (subagent worktree, background session) returns its results **by
   value**; the orchestrating session writes the contract and durable
   tiers in the parent checkout. Workers never write those tiers from an
   isolated checkout — commits and promotions land where the lifecycle
-  can see them. Raw per-worker output may land directly in the parent
-  checkout's memory slice when the orchestrator directs it there.
+  can see them. The boundary is the checkout, not the process: a forked
+  subagent running in the parent's checkout may write the memory slice
+  directly (its writes are already visible), and raw per-worker output
+  may land in the parent checkout's memory slice when the orchestrator
+  directs it there.
 - **Tracker as the cross-lane index** — the work-item tracker is the
   awareness layer across lanes: branch files stay lane-local, and a
   session in another lane discovers state through tickets, which point
@@ -152,12 +155,18 @@ repository root (substitute a non-default resolved `memory_dir` for
 `.work`):
 
 ```text
+.work/.gitignore
 .work/*/EXPLORE.md
 .work/*/EXPLORE-*.md
 .work/*/RESEARCH.md
 .work/*/RESEARCH-*.md
 .work/*/*-checklist.md
 ```
+
+The first line carries the memory root's self-ignore file so the copied
+files are ignored in the new worktree from creation; without it they
+surface as untracked until the self-ignore guard heals on the first
+memory-tier write.
 
 Also gitignore `.claude/worktrees/` so worktree contents never appear
 as untracked files. Rollout caveats: pulling a commit that adds

@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Fixed
+
+- `/pull-request create`'s worktreeinclude sync check no longer reports phantom `CHANGED:` lines
+  for `.worktreeinclude` patterns that match no files — an unmatched glob stays a literal string
+  in Bash and previously fell through to the changed-file branch; it is now skipped.
+
 ## [0.5.1]
 
 ### Changed

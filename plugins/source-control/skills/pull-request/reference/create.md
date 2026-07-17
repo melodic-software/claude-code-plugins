@@ -19,9 +19,15 @@
      # Read .worktreeinclude patterns (one per line, .gitignore syntax)
      while IFS= read -r pattern; do
        [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-       # For each matching file, diff worktree vs main
+       # For each matching file, diff worktree vs main. An unmatched glob
+       # stays literal — skip it (no phantom CHANGED for absent files).
        for f in $pattern; do
-         [[ -f "$f" && -f "$MAIN_ROOT/$f" ]] && diff -q "$f" "$MAIN_ROOT/$f" >/dev/null 2>&1 || echo "CHANGED: $f"
+         [[ -f "$f" ]] || continue
+         if [[ -f "$MAIN_ROOT/$f" ]]; then
+           diff -q "$f" "$MAIN_ROOT/$f" >/dev/null 2>&1 || echo "CHANGED: $f"
+         else
+           echo "CHANGED: $f"
+         fi
        done
      done < .worktreeinclude
    fi

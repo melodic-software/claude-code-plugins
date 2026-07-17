@@ -30,6 +30,8 @@ contract's **non-interactive / forked mode** rule.
 
 These artifacts are memory-tier, so they exist only in the checkout that wrote them. They are
 exactly the cross-checkout-useful kind the contract's `.worktreeinclude` template carries into new
-worktrees (one-way, at creation time) where the consuming repo materializes it. Isolated workers
-(`-deep` variants, forked subagents) return findings **by value**; the parent session writes the
-memory slice in its own checkout — a worker's checkout-local writes are not the record.
+worktrees (one-way, at creation time) where the consuming repo materializes it. The contract's
+by-value boundary is the checkout, not the process: the `-deep` forks run in the parent's checkout
+and write `EXPLORE.md` / `RESEARCH.md` there directly (already visible to the parent), returning a
+summary by value; a worker dispatched into its **own** checkout (worktree or background session)
+returns findings by value instead, and the parent writes the memory slice.
