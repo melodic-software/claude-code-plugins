@@ -125,10 +125,13 @@ run_git_probe() {
     # Repository selectors and command-scoped config must come only from the validated argv above.
     # GIT_CONFIG_COUNT=0 neutralizes inherited GIT_CONFIG_KEY_*/VALUE_* pairs even when the parent
     # environment contains them; the older aggregate injection variable is removed explicitly.
+    # GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM are pinned to /dev/null (per git(1) ENVIRONMENT) so an
+    # inherited selector or a global includeIf (e.g. an injected url.*.insteadOf) can never redirect
+    # a probe away from the repository's own on-disk config.
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
-    export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 \
-      GIT_PAGER=cat GIT_TERMINAL_PROMPT=0
+    export GIT_CONFIG_COUNT=0 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+      GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat GIT_TERMINAL_PROMPT=0
     command git "$@"
   )
 }
@@ -785,6 +788,10 @@ analyze_repo() {
       printf '\0__repo_fleet_ref_status__ %s\0' "$?"
     )
     if [[ "$remote_branch_status" != "0" ]]; then
+      # The producer may have emitted and appended some records before failing partway through;
+      # discard them so a partial remote-ref inventory can never make remote_branch_known true
+      # below and drive the exact --head fallback query on stale/incomplete evidence.
+      REMOTE_BRANCH_NAMES=()
       emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
         "Exact per-branch GitHub lookups are skipped for every branch in this repository" \
@@ -839,7 +846,10 @@ analyze_repo() {
       if [[ -z "$pr_match" ]]; then
         remote_branch_known=false
         for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]}"; do
-          [[ "$remote_branch_short" == "$branch" ]] && { remote_branch_known=true; break; }
+          [[ "$remote_branch_short" == "$branch" ]] && {
+            remote_branch_known=true
+            break
+          }
         done
         if [[ "$remote_branch_known" == "true" ]]; then
           if exact_pr_rows="$(run_bounded_gh pr list --repo "github.com/$github_repo" --state merged --head "$branch" --limit 100 \
