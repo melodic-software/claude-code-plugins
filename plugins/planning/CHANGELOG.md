@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- **Proactive standards grounding in `/planning:plan`**: Step 2 opens with a "Ground in
+  consumer standards" formulation input that resolves the consumer's standards index through the
+  new `reference/standards-contract.md` binding (synced from the marketplace's standards
+  convention), matches task surfaces against the index's Applies-when clues, selectively loads
+  only non-ambient matched sections, and cites what it loaded in the plan's new "Standards
+  grounding" template element. Grounding depth rides the existing plan-scale table — trivial and
+  small plans skip it. The plan reviewer gains a matching standards-citation axis.
+- **Standards bootstrap in `/planning:setup`**: a second setup concern implements the binding's
+  normative Setup-and-migration section — idempotent index bootstrap with a conforming-index
+  short-circuit, row-path validation, directional version-delta migration, and a setup-owned
+  `<standards_dir>/.gitignore` for personal overlays. The ignore-file prohibition is scoped
+  accordingly: setup never edits an ignore file it did not itself create.
+- **Tripwire test** `tests/standards-binding.test.sh` guards the load-bearing grounding markers
+  (heading placement, binding references, ladder-pointer discipline) against future prose edits.
+
 ## [0.13.0]
 
 ### Changed

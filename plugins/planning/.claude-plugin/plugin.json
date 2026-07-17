@@ -1,12 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
       "title": "Use AskUserQuestion for interview rounds",
-  "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
+      "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
       "default": false
     }
   },
@@ -31,5 +31,7 @@
     "implementation-plan",
     "skill"
   ],
-  "dependencies": ["domain-driven-design"]
+  "dependencies": [
+    "domain-driven-design"
+  ]
 }

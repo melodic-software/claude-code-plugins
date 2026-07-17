@@ -12,3 +12,6 @@ hooks/hook-utils.sh
 
 # Dedicated check: scripts/validate-plugin-contracts.mjs (lifecycleProtocolCopies)
 reference/artifact-protocol.md
+
+# Dedicated check: scripts/sync-standards-contract.sh --check (CI: standards-contract-sync)
+reference/standards-contract.md

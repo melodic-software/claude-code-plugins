@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **Standards-index criteria resolution in `/review:quality-gate`**: criteria mode resolves
+  review criteria through the consumer's standards index via the new
+  `reference/standards-contract.md` binding (synced from the marketplace's standards
+  convention) — repo review docs like `REVIEW.md` become inference sources inside the binding's
+  resolution ladder, with the severity baseline and agent checklists as the final fallback.
+  Step 1's "What conventions apply?" routes through the same index, so every review mode
+  (self/code/architecture/security/pr/slice/restatement) inherits index-grounded conventions and
+  reviews against the same rows plan formulation loaded.
+- **New `/review:setup` skill**: idempotent standards-index bootstrap implementing the binding's
+  normative Setup-and-migration section — conforming-index short-circuit, row-path validation,
+  directional version-delta migration, and a setup-owned `<standards_dir>/.gitignore` for
+  personal overlays.
+- **Tripwire test** `tests/standards-binding.test.sh` guards the binding references, the
+  ladder-pointer discipline, and the Step 1 index routing against future prose edits.
+
 ## [0.9.0]
 
 ### Added
