@@ -63,7 +63,9 @@ An interview session resolves the same decision tree in far fewer round-trips: t
 **What**: Rewrite `/planning:interview`'s questioning discipline from one-question-at-a-time to frontier-rounds across the skill's five files, declare the `use_ask_user_question` userConfig, bump the planning plugin to 0.13.0.
 **Why**: Per the Brief — collapse round-trips (upstream measured 13 rounds → 3 for the same 13 questions), fit dictation workflows, absorb the facts-vs-decisions split and confirmation gate.
 
-### Phase 1: Core discipline rewrite (SKILL.md + context/loop.md) [TODO]
+### Phase 1: Core discipline rewrite (SKILL.md + context/loop.md) [DONE]
+
+> Execution note (2026-07-17): residue-pattern component `ONE question` proved over-broad case-insensitively (matches the legitimate new template line `Q<N>: <one question>` and "a frontier of one question degenerates"); verified as a separate case-sensitive `grep -En "ONE question"` = 0 instead. Also scrubbed the `:27` "grill me on this decision" override example to interview vocabulary — only the description trigger phrase keeps grill, per the approval carve-out.
 
 | File | Action | What changes |
 |------|--------|-------------|
