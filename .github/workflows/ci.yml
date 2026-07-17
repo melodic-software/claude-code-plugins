@@ -124,7 +124,9 @@ jobs:
           files: >-
             .github/workflows/ci.yml
             .github/workflows/claude-review.yml
+            .github/workflows/do-not-merge.yml
             .github/workflows/link-check.yml
+            .github/workflows/pr-issue-linkage.yml
             .github/workflows/pr-title.yml
 
       - name: Verify shebang files are executable
@@ -352,8 +354,8 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
 
   ci-status:
-    if: always()
     needs:
+      - select-runner
       - hygiene
       - hook-utils-sync
       - cross-plugin-source-drift
@@ -361,10 +363,13 @@ jobs:
       - miro-plugin
       - runner-policy
       - zizmor
-    # The required gateway remains independent of selector/fleet health so a
-    # failed route materializes as a failing required check, never a skipped
-    # check that GitHub could treat as successful.
-    runs-on: ubuntu-24.04
+    # Fail-closed through execution: !cancelled() (never a success-guard) so a
+    # selector/fleet failure still runs this required aggregate on the hosted
+    # fallback and the result join below turns it red. A success-guard would skip
+    # the job, and a skipped required check reports success to branch protection.
+    # Happy path routes to the fleet (github-iac#78).
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
     timeout-minutes: 15
     steps:
       - name: Aggregate lane results

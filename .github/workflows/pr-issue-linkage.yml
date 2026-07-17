@@ -1,0 +1,53 @@
+name: pr-issue-linkage
+
+# Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
+# #N, including owner/repo#N, or the literal "No linked issue" when the PR closes
+# nothing) and a non-empty `## Related` section, via the shared
+# pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
+# base-branch definition, so a head-branch edit cannot bypass the gate — safe
+# here because the reusable reads PR body metadata from the event payload only
+# and runs no head code. `edited` re-validates on a body edit. `merge_group`
+# reports the check green in the queue (the body was validated at PR time; inert
+# without a queue). The emitted required-check context is
+# `pr-issue-linkage / pr-issue-linkage`.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+
+permissions: {}
+
+# pull_request_target runs the base-branch definition, so github.ref is the base
+# branch: the PR number scopes cancellation and github.ref covers merge_group
+# (which carries no pull_request object); the fallback is inert without a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select-runner:
+    name: Select runner
+    permissions: {}
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52 # cdc5917 2026-07-16
+    secrets:
+      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
+    with:
+      policy: ${{ vars.CI_RUNNER_POLICY }}
+      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
+      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
+      scope: ${{ vars.CI_RUNNER_SCOPE }}
+      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
+      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
+
+  pr-issue-linkage:
+    needs: select-runner
+    # Fail-closed selector-result reporter: always() so every routing outcome
+    # materializes the required check. The reusable receives the selector result
+    # and fail-closes on any non-success before validating the body, so a
+    # routing failure never dispatches this gate to paid hosted Linux.
+    if: ${{ always() }}
+    permissions: {}
+    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@f7e94a80254fdca0aa85a600a07d784753b090e3 # f7e94a8 2026-07-16
+    with:
+      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+      prerequisite-result: ${{ needs.select-runner.result }}
