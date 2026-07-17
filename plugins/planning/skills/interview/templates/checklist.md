@@ -25,6 +25,7 @@ No question cap. If branches outgrow the session, hand off (save-point + resume 
 
 - Step 2 SKIPPED when Step 1.5 auto-detect routes to direct synthesis
 - Step 1.5 SKIPPED when user explicit-mode (`lock` forces synthesis; `me` forces Q&A loop)
+- Step 3 confirmation gate SKIPPED only for `lock` (invoking it IS the confirmation) — direct synthesis in `auto` still passes through it
 
 ## How to use
 

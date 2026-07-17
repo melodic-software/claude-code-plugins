@@ -140,9 +140,9 @@ Then route per action.
 
 For `auto`: classify intent against `context/loop.md` "Step 1.5 — Auto-detect" criteria. Three outcomes:
 
-- **Synthesize directly** (clear) → skip to Step 4 (Persist)
+- **Synthesize directly** (clear) → skip Step 2; proceed to Step 3 (confirmation gate), then Step 4 (Persist)
 - **Q&A loop** (fuzzy) → continue to Step 2
-- **Mixed** → ask the residue (one round — the few open questions together), then synthesize
+- **Mixed** → ask the residue (one round — the few open questions together), then synthesize; proceed to Step 3, then Step 4
 
 **Auto-guard — never decide an interactive choice for the user.** Synthesize-directly (and the Mixed path's "synthesize the rest") applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default. When a remaining decision is genuinely the user's — a design choice with real tradeoffs and no codebase answer — do NOT fold it into the Brief. STOP and either ask it inline (a residue round) or offer to switch: *"This is a real design decision, not mine to pick — answer it, or want me to run `/planning:interview me` and drive every open branch to a decision?"* Silently capturing such a choice as an assumption is the failure mode this guard prevents.
 
