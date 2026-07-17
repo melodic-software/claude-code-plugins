@@ -16,11 +16,13 @@ treat it as autonomous and abort. Report why, and that `converge` can be re-run 
 ## V1 scope: version divergence only
 
 `converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false` —
-scopes disagree on version. It does **not** currently resolve an enable-state mismatch (a plugin
-`true` in one scope's `enabledPlugins` and `false` in another) — that needs comparing each scope's
-*raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose today (only the merged effective
-value, in `enabled`). Report an enable-state mismatch under "Action needed" as a **known
-limitation — resolve manually** rather than silently skipping it or claiming `converge` handles it.
+scopes disagree on version. It does **not** currently resolve, and cannot even detect, an
+enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another) —
+that needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
+today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
+fix: never claim the report surfaces an enable-state mismatch, and never hand-parse the settings
+files directly to work around the gap — the fix is extending `fleet-state.sh` to expose the raw
+per-scope maps, not something this skill's prompt layer can paper over.
 
 ## Step 1 — Detect
 

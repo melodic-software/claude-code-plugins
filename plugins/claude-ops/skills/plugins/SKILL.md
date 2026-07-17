@@ -96,15 +96,18 @@ Divergences: <N> project-scope install(s) behind user scope → run `/claude-ops
   (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
   or listed here)
 Action needed: <bulleted list — missing_from_install, missing_from_enabled, CLI failures,
-  enable-state mismatches, unknown/orphaned plugins> (omit section entirely when empty)
+  unknown/orphaned plugins> (omit section entirely when empty)
 ```
 
 When running inside a project (`CLAUDE_PROJECT_DIR` set and `fleet-state.sh`'s `installed[]` entries
 carry `currentProject: true`), lead the Divergences line with *this* project's actionable count and
 fold the rest of the machine into one trailing clause — e.g. `2 behind here → converge; 27 more
 elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>` versions per repo) is
-reserved for genuine conflicts: an enable-state mismatch (`true` in one scope, `false` in another),
-an unknown/orphaned plugin id, or a CLI call that failed — never for the routine bulk case.
+reserved for genuine conflicts: an unknown/orphaned plugin id, or a CLI call that failed — never for
+the routine bulk case. (Enable-state mismatches — a plugin `true` in one scope's `enabledPlugins`
+and `false` in another — are a known blind spot, not a reportable category: `fleet-state.sh` only
+exposes the merged effective value, never each scope's raw map, so this skill cannot detect one to
+report it. See [context/converge.md](context/converge.md) "V1 scope".)
 
 Close with reload guidance: recommend bare `/reload-plugins` (no `--force` — verified: no such flag
 exists). If any updated component includes a monitor, call that out separately — monitors need a

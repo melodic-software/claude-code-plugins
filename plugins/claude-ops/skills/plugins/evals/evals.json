@@ -52,13 +52,14 @@
     {
       "id": 5,
       "name": "divergence-report-collapses-bulk-names-conflicts",
-      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin with an enable-state mismatch (true in user scope, false in project scope).",
-      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/claude-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one enable-state mismatch gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count, with the live-vs-inactive scope values named.",
+      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under unknown/orphaned (present in enabledPlugins but no matching catalog entry).",
+      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/claude-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one unknown/orphaned plugin id gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count.",
       "files": [],
       "expectations": [
         "The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one",
         "The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count",
-        "The enable-state mismatch gets an individual per-row detail line naming which scope is live (true) and which is inactive (false), separate from the bulk divergence line"
+        "The unknown/orphaned plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line",
+        "The response never claims to detect or report an enable-state mismatch (true in one scope, false in another) — fleet-state.sh only exposes the merged effective value, not each scope's raw enabledPlugins map"
       ]
     },
     {
