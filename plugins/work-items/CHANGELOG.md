@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Changed (breaking)
+
+- **Skill renamed: `scan` → `scan-todos`.** `/work-items:scan` no longer exists; invoke
+  `/work-items:scan-todos`. Under the `work-items` namespace the bare verb read as scanning
+  tracker items; the skill sweeps the codebase's source comments for TODO/FIXME/HACK/XXX
+  markers, so the name now states its object. No behavior change; no alias or renames-map
+  entry — clean break per the marketplace's settling-phase rename policy.
+
 ## [0.7.0]
 
 Split the single `work-items` action-router skill into five focused skills. The capability set is
