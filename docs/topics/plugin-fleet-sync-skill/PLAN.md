@@ -108,13 +108,15 @@ Fixtures: dual-scope divergence, plugin missing from installs, plugin missing fr
 
 **Evidence:** all four checks pass as written (sync row count 1, router table exactly 3 rows sync/audit/converge, 0 `melodic-software` occurrences, `CLAUDE_PLUGIN_ROOT` count 2, `disable-model-invocation: true` present). `markdownlint-cli2` clean on all 5 files. Frontmatter/router semantics fetched fresh from `code.claude.com/docs/en/skills` this session (2026-07-17) rather than assumed. `claude plugin marketplace update [name]` and per-plugin `claude plugin update <id> -s <scope>` / `install` / `enable` CLI syntax verified empirically against the installed CC 2.1.212 binary's own `--help` output, not just docs prose. One real gap found and fixed while writing `context/sync.md`: `fleet-state.sh`'s `missing_from_install` did not yet honor the Brief's "not explicitly `false` in any enabledPlugins scope" exclusion (only `missing_from_enabled` had it) — fixed, covered by a new test case, live-verified still 0/0 missing on this machine. A second gap found while writing `context/converge.md`: Brief Decision 6 names both version AND enable-state divergence as convergeable, but `fleet-state.sh` only exposes the merged effective `enabled` map, not raw per-scope values needed to detect a true/false split. Scoped V1 `converge` to version divergence only (satisfies the acceptance criteria's "drift repo" test, which is version-based) and documented the enable-state-mismatch gap explicitly in `context/converge.md` and `context/gotchas.md` as a named limitation rather than silently dropping or silently expanding `fleet-state.sh`'s output contract further.
 
-### Phase 4: Evals [TODO]
+### Phase 4: Evals [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
 | `plugins/claude-ops/skills/plugins/evals/evals.json` | Create | 6 cases: routing (bare invocation → sync), audit-is-read-only guardrail, install_new=ask prompting, converge-requires-confirm refusal (autonomous context), divergence report names live-vs-inactive, anti-pattern (never edits installed_plugins.json / cache dirs) |
 
 **Sanity Check:** `bash plugins/skill-quality/scripts/check-skill.sh plugins/claude-ops/skills/plugins` reports zero WARN across ALL checks (gotchas surface satisfies Check 11); `jq '.evals | length' evals.json` ≥ 5.
+
+**Evidence:** `check-skill.sh` doesn't actually accept a full path as its argument (its skills-root resolution expects `<root>/<skill-name>`, defaulting to `${CLAUDE_PROJECT_DIR}/.claude/skills`) — the plan's literal invocation string doesn't run as written. Ran the equivalent correctly via `CHECK_SKILL_SKILLS_ROOT="plugins/claude-ops/skills" bash plugins/skill-quality/scripts/check-skill.sh plugins`: `CHECK-SKILL plugins: PASS — 0 errors, 0 warning(s)` (description length 573/1536, all 5 trigger phrases preserved, SKILL.md 130/500 lines, markdownlint clean, `scripts/fleet-state.test.sh` passed as part of the run). `jq '.evals | length'` = 6.
 
 ### Phase 5: Plugin metadata [TODO]
 

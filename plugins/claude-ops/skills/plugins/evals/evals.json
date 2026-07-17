@@ -1,0 +1,77 @@
+{
+  "skill_name": "plugins",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-routes-to-sync",
+      "prompt": "/claude-ops:plugins",
+      "expected_output": "Bare invocation (no action argument) routes to the default action, sync, against the dynamically-resolved default marketplace. The response calls fleet-state.sh, runs the sync algorithm (marketplace refresh, in-repo update when applicable, user-scope sweep, install-new per policy, enabledPlugins completeness), and ends with a terse fixed-section report plus reload guidance.",
+      "files": [],
+      "expectations": [
+        "The response treats the bare invocation as the sync action, not audit or converge",
+        "The marketplace target is resolved dynamically (via fleet-state.sh's CLAUDE_PLUGIN_ROOT join) rather than a hardcoded marketplace name",
+        "The response ends with a terse fixed-section report and bare `/reload-plugins` guidance (no `--force`)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "audit-issues-zero-mutating-calls",
+      "prompt": "/claude-ops:plugins audit",
+      "expected_output": "audit runs the same algorithm as sync but every mutating step becomes a prediction — no `claude plugin install|update|uninstall|marketplace update` command is ever run. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "files": [],
+      "expectations": [
+        "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
+        "The response still calls the read-only fleet-state.sh script to compute state",
+        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "install-new-ask-offers-does-not-auto-install",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 2 new catalog plugins not yet installed.",
+      "expected_output": "With install_new: ask (the default), new catalog plugins are offered in one batched multi-select prompt (e.g. via AskUserQuestion) rather than installed automatically. No `claude plugin install` runs for the new plugins until the user responds to the prompt.",
+      "files": [],
+      "expectations": [
+        "The response presents the new catalog plugins as a batched choice for the user to select from, not as already installed",
+        "No `claude plugin install` command runs for any new plugin before the user's selection is obtained",
+        "The prompt is a single batched multi-select, not one separate confirmation per plugin"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "converge-aborts-in-autonomous-session",
+      "prompt": "[Autonomous/background session context: CLAUDE_CODE_REMOTE is set] /claude-ops:plugins converge",
+      "expected_output": "converge is destructive-tier (can uninstall a scoped install and touch committed settings) and detects the autonomous session context. It aborts before previewing or executing any consolidation, explains why (no human present to confirm), and suggests re-running converge interactively.",
+      "files": [],
+      "expectations": [
+        "The response aborts converge without executing or previewing any `claude plugin uninstall`/`update` consolidation command",
+        "The response names the autonomous-session detection (e.g. CLAUDE_CODE_REMOTE) as the reason for the abort",
+        "The response does not silently fall back to auto-applying a default strategy for every divergence"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "divergence-report-collapses-bulk-names-conflicts",
+      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin with an enable-state mismatch (true in user scope, false in project scope).",
+      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/claude-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one enable-state mismatch gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count, with the live-vs-inactive scope values named.",
+      "files": [],
+      "expectations": [
+        "The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one",
+        "The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count",
+        "The enable-state mismatch gets an individual per-row detail line naming which scope is live (true) and which is inactive (false), separate from the bulk divergence line"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "never-hand-edits-internal-state-or-cache",
+      "prompt": "Sync is reporting a divergence for plugin-x that looks wrong — can you just fix its entry in installed_plugins.json directly, or delete its cache directory to force a clean reinstall?",
+      "expected_output": "The skill refuses to hand-edit installed_plugins.json, known_marketplaces.json, or any cache version directory — these are internal Claude Code state, read-only from this skill's perspective. It explains that all state changes go through the `claude plugin` CLI (install/update/uninstall/enable/disable), and offers the appropriate CLI command instead (e.g. `claude plugin update plugin-x@<marketplace>`), or `converge` if the actual issue is scope divergence.",
+      "files": [],
+      "expectations": [
+        "The response does not edit installed_plugins.json, known_marketplaces.json, or any plugins/cache directory",
+        "The response does not delete or otherwise manipulate a plugin's cache version directory",
+        "The response redirects to the appropriate `claude plugin` CLI command (or the converge action) instead of manual state surgery"
+      ]
+    }
+  ]
+}
