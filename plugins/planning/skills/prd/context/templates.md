@@ -249,7 +249,7 @@ Same structure as above, applied to a B2B internal feature. Tier-3 differences f
 
 ## Tier selection cheat sheet
 
-If `/prd` is invoked without an explicit tier, use this to drive the `AskUserQuestion`:
+If `/prd` is invoked without an explicit tier, use this to drive the tier prompt (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
 
 | Question | Tier 1 (one-pager) | Tier 2 (consumer-feature) | Tier 3 (B2B-internal) |
 |----------|--------------------|---------------------------|------------------------|
