@@ -219,6 +219,28 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  standards-contract-sync:
+    needs: select-runner
+    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
+    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin binding copies match the canonical contract
+        run: scripts/sync-standards-contract.sh --check
+      - name: Run sync-standards-contract tests
+        run: bash scripts/sync-standards-contract.test.sh
+      - name: Verify contract, changelog, and carrying plugins bumped together
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-standards-contract.sh --check-bump "origin/$BASE_REF"
+
   cross-plugin-source-drift:
     needs: select-runner
     if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
@@ -358,6 +380,7 @@ jobs:
       - select-runner
       - hygiene
       - hook-utils-sync
+      - standards-contract-sync
       - cross-plugin-source-drift
       - plugin-gate
       - miro-plugin

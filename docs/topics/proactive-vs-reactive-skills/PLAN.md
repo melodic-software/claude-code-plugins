@@ -87,7 +87,7 @@ Content authority: `docs/topics/proactive-vs-reactive-skills/design/contract-spe
 - `grep -cE "^## " docs/conventions/standards/README.md` ≥ 6 (index schema, files, overlays, user-global, concern file, rules seam, versioning/setup present)
 - markdownlint + repo link-check lanes pass on the new files
 
-### Phase 2: Sync machinery + binding copies [TODO]
+### Phase 2: Sync machinery + binding copies [DONE]
 
 Byte-identical binding copies delivered by a dedicated sync script (hook-utils shape — see D1), registered as a cross-plugin cluster.
 
