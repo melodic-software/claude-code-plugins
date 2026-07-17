@@ -1,4 +1,4 @@
-# bash-lint
+# bash-format
 
 A Claude Code plugin that lints and formats shell scripts the moment you edit
 them. On every `Write` or `Edit` of a `.sh` or `.bash` file it runs
@@ -48,7 +48,7 @@ formatting still run.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bash-lint@melodic-software
+/plugin install bash-format@melodic-software
 ```
 
 ## Configuration
@@ -62,7 +62,7 @@ change the rules, edit those files.
 Set the kill switch in your settings `env` block:
 
 ```json
-{ "env": { "HOOK_BASH_LINT_ENABLED": "false" } }
+{ "env": { "HOOK_BASH_FORMAT_ENABLED": "false" } }
 ```
 
 ## License

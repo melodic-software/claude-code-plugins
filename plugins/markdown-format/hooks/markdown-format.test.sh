@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Black-box contract test for markdown-format.sh (the markdown-formatter plugin hook).
+# Black-box contract test for markdown-format.sh (the markdown-format plugin hook).
 #
 # Proves WIRING, not baseline parity: that the hook fires on *.md/*.mdc, skips
 # otherwise, runs markdownlint-cli2 --fix from the linted file's repo root

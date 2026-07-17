@@ -21,7 +21,7 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-hook::check_enabled "BASH_LINT"
+hook::check_enabled "BASH_FORMAT"
 
 # Capture $EPOCHREALTIME immediately after kill-switch so duration_ms covers the
 # work below (pre-work exits do not emit telemetry). EPOCHREALTIME is Bash 5.0+;
@@ -41,8 +41,8 @@ INPUT=$(cat)
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
-  *.sh | *.bash) ;;
-  *) exit 0 ;;
+*.sh | *.bash) ;;
+*) exit 0 ;;
 esac
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
@@ -76,11 +76,11 @@ fi
 # harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
-    --arg tool     "$TOOL" \
-    --arg file     "$FILE_REL" \
+    --arg tool "$TOOL" \
+    --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
-    || printf '{"tool":"","file":"","findings":[]}'
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    printf '{"tool":"","file":"","findings":[]}'
 }
 
 # A section header governs shell files when it is the `[*]` catch-all or names a
@@ -154,7 +154,7 @@ if command -v shellcheck >/dev/null 2>&1; then
   SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$FILE" 2>&1) || true
   if [[ -n "$SC_OUTPUT" ]]; then
     hook::ctx_reset
-    hook::ctx_append "bash-lint: $(basename "$FILE") has ShellCheck findings:"
+    hook::ctx_append "bash-format: $(basename "$FILE") has ShellCheck findings:"
     findings_raw=""
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
@@ -168,7 +168,7 @@ if command -v shellcheck >/dev/null 2>&1; then
       FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
     fi
     data_json=$(build_data_json "$FINDINGS_JSON")
-    emit_tel "bash-lint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+    emit_tel "bash-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
     exit 0
   fi
 fi
@@ -178,5 +178,5 @@ fi
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"
 data_json=$(build_data_json '[]')
-emit_tel "bash-lint" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "bash-format" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
 exit 0

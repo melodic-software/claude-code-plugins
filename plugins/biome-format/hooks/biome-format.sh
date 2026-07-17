@@ -186,7 +186,7 @@ fi
 # line per diagnostic; their presence is the unambiguous signal that Biome made a
 # lint/format judgment with residual findings. Surface just those lines (not the
 # decorative footer). Status "ok" — the linter RAN and produced a judgment
-# (findings live in data.findings), mirroring the bash-lint model where status
+# (findings live in data.findings), mirroring the bash-format model where status
 # reflects whether the tool ran, not whether it was clean.
 FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
 if [[ -n "$FINDINGS" ]]; then
