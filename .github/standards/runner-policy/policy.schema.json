@@ -179,7 +179,8 @@
         "selectorResultInput": { "$ref": "#/$defs/inputName" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
-        "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" }
+        "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
+        "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
       }
     },
     "hostedOnlyContract": {
@@ -190,7 +191,23 @@
         "routing": { "const": "hosted-only" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
-        "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" }
+        "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
+        "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
+      }
+    },
+    "autoApprovalProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basisSha", "approvedAt"],
+      "properties": {
+        "basisSha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "approvedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        }
       }
     }
   }
