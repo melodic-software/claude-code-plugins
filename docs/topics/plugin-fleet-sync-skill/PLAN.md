@@ -62,13 +62,13 @@ One command that guarantees, on any machine and from any directory, that the plu
 
 ### Deferred questions
 
-- **Does `plugin update -s project` avoid writing the repo's committed `.claude/settings.json`?** Derived-likely (enabledPlugins carries no version; installs are machine-local records) but unverified. Arbiter: empirical test during implementation (run against a throwaway project scope; `git status` the repo settings) BEFORE the in-repo update path ships. USER-RESERVED if the answer is "it writes": the in-repo sync semantics (Decision 4) would need re-approval.
-- **Is `/reload-plugins --force` required after sync, or is plain `/reload-plugins` sufficient?** Arbiter: /architect (verify against current CC docs/behavior at implementation; report guidance follows the answer).
+- **Does `plugin update -s project` avoid writing the repo's committed `.claude/settings.json`?** — RESOLVED, see Open questions VERIFIED line 1: hash-verified no write. Decision 4 stands, no re-approval needed.
+- **Is `/reload-plugins --force` required after sync, or is plain `/reload-plugins` sufficient?** — RESOLVED, see Open questions VERIFIED line 2: no `--force` flag exists; report recommends bare `/reload-plugins`.
 - **`all`-marketplaces argument interaction with third-party marketplaces lacking renames maps / non-git sources** — RESOLVED by /architect: graceful degradation — `marketplace update` handles every source type; a marketplace without a `renames` map simply has no rename residue; failures per-marketplace are reported and do not abort the sweep.
 
 ## Plan
 
-### Phase 1: Verify runtime facts (throwaway spike) [TODO]
+### Phase 1: Verify runtime facts (throwaway spike) [DONE]
 
 Three unknowns gate later phases; resolve empirically on this machine before authoring semantics.
 
@@ -102,7 +102,7 @@ Fixtures: dual-scope divergence, plugin missing from installs, plugin missing fr
 | `plugins/claude-ops/skills/plugins/context/scope-semantics.md` | Create | Verified facts: scope-by-cwd loading, enable-boolean override chain, `list`/`details` version display caveat, committed-vs-machine-local state map, renames-map CC-native behavior (floor ≥2.1.193; prune ≥2.1.121), autoUpdate complement, divergence-is-normal expectation |
 | `plugins/claude-ops/skills/plugins/context/gotchas.md` | Create | list/details version lie, native-Windows projectPath, concurrency/TOCTOU, dual-scope-divergence-as-normal, internal-schema drift fail-loud |
 
-**Sanity Check:** `grep -c '| `sync' SKILL.md` ≥ 1 and router table lists exactly sync/audit/converge; `grep -rn 'melodic-software' plugins/claude-ops/skills/plugins/` returns 0 normative occurrences (marketplace name always resolved dynamically); `grep -c 'CLAUDE_PLUGIN_ROOT' SKILL.md` ≥ 1; frontmatter contains `disable-model-invocation: true`.
+**Sanity Check:** `grep -c '|`sync' SKILL.md` ≥ 1 and router table lists exactly sync/audit/converge; `grep -rn 'melodic-software' plugins/claude-ops/skills/plugins/` returns 0 normative occurrences (marketplace name always resolved dynamically); `grep -c 'CLAUDE_PLUGIN_ROOT' SKILL.md` ≥ 1; frontmatter contains `disable-model-invocation: true`.
 
 ### Phase 4: Evals [TODO]
 
@@ -151,7 +151,10 @@ Fully sequential: 1 → 2 → 3 → 4 → 5 → 6 — Phase 1 verdicts gate Phas
 
 ## Open questions
 
-- Phase 1 unknowns (three) — resolved lines land here as `- VERIFIED: ...`.
+- VERIFIED: `plugin update -s project` does NOT write committed `.claude/settings.json` or `.claude/settings.local.json`. Empirical test in a real dual-scope repo (`markdown-formatter@melodic-software`: project scope 0.1.3, user scope 0.1.9). Before: `settings.json` sha256 `367ad75f642282ebc0d467fe932b530a74755a55fdad5ee9fef6f030c775169e`, `settings.local.json` sha256 `7f026819d5a24c05d61df0a5a77b186a08fd25ee90fb20f384ddda12dbf6eb9b`. Ran `claude plugin update markdown-formatter@melodic-software -s project` (CC 2.1.212) → project scope updated 0.1.3 → 0.1.9. After: both hashes byte-identical to before. Only `installed_plugins.json`'s project-scope record changed (version/installPath/lastUpdated/gitCommitSha). **Brief Decision 4 confirmed safe — no re-approval needed.**
+- VERIFIED: no `--force` flag exists for `/reload-plugins`. `code.claude.com/docs/en/plugins-reference` (fetched 2026-07-16) documents bare `/reload-plugins` as the command that refreshes skills, agents, hooks, and MCP/LSP servers in-process, and separately notes **monitors require a full session restart** (not covered by `/reload-plugins` at all). No `--force` variant appears anywhere in the plugins/skills/commands reference pages; targeted web search corroborates no such flag exists. Report guidance: recommend bare `/reload-plugins`; call out session-restart separately only when a monitor is in play.
+- VERIFIED: `userConfig` schema has no `enum` field. `www.schemastore.org/claude-code-plugin-manifest.json` (redirected from `json.schemastore.org`, fetched 2026-07-16): allowed `type` values are `string | number | boolean | directory | file`; entry properties are `type, title, description, required, default, multiple, sensitive, min, max` with `additionalProperties: false` — an `enum` key would fail schema validation. Fallback confirmed: `install_new` ships as `type: string`, `default: "ask"`, valid values (`ask`/`all`/`none`) documented in `description` + prose-validated in SKILL.md.
+- VERIFIED: internal-schema shapes snapshotted live on CC 2.1.212 (2026-07-17). `installed_plugins.json`: `{version, plugins: {"<name>@<marketplace>": [{scope: "user"|"project"|"local", projectPath?, installPath, version, installedAt, lastUpdated, gitCommitSha}]}}` — array length > 1 per plugin id is the divergence signal. `known_marketplaces.json`: `{"<marketplace-name>": {source: {source: "github", repo}, installLocation, lastUpdated, autoUpdate?}}` — `autoUpdate` observed absent-by-default on one real marketplace and `true` on another, confirming Brief Decision 8's "report + suggest enabling" framing (never assume a default). Scrubbed fixtures capturing these shapes: `plugins/claude-ops/skills/plugins/scripts/fixtures/installed_plugins.sample.json`, `known_marketplaces.sample.json`.
 
 ## Handoff to implementation
 
@@ -172,4 +175,3 @@ Fully sequential: 1 → 2 → 3 → 4 → 5 → 6 — Phase 1 verdicts gate Phas
 - Branch: create `feat/claude-ops-plugins-skill` from latest `origin/main` (current checkout sits on an unrelated feature branch — use a worktree per repo convention if that branch stays active).
 - Commit boundaries: one commit per phase; PLAN.md tag updates ride the same commit.
 - Sequential fallback: n/a (no parallel shape).
-
