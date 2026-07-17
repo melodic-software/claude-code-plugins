@@ -342,10 +342,20 @@ assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
 # scratch via symlinks) so bash, dirname, and every other tool the script
 # needs stay resolvable — symlinking coreutils individually is unreliable on
 # Windows without elevated rights.
+# Route through run_state's fixture builder (not a bare script invocation) so
+# jq-absence is the only variable under test — a bare invocation relies on
+# default file paths, which a dev machine's real Claude Code install happens
+# to satisfy but a clean CI runner does not, surfacing "installed_plugins.json
+# not found" before the script ever reaches its jq check.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+ARGS=(--marketplace market1)
 real_jq=$(command -v jq)
 jq_dir=$(dirname "$real_jq")
 filtered_path=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vF "$jq_dir" | tr '\n' ':')
-out=$(PATH="$filtered_path" bash "$SCRIPT" --marketplace market1 2>&1)
+out=$(run_state "$case_dir" "PATH=$filtered_path")
 rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
 assert_contains "jq missing: actionable notice" "$out" "jq required"
