@@ -255,7 +255,7 @@ check_segment() {
 }
 
 # Fail-closed by construction: this path never consults the allow-list — an
-# unparseable command cannot prove which forms it carries, so no form token
+# unparsable command cannot prove which forms it carries, so no form token
 # can honestly allow it. Only the kill switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   echo "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." >&2
