@@ -248,6 +248,12 @@
       "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
     },
     {
+      "name": "repo-fleet-hygiene",
+      "source": "./plugins/repo-fleet-hygiene",
+      "category": "maintenance",
+      "tags": ["maintenance", "git", "github", "repository", "fleet", "hygiene", "worktree", "audit", "skill"]
+    },
+    {
       "name": "disk-hygiene",
       "source": "./plugins/disk-hygiene",
       "category": "maintenance",

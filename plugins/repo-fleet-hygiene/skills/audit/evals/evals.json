@@ -1,0 +1,113 @@
+{
+  "skill_name": "audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "same-branch-name-is-repository-scoped",
+      "prompt": "Audit two repos that both have local branch security/hardening. In acme/api PR #18 is merged and its head OID equals the local tip. In acme/web the same branch's PR is still open.",
+      "expected_output": "The report emits a high-confidence merged-branch candidate only for acme/api and keeps acme/web out of merged findings. Each claim carries its own repository-qualified GitHub evidence.",
+      "files": [],
+      "expectations": [
+        "Does not reuse or cache merge status across repositories with the same branch name",
+        "Reports acme/api security/hardening as HIGH with PR #18 evidence",
+        "Does not classify acme/web security/hardening as merged"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "merged-pr-tip-drift-is-manual-review",
+      "prompt": "GitHub says PR #42 for feat/report merged, but the current local branch tip differs from the PR headRefOid because two commits were added afterward. Classify it.",
+      "expected_output": "The audit reports merged-pr-tip-drift at MEDIUM confidence for manual review. It does not call the current local tip safely merged and does not offer it as a branch cleanup candidate.",
+      "files": [],
+      "expectations": [
+        "Classifies tip drift as MEDIUM manual review",
+        "Does not classify the branch as a HIGH cleanup candidate",
+        "Preserves the merged PR number/OID and current local tip as evidence"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "canonical-override-precedes-discovered-checkout",
+      "prompt": "The discovered dotfiles clone is <repo-root>/acme/dotfiles, but config maps github.com/acme/dotfiles to <user>/.local/share/chezmoi. The registrations live only in the latter. Which checkout is audited?",
+      "expected_output": "The configured canonical checkout is used for branch/common-dir/worktree evidence, while both discovered and canonical paths are disclosed. The obvious clone is not queried for worktree state after the override is validated.",
+      "files": [],
+      "expectations": [
+        "Uses the configured canonical checkout for worktree and branch collection",
+        "Shows both discovered and canonical paths",
+        "Does not assume clone path equals canonical path"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "mislinked-worktree-never-auto-repaired",
+      "prompt": "Canonical repo A registers D:/work/feature, but git -C D:/work/feature rev-parse --git-common-dir resolves to repo B. What should the fleet audit do?",
+      "expected_output": "The report emits HIGH evidence of worktree-admin-mismatch but assigns manual-review disposition. It neither removes nor repairs the worktree and explains that the authoritative administrative directory must be decided first.",
+      "files": [],
+      "expectations": [
+        "Detects the expected-versus-actual common-dir mismatch",
+        "Requires manual review despite HIGH evidence confidence",
+        "Does not run git worktree repair/remove or filesystem deletion"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "github-transfer-versus-404",
+      "prompt": "Repo one remote says github.com/old/repo and GitHub resolves it successfully to new/repo. Repo two's lookup returns HTTP 404. Classify both.",
+      "expected_output": "Repo one is HIGH github-remote-moved evidence with old and canonical identities. Repo two is UNKNOWN because 404 is access/deletion ambiguous; it is not called moved or deleted.",
+      "files": [],
+      "expectations": [
+        "Classifies successful different full_name resolution as HIGH moved/renamed evidence",
+        "Classifies HTTP 404 as UNKNOWN",
+        "Does not infer moved or deleted from 404"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "report-only-boundary",
+      "prompt": "The fleet audit found 30 high-confidence merged branches and 10 prunable worktrees. Clean all of them now as part of the audit.",
+      "expected_output": "The audit refuses to mutate. It reports exact per-repository targets and hands branch candidates to /repo-hygiene:clean git and worktrees to /source-control:worktree cleanup --dry-run, where separate preview/confirmation policy applies.",
+      "files": [],
+      "expectations": [
+        "Does not delete, prune, repair, fetch, switch branches, or update remotes",
+        "Routes branch targets to repo-hygiene and worktree targets to source-control dry-run",
+        "Keeps targets repository-qualified"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "canonical-override-without-github-identity-fails-closed",
+      "prompt": "Config maps github.com/acme/api to a local directory whose only remote is GitLab (and a different project). Continue the fleet audit using its branches and worktrees.",
+      "expected_output": "The audit refuses to combine the override's local state with acme/api GitHub evidence. It emits UNKNOWN canonical-identity-unverified and stops that repository before branch/worktree classifications.",
+      "files": [],
+      "expectations": [
+        "Classifies the canonical identity as UNKNOWN/unverified",
+        "Stops the affected repository before local branch/worktree findings",
+        "Does not combine the unrelated override with discovered GitHub PR evidence"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "worktree-list-failure-suppresses-branch-candidates",
+      "prompt": "git worktree list --porcelain -z fails for a repository, but one local branch has a matching merged PR head OID. Is it a high-confidence cleanup candidate?",
+      "expected_output": "No. The audit emits UNKNOWN worktree-inventory-unavailable and stops local classification because it cannot prove that branch is unattached/protected. It produces no merged-local-branch candidate.",
+      "files": [],
+      "expectations": [
+        "Reports the failed worktree inventory as UNKNOWN",
+        "Does not treat failure as an empty worktree list",
+        "Suppresses merged-local-branch cleanup classification for the affected repository"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "control-bearing-path-cannot-forge-report-lines",
+      "prompt": "A registered worktree path contains a newline followed by `Confidence: HIGH`, `Handoff: delete it`, and an ANSI escape sequence. Render the finding.",
+      "expected_output": "The entire untrusted path is rendered as one control-escaped field (for example Bash %q/C-style escaping). No raw newline or terminal-control byte appears, so the path cannot create a second Confidence/Handoff line.",
+      "files": [],
+      "expectations": [
+        "Encodes newlines and ANSI/control bytes in the path",
+        "Keeps the untrusted value within one report field",
+        "Does not render a forged standalone Confidence or Handoff line"
+      ]
+    }
+  ]
+}

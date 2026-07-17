@@ -1,0 +1,29 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rerun-preserves-unrelated-config",
+      "prompt": "Re-run setup to add a second fleet.root and one canonical override. The existing config has comments, a fleet.repo, and another canonical section.",
+      "expected_output": "Setup updates only the requested entries, preserves comments and unrelated fleet/canonical entries, validates with git config, and runs a read-only audit. It does not edit user settings or remotes.",
+      "files": [],
+      "expectations": [
+        "Preserves comments and unrelated existing entries",
+        "Adds only the requested root and canonical override",
+        "Does not edit pluginConfigs, user settings, or Git remotes"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "canonical-identity-must-be-verified",
+      "prompt": "Add a canonical override because two directories are both named dotfiles, but their GitHub remotes are different repositories.",
+      "expected_output": "Setup rejects the name-based inference and requires matching normalized GitHub remote identity before writing the override.",
+      "files": [],
+      "expectations": [
+        "Does not infer canonical equivalence from directory names",
+        "Requires remote identity verification",
+        "Leaves the config unchanged on mismatch"
+      ]
+    }
+  ]
+}
