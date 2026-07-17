@@ -11,7 +11,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
 check-all.sh — re-check every tracked Claude-product GitHub issue's open/closed state.
 
-Backend for `/troubleshoot check-all`.
+Backend for `/known-issues check-all`.
 
 Reads : check-all-output/registry-snapshot.tsv  (number<TAB>repo<TAB>tracked_status)
 Writes: check-all-output/check-all-results.tsv  (+ check-all.log) next to the snapshot

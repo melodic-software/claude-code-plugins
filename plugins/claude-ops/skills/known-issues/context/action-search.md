@@ -1,7 +1,7 @@
 # Action: `search`
 
-**Usage:** `/troubleshoot search <feature-name> [--repo <repo>] [--status] [--all]`
-**Also:** `/troubleshoot <feature-name>` (search is the default when args look like a feature name)
+**Usage:** `/known-issues search <feature-name> [--repo <repo>] [--status] [--all]`
+**Also:** `/known-issues <feature-name>` (search is the default when args look like a feature name)
 
 ## Flags
 
