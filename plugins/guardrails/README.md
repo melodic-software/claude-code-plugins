@@ -11,12 +11,13 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
 | **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and `LEFTHOOK=0` / `LEFTHOOK_*=false` env-var prefixes (including inside compound `cd … && …` commands). |
+| **block-dangerous-git** | PreToolUse · Bash | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` (never `--force-with-lease`), `reset --hard`, `clean` with a force flag, and worktree-wide `checkout .` / `restore .` (path-scoped forms and `restore --staged .` pass). `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via `HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force,reset-hard,clean-force,checkout-dot,restore-dot` (any subset). |
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Direct `git commit` (missing the canonical `-F -` stdin form + `--trailer` Co-Authored-By line) or any `gh pr create`, bypassing this marketplace's own `/commit` / `/pull-request create` skills. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
 
-The four blocking guards feed their stderr message back to Claude as
+The five blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The three advisory guards surface their findings the same
 way but always allow the operation.
 
@@ -27,18 +28,23 @@ way but always allow the operation.
   disable env vars (husky, pre-commit, …) are **not** matched — but the
   manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
   bypasses regardless of which manager runs the hooks.
-- **Argv-grammar-faithful matching (and its residual).** `block-no-verify`
-  parses the command the way the shell builds argv — segmenting on unquoted
-  operators and tokenizing each segment honoring `'…'`, `"…"`, `$'…'` (ANSI-C),
-  and backslash escapes. It detects literal `git commit`/`git push`
-  `--no-verify` / `-n` / `core.hooksPath=` across quoting, escaping, wrappers
-  (`env -i git …`, `nice git …`, `sudo -u x git …`), and git global options
-  (`git -C <dir> commit …`). A `--no-verify` inside a quoted `-m` value stays a
-  message, not a flag. It does **not** evaluate shell variable / command
-  substitution (`$VAR`, `$(…)`, `$IFS`) — a determined author can construct an
-  expansion-based bypass. **This is a friction guard against accidental/casual
-  bypass, not a sandbox.** (A command longer than 16 KB is not parsed and is
-  blocked fail-closed.)
+- **Argv-grammar-faithful matching (and its residual).** `block-no-verify` and
+  `block-dangerous-git` share one parser (in the bundled hook-utils library)
+  that parses the command the way the shell builds argv — segmenting on
+  unquoted operators and tokenizing each segment honoring `'…'`, `"…"`, `$'…'`
+  (ANSI-C), and backslash escapes. Flags and pathspecs are matched on parsed
+  argv words across quoting, escaping, wrappers (`env -i git …`, `nice git …`,
+  `sudo -u x git …`), and git global options (`git -C <dir> commit …`) — so a
+  `--no-verify` inside a quoted `-m` value stays a message, quoted prose never
+  fires, and `checkout .github/x` never matches `checkout .`. The parser does
+  **not** evaluate shell variable / command substitution (`$VAR`, `$(…)`,
+  `$IFS`) — a determined author can construct an expansion-based bypass. An
+  inline env prefix (`HOOK_..._ENABLED=false git push -f`) does **not** disable
+  a hook — the prefix reaches only the spawned git process; disabling requires
+  settings-level env (the settings.json write is the residual trust boundary).
+  **These are friction guards against accidental/casual bypass, not a
+  sandbox.** (A command longer than 16 KB is not parsed and is blocked
+  fail-closed.)
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
@@ -68,6 +74,7 @@ guard without touching the others.
 | secret-pattern-detection | `HOOK_SECRET_PATTERN_DETECTION_ENABLED` |
 | hardcoded-path-check | `HOOK_HARDCODED_PATH_CHECK_ENABLED` |
 | block-no-verify | `HOOK_BLOCK_NO_VERIFY_ENABLED` |
+| block-dangerous-git | `HOOK_BLOCK_DANGEROUS_GIT_ENABLED` |
 | block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
 | cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
 | workflow-resilience-check | `HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED` |

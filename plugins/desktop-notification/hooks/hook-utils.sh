@@ -352,3 +352,332 @@ hook::emit_additional_context() {
       + (if $ctx != "" then {additionalContext: $ctx} else {} end)
     )}'
 }
+
+# ---------------------------------------------------------------------------
+# Argv-grammar-faithful Bash command parsing for git guards. The command is
+# parsed the way the shell builds argv — top-level segments split on unquoted
+# control operators, each tokenized into argv words honoring '…', "…", $'…'
+# (ANSI-C), and backslash escapes — then a real git executable is resolved at
+# the segment's command position past env-var assignments and known wrappers,
+# and its subcommand resolved past git global options.
+#
+# Static matching over the literal command string only: shell variable and
+# command substitution ($VAR, $(…)) are NOT evaluated. Guards built on this
+# are friction against accidental/casual bypass, not a sandbox.
+
+# Decode an ANSI-C `$'…'` body to its literal bytes (\xHH, \NNN octal, \uHHHH,
+# \n, \\, …). %-escaped so the body can never act as a printf format specifier;
+# `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
+# malformed body — the raw text still flows through the caller unchanged).
+hook::ansi_c_decode() {
+  local b="${1//%/%%}"
+  # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
+  printf -- "$b" 2>/dev/null
+}
+
+# Does an argv word name the git executable? Basename compared exactly on
+# POSIX; on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the
+# OS-gate in hook::normalize_path) so `GIT` / `git.exe` are caught there but a
+# case-variant stays distinct on a case-sensitive POSIX filesystem.
+hook::git_is_bin() {
+  local b="${1##*/}"
+  b="${b##*\\}"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    local lc="${b,,}"
+    lc="${lc%.exe}"
+    [[ "$lc" == "git" ]]
+    ;;
+  *) [[ "$b" == "git" ]] ;;
+  esac
+}
+
+# Locate a real `git` executable at the segment's command position (after
+# env-var prefixes and known wrappers), or return 1 when absent. Results go in
+# globals, NOT a $( ) echo: `env -S` splicing rewrites the argv, and the caller
+# must match on the rewritten words, so the index alone is not enough.
+#   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
+#   HOOK_GIT_RESOLVED_WORDS — the (possibly rewritten) segment argv
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
+hook::git_resolve_index() {
+  HOOK_GIT_RESOLVED_WORDS=("$@")
+  HOOK_GIT_RESOLVED_GI=-1
+  local -n w=HOOK_GIT_RESOLVED_WORDS
+  local n=${#w[@]} i=0 tok
+
+  while ((i < n)); do
+    tok="${w[i]}"
+    if [[ "$tok" == *=* ]]; then
+      ((i++))
+      continue
+    fi
+
+    case "${tok##*/}" in
+    env)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        # -S/--split-string re-splits its operand into argv (GNU env), so a
+        # quoted 'git commit --no-verify' would otherwise hide from the
+        # resolver as one non-git word. Splice the split words back into the
+        # scan and restart at the command position.
+        -S | --split-string)
+          local sval=""
+          ((i + 1 < n)) && sval="${w[i + 1]}"
+          local -a sw=()
+          read -r -a sw <<<"$sval"
+          w=("${sw[@]}" "${w[@]:i+2}")
+          n=${#w[@]}
+          i=0
+          continue 2
+          ;;
+        -S* | --split-string=*)
+          local sval="${w[i]#-S}"
+          sval="${sval#--split-string=}"
+          local -a sw=()
+          read -r -a sw <<<"$sval"
+          w=("${sw[@]}" "${w[@]:i+1}")
+          n=${#w[@]}
+          i=0
+          continue 2
+          ;;
+        -u | -C | --chdir) ((i += 2)) ;;
+        -*) ((i++)) ;;
+        *) ((i++)) ;;
+        esac
+      done
+      continue
+      ;;
+    nice | nohup)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -n | --adjustment) ((i += 2)) ;;
+        --adjustment=*) ((i++)) ;;
+        -*) ((i++)) ;;
+        *) break ;;
+        esac
+      done
+      if ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    sudo)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -u | -g | -h | -p | -C | -D | -R | -T | --user | --group | --chdir) ((i += 2)) ;;
+        -*) ((i++)) ;;
+        *) ((i++)) ;;
+        esac
+      done
+      continue
+      ;;
+    timeout)
+      ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
+        case "${w[i]}" in
+        -s | --signal | -k | --kill-after) ((i += 2)) ;;
+        --preserve-status | --foreground | --verbose) ((i++)) ;;
+        -*) ((i++)) ;;
+        *) break ;;
+        esac
+      done
+      if ((i < n)) && [[ "${w[i]}" =~ ^[0-9]+([.][0-9]+)?(s|m|h|d)?$ ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    # eval concatenates and re-executes its arguments, so for the unquoted
+    # form (`eval git commit ...`) scanning the following words is exact.
+    command | exec | builtin | eval | !)
+      ((i++))
+      continue
+      ;;
+    time)
+      ((i++))
+      if ((i < n)) && [[ "${w[i]}" == "-p" ]]; then
+        ((i++))
+      fi
+      continue
+      ;;
+    if | while | until | for | case | select | coproc | '{' | '}')
+      ((i++))
+      continue
+      ;;
+    *)
+      if hook::git_is_bin "$tok"; then
+        HOOK_GIT_RESOLVED_GI=$i
+        return 0
+      fi
+      return 1
+      ;;
+    esac
+  done
+  return 1
+}
+
+# Resolve the git subcommand in an already-resolved segment: walk words after
+# the git executable, skipping git global options. The listed options consume
+# the FOLLOWING word as their value (two-word form); their =-forms and every
+# other option are single words handled by the generic `-*` skip. Results in
+# globals:
+#   HOOK_GIT_SUB           — the subcommand word ("" when none found)
+#   HOOK_GIT_SUB_IDX       — its index in the argv (-1 when none)
+#   HOOK_GIT_CONFIG_VALUES — values of -c/--config/--config-env options, in
+#                            order, so a guard can inspect config assignments
+#                            without re-walking (commit messages and pathspecs
+#                            are never collected here)
+# Call as: hook::git_resolve_subcommand <git-index> <argv words...>
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
+hook::git_resolve_subcommand() {
+  local gi="$1"
+  shift
+  local -a w=("$@")
+  local nseg=${#w[@]} j gw
+  HOOK_GIT_SUB=""
+  HOOK_GIT_SUB_IDX=-1
+  HOOK_GIT_CONFIG_VALUES=()
+
+  j=$((gi + 1))
+  while ((j < nseg)); do
+    gw="${w[j]}"
+    case "$gw" in
+    -c | --config | --config-env)
+      ((j + 1 < nseg)) && HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --config=* | --config-env=*)
+      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      ((j++))
+      ;;
+    -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
+      ((j += 2))
+      ;;
+    -*)
+      ((j++))
+      ;;
+    *)
+      HOOK_GIT_SUB="$gw"
+      HOOK_GIT_SUB_IDX=$j
+      return 0
+      ;;
+    esac
+  done
+  return 1
+}
+
+# Single linear pass: read the command into a char array once (O(n)), then walk
+# it splitting top-level segments on UNQUOTED control operators and tokenizing
+# each segment into argv words honoring '…', "…", $'…', and backslash escapes
+# (including backslash-newline continuation). Each completed segment is passed
+# to the callback as it closes, so no full segment list is retained.
+# Call as: hook::bash_parse_segments <command-string> <callback>; the callback
+# receives one segment's argv words as "$@".
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+hook::bash_parse_segments() {
+  local cmd="$1" cb="$2"
+  local -a chars=()
+  local c nx
+  while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$cmd")
+  local n=${#chars[@]} i
+  local word="" have=0
+  local -a seg=()
+
+  for ((i = 0; i < n; i++)); do
+    c="${chars[i]}"
+    case "$c" in
+    "'")
+      ((i++))
+      while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+        word+="${chars[i]}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '"')
+      ((i++))
+      while ((i < n)) && [[ "${chars[i]}" != '"' ]]; do
+        if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
+          nx="${chars[i + 1]}"
+          case "$nx" in
+          '"' | '\' | '$' | '`')
+            word+="$nx"
+            ((i += 2))
+            continue
+            ;;
+          $'\n')
+            ((i += 2))
+            continue
+            ;;
+          *) ;;
+          esac
+        fi
+        word+="${chars[i]}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '$')
+      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == "'" ]]; then
+        i=$((i + 2))
+        local body=""
+        while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
+          if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
+            body+="${chars[i]}${chars[i + 1]}"
+            ((i += 2))
+            continue
+          fi
+          body+="${chars[i]}"
+          ((i++))
+        done
+        word+="$(hook::ansi_c_decode "$body")"
+        have=1
+      else
+        word+="$c"
+        have=1
+      fi
+      ;;
+    '\')
+      if ((i + 1 < n)); then
+        nx="${chars[i + 1]}"
+        if [[ "$nx" == $'\n' ]]; then
+          ((i++))
+        else
+          word+="$nx"
+          ((i++))
+          have=1
+        fi
+      else
+        have=1
+      fi
+      ;;
+    ' ' | $'\t')
+      if ((have)); then
+        seg+=("$word")
+        word=""
+        have=0
+      fi
+      ;;
+    ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
+      if ((have)); then
+        seg+=("$word")
+        word=""
+        have=0
+      fi
+      if ((${#seg[@]})); then
+        "$cb" "${seg[@]}"
+        seg=()
+      fi
+      ;;
+    *)
+      word+="$c"
+      have=1
+      ;;
+    esac
+  done
+  if ((have)); then seg+=("$word"); fi
+  if ((${#seg[@]})); then "$cb" "${seg[@]}"; fi
+}
