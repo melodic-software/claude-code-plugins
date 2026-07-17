@@ -8,14 +8,14 @@
   "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, agents, and MCP servers.",
   "plugins": [
     {
-      "name": "markdown-formatter",
-      "source": "./plugins/markdown-formatter",
+      "name": "markdown-format",
+      "source": "./plugins/markdown-format",
       "category": "development",
       "tags": ["markdown", "markdownlint", "formatter", "linter", "hook"]
     },
     {
-      "name": "bash-lint",
-      "source": "./plugins/bash-lint",
+      "name": "bash-format",
+      "source": "./plugins/bash-format",
       "category": "development",
       "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"]
     },
@@ -107,7 +107,7 @@
       "name": "playbooks",
       "source": "./plugins/playbooks",
       "category": "claude-code",
-      "tags": ["knowledge", "playbook", "doctrine", "boris", "thariq", "fable-5", "skill-authoring", "best-practices", "skill"]
+      "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "best-practices", "skill"]
     },
     {
       "name": "docs-hygiene",

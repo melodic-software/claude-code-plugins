@@ -126,7 +126,7 @@ assert_contains "control residue still detected" "$opt_out" "Finding shape: plan
 assert_not_contains "opt-out history suppressed" "$opt_out" "used to do x"
 assert_not_contains "opt-out inline-line suppressed" "$opt_out" "Finding shape: conversational-antecedent"
 
-# --- 5. Markdown target skipped (declutter's territory) -----------------------------
+# --- 5. Markdown target skipped (audit-noise's territory) -----------------------------
 
 MD_FIXTURE="$TEST_TMPDIR/notes.md"
 cat >"$MD_FIXTURE" <<'EOF'

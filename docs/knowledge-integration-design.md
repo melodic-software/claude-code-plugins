@@ -9,7 +9,7 @@ emitted below.
 
 ## The problem
 
-Ingest skills (`book-distill`, `youtube`, `course-digest`) produce durable, concept-organized artifacts
+Ingest skills (`book-distill`, `youtube-digest`, `course-digest`) produce durable, concept-organized artifacts
 that each carry repo-applicability recommendations. Today those recommendations are read by a human and
 applied by memory — nothing codifies the analyze-here → fit-into-a-target step, and the corpus is
 decoupled from any one product repo (it lives in `melodic-software/knowledge-corpus`). The apply

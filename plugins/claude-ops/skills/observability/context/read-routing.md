@@ -3,7 +3,7 @@
 Operator setup (install, env, retention): [operator-setup.md](operator-setup.md). Pipeline:
 [otel-pipeline.md](otel-pipeline.md). Queries: [otel-queries.md](otel-queries.md).
 
-Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/troubleshoot`.
+Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/known-issues`.
 
 **CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md)
 "Naming".
@@ -76,11 +76,11 @@ Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md)
 | `Read` whole `cc-*.json` files | DuckDB with `LIMIT` |
 | Use SDK-path traces for full span tree | Direct CLI (#53954 — streaming may be `llm_request`-only) |
 
-## Distinction from `/troubleshoot`
+## Distinction from `/known-issues`
 
 | Surface | Scope |
 |---|---|
 | **`/observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
-| **`/troubleshoot`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
+| **`/known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
 
-CC behaving unexpectedly → `/troubleshoot search <feature>`. Reading what CC emitted → this file.
+CC behaving unexpectedly → `/known-issues search <feature>`. Reading what CC emitted → this file.

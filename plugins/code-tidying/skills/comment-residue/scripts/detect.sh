@@ -35,7 +35,7 @@ Usage:
   detect.sh --paths-file <file>
   detect.sh --help
 
-Audits code files only (markdown is /declutter's territory and is skipped).
+Audits code files only (markdown is /audit-noise's territory and is skipped).
 When no paths are given, audits the uncommitted code files of the repository
 it runs in (from git status). Exit: 0 on audit, 2 on unknown arguments.
 EOF
@@ -107,7 +107,7 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
 fi
 
 # Expand directory targets to the files inside them (recursive); filter every target down to
-# code files (markdown is /declutter's job, so a .md target is silently skipped).
+# code files (markdown is /audit-noise's job, so a .md target is silently skipped).
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then

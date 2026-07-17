@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.6.0
+
+### Changed
+
+- **BREAKING: `youtube` skill renamed to `youtube-digest`.** Invoke as
+  `/knowledge:youtube-digest` (previously `/knowledge:youtube`). Sibling skills follow a
+  source+operation grammar (`book-distill`, `course-digest`); the platform noun alone named
+  the source but not the operation. Triggers are unchanged — "youtube", "watch this YouTube
+  video", and youtube.com/youtu.be URLs still route to the skill. In-flight watch slices are
+  unaffected (`.work/<watch-epic>/...` layout is unchanged); resume with
+  `/knowledge:youtube-digest resume <video-slug>`.
+
 ## 0.5.6
 
 ### Added
