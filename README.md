@@ -16,6 +16,36 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
+### Enable plugin suggestions for an organization
+
+Some catalog entries declare `relevance` signals so Claude Code can suggest the plugin when a
+session's work matches (matching runs locally; nothing is reported anywhere). Suggestions are
+opt-in per marketplace: they surface only after an administrator allowlists the marketplace in
+[managed settings](https://code.claude.com/docs/en/settings#settings-files) — declare the
+marketplace source AND allowlist its name in the same file:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "melodic-software": {
+      "source": {
+        "source": "github",
+        "repo": "melodic-software/claude-code-plugins"
+      }
+    }
+  },
+  "pluginSuggestionMarketplaces": ["melodic-software"]
+}
+```
+
+The source declaration is required for any non-official marketplace: the allowlisted name is
+ignored if the locally registered marketplace came from a different source, which stops an
+unrelated catalog from registering under an allowlisted name to get its plugins suggested.
+Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
+
+A few personal or external-service plugins install disabled (`defaultEnabled: false`) until the
+user opts in with `/plugin enable`; an existing install is never flipped by catalog changes.
+
 ## Catalog
 
 <!-- catalog:start -->
