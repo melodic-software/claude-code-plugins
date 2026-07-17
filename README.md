@@ -38,8 +38,8 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 ### Development
 
-- [`markdown-formatter`](plugins/markdown-formatter) — Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.
-- [`bash-lint`](plugins/bash-lint) — Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.
+- [`markdown-format`](plugins/markdown-format) — Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.
+- [`bash-format`](plugins/bash-format) — Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`biome-format`](plugins/biome-format) — Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo — using the consuming repo's own Biome config.
 - [`ruff-format`](plugins/ruff-format) — Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo — using the consuming repo's own Ruff config.
 - [`eol-normalizer`](plugins/eol-normalizer) — Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
