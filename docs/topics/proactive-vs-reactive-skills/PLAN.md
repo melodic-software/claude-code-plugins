@@ -109,7 +109,7 @@ Byte-identical binding copies delivered by a dedicated sync script (hook-utils s
 - `scripts/check-cross-plugin-source-drift.sh --check` exit 0 (cluster registered)
 - `grep -c "standards-contract-sync" .github/workflows/ci.yml` ≥ 2 (job + needs entry)
 
-### Phase 3: planning plugin — proactive grounding + setup extension [TODO]
+### Phase 3: planning plugin — proactive grounding + setup extension [DONE]
 
 Review: code-design
 

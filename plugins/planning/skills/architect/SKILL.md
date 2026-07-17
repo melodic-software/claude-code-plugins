@@ -74,6 +74,18 @@ If prerequisites are missing, state what's needed and offer to run the prerequis
 
 ### Step 2: Formulate the Plan
 
+#### Ground in consumer standards (first formulation input)
+
+Before formulating, resolve the consumer's standards and load what this task touches — plans are built to the criteria they will be reviewed against:
+
+- **Resolve the index** by jumping to the "Resolution ladder" section of the plugin's contract binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) — the ladder (including the absent-index inference, offer-to-persist, and ask-once behavior) lives there and is not restated in this skill. Zero unprompted writes, ever.
+- **Match** the task's surfaces (ecosystems touched, cross-cutting concerns) against the index rows' `Applies when` clues.
+- **Pull selectively** — only matched files, and within a matched file only the sections relevant to this task. Never re-pull ambient content (auto-loaded `CLAUDE.md`, fired `.claude/rules` directives). Post-compaction context and a new task both count as NOT ambient — re-resolve per task; a second task in the same session grounds its own surfaces.
+- **Depth rides the plan-scale table below** — a trivial plan takes no standards fetch beyond ambient context; larger scales ground the surfaces they touch. There is no grounding flag; scale governs cost.
+- **Name provenance** when a personal-layer rule (a `*.local.md` overlay or the user-global layer) materially shapes the plan.
+- **Broken index row** → surface it and offer the fix (Boy Scout) — never silent. **Version-skewed index** → degrade per the binding's tolerant-reader rule (older: best-effort + "index at vX, contract at vY — re-run setup"; newer: best-effort + "update the plugin", no migration offer).
+- The produced plan **cites the standards sections loaded** for the surfaces it touches — the template's "Standards grounding" element — or states why grounding was skipped (scale tier).
+
 Produce a structured plan using the template in [context/plan-template.md](context/plan-template.md). The template covers:
 
 - **Goal**: what we're trying to achieve and why

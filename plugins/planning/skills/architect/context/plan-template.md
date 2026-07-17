@@ -10,6 +10,14 @@ Scale to the task — not every section is needed for every plan. A trivial fix 
 **What**: <1-2 sentences — what is being changed>
 **Why**: <1-2 sentences — the motivation, not just "because we need to">
 
+## Standards grounding
+
+<which consumer standards shaped this plan — from the grounding step. Skipped at trivial/small scale: state "Skipped: <scale> scale, ambient context only">
+
+| Surface | Sections cited | Layer provenance |
+|---------|----------------|------------------|
+| <surface id from the index> | <file + section(s) loaded> | <team / personal overlay / user-global> |
+
 ## Approach
 
 ### Steps
@@ -107,6 +115,8 @@ The plan depth should match the blast radius:
 - **Small** (new rule, simple feature, 2-5 files): abbreviated template with test strategy
 - **Medium** (new library, module changes, 5-15 files): full template minus alternatives
 - **Large** (architecture change, cross-cutting refactor, new service): full template + stress-test
+
+Standards grounding follows the same scale: trivial and small plans skip the "Standards grounding" element (ambient context only — no standards fetch); medium and large plans include it for the surfaces they touch.
 
 Calibration examples by scale:
 

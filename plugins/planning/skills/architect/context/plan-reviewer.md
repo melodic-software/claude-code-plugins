@@ -49,6 +49,7 @@ Do not edit files. Attack the plan for gaps. Return a findings table only.
 - Every phase has at least one mechanically verifiable Sanity Check
 - Every brief scope-item maps to a phase; nothing silently dropped
 - Contract migrations have a pre-flight consumer check as the first work item
+- The plan cites the standards sections loaded for the surfaces it touches, or states why grounding was skipped (scale tier)
 
 Report format:
 
