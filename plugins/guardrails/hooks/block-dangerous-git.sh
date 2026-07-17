@@ -107,17 +107,19 @@ abbrev_match() {
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/`, and long-form magic whose comma list carries
-# `top` in any position (`:(top)`, `:(literal,top)` — gitglossary pathspec
-# magic) all address the whole tree.
+# `top` in any position with an EMPTY pattern (`:(top)`, `:(literal,top)` —
+# gitglossary pathspec magic) all address the whole tree. Top magic followed
+# by a pattern (`:(top)src/a`) scopes to that root-relative path and passes.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
-  local magic
+  local magic pattern
   case "$1" in
   "." | ":/") return 0 ;;
   ":("*")"*)
     magic="${1#:(}"
+    pattern="${magic#*)}"
     magic="${magic%%)*}"
-    [[ ",${magic}," == *",top,"* ]]
+    [[ ",${magic}," == *",top,"* && -z "$pattern" ]]
     ;;
   *) return 1 ;;
   esac
@@ -153,10 +155,15 @@ check_segment() {
     # abbreviation ≥ --dr; --d is ambiguous with --delete) makes the push a
     # preview that updates nothing — it disarms the force check. Option values
     # are skipped in this pre-scan too so a value word never reads as a flag.
+    # `--` ends option parsing everywhere below (gitcli): after it, words are
+    # operands — a literal "--dry-run" refspec is not a preview flag, and a
+    # literal "-f" is not force. Only the leading-+ refspec check applies past
+    # the marker.
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
       case "$x" in
+      --) break ;;
       -o | --push-option | --repo | --receive-pack | --exec)
         ((k += 2))
         continue
@@ -175,6 +182,14 @@ check_segment() {
     while ((k < nseg)); do
       x="${w[k]}"
       case "$x" in
+      --)
+        for ((k++; k < nseg; k++)); do
+          [[ "${w[k]}" == +* ]] && block "push-force" \
+            "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
+            "Drop the + or use --force-with-lease, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+        done
+        break
+        ;;
       -o | --push-option | --repo | --receive-pack | --exec)
         ((k += 2))
         continue
@@ -218,6 +233,7 @@ check_segment() {
     # --pathspec-from-file consumes the next word as its value.
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
+      [[ "$x" == "--" ]] && break
       if [[ "$x" == "--pathspec-from-file" ]]; then
         ((k++))
         continue
@@ -235,8 +251,12 @@ check_segment() {
     # disarms the force check. -e/--exclude consumes the next word as its
     # pattern in BOTH scans, so a flag-looking value (`-e --dry-run`) neither
     # disarms nor triggers anything.
+    # `--` ends option parsing: a pathspec literally named "--dry-run" after
+    # the marker must not disarm the force check, and no force flag can
+    # appear there either.
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
+      [[ "$x" == "--" ]] && break
       case "$x" in
       -e | --exclude)
         ((k++))
@@ -252,6 +272,7 @@ check_segment() {
     done
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
+      [[ "$x" == "--" ]] && break
       case "$x" in
       -e | --exclude)
         ((k++))
@@ -278,7 +299,26 @@ check_segment() {
     while ((k < nseg)); do
       x="${w[k]}"
       case "$x" in
-      -b | -B | --orphan | --conflict | --pathspec-from-file)
+      # After `--` every word is a pathspec — flags stop matching, but the
+      # tree-wide pathspec check still applies.
+      --)
+        for ((k++; k < nseg; k++)); do
+          is_tree_wide_pathspec "${w[k]}" && block "checkout-dot" \
+            "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
+            "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+        done
+        break
+        ;;
+      # A pathspec file can carry `.` — unverifiable statically, so it fails
+      # closed under the same form token (allow-list to permit).
+      --pathspec-from-file | --pathspec-from-file=*)
+        block "checkout-dot" \
+          "BLOCKED: git checkout --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
+          "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+        ((k += 2))
+        continue
+        ;;
+      -b | -B | --orphan | --conflict)
         ((k += 2))
         continue
         ;;
@@ -308,6 +348,7 @@ check_segment() {
     # ambiguous with --detach, so the abbreviation floor is --disc.
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
+      [[ "$x" == "--" ]] && break
       if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
         || abbrev_match "discard-changes" "$x" 4 \
         || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
@@ -324,6 +365,7 @@ check_segment() {
     worktree=0
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
+      [[ "$x" == "--" ]] && break
       case "$x" in
       --staged) staged=1 ;;
       --worktree) worktree=1 ;;
@@ -347,6 +389,24 @@ check_segment() {
       while ((k < nseg)); do
         x="${w[k]}"
         case "$x" in
+        # After `--` every word is a pathspec — only the tree-wide check applies.
+        --)
+          for ((k++; k < nseg; k++)); do
+            is_tree_wide_pathspec "${w[k]}" && block "restore-dot" \
+              "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
+              "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+          done
+          break
+          ;;
+        # A pathspec file can carry `.` — unverifiable statically, so it fails
+        # closed under the same form token (allow-list to permit).
+        --pathspec-from-file | --pathspec-from-file=*)
+          block "restore-dot" \
+            "BLOCKED: git restore --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
+            "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+          ((k += 2))
+          continue
+          ;;
         -s | --source)
           ((k += 2))
           continue

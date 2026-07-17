@@ -68,6 +68,7 @@ run "git clean -fdn (dry run in force bundle, allowed)" "git clean -fdn" 0
 run "git clean --dry-run -f (long dry run, allowed)" "git clean --dry-run -f" 0
 run "git clean -f -e --dry-run (dry-run as exclude value, blocked)" "git clean -f -e --dry-run" 2
 run "git clean --f (abbreviated force, blocked)" "git clean --f" 2
+run "git clean -f -- --dry-run (dry-run pathspec after --, blocked)" "git clean -f -- --dry-run" 2
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
@@ -87,6 +88,12 @@ run "git restore :/ (root-magic pathspec, blocked)" "git restore :/" 2
 run "git restore ':(top)' (top-magic pathspec, blocked)" "git restore ':(top)'" 2
 run "git restore ':(literal,top)' (reordered top magic, blocked)" "git restore ':(literal,top)'" 2
 run "git restore ':(literal)x' (non-top magic, allowed)" "git restore ':(literal)x'" 0
+run "git restore ':(top)src/a' (top magic with subpath, allowed)" "git restore ':(top)src/a'" 0
+run "git checkout -- . (dot after end-of-options, blocked)" "git checkout -- ." 2
+run "git checkout -- -f (pathspec named -f, allowed)" "git checkout -- -f" 0
+run "git reset -- --hard (pathspec named --hard, allowed)" "git reset -- --hard" 0
+run "git checkout --pathspec-from-file=paths (unverifiable pathspec file, blocked)" "git checkout --pathspec-from-file=paths" 2
+run "git restore --pathspec-from-file paths (unverifiable pathspec file, blocked)" "git restore --pathspec-from-file paths" 2
 run "git checkout -f (forced discard, blocked)" "git checkout -f" 2
 run "git checkout --force main (forced switch, blocked)" "git checkout --force main" 2
 run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main" 2
