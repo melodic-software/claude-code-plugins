@@ -119,7 +119,7 @@ One skill, `/source-control:babysit-prs`, that:
 
 ## Plan
 
-### Phase 1: PR-A — extraction + shared seam (closes #260) [TODO]
+### Phase 1: PR-A — extraction + shared seam (closes #260) [DOING]
 
 Extract babysit from `pull-request` into a sibling `babysit-prs` skill with behavior identical to
 today's babysit mode (safe default only — tiers, engine, and config arrive in Phase 2), and hoist
@@ -138,9 +138,10 @@ the shared review discipline to plugin scope so neither skill loads the other's 
   babysit-specific framing (round-robin, wake scheduling) stays out.
 - `git mv` to `plugins/source-control/scripts/`: `fetch-all-pr-comments.sh` + `.test.sh`,
   `babysit-readiness-gate.sh` + `.test.sh`, `test-helpers.sh` (single shared copy; sourced by
-  tests on both sides). Update the three remaining pull-request test scripts
-  (`fetch-annotations.test.sh`, `fetch-failed-logs.test.sh`, `parse-branch-issue.test.sh`) to
-  source `../../../scripts/test-helpers.sh` (and their `# shellcheck source=` directives).
+  tests on both sides). Update the two remaining pull-request test scripts that source it
+  (`fetch-annotations.test.sh`, `fetch-failed-logs.test.sh`) to source
+  `../../../scripts/test-helpers.sh` (and their `# shellcheck source=` directives);
+  `parse-branch-issue.test.sh` never sourced the helper.
 - Re-root every `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-all-pr-comments.sh` and
   `.../babysit-readiness-gate.sh` citation to `${CLAUDE_PLUGIN_ROOT}/scripts/...`.
 - Update `babysit-readiness-gate.sh`'s four internal doc-comment citations of `babysit.md §5.0.4`
@@ -197,7 +198,8 @@ the shared review discipline to plugin scope so neither skill loads the other's 
 - `evals/evals.json`: eval id 9 removed (ids stay stable; gap is legal per schema).
 - Delete `scripts/discover-prs.sh` + `.test.sh` (retired per B15; inline `gh` filter is the
   contract).
-- Sweep: `grep -ri babysit plugins/source-control/skills/pull-request/` returns nothing.
+- Sweep: `grep -ri babysit plugins/source-control/skills/pull-request/` returns only the
+  deliberate sibling pointers (negative route, action-table pointer, monitor-entry note).
 
 **Step 4 — Plugin metadata + catalog.**
 
@@ -216,9 +218,10 @@ the shared review discipline to plugin scope so neither skill loads the other's 
 **Step 5 — Validation + PR.**
 
 - `bash scripts/run-plugin-tests.sh` (hoisted + remaining tests green), `bash
-  scripts/validate-plugins.sh` (contracts, catalog `--check`, `claude plugin validate` per plugin
-  + `--strict`), markdownlint, shellcheck, `claude --plugin-dir` smoke from a non-source repo
-  (exercise `/source-control:babysit-prs` slash + automatic routing on 'babysit my PRs').
+  scripts/validate-plugins.sh` (contracts, catalog `--check`, `claude plugin validate` per
+  plugin and `--strict`), markdownlint, shellcheck, `claude --plugin-dir` smoke from a
+  non-source repo (exercise `/source-control:babysit-prs` slash + automatic routing on 'babysit
+  my PRs').
 - `/skill-quality:check` on `pull-request` with `CHECK_SKILL_BASE_REF` set to the pre-change ref
   (playbook decompose step 5 — same-path rewrite): expect check 3 to flag the dropped
   `'babysit PRs'` trigger; the PR-body trigger-continuity table is the recorded answer.
@@ -249,7 +252,7 @@ the shared review discipline to plugin scope so neither skill loads the other's 
 | `plugins/source-control/skills/pull-request/SKILL.md` | MODIFY |
 | `plugins/source-control/skills/pull-request/reference/monitor.md` | MODIFY |
 | `plugins/source-control/skills/pull-request/evals/evals.json` | MODIFY (drop id 9) |
-| `plugins/source-control/skills/pull-request/scripts/{fetch-annotations,fetch-failed-logs,parse-branch-issue}.test.sh` | MODIFY (helper path) |
+| `plugins/source-control/skills/pull-request/scripts/{fetch-annotations,fetch-failed-logs}.test.sh` | MODIFY (helper path) |
 | `plugins/source-control/skills/pull-request/scripts/discover-prs.sh` + `.test.sh` | DELETE |
 | `plugins/source-control/.claude-plugin/plugin.json` | MODIFY (0.6.0) |
 | `plugins/source-control/CHANGELOG.md` | MODIFY |
@@ -260,8 +263,10 @@ the shared review discipline to plugin scope so neither skill loads the other's 
 
 **Sanity Check:**
 
-- `grep -ri babysit plugins/source-control/skills/pull-request/` → zero matches.
-- `grep -rn "skills/pull-request/scripts/\(fetch-all-pr-comments\|babysit-readiness-gate\|discover-prs\|test-helpers\)" plugins/ docs/` → zero matches.
+- `grep -ri babysit plugins/source-control/skills/pull-request/` → only the deliberate sibling
+  pointers (description negative route, action-table pointer, monitor-entry Step 0 note); zero
+  babysit-owned content.
+- `grep -rn "skills/pull-request/scripts/\(fetch-all-pr-comments\|babysit-readiness-gate\|discover-prs\|test-helpers\)" plugins/` → zero matches.
 - `grep -rn "babysit\.md" plugins/source-control/` → zero matches (gate-script doc comments and
   all prose citations retargeted).
 - `bash scripts/run-plugin-tests.sh` exit 0; `bash scripts/validate-plugins.sh` exit 0;

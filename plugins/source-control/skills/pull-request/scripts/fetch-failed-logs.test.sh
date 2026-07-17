@@ -22,8 +22,8 @@ SCRIPT="$SCRIPT_DIR/fetch-failed-logs.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# shellcheck source=test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/test-helpers.sh"
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../scripts" && pwd)/test-helpers.sh"
 
 # Skip suite if `unzip` (production dep) or `zip` (test fixture builder) is
 # missing. CI runners have them preinstalled. Windows Git Bash users install
