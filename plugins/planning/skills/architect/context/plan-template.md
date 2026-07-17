@@ -12,7 +12,7 @@ Scale to the task — not every section is needed for every plan. A trivial fix 
 
 ## Standards grounding
 
-<which consumer standards shaped this plan — from the grounding step. Skipped at trivial/small scale: state "Skipped: <scale> scale, ambient context only">
+<which consumer standards shaped this plan — from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">
 
 | Surface | Sections cited | Layer provenance |
 |---------|----------------|------------------|
@@ -116,7 +116,7 @@ The plan depth should match the blast radius:
 - **Medium** (new library, module changes, 5-15 files): full template minus alternatives
 - **Large** (architecture change, cross-cutting refactor, new service): full template + stress-test
 
-Standards grounding follows the same scale: trivial and small plans skip the "Standards grounding" element (ambient context only — no standards fetch); medium and large plans include it for the surfaces they touch.
+Standards grounding follows the same scale: trivial plans skip the "Standards grounding" element (ambient context only — no standards fetch); small plans ground the matched surfaces with a brief citation line (the standards a change is built to are the ones it is reviewed against, whatever its size); medium and large plans carry the full element for the surfaces they touch.
 
 Calibration examples by scale:
 

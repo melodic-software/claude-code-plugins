@@ -227,8 +227,14 @@ skills implement this section by reference; they do not restate it.
 4. Interview: confirm the standards root (persist to
    `.claude/standards.yaml` only on relocation), propose surfaces
    inferred from the repository.
-5. Write the skeleton: `<standards_dir>/README.md` index with the
-   `standards-contract` frontmatter at the bundled contract version, and
+5. Committed-root guard, then write the skeleton: before creating
+   anything, run `git check-ignore -v` on a representative path inside
+   the root (e.g. `<standards_dir>/README.md`); if a consumer ignore rule
+   matches, STOP and surface the exact rule and source line — an ignored
+   "team" layer can never be the committed, shared surface this contract
+   depends on, and resolving the rule is the consumer's edit to make.
+   Then write `<standards_dir>/README.md` (index with the
+   `standards-contract` frontmatter at the bundled contract version) and
    the setup-owned `<standards_dir>/.gitignore` containing `*.local.md`.
 6. Validate every index row path (external-row validation duty).
 7. Optionally offer pointer-rule generation and an offer (never a demand)
