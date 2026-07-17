@@ -48,6 +48,10 @@ Verb meanings are fixed:
 | `setup` | Configures the plugin for a consumer, per the setup section below. |
 | `update` | Refreshes vendored upstream material. |
 
+When a bare verb would collide with or under-specify against a sibling in the same namespace, a
+topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-encapsulation`,
+`scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
+
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
 (`worktree`, `pull-request`). Two further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`), and a `-deep` suffix marks the heavier
@@ -83,7 +87,7 @@ merely to create a second configuration channel.
 
 ## Setup is explicit and repeatable
 
-A configurable plugin provides an explicit `setup` or `configure` skill with
+A configurable plugin provides an explicit `setup` skill with
 `disable-model-invocation: true`. Setup must be:
 
 - idempotent and safe to rerun;
