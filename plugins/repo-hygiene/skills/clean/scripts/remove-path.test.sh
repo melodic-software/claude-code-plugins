@@ -47,11 +47,22 @@ rc=0
 bash "$REMOVE" "$ROOT" --root "$ROOT" >/dev/null 2>&1 || rc=$?
 assert_exit "root itself refused" 2 "$rc"
 
+mkdir -p "$TEST_TMPDIR/elsewhere"
 rc=0
 bash "$REMOVE" "$TEST_TMPDIR/elsewhere" --root "$ROOT" >/dev/null 2>&1 || rc=$?
-mkdir -p "$TEST_TMPDIR/elsewhere"
-bash "$REMOVE" "$TEST_TMPDIR/elsewhere" --root "$ROOT" >/dev/null 2>&1 || rc=$?
 assert_exit "outside root refused" 2 "$rc"
+
+rc=0
+bash "$REMOVE" "$ROOT" --bogus-flag --root "$ROOT" >/dev/null 2>&1 || rc=$?
+assert_exit "unknown flag exits 2" 2 "$rc"
+
+rc=0
+bash "$REMOVE" "$ROOT/a" "$ROOT/b" --root "$ROOT" >/dev/null 2>&1 || rc=$?
+assert_exit "multiple targets exits 2" 2 "$rc"
+
+rc=0
+bash "$REMOVE" "$ROOT/a" --root >/dev/null 2>&1 || rc=$?
+assert_exit "--root without value exits 2" 2 "$rc"
 
 rc=0
 bash "$REMOVE" "$ROOT/missing" --root "$ROOT" >/dev/null 2>&1 || rc=$?
@@ -126,13 +137,52 @@ rc=0
 bash "$REMOVE" "$ROOT/wt-repo-linked" --root "$ROOT" >/dev/null 2>&1 || rc=$?
 assert_exit "linked worktree target refused" 2 "$rc"
 
-if ln -s "$ROOT/pushed-repo" "$ROOT/link-target" 2>/dev/null && [[ -L "$ROOT/link-target" ]]; then
-  rc=0
-  bash "$REMOVE" "$ROOT/link-target" --root "$ROOT" >/dev/null 2>&1 || rc=$?
-  assert_exit "symlink target refused" 2 "$rc"
-else
-  skip_case "symlink creation unavailable on this platform"
+# Reparse-point refusal — prefer a real Windows junction (creatable without
+# elevation and the exact traversal hazard); fall back to a POSIX symlink.
+# Whichever the platform can create MUST be refused — no silent skip.
+REPARSE_MADE=""
+if command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+  cmd //c "mklink /J $(cygpath -w "$ROOT/reparse-target") $(cygpath -w "$ROOT/pushed-repo")" >/dev/null 2>&1 && REPARSE_MADE=junction
 fi
+if [[ -z "$REPARSE_MADE" ]]; then
+  ln -s "$ROOT/pushed-repo" "$ROOT/reparse-target" 2>/dev/null && [[ -L "$ROOT/reparse-target" ]] && REPARSE_MADE=symlink
+fi
+if [[ -n "$REPARSE_MADE" ]]; then
+  rc=0
+  bash "$REMOVE" "$ROOT/reparse-target" --root "$ROOT" >/dev/null 2>&1 || rc=$?
+  assert_exit "reparse-point target ($REPARSE_MADE) refused" 2 "$rc"
+  assert_file_exists "reparse traversal did not delete linked contents" "$ROOT/pushed-repo/file.txt"
+else
+  skip_case "no reparse-point mechanism available on this platform"
+fi
+
+git_quiet init --bare "$ROOT/bare-repo"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/bare-repo" --root "$ROOT" --allow-unpushed)" || rc=$?
+assert_exit "empty bare repo dry-run exits 0" 0 "$rc"
+assert_contains "bare repo kind detected" "$out" "Kind: bare-repo"
+
+make_pushed_repo "$ROOT/aws-repo" "$TEST_TMPDIR/aws-remote.git"
+printf '.aws/\n' >"$ROOT/aws-repo/.gitignore"
+git_quiet -C "$ROOT/aws-repo" add .gitignore
+git_quiet -C "$ROOT/aws-repo" commit -m gitignore
+git_quiet -C "$ROOT/aws-repo" push
+mkdir -p "$ROOT/aws-repo/.aws"
+printf 'key\n' >"$ROOT/aws-repo/.aws/credentials"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/aws-repo" --root "$ROOT")" || rc=$?
+assert_exit "ignored .aws credentials block exits 3" 3 "$rc"
+assert_contains "SSOT secret-class block reason" "$out" "Blocked: secrets"
+
+# Default root resolution (no --root): first chain link is `git config ghq.root`
+# from the (test-scoped) global config.
+FAKE_HOME="$TEST_TMPDIR/fake-home"
+mkdir -p "$FAKE_HOME" "$ROOT/default-root-dir"
+HOME="$FAKE_HOME" git config --global ghq.root "$ROOT"
+out="$(HOME="$FAKE_HOME" bash "$REMOVE" "$ROOT/default-root-dir")"
+rc=$?
+assert_exit "default ghq.root resolution exits 0" 0 "$rc"
+assert_contains "default root resolved from git config" "$out" "Root: $ROOT"
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

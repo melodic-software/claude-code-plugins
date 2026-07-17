@@ -12,14 +12,16 @@
 # Guards (all evaluated before any mutation):
 #   - target must be an existing directory strictly inside the resolved root
 #     (ghq root by default; --root overrides), never the root itself
-#   - symlink / reparse-point targets are refused (deletion would traverse)
+#   - symlink / reparse-point targets are refused (bash -L plus a Windows
+#     fsutil reparse query — deletion would traverse)
 #   - a linked-worktree target (.git file) is refused — `git worktree remove`
 #     owns that lifecycle
-#   - a git-repo target is refused while it has: uncommitted changes, stash
-#     entries, registered linked worktrees, or ignored secret-class files
-#     (.env*, *.local.json/.jsonc/.md — override with --include-secrets)
-#   - unpushed work (branch ahead of upstream, branch with no upstream, or a
-#     detached HEAD) blocks the apply unless --allow-unpushed
+#   - a repo target (normal or bare) is refused while it has: uncommitted
+#     changes, stash entries, registered linked worktrees, or ignored files in
+#     the SECRETS preserve class (CLEAN_TREE_PRESERVE_SECRETS — override with
+#     --include-secrets)
+#   - unpushed work (branch ahead of or missing its upstream, unresolvable
+#     upstream, or a detached HEAD) blocks the apply unless --allow-unpushed
 #
 # Exit: 0 success; 1 target does not exist; 2 usage/validation error;
 #       3 blocked (dirty / stash / worktrees / secrets); 4 unpushed work.
@@ -51,7 +53,7 @@ Default: --dry-run (print guard results and the planned removal only).
 --root <dir>:      containment root (default: ghq root).
 
 Output labels:
-  Target / Root / Kind: <repo|dir>
+  Target / Root / Kind: <repo|bare-repo|dir>
   TrackedDirty / StashCount / WorktreeCount / UnpushedRefs / SecretsCount
   Blocked: <reason or none>
   Planned / Applied: rm -rf <target>
@@ -107,7 +109,7 @@ fi
 # Normalize both sides to forward-slash absolute paths for containment checks.
 norm() { local p; p="$(cd "$1" 2>/dev/null && pwd)" || return 1; printf '%s' "${p//\\//}"; }
 
-if [[ -L "$TARGET" ]]; then
+if clean_path_is_reparse_point "$TARGET"; then
   echo "remove-path.sh: target is a symlink/reparse point — refusing" >&2
   exit 2
 fi
@@ -140,10 +142,28 @@ WORKTREE_COUNT=0
 UNPUSHED_REFS=0
 SECRETS_COUNT=0
 
-if [[ -d "$TARGET_ABS/.git" ]]; then
+# Structural bare-repo detection (HEAD + objects/ + refs/ at the top level) —
+# deliberately not `rev-parse --is-bare-repository`, which walks upward and
+# would misclassify a plain subdirectory of some enclosing repo.
+if [[ -f "$TARGET_ABS/HEAD" && -d "$TARGET_ABS/objects" && -d "$TARGET_ABS/refs" ]]; then
+  KIND=bare-repo
+elif [[ -d "$TARGET_ABS/.git" ]]; then
   KIND=repo
-  TRACKED_DIRTY="$(git -C "$TARGET_ABS" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-  STASH_COUNT="$(git -C "$TARGET_ABS" stash list 2>/dev/null | wc -l | tr -d ' ')"
+fi
+
+if [[ "$KIND" != dir ]]; then
+  if [[ "$KIND" == repo ]]; then
+    TRACKED_DIRTY="$(git -C "$TARGET_ABS" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+    STASH_COUNT="$(git -C "$TARGET_ABS" stash list 2>/dev/null | wc -l | tr -d ' ')"
+
+    while IFS= read -r ignored; do
+      [[ -z "$ignored" ]] && continue
+      if clean_path_matches_secret_class "$ignored"; then
+        SECRETS_COUNT=$((SECRETS_COUNT + 1))
+      fi
+    done < <(git -C "$TARGET_ABS" ls-files --others --ignored --exclude-standard 2>/dev/null | tr -d '\r')
+  fi
+
   # Count beyond the main entry: any linked worktree must be removed first.
   WORKTREE_COUNT="$(git -C "$TARGET_ABS" worktree list --porcelain 2>/dev/null | grep -c '^worktree ' || true)"
 
@@ -153,24 +173,20 @@ if [[ -d "$TARGET_ABS/.git" ]]; then
       UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
       continue
     fi
-    ahead="$(git -C "$TARGET_ABS" rev-list --count "$upstream..$ref" 2>/dev/null | tr -d ' ')"
-    [[ "${ahead:-0}" -gt 0 ]] && UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
+    # Fail closed: an unresolvable upstream (pruned remote branch, stale
+    # tracking config) counts as unpushed rather than silently as 0-ahead.
+    if ! ahead="$(git -C "$TARGET_ABS" rev-list --count "$upstream..$ref" 2>/dev/null | tr -d ' ')" || [[ -z "$ahead" ]]; then
+      UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
+      continue
+    fi
+    [[ "$ahead" -gt 0 ]] && UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
   done < <(git -C "$TARGET_ABS" for-each-ref refs/heads --format='%(refname:short) %(upstream:short)' 2>/dev/null | tr -d '\r')
 
-  if [[ -z "$(git -C "$TARGET_ABS" branch --show-current 2>/dev/null | tr -d '\r')" ]] &&
+  if [[ "$KIND" == repo ]] &&
+    [[ -z "$(git -C "$TARGET_ABS" branch --show-current 2>/dev/null | tr -d '\r')" ]] &&
     git -C "$TARGET_ABS" rev-parse -q --verify HEAD >/dev/null 2>&1; then
     UNPUSHED_REFS=$((UNPUSHED_REFS + 1)) # detached HEAD — commits may be unreachable elsewhere
   fi
-
-  while IFS= read -r ignored; do
-    [[ -z "$ignored" ]] && continue
-    case "$ignored" in
-    .env* | */.env* | *.local.json | *.local.jsonc | *.local.md)
-      SECRETS_COUNT=$((SECRETS_COUNT + 1))
-      ;;
-    *) ;;
-    esac
-  done < <(git -C "$TARGET_ABS" ls-files --others --ignored --exclude-standard 2>/dev/null | tr -d '\r')
 fi
 
 printf 'Target: %s\n' "$TARGET_ABS"
