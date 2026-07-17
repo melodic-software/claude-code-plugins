@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **New `/source-control:babysit-prs` skill** — the all-PR self-pacing babysit loop, extracted
+  from `/source-control:pull-request` into its own skill (distinct discovery intent: fleet loop
+  vs single-PR lifecycle). Same behavior as the former `babysit` action: discovers every open
+  non-draft PR oldest-first, checks each out, keeps branches fresh, classifies every review
+  finding with GitHub-verified evidence, fixes valid findings, reports readiness. Never merges.
+  Invoke via `/source-control:babysit-prs` (loop pairing: `/loop /source-control:babysit-prs`).
+- **Plugin-scope shared review discipline** at `reference/review-discipline.md` — the canonical
+  home of finding extraction (with the mandatory ≥3-finding subagent dispatch), per-finding
+  D1–D7 verification gates, and self-reply filtering, cited by both `pull-request` and
+  `babysit-prs` instead of duplicating the rules per skill.
+
+### Changed
+
+- **Breaking:** the `babysit` action is removed from `/source-control:pull-request` — use
+  `/source-control:babysit-prs`. The pull-request description, action table, phase table, and
+  checklists no longer carry babysit content; `reference/monitor.md`'s cross-references into the
+  former babysit reference now cite the plugin-scope review discipline.
+- Shared scripts hoisted from `skills/pull-request/scripts/` to plugin-root `scripts/`
+  (`fetch-all-pr-comments.sh`, `babysit-readiness-gate.sh`, `test-helpers.sh`, with their
+  tests) — cited by both skills via `${CLAUDE_PLUGIN_ROOT}/scripts/`.
+
+### Removed
+
+- `discover-prs.sh` (+ test) — retired; the inline `gh pr list` filter in the babysit-prs
+  reference is the discovery contract.
+
 ## [0.5.2]
 
 ### Fixed

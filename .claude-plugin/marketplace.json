@@ -266,7 +266,7 @@
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
-      "tags": ["delivery", "git", "github", "commit", "pull-request", "worktree", "ci", "skill"]
+      "tags": ["delivery", "git", "github", "commit", "pull-request", "babysit", "worktree", "ci", "skill"]
     },
     {
       "name": "planning",

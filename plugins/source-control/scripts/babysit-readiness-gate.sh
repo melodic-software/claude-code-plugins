@@ -5,9 +5,10 @@
 # block (per the 2026-05-28 audit, AUDIT.md, findings R1+R5+R6 — one mechanism):
 #
 #   R1 finding decomposition  — every source finding must be individually
-#                               classified, not batch-glossed (babysit.md §5.0.4)
+#                               classified, not batch-glossed (review-discipline.md §2)
 #   R5 addressed/unaddressed  — findings present but unclassified = unaddressed
-#   R6 checklist completeness — the §5.5 iteration checklist has no unticked box
+#   R6 checklist completeness — the iteration checklist (babysit-prs loop.md
+#                               §5.5) has no unticked box
 #
 # Why a gate, not prose: the audit proved the advisory "MANDATORY subagent
 # dispatch for >=3 findings" rule produced ZERO of its mandated per-finding
@@ -18,7 +19,7 @@
 # DETECTION (aggregate, schema-grounded on fetch-all-pr-comments.sh output,
 # which carries {id,type,author,body,...} but NOT reply-thread links):
 #   findings   = OCCURRENCES of a severity marker (CRITICAL|IMPORTANT|SUGGESTION,
-#                or codex P1/P2/P3 per babysit.md §5.0.4) across all NON-self
+#                or codex P1/P2/P3 per review-discipline.md §2) across all NON-self
 #                comments — counted per match, not per line, so N findings on one
 #                line each count (else a multi-finding line under-counts and the
 #                gate false-passes)
@@ -161,7 +162,7 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # (codex r3327816802). claude uses the words CRITICAL|IMPORTANT|SUGGESTION,
 # matched whole-word so "INVALID" is not a finding and the lowercase
 # priority:p0-critical .. p3-low labels some repos use do not false-count. codex
-# uses a P0|P1|P2|P3 shields.io badge (per babysit.md §5.0.4): keyed on the
+# uses a P0|P1|P2|P3 shields.io badge (per review-discipline.md §2): keyed on the
 # shield-URL segment `/badge/P{N}-`, which appears exactly once per finding (the
 # alt-text `![PN Badge]` carries the token a second time, so a bare `P[0-3]` would  # spellchecker:disable-line
 # double-count), is the rigid badge-template structure, and is unambiguous —
@@ -171,11 +172,13 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # word char in `shields.io/badge/...`).
 SEVERITY_WORDS_RE='CRITICAL|IMPORTANT|SUGGESTION'
 SEVERITY_BADGE_RE='/badge/P[0-3]-'
-# Plain bracketed P-severity markers ([P1] .. [P3]) — a common reviewer format
+# Plain bracketed P-severity markers ([P0] .. [P3]) — a common reviewer format
 # with neither a severity word nor a shields badge. The badge alt text is
 # `![PN Badge]` (space before the closing bracket), so this pattern cannot  # spellchecker:disable-line
-# double-count a badge finding.
-SEVERITY_PLAIN_RE='\[P[0-9]\]'
+# double-count a badge finding. Bounded to P0-P3 (the documented reviewer
+# range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
+# the finding count into a false READINESS_BLOCKED.
+SEVERITY_PLAIN_RE='\[P[0-3]\]'
 CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
@@ -213,8 +216,9 @@ $self_source_bodies"
 # a token), one per line — NOT free occurrences. A prose reply repeating
 # "VALID" in its evidence sentence must not count twice, or the gate
 # false-passes while findings lack per-finding rows (codex r3564093178). The
-# per-finding classification TABLE is the mandated reply format (babysit.md
-# §5.0.4), so non-table prose classifications intentionally do not count.
+# per-finding classification TABLE is the mandated reply format
+# (review-discipline.md §2), so non-table prose classifications intentionally
+# do not count.
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
 sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)

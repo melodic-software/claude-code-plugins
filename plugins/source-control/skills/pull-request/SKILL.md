@@ -1,6 +1,6 @@
 ---
 name: pull-request
-description: "Orchestrate the full PR lifecycle: prep (review + verify), create, monitor CI + review comments, merge, fetch CI logs, and babysit all open PRs in a self-pacing loop. Use when: 'create pr', 'ship it', 'pr prep', 'fix CI', 'address comments', 'monitor PR', 'babysit PRs', 'merge this', 'check pr status' — not for branch/worktree lifecycle (use /worktree) or committing without a PR (use /commit)."
+description: "Orchestrate the full PR lifecycle: prep (review + verify), create, monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status' — not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /pull-request prep, /pull-request create, /pull-request monitor, /pull-request merge, /pull-request full, /pull-request status)"
@@ -24,7 +24,7 @@ Orchestrate the PR lifecycle from quality review through merge and cleanup, with
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained: it runs on `git`, `gh`, and its own bundled scripts (under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`). Where a phase names an adjacent capability — a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a GitHub-events push channel — treat it as **optional**: if your environment provides it (a skill, plugin, agent, or MCP server), invoke it; otherwise proceed with the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
+This skill is self-contained: it runs on `git`, `gh`, and its bundled scripts (skill-private ones under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`, plugin-shared ones under `${CLAUDE_PLUGIN_ROOT}/scripts/`). Where a phase names an adjacent capability — a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a GitHub-events push channel — treat it as **optional**: if your environment provides it (a skill, plugin, agent, or MCP server), invoke it; otherwise proceed with the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
 
 Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.md`, and rules — notably: PR body template, branch naming, merge style (this skill defaults to squash), review-reply identity (some projects post bot-identity replies via a wrapper; default is plain `gh`), and any extra pre-PR gates. Read them before creating or merging.
 
@@ -52,7 +52,10 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
-| `babysit` | Phase 3+ (all-PR loop) | Discover all open PRs → checkout each branch → run monitor per-iteration checklist → fix valid bot findings → move to next. Designed for a self-pacing loop (`/loop /pull-request babysit`). Never merges. See [reference/babysit.md](reference/babysit.md) |
+
+For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use
+the sibling skill `/source-control:babysit-prs` — it wraps this skill's per-PR review discipline
+in fleet orchestration and never merges.
 
 ## Action defaults
 
@@ -117,7 +120,6 @@ Execute in order. Each phase is self-contained — read the relevant file for de
 | 1. Prep | [reference/prep.md](reference/prep.md) | `prep`, `prep quick`, `prep review-only`, `prep simplify-only` |
 | 2. Create | [reference/create.md](reference/create.md) | `create` |
 | 3. Monitor | [reference/monitor.md](reference/monitor.md) | `monitor`, `comments` |
-| 3+. Babysit | [reference/babysit.md](reference/babysit.md) | `babysit` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 
 ---
@@ -131,7 +133,7 @@ When entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), compl
   - **Dirty tree with unrelated WIP** (staged/unstaged/untracked from other work): do NOT switch — surface the WIP to the user and proceed read-only. Never `git stash` another session's WIP.
   - **Interactive session** (human present): changing branches re-points the working tree, so confirm the target branch with the user FIRST — UNLESS the invoking message already named the checkout (invoking `/pull-request monitor <N>` against a specific PR is intent, but the target-branch confirmation gate still governs the mechanical switch).
   - **Autonomous session** (e.g. `CLAUDE_CODE_REMOTE=true`): check out without prompting.
-  - **Babysit** runs its own per-PR checkout (babysit §5.1.2 Step 0.2) — this Step 0 is the single-PR `monitor` equivalent; don't double-checkout when reaching here from babysit.
+  - **`/source-control:babysit-prs`** runs its own per-PR checkout — this Step 0 is the single-PR `monitor` equivalent; don't double-checkout when the sibling loop skill applies this checklist.
 - [ ] **Step 1 — Cloud check:** if `CLAUDE_CODE_REMOTE=true`, use §3.0.0 `gh` polling. Skip remaining steps
 - [ ] **Step 2 — Push-channel gate (§3.0.05):** if your environment ships a GitHub-events push channel (an MCP server that delivers webhook events into the session), verify it is healthy per its own docs and this skill's §3.0.05 guidance (broker alive, subscriber fresh). No channel available → skip to Step 3's fallback
 - [ ] **Step 3 — Arm event delivery:** channel healthy → arm its PR filter for `<N>`; channel absent/unhealthy → arm the §3.0.1 Monitor tool watch
@@ -149,9 +151,9 @@ When a channel event, Monitor notification, or poll iteration fires, complete AL
   - [ ] C1 — Review-thread comments: `gh api repos/<owner>/<repo>/pulls/<N>/comments --paginate`
   - [ ] C2 — Issue-level comments: `gh api repos/<owner>/<repo>/issues/<N>/comments --paginate` (includes AI-review summaries, user replies, bot task-completion posts)
   - [ ] C3 — PR reviews: `gh api repos/<owner>/<repo>/pulls/<N>/reviews --paginate` (review bodies contain findings — APPROVED/CHANGES_REQUESTED/COMMENTED reviews all may carry actionable content)
-  - [ ] C4 — Read every comment body in full. Summaries and review posts from ANY AI agent (claude[bot], codex, cursor, copilot) contain findings that require classification — these are NOT informational. **Extract individual findings** per [babysit.md](reference/babysit.md) §5.0.4 — one comment with N findings = N work items, each needing individual D1-D7. **For ≥3 findings, MANDATORY subagent dispatch** per §5.0.4 — preserves main session context, structurally enforces per-finding ledger shape
+  - [ ] C4 — Read every comment body in full. Summaries and review posts from ANY AI agent (claude[bot], codex, cursor, copilot) contain findings that require classification — these are NOT informational. **Extract individual findings** per [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md) §2 — one comment with N findings = N work items, each needing individual D1-D7. **For ≥3 findings, MANDATORY subagent dispatch** per the same §2 — preserves main session context, structurally enforces per-finding ledger shape
 - [ ] **D — For EACH unaddressed **finding** (not comment — one comment may contain multiple findings):**
-  - [ ] D1 — Read full finding context (parent comment body + surrounding findings). For multi-finding comments dispatched to a subagent (§5.0.4), this work is in the subagent; the main session receives the ledger
+  - [ ] D1 — Read full finding context (parent comment body + surrounding findings). For multi-finding comments dispatched to a subagent ([review-discipline](../../reference/review-discipline.md) §2), this work is in the subagent; the main session receives the ledger
   - [ ] D2 — Explore referenced code (must be on the PR branch for accurate results)
   - [ ] D3 — **Validate the claim** before trusting: verify the assertion against actual code, run the command, check the file. Research non-trivial claims against official docs. Never implement a fix based solely on a bot's assertion — confirm it is correct first
   - [ ] D4 — Classify: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN. Classification MUST cite evidence from D2-D3
@@ -167,24 +169,6 @@ When a channel event, Monitor notification, or poll iteration fires, complete AL
 - [ ] **F — Report:** present the full readiness table OR list remaining blockers
 
 **Receiving an event is NOT processing it.** Each event must drive at LEAST steps A-C. New comment events must drive D1-D7 for that comment. Declaring "ready to merge" without completing E is a checklist violation.
-
-## Babysit per-PR checklist (MANDATORY — each PR within babysit loop)
-
-When running the `babysit` action, execute these steps for EACH PR discovered. The monitor entry checklist and per-iteration checklist apply per-PR — babysit wraps them in a multi-PR orchestration loop.
-
-- [ ] **Step 0 — PR discovery:** `gh pr list` filtered (skip draft, oldest-first). See [reference/babysit.md](reference/babysit.md) §5.0.2
-- [ ] **Step 0.1 — Evidence-based fresh rescan:** fetch ALL comments via the bundled `fetch-all-pr-comments.sh`, classify each as addressed/unaddressed by checking GitHub for substantive replies with classification + evidence. GitHub is the source of truth, not model memory. See §5.0.3
-- [ ] **Step 0.2 — Branch checkout:** `gh pr checkout <N>` (fork-safe — a fork's head branch is not fetchable from `origin` by name). MANDATORY before any comment investigation — exploration and research must run against PR branch code. Pre-checks first: already on the branch → no-op; branch checked out in ANOTHER worktree, or this worktree has foreign WIP → process read-only (no fix). See §5.1.2
-- [ ] **Step 0.3 — Branch freshness:** `git fetch origin <default-branch>` then `git merge-base --is-ancestor origin/<default-branch> HEAD`. If behind: integrate (merge vs rebase per the project's convention and the branch's own history — see §5.1.2), resolving conflicts via `/source-control:resolve-conflicts` discipline (understand both sides' intent; compose, don't side-pick) — in unattended babysit runs, a conflict that resolution can't settle conservatively is aborted and reported rather than guessed. Report status: current/rebased/conflict-aborted
-- [ ] **Steps 1-4 — Monitor entry checklist** (above) — run per-PR. A push channel re-arms its PR filter for each PR
-- [ ] **Steps A-F — Per-iteration monitoring checklist** (above) — run per-PR. Extract individual findings from each comment per §5.0.4 (one comment with N findings = N work items). **For any comment with ≥3 findings, MANDATORY subagent dispatch** per §5.0.4. Run D1-D7 per-finding, not per-comment. Verify each action landed on GitHub (D4.5/D5/D6/D7/D7.5 verification gates)
-- [ ] **Step 5 — Commit + push** fixes on the PR branch. Clean working tree. Post follow-up replies with commit SHAs (D7)
-- [ ] **Step 6 — PR transition:** advance to the next-oldest PR needing attention (round-robin). See §5.1.6
-- [ ] **Step 7 — Self-pace:** call `ScheduleWakeup` per the cadence table in §5.3 after all PRs are processed
-
-**Babysit NEVER merges.** Readiness gate pass → report ready → move to next PR. The user merges via `/pull-request merge` or `gh pr merge` manually.
-
-**Execution discipline:** babysit's primary failure mode is claiming to process findings without actually running per-finding D1-D7. Every iteration MUST output a completed checklist with evidence per step (see [babysit.md](reference/babysit.md) §5.5). "Done" means GitHub shows evidence — model memory of "I replied" or "I pushed" is not evidence. Re-query the API to verify each action landed.
 
 ---
 
