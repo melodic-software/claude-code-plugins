@@ -1,6 +1,6 @@
 # YouTube watch queue
 
-Epic-level durable queue for batching public YouTube URLs before `/knowledge:youtube watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
+Epic-level durable queue for batching public YouTube URLs before `/knowledge:youtube-digest watch`. **V1 = markdown table + filesystem claim stubs** — no JSON queue schema.
 
 ## Artifacts
 
@@ -44,14 +44,14 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json` — not in 
 1. Run exclusive claim (skill or CLI):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js claim <n> [--video-id <id>]
 ```
 
 1. Set row `#n` → `status: in_progress` in `QUEUE.md`.
 2. Read URL from row; bootstrap:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/run-watch.js "<url>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/run-watch.js "<url>"
 ```
 
 1. Execute skill phases 2–9 (or `run-resume.js` if slice exists and temp valid).
@@ -59,7 +59,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/run-watch.j
 3. Release claim:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js release <n>
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js release <n>
 ```
 
 ### FIFO auto-dequeue (`watch` with no URL)
@@ -82,7 +82,7 @@ Scan rows in `#` order. For each `pending` row, attempt `claim <n>`. On `EEXIST`
 If `claims/<n>.json` exists and `claimedAt` is older than **7 days**, skill may:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" watch/queue-claim.js stale-check
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" watch/queue-claim.js stale-check
 ```
 
 Then reset row `#n` from `in_progress` → `pending` and delete the stub (abandoned run).
@@ -117,7 +117,7 @@ On first `queue` action:
 Before appending rows, validate each URL and fetch its title + channel through the same auth-fallback path acquisition uses (a bot-checked video that `watch` could acquire with cookies is NOT rejected at queue time):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
 ```
 
 Emits a JSON array (one entry per URL). Per entry use `action` to decide:

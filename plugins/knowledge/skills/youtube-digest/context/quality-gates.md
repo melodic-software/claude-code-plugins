@@ -1,8 +1,8 @@
 # YouTube watch — quality gates
 
-Binary criteria for `/knowledge:youtube watch`. A phase is not done when it *feels* done — it is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
+Binary criteria for `/knowledge:youtube-digest watch`. A phase is not done when it *feels* done — it is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
 
-**SSOT for numeric floors:** `outcomeFloors()` in `${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/evals/check-watch-outcomes.js` (do not duplicate numbers elsewhere without syncing).
+**SSOT for numeric floors:** `outcomeFloors()` in `${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/evals/check-watch-outcomes.js` (do not duplicate numbers elsewhere without syncing).
 
 ## Tick discipline
 
@@ -29,7 +29,7 @@ Detected from `key-frames/vision-plan.md` (backtick class tag). Floors apply to 
 
 ## Phase gates (ordered)
 
-This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the `/knowledge:youtube` skill's "Output contract" table — that is the single authoritative enumeration; do not restate staging here.
+This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the `/knowledge:youtube-digest` skill's "Output contract" table — that is the single authoritative enumeration; do not restate staging here.
 
 | Phase | Blocking artifacts | Verify script |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 ## Outcome verification (host verify script)
 
-`node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
+`node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
 
 | ID | Binary criterion | FAIL → |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Host verify scripts prove **traceability and shape** (JSON valid, batch files on
 
 ## Research gate (host verify script)
 
-`node "${CLAUDE_PLUGIN_ROOT}/skills/youtube/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"`
+`node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"`
 
 | Criterion | FAIL → |
 | --- | --- |

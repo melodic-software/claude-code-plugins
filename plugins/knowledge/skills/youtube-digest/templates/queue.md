@@ -1,6 +1,6 @@
 # YouTube watch queue
 
-Epic-level batch list for `/knowledge:youtube queue` and `/knowledge:youtube watch` (no URL). Live file: `.work/<watch-epic>/QUEUE.md`. Claim stubs: `.work/<watch-epic>/claims/<n>.json`.
+Epic-level batch list for `/knowledge:youtube-digest queue` and `/knowledge:youtube-digest watch` (no URL). Live file: `.work/<watch-epic>/QUEUE.md`. Claim stubs: `.work/<watch-epic>/claims/<n>.json`.
 
 **SSOT:** `context/watch-queue.md`
 

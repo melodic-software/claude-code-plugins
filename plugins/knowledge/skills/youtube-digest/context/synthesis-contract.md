@@ -1,6 +1,6 @@
 # YouTube watch — synthesis contract
 
-SSOT for what belongs in `key-frames/frames/`. Applies to any `/knowledge:youtube watch` slice. Cite by heading; do not duplicate floors from `quality-gates.md`.
+SSOT for what belongs in `key-frames/frames/`. Applies to any `/knowledge:youtube-digest watch` slice. Cite by heading; do not duplicate floors from `quality-gates.md`.
 
 ## Value test
 
