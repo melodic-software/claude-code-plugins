@@ -114,8 +114,9 @@ merely to create a second configuration channel.
 A plugin requires a `setup` skill iff it has (a) a consumer-project configuration surface, (b) an
 external prerequisite — CLI, service, credential — or (c) non-trivial `userConfig`. Apply the
 criteria through the modular, configurable, repo-, machine-, and user-agnostic lens; zero-config
-zero-prerequisite plugins are exempt — setup is never blanket ceremony. Formatter and linter
-plugins carry a thin check-centric setup.
+zero-prerequisite plugins are exempt — setup is never blanket ceremony. For formatter and linter
+plugins the requirement is a thin check-centric setup; where one is not yet shipped, the fleet
+conformance audit tracks the gap.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
 `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. Setup must be:
