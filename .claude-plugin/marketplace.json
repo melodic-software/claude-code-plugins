@@ -236,6 +236,12 @@
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
+      "name": "re-anchor",
+      "source": "./plugins/re-anchor",
+      "category": "quality",
+      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "audit", "skill"]
+    },
+    {
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",

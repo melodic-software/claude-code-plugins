@@ -1,0 +1,54 @@
+{
+  "skill_name": "follow-our-standards",
+  "evals": [
+    {
+      "id": 1,
+      "name": "resolve-declared-source-and-audit-with-citations",
+      "prompt": "follow our standards — does the module I just added match our conventions? (Our CLAUDE.md points at our shared standards repo for engineering conventions.)",
+      "expected_output": "The skill resolves the standards source the project declares, states which source resolved, re-anchors the core principles, routes progressively to the specific conventions the new module touches, and audits it — naming each violation with a doc citation (path plus the principle) and correcting forward.",
+      "files": [],
+      "expectations": [
+        "Resolves the standards source the consuming project declares and states which source resolved",
+        "Loads relevance-routed via the source's own index rather than the whole convention set",
+        "Each audit finding cites the specific convention doc and principle it breaks",
+        "Corrects forward, or routes a shared-policy fix upstream instead of patching downstream"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-external-source-degrades-gracefully",
+      "prompt": "follow our standards for this change. (This repo declares no external standards source and has only a short CONTRIBUTING file.)",
+      "expected_output": "With no external standards source declared, the skill degrades per the ladder: it re-anchors the repo's own conventions and the portable baseline principles (DRY/SSOT, low coupling and high cohesion, change-together, SOLID, clean code), states that the baseline resolved, and audits against those rather than failing or inventing an org repo.",
+      "files": [],
+      "expectations": [
+        "Falls back to the repo's own conventions and the portable baseline when no external source is declared",
+        "States that the baseline / repo-own conventions resolved, so citations are traceable",
+        "Does not fabricate or assume a specific organization's standards repository"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "conversation-start-resolve-and-reanchor-only",
+      "prompt": "/re-anchor:follow-our-standards",
+      "expected_output": "Fired before any work exists, the skill resolves the standards source, loads the core docs, re-anchors the principles as active, and stops — nothing to audit yet, so it manufactures no findings.",
+      "files": [],
+      "expectations": [
+        "Resolves the source and re-anchors the core principles as active",
+        "Does NOT manufacture audit findings when there is no work in flight",
+        "Stops after the re-anchor"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-citation-no-finding-and-respect-managed-seam",
+      "prompt": "follow our standards — audit my edits. One of the files I changed is marked upstream-managed in our standards distribution's manifest.",
+      "expected_output": "The skill only reports findings it can cite to a convention doc (an uncitable opinion is dropped), and it respects the declared managed / locally-owned seam: it does not propose editing the upstream-managed file as the source of a change, routing that upstream instead. It does not restate the conventions verbatim in its output.",
+      "files": [],
+      "expectations": [
+        "Drops any finding it cannot tie to a specific convention doc — opinions are not standards violations",
+        "Does not propose editing the upstream-managed file directly; routes that change upstream",
+        "Does not copy/restate the convention text into its output"
+      ]
+    }
+  ]
+}
