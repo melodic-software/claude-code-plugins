@@ -187,6 +187,20 @@
         "contents": "read",
         "issues": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@885302176345486ca6c2c392d83131f9b5389251": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "label"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@f7e94a80254fdca0aa85a600a07d784753b090e3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
     }
   },
   "canonicalSelectorInputs": {
