@@ -20,13 +20,15 @@ This is the third routing bucket beside `/planning:interview`'s facts-vs-decisio
 
 **Interview the send, not the subject.** Interview the user only about the *send*, which they can always answer: who it goes to, and what they need back. Never quiz the user about the subject the recipient holds — that knowledge gap is exactly why the questionnaire exists. The questions in the document target the **gap** between what the recipient knows and what the user needs.
 
+**Route away when no one else holds the answer.** If it emerges that the user can answer the decision themselves (no third-party knowledge holder), do not produce a questionnaire for nobody — recommend `/planning:interview` and stop. Never invent a recipient to justify the artifact.
+
 ## The loop
 
 1. **Who is it going to?** Ask, in one exchange, the recipient's role, expertise, and relationship to the user. This fixes the questionnaire's tone and how much context it must carry. Done when you know who the recipient is and what they know that the user doesn't.
 
 2. **What do you need back?** Ask, in one exchange, the specific decisions or facts the user can't resolve alone and needs from this person. Done when you have a concrete list of what the user must walk away able to do or decide.
 
-3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, per [`templates/questionnaire.md`](templates/questionnaire.md). Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars — shared with the sibling planning skills) and write the document to the topic's **memory slice** as `<memory_dir>/<topic-slug>/questionnaire-<slug>.md` (default `.work/`; roots resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)), then report the path. Done when the file exists and every item the user named in step 2 is covered by a question.
+3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, per [`templates/questionnaire.md`](templates/questionnaire.md). Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars — shared with the sibling planning skills) and write the document to the topic's **memory slice** as `<memory_dir>/<topic-slug>/questionnaire-<recipient-role-slug>.md` (default `.work/`; the role slug — e.g. `dba`, `legal` — distinguishes questionnaires when one topic hands off to several people; roots resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)), then report the path. Done when the file exists and every item the user named in step 2 is covered by a question.
 
 The memory slice is deliberate: the document names a real person (name, role, relationship), and the memory tier's self-ignore guard keeps that PII out of git history. Never write the questionnaire to the working directory or a tracked path.
 

@@ -22,6 +22,7 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/` — never committed |
 | `baselines/` — machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
 | Opt-in `brainstorm.md` (`/planning:brainstorm` — never a default write) | Memory | `.work/<topic-slug>/` |
+| `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/` — never committed; names a real person, so the memory tier's self-ignore is load-bearing |
 
 `contract_tier: local` moves the contract rows into the memory slice with an identical layout —
 the contract's solo/offline mode. Roots are configurable via the concern file's `contract_dir` /
