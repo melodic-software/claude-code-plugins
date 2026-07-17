@@ -1,13 +1,14 @@
 # session-flow
 
-A Claude Code plugin bundling four skills for one cohesive capability: managing the lifecycle of a
-working session — where you are in the work, how to pause and resume it, what to learn from it, and
-how to arm it for delegation-heavy tasks.
+A Claude Code plugin bundling five skills for one cohesive capability: managing the lifecycle of a
+working session — where you are in the work, how to pause and resume it, how to recover it after an
+interruption, what to learn from it, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
+| `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 
@@ -45,6 +46,20 @@ skill always STOPS after emitting the save-point — continuing would defeat the
 /session-flow:handoff prompt          # force prompt-only
 /session-flow:handoff file phase-3    # force full handoff, topic "phase-3"
 /session-flow:handoff --bg            # hand the resume prompt to a background agent
+```
+
+### keep-going
+
+The resume counterpart to `handoff`: recovers a session after any interruption — a rate limit, a
+crash, a disconnect, or a long gap. Inventories the off-thread work (background tasks, shells,
+monitors, scheduled tasks, workflows, subagents — whatever the current harness exposes), inspects
+each item's real state from its own artifact rather than assuming it finished or died, resumes the
+resumable and restarts the dead, then reconciles the main thread from a fresh read of its backing
+plan or handoff file and continues. Safe, idempotent work auto-resumes; re-running anything with
+external side effects (a push, a PR comment, a deploy) is gated so a re-fire cannot double-apply.
+
+```shell
+/session-flow:keep-going              # inventory → inspect → recover → reconcile → report
 ```
 
 ### retro

@@ -161,7 +161,7 @@
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "workflow",
-      "tags": ["workflow", "handoff", "retro", "retrospective", "session", "orchestration", "skill"]
+      "tags": ["workflow", "handoff", "keep-going", "resume", "recover", "retro", "retrospective", "session", "orchestration", "skill"]
     },
     {
       "name": "tdd",
