@@ -76,9 +76,7 @@ the subagent cost.
 
 ## Gotchas
 
-- The discipline may already be in context; re-invoking does not reload it,
-  but it re-asserts salience near the tail. That salience effect — not a
-  fresh copy of the rules — is the mechanism.
-- Self-auditing in the same context that produced the drift is weak by
-  construction; for anything load-bearing, prefer a fresh-context subagent
-  (or `deep`) over trusting the self-check.
+- "Verifying" a claim against the same recall that produced it is not
+  verification — the research-specific trap. Reach for a real source or the
+  live environment; where your own judgement is the suspect, `deep` is this
+  skill's built-in fresh-context escalation.

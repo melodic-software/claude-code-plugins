@@ -84,8 +84,8 @@ the audit runs against.
 
 ## Gotchas
 
-- Cite the source you actually read this session. If only a remote fetch
-  or the portable baseline applied, the citation is to that, not to an
-  assumed local path.
+- When only a remote fetch or the portable baseline resolved, cite THAT —
+  not an assumed local path a reader might expect, since the standards may
+  live in several places.
 - The convention set evolves; trust the source's own index over any doc
   list reproduced from memory.
