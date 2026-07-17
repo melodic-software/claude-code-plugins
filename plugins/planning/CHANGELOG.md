@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` records that
+  baselines are checkout-local and `PLAN.md` carries distilled values only;
+  `/planning:plan`'s baseline step no longer directs `PLAN.md` to reference the stored
+  memory-slice capture (pointer discipline — the path is invisible outside the writing checkout).
+- `/planning:wayfind` map-issue Notes carry durable pointers only (PRs, committed docs, prior
+  items, external links); memory-tier artifact content is distilled inline instead of pointed at —
+  tracker issues are durable surfaces under the contract's pointer discipline.
+
 ## [0.16.0]
 
 ### Added
