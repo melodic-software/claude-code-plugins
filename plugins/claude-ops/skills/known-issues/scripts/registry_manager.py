@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage registry.json for the /troubleshoot skill.
+"""Manage registry.json for the /known-issues skill.
 
 Zero external dependencies — stdlib only.
 
@@ -526,7 +526,7 @@ def action_stats(
 def build_parser() -> argparse.ArgumentParser:
     """Build argparse parser with subcommands."""
     parser = argparse.ArgumentParser(
-        description="Manage registry.json for the /troubleshoot skill.",
+        description="Manage registry.json for the /known-issues skill.",
     )
     parser.add_argument(
         "--data-dir",

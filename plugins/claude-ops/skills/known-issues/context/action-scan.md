@@ -1,6 +1,6 @@
 # Action: `scan`
 
-**Usage:** `/troubleshoot scan`
+**Usage:** `/known-issues scan`
 
 Grep entire repo for GitHub issue references (pattern: `#NNNNN` with `github.com/anthropics` or `github.com/microsoft/mcp` context) and add ones not in registry.
 

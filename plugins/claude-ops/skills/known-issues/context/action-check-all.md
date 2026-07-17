@@ -1,6 +1,6 @@
 # Action: `check-all`
 
-**Usage:** `/troubleshoot check-all`
+**Usage:** `/known-issues check-all`
 
 Check every registry issue against current GitHub status. Primary purpose: find issues RESOLVED since last check — unblocked work needing follow-up.
 

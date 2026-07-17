@@ -1,10 +1,10 @@
 {
-  "skill_name": "troubleshoot",
+  "skill_name": "known-issues",
   "evals": [
     {
       "id": 1,
       "name": "no-args-defaults-to-status",
-      "prompt": "/claude-ops:troubleshoot",
+      "prompt": "/claude-ops:known-issues",
       "expected_output": "With no arguments, the skill runs the status action — a quick health summary (registry stats plus a model-quality snapshot). It does not run search, create, or any mutating action.",
       "files": [],
       "expectations": [
@@ -26,7 +26,7 @@
     {
       "id": 3,
       "name": "create-runs-preflight-gates-before-drafting",
-      "prompt": "/claude-ops:troubleshoot create bug \"Stop hook doesn't fire when I exit with Ctrl-C\"",
+      "prompt": "/claude-ops:known-issues create bug \"Stop hook doesn't fire when I exit with Ctrl-C\"",
       "expected_output": "The create action runs its mandatory preflight gates BEFORE drafting — at minimum a duplicate search of existing open and recently-closed issues (presenting any matches and proceeding only on explicit 'no duplicates' confirmation, else suggesting a comment on the existing issue) plus the live-template fetch and version check. Only after the gates pass does it draft the issue in template format, show the draft for review, and file solely on explicit user confirmation. It never auto-files and never skips the duplicate-search gate.",
       "files": [],
       "expectations": [
@@ -39,7 +39,7 @@
     {
       "id": 4,
       "name": "telemetry-question-routes-away",
-      "prompt": "My token burn rate and hook latency this week — does /claude-ops:troubleshoot report those, or is that a different tool's job?",
+      "prompt": "My token burn rate and hook latency this week — does /claude-ops:known-issues report those, or is that a different tool's job?",
       "expected_output": "This asks for local telemetry, which this skill does not read. It routes the user to /claude-ops:observability instead of attempting a telemetry read or a GitHub bug search.",
       "files": [],
       "expectations": [
@@ -50,7 +50,7 @@
     {
       "id": 5,
       "name": "own-code-bug-routes-away",
-      "prompt": "I found a bug in my own app's applyLateFee billing function (not a Claude Code bug) — does /claude-ops:troubleshoot track that, or should I file it elsewhere?",
+      "prompt": "I found a bug in my own app's applyLateFee billing function (not a Claude Code bug) — does /claude-ops:known-issues track that, or should I file it elsewhere?",
       "expected_output": "This is a defect in the user's own code, not a Claude product issue. The skill declines to add it to the Claude-product registry or search Claude repos for it, and routes to /bug-report:write (or a manual defect write-up when that plugin is absent).",
       "files": [],
       "expectations": [

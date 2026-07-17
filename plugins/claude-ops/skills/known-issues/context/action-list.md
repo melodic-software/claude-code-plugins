@@ -1,6 +1,6 @@
 # Action: `list`
 
-**Usage:** `/troubleshoot list [--category <cat>] [--status <status>]`
+**Usage:** `/known-issues list [--category <cat>] [--status <status>]`
 
 Show all tracked issues from registry, grouped by status and category.
 

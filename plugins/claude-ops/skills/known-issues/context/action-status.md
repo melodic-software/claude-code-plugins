@@ -1,6 +1,6 @@
 # Action: `status`
 
-**Usage:** `/troubleshoot` (no args) or `/troubleshoot status`
+**Usage:** `/known-issues` (no args) or `/known-issues status`
 
 Quick health snapshot for proactive auto-invocation. Combines registry stats with a lightweight quality check.
 
@@ -16,8 +16,8 @@ Quick health snapshot for proactive auto-invocation. Combines registry stats wit
 Use the registry manager script for efficient stats (add `--data-dir` per the SKILL.md registry-location rule when a `registry_dir` is configured):
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/skills/troubleshoot/scripts/registry_manager.py" stats
-python "${CLAUDE_PLUGIN_ROOT}/skills/troubleshoot/scripts/registry_manager.py" list --stale 14
+python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" stats
+python "${CLAUDE_PLUGIN_ROOT}/skills/known-issues/scripts/registry_manager.py" list --stale 14
 ```
 
 **Step 2: Lightweight quality check** — fetch service health (fast):
@@ -43,7 +43,7 @@ Report overall status only (Operational / Degraded / Outage). Skip Marginlab for
 - **status.claude.com**: Operational / Degraded / Outage
 
 ### Recommendations
-- Run `/troubleshoot check-all` to refresh stale issues
-- Run `/troubleshoot quality` for full quality analysis
-- Run `/troubleshoot search <feature>` before building on a CC mechanism
+- Run `/known-issues check-all` to refresh stale issues
+- Run `/known-issues quality` for full quality analysis
+- Run `/known-issues search <feature>` before building on a CC mechanism
 ```

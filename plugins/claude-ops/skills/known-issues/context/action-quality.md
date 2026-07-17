@@ -1,6 +1,6 @@
 # Action: `quality`
 
-**Usage:** `/troubleshoot quality`
+**Usage:** `/known-issues quality`
 
 Check current Claude model quality and service health from multiple sources. Use at start of work sessions or when you notice degraded performance.
 

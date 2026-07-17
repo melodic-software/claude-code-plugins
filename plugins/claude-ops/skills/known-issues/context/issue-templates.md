@@ -190,7 +190,7 @@ These fields can be pre-filled automatically:
 | Operating System | `uname -s` → Windows (MINGW/MSYS), macOS (Darwin), Linux |
 | Terminal/Shell | `$TERM_PROGRAM` or `$TERM` |
 | Platform | "Anthropic API" (default for this repo) |
-| Is a regression? | If issue found via `/troubleshoot search`, check registry for prior working state |
+| Is a regression? | If issue found via `/known-issues search`, check registry for prior working state |
 
 ## Contact links (non-issue options)
 
