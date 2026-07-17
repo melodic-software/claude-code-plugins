@@ -1,10 +1,10 @@
 {
-  "skill_name": "domain-modeling",
+  "skill_name": "ubiquitous-language",
   "evals": [
     {
       "id": 1,
       "name": "preserves-consumer-glossary-convention",
-      "prompt": "/planning:domain-modeling We resolved that a Claimant is the person requesting coverage, never the insured organization. Treat evals/fixtures/custom-terms.md as the consumer project's existing glossary and update the term there.",
+      "prompt": "/domain-driven-design:ubiquitous-language We resolved that a Claimant is the person requesting coverage, never the insured organization. Treat evals/fixtures/custom-terms.md as the consumer project's existing glossary and update the term there.",
       "expected_output": "Updates the existing custom-terms.md table in its established row/column shape, defining Claimant tightly and recording 'insured organization' in its Rejected names column. It does not create or prescribe a GLOSSARY.md file.",
       "files": ["evals/fixtures/custom-terms.md"],
       "expectations": [
@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "unresolved-language-does-not-write",
-      "prompt": "/planning:domain-modeling We keep alternating between Account, Customer, and Tenant, and nobody agrees whether these are one concept or three. Please add something to the glossary now so we can move on.",
+      "prompt": "/domain-driven-design:ubiquitous-language We keep alternating between Account, Customer, and Tenant, and nobody agrees whether these are one concept or three. Please add something to the glossary now so we can move on.",
       "expected_output": "Declines to manufacture consensus or write a speculative entry. Exercises the terms against a domain scenario and asks one focused question that resolves their conceptual boundary before any glossary update.",
       "files": [],
       "expectations": [
@@ -30,7 +30,7 @@
     {
       "id": 3,
       "name": "routes-known-context-without-discovery",
-      "prompt": "/planning:domain-modeling In the Support context, Ticket means a customer's request for help; Billing also uses ticket to mean a metered charge record. Use the supplied context map and glossaries, and record only the resolved Support meaning. Do not redesign our contexts.",
+      "prompt": "/domain-driven-design:ubiquitous-language In the Support context, Ticket means a customer's request for help; Billing also uses ticket to mean a metered charge record. Use the supplied context map and glossaries, and record only the resolved Support meaning. Do not redesign our contexts.",
       "expected_output": "Reads the supplied map, routes the new definition only to support-terms.md, and leaves billing-terms.md and the context boundaries unchanged. It does not duplicate the entry or run bounded-context discovery.",
       "files": [
         "evals/fixtures/context-map.md",
@@ -47,7 +47,7 @@
     {
       "id": 4,
       "name": "no-spec-or-generic-term-pollution",
-      "prompt": "/planning:domain-modeling Add Retry to our domain glossary with the definition 'a Polly policy stored in Redis that retries the HTTP request three times with exponential backoff.'",
+      "prompt": "/domain-driven-design:ubiquitous-language Add Retry to our domain glossary with the definition 'a Polly policy stored in Redis that retries the HTTP request three times with exponential backoff.'",
       "expected_output": "Rejects the proposed entry because Retry is generic programming vocabulary and the proposed text is an implementation specification, not a project-specific what-it-IS domain definition. It asks for evidence of a distinct project-domain meaning before admitting it.",
       "files": [],
       "expectations": [
@@ -60,7 +60,7 @@
     {
       "id": 5,
       "name": "no-empty-file-or-fixed-filename",
-      "prompt": "/planning:domain-modeling Set up our domain glossary structure now. We have not resolved any domain terms, the repo has no vocabulary convention, and I will not be available to answer placement questions.",
+      "prompt": "/domain-driven-design:ubiquitous-language Set up our domain glossary structure now. We have not resolved any domain terms, the repo has no vocabulary convention, and I will not be available to answer placement questions.",
       "expected_output": "Does not create empty glossary or context-map scaffolding and does not choose a universal filename. It reports that creation is deferred until a real term resolves and a consumer convention can be inferred or confirmed.",
       "files": [],
       "expectations": [
@@ -73,7 +73,7 @@
     {
       "id": 6,
       "name": "passive-lookup-does-not-mutate",
-      "prompt": "/planning:domain-modeling Read evals/fixtures/custom-terms.md and tell me what Policyholder means. This is a lookup only; no terminology changed.",
+      "prompt": "/domain-driven-design:ubiquitous-language Read evals/fixtures/custom-terms.md and tell me what Policyholder means. This is a lookup only; no terminology changed.",
       "expected_output": "Answers from the existing entry without rewriting, normalizing, or relocating the glossary. It recognizes that passive reading is not an active model-language change.",
       "files": ["evals/fixtures/custom-terms.md"],
       "expectations": [
