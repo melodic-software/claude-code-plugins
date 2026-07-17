@@ -253,6 +253,29 @@ path and prerequisite tests, local `--plugin-dir` smoke tests, and the repositor
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
 
+## Fresh-eyes checkpoints
+
+A context that produced work is structurally the weakest place to judge that work: the reasoning that
+made a mistake plausible is still active, so a self-check inherits the bias. Subagents remove it — each
+runs in its own context window ([subagents](https://code.claude.com/docs/en/sub-agents), verified
+2026-07-17) — so the judging pass starts blind to the reasoning under review.
+
+The rule: **a skill step whose output judges work produced in the same context delegates that judgment
+to a fresh-context agent.** Mandatory in the skill's design, not left to the invoker to remember. Three
+bias classes name the trigger:
+
+- **author-verifier** — verifying a change the same context authored (a verification skill confirming
+  its own session's implementation, a pre-PR self-review);
+- **plan-attacker** — adversarially attacking a plan the same context helped shape (a devil's-advocate
+  pass run in the authoring session);
+- **self-grade** — scoring the same context's output against criteria (a quality gate in self mode, a
+  synthesis step grading its own lock).
+
+What does not need it: deterministic gates (a script's pass/fail cannot be biased by context — prefer
+one wherever the judgment is mechanical), and judgment over external input the context did not produce
+(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+exactly where bias is structural, and nothing elsewhere.
+
 ## Authoritative references
 
 The complete categorized index of plugin-relevant official pages is
