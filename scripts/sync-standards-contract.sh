@@ -18,6 +18,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 src="docs/conventions/standards/README.md"
+schema="docs/conventions/standards/standards.schema.json"
 changelog="docs/conventions/standards/CHANGELOG.md"
 
 copies=(plugins/*/reference/standards-contract.md)
@@ -54,7 +55,9 @@ sync)
   ;;
 --check-bump)
   base="${2:?usage: sync-standards-contract.sh --check-bump <base-ref>}"
-  if git diff --quiet "$base" -- "$src"; then
+  # The schema is contract surface too — a schema-only change still
+  # requires the version, changelog, and carrying-plugin bumps.
+  if git diff --quiet "$base" -- "$src" "$schema"; then
     echo "Contract unchanged vs $base; no version bumps required."
     exit 0
   fi

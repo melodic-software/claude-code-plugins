@@ -22,6 +22,7 @@ ok() {
 
 CANONICAL="docs/conventions/standards/README.md"
 CHANGELOG="docs/conventions/standards/CHANGELOG.md"
+SCHEMA="docs/conventions/standards/standards.schema.json"
 
 canonical_v1() {
   printf -- '---\nstandards-contract: 1.0.0\n---\n\n# Standards Convention\n\ncontract body v1\n'
@@ -251,6 +252,26 @@ else
     ok "--check-bump reports all three stale conditions before exiting"
   else
     fail "expected all three STALE messages in one run, got: $out"
+  fi
+fi
+rm -rf "$f"
+
+# --- --check-bump: schema-only change still requires the bumps --------------
+f="$(new_fixture)"
+canonical_v1 >"$f/$CANONICAL"
+changelog_v1 >"$f/$CHANGELOG"
+printf '{"title":"standards concern file v1"}\n' >"$f/$SCHEMA"
+carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
+carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+base="$(git_fixture "$f")"
+printf '{"title":"standards concern file v1","description":"schema-only change"}\n' >"$f/$SCHEMA"
+if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
+  fail "--check-bump should fail on an unbumped schema-only change, got success: $out"
+else
+  if echo "$out" | grep -q "STALE CONTRACT VERSION"; then
+    ok "--check-bump treats the schema as contract surface (schema-only change needs bumps)"
+  else
+    fail "expected STALE CONTRACT VERSION on schema-only change, got: $out"
   fi
 fi
 rm -rf "$f"

@@ -232,7 +232,11 @@ skills implement this section by reference; they do not restate it.
    overwrite it.
 4. Interview: confirm the standards root (persist to
    `.claude/standards.yaml` only on relocation), propose surfaces
-   inferred from the repository.
+   inferred from the repository. Before writing the concern file, apply
+   the same `git check-ignore -v` guard to `.claude/standards.yaml`
+   itself — an ignored concern file would leave future clones silently
+   falling back to the default root; on a match, STOP and surface the
+   rule.
 5. Committed-root guard, then write the skeleton: before creating
    anything, run `git check-ignore -v` on a representative path inside
    the root (e.g. `<standards_dir>/README.md`); if a consumer ignore rule
