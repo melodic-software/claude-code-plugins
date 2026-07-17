@@ -30,12 +30,12 @@
       "id": 3,
       "name": "fix-criterion-from-diagnose-routing",
       "prompt": "/verification:confirm fix",
-      "expected_output": "Applies the `fix` outcome criterion: original bug symptom resolved + no regression. Reads context/fix.md. This is the routing target /debugging:diagnose Phase 6 uses for its fix-confirmation step (do-skills DO the fix; /verification:confirm VERIFIES the outcome).",
+      "expected_output": "Applies the `fix` outcome criterion: original bug symptom resolved + no regression. Reads context/fix.md. This is the routing target /debugging:debug Phase 6 uses for its fix-confirmation step (do-skills DO the fix; /verification:confirm VERIFIES the outcome).",
       "files": [],
       "expectations": [
         "Confirms the original symptom is resolved AND checks for regression",
         "Reads context/fix.md for the criterion detail",
-        "Recognizes itself as the verification target that /debugging:diagnose routes to, not a re-implementation of the fix loop"
+        "Recognizes itself as the verification target that /debugging:debug routes to, not a re-implementation of the fix loop"
       ]
     },
     {

@@ -10,7 +10,7 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 | Skill | Invoke | What it does |
 |---|---|---|
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
-| `youtube` | `/knowledge:youtube` | Watches a single public YouTube video (transcript + visual frames), harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
+| `youtube-digest` | `/knowledge:youtube-digest` | Watches a single public YouTube video (transcript + visual frames), harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
 | `setup` | `/knowledge:setup` | Validates `library_dir` against the repository's artifact convention and routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## What book-distill produces
@@ -50,7 +50,7 @@ any instructions injected through its text.
 
 ## Revisit condition
 
-`youtube` ships as a skill inside this plugin rather than a standalone plugin
+`youtube-digest` ships as a skill inside this plugin rather than a standalone plugin
 because a separate plugin cannot reach this one's vendored `video-digestion`
 package — plugins are isolated, with no sibling reach-outs. Extract a standalone
 `youtube` plugin once that package is independently distributable, or a consumer

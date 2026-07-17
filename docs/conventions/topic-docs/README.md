@@ -215,7 +215,7 @@ The prior conventions (`.claude/notes/<slug>`, `.claude/handoffs/`,
 compatibility layer, no legacy knobs, no dual-read windows, no
 migration tooling. Skills read and write only the resolved convention
 locations. A repo holding content at a retired location moves it by
-hand (or asks the session to); the declutter tooling flags stale
+hand (or asks the session to); the audit-noise tooling flags stale
 citations of retired paths as ghost refs.
 
 ## Implementers
@@ -230,7 +230,7 @@ citations of retired paths as ghost refs.
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) |
 | claude-ops | telemetry | machine state |
-| docs-hygiene | (reader) declutter detector recognizes these shapes | — |
+| docs-hygiene | (reader) audit-noise detector recognizes these shapes | — |
 
 ## Versioning
 

@@ -27,13 +27,13 @@
     },
     {
       "id": 3,
-      "name": "product-bug-routes-to-troubleshooting",
+      "name": "product-bug-routes-to-known-issues",
       "prompt": "Is the Stop hook a known broken Claude Code bug right now? Any workarounds?",
-      "expected_output": "This is a Claude product-bug / GitHub-issue question, not a local-telemetry read. The skill routes the user to /claude-ops:troubleshoot instead of answering from the OTEL/telemetry store.",
+      "expected_output": "This is a Claude product-bug / GitHub-issue question, not a local-telemetry read. The skill routes the user to /claude-ops:known-issues instead of answering from the OTEL/telemetry store.",
       "files": [],
       "expectations": [
         "The response identifies the request as a Claude product-bug question rather than a local telemetry read",
-        "The response routes to `/claude-ops:troubleshoot` instead of querying the telemetry store"
+        "The response routes to `/claude-ops:known-issues` instead of querying the telemetry store"
       ]
     },
     {
