@@ -64,7 +64,7 @@ Every action starts by calling the bundled read-only script — never hand-parse
 files directly, and never write them:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/scripts/fleet-state.sh [--marketplace <name> | --all]
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name> | --all]
 ```
 
 Read [context/scope-semantics.md](context/scope-semantics.md) before interpreting its output — in
