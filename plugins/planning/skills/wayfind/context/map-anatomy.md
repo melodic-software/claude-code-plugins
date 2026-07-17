@@ -39,7 +39,7 @@ an exclusion here is itself a decision; note why.>
 
 ## Typed decision items
 
-Each sub-issue is one **sharp** question. The `wayfind:<type>` label sets both the routing
+Each sub-issue is one **sharp** question. The `wayfind: <type>` label sets both the routing
 target (which skill resolves it) and the default mode:
 
 | Type | Default mode | Meaning |
@@ -51,7 +51,7 @@ target (which skill resolves it) and the default mode:
 | `task` | per-item | Decision-unblocking do-work — no feature code, no PR tie |
 
 Mode is materialized as the `needs-human` label (present = HITL). Extension policy: a new
-`wayfind:<type>` value requires an existing routing target — never a type with nowhere to go.
+`wayfind: <type>` value requires an existing routing target — never a type with nowhere to go.
 
 ## Invariants (checked at every `work` session start)
 

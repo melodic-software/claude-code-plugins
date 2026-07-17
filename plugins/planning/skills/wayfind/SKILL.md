@@ -76,7 +76,7 @@ an interactive session — do not fabricate a map.
    commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
    decision item; foggy → *Not-yet-specified* prose.
 2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
-   taxonomy (`work-map`, `wayfind:*`, `needs-human`) is present — an unknown `--label` fails the
+   taxonomy (`work-map`, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
    create. Honor the consuming repository's declared label ownership. If it names a label-as-code
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
    ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
@@ -111,11 +111,11 @@ an interactive session — do not fabricate a map.
 
    | Type label | Mode | Routes to |
    |---|---|---|
-   | `wayfind:research` | autonomous-capable | `/discovery:research` (falls back to inline research if not installed) |
-   | `wayfind:interview` | HITL | `/planning:interview` |
-   | `wayfind:design` | HITL | `/planning:design` — or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `wayfind:prototype` | HITL | `/prototype:logic` (behaviour/feasibility) or `/prototype:ui` (design/UX) — the item body says which |
-   | `wayfind:task` | per-item | Direct decision-unblocking work — no feature code, no PR tie |
+   | `wayfind: research` | autonomous-capable | `/discovery:research` (falls back to inline research if not installed) |
+   | `wayfind: interview` | HITL | `/planning:interview` |
+   | `wayfind: design` | HITL | `/planning:design` — or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
+   | `wayfind: prototype` | HITL | `/prototype:logic` (behaviour/feasibility) or `/prototype:ui` (design/UX) — the item body says which |
+   | `wayfind: task` | per-item | Direct decision-unblocking work — no feature code, no PR tie |
 
 5. **Graduate on every resolution.** When the decision resolves: post the resolution as a
    comment on the item, add its one-line pointer to the map's *Decisions-so-far* index, then

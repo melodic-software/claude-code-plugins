@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Changed
+
+- **`/planning:wayfind` label taxonomy follows the colon-space axis grammar**: the typed decision-item
+  labels are now `wayfind: research|interview|design|prototype|task` (previously `wayfind:research`
+  etc.), so label-as-code owners with a `prefix: value` naming grammar can declare the taxonomy
+  verbatim instead of carrying a grammar exception. `work-map` and `needs-human` stay flat
+  (grammar-exempt). Frontier queries and the bootstrap presence check match the new names. Maps
+  charted under the old names need a one-time label rename before `work` mode can route them.
+
 ## [0.11.1]
 
 ### Fixed
