@@ -63,6 +63,11 @@ run_state() {
   [[ -f "$case_dir/installed_plugins.json" ]] || write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
   [[ -f "$case_dir/known_marketplaces.json" ]] || write "$case_dir/known_marketplaces.json" '{}'
   [[ -f "$case_dir/user_settings.json" ]] || write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+  # Resolve bash by absolute path (via the current, unfiltered PATH) rather
+  # than letting `env` look up the bare name "bash" in the child's PATH —
+  # a caller that overrides PATH (e.g. the jq-missing case below) would
+  # otherwise be unable to strip a directory without also making `bash`
+  # itself unresolvable.
   env \
     FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
@@ -70,7 +75,7 @@ run_state() {
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
     FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     "$@" \
-    bash "$SCRIPT" "${ARGS[@]}" 2>&1
+    "$(command -v bash)" "$SCRIPT" "${ARGS[@]}" 2>&1
 }
 
 # ============================================================================
@@ -338,24 +343,30 @@ assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
 # ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found
 # ============================================================================
-# Strip only jq's own directory out of PATH (rather than rebuilding PATH from
-# scratch via symlinks) so bash, dirname, and every other tool the script
-# needs stay resolvable — symlinking coreutils individually is unreliable on
-# Windows without elevated rights.
-# Route through run_state's fixture builder (not a bare script invocation) so
-# jq-absence is the only variable under test — a bare invocation relies on
-# default file paths, which a dev machine's real Claude Code install happens
-# to satisfy but a clean CI runner does not, surfacing "installed_plugins.json
-# not found" before the script ever reaches its jq check.
+# Stripping only jq's own directory (`dirname "$(command -v jq)"`) out of PATH
+# is not enough on a usr-merge Linux host (e.g. GitHub's ubuntu-latest
+# runners): /bin is a symlink to /usr/bin, so jq is reachable via BOTH PATH
+# entries and removing one string still leaves the other resolving to the
+# same file — the script finds jq anyway and the case never exercises what
+# it claims to test (this passed on a Windows dev machine, where no such
+# aliasing exists, but failed in CI).
+#
+# Fix: build a PATH containing only a fresh directory with a *copy* (not
+# symlink — symlinking coreutils individually is unreliable on Windows
+# without elevated rights) of `dirname`, the sole external command
+# fleet-state.sh invokes before its own jq presence check. That guarantees
+# jq is genuinely absent regardless of PATH aliasing, while dirname stays
+# resolvable. `bash` itself no longer needs PATH lookup — run_state resolves
+# it by absolute path before applying this override.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": []}'
 ARGS=(--marketplace market1)
-real_jq=$(command -v jq)
-jq_dir=$(dirname "$real_jq")
-filtered_path=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vF "$jq_dir" | tr '\n' ':')
-out=$(run_state "$case_dir" "PATH=$filtered_path")
+no_jq_bin="$case_dir/no-jq-bin"
+mkdir -p "$no_jq_bin"
+cp "$(command -v dirname)" "$no_jq_bin/dirname"
+out=$(run_state "$case_dir" "PATH=$no_jq_bin")
 rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
 assert_contains "jq missing: actionable notice" "$out" "jq required"
