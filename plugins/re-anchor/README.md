@@ -14,6 +14,7 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:do-your-research` | Research and no-assumptions before assertion |
 | `/re-anchor:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
+| `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -60,6 +61,21 @@ internal-name coupling, and closed enumerations, then corrects by pointing.
 
 ```shell
 /re-anchor:point-dont-copy         # re-anchor + audit + correct
+```
+
+### reason-dont-recite
+
+Re-anchors incumbency discipline: inherited content — a repo's docs,
+conventions, structure, processes — is evidence of what is, never a
+self-justifying argument for what should be. A choice whose only support is
+precedent ("that's how it's done here") or "I don't know why" earns a
+first-principles re-derivation, not compliance. The distinct axis from
+do-your-research: that skill acquires external evidence you lack; this one
+questions internal evidence you inherited. A standards disagreement it
+surfaces routes upstream via follow-our-standards.
+
+```shell
+/re-anchor:reason-dont-recite      # re-anchor + audit + correct
 ```
 
 ## Consumer conventions

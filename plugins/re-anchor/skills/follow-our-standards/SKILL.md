@@ -70,9 +70,14 @@ the audit runs against.
   customizable. When such a manifest exists, never propose editing a
   managed materialization as the source of a change; route it upstream. If
   the source declares no such seam, this note does not apply.
-- **Route shared-policy fixes upstream.** A change that belongs in the
-  shared standards, not this repo, is named and routed there rather than
-  patched into the downstream copy.
+- **Route shared-policy fixes upstream — never silent deviation, never
+  silent conformance.** A change that belongs in the shared standards, not
+  this repo, is named and routed there through the proper change path (a
+  standards PR), rather than patched into the downstream copy. When the work
+  disagrees with a standard, that disagreement goes upstream too — do not
+  quietly ignore the standard, and do not quietly comply with one you have
+  reason to think is wrong. (This is the upstream-routing path that
+  `/re-anchor:reason-dont-recite` hands a standards disagreement to.)
 
 ## What this skill does NOT do
 

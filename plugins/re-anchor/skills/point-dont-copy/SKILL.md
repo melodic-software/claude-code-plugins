@@ -15,60 +15,59 @@ Read it; this file adds only what is specific to duplication discipline.
 
 ## The discipline this re-anchors
 
-Point at the living source; do not copy what it owns. Resolve the source
-of truth per the method doc's ladder: if the consuming project states a
-reference-don't-duplicate or progressive-disclosure convention in its own
-`CLAUDE.md` / `.claude/rules/`, re-anchor THAT. Otherwise re-anchor this
-portable baseline, in three parts.
+Point at the living source; do not copy what it owns. This doctrine is
+already owned by convention docs — re-anchor THEM, do not restate their
+content here. Resolve the source of truth per the method doc's ladder:
 
-### 1. Pointer over copy
+- **Facts you own (in-repo).** Your organization's reference-don't-duplicate
+  convention — every fact has one source of truth; consumers cite it by a
+  stable anchor rather than restate it; literal versus semantic duplication;
+  the describe / use / expose roles a file plays toward a fact.
+- **Facts an upstream owns (external).** Your organization's
+  documentation-and-citations convention — cite the upstream and fetch it at
+  read time; do not recap upstream-owned catalogs, schemas, flag
+  inventories, or defaults into tracked files; place the citation at the
+  sentence that defers to it; a stored external value needs a recheck
+  trigger.
+- **Personal layer.** A global engineering-quality rule (e.g. your
+  `~/.claude/CLAUDE.md`) that says never duplicate content and never restate
+  what a source already makes ascertainable.
 
-Provide a link, citation, or reference to the living source; never restate
-the facts that source owns. This holds for external, local, and cross-repo
-content alike. **A reworded paraphrase drifts exactly as a verbatim copy
-does** — both are a second copy of someone else's fact, and both go stale
-when the source moves. The fix is a pointer, not better wording.
+Read those where they live. When a consuming project declares none of them,
+re-anchor the portable baseline: provide a link or citation to the living
+source and never restate the facts it owns — **a reworded paraphrase drifts
+exactly as a verbatim copy does**, because both are a second copy that goes
+stale when the source moves.
 
-The line between pointing and copying:
+### This skill's own pins — beyond what the conventions state
 
-| Fine — pointing or owning | Violation — copying |
-|---|---|
-| A bare link to the source | Verbatim quotes of a source's substance |
-| An orientation clause (one line on what it is / where it lives) | Paraphrasing detail a source owns |
-| Descriptive link text | Extracting a source's values into a table here |
-| A config genuinely adapted for this repo | Copying a doc's config block verbatim |
-| A constraint this project itself pins and owns | Hard-coded tool schemas or lists in a durable doc |
-| A one-shot, point-in-time research deliverable | — |
-| An error string empirically observed in this environment | — |
+- **Threshold two, not three.** The reference-don't-duplicate smell signals
+  fire at "three or more" occurrences; this skill pins the trigger at **two**
+  — the second copy is already duplication to resolve by pointing, not
+  something to tolerate until a third appears. A deliberate, tighter
+  refinement (and a candidate change to that convention). Weigh a genuine
+  case for local divergence on its merits, but the default at two copies is
+  to consolidate to one source and point at it.
+- **Point at public contracts, not internals.** Reference the stable public
+  contract — a tool's invocation surface, the command and its arguments —
+  never the internal script or file names behind it, which are rename blast
+  radius that breaks every citation the moment they move. (The conventions
+  cover citing stable anchors; this names the specific trap of citing an
+  internal name where the public contract exists.)
+- **No capability enumeration.** Phrase your OWN duties open-ended, not just
+  upstream-owned inventories. A closed list of what something can do goes
+  stale as the surface evolves; name current mechanisms only as
+  clearly-marked examples — "mechanisms such as X and Y (examples, not a
+  fixed list)" — never as the definition.
 
-The right column restates facts another artifact owns and will drift from
-it. The left column either points at the owner or is content THIS project
-authors and owns — an adapted config, a self-set constraint, a dated
-research snapshot, an observed error string. Owning a fact is not copying
-it.
+### What is NOT a copy
 
-### 2. Point at public contracts, not internals
-
-Reference the stable public contract, never a private internal. A tool's
-public API is its invocation surface — the command and its arguments; the
-names of the scripts and files behind it are rename blast radius that
-breaks every citation the moment they move. Cite the front door.
-
-### 3. No capability enumeration
-
-Phrase duties open-ended. A closed list of what something can do goes stale
-the moment the surface evolves. Name the current mechanisms only as
-clearly-marked examples of a general duty — "mechanisms such as X and Y
-(examples, not a fixed list)" — never as the definition.
-
-### Threshold
-
-Duplication starts at **two**. When the same content — a passage, a
-literal, or a concept, verbatim or reworded — lives in two or more places,
-that is duplication to resolve by pointing, not something to tolerate until
-a third copy appears. Weigh a genuine case for local divergence on its
-merits, but the default at two copies is to consolidate to one source and
-point at it.
+Owning a fact is not copying it. A config genuinely adapted for this repo, a
+constraint this project itself pins, a one-shot dated research deliverable,
+and an error string empirically observed in this environment are content
+THIS project authors and owns — they follow the conventions' "describe" and
+"empirical findings / operator recipes the repo records" carve-outs, not the
+copy prohibition. Do not flatten them into pointers.
 
 ## Audit — what to look for
 
