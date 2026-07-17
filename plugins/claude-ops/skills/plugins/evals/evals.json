@@ -10,7 +10,7 @@
       "expectations": [
         "The response treats the bare invocation as the sync action, not audit or converge",
         "The marketplace target is resolved dynamically (via fleet-state.sh's CLAUDE_PLUGIN_ROOT join) rather than a hardcoded marketplace name",
-        "The response ends with a terse fixed-section report and bare `/reload-plugins` guidance (no `--force`)"
+        "The response ends with a terse fixed-section report and bare `/reload-plugins` guidance — `--force` is only suggested if an updated/installed component ships an MCP server whose tools aren't deferred, never as a blanket default"
       ]
     },
     {

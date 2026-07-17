@@ -41,6 +41,16 @@ For each actionable divergence, decide the consolidation strategy from its `scop
   user baseline) → the default strategy is to bring the lagging scope(s) up to the newest version
   present: `claude plugin update <id> -s <that scope>`.
 
+**Every `project`/`local`-scope command targets its row's own `scopes[].projectPath`, never the
+current working directory.** `-s project`/`-s local` have no path/target flag — the CLI always
+operates on the *current directory's* `.claude/settings*.json`. A divergence row can legitimately
+belong to a different repo than the one this session is standing in (the "elsewhere on this machine"
+rows a bulk report collapses) — never construct the proposed command as a bare
+`claude plugin uninstall|update <id> -s project`, only as
+`(cd "<scopes[].projectPath>" && claude plugin uninstall|update <id> -s project)`. Presenting or
+running the bare form for a row whose `projectPath` isn't the current directory would silently
+mutate — or fail against — the wrong repo's settings.
+
 Present every plugin's proposed strategy and exact CLI command(s) before running anything — do not
 batch-apply. Per Brief Decision 6 (V1): confirm **every** pin individually, even when many plugins
 share the same strategy — do not infer consent from one confirm to the next.

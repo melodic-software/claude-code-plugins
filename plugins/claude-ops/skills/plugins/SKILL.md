@@ -109,10 +109,12 @@ and `false` in another — are a known blind spot, not a reportable category: `f
 exposes the merged effective value, never each scope's raw map, so this skill cannot detect one to
 report it. See [context/converge.md](context/converge.md) "V1 scope".)
 
-Close with reload guidance: recommend bare `/reload-plugins` (no `--force` — verified: no such flag
-exists). If any updated component includes a monitor, call that out separately — monitors need a
-full session restart, `/reload-plugins` doesn't cover them (see
-[context/scope-semantics.md](context/scope-semantics.md)).
+Close with reload guidance: recommend bare `/reload-plugins` by default; suggest `--force` only when
+an updated/installed component ships an MCP server whose tools aren't deferred — that's the one case
+`/reload-plugins` itself warns about and declines to apply without it (Claude Code ≥ 2.1.163; see
+[context/scope-semantics.md](context/scope-semantics.md)). If any updated component includes a
+monitor, call that out separately — monitors need a full session restart, `/reload-plugins` doesn't
+cover them.
 
 ## userConfig: `install_new`
 
@@ -124,6 +126,12 @@ schema has no `enum` type — verified against the published schema), default `"
 - `none` — report them in "Action needed" only, never install
 
 Any other value is invalid; treat it as `ask` and note the invalid value in the report.
+
+**Configured value: `${user_config.install_new}`** — a `userConfig` value only reaches this skill's
+own content through this literal `${user_config.KEY}` substitution (Claude Code text-substitutes it
+before the model sees the rendered skill); declaring the option in `plugin.json` alone does not make
+its value readable here. Sync's Step 4 branches on this line's rendered value, not on the option's
+name or description above.
 
 ## Cross-references
 

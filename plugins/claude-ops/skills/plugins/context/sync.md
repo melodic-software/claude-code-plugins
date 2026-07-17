@@ -29,17 +29,29 @@ attributable and reported inline without aborting the sweep for the rest.
 
 ## Step 2 — In-repo update (the primary value path)
 
-Only when `CLAUDE_PROJECT_DIR` is set (you're standing inside a project). Call `fleet-state.sh` and
-look at `installed[]` entries with `currentProject: true`:
+Always call `fleet-state.sh` first — never gate this step on `CLAUDE_PROJECT_DIR` being set before
+calling it. `fleet-state.sh` resolves the project root itself (`CLAUDE_PROJECT_DIR` when set, the
+cwd's git toplevel otherwise — see [gotchas.md](gotchas.md)), so a headless session where the env var
+is unset can still correctly compute `currentProject`; gating on the raw env var directly would skip
+this step in exactly the case that fallback exists for.
+
+Look at `installed[]` entries with `currentProject: true` and run an update for **every one of
+them**, unconditionally:
 
 ```bash
 claude plugin update <id> -s project   # for a currentProject:true entry with scope "project"
 claude plugin update <id> -s local     # for a currentProject:true entry with scope "local"
 ```
 
-Run this **only** for entries whose id also appears in `divergences[]` with `versionsMatch: false` —
-a `currentProject: true` entry with no divergence is already current, nothing to do. Verified safe:
-`plugin update -s project` does not write the committed `.claude/settings.json` (see
+Do **not** pre-filter on `divergences[]`. `divergences[]` only contains ids with *more than one*
+scope record — a project/local install with no other scope pinning the same id (the common single-
+pin case) never appears there at all, and neither does a multi-scope install where every scope
+happens to already share the same stale version (`versionsMatch: true` — still behind the catalog,
+just not internally disagreeing). Both are real staleness `fleet-state.sh` cannot detect from its own
+output (it has no per-plugin catalog version to compare against), so the only correct signal is
+"is this entry present" — mirror Step 3's own pattern and just call `update`, letting the CLI report
+"already at the latest version" as a no-op when nothing changes. Verified safe: `plugin update
+-s project` does not write the committed `.claude/settings.json` (see
 [scope-semantics.md](scope-semantics.md)) — no settings-diff review needed for this step, unlike
 `converge`.
 
@@ -63,8 +75,9 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 ## Step 4 — Install new catalog plugins (per `install_new` policy)
 
 Take `fleet-state.sh`'s `missing_from_install` (already excludes anything explicitly opted out with
-`enabledPlugins: false` in any scope — never re-offer a deliberate decline). Apply the
-`install_new` userConfig value:
+`enabledPlugins: false` in any scope — never re-offer a deliberate decline). Apply the configured
+policy — SKILL.md's `${user_config.install_new}` line renders the actual value; that render, not this
+step's prose, is what to branch on:
 
 - **`ask`** (default) — present every entry in one batched `AskUserQuestion` multi-select, then
   `claude plugin install <id> -s user` for each the user picks
@@ -95,6 +108,8 @@ recorded either way.
 
 ## Step 6 — Report
 
-Emit the report per SKILL.md's "Report" section. End with reload guidance: bare `/reload-plugins`
-(verified — no `--force` flag exists); call out a session restart separately only when an updated
+Emit the report per SKILL.md's "Report" section. End with reload guidance: bare `/reload-plugins` by
+default; suggest `--force` only when an updated/installed component ships an MCP server whose tools
+aren't deferred (see [scope-semantics.md](scope-semantics.md) — `--force` exists to opt into a real
+token cost, not a blanket recommendation). Call out a session restart separately only when an updated
 component ships a monitor (monitors aren't covered by `/reload-plugins`).

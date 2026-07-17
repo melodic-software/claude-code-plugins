@@ -52,12 +52,20 @@ committed settings files are untouched by an update. `sync`'s in-repo update ste
 without a settings-diff review; `converge`'s scope-*consolidation* is the one action that can add or
 remove an `enabledPlugins` entry, and only that action surfaces a settings diff.
 
-## No `--force` flag on `/reload-plugins`
+## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
-**Verified against `code.claude.com/docs/en/plugins-reference`**: no `--force` variant exists.
-`/reload-plugins` alone refreshes skills, agents, hooks, MCP, and LSP servers in-process. It does
-**not** cover monitors — a monitor requires a full session restart. Recommend bare `/reload-plugins`
-in every report; call out the restart requirement only when an updated plugin ships a monitor.
+**Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
+agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors — a monitor requires a
+full session restart. Recommend bare `/reload-plugins` by default; call out the restart requirement
+only when an updated plugin ships a monitor.
+
+`--force` is real (Claude Code ≥ 2.1.163), but scoped to one specific case: a plugin that provides an
+MCP server whose tools aren't deferred by tool search invalidates the prompt cache on reload, and
+`/reload-plugins` warns and does **not** apply the reload rather than eating that cost silently;
+`--force` applies it anyway. Only suggest `--force` when the updated/installed component in this
+sync's report actually ships such an MCP server (or the report already surfaced that warning) — never
+recommend it by default alongside every reload, since it exists specifically to opt into a real token
+cost the bare command declines to pay automatically.
 
 ## `userConfig` has no `enum` field
 
