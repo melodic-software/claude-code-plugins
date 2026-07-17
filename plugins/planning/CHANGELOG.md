@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Changed
+
+- **Frontier-rounds cadence propagated to sibling skills** (`/planning:prd` Step 4, `/planning:design`
+  collaborative stance, `/planning:plan` scope-clarity check and confidence-gate interview
+  round): each asks every settled-prerequisite question as one numbered round with recommendations,
+  dependent questions waiting on their prerequisites — replacing the one-question-at-a-time cadence
+  the interview skill dropped in 0.13.0. `/planning:brainstorm`'s single intake question is
+  intentionally unchanged.
+- Siblings now render a round via `AskUserQuestion` only through the same `use_ask_user_question`
+  user config the interview skill reads (on, and ≤4 independent questions) instead of deciding
+  prose-vs-card inline.
+- The interview-round description in `/planning:plan` is stated once in
+  `context/tag-decisions.md`; the SKILL.md confidence-gate summary no longer duplicates it.
+
 ## [0.17.0]
 
 ### Changed
@@ -34,7 +50,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **Tripwire test** `tests/standards-binding.test.sh` guards the load-bearing grounding markers
   (heading placement, binding references, ladder-pointer discipline) against future prose edits.
 
-## [0.13.0]
+## [0.15.0]
 
 ### Changed
 
@@ -46,6 +62,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **Declared a dependency on `domain-driven-design`**, so installing `planning` auto-installs the
   glossary steward and the pipeline's inline vocabulary updates (`interview`, `design`) keep working
   cross-plugin.
+
+## [0.14.0]
+
+### Changed
+
 - **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
   `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
   before plugins, a flat local skill named `plan` would have collided with surfaces already using
@@ -55,6 +76,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
   `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
   "architect this" remains a trigger phrase in the skill description.
+
+## [0.13.0]
+
+### Changed
 
 - **`/planning:interview` asks in frontier rounds instead of one question at a time** (behavioral
   change): each round asks every question whose prerequisites are settled as one numbered set, each

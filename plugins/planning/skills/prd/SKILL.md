@@ -115,11 +115,11 @@ Use when conversation already contains rich product context and re-asking would 
 
 If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful — `/interview` or `/planning:plan` picks them up downstream.
 
-### Step 4 — Drive depth-first Q&A
+### Step 4 — Drive frontier-rounds Q&A
 
 **Skipped when `synthesize` action was invoked** — go directly to Step 5.
 
-ONE question at a time, depth-first — resolve the load-bearing question, then surface the next; never batch unrelated questions. Use `AskUserQuestion` when there are 2-4 distinct named options the user benefits from seeing side by side; use prose for open-ended questions.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise.
 
 Question shapes that recur, in priority order:
 
