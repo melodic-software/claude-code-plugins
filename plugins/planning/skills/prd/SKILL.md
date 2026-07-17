@@ -91,7 +91,7 @@ Spend the first turn grounding yourself, in parallel:
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
-Survey output is a one-paragraph summary in your reply. Then transition to depth-first Q&A.
+Survey output is a one-paragraph summary in your reply. Then transition to frontier-rounds Q&A.
 
 ### Step 3 — Pick the template tier
 

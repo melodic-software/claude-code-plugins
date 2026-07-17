@@ -245,7 +245,7 @@ Claude Code's built-in plan mode provides read-only enforcement — Claude reads
 
 The skill does not automatically enter plan mode — the user controls permission modes. But if you're about to plan a complex change and are NOT in plan mode, suggest it: "Consider entering plan mode (`shift+tab`) for safe exploration while we design this."
 
-Plan mode is also the canonical surface for `AskUserQuestion`-driven clarifying questions — if you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 clarifying questions before proposing the plan.
+Plan mode is also a natural moment for clarifying questions — if you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 clarifying questions before proposing the plan, as one numbered round. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the questions are independent — inline prose otherwise.
 
 ## Plan Review Mode
 
