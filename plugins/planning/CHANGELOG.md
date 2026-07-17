@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **New `/planning:questionnaire` skill** (user-invoked only): turns a decision another person
+  holds into a Markdown discovery questionnaire delivered async. It interviews the user about the
+  *send* only — recipient's role/expertise/relationship, and what the user needs back — never
+  about the subject the recipient holds, then writes questions aimed at that knowledge gap to the
+  topic's memory slice (default `.work/`; the self-ignoring memory tier keeps recipient names out
+  of git history) and reports the path. Delivery is out-of-band; an optional
+  "awaiting answer" work item goes through the work-item-tracker seam when one is bound and is
+  skipped gracefully otherwise. This is the third routing bucket beside `/planning:interview`'s
+  facts-vs-decisions split (a person-arbitered deferral); the interview-side pull-out reference
+  lands separately. Adapted from Matt Pocock's `to-questionnaire` (no live upstream sync path —
+  re-audit opportunistically). Ships with four evals covering the send-only contract, the
+  never-quiz-the-subject guardrail, self-answerable routing back to `/planning:interview`, and
+  tracker-absent graceful degrade.
+
+### Changed
+
+- Planning README: the interview row's stale "depth-first Q&A" phrasing now says frontier-rounds.
+
 ## [0.18.0]
 
 ### Changed
