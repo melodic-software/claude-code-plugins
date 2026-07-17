@@ -165,7 +165,7 @@ Work items:
   both `Component` and `Stance` columns (Read assertion — pointers naming the section are fine).
 - `npx markdownlint-cli2 --config .markdownlint-cli2.jsonc docs/MIGRATION-PLAYBOOK.md` exit 0.
 
-### Phase 3: docs/OFFICIAL-DOCS.md index + CLAUDE.md pointer [DOING]
+### Phase 3: docs/OFFICIAL-DOCS.md index + CLAUDE.md pointer [DONE]
 
 Covers D14. Parallel-safe with Phase 2 (disjoint files); component list comes from the Brief/Phase 1
 stance table.
