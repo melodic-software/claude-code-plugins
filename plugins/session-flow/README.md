@@ -1,14 +1,16 @@
 # session-flow
 
-A Claude Code plugin bundling five skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling six skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, what to learn from it, and how to arm it for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, what to learn from it, and how
+to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
+| `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 
@@ -60,6 +62,26 @@ external side effects (a push, a PR comment, a deploy) is gated so a re-fire can
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+```
+
+### clean-stop
+
+The go/stop mirror of `keep-going`: instead of recovering after an
+interruption, it makes the interruption safe beforehand. Sweeps every repo and
+worktree the session touched, inspects real state, and closes the gaps —
+pushes unpushed or coherently committable work durable, ensures every pushed
+branch has a PR, files follow-ups as issues linked to that PR, and puts the
+resume context in the PR and issue bodies so a cold agent could pick it up.
+Ambiguous work-in-progress and stashes are surfaced rather than force-committed
+or dropped; destructive cleanup (deleting branches, removing worktrees) runs
+only on provably-safe state. Closes on a binary verdict: free-and-clear, or a
+named list of dangling items. It supersedes a local `handoff` when the machine
+itself may go away — breadcrumbs on the remote survive the disk. PR, issue, and
+worktree mechanics route to whatever capabilities are installed, falling back
+to direct `git` / `gh`.
+
+```shell
+/session-flow:clean-stop              # inspect → make durable → link → prune-safe → verdict
 ```
 
 ### retro
