@@ -1,12 +1,13 @@
 # claude-ops
 
 A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across four skills and a family of telemetry-emitter hooks.
+capability across five skills and a family of telemetry-emitter hooks.
 Observability reads what your sessions actually did, troubleshooting tracks what
 upstream has broken, changelog integration keeps your repo current with what
-upstream has shipped, a re-runnable `setup` action settles where the
-troubleshooting registry lives, and the `*-audit` hooks feed observability with
-per-hook execution telemetry Claude Code's native OTEL cannot see.
+upstream has shipped, the plugins skill keeps your own plugin fleet current, a
+re-runnable `setup` action settles where the troubleshooting registry lives,
+and the `*-audit` hooks feed observability with per-hook execution telemetry
+Claude Code's native OTEL cannot see.
 
 ## Skills
 
@@ -15,6 +16,7 @@ per-hook execution telemetry Claude Code's native OTEL cannot see.
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:troubleshoot` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json` — previews and confirms per plugin first). |
 | `/claude-ops:setup` | Validates the troubleshooting-registry and skill-usage-log destinations, including path containment, and routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## The audit hooks
@@ -120,8 +122,13 @@ instead of failing.
 
 ## Configuration
 
-Two `userConfig` options:
+Three `userConfig` options:
 
+- **`install_new`** (string, optional) — new-catalog-plugin install policy for the `plugins`
+  skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in one batched
+  multi-select prompt; `all` installs every one automatically; `none` reports them without
+  installing. The manifest schema has no `enum` type, so this validates in prose, not JSON Schema;
+  any other value is treated as `ask`.
 - **`registry_dir`** (string, optional) — project-relative directory for the
   troubleshoot issue registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the

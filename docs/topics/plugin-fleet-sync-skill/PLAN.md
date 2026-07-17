@@ -118,7 +118,7 @@ Fixtures: dual-scope divergence, plugin missing from installs, plugin missing fr
 
 **Evidence:** `check-skill.sh` doesn't actually accept a full path as its argument (its skills-root resolution expects `<root>/<skill-name>`, defaulting to `${CLAUDE_PROJECT_DIR}/.claude/skills`) — the plan's literal invocation string doesn't run as written. Ran the equivalent correctly via `CHECK_SKILL_SKILLS_ROOT="plugins/claude-ops/skills" bash plugins/skill-quality/scripts/check-skill.sh plugins`: `CHECK-SKILL plugins: PASS — 0 errors, 0 warning(s)` (description length 573/1536, all 5 trigger phrases preserved, SKILL.md 130/500 lines, markdownlint clean, `scripts/fleet-state.test.sh` passed as part of the run). `jq '.evals | length'` = 6.
 
-### Phase 5: Plugin metadata [TODO]
+### Phase 5: Plugin metadata [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
@@ -127,6 +127,8 @@ Fixtures: dual-scope divergence, plugin missing from installs, plugin missing fr
 | `plugins/claude-ops/README.md` | Modify | Skills section row + configuration note |
 
 **Sanity Check:** `node scripts/validate-plugin-contracts.mjs` (or `bash scripts/validate-plugins.sh`) exit 0; `jq -r .version plugins/claude-ops/.claude-plugin/plugin.json` = `0.9.0`; `grep -c '\[0.9.0\]' CHANGELOG.md` = 1.
+
+**Evidence:** `node scripts/validate-plugin-contracts.mjs` — "17 setup skills and 1375 plugin files checked", exit 0. Version and CHANGELOG checks both match exactly. One out-of-table gap found by `bash scripts/validate-plugins.sh` (which additionally validates the repo-root catalog block, `validate-plugin-contracts.mjs` alone does not): the repo-root `README.md`'s generated plugin catalog was now stale against `claude-ops`'s updated description. Regenerated via `node scripts/generate-catalog.mjs` (repo-root `README.md` +1/-1 line) — a mechanical, generator-owned fix within this phase's actual scope (plugin-metadata consistency), not a scope expansion. `validate-plugins.sh` now exits 0 end-to-end (every plugin manifest + the marketplace catalog). `markdownlint-cli2` clean on `plugins/claude-ops/README.md`, `CHANGELOG.md`, and repo-root `README.md`.
 
 ### Phase 6: End-to-end verification [TODO]
 
