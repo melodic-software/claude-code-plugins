@@ -4,6 +4,16 @@ Failure modes this skill is specifically built to avoid, and what breaks if the 
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md) — this file is the
 "here's what goes wrong" companion, not a restatement.
 
+## `claude plugin update <name>` (bare) fails "Plugin not found" — always pass the full id
+
+**Verified empirically** (`claude plugin update <name> -s user` → `Plugin "<name>" not found`;
+`claude plugin update <name>@<marketplace> -s user` → succeeds, same scope, same machine, back to
+back). A bare plugin name is not enough for `update` even when it's unambiguous on this machine —
+always pass the fully-qualified `<name>@<marketplace>` id, exactly as `fleet-state.sh`'s `installed[]`
+and `catalog`-joined ids already are. `sync.md`'s Step 3 and `converge.md`'s CLI examples already use
+the fully-qualified form for this reason — never shorten an id to the bare name when constructing an
+actual `claude plugin update|install|uninstall|enable` command, even for readability in a report.
+
 ## Trusting `plugin list` / `plugin details` for "what's loaded here"
 
 Both show the highest installed version across every scope, not the cwd-effective one. Reporting a

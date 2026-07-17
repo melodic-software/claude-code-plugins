@@ -246,6 +246,45 @@ current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "windows-path: native backslash projectPath matches Git Bash cwd" "true" "$current_flag"
 
 # ============================================================================
+# Case: CLAUDE_PROJECT_DIR unset falls back to the cwd's git toplevel —
+# the exact gap a live end-to-end run (a headless `-p` session) exposed:
+# CLAUDE_PROJECT_DIR wasn't exported, so currentProject stayed null on every
+# install record even while standing inside the actual project.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+project_dir="$case_dir/git-project-root"
+mkdir -p "$project_dir/nested/subdir"
+(cd "$project_dir" && git init -q && git config user.email t@t.test && git config user.name t && git commit -q --allow-empty -m init)
+# Derive the native-Windows form from `git rev-parse --show-toplevel` itself
+# (forward-slash-to-backslash only) rather than `cygpath -w`: on this
+# machine cygpath silently 8.3-shortens a profile segment (KyleSexton ->
+# KYLESE~1), which normalize_path cannot reconcile against the long form
+# git and real CC-written projectPath values both use — a test-fixture
+# artifact, not a real-world path shape, so the fixture should not
+# manufacture it either.
+git_toplevel=$(cd "$project_dir" && git rev-parse --show-toplevel)
+native_project_path="${git_toplevel//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_project_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+[[ -f "$case_dir/user_settings.json" ]] || write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(
+  cd "$project_dir/nested/subdir" && env -u CLAUDE_PROJECT_DIR \
+    FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
+    bash "$SCRIPT" --marketplace market1 2>&1
+)
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "git-fallback: CLAUDE_PROJECT_DIR unset, cwd inside a subdir, resolves via git toplevel" "true" "$current_flag"
+
+# ============================================================================
 # Case: --all sweeps every marketplace; one absent-catalog failure does not
 # abort the sweep
 # ============================================================================

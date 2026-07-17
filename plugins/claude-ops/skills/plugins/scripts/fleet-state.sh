@@ -43,8 +43,11 @@
 # Real env vars this script honors (set by Claude Code, not test-only):
 #   CLAUDE_PLUGIN_ROOT   — this plugin's own install dir; used to self-resolve
 #                          the default marketplace when neither flag is given
-#   CLAUDE_PROJECT_DIR   — current project root; used for project/local scope
-#                          settings and the `currentProject` install flag
+#   CLAUDE_PROJECT_DIR   — current project root; authoritative when set, for
+#                          project/local scope settings and the
+#                          `currentProject` install flag. Falls back to the
+#                          cwd's git toplevel when unset (verified empirically
+#                          not reliably exported in every invocation context).
 
 set -uo pipefail
 
@@ -105,6 +108,20 @@ if [[ "$(jq -r 'type == "object"' "$MARKETPLACES_JSON")" != "true" ]]; then
   exit 2
 fi
 
+# --- Resolve the current project root ---------------------------------------
+# CLAUDE_PROJECT_DIR is authoritative when set — it's the project Claude Code
+# itself is anchored to, which can legitimately differ from cwd's git
+# toplevel (e.g. a Bash call from a subdirectory, or a repo nested inside
+# another). But it is NOT reliably exported to every invocation context
+# (verified empirically: absent in a real headless `-p` session run from
+# inside a project directory) — fall back to the cwd's git toplevel, then
+# bare $PWD, rather than silently losing project context.
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-}"
+if [[ -z "$PROJECT_ROOT" ]]; then
+  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+fi
+[[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="$PWD"
+
 # --- Effective enabledPlugins (raw per-scope + merged local>project>user) --
 
 user_map='{}'
@@ -112,11 +129,11 @@ user_map='{}'
 
 project_map='{}'
 local_map='{}'
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  [[ -f "$CLAUDE_PROJECT_DIR/.claude/settings.json" ]] &&
-    project_map=$(jq -c '.enabledPlugins // {}' "$CLAUDE_PROJECT_DIR/.claude/settings.json")
-  [[ -f "$CLAUDE_PROJECT_DIR/.claude/settings.local.json" ]] &&
-    local_map=$(jq -c '.enabledPlugins // {}' "$CLAUDE_PROJECT_DIR/.claude/settings.local.json")
+if [[ -n "$PROJECT_ROOT" ]]; then
+  [[ -f "$PROJECT_ROOT/.claude/settings.json" ]] &&
+    project_map=$(jq -c '.enabledPlugins // {}' "$PROJECT_ROOT/.claude/settings.json")
+  [[ -f "$PROJECT_ROOT/.claude/settings.local.json" ]] &&
+    local_map=$(jq -c '.enabledPlugins // {}' "$PROJECT_ROOT/.claude/settings.local.json")
 fi
 
 # Union of every id ever mentioned in any scope (raw, unmerged) — used to
@@ -138,8 +155,8 @@ explicit_false_ids=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" -
 
 # --- Normalized current-project root, for the `currentProject` install flag
 current_project_norm=""
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  current_project_norm=$(hook::normalize_path "$(hook::physical_path "$CLAUDE_PROJECT_DIR")")
+if [[ -n "$PROJECT_ROOT" ]]; then
+  current_project_norm=$(hook::normalize_path "$(hook::physical_path "$PROJECT_ROOT")")
   current_project_norm="${current_project_norm%/}"
 fi
 

@@ -52,6 +52,10 @@ For every catalog plugin id currently installed at `user` scope (from `fleet-sta
 claude plugin update <id> -s user
 ```
 
+`<id>` here is always the fully-qualified `<name>@<marketplace>` form `fleet-state.sh` already
+emits — a bare name fails with "Plugin not found" even when unambiguous (see
+[gotchas.md](gotchas.md)).
+
 One call per plugin — `claude plugin update` takes a single `<plugin>` argument, there is no bulk
 "update everything" flag. Loop it; a single plugin's update failure is reported inline (under
 "Action needed") and does not abort the sweep for the rest.
