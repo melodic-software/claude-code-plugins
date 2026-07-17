@@ -40,11 +40,16 @@ run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
 run "git push -ofoo (attached option value, allowed)" "git push -ofoo origin main" 0
+run "git push --dry-run --force (push dry run disarms, allowed)" "git push --dry-run --force origin main" 0
+run "git push -n -f (short dry run disarms, allowed)" "git push -n -f origin main" 0
+run "git push --mi backup (abbreviated mirror, blocked)" "git push --mi backup" 2
 run "cd x && git push --force (compound, blocked)" "cd x && git push --force" 2
 run "quoted push --force prose (allowed)" 'echo "git push --force is banned"' 0
 
 # --- reset-hard ---------------------------------------------------------------
 run "git reset --hard (blocked)" "git reset --hard" 2
+run "git reset --h HEAD (abbreviated hard, blocked)" "git reset --h HEAD" 2
+run "git reset --ha HEAD (abbreviated hard, blocked)" "git reset --ha HEAD" 2
 run "git reset --hard HEAD~1 (blocked)" "git reset --hard HEAD~1" 2
 run "git reset --soft HEAD~1 (allowed)" "git reset --soft HEAD~1" 0
 run "git reset (mixed, allowed)" "git reset" 0
@@ -61,6 +66,8 @@ run "git clean -nd (dry run bundle, allowed)" "git clean -nd" 0 # spellchecker:d
 run "git clean -n -fd (dry run disarms force, allowed)" "git clean -n -fd" 0
 run "git clean -fdn (dry run in force bundle, allowed)" "git clean -fdn" 0
 run "git clean --dry-run -f (long dry run, allowed)" "git clean --dry-run -f" 0
+run "git clean -f -e --dry-run (dry-run as exclude value, blocked)" "git clean -f -e --dry-run" 2
+run "git clean --f (abbreviated force, blocked)" "git clean --f" 2
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
@@ -75,6 +82,9 @@ run "git restore --staged --worktree . (blocked)" "git restore --staged --worktr
 run "git restore --staged . (index-only, allowed)" "git restore --staged ." 0
 run "git restore path/file (path-scoped, allowed)" "git restore path/file" 0
 run "git restore --source HEAD~1 file (source value, allowed)" "git restore --source HEAD~1 file" 0
+run "git checkout :/ (root-magic pathspec, blocked)" "git checkout :/" 2
+run "git restore :/ (root-magic pathspec, blocked)" "git restore :/" 2
+run "git restore ':(top)' (top-magic pathspec, blocked)" "git restore ':(top)'" 2
 
 # --- not blocked by design ----------------------------------------------------
 run "git branch -D feat/x (reflog-recoverable, allowed)" "git branch -D feat/x" 0

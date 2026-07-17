@@ -89,6 +89,33 @@ block() {
   exit 2
 }
 
+# Does a word match a long option or an accepted unique-prefix abbreviation of
+# it? git's parse-options accepts any unambiguous prefix (gitcli(7)), so
+# `reset --h` runs --hard. $1 = option name without dashes, $2 = the word,
+# $3 = minimum prefix length that is unique among the subcommand's options
+# (verified empirically per call site — a shorter prefix is ambiguous and git
+# rejects it, so matching it would only false-block an erroring command).
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+abbrev_match() {
+  local full="$1" word="$2" min="$3" p
+  [[ "$word" == --* ]] || return 1
+  p="${word#--}"
+  [[ -n "$p" ]] || return 1
+  ((${#p} >= min)) || return 1
+  [[ "$full" == "$p"* ]]
+}
+
+# Is an operand a worktree-wide pathspec? `.` from the repo root, and the
+# root-magic forms `:/` and `:(top…)` from anywhere (gitglossary pathspec
+# magic), all address the whole tree.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+is_tree_wide_pathspec() {
+  case "$1" in
+  "." | ":/" | ":(top"*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
 # when the segment is a real git invocation carrying a default-blocked
 # irreversible form. Parsing spine lives in hook-utils.sh; only the form
@@ -115,6 +142,28 @@ check_segment() {
     # same way --force does, so they carry the same form token. Skip values of
     # value-taking push options (space-separated and attached `-oVALUE`) so a
     # value word never matches as a flag. Short bundle: any `f` means --force.
+    # A push dry-run flag anywhere (-n, --dry-run or an accepted unique
+    # abbreviation ≥ --dr; --d is ambiguous with --delete) makes the push a
+    # preview that updates nothing — it disarms the force check. Option values
+    # are skipped in this pre-scan too so a value word never reads as a flag.
+    k=$((sub_idx + 1))
+    while ((k < nseg)); do
+      x="${w[k]}"
+      case "$x" in
+      -o | --push-option | --repo | --receive-pack | --exec)
+        ((k += 2))
+        continue
+        ;;
+      -o?* | --push-option=* | --repo=* | --receive-pack=* | --exec=*) ;;
+      *)
+        if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 2 \
+          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
+          return 0
+        fi
+        ;;
+      esac
+      ((k++))
+    done
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -132,11 +181,6 @@ check_segment() {
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
           "Use --force-with-lease (refuses to clobber unseen remote work), or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
         ;;
-      --mirror)
-        block "push-force" \
-          "BLOCKED: git push --mirror force-updates every remote ref." \
-          "Push specific refs instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
-        ;;
       --force-with-lease | --force-with-lease=* | --force-if-includes) ;;
       +*)
         block "push-force" \
@@ -150,32 +194,66 @@ check_segment() {
             "Use --force-with-lease (refuses to clobber unseen remote work), or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
         fi
         ;;
-      *) ;;
+      *)
+        if abbrev_match "mirror" "$x" 2; then
+          block "push-force" \
+            "BLOCKED: git push --mirror force-updates every remote ref." \
+            "Push specific refs instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+        fi
+        ;;
       esac
       ((k++))
     done
     ;;
   reset)
+    # --hard and its accepted unique abbreviations (git parse-options accepts
+    # any unambiguous prefix: `reset --h` runs --hard, verified empirically).
+    # --pathspec-from-file consumes the next word as its value.
     for ((k = sub_idx + 1; k < nseg; k++)); do
-      [[ "${w[k]}" == "--hard" ]] && block "reset-hard" \
+      x="${w[k]}"
+      if [[ "$x" == "--pathspec-from-file" ]]; then
+        ((k++))
+        continue
+      fi
+      abbrev_match "hard" "$x" 1 && block "reset-hard" \
         "BLOCKED: git reset --hard discards uncommitted work with no recovery path." \
         "Commit or stash first (git stash push -u), use git reset --keep, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard."
     done
     ;;
   clean)
-    # Force flag required before clean deletes anything: --force, or f in a
-    # short bundle (-f, -fd, -fdx, -ff). A dry-run flag anywhere (-n,
-    # --dry-run, or n in a bundle) makes the whole command a preview — git
-    # honors it regardless of flag order — so it disarms the force check.
+    # Force flag required before clean deletes anything: --force (or a unique
+    # abbreviation ≥ --f), or f in a short bundle (-f, -fd, -fdx, -ff). A
+    # dry-run flag anywhere (-n, --dry-run ≥ --d, or n in a bundle) makes the
+    # whole command a preview — git honors it regardless of flag order — so it
+    # disarms the force check. -e/--exclude consumes the next word as its
+    # pattern in BOTH scans, so a flag-looking value (`-e --dry-run`) neither
+    # disarms nor triggers anything.
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
-      if [[ "$x" == "--dry-run" ]] || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
+      case "$x" in
+      -e | --exclude)
+        ((k++))
+        continue
+        ;;
+      -e?* | --exclude=*) continue ;;
+      *) ;;
+      esac
+      if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 \
+        || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
         return 0
       fi
     done
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
-      if [[ "$x" == "--force" ]] || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+      case "$x" in
+      -e | --exclude)
+        ((k++))
+        continue
+        ;;
+      -e?* | --exclude=*) continue ;;
+      *) ;;
+      esac
+      if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
         block "clean-force" \
           "BLOCKED: git clean with a force flag permanently deletes untracked files." \
           "Preview with git clean -n first; then allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=clean-force if intended."
@@ -196,8 +274,8 @@ check_segment() {
         continue
         ;;
       *)
-        [[ "$x" == "." ]] && block "checkout-dot" \
-          "BLOCKED: git checkout . discards every unstaged change in the worktree." \
+        is_tree_wide_pathspec "$x" && block "checkout-dot" \
+          "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
           "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
         ;;
       esac
@@ -239,8 +317,8 @@ check_segment() {
           continue
           ;;
         *)
-          [[ "$x" == "." ]] && block "restore-dot" \
-            "BLOCKED: git restore . discards every unstaged change in the worktree." \
+          is_tree_wide_pathspec "$x" && block "restore-dot" \
+            "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
             "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
           ;;
         esac
