@@ -209,7 +209,16 @@ emit_marketplace() {
     fi
   fi
 
-  require_json "$catalog_json" "marketplace.json ($name)"
+  # Not require_json: that helper exit-2's the whole process, appropriate for
+  # the two prerequisite files this script cannot run without at all. A single
+  # marketplace's catalog being malformed is a per-marketplace failure like
+  # the branches above — report it inline and return 1 so one corrupt clone
+  # doesn't abort an --all sweep of every other marketplace.
+  if ! jq empty "$catalog_json" 2>/dev/null; then
+    jq -cn --arg n "$name" --argjson au "$([[ "$auto_update" == "true" ]] && echo true || echo false)" --arg lu "$last_updated" \
+      '{marketplace: {name: $n, autoUpdate: $au, lastUpdated: $lu, error: "marketplace.json is not valid JSON"}}'
+    return 1
+  fi
   local catalog
   catalog=$(jq -c '[.plugins[]?.name // empty] | unique' "$catalog_json")
 
@@ -253,9 +262,20 @@ emit_marketplace() {
   local known_at_mp
   known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
 
+  # missing_from_enabled can only be computed for ids whose enabledPlugins
+  # this invocation can actually read: user scope (global) and the current
+  # PROJECT_ROOT's project/local scope. A project/local install belonging to
+  # a DIFFERENT repo is excluded rather than asserted missing — its own
+  # settings files live in that repo and are never read here, so treating an
+  # unread file as "never mentioned" would false-positive on every already-
+  # enabled install elsewhere on the machine (and could later steer a mutation
+  # at the wrong repo).
+  local verifiable_ids
+  verifiable_ids=$(jq -c '[.[] | select(.scope == "user" or .currentProject == true) | .id] | unique' <<<"$installed")
+
   local missing_from_enabled
-  missing_from_enabled=$(jq -cn --argjson installed_ids "$installed_ids" --argjson known "$known_at_mp" \
-    '$installed_ids - $known')
+  missing_from_enabled=$(jq -cn --argjson verifiable_ids "$verifiable_ids" --argjson known "$known_at_mp" \
+    '$verifiable_ids - $known')
 
   local enabled_at_mp
   enabled_at_mp=$(jq -cn --argjson known "$known_at_mp" --argjson eff "$effective_map" \

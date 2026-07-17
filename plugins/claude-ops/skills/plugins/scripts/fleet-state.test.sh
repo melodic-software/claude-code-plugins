@@ -173,6 +173,36 @@ missing_enabled=$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)
 assert_eq "missing-enabled: installed-but-never-mentioned flagged" '["alpha@market1"]' "$missing_enabled"
 
 # ============================================================================
+# Case: missing_from_enabled must not false-positive on a DIFFERENT repo's
+# project-scope install — fleet-state.sh can only read the current
+# PROJECT_ROOT's settings files, so a project/local install belonging to
+# another repo can never be verified as known or unknown here. Excluded
+# entirely rather than asserted missing (a fixed bug: this used to compare
+# every project/local install machine-wide against only the current repo's
+# settings, so any other repo's already-enabled install showed up as
+# missing_from_enabled and sync could try to `enable -s project` against the
+# wrong repo)
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+other_repo_dir="$case_dir/other-repo"
+mkdir -p "$other_repo_dir/.claude"
+native_other_repo="$(cygpath -w "$other_repo_dir" 2>/dev/null || echo "$other_repo_dir")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg path "$native_other_repo" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $path, installPath: "y", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$other_repo_dir/.claude/settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+ARGS=(--marketplace market1)
+current_project_dir="$case_dir/current-repo"
+mkdir -p "$current_project_dir"
+out=$(run_state "$case_dir" "CLAUDE_PROJECT_DIR=$current_project_dir")
+missing_enabled=$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)
+assert_eq "missing-enabled: other repo's already-enabled project install excluded, not false-flagged" '[]' "$missing_enabled"
+
+# ============================================================================
 # Case: explicit enabledPlugins:false is an opt-out, NOT missing_from_enabled
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
@@ -304,6 +334,31 @@ m1_catalog=$(jq -c '.marketplaces.market1.catalog' <<<"$out" 2>/dev/null)
 assert_eq "--all: market1 resolved" '["alpha"]' "$m1_catalog"
 m2_error=$(jq -r '.marketplaces.market2.marketplace.error' <<<"$out" 2>/dev/null)
 assert_eq "--all: market2 reports its failure inline" "no catalog fixture" "$m2_error"
+
+# ============================================================================
+# Case: --all sweeps every marketplace; one MALFORMED catalog (not merely
+# absent) does not abort the sweep either — this is a distinct code path from
+# the absent-fixture case above (a fixed bug: emit_marketplace previously ran
+# the catalog JSON through the fatal require_json helper, which exit-2'd the
+# whole process before the {marketplaces: ...} report was ever emitted for
+# ANY marketplace, not just the malformed one)
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z2", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/catalog/market2.json" '{bad'
+ARGS=(--all)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--all: exits 0 even with one marketplace's catalog malformed" 0 "$rc"
+m1_catalog=$(jq -c '.marketplaces.market1.catalog' <<<"$out" 2>/dev/null)
+assert_eq "--all: market1 still resolved despite market2's malformed catalog" '["alpha"]' "$m1_catalog"
+m2_error=$(jq -r '.marketplaces.market2.marketplace.error' <<<"$out" 2>/dev/null)
+assert_eq "--all: market2's malformed catalog reports its failure inline" "marketplace.json is not valid JSON" "$m2_error"
 
 # ============================================================================
 # Case: default marketplace resolved dynamically from CLAUDE_PLUGIN_ROOT
