@@ -99,6 +99,32 @@ divergence_id=$(jq -r '.divergences[0].id' <<<"$out" 2>/dev/null)
 assert_eq "divergence: correct id" "alpha@market1" "$divergence_id"
 scope_count=$(jq '.divergences[0].scopes | length' <<<"$out" 2>/dev/null)
 assert_eq "divergence: two scopes listed" "2" "$scope_count"
+versions_match=$(jq -r '.divergences[0].versionsMatch' <<<"$out" 2>/dev/null)
+assert_eq "divergence: differing versions flagged versionsMatch=false" "false" "$versions_match"
+
+# ============================================================================
+# Case: same-version multi-scope install is benign — NOT an actionable
+# divergence, must not inflate the "N behind" report count
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [
+      {"scope": "project", "projectPath": "<PROJECT_ROOT>/sample-repo", "installPath": "x", "version": "0.3.0"},
+      {"scope": "user", "installPath": "y", "version": "0.3.0"}
+    ]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+same_version_match=$(jq -r '.divergences[0].versionsMatch' <<<"$out" 2>/dev/null)
+assert_eq "benign multi-scope: same version flagged versionsMatch=true" "true" "$same_version_match"
+actionable_count=$(jq '[.divergences[] | select(.versionsMatch == false)] | length' <<<"$out" 2>/dev/null)
+assert_eq "benign multi-scope: zero actionable (version-behind) divergences" "0" "$actionable_count"
 
 # ============================================================================
 # Case: plugin missing from installs

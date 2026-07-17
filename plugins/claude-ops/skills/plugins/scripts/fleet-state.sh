@@ -233,11 +233,19 @@ emit_marketplace() {
   enabled_at_mp=$(jq -cn --argjson known "$known_at_mp" --argjson eff "$effective_map" \
     'reduce $known[] as $id ({}; . + {($id): $eff[$id]})')
 
+  # `versionsMatch` separates a benign multi-scope install (project and user
+  # scope both pinned to the same version — normal, not actionable) from a
+  # real version skew (some scope is behind another — the "run converge"
+  # signal). A record count alone conflates the two.
   local divergences
   divergences=$(jq -c '
     group_by(.id)
     | map(select(length > 1))
-    | map({id: .[0].id, scopes: map({scope, version, projectPath})})
+    | map({
+        id: .[0].id,
+        scopes: map({scope, version, projectPath}),
+        versionsMatch: ((map(.version) | unique | length) == 1)
+      })
   ' <<<"$installed")
 
   jq -cn \
