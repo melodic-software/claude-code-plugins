@@ -77,7 +77,8 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 ## Important notes
 
 - **Side effects** — commits, pushes, replies, reactions, and bot-thread resolution happen
-  autonomously on YOUR OWN open PRs' branches. Merging never does
+  autonomously on the branches of the open PRs the loop processes — every open non-draft PR in
+  the repo regardless of author, wherever the branch is writable. Merging never happens
 - **Human comments** — classify + reply + surface to the user; never auto-fix (§5.1.5)
 - **Max 3 CI fix iterations** per PR per pass — prevents infinite fix-push-fail loops
 - **Focus-first** — complete the oldest PR's wave before advancing (§5.0)
