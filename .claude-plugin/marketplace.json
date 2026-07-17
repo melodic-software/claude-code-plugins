@@ -107,7 +107,7 @@
       "name": "playbooks",
       "source": "./plugins/playbooks",
       "category": "claude-code",
-      "tags": ["knowledge", "playbook", "doctrine", "boris", "thariq", "fable-5", "skill-authoring", "best-practices", "skill"]
+      "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "best-practices", "skill"]
     },
     {
       "name": "docs-hygiene",

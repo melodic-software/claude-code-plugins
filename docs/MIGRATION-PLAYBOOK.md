@@ -319,7 +319,7 @@ against the plugin you actually invoked. Then:
    partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
    `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
-   so a warranted non-router skill (e.g. `diagnose`) passes `check` without flagging the gap. Rely on the
+   so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
 2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
    `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
@@ -847,7 +847,7 @@ point every consuming skill's `file:` link and `setup-deps.mjs` fingerprint at t
 byte-drift CI gate are needed — there is only one committed copy, so nothing can drift. The
 invariant that **replaces** the byte-drift gate is delivery-by-version: editing the shared source
 obligates a plugin `version` bump, since the version is the update cache key. (`knowledge`'s
-`repo-analysis` + `video-digestion`, shared by its `youtube` and `course-digest` skills, is the
+`repo-analysis` + `video-digestion`, shared by its `youtube-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
 

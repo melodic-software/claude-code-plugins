@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.2.0
+
+### Changed
+
+- **BREAKING — skill renamed:** `thariq` → `skill-authoring` (`/playbooks:thariq` →
+  `/playbooks:skill-authoring`). The pack's content is topic-shaped (skill authoring),
+  so the skill is now named for what it teaches; the attribution to Thariq's post is
+  unchanged in the skill body. No renames-map entry — consumers pick up the new name
+  with this version. The upstream lane is unchanged: same upstream source URL, the
+  vendored baseline (`vendor/SKILL.md`) is byte-identical, and `/playbooks:update`
+  drift-check mechanics now point at the renamed pack path. Only the wrapper skill
+  name (directory, frontmatter `name`, and references) changed.
+
 ## 0.1.0
 
 ### Added

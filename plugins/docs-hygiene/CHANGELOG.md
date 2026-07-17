@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## 0.6.0 — 2026-07-17
+
+Changed:
+
+- Renamed the `declutter` skill → `audit-noise` (breaking). Update any
+  `/docs-hygiene:declutter` invocations to `/docs-hygiene:audit-noise`; the
+  plugin ID (`docs-hygiene`) is unchanged, only the skill's leaf name moved.
+  The skill is a read-only classifier — per the marketplace naming grammar
+  `audit` = read-only report — and "declutter" remains a description trigger
+  word. The detect-script env vars moved with it:
+  `DECLUTTER_REPO_ROOT` → `AUDIT_NOISE_REPO_ROOT`.
+
 ## 0.5.0 — 2026-07-15
 
 Changed:
