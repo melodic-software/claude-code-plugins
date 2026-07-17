@@ -67,7 +67,7 @@ Fresh-docs verified this session (2026-07-17): skills frontmatter fields incl. `
 
 **Build technique:** committed work, integration risk → tracer bullet. The integration spine (contract + sync machinery, Phases 1–2) lands first and is verified end-to-end (canonical → synced copies → CI drift gate) before either consumer skill is rewired.
 
-### Phase 1: Contract home — `docs/conventions/standards/` [TODO]
+### Phase 1: Contract home — `docs/conventions/standards/` [DONE]
 
 Materialize `contract-spec.md` as the canonical convention, following the marketplace convention template (`docs/conventions/topic-docs/` precedent: README + CHANGELOG + schema + examples).
 
