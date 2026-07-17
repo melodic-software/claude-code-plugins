@@ -108,6 +108,12 @@ explicit confirmation before any conversion (see Setup and migration).
 - Ignore mechanism: setup creates `<standards_dir>/.gitignore` containing
   `*.local.md`. That file is setup-owned; no plugin ever edits the
   consumer's root `.gitignore` or any ignore file it did not create.
+- **Pre-existing `<standards_dir>/.gitignore`:** a file setup did not
+  create is consumer-owned — setup never writes it. Setup verifies it
+  covers `*.local.md`; when it does not, setup surfaces the missing line
+  and asks the consumer to add it themselves, reporting overlay
+  protection as unconfigured until then. Idempotency is unaffected: the
+  verify-and-surface path writes nothing on any run.
 - Semantics per Layers and precedence: additive/tighten-only; direct
   conflict → team wins; provenance named when a personal rule materially
   shapes output.
@@ -168,6 +174,13 @@ and all repo-relative paths resolve against it.
 
 No silent writes, ever — every rung that could persist state does so only
 by explicit offer and acceptance.
+
+**Personal layers (every rung):** whatever the team rungs above yield,
+resolution ALSO discovers the personal layers — glob-discover
+`<standards_dir>/*.local.md` overlays, and read `~/.claude/standards/`
+(its own index when present, else glob) — and applies them per Layers and
+precedence. Matching a team index row never substitutes for this step; a
+denied or absent personal layer simply contributes nothing.
 
 **Ambient-content rule:** content already in context (fired `.claude/rules`
 directives, auto-loaded `CLAUDE.md`) is never re-pulled by a grounding
