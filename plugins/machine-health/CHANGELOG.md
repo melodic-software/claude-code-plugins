@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **Breaking:** renamed the `check` skill → `audit`. Update any `/machine-health:check`
+  invocations to `/machine-health:audit`; the plugin ID (`machine-health`) is unchanged, only the
+  skill's leaf name moved. Rationale: the skill emits a findings report rather than a pass/fail
+  gate — the marketplace naming grammar reserves `check` for deterministic gates and `audit` for
+  read-only reports.
+
 ## [0.4.0]
 
 ### Changed

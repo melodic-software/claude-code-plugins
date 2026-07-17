@@ -1,0 +1,117 @@
+{
+  "skill_name": "youtube-digest",
+  "evals": [
+    {
+      "id": 1,
+      "name": "transcript-action-active",
+      "prompt": "Run /knowledge:youtube-digest transcript https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "expected_output": "Runs transcript pipeline (no video download), writes .work/<video-slug>/transcript.txt with [M:SS] paragraphs from cleaned auto-EN captions, creates README stub, verifies yt-dlp prerequisite first.",
+      "expectations": [
+        "Checks pre-computed context / Prerequisites before running",
+        "Invokes run.mjs transcript/run-transcript.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs) with the URL",
+        "Does NOT download video (transcript mode)",
+        "Reports video slug and transcript path under .work/",
+        "Treats video claims as secondary-source until external research promotes them"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "watch-full-pipeline",
+      "prompt": "Run /knowledge:youtube-digest watch https://www.youtube.com/watch?v=7zZy1QTvokM",
+      "expected_output": "Bootstrap via run-watch.js, execute vision two-pass, harvest links, default-on research agenda, emit repo-applicability menu under .work/<video-slug>/research/repo-applicability.md.",
+      "expectations": [
+        "Invokes run.mjs watch/run-watch.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs)",
+        "Writes watch.json phase-map and continuation-prompt.md",
+        "Stops and asks when frameSelection.overCap is true",
+        "Merges on-screen URLs into context/harvested-links.json",
+        "Does NOT auto-implement or auto-file issues from synthesis"
+      ],
+      "files": [
+        "evals/fixtures/driver-video-goldens.json"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "resume-interrupted-watch",
+      "prompt": "Run /knowledge:youtube-digest resume stop-prompting-claude-use-karpathy-s-met-7zZy1QTvokM",
+      "expected_output": "Reads watch.json, identifies next incomplete phase, refreshes continuation-prompt.md, emits copy/paste resume prompt.",
+      "expectations": [
+        "Invokes run.mjs watch/run-resume.js (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs) with video slug",
+        "Reports nextPhase from phase map (acquire → transcript → watching → vision → harvest → research → synthesis)",
+        "Does NOT restart from acquire when later phases are complete"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "driver-golden-car-wash",
+      "prompt": "After absorbing driver video 7zZy1QTvokM, answer: In Karpathy's car-wash example, how far is the car wash and what do models incorrectly recommend?",
+      "expected_output": "50 meters away; models recommend walking instead of driving.",
+      "expectations": [
+        "Answer cites transcript evidence (~0:37), not guesswork",
+        "Does not claim video download landed in repo"
+      ],
+      "files": [
+        "evals/fixtures/driver-video-goldens.json"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "queue-add-urls",
+      "prompt": "Run /knowledge:youtube-digest queue https://www.youtube.com/watch?v=7zZy1QTvokM https://youtu.be/MlQ8GZvPWJA",
+      "expected_output": "Materializes .work/<watch-epic>/QUEUE.md if missing, appends two rows with video-ids, skips duplicate video-id on re-run.",
+      "expectations": [
+        "Creates .work/<watch-epic>/claims/ directory when materializing queue",
+        "Copies templates/queue.md shape into QUEUE.md on first use",
+        "Dedupes by video-id — does not append 7zZy1QTvokM twice",
+        "Uses extractVideoId for youtu.be and youtube.com URL variants"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "watch-dequeue-fifo",
+      "prompt": "With pending rows in .work/<watch-epic>/QUEUE.md, run /knowledge:youtube-digest watch",
+      "expected_output": "Claims first pending row via queue-claim.js, sets in_progress, bootstraps run-watch.js with that URL, releases claim on complete or failed.",
+      "expectations": [
+        "Runs run.mjs watch/queue-claim.js claim (node ${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs) before editing QUEUE.md",
+        "Invokes run-watch.js with URL from claimed row — not a bare no-arg run-watch",
+        "On claim conflict (exit 2), tries next pending row or reports queue busy",
+        "Runs queue-claim.js release after row reaches complete or failed"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "watch-queue-explicit-index",
+      "prompt": "Run /knowledge:youtube-digest watch 3",
+      "expected_output": "Claims only row #3 from QUEUE.md; suitable for parallel terminal B while another session runs watch 2.",
+      "expectations": [
+        "Claims row 3 exclusively via queue-claim.js",
+        "Does not dequeue a different row when index 3 is specified",
+        "Fails clearly when row 3 is already claimed by another terminal"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "queue-list-and-stale-reclaim",
+      "prompt": "Run /knowledge:youtube-digest queue list on an epic with claims/2.json older than 7 days and row 2 in_progress",
+      "expected_output": "Lists table plus active claims; stale-check may reset abandoned in_progress rows to pending.",
+      "expectations": [
+        "Invokes queue-claim.js list to show active claim files",
+        "Documents or runs stale-check for claims older than 7 days",
+        "Does not delete fresh in_progress claims"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "driver-golden-claude-md-sections",
+      "prompt": "After absorbing driver video 7zZy1QTvokM, answer: During the on-screen CLAUDE.md walkthrough, what four section themes are highlighted?",
+      "expected_output": "Repo structure, custom skills routing, knowledge architecture, key working rules.",
+      "expectations": [
+        "Answer requires frame evidence (~9:31) — not answerable from transcript alone",
+        "Promotes claims to Tier 0/1 only after vision read, not from training data"
+      ],
+      "files": [
+        "evals/fixtures/driver-video-goldens.json"
+      ]
+    }
+  ]
+}

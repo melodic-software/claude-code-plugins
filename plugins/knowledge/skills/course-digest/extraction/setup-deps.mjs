@@ -47,7 +47,7 @@ const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(data, "ms
 function computeStamp() {
   const hash = createHash("sha256");
   const files = ["package.json"];
-  // Vendored libs are shared plugin-wide (both youtube and course-digest consume
+  // Vendored libs are shared plugin-wide (both youtube-digest and course-digest consume
   // them), so they live at the plugin root, not under this skill.
   const vendorRoot = path.join(here, "..", "..", "..", "vendor");
   if (fs.existsSync(vendorRoot)) {

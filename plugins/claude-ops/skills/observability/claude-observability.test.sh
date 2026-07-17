@@ -48,12 +48,12 @@ lines_in() {
   wc -l <"$1" | tr -d ' \r'
 }
 
-# 12 bash-lint events: 10 fast (~120ms), 2 slow (5000ms+ outliers)
+# 12 bash-format events: 10 fast (~120ms), 2 slow (5000ms+ outliers)
 for i in $(seq 1 10); do
-  emit_event "2026-04-29T10:0${i}:00.000Z" bash-lint Write 120 0 test.sh success
+  emit_event "2026-04-29T10:0${i}:00.000Z" bash-format Write 120 0 test.sh success
 done
-emit_event "2026-04-29T10:11:00.000Z" bash-lint Write 5000 0 slow.sh success
-emit_event "2026-04-29T10:12:00.000Z" bash-lint Write 6000 0 slower.sh success
+emit_event "2026-04-29T10:11:00.000Z" bash-format Write 5000 0 slow.sh success
+emit_event "2026-04-29T10:12:00.000Z" bash-format Write 6000 0 slower.sh success
 
 # 5 sarif-diagnostics events with 1 error
 for i in $(seq 1 4); do
@@ -76,14 +76,14 @@ LAT_OUT=$(jq -s --arg since "$SINCE_ISO" '
       max: (max_by(.duration_ms).duration_ms)
     })' "$HOOK_LOG")
 
-assert_contains "bash-lint key present" "$LAT_OUT" "bash-lint PostToolUse"
+assert_contains "bash-format key present" "$LAT_OUT" "bash-format PostToolUse"
 assert_contains "sarif-diagnostics key present" "$LAT_OUT" "sarif-diagnostics PostToolUse"
 
-bash_lint_n=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-lint PostToolUse") | .n')
-assert_eq "bash-lint count = 12" "12" "$bash_lint_n"
+bash_format_n=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostToolUse") | .n')
+assert_eq "bash-format count = 12" "12" "$bash_format_n"
 
-bash_lint_max=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-lint PostToolUse") | .max')
-assert_eq "bash-lint max = 6000" "6000" "$bash_lint_max"
+bash_format_max=$(echo "$LAT_OUT" | jq -r '.[] | select(.key=="bash-format PostToolUse") | .max')
+assert_eq "bash-format max = 6000" "6000" "$bash_format_max"
 
 # --- Test 2: error rate per hook ---
 ERR_OUT=$(jq -s --arg since "$SINCE_ISO" '
@@ -227,11 +227,11 @@ assert_eq "clean --dry-run leaves OTEL store unchanged" "$otel_before" "$otel_af
 # --- Test 10: failed-then-fixed sequence detection (data-sources.md query) ---
 retry_log="$TEST_TMPDIR/retry-events.jsonl"
 printf '%s\n' \
-  '{"ts":"2026-01-01T10:00:00Z","hook":"bash-lint","exit_code":1}' \
-  '{"ts":"2026-01-01T10:00:05Z","hook":"bash-lint","exit_code":0}' \
+  '{"ts":"2026-01-01T10:00:00Z","hook":"bash-format","exit_code":1}' \
+  '{"ts":"2026-01-01T10:00:05Z","hook":"bash-format","exit_code":0}' \
   '{"ts":"2026-01-01T10:01:00Z","hook":"biome","exit_code":0}' \
-  '{"ts":"2026-01-01T10:02:00Z","hook":"bash-lint","exit_code":1}' \
-  '{"ts":"2026-01-01T10:02:05Z","hook":"bash-lint","exit_code":0}' >"$retry_log"
+  '{"ts":"2026-01-01T10:02:00Z","hook":"bash-format","exit_code":1}' \
+  '{"ts":"2026-01-01T10:02:05Z","hook":"bash-format","exit_code":0}' >"$retry_log"
 retry_out=$(jq -s '
   sort_by(.ts) as $e
   | [range(1; $e | length)
@@ -240,8 +240,8 @@ retry_out=$(jq -s '
   | group_by(.) | map({hook: .[0], retries: length})
   | sort_by(-.retries)
 ' "$retry_log")
-assert_eq "failed-then-fixed counts bash-lint retries" \
-  "$(echo '[{"hook":"bash-lint","retries":2}]' | jq -c .)" "$(echo "$retry_out" | jq -c .)"
+assert_eq "failed-then-fixed counts bash-format retries" \
+  "$(echo '[{"hook":"bash-format","retries":2}]' | jq -c .)" "$(echo "$retry_out" | jq -c .)"
 
 # --- Summary ---
 TOTAL=$CASE_NUM

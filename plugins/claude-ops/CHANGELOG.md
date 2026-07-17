@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Changed
+
+- **Breaking:** renamed the `troubleshoot` skill to `known-issues` (plugin ID `claude-ops` is
+  unchanged). Update any old invocations: `/claude-ops:troubleshoot` → `/claude-ops:known-issues`.
+  The skill looks up and tracks known upstream Claude product issues; it never diagnoses or fixes
+  local problems, so the old name over-promised. Behavior, actions, and the `registry_dir` option
+  are unchanged; the registry is now referred to as the known-issues registry.
+
+## [0.9.0]
+
+### Added
+
+- New `plugins` skill (`/claude-ops:plugins`): brings a machine's plugin fleet current on demand.
+  `sync` (default) refreshes marketplaces, updates in-repo project/local-scope installs plus the
+  user-scope sweep, installs new catalog plugins per the `install_new` policy, and fills any
+  `enabledPlugins` completeness gap — all CLI-mediated, never hand-editing Claude Code's internal
+  state files. `audit` runs the same algorithm read-only. `converge` is the one action that can
+  touch a committed `.claude/settings.json`: it detects actionable (version-behind) scope
+  divergence, previews and confirms per plugin, then surfaces the resulting diff for review — never
+  auto-committed, and it aborts outright in an autonomous session. Adds a read-only
+  `scripts/fleet-state.sh` state-inspection script and the `install_new` userConfig scalar
+  (`ask` default / `all` / `none`).
+
 ## [0.8.0]
 
 ### Changed

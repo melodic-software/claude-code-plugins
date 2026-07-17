@@ -44,7 +44,7 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@4dbb0dfcc1fcbaf30e1a5573bf776af54e4e7e1a # 4dbb0df 2026-07-15
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@df54d0e8c899baa7e57344c3633f033129da6632 # df54d0e 2026-07-16
     with:
       runner: ${{ needs.select-review.outputs.runner || 'ubuntu-24.04' }}
     # Pass only the one named secret (least privilege) rather than `secrets:

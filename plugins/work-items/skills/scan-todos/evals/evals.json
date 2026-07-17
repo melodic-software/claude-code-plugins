@@ -1,0 +1,19 @@
+{
+  "skill_name": "scan-todos",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scan-todos-sweeps-groups-and-classifies-markers",
+      "prompt": "/work-items:scan-todos",
+      "expected_output": "Sweeps tracked files for actionable TODO/FIXME/HACK/XXX markers in a single git grep pass (rooted at the repo top, with the documented exclusions), groups the hits by parent folder sorted smallest-first, and for each marker classifies it as resolve-now, file-a-work-item-plus-remove-marker (via /work-items:track add), remove-already-done, or false-positive. It never keeps an actionable marker as intentional in merged production code, and skips external upstream citations and structured task-list grammar.",
+      "files": [],
+      "expectations": [
+        "Runs ONE git grep pass rooted at the repo top (`git -C <root> grep`) rather than per-file loops, applying the documented exclusions and stripping carriage returns",
+        "Groups markers by parent folder and presents them sorted smallest-group-first",
+        "Classifies each marker: resolve now, file a work item + remove marker (creating via `/work-items:track add`), remove (already done), or false positive",
+        "Never keeps an actionable TODO/FIXME/HACK/XXX as intentional in merged production code",
+        "Skips non-actionable hits: external upstream citations (org/repo#issue), structured [TODO] task-list grammar, and test fixtures asserting on the literal marker text"
+      ]
+    }
+  ]
+}

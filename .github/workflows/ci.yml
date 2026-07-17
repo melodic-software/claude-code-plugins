@@ -280,10 +280,10 @@ jobs:
           cache-dependency-path: .github/requirements-ci.txt
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
-        # available to the later bash-lint contract tests in this same job.
+        # available to the later bash-format contract tests in this same job.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
-          paths: plugins/bash-lint
+          paths: plugins/bash-format
           rcfile: .shellcheckrc
       # Contract tests run first and gate independently of the CLI validate step
       # below: a validate-infra problem (e.g. the CLI needing auth) can never mask

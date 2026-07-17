@@ -1,5 +1,20 @@
 # Changelog — session-flow plugin
 
+## 0.7.0 — 2026-07-17
+
+Added:
+
+- keep-going: new skill. Recovers and continues a session after any
+  interruption (rate limit, crash, disconnect, gap) — inventory off-thread
+  work, inspect each item's real state from its artifact rather than
+  assuming, resume the resumable / restart the dead / surface the
+  unrecoverable, then reconcile the main thread from a fresh read of its
+  backing plan or handoff file and continue. Safe/idempotent work
+  auto-resumes; re-running side-effectful work (push, PR comment, deploy) is
+  gated against double-firing. It is the resume counterpart to handoff, and
+  the interruption cause is deliberately not diagnosed (recovery is
+  identical regardless). The plugin now bundles five skills.
+
 ## 0.6.0 — 2026-07-16
 
 Changed:

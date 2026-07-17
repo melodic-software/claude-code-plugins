@@ -1,6 +1,6 @@
 ---
 name: lint
-description: "Run polyglot linters and format checks across all affected ecosystems without a full build cycle — auto-detects ecosystems from changed files, honors each tool's config-file opt-in, and supports --fix mode to auto-correct where linters allow. Use for quick lint/format feedback during development; for build+test use /toolchain:build, for full outcome verification use /verification:confirm."
+description: "Run polyglot linters and format checks across all affected ecosystems without a full build cycle — auto-detects ecosystems from changed files, honors each tool's config-file opt-in, and supports --fix mode to auto-correct where linters allow. Use for quick lint/format feedback during development; for build+test use /toolchain:check, for full outcome verification use /verification:confirm."
 user-invocable: true
 argument-hint: "[ecosystem] [--fix] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint all)"
 ---
@@ -17,12 +17,12 @@ Run lint and format checks across affected ecosystems in one command. Fills the 
 | Skill | What it runs | Speed |
 |-------|-------------|-------|
 | `/toolchain:lint` | Lint + format only | Fast (~5-15s) |
-| `/toolchain:build` | Build + test + lint | Medium (~30-60s) |
+| `/toolchain:check` | Build + test + lint | Medium (~30-60s) |
 | `/verification:confirm` | Build + test + lint + outcome verification | Medium+ |
 
 Use `/toolchain:lint` for quick feedback during development. Use `/verification:confirm` before committing.
 
-**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `check-cmd`/`fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — shared with `/toolchain:build`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
+**The command surface is resolved, not hardcoded.** `/toolchain:lint` resolves each ecosystem's `check-cmd`/`fix-cmd` through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — shared with `/toolchain:check`: the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
 
 ## Arguments
 
@@ -70,7 +70,7 @@ If neither detection path yields changes and no filter specified: report "No cha
 
 Run each ecosystem's resolved `check-cmd` (or `fix-cmd` with `--fix`). Honor each ecosystem's `opt-in` — skip tools the project hasn't configured.
 
-For ecosystem-specific gotchas, reference `/toolchain:build` — its `context/<ecosystem>.md` files own the per-ecosystem prose detail.
+For ecosystem-specific gotchas, reference `/toolchain:check` — its `context/<ecosystem>.md` files own the per-ecosystem prose detail.
 
 Per-project walking (ecosystems with `project-discovery`):
 
@@ -126,7 +126,7 @@ When `--fix` is used, auto-fix capability is derived from the config: an ecosyst
 
 ## Relationship to other skills
 
-- **Composes from `/toolchain:build`**: `/toolchain:build` owns the per-ecosystem prose gotchas — reference it rather than duplicating
+- **Composes from `/toolchain:check`**: `/toolchain:check` owns the per-ecosystem prose gotchas — reference it rather than duplicating
 - **Composed by `/verification:confirm`** (the separate `verification` plugin, when installed): the lint leg of full verification
 - **After a simplify/cleanup pass**: run `/toolchain:lint` to catch formatting issues the cleanup introduced
 - **Before commit**: `/toolchain:lint --fix` is a quick pre-commit cleanup without the overhead of a full build
