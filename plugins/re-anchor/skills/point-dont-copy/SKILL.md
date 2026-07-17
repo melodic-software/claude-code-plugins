@@ -2,7 +2,7 @@
 name: point-dont-copy
 description: "Re-anchor pointer-over-copy discipline, then audit the work in flight for copied content, internal-name coupling, and closed capability lists, and correct by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Point, don't copy

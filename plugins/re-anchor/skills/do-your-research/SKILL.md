@@ -1,9 +1,8 @@
 ---
 name: do-your-research
-description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'you skipped verification', 'that's training-data recall', 'research this properly', or at conversation start to set the posture. Optional 'deep' arg fans out subagents to verify every load-bearing claim so far."
-argument-hint: "[deep]"
+description: "Re-anchor research and no-assumptions discipline mid-session, then self-audit and correct the current work. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'you skipped verification', 'that's training-data recall', 'research this properly', or at conversation start to set the posture. For a heavy verification fan-out over every load-bearing claim so far, use the sibling do-your-research-deep."
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Do your research
@@ -52,19 +51,14 @@ premature solution from the actual problem, and flag whatever stays
 unverifiable rather than smoothing over it. Where your own judgement is
 the suspected source of bias, re-derive in a fresh-context subagent.
 
-## `deep` action
+## Escalating to a verification fan-out
 
-When `$ARGUMENTS` contains `deep`, run this in place of the audit and
-correct-forward steps.
-
-`/re-anchor:do-your-research deep` escalates to a full verification pass:
-enumerate every load-bearing claim made so far, fan out fresh-context
-subagents (blind to the reasoning that produced each claim) to verify each
-against a primary source, scaling the fan-out to the number of claims.
-Merge their findings, correct every falsified or unbacked claim, and
-report a per-claim verified / corrected / unverifiable ledger. Reserve
-`deep` for when the accumulated claims are load-bearing enough to justify
-the subagent cost.
+When your own judgement is the suspected source of bias across MANY
+load-bearing claims — not just the current one — escalate to the sibling
+`/re-anchor:do-your-research-deep`. It fans fresh-context subagents out over
+every load-bearing claim so far and reports a per-claim ledger; that fan-out
+is a heavier execution tier, so it lives in its own skill rather than as an
+argument here.
 
 ## What this skill does NOT do
 
@@ -78,5 +72,5 @@ the subagent cost.
 
 - "Verifying" a claim against the same recall that produced it is not
   verification — the research-specific trap. Reach for a real source or the
-  live environment; where your own judgement is the suspect, `deep` is this
-  skill's built-in fresh-context escalation.
+  live environment; where your own judgement is the suspect across many
+  claims, `/re-anchor:do-your-research-deep` is the fresh-context escalation.

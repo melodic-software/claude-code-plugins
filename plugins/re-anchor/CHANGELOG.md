@@ -10,9 +10,14 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
 - **Initial release.** Discipline correctors sharing one re-anchor / audit /
   correct-forward method at plugin scope
   (`context/re-anchor-audit-correct.md`):
-  - `/re-anchor:do-your-research` — research and no-assumptions discipline, with a
-    `deep` action that fans out fresh-context subagents to verify every load-bearing
-    claim.
+  - `/re-anchor:do-your-research` — research and no-assumptions discipline: assert
+    nothing without a source, verify every concrete specific, frame the problem before
+    the solution, and treat training-data recall as unverified.
+  - `/re-anchor:do-your-research-deep` — the verification-fan-out tier of
+    `do-your-research`: enumerates every load-bearing claim and dispatches fresh-context
+    subagents to verify each against a primary source, throttled in bounded waves, then
+    reports a per-claim ledger. A sibling skill rather than a `deep` argument because the
+    subagent fan-out is a heavier execution tier (mirrors `/discovery:research-deep`).
   - `/re-anchor:follow-our-standards` — alignment to the consuming organization's
     engineering conventions, with relevance-routed progressive loading and respect
     for a declared managed / locally-owned seam.

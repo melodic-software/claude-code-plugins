@@ -12,6 +12,7 @@ first-class use, and the audit may honestly return clean.
 | Skill | Discipline it re-anchors |
 |---|---|
 | `/re-anchor:do-your-research` | Research and no-assumptions before assertion |
+| `/re-anchor:do-your-research-deep` | The verification-fan-out tier of do-your-research — subagents verify every load-bearing claim |
 | `/re-anchor:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
 | `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
@@ -34,7 +35,23 @@ turns for unbacked claims and skipped verification, then corrects forward.
 
 ```shell
 /re-anchor:do-your-research        # re-anchor + audit + correct
-/re-anchor:do-your-research deep   # fan out subagents to verify every load-bearing claim
+```
+
+### do-your-research-deep
+
+The verification-fan-out tier of `do-your-research` — same research
+discipline, heavier execution. Enumerates every load-bearing claim made so
+far and dispatches fresh-context subagents to verify each against a primary
+source, throttled in bounded waves so a claim-heavy session does not trip a
+burst overload, then reports a per-claim verified / corrected / unverifiable
+ledger. Reserved for when the accumulated claims justify the subagent cost;
+for a single inline re-anchor + audit, use `do-your-research`. It is a
+sibling skill rather than a `deep` argument because the subagent fan-out is a
+heavier execution tier, fixed in frontmatter (mirrors the
+`/discovery:research-deep` precedent).
+
+```shell
+/re-anchor:do-your-research-deep   # fan out subagents to verify every load-bearing claim
 ```
 
 ### follow-our-standards

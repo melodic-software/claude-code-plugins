@@ -28,14 +28,14 @@
     },
     {
       "id": 3,
-      "name": "deep-arg-fans-out-verification",
-      "prompt": "/re-anchor:do-your-research deep — we've made a lot of load-bearing claims about the API's rate limits and auth flow this session.",
-      "expected_output": "The deep action replaces the ordinary audit: it enumerates the load-bearing claims made so far, fans out fresh-context subagents (blind to the reasoning that produced each claim) to verify each against a primary source scaled to the claim count, then reports a per-claim verified / corrected / unverifiable ledger.",
+      "name": "audits-premature-solution-and-training-data-recall",
+      "prompt": "Let's just use Redis for the rate limiter — that's the standard choice, I know it from experience. do your research.",
+      "expected_output": "The skill re-anchors research discipline, then audits the recent turn for two discipline breaks: a solution reached before the problem was framed, and a claim ('the standard choice', 'I know it from experience') resting on training-data recall rather than a verified source. It corrects forward this turn by naming the actual problem before the solution and treating the recalled 'standard' as unverified until confirmed against an authoritative source, rather than proceeding on the assumption.",
       "files": [],
       "expectations": [
-        "Enumerates the load-bearing claims made so far rather than spot-checking one",
-        "Fans out fresh-context (blind) subagents to verify claims against primary sources",
-        "Reports a per-claim verified / corrected / unverifiable ledger"
+        "Names the solution-before-problem-framing as a located finding and re-derives from the actual problem being solved",
+        "Flags 'the standard choice' / 'from experience' as training-data recall that is unverified until a source or the live environment backs it",
+        "Corrects forward this turn rather than merely noting the issues or proceeding on the assumption"
       ]
     },
     {

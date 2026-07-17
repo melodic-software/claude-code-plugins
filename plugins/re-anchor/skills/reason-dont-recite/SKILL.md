@@ -2,7 +2,7 @@
 name: reason-dont-recite
 description: "Re-anchor the discipline that inherited content is evidence of what is, never self-justifying authority — then audit the work in flight for decisions coasting on precedent and re-derive them from first principles. Use when: 'reason don't recite', 'why is it this way', 'challenge that convention', 'you're deferring to precedent', \"that's just how it's done\", 'question the inherited design', 'stop reciting the docs', 'is this actually right', or at conversation start on legacy or inherited code."
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Reason, don't recite
