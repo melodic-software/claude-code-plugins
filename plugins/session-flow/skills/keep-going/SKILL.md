@@ -2,7 +2,7 @@
 name: keep-going
 description: "Recover and continue after any interruption — rate limit, crash, disconnect, or a gap. Inventory off-thread work, inspect its real state, resume or restart it, then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing'. Auto-resumes safe work; gates re-running anything with side effects."
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Keep going
