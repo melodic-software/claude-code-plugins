@@ -1,10 +1,10 @@
 ---
-name: declutter
-description: "Classify tracked markdown for five noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, and scope/loading meta-commentary — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; read-only, no edits applied. Use when: 'declutter', 'audit markdown noise', 'check for stale citations', 'find ghost refs', 'classify preamble', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
+name: audit-noise
+description: "Classify tracked markdown for five noise shapes — historical citations, ghost refs to ephemeral working-directory paths, \"Why this file exists\" preambles, hard-coupled enumerated consumer lists, and scope/loading meta-commentary — emitting Tier 1 (remove/relocate), Tier 2 (review needed), and Tier 3 (likely legitimate) findings with per-shape treatment guidance; read-only, no edits applied. Use when: 'audit markdown noise', 'declutter', 'check for stale citations', 'find ghost refs', 'classify preamble', 'sweep a rule/skill/convention doc for noise', or before editing any tracked .md — not for prose flavor/compression (use /compress) or structural markdown lint (your repo's markdown linter)."
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: Bash(bash *declutter/scripts/detect.sh*)
+allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
 ---
 
 ## Pre-computed context
@@ -54,7 +54,7 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 - **Opt-out markers respected.** `<!-- markdown-discipline-ignore -->` (covers the next paragraph) and `<!-- markdown-discipline-ignore-line -->` (next line) skip the wrapped content.
 - **Convention-path exemptions apply per matched path, never per line.** An angle-bracket slot variable (`.work/<slug>/…`, `docs/topics/<slug>/…`) is a schema placeholder, not a literal path; the reserved concern-scoped roots (`.work/handoffs/`, `.work/reviews/`) are citable only bare or with a placeholder child — a concrete child under them flags. A convention token on a line never exempts a concrete ghost ref sharing that line; the tracked concern file (`.claude/topic-docs.yaml`) matches no ghost-ref pattern and needs no exemption. Exception: the retired `.claude/notes/` location flags even in placeholder form.
 - **Output deterministic.** Filenames sort lexically; per-file tier rows sort by line number; no timestamps in output.
-- **Default action is the audit action** — `/declutter <file>` is identical to `/declutter audit <file>`.
+- **Default action is the audit action** — `/audit-noise <file>` is identical to `/audit-noise audit <file>`.
 
 ## Output schema
 
@@ -81,8 +81,8 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 
 ## What this skill is NOT
 
-- **Not `/compress`.** The sibling `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/declutter` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
-- **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/declutter` is semantic noise classification.
+- **Not `/compress`.** The sibling `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement); `/audit-noise` owns NOISE (the five shapes above). Different concerns; both may apply to the same target iteratively.
+- **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/audit-noise` is semantic noise classification.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
 - **Not a content deduplicator.** When the noise is the same concept repeated across 3+ files, that is the sibling `/extract-ssot`'s territory.
 

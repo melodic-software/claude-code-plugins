@@ -264,7 +264,7 @@ cat >"$CONFIGURED" <<'EOF'
 Plan kept at product/topics/foo/PLAN.md and notes at .scratch/foo/EXPLORE.md.
 .scratch/reviews/ is self-ignoring
 EOF
-conf_out="$(DECLUTTER_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
+conf_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT" bash "$DETECT" "$CONFIGURED")"
 assert_contains "configured contract root flags concrete slices" "$conf_out" "product/topics/foo/"
 assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"

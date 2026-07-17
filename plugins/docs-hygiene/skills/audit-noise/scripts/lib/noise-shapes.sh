@@ -1,8 +1,8 @@
 # shellcheck shell=bash
-# Shared noise-shape detectors for /declutter (sourceable; not invoked directly).
+# Shared noise-shape detectors for /audit-noise (sourceable; not invoked directly).
 # Shape definitions and treatments: the skill's SKILL.md "Noise shapes and treatments".
 
-declutter_trim_excerpt() {
+audit_noise_trim_excerpt() {
   local line="$1"
   line="${line//$'\r'/}"
   line="${line#"${line%%[![:space:]]*}"}"
@@ -16,26 +16,26 @@ declutter_trim_excerpt() {
 # (.claude/topic-docs.yaml) overrides memory_dir/contract_dir, those roots
 # are ghost-ref surfaces too. Resolved once per process; defaults always
 # scan (a doc may cite the defaults regardless of local config).
-declutter_convention_roots_pattern() {
-  if [[ -z "${DECLUTTER_ROOTS_PATTERN:-}" ]]; then
+audit_noise_convention_roots_pattern() {
+  if [[ -z "${AUDIT_NOISE_ROOTS_PATTERN:-}" ]]; then
     local pattern='\.work|docs/topics' key val yaml
-    yaml="${DECLUTTER_REPO_ROOT:-.}/.claude/topic-docs.yaml"
+    yaml="${AUDIT_NOISE_REPO_ROOT:-.}/.claude/topic-docs.yaml"
     if [[ -f "$yaml" ]]; then
       for key in memory_dir contract_dir; do
         val=$(sed -n "s/^${key}:[[:space:]]*//p" "$yaml" | head -1)
         val="${val%%#*}"; val="${val//[[:space:]]/}"; val="${val%/}"
         val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
         if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
-          DECLUTTER_CONTRACT_ROOT="$val"
+          AUDIT_NOISE_CONTRACT_ROOT="$val"
         fi
         if [[ -n "$val" && "$val" != '.' && "$val" != '.work' && "$val" != 'docs/topics' ]]; then
           pattern+="|$(printf '%s' "$val" | sed "s/[.[\\*^\$()+?{|]/\\\\&/g")"
         fi
       done
     fi
-    DECLUTTER_ROOTS_PATTERN="$pattern"
+    AUDIT_NOISE_ROOTS_PATTERN="$pattern"
   fi
-  printf '%s' "$DECLUTTER_ROOTS_PATTERN"
+  printf '%s' "$AUDIT_NOISE_ROOTS_PATTERN"
 }
 
 # Per-match ghost-ref scan: exemptions apply to each matched path, never to
@@ -45,19 +45,19 @@ declutter_convention_roots_pattern() {
 # concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/) are
 # exempt only in bare form — a concrete child under them flags. Configured
 # non-default roots from the concern file scan alongside the defaults.
-declutter_line_has_ghost_ref() {
+audit_noise_line_has_ghost_ref() {
   local rest="$1" path root seg after roots
   # Retired locations: stale even in placeholder form.
   [[ "$rest" == *'.claude/notes/'* ||
     "$rest" == *'.claude/handoffs/'* ||
     "$rest" == *'.claude/review/'* ]] && return 0
-  roots="$(declutter_convention_roots_pattern)"
+  roots="$(audit_noise_convention_roots_pattern)"
   while [[ "$rest" =~ ($roots)/([a-z0-9][a-z0-9_-]*)/ ]]; do
     path="${BASH_REMATCH[0]}"
     root="${BASH_REMATCH[1]}"
     seg="${BASH_REMATCH[2]}"
     after="${rest#*"$path"}"
-    if [[ "$root" != 'docs/topics' && "$root" != "${DECLUTTER_CONTRACT_ROOT:-docs/topics}" ]] &&
+    if [[ "$root" != 'docs/topics' && "$root" != "${AUDIT_NOISE_CONTRACT_ROOT:-docs/topics}" ]] &&
       [[ "$seg" == 'handoffs' || "$seg" == 'reviews' ]] &&
       [[ ! "$after" =~ ^[A-Za-z0-9._-] ]]; then
       rest="$after"
@@ -68,7 +68,7 @@ declutter_line_has_ghost_ref() {
   return 1
 }
 
-declutter_line_skipped() {
+audit_noise_line_skipped() {
   local prev="$1" line="$2"
   [[ "$prev" == *'markdown-discipline-ignore'* ]] && return 0
   [[ "$line" == *'markdown-discipline-ignore'* ]] && return 0
@@ -76,10 +76,10 @@ declutter_line_skipped() {
 }
 
 # Emit zero or more shape names (one per line on stdout).
-declutter_detect_shapes() {
+audit_noise_detect_shapes() {
   local line="$1"
   local found=0
-  if declutter_line_has_ghost_ref "$line"; then
+  if audit_noise_line_has_ghost_ref "$line"; then
     printf '%s\n' 'ghost-ref'
     found=1
   fi
@@ -112,7 +112,7 @@ declutter_detect_shapes() {
   return "$found"
 }
 
-declutter_shape_tier() {
+audit_noise_shape_tier() {
   local shape="$1"
   case "$shape" in
   ghost-ref | preamble) printf '2' ;;
@@ -121,7 +121,7 @@ declutter_shape_tier() {
   esac
 }
 
-declutter_section_exempt() {
+audit_noise_section_exempt() {
   local heading="$1"
   case "$heading" in
   "Recheck triggers" | "Cross-references" | "Sources" | "History" | "External authority") return 0 ;;
