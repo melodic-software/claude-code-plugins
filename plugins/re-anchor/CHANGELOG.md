@@ -25,6 +25,10 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
     evidence of what is, never self-justifying authority; a choice supported only by
     precedent earns first-principles re-derivation. A standards disagreement it
     surfaces routes upstream via `/re-anchor:follow-our-standards`.
+  - `/re-anchor:tighten-your-output` — terseness discipline: fewer words or lines
+    with no loss of meaning or correctness. Code re-anchors the consuming org's
+    simpler-code convention; prose terseness has no standards doc yet, so the skill
+    flags that gap and routes batch work to compress (prose) and simplify (code).
 - Repo-agnostic and machine-agnostic: each corrector re-anchors the discipline the
   consuming project declares in its own instruction layer, and degrades to a portable
   baseline when none is declared.

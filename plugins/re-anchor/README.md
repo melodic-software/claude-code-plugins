@@ -15,6 +15,7 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
 | `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
+| `/re-anchor:tighten-your-output` | Terseness — fewer words or lines with no loss of meaning or correctness |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -76,6 +77,22 @@ surfaces routes upstream via follow-our-standards.
 
 ```shell
 /re-anchor:reason-dont-recite      # re-anchor + audit + correct
+```
+
+### tighten-your-output
+
+Re-anchors terseness discipline: say markdown in fewer words with no
+semantic loss, write code in fewer lines when readability holds. The code
+side re-anchors the consuming org's simpler-code convention (named failure
+modes; constraints — clarity, tests, error handling, conventions,
+observability — never traded for line count); prose terseness usually has no
+dedicated standards doc, so the skill flags that gap rather than inventing a
+rubric. Audits the work for avoidable verbosity and tightens only where the
+reduction is free; routes batch work to a compress capability (prose) and a
+simplify capability (code).
+
+```shell
+/re-anchor:tighten-your-output     # re-anchor + audit + correct
 ```
 
 ## Consumer conventions
