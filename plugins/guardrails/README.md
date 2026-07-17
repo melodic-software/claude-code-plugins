@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling seven **safety guards** that catch risky agent
+A Claude Code plugin bundling eight **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
