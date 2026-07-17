@@ -97,8 +97,11 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use.
 
-Shell consumers read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror; the custom environment variable
-is retired when the migration lands.
+Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror — a hook-only export: a Bash
+call made by a skill and monitor processes do not receive it. A non-hook consumer (a `bin/` script,
+a skill-invoked shell script) takes the value through non-sensitive `${user_config.*}` substitution
+in skill or agent content, an explicit argument, or a component field that substitutes it. The
+custom environment variable is retired when the migration lands.
 
 `version` lives in `plugin.json` only, never in a marketplace entry. The platform resolves
 plugin.json first, but a marketplace-entry copy is dead metadata that silently becomes live if the
