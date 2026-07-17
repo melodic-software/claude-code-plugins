@@ -127,7 +127,7 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 - [ ] moderation (blocked by: admin-role scope)
 ```
 
-Tick on resolve. Surface the open set periodically (every few questions, or on request) — not every turn, which would clutter the one-question flow. Loop until zero open *consequential* branches. No question cap.
+Tick on resolve. Surface the open set periodically (every few questions, or on request) — not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
 
 ### Incremental persistence + branch-out
 
