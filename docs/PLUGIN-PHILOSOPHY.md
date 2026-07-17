@@ -119,7 +119,10 @@ plugins the requirement is a thin check-centric setup; where one is not yet ship
 conformance audit tracks the gap.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
-`check` (read-only inspect and verify) and `apply` (idempotent configure) actions. Setup must be:
+`check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This is a
+normative target — setup skills that predate this contract are nonconforming until migrated, and
+the fleet conformance audit tracks the gap rather than the doctrine pretending it is closed. Setup
+must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
