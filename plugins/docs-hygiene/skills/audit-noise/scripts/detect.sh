@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Noise findings for /declutter. Read-only.
+# Noise findings for /audit-noise. Read-only.
 #
 # Output: File, Finding tier/shape/line/excerpt; Summary lines.
 # Exit: always 0 on audit paths — a read-only audit must never fail the caller,
@@ -15,7 +15,7 @@ TARGETS=()
 
 usage() {
   cat <<'EOF'
-detect.sh — emit markdown noise findings for /declutter.
+detect.sh — emit markdown noise findings for /audit-noise.
 
 Usage:
   detect.sh <file.md>...
@@ -114,22 +114,22 @@ audit_file() {
     if [[ "$line" =~ ^##[[:space:]]+ ]]; then
       current_section="${line#'## '}"
       current_section="${current_section%%$'\r'*}"
-      if declutter_section_exempt "$current_section"; then
+      if audit_noise_section_exempt "$current_section"; then
         in_exempt=1
       else
         in_exempt=0
       fi
     fi
-    if [[ $in_exempt -eq 1 ]] || declutter_line_skipped "$prev_line" "$line"; then
+    if [[ $in_exempt -eq 1 ]] || audit_noise_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       continue
     fi
-    shapes="$(declutter_detect_shapes "$line" || true)"
+    shapes="$(audit_noise_detect_shapes "$line" || true)"
     if [[ -n "$shapes" ]]; then
-      excerpt="$(declutter_trim_excerpt "$line")"
+      excerpt="$(audit_noise_trim_excerpt "$line")"
       while IFS= read -r shape; do
         [[ -z "$shape" ]] && continue
-        tier="$(declutter_shape_tier "$shape")"
+        tier="$(audit_noise_shape_tier "$shape")"
         printf 'File: %s\n' "$file"
         printf 'Finding tier: %s\n' "$tier"
         printf 'Finding shape: %s\n' "$shape"

@@ -1,5 +1,5 @@
 {
-  "skill_name": "declutter",
+  "skill_name": "audit-noise",
   "evals": [
     {
       "id": 1,
@@ -52,13 +52,13 @@
     },
     {
       "id": 5,
-      "name": "flavor-is-compress-not-declutter",
+      "name": "flavor-is-compress-not-audit-noise",
       "prompt": "Declutter docs/wordy.md — it's full of filler like 'basically', 'really', and 'just', plus a lot of hedging. Flag all of that.",
-      "expected_output": "Does NOT classify filler / hedging / articles as any of the five declutter noise shapes — that FLAVOR is the sibling /compress's territory. It reports no noise-shape findings for the filler and routes flavor removal to /compress.",
+      "expected_output": "Does NOT classify filler / hedging / articles as any of audit-noise's five noise shapes — that FLAVOR is the sibling /compress's territory. It reports no noise-shape findings for the filler and routes flavor removal to /compress.",
       "files": [],
       "expectations": [
-        "Filler / hedging words are NOT classified under any of declutter's five noise shapes",
-        "Output routes flavor removal to /compress rather than handling it as declutter noise"
+        "Filler / hedging words are NOT classified under any of audit-noise's five noise shapes",
+        "Output routes flavor removal to /compress rather than classifying it as a noise shape"
       ]
     },
     {
