@@ -123,9 +123,13 @@ output. The tier boundary re-anchors the consuming org's enforceability-tiers
 convention — deterministic work gets scripted, detect-then-judge gets only
 its detect half scripted while the verdict stays judgement, and
 reasoning-only is never scripted. The in-task "script it now" application has
-no standards doc yet, so the skill flags that gap. Distinct from a
-standing-automation capability: recurring checks belong in a hook, this
-corrector owns the one-off, session-time script.
+no standards doc yet, so the skill flags that gap. The discipline runs in
+both directions: analysis reasons over a script's output, and generation
+emits a deterministic scaffold (a PR body, an issue, a report, config
+boilerplate) from a script or a native template so model output is reserved
+for the judgment slots. Distinct from a standing-automation capability:
+recurring checks belong in a hook, this corrector owns the one-off,
+session-time script.
 
 ```shell
 /re-anchor:script-the-deterministic-work   # re-anchor + audit + correct

@@ -48,6 +48,18 @@
         "Routes the recurring rule to a config/automation-gaps capability rather than absorbing it",
         "Reserves its own scope for the one-off, session-time script"
       ]
+    },
+    {
+      "id": 5,
+      "name": "generation-scaffold-from-template-not-hand-typed",
+      "prompt": "script the deterministic work — draft the PR body for this branch; you were about to type the whole thing out section by section.",
+      "expected_output": "The skill applies the discipline in the generation direction: the fixed scaffold is deterministic, so it emits the structure from a script or a native template (preferring the repo's PR template when one exists) and reserves its own output for the judgment slots — the summary, rationale, and risk call — rather than re-typing the frame by hand.",
+      "files": [],
+      "expectations": [
+        "Emits the deterministic scaffold from a template/script rather than hand-typing the frame",
+        "Prefers a native mechanism (repo PR/issue template) when one exists",
+        "Reserves model-authored output for the judgment slots, not the fixed structure"
+      ]
     }
   ]
 }

@@ -15,9 +15,12 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
   the detect half; the verdict stays judgement), reasoning-only (never
   script) — re-anchors the consuming org's enforceability-tiers convention;
   the in-task "script it now" application has no standards doc yet, so the
-  skill flags that gap rather than inventing a rubric. Distinct from a
-  standing-automation capability: recurring checks route to a hook, this
-  corrector owns the one-off, session-time script.
+  skill flags that gap rather than inventing a rubric. Runs in both
+  directions: analysis reasons over a script's output; generation emits a
+  deterministic scaffold (PR body, issue, report, config boilerplate) from a
+  script or native template so model output is reserved for the judgment
+  slots. Distinct from a standing-automation capability: recurring checks
+  route to a hook, this corrector owns the one-off, session-time script.
 
 ## [0.1.0]
 

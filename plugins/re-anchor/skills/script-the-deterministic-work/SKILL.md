@@ -62,6 +62,18 @@ declares one, route through it; when it does not, treat that as a flagged gap
 (a candidate upstream standards addition), not license to invent a rubric
 here beyond the portable baseline above.
 
+### Generation, not just analysis
+
+The discipline runs in both directions. Analysis feeds input to a script and
+reasons over its output; generation emits deterministic *structure* from a
+script or template and fills only the judgment slots by hand. A PR body, an
+issue body, a report, a skill skeleton, or config boilerplate is mostly fixed
+scaffold — the model's output belongs in the slots that need judgment, not in
+re-typing the frame each time. Prefer a native mechanism where one exists: a
+repo's pull-request or issue templates, for instance, already emit the
+scaffold with no generation cost. Same rule as the analysis side — reserve
+model output for judgment; the structure is deterministic.
+
 ## Audit — what to look for
 
 Name concrete, located findings (per the method doc's step 2):
@@ -74,7 +86,10 @@ Name concrete, located findings (per the method doc's step 2):
   of by a tool, so the result cannot be reproduced or trusted;
 - a sweep — "every file that matches", "all call sites of X" — asserted from
   memory of what was read rather than from a search that enumerated them;
-- arithmetic or a mechanical transform worked through by hand mid-answer.
+- arithmetic or a mechanical transform worked through by hand mid-answer;
+- a deterministic scaffold — a PR body, an issue, a report, config
+  boilerplate — hand-typed frame and all, where a script or a native template
+  would emit the structure and leave only the judgment slots to fill.
 
 Correct each forward now: write and run the script or tool, read its real
 output, and re-derive the conclusion from that output — do not keep the
