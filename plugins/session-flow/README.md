@@ -9,7 +9,7 @@ how to arm it for delegation-heavy tasks.
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
-| `/session-flow:orchestration-brief` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
+| `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 
 ## What each skill does
 
@@ -61,17 +61,17 @@ codifies user-approved learnings. Health scores persist across sessions for tren
 /session-flow:retro quick      # abbreviated, for limited context
 ```
 
-### orchestration-brief
+### orchestrate
 
-Arms the current session for an orchestration-heavy task by loading six proactive-orchestration
+Arms the current session for an orchestration-heavy task by loading seven proactive-orchestration
 imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested
-subagents, surface drift) as standing instructions — or exports them as a paste-ready, tool-agnostic
-brief for a spawned worker or fresh session.
+subagents, surface drift, calibrate-to-conditions) as standing instructions — or exports them as a
+paste-ready, tool-agnostic brief for a spawned worker or fresh session.
 
 ```shell
-/session-flow:orchestration-brief                # prime this session
-/session-flow:orchestration-brief worker         # paste-ready worker brief
-/session-flow:orchestration-brief handoff compact # headline-only fresh-session brief
+/session-flow:orchestrate                # prime this session
+/session-flow:orchestrate worker         # paste-ready worker brief
+/session-flow:orchestrate handoff compact # headline-only fresh-session brief
 ```
 
 ## Consumer conventions

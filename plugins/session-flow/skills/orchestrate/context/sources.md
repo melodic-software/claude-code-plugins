@@ -88,3 +88,27 @@ reliability degradation with depth plus the platform caps above.
 Authoring convention, NOT canonical Anthropic orchestration guidance (it appears in none of the
 multi-agent sources). Kept in the brief because drift-flagging is useful for any worker: a one-line
 flag preserves the signal without derailing the task.
+
+## Imperative 7 — CALIBRATE TO CONDITIONS
+
+Part-sourced, part authoring convention — the boundary is called out per factor.
+
+- **Size effort to complexity (S/M/L).** "Simple fact-finding requires just 1 agent with 3–10 tool
+  calls … complex research might use more than 10 subagents." *(paraphrase — same quote backing
+  imperative 2)* — <https://www.anthropic.com/engineering/multi-agent-research-system>
+- **Single-agent is the floor; multi-agent is spent, not defaulted.** The 3–10× cost multiplier and
+  "coordination costs typically exceed the benefits" outside context-protection / parallelization /
+  specialization (both quotes backing imperative 1) are the reason a small ask stays single-agent.
+  *(paraphrase)* —
+  <https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them> +
+  <https://www.anthropic.com/engineering/multi-agent-research-system>
+- **Model capability shifts the sizing.** The Fable 5 guide frames delegation as a capability the
+  orchestrator wields deliberately (async dispatch, long-lived subagents, monitor-and-steer — the
+  quotes backing imperative 4), which presumes a model strong enough to orchestrate well; a weaker
+  model needs more decomposition and tighter specs. *(interpretation of the same guide)* —
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
+- **Advisor / verifier availability, context pressure, and concurrent-session / rate-limit
+  headroom** are operational authoring convention, NOT canonical Anthropic orchestration guidance —
+  they scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
+  is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
+  rate-limit headroom is a hard ceiling on parallel workers).
