@@ -33,11 +33,13 @@
          fi
        done
        # Main side: a carried file deleted in the worktree no longer expands
-       # locally — expand from MAIN_ROOT too so deletions surface.
+       # locally — expand from MAIN_ROOT too. ABSENT is ambiguous: the file may
+       # have been deleted here, or never copied at all (manual `git worktree
+       # add`, or a worktree created before .worktreeinclude existed).
        for m in "$MAIN_ROOT"/$pattern; do
          [[ -f "$m" ]] || continue
          f="${m#"$MAIN_ROOT"/}"
-         [[ -f "$f" ]] || echo "DELETED in worktree: $f"
+         [[ -f "$f" ]] || echo "ABSENT here (deleted, or never carried): $f"
        done
      done < .worktreeinclude
    fi
@@ -46,12 +48,13 @@
    **If differences found:**
 
    1. Show diff for each changed file (`diff --unified "$MAIN_ROOT/$f" "$f"`; for a `(new)` file
-      diff against `/dev/null` — main has no copy yet; for a `DELETED` file show main's copy)
+      diff against `/dev/null` — main has no copy yet; for an `ABSENT` file show main's copy)
    2. Show active worktrees (`git worktree list`) — if >1 worktree exists beyond main, warn: *"Other active worktrees have their own copies of this file. Overwriting main's copy won't affect existing worktrees but will affect future ones."*
    3. Present options per file:
-      - **Copy to main** — overwrite main's copy with worktree's version (for a `DELETED` file, remove main's copy so future worktrees stop re-carrying it). Safe for cosmetic changes (reordering), new additions, or when this is the only active session
+      - **Copy to main** — overwrite main's copy with worktree's version. Safe for cosmetic changes (reordering), new additions, or when this is the only active session
       - **Skip** — proceed without syncing. User accepts that worktree changes will be lost on cleanup
-   4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); for a `DELETED` file: `rm "$MAIN_ROOT/$f"`
+      - For an `ABSENT` file only: **Remove from main** — offered only if the user confirms the file was deliberately deleted in this worktree this session. ABSENT is ambiguous (a manual or pre-`.worktreeinclude` worktree never received the copy), so default to **Skip**; never remove main's copy without that explicit confirmation
+   4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); confirmed deliberate deletion: `rm "$MAIN_ROOT/$f"`
 
    **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. WorktreeRemove hooks cannot block removal or prompt — a silent copy could overwrite concurrent session changes. One mechanism per concern.
 
