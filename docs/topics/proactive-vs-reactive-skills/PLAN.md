@@ -135,7 +135,7 @@ Fresh-docs re-fetch (skills page) before edits.
 - `jq -r .version plugins/planning/.claude-plugin/plugin.json` = `0.13.0`; CHANGELOG head entry matches
 - `grep -rniE "melodic-software|kyle" plugins/planning/skills/architect/SKILL.md plugins/planning/skills/setup/SKILL.md` returns 0 hits (repo-agnostic)
 
-### Phase 4: review plugin — criteria rewire + new setup skill [TODO]
+### Phase 4: review plugin — criteria rewire + new setup skill [DONE]
 
 Review: code-design
 
