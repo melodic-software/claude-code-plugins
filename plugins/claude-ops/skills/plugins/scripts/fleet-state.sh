@@ -160,17 +160,29 @@ if [[ -n "$PROJECT_ROOT" ]]; then
   current_project_norm="${current_project_norm%/}"
 fi
 
+# Case-fold path comparisons ONLY on case-insensitive filesystems (mirrors
+# hook::normalize_path's own $OSTYPE check exactly). Applying ascii_downcase
+# unconditionally — as an earlier version of this script did — makes two
+# genuinely different sibling repos on a case-sensitive POSIX host (e.g.
+# /work/repo and /work/Repo) compare equal, which can point a project-scope
+# mutation at the wrong repo.
+case_insensitive_os="false"
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) case_insensitive_os="true" ;;
+*) ;;
+esac
+
 # --- Resolve default marketplace: the one this plugin was installed from ---
 resolve_default_marketplace() {
   local plugin_root norm_root
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
   norm_root=$(hook::normalize_path "$(hook::physical_path "$plugin_root")")
   norm_root="${norm_root%/}"
-  jq -r --arg root "$norm_root" '
+  jq -r --arg root "$norm_root" --argjson ci "$case_insensitive_os" '
     .plugins
     | to_entries[]
-    | select(.value[] | (.installPath // "" | gsub("\\\\";"/")) == $root
-             or (.installPath // "" | gsub("\\\\";"/") | ascii_downcase) == ($root | ascii_downcase))
+    | select(.value[] | (.installPath // "" | gsub("\\\\";"/")) as $p |
+             if $ci then ($p | ascii_downcase) == ($root | ascii_downcase) else $p == $root end)
     | .key
   ' "$INSTALLED_JSON" | head -1 | sed 's/.*@//'
 }
@@ -237,7 +249,7 @@ emit_marketplace() {
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   local installed
-  installed=$(jq -c --arg suffix "@$name" --arg cur "$current_project_norm" '
+  installed=$(jq -c --arg suffix "@$name" --arg cur "$current_project_norm" --argjson ci "$case_insensitive_os" '
     .plugins
     | to_entries[]
     | select(.key | endswith($suffix))
@@ -250,7 +262,8 @@ emit_marketplace() {
         projectPath: (.projectPath // null),
         currentProject: (
           if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
-            ((.projectPath | gsub("\\\\";"/") | ascii_downcase) == ($cur | ascii_downcase))
+            (.projectPath | gsub("\\\\";"/")) as $p |
+            if $ci then ($p | ascii_downcase) == ($cur | ascii_downcase) else $p == $cur end
           else null end
         )
       }

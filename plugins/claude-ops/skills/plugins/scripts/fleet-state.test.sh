@@ -301,6 +301,35 @@ current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
 assert_eq "windows-path: native backslash projectPath matches Git Bash cwd" "true" "$current_flag"
 
 # ============================================================================
+# Case: case-sensitivity — a case-only path difference must NOT collapse two
+# different repos on a case-sensitive filesystem (a fixed bug: the
+# currentProject comparison used to case-fold unconditionally, so on a
+# case-sensitive POSIX host, e.g. GitHub's ubuntu CI runner, a fixture
+# projectPath differing only by case from the real project dir would
+# false-positive as the same repo). Same fixture, run twice: once forcing a
+# POSIX OSTYPE (must NOT match — case-sensitive), once with this host's real
+# OSTYPE (must still match on a case-insensitive filesystem — no regression).
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+project_dir="$case_dir/case-test-root"
+mkdir -p "$project_dir/.claude"
+differently_cased_path="${project_dir/case-test-root/Case-Test-Root}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$differently_cased_path" \
+    '{version: 1, plugins: {"alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir" OSTYPE="linux-gnu")
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "case-sensitivity: differently-cased sibling does not match on a POSIX (case-sensitive) host" "false" "$current_flag"
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$project_dir")
+current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
+assert_eq "case-sensitivity: still matches on this host's real (case-insensitive) OSTYPE — no regression" "true" "$current_flag"
+
+# ============================================================================
 # Case: CLAUDE_PROJECT_DIR unset falls back to the cwd's git toplevel —
 # the exact gap a live end-to-end run (a headless `-p` session) exposed:
 # CLAUDE_PROJECT_DIR wasn't exported, so currentProject stayed null on every
