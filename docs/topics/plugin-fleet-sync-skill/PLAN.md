@@ -79,7 +79,7 @@ Three unknowns gate later phases; resolve empirically on this machine before aut
 
 **Sanity Check:** PLAN.md "Open questions" contains four lines matching `^- VERIFIED:` (one per unknown), each with observed evidence; item 1's line records both file hashes before/after verbatim; fixture files exist under `plugins/claude-ops/skills/plugins/scripts/fixtures/`.
 
-### Phase 2: State-inspection script (TDD) [TODO]
+### Phase 2: State-inspection script (TDD) [DONE]
 
 | File | Action | What changes |
 |------|--------|-------------|
@@ -91,6 +91,8 @@ Fixtures: dual-scope divergence, plugin missing from installs, plugin missing fr
 **Path normalization (CRITICAL, from plan review):** `installed_plugins.json` stores `projectPath` in native Windows form (`D:\repos\...`); Git Bash `$PWD` is `/d/repos/...`. In-repo detection MUST normalize both sides or it silently no-ops on Windows. Reuse `hook::normalize_path` from the plugin's synced `hook-utils.sh` copy (`plugins/claude-ops/hooks/hook-utils.sh` — already carried by this plugin; never hand-edit, sync via `scripts/sync-hook-utils.sh` if lib changes are needed).
 
 **Sanity Check:** `bash fleet-state.test.sh` exit 0 including a Windows path-match assertion (`projectPath: D:\\...` fixture matched from cwd `/d/...`); repo bash-lint hook passes on both files; live run on this machine reports all 46 catalog plugins installed+enabled with zero `missing_*` entries.
+
+**Evidence:** `fleet-state.test.sh` — 11 cases / 24 assertions, 0 failed (dual-scope divergence, missing-from-install, missing-from-enabled, explicit-`false`-opt-out, marketplace-absent, malformed `installed_plugins.json` and `known_marketplaces.json` shape drift both fail loud at exit 2, native-Windows `projectPath` vs Git Bash cwd `currentProject` match, default-marketplace resolution via `CLAUDE_PLUGIN_ROOT` join including its fail-loud path, jq-missing notice). shellcheck clean on both files; bash-lint's PostToolUse formatter ran on every write, no outstanding diff. Live read-only run against this machine's real state (`--marketplace melodic-software`): 47 catalog plugins (not 46 — the plan's estimate predates `repo-fleet-hygiene` landing), 0 `missing_from_install`, 0 `missing_from_enabled`, 31 `divergences` (expected — dual-scope project/user pins are normal, not a defect). Two real bugs found and fixed during this phase: this host's `jq` build CRLF-terminates even compact single-line output, corrupting anything re-parsed via `--argjson` (fixed with a `jq() { command jq "$@" | tr -d '\r'; }` wrapper); the `enabled` reduce was missing `jq -n`, silently reading the script's own stdin instead of producing output.
 
 ### Phase 3: SKILL.md + context files [TODO]
 
