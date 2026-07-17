@@ -1,0 +1,54 @@
+{
+  "skill_name": "do-your-research",
+  "evals": [
+    {
+      "id": 1,
+      "name": "mid-session-audit-corrects-unbacked-claim",
+      "prompt": "Earlier you told me the default connection timeout for this client is 30 seconds and that the config file lives at config/app.yaml — you didn't check either. do your research.",
+      "expected_output": "The skill re-anchors research discipline as active, audits recent turns, names the two unverified concrete specifics as located findings (the 30s default, the config path), and corrects forward this turn by verifying each against the live environment or an authoritative source rather than restating them from memory.",
+      "files": [],
+      "expectations": [
+        "Re-anchors the research/verification discipline as active for the rest of the task before auditing",
+        "Names the unverified default and the unverified path as concrete, located findings — not a generic apology",
+        "Corrects forward by actually verifying each specific (live environment or authoritative source) this turn, or flags it as unverifiable",
+        "Does not simply re-assert the remembered values as if confirmed"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "conversation-start-sets-posture-no-fabrication",
+      "prompt": "/re-anchor:do-your-research",
+      "expected_output": "Fired at turn one with nothing to audit, the skill does only the re-anchor step: it acknowledges research discipline as active for the session and stops, without manufacturing findings about work that does not exist yet.",
+      "files": [],
+      "expectations": [
+        "Acknowledges the discipline as active for the session",
+        "Does NOT invent violations or audit findings when there is no prior work to audit",
+        "Stops after the re-anchor rather than producing a corrective report"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "deep-arg-fans-out-verification",
+      "prompt": "/re-anchor:do-your-research deep — we've made a lot of load-bearing claims about the API's rate limits and auth flow this session.",
+      "expected_output": "The deep action replaces the ordinary audit: it enumerates the load-bearing claims made so far, fans out fresh-context subagents (blind to the reasoning that produced each claim) to verify each against a primary source scaled to the claim count, then reports a per-claim verified / corrected / unverifiable ledger.",
+      "files": [],
+      "expectations": [
+        "Enumerates the load-bearing claims made so far rather than spot-checking one",
+        "Fans out fresh-context (blind) subagents to verify claims against primary sources",
+        "Reports a per-claim verified / corrected / unverifiable ledger"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "clean-audit-returns-clean",
+      "prompt": "do your research — I want to make sure we've been rigorous. (Every claim this session was already fetched from official docs and cited.)",
+      "expected_output": "The audit finds nothing to correct and says so plainly. Firing the skill is treated as a re-anchor, not an accusation — it does not manufacture findings to look diligent, and it does not reprint the discipline's rules in place of governing by them.",
+      "files": [],
+      "expectations": [
+        "Reports an honest 'nothing to correct' when the work already conforms",
+        "Does not fabricate findings to appear thorough",
+        "Does not paste or restate the discipline's rule text as its output"
+      ]
+    }
+  ]
+}
