@@ -338,10 +338,14 @@ assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
 # ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found
 # ============================================================================
-# Strip only jq's own directory out of PATH (rather than rebuilding PATH from
-# scratch via symlinks) so bash, dirname, and every other tool the script
-# needs stay resolvable — symlinking coreutils individually is unreliable on
-# Windows without elevated rights.
+# Strip every PATH directory that resolves a jq executable (rather than
+# rebuilding PATH from scratch via symlinks) so bash, dirname, and every other
+# tool the script needs stay resolvable — symlinking coreutils individually is
+# unreliable on Windows without elevated rights. `command -v jq` only reports
+# the FIRST match: a GitHub Actions ubuntu runner ships jq in more than one
+# PATH directory, so stripping just that one left a second jq resolvable and
+# this case silently exercised the "jq present" path instead of "jq missing"
+# — walk every PATH entry and drop each one that actually contains a jq.
 # Route through run_state's fixture builder (not a bare script invocation) so
 # jq-absence is the only variable under test — a bare invocation relies on
 # default file paths, which a dev machine's real Claude Code install happens
@@ -352,9 +356,11 @@ case_dir=$(new_case_dir)
 write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
 write "$case_dir/catalog/market1.json" '{"plugins": []}'
 ARGS=(--marketplace market1)
-real_jq=$(command -v jq)
-jq_dir=$(dirname "$real_jq")
-filtered_path=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vF "$jq_dir" | tr '\n' ':')
+filtered_path=""
+while IFS= read -r dir; do
+  [[ -n "$dir" && -x "$dir/jq" ]] && continue
+  filtered_path="${filtered_path:+$filtered_path:}$dir"
+done < <(printf '%s' "$PATH" | tr ':' '\n')
 out=$(run_state "$case_dir" "PATH=$filtered_path")
 rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
