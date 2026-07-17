@@ -53,7 +53,7 @@ run "git clean -fd (blocked)" "git clean -fd" 2
 run "git clean -fdx (blocked)" "git clean -fdx" 2
 run "git clean --force (blocked)" "git clean --force" 2
 run "git clean -n (dry run, allowed)" "git clean -n" 0
-run "git clean -nd (dry run bundle, allowed)" "git clean -nd" 0
+run "git clean -nd (dry run bundle, allowed)" "git clean -nd" 0 # spellchecker:disable-line
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
