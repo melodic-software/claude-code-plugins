@@ -8,9 +8,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Added
 
 - **`block-dangerous-git` guard** (PreToolUse on Bash, blocking): stops irreversible git operations
-  before they run — `push --force`/`-f` (never `--force-with-lease`), `reset --hard`, `clean` with a
-  force flag, and worktree-wide `checkout .` / `restore .` (path-scoped forms and index-only
-  `restore --staged .` pass). `branch -D` is deliberately not blocked: deleted refs are
+  before they run — `push --force`/`-f` (never `--force-with-lease`), the equivalent
+  leading-`+` refspec and `--mirror` force-push forms, `reset --hard`, `clean` with a
+  force flag (a dry-run flag anywhere disarms the check — git honors it regardless of order), and
+  worktree-wide `checkout .` / `restore .` (path-scoped forms and index-only
+  `restore --staged .` pass). The parse-cap fail-closed path never consults the allow-list. `branch -D` is deliberately not blocked: deleted refs are
   reflog-recoverable and sanctioned skill flows issue it inline. Per-repo/per-user allow-list via
   `HOOK_BLOCK_DANGEROUS_GIT_ALLOW` (comma list of `push-force`, `reset-hard`, `clean-force`,
   `checkout-dot`, `restore-dot`) in a settings `env` block; kill switch

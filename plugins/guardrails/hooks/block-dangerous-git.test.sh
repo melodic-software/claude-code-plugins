@@ -30,12 +30,16 @@ run "git push --force (blocked)" "git push --force" 2
 run "git push -f (blocked)" "git push -f origin main" 2
 run "git push origin main --force (flag after operands, blocked)" "git push origin main --force" 2
 run "git push -uf (bundled f, blocked)" "git push -uf origin main" 2
+run "git push origin +HEAD:main (refspec force, blocked)" "git push origin +HEAD:main" 2
+run "git push origin +feature (bare + refspec, blocked)" "git push origin +feature" 2
+run "git push --mirror (force-updates all refs, blocked)" "git push --mirror backup" 2
 run "git push --force-with-lease (safe force, allowed)" "git push --force-with-lease" 0
 run "git push --force-with-lease=main (valued lease, allowed)" "git push --force-with-lease=main origin main" 0
 run "git push --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes" 0
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
+run "git push -ofoo (attached option value, allowed)" "git push -ofoo origin main" 0
 run "cd x && git push --force (compound, blocked)" "cd x && git push --force" 2
 run "quoted push --force prose (allowed)" 'echo "git push --force is banned"' 0
 
@@ -54,6 +58,9 @@ run "git clean -fdx (blocked)" "git clean -fdx" 2
 run "git clean --force (blocked)" "git clean --force" 2
 run "git clean -n (dry run, allowed)" "git clean -n" 0
 run "git clean -nd (dry run bundle, allowed)" "git clean -nd" 0 # spellchecker:disable-line
+run "git clean -n -fd (dry run disarms force, allowed)" "git clean -n -fd" 0
+run "git clean -fdn (dry run in force bundle, allowed)" "git clean -fdn" 0
+run "git clean --dry-run -f (long dry run, allowed)" "git clean --dry-run -f" 0
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
@@ -86,6 +93,7 @@ run "grep 'git clean -f' notes.md (quoted pattern, allowed)" "grep 'git clean -f
 run "git -C . push --force (arg-consuming global, blocked)" "git -C . push --force" 2
 run "env -i git push --force (wrapper, blocked)" "env -i git push --force" 2
 run "env -S 'git push --force' (split-string, blocked)" "env -S 'git push --force'" 2
+run "env -S quoted flag (inner-quote split-string, blocked)" "env -S 'git push \"--force\"'" 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
@@ -104,6 +112,8 @@ run "kill switch off → no-op despite push --force" "git push --force" 0 \
 # --- over-length command fails CLOSED ------------------------------------------
 long_cmd="echo $(printf 'a%.0s' {1..20000})"
 run "command over the parse cap (fail-closed, blocked)" "$long_cmd" 2
+run "allow-list cannot bypass the parse cap (still blocked)" "$long_cmd" 2 \
+  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=too-long
 
 # --- telemetry: block emits a `blocked` envelope --------------------------------
 TEL="$(mktemp -p "$TEST_TMPDIR")"

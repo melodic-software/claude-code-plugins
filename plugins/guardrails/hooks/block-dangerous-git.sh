@@ -58,22 +58,7 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-# Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
-# env-assignment prefixes stripped and the token basenamed. Never the full
-# command.
-bash_subject() {
-  local cmd="$1" tok
-  tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
-    cmd="${cmd#*[[:space:]]}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    tok="${cmd%%[[:space:]]*}"
-  done
-  printf 'Bash:%s' "${tok##*/}"
-}
-
-SUBJECT=$(bash_subject "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -88,11 +73,13 @@ emit_tel() {
 }
 
 # Is a form token in the HOOK_BLOCK_DANGEROUS_GIT_ALLOW comma list?
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 allowed() {
   local tok="$1" list=",${HOOK_BLOCK_DANGEROUS_GIT_ALLOW:-},"
   [[ "$list" == *,"$tok",* ]]
 }
 
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block() {
   local form="$1" msg1="$2" msg2="$3"
   allowed "$form" && return 0
@@ -124,8 +111,10 @@ check_segment() {
   case "$sub" in
   push)
     # --force blocks; --force-with-lease / --force-if-includes do not (safe
-    # force). Skip values of value-taking push options so a value word never
-    # matches as a flag. Short bundle: any `f` means --force.
+    # force). A leading-`+` refspec operand and --mirror force-update refs the
+    # same way --force does, so they carry the same form token. Skip values of
+    # value-taking push options (space-separated and attached `-oVALUE`) so a
+    # value word never matches as a flag. Short bundle: any `f` means --force.
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -134,7 +123,7 @@ check_segment() {
         ((k += 2))
         continue
         ;;
-      --push-option=* | --repo=* | --receive-pack=* | --exec=*)
+      -o?* | --push-option=* | --repo=* | --receive-pack=* | --exec=*)
         ((k++))
         continue
         ;;
@@ -143,7 +132,17 @@ check_segment() {
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
           "Use --force-with-lease (refuses to clobber unseen remote work), or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
         ;;
+      --mirror)
+        block "push-force" \
+          "BLOCKED: git push --mirror force-updates every remote ref." \
+          "Push specific refs instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+        ;;
       --force-with-lease | --force-with-lease=* | --force-if-includes) ;;
+      +*)
+        block "push-force" \
+          "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
+          "Drop the + or use --force-with-lease, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+        ;;
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "push-force" \
@@ -165,7 +164,15 @@ check_segment() {
     ;;
   clean)
     # Force flag required before clean deletes anything: --force, or f in a
-    # short bundle (-f, -fd, -fdx, -ff). Dry-run -n is the safe probe.
+    # short bundle (-f, -fd, -fdx, -ff). A dry-run flag anywhere (-n,
+    # --dry-run, or n in a bundle) makes the whole command a preview — git
+    # honors it regardless of flag order — so it disarms the force check.
+    for ((k = sub_idx + 1; k < nseg; k++)); do
+      x="${w[k]}"
+      if [[ "$x" == "--dry-run" ]] || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
+        return 0
+      fi
+    done
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       if [[ "$x" == "--force" ]] || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
@@ -247,10 +254,14 @@ check_segment() {
   return 0
 }
 
+# Fail-closed by construction: this path never consults the allow-list — an
+# unparseable command cannot prove which forms it carries, so no form token
+# can honestly allow it. Only the kill switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
-  block "too-long" \
-    "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
-    "Shorten the command, or set HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false to bypass."
+  echo "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." >&2
+  echo "Shorten the command, or set HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false to bypass." >&2
+  emit_tel "blocked" "too-long"
+  exit 2
 fi
 
 hook::bash_parse_segments "$COMMAND" check_segment

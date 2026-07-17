@@ -375,6 +375,64 @@ hook::ansi_c_decode() {
   printf -- "$b" 2>/dev/null
 }
 
+# Split a GNU `env -S` operand the way env does: whitespace-separated words
+# honoring "…" and '…' quotes and backslash escapes — so a flag quoted inside
+# the operand (`env -S 'git push "--force"'`) still surfaces as its unquoted
+# argv word. env's $VAR expansion inside the operand is NOT evaluated (static
+# analysis over the literal string — same residual as the segment tokenizer).
+# Result in the global HOOK_ENV_S_WORDS array.
+# shellcheck disable=SC2034  # result global is consumed by hook::git_resolve_index
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+hook::env_s_split() {
+  local s="$1" i c n=${#1} word="" have=0
+  HOOK_ENV_S_WORDS=()
+  for ((i = 0; i < n; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+    "'")
+      ((i++))
+      while ((i < n)) && [[ "${s:i:1}" != "'" ]]; do
+        word+="${s:i:1}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '"')
+      ((i++))
+      while ((i < n)) && [[ "${s:i:1}" != '"' ]]; do
+        if [[ "${s:i:1}" == '\' ]] && ((i + 1 < n)); then
+          word+="${s:i+1:1}"
+          ((i += 2))
+          continue
+        fi
+        word+="${s:i:1}"
+        ((i++))
+      done
+      have=1
+      ;;
+    '\')
+      if ((i + 1 < n)); then
+        word+="${s:i+1:1}"
+        ((i++))
+      fi
+      have=1
+      ;;
+    ' ' | $'\t')
+      if ((have)); then
+        HOOK_ENV_S_WORDS+=("$word")
+        word=""
+        have=0
+      fi
+      ;;
+    *)
+      word+="$c"
+      have=1
+      ;;
+    esac
+  done
+  ((have)) && HOOK_ENV_S_WORDS+=("$word")
+}
+
 # Does an argv word name the git executable? Basename compared exactly on
 # POSIX; on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the
 # OS-gate in hook::normalize_path) so `GIT` / `git.exe` are caught there but a
@@ -425,9 +483,8 @@ hook::git_resolve_index() {
         -S | --split-string)
           local sval=""
           ((i + 1 < n)) && sval="${w[i + 1]}"
-          local -a sw=()
-          read -r -a sw <<<"$sval"
-          w=("${sw[@]}" "${w[@]:i+2}")
+          hook::env_s_split "$sval"
+          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
           n=${#w[@]}
           i=0
           continue 2
@@ -435,9 +492,8 @@ hook::git_resolve_index() {
         -S* | --split-string=*)
           local sval="${w[i]#-S}"
           sval="${sval#--split-string=}"
-          local -a sw=()
-          read -r -a sw <<<"$sval"
-          w=("${sw[@]}" "${w[@]:i+1}")
+          hook::env_s_split "$sval"
+          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
           n=${#w[@]}
           i=0
           continue 2
