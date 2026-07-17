@@ -42,6 +42,7 @@ run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
 run "git push -ofoo (attached option value, allowed)" "git push -ofoo origin main" 0
 run "git push --dry-run --force (push dry run disarms, allowed)" "git push --dry-run --force origin main" 0
 run "git push -n -f (short dry run disarms, allowed)" "git push -n -f origin main" 0
+run "git push --dry-run --no-dry-run --force (negated dry run, blocked)" "git push --dry-run --no-dry-run --force origin main" 2
 run "git push --mi backup (abbreviated mirror, blocked)" "git push --mi backup" 2
 run "cd x && git push --force (compound, blocked)" "cd x && git push --force" 2
 run "quoted push --force prose (allowed)" 'echo "git push --force is banned"' 0
@@ -69,6 +70,8 @@ run "git clean --dry-run -f (long dry run, allowed)" "git clean --dry-run -f" 0
 run "git clean -f -e --dry-run (dry-run as exclude value, blocked)" "git clean -f -e --dry-run" 2
 run "git clean --f (abbreviated force, blocked)" "git clean --f" 2
 run "git clean -f -- --dry-run (dry-run pathspec after --, blocked)" "git clean -f -- --dry-run" 2
+run "git clean --dry-run --no-dry-run -f (negated dry run, blocked)" "git clean --dry-run --no-dry-run -f" 2
+run "git clean --no-dry-run -n -f (dry run after negation, allowed)" "git clean --no-dry-run -n -f" 0
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2

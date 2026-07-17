@@ -132,7 +132,7 @@ is_tree_wide_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree
+  local nseg gi k x rest ch sub sub_idx staged worktree dry
 
   hook::git_resolve_index "$@" || return 0
   gi=$HOOK_GIT_RESOLVED_GI
@@ -159,6 +159,9 @@ check_segment() {
     # operands — a literal "--dry-run" refspec is not a preview flag, and a
     # literal "-f" is not force. Only the leading-+ refspec check applies past
     # the marker.
+    # Dry-run is last-wins: `--no-dry-run` after a dry token re-arms the push
+    # (git's --[no-]dry-run pair), so track state instead of early-returning.
+    dry=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -169,15 +172,19 @@ check_segment() {
         continue
         ;;
       -o?* | --push-option=* | --repo=* | --receive-pack=* | --exec=*) ;;
+      --no-*)
+        abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
+        ;;
       *)
         if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 2 \
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
-          return 0
+          dry=1
         fi
         ;;
       esac
       ((k++))
     done
+    ((dry)) && return 0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -254,6 +261,9 @@ check_segment() {
     # `--` ends option parsing: a pathspec literally named "--dry-run" after
     # the marker must not disarm the force check, and no force flag can
     # appear there either.
+    # Dry-run is last-wins here too: `--no-dry-run` after a dry token re-arms
+    # the deletion, so track state instead of early-returning.
+    dry=0
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
@@ -263,13 +273,18 @@ check_segment() {
         continue
         ;;
       -e?* | --exclude=*) continue ;;
+      --no-*)
+        abbrev_match "dry-run" "--${x#--no-}" 1 && dry=0
+        continue
+        ;;
       *) ;;
       esac
       if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 \
         || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
-        return 0
+        dry=1
       fi
     done
+    ((dry)) && return 0
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
