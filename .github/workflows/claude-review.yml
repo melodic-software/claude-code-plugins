@@ -36,7 +36,10 @@ jobs:
 
   review:
     needs: select-review
-    if: ${{ !cancelled() }}
+    # !cancelled() overrides GitHub's skip propagation, so selector success must
+    # be required explicitly: a hard-failed selector emits no runner output and
+    # the hosted fallback below would otherwise run this privileged job.
+    if: ${{ !cancelled() && needs.select-review.result == 'success' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
