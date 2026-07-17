@@ -132,7 +132,9 @@ must not write into the installed plugin cache, mutate Claude Code user settings
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface.
 
-Two native idioms are the sanctioned initialization surfaces: the `Setup` hook event
+Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
+[hooks reference](https://code.claude.com/docs/en/hooks) and
+[plugins reference](https://code.claude.com/docs/en/plugins-reference)): the `Setup` hook event
 (`--init-only`, or `--init`/`--maintenance` in `-p` mode) for headless and CI preparation, and a
 `SessionStart` hook comparing a bundled manifest against its `${CLAUDE_PLUGIN_DATA}` copy for
 runtime-dependency installation.
@@ -175,7 +177,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
-| Seam phrasing (presence-gated fallbacks) | Unowned — used by convention, no owner doc yet; next adopter creates one first |
+| Seam phrasing (presence-gated fallbacks) | Unowned — already used by multiple plugins without an owner doc: a tracked non-conformance and an audit dimension. No further adoption until an owner doc lands |
 
 ## Cross-platform contract
 

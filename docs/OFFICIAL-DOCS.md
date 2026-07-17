@@ -32,7 +32,7 @@ settings keys (`subagentStatusLine`) a plugin's `settings.json` may set. Channel
 | LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins-reference#lsp-servers> | 2026-07-17 |
 | Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-07-17 |
 | Themes (`themes/`) | <https://code.claude.com/docs/en/plugins-reference#themes> | 2026-07-17 |
-| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/tools-reference> | 2026-07-17 |
+| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-07-17 |
 | Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-07-17 |
 | Executables (`bin/`) | <https://code.claude.com/docs/en/plugins-reference#file-locations-reference> | 2026-07-17 |
 | Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-07-17 |
