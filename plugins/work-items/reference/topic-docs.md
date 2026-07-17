@@ -1,6 +1,6 @@
 # Topic-docs placement — what this plugin reads and writes
 
-How the work-items skills (`track`, `work`, `triage`, `decompose`, `scan`) resolve topic-document
+How the work-items skills (`track`, `work`, `triage`, `decompose`, `scan-todos`) resolve topic-document
 paths in a consuming repo. The skills read this one document; they bake no paths of their own.
 
 Implements the topic-docs convention:
