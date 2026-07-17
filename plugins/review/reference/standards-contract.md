@@ -82,7 +82,13 @@ explicit confirmation before any conversion (see Setup and migration).
 
 ### External rows — validation duty
 
-- Setup validates every listed path exists on each run.
+- **Deterministic lookup (normative):** a `File` value resolves relative
+  to `<standards_dir>` first; when nothing exists there, it resolves from
+  the resolution root (the external-row case). When BOTH locations exist,
+  the row is ambiguous: skills use the in-root file (best-effort) and
+  surface the ambiguity; setup's validation flags it and offers a rename.
+- Setup validates every listed path exists on each run (under the lookup
+  order above).
 - A skill that hits a broken row surfaces it and offers the fix (Boy
   Scout) — never silent, never skipped quietly.
 - Consumers are recommended to include the index in their link-check lane.
