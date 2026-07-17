@@ -15,7 +15,9 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Notes
 
-- Pointers to `<memory_dir>/<slug>/` (default `.work/`) execution artifacts, prior research, upstream context.
+- Durable pointers only: PRs, committed docs, prior items, external links.
+- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local — distill what matters into a
+  line here instead of pointing at a path other readers cannot resolve.
 - Links, not recaps.
 
 ## Decisions-so-far

@@ -11,6 +11,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   baselines are checkout-local and `PLAN.md` carries distilled values only;
   `/planning:architect`'s baseline step no longer directs `PLAN.md` to reference the stored
   memory-slice capture (pointer discipline — the path is invisible outside the writing checkout).
+- `/planning:wayfind` map-issue Notes carry durable pointers only (PRs, committed docs, prior
+  items, external links); memory-tier artifact content is distilled inline instead of pointed at —
+  tracker issues are durable surfaces under the contract's pointer discipline.
 
 ## [0.13.0]
 

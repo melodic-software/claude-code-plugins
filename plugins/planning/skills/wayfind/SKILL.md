@@ -81,7 +81,9 @@ an interactive session — do not fabricate a map.
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
    ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
-   fog clears) / **Notes** (pointers to memory-tier `<memory_dir>/` artifacts, research, prior context) /
+   fog clears) / **Notes** (durable pointers only — PRs, committed docs, prior items, external links;
+   memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline
+   instead of pointing at paths other readers cannot resolve) /
    **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's
    resolution comment, never recopied here) / **Not-yet-specified** (fog, prose) /
    **Out-of-scope**. Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).

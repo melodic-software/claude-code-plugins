@@ -133,8 +133,10 @@ Use agent-brief body format (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.m
 
 Refs #<parent-item> (if source was an existing item)
 <!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan (#<pr>) when it
-     exists. Never write the contract-slice path: the slice is pruned before merge, so the
-     pointer would dangle (topic-docs pointer discipline). -->
+     exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
+     when the PR opens, backfill it as a comment on each published item so the provenance
+     survives the slice prune. Never write the contract-slice path: the slice is pruned before
+     merge, so the pointer would dangle (topic-docs pointer discipline). -->
 
 ## What to build
 

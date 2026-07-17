@@ -10,7 +10,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` names the
   tracker as the contract's cross-lane index — tickets point, never store primary artifacts;
   `/work-items:decompose` ticket provenance now cites the PR carrying the source plan instead of
-  the contract-slice path, which is pruned before merge and would dangle.
+  the contract-slice path, which is pruned before merge and would dangle. Pre-PR publishes record
+  slug + phase (a label, not a path) and backfill the PR reference as a comment once it opens.
 
 ## [0.8.0]
 
