@@ -191,7 +191,7 @@ Work items:
   repo's offline link-integrity check passes on the new file (external-URL lychee lane is advisory
   weekly — spot-check a sample of new URLs via WebFetch instead).
 
-### Phase 4: Worktree-semantics empirical verification (throwaway spike) [DOING]
+### Phase 4: Worktree-semantics empirical verification (throwaway spike) [DONE]
 
 Feasibility spike (might change Phase 5's shape) — results are evidence, no kept code. Parallel-safe
 with Phases 1–3 (touches scratchpad + throwaway worktrees only).
@@ -421,7 +421,7 @@ Work items:
 
 | # | Question | Phase | VERDICT |
 |---|---|---|---|
-| 1 | `worktree.baseRef` at project scope; sweep of ignored files; `--bg` base | 4 | (pending) |
+| 1 | `worktree.baseRef` at project scope; sweep of ignored files; `--bg` base | 4 | HONORED (CC 2.1.212, control+treatment): committed project `.claude/settings.json` `worktree.baseRef: "head"` honored, incl. from linked worktrees (A2: resolves to the worktree's own HEAD; A3: a linked-worktree session reads its OWN checkout's settings.json). `.worktreeinclude`: nested-gitignored files qualify, copy is one-way creation-time. Sweep: `--worktree` worktrees never auto-swept (empirical); subagent/bg sweep would remove ignored-only worktrees (INFERRED — ignored ≠ untracked). `--bg` base = origin/HEAD by default, so R1 moves it to local HEAD. Windows caveat: deep worktree base paths can trip git PATH_MAX (`'$GIT_DIR' too big`); this repo's base (~95 chars) is safe. |
 | 2 | Per-plugin `relevance` signal quality | 6 | (pending — per-plugin ledger) |
 | 3 | Windows `sensitive` userConfig storage | 7 | (pending) |
 
