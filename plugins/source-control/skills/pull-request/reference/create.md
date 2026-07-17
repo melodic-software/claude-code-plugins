@@ -19,15 +19,22 @@
      # Read .worktreeinclude patterns (one per line, .gitignore syntax)
      while IFS= read -r pattern; do
        [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-       # For each matching file, diff worktree vs main. An unmatched glob
-       # stays literal — skip it (no phantom CHANGED for absent files).
+       # Worktree side: modified or new files. An unmatched glob stays
+       # literal — skip it (no phantom CHANGED for absent files).
        for f in $pattern; do
          [[ -f "$f" ]] || continue
          if [[ -f "$MAIN_ROOT/$f" ]]; then
            diff -q "$f" "$MAIN_ROOT/$f" >/dev/null 2>&1 || echo "CHANGED: $f"
          else
-           echo "CHANGED: $f"
+           echo "CHANGED (new): $f"
          fi
+       done
+       # Main side: a carried file deleted in the worktree no longer expands
+       # locally — expand from MAIN_ROOT too so deletions surface.
+       for m in "$MAIN_ROOT"/$pattern; do
+         [[ -f "$m" ]] || continue
+         f="${m#"$MAIN_ROOT"/}"
+         [[ -f "$f" ]] || echo "DELETED in worktree: $f"
        done
      done < .worktreeinclude
    fi
@@ -35,12 +42,13 @@
 
    **If differences found:**
 
-   1. Show diff for each changed file (`diff --unified "$MAIN_ROOT/$f" "$f"`)
+   1. Show diff for each changed file (`diff --unified "$MAIN_ROOT/$f" "$f"`; for a `(new)` file
+      diff against `/dev/null` — main has no copy yet; for a `DELETED` file show main's copy)
    2. Show active worktrees (`git worktree list`) — if >1 worktree exists beyond main, warn: *"Other active worktrees have their own copies of this file. Overwriting main's copy won't affect existing worktrees but will affect future ones."*
    3. Present options per file:
-      - **Copy to main** — overwrite main's copy with worktree's version. Safe for cosmetic changes (reordering), new additions, or when this is the only active session
+      - **Copy to main** — overwrite main's copy with worktree's version (for a `DELETED` file, remove main's copy so future worktrees stop re-carrying it). Safe for cosmetic changes (reordering), new additions, or when this is the only active session
       - **Skip** — proceed without syncing. User accepts that worktree changes will be lost on cleanup
-   4. If user chooses "copy to main": `cp "$f" "$MAIN_ROOT/$f"`
+   4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); for a `DELETED` file: `rm "$MAIN_ROOT/$f"`
 
    **Why here (not WorktreeRemove hook):** this is the last intentional checkpoint where user is engaged and can inspect a diff. WorktreeRemove hooks cannot block removal or prompt — a silent copy could overwrite concurrent session changes. One mechanism per concern.
 
