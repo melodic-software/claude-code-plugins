@@ -5,11 +5,11 @@
       "id": 1,
       "name": "auto-detect-outcome-after-implement",
       "prompt": "I just finished implementing the caching feature we planned. verify changes",
-      "expected_output": "Runs Stage 1 (mechanical prerequisite — delegates /toolchain:build + /toolchain:lint cross-cutting), then Stage 2 outcome verification with the feature/general criterion: intent match against the plan + functions + (if UI) looks correct. Emits a CONFIRMED / NEEDS WORK verdict.",
+      "expected_output": "Runs Stage 1 (mechanical prerequisite — delegates /toolchain:check + /toolchain:lint cross-cutting), then Stage 2 outcome verification with the feature/general criterion: intent match against the plan + functions + (if UI) looks correct. Emits a CONFIRMED / NEEDS WORK verdict.",
       "files": [],
       "expectations": [
         "Auto-detects the `outcome` criterion from the post-implementation context (no mode argument given)",
-        "Stage 1 delegates to /toolchain:build and /toolchain:lint cross-cutting — does NOT reimplement build/test/lint or inline exec-bit/gitleaks bash",
+        "Stage 1 delegates to /toolchain:check and /toolchain:lint cross-cutting — does NOT reimplement build/test/lint or inline exec-bit/gitleaks bash",
         "Stage 2 retrieves intent (plan / conversation) and produces an intent-match table",
         "Emits a CONFIRMED or NEEDS WORK verdict, not just a green build"
       ]
@@ -21,7 +21,7 @@
       "expected_output": "Stage 1 mechanical prerequisite fails (build or test red). The skill STOPS and reports the failures — it does NOT proceed to outcome verification, because outcome confirmation is meaningless on code that doesn't build or pass tests.",
       "files": [],
       "expectations": [
-        "STOPS at Stage 1 when /toolchain:build or /toolchain:lint cross-cutting reports FAIL — does not run Stage 2",
+        "STOPS at Stage 1 when /toolchain:check or /toolchain:lint cross-cutting reports FAIL — does not run Stage 2",
         "Reports the failing command's key error lines",
         "States that mechanical failures must be fixed before outcome verification proceeds (\"can't verify broken code\")"
       ]
@@ -66,10 +66,10 @@
       "id": 8,
       "name": "quick-mechanical-routes-to-build",
       "prompt": "does this still build and pass tests?",
-      "expected_output": "Recognizes this as a quick mechanical-only request and routes to /toolchain:build (not /verification:confirm). /verification:confirm is for outcome confirmation; /toolchain:build owns the standalone mechanical pass.",
+      "expected_output": "Recognizes this as a quick mechanical-only request and routes to /toolchain:check (not /verification:confirm). /verification:confirm is for outcome confirmation; /toolchain:check owns the standalone mechanical pass.",
       "files": [],
       "expectations": [
-        "Routes a quick mechanical-only request to /toolchain:build rather than running the full two-stage outcome flow",
+        "Routes a quick mechanical-only request to /toolchain:check rather than running the full two-stage outcome flow",
         "Reserves /verification:confirm for when outcome confirmation (proof the change achieved its intent) is wanted"
       ]
     },

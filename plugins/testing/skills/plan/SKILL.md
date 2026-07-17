@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Analyze code changes and produce a test plan — classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use for 'test plan' / 'what needs testing', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:build."
+description: "Analyze code changes and produce a test plan — classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use for 'test plan' / 'what needs testing', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:check."
 argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module)"
 user-invocable: true
 disable-model-invocation: false
@@ -100,7 +100,7 @@ Present the test plan to the user. Then suggest:
 ## What this skill does NOT do
 
 - **Does not write tests** — `/testing:write`
-- **Does not run tests** — `/toolchain:build` (SSOT for CLI invocation)
+- **Does not run tests** — `/toolchain:check` (SSOT for CLI invocation)
 
 ## Marketplace plugin skills (invoke only when installed)
 

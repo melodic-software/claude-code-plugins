@@ -31,7 +31,7 @@ history; grouping lives in marketplace metadata.
 | D10 | `claude-ops` unchanged as plugin; skills deprefixed: `claude-code-changelog` → `changelog`, `claude-observability` → `observability`, `claude-troubleshooting` → `troubleshoot`. |
 | D11 | `mcp-tool-audit` → `mcp-tools`, skill → `audit` (verified generic-MCP, standalone domain). |
 | D12 | `codebase-audit` → `codebase-health`, skill → `audit`. |
-| D13 | `implementation` splits four ways: `toolchain` (`build`, `lint`, `setup`), `testing` (`plan`, `write`, `e2e`, `diagnose` — was test-*), `verification` (`confirm` — was verify-changes, `measure` — was verify-improvement), `implementation` (`implement`, `implement-dispatch`). Mechanism moves, obligation stays: implement builds via `/toolchain:build` seam; cross-plugin references presence-gated. |
+| D13 | `implementation` splits four ways: `toolchain` (`build` — since renamed `check`, `lint`, `setup`), `testing` (`plan`, `write`, `e2e`, `diagnose` — was test-*), `verification` (`confirm` — was verify-changes, `measure` — was verify-improvement), `implementation` (`implement`, `implement-dispatch`). Mechanism moves, obligation stays: implement builds via `/toolchain:check` seam; cross-plugin references presence-gated. |
 | D14 | `tdd` stays standalone; skill → `principles`. |
 | D15 | `work-items` skill splits five ways: `track` (add/start/done/list/stats/search/due/recheck/audit), `triage`, `work`, `decompose`, `scan`. |
 | D16 | `context7`: skill → `lookup` + new `setup` (absorbs configure, `disable-model-invocation: true`); `update` stays inline maintainer action. |
