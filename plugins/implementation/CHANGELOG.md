@@ -11,6 +11,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   phase-commit rule to the contract's visibility guarantee — isolated contexts see the contract
   slice as committed state only — and states the by-value return rule for dispatched workers.
 
+## [0.6.1]
+
+### Changed
+
+- References to the renamed `/toolchain:build` skill now invoke `/toolchain:check` (toolchain 0.2.0 breaking rename). Version bumped so existing installs pick up the rewritten prompts.
+
 ## [0.6.0]
 
 ### Changed — nine skills extracted into three new plugins (migration required to retain them)

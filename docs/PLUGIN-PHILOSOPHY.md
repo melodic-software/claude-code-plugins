@@ -24,10 +24,46 @@ Keep plugins horizontally decoupled:
   (`claude plugin tag --push`) with it.
 - Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
   or report the missing optional capability clearly.
+- Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
+  Claude Code installs automatically) or guarded behind an "if installed" check with the documented
+  fallback. A bare unguarded cross-plugin reference is a defect.
 
 This follows Claude Code's distinction between project-specific standalone configuration and plugins
 intended for reusable, versioned distribution. Namespaced skill invocations are part of that isolation,
 not an implementation detail.
+
+## Naming
+
+A skill name is an imperative verb phrase; the plugin namespace supplies the object
+(`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences —
+"/discovery:explore the module, then /planning:interview me" — and one grammar keeps every name in
+the marketplace predictable. This is a deliberate, documented deviation from the official authoring
+guidance's gerund preference; that guidance sanctions imperative alternatives and treats
+collection-wide consistency as a requirement, which this section provides.
+
+Verb meanings are fixed:
+
+| Verb | Contract |
+|---|---|
+| `audit`, `scan` | Read-only findings report. Mutation only behind an explicit user override such as an autofix argument, never on bare invocation; safety qualifiers may narrow what an override touches. |
+| `check` | Deterministic pass/fail gate. |
+| `clean`, `tidy`, `fix` | Mutates the target. |
+| `setup` | Configures the plugin for a consumer, per the setup section below. |
+| `update` | Refreshes vendored upstream material. |
+
+When a bare verb would collide with or under-specify against a sibling in the same namespace, a
+topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-encapsulation`,
+`scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
+
+Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
+(`worktree`, `pull-request`). Two further documented exceptions: a single-skill vendor-CLI wrapper
+repeats its tool name (`firecrawl:firecrawl`), and a `-deep` suffix marks the heavier
+isolated-execution tier of a sibling skill (`explore`/`explore-deep`).
+
+The frontmatter `name` always matches the skill directory name, in the character set the Agent
+Skills specification allows. Never degrade a name to dodge a built-in command: plugin skills are
+namespaced and cannot collide with other levels. When a name matches a built-in, the bare token
+still belongs to the built-in; the namespaced form is the plugin skill's only command.
 
 ## Native-first
 
@@ -236,3 +272,14 @@ authoritative self-updating master list. Pages load-bearing for this document, v
   the special storage and read scopes of `pluginConfigs`.
 - `melodic-software/standards` engineering philosophy and cross-platform review criteria — repository
   design and verification policy.
+
+Verified 2026-07-17:
+
+- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies) — the `dependencies`
+  array, automatic installation, and version constraints.
+- [Skills](https://code.claude.com/docs/en/skills) — command-name derivation and the plugin skill
+  namespace.
+- [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+  — naming-convention guidance this document deviates from deliberately.
+- [Agent Skills specification](https://agentskills.io/specification) — `name` field constraints and
+  directory matching.

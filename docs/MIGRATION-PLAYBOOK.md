@@ -117,10 +117,12 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   is failing at its job — the namespace is not naming the domain, or the skill is not naming its
   action. Fix it by, in preference order: rename the skill to its real action verb; rename the
   plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
-  intents (per the Organization section's split rule above). The one exemption is
+  intents (per the Organization section's split rule above). Two exemptions:
   **root-echo** — the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`); that is honest naming, not
-  a true doubling, and is accepted.
+  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`) — and
+  **wrapper-echo** — a single-skill vendor-CLI wrapper whose one router skill repeats the tool
+  name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
+  Both are honest naming, not true doubling, and are accepted.
 - **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
@@ -132,11 +134,12 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   (a dispatch variant of `research`) are siblings on this axis; the `-deep` suffix names that isolation
   tier, not a depth knob on the same execution path — a true effort knob on one execution path still
   takes an argument.
-- **A vendor-CLI plugin names its skills after the vendor's own CLI verbs.** A tool-scoped plugin
-  wrapping a CLI mirrors that CLI's verb vocabulary — `/playwright:test` mirrors
-  `npx playwright test`; a firecrawl decomposition would use `scrape` / `crawl` / `map` per
-  `firecrawl-cli` — the consumer already knows the vendor's verbs.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `configure`) — the overloaded-term
+- **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
+  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary —
+  `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
+  `scrape` / `crawl` / `map` per `firecrawl-cli` — the consumer already knows the vendor's verbs.
+  While it remains a single-skill router, the wrapper-echo exemption above applies instead.
+- **Generic skill names are safe under namespacing** (`help`, `list`, `update`) — the overloaded-term
   caution governs plugin *identity*, not a namespaced skill leaf.
 - **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
   plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
@@ -286,8 +289,8 @@ a skill ships them only when they earn their keep.
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
 from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …) or lives in a **hook** plugin
-(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
-`configure` skill *is* warrantable — it makes interview and write-config decisions (the
+(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup`
+skill *is* warrantable — it makes interview and write-config decisions (the
 `codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.

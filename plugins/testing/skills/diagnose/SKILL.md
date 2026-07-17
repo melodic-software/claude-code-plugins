@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use for 'why does this fail', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:build."
+description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use for 'why does this fail', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
 argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
 user-invocable: true
 disable-model-invocation: false
@@ -41,7 +41,7 @@ When `/implementation:implement` hits a test failure during its TDD cadence it c
 
 ## What this skill does NOT do
 
-- **Does not run the suite wholesale** — `/toolchain:build` is SSOT for CLI invocation; this skill runs targeted reproductions
+- **Does not run the suite wholesale** — `/toolchain:check` is SSOT for CLI invocation; this skill runs targeted reproductions
 - **Does not author new feature tests** — `/testing:write` (the loop's reproduce step writes only the failing test capturing the bug)
 
 ## Gotchas

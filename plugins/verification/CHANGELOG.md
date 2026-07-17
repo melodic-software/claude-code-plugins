@@ -11,6 +11,12 @@ All notable changes to the `verification` plugin are documented here. Format fol
   baselines and raw captures are checkout-local, and `/verification:measure` writes distilled
   values only into `PLAN.md` — never a memory-slice capture path (pointer discipline).
 
+## [0.1.1]
+
+### Changed
+
+- References to the renamed `/toolchain:build` skill now invoke `/toolchain:check` (toolchain 0.2.0 breaking rename). Version bumped so existing installs pick up the rewritten prompts.
+
 ## [0.1.0]
 
 ### Added
