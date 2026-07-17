@@ -232,6 +232,29 @@ else
 fi
 rm -rf "$f"
 
+# --- --check-bump: compound failure — all three stale conditions report ----
+f="$(new_fixture)"
+canonical_v1 >"$f/$CANONICAL"
+changelog_v1 >"$f/$CHANGELOG"
+carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
+carrying_plugin "$f" review "$(canonical_v1)" 0.1.0
+base="$(git_fixture "$f")"
+canonical_v1_edited >"$f/$CANONICAL"       # content moved, frontmatter did not
+printf -- '# Changelog\n' >"$f/$CHANGELOG" # entry for the head version removed
+# manifests untouched
+if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
+  fail "--check-bump should fail when every bump is missing, got success: $out"
+else
+  if echo "$out" | grep -q "STALE CONTRACT VERSION" &&
+    echo "$out" | grep -q "STALE CHANGELOG" &&
+    echo "$out" | grep -q "STALE VERSION"; then
+    ok "--check-bump reports all three stale conditions before exiting"
+  else
+    fail "expected all three STALE messages in one run, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- --check-bump: plugin absent at base is new — skipped, not stale --------
 f="$(new_fixture)"
 canonical_v1 >"$f/$CANONICAL"

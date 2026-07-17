@@ -71,11 +71,12 @@ sync)
     stale=1
   fi
 
-  # (c) the change must land a new changelog entry.
-  base_headings=$(git show "$base:$changelog" 2>/dev/null | grep -c '^## ' || true)
-  head_headings=$(grep -c '^## ' "$changelog" || true)
-  if [[ "${head_headings:-0}" -le "${base_headings:-0}" ]]; then
-    echo "STALE CHANGELOG: $src changed vs $base but $changelog gained no new '## ' entry" >&2
+  # (c) the changelog must carry an entry for the contract version the
+  # frontmatter now names — a heading count could be satisfied by any
+  # unrelated '## ' section.
+  head_contract_re=${head_contract//./\\.}
+  if ! grep -Eq "^## ${head_contract_re}( |$)" "$changelog" 2>/dev/null; then
+    echo "STALE CHANGELOG: $src changed vs $base but $changelog has no '## $head_contract' entry" >&2
     stale=1
   fi
 
