@@ -22,9 +22,11 @@
 #   fetch-failed-logs.sh <run-id> --audit          # macro: warnings + groups + timing + suspicious
 #   fetch-failed-logs.sh <run-id> --keep-zip       # leave ZIP under scratch/ for re-grep
 #   fetch-failed-logs.sh <run-id> --raw            # dump full ZIP contents to stdout (no grep)
+#   fetch-failed-logs.sh <run-id> --max-bytes <n>  # size cap (default 52428800 = 50 MiB) — the
+#                                                  # invoking skill wires the fetch_logs_max_bytes
+#                                                  # userConfig option here
 #
 # Env overrides:
-#   FETCH_LOGS_MAX_BYTES   default 52428800 (50 MiB) — abort if response larger
 #   FETCH_LOGS_REPO        default `gh repo view --json nameWithOwner -q .nameWithOwner`
 #   FETCH_LOGS_SCRATCH     destination for cached ZIPs — default
 #                          $CLAUDE_PLUGIN_DATA/scratch when set, else mktemp -d
@@ -33,7 +35,7 @@
 #   0  log fetch + extraction succeeded
 #   1  invalid argument
 #   2  gh api call failed (auth, network, 404 etc.)
-#   3  log payload exceeded FETCH_LOGS_MAX_BYTES
+#   3  log payload exceeded the size cap
 #   4  ZIP extraction failed
 #   5  prerequisite missing (gh, unzip)
 
@@ -43,6 +45,7 @@ set -uo pipefail
 
 RUN_ID=""
 JOB_ID=""
+MAX_BYTES_ARG=""
 KEEP_ZIP=0
 RAW=0
 ERRORS_ONLY=0
@@ -65,6 +68,14 @@ while (($# > 0)); do
       exit 1
     }
     JOB_ID="$2"
+    shift 2
+    ;;
+  --max-bytes)
+    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || {
+      printf 'fetch-failed-logs: --max-bytes needs a numeric argument\n' >&2
+      exit 1
+    }
+    MAX_BYTES_ARG="$2"
     shift 2
     ;;
   --keep-zip)
@@ -209,7 +220,7 @@ have unzip || {
   exit 5
 }
 
-MAX_BYTES="${FETCH_LOGS_MAX_BYTES:-52428800}"
+MAX_BYTES="${MAX_BYTES_ARG:-52428800}"
 
 # --- Repo resolution ---------------------------------------------------------
 

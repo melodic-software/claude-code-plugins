@@ -174,14 +174,15 @@ request, run `check`.
    or its inference when unset. The authoritative render is the effective-configuration block
    that loads with `/source-control:babysit-prs` (its `help` mode prints it without taking any
    other action); a surviving literal `${user_config.…}` placeholder there means the key is
-   unset. For each unset key state what will be inferred at run time — `watched_owners` → the
-   current repo's owner, `self_logins` → `gh api user --jq .login`, `default_tier` → `safe`,
-   `merge_method` → repo convention then squash, the four review-trigger keys → module dormant,
-   `worktree_root` → the plugin data dir's `worktrees/` subdirectory.
+   unset. For each unset key state what will be inferred at run time — `babysit_watched_owners` →
+   the current repo's owner, `babysit_self_logins` → none (your `gh api user --jq .login` login is
+   always used, extras only add to it), `babysit_default_tier` → `safe`, `babysit_merge_method` →
+   repo convention then squash, the four review-trigger keys → module dormant,
+   `babysit_worktree_root` → the plugin data dir's `worktrees/` subdirectory.
 2. **Branch-protection posture across watched repos.** For each watched owner (or the current
-   repo's owner when `watched_owners` is unset), enumerate the repos babysit would touch —
+   repo's owner when `babysit_watched_owners` is unset), enumerate the repos babysit would touch —
    repos with open PRs authored by the self logins, via
-   `gh search prs --state open --author <self-login> --owner <owner> --json repository` — and
+   `gh search prs --state open --author @me --owner <owner> --json repository` — and
    for each, read the default branch's effective rules
    (`gh api repos/<owner>/<repo>/rules/branches/<default-branch>`, falling back to
    `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` for classic protection).
@@ -209,8 +210,9 @@ It documents and walks the user through the two sanctioned paths:
   on fresh install only; reconfiguring headless requires uninstall then reinstall.
 
 `--config` values are schema-validated and stored via the same path as the interactive
-configure flow. Multi-value keys (`watched_owners`, `self_logins`, `review_bot_logins`,
-`extra_bot_logins`) substitute into the skill as comma-joined csv once stored. After either
+configure flow. Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
+`babysit_review_bot_logins`, `babysit_extra_bot_logins`) substitute into the skill as comma-joined
+csv once stored. After either
 path, re-run `check` to confirm the effective configuration — apply is idempotent and safe to
 repeat.
 

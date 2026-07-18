@@ -39,15 +39,15 @@ from pushed fixes are picked up on the next iteration.
 ### 5.0.2 PR discovery
 
 ```bash
-gh pr list --state open --author "<self-login>" --limit 200 \
+gh pr list --state open --author "@me" --limit 200 \
   --json number,title,headRefName,isDraft,author --jq 'sort_by(.number)'
 ```
 
 Oldest-first (FIFO) — lowest PR number processed first.
 
-**Author scope:** `<self-login>` comes from the `self_logins` key in SKILL.md's
-effective-configuration block (unset → your `gh api user --jq .login` identity); with multiple
-self logins, run the listing once per login and merge the results. Drop the author filter only
+**Author scope:** `@me` is your `gh api user --jq .login` identity; the `babysit_self_logins` key
+in SKILL.md's effective-configuration block adds extra posting identities on top of it. Run the
+listing once per identity (`@me` plus each configured extra) and merge the results. Drop the author filter only
 in `autopilot` or on an explicit user instruction to widen. A widened discovery includes other
 authors' PRs — a dependency-manager PR with failing CI gets the same diagnose-and-fix
 attention as any other, but dependency-authored PRs are never merged autonomously in any tier
@@ -282,7 +282,9 @@ verification gates per [review-discipline.md](../../../reference/review-discipli
   (read → explore → validate → classify → react → reply → fix → follow-up → author-conditional
   thread resolution, each verified on GitHub)
 - [ ] **E** — Readiness gate. Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>` — exit 0 `READINESS_OK`
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>` — when the
+  `${user_config.babysit_self_logins}` option is non-empty (and not a literal unexpanded token),
+  append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
   re-run. THEN confirm: all checks terminal + 2-min cooldown

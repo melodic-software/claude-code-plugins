@@ -37,8 +37,11 @@
 #   babysit-readiness-gate.sh <pr>
 #   babysit-readiness-gate.sh <pr> --comments-json <file>   # skip network (tests/reuse)
 #   babysit-readiness-gate.sh <pr> --checklist <file>       # also gate R6
-#   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors (else
-#                              BABYSIT_SELF_LOGINS csv env + `gh api user` login)
+#   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors, full override
+#                              (else `gh api user` login)
+#   babysit-readiness-gate.sh <pr> --extra-self 'bot1,bot2' # extra self authors added to the
+#                              `gh api user` login — the invoking skill wires the
+#                              babysit_self_logins userConfig option here
 #   babysit-readiness-gate.sh --help
 #
 # Stdout (machine-readable, always emitted on a check run):
@@ -59,9 +62,10 @@ PR_NUMBER=""
 COMMENTS_JSON=""
 CHECKLIST=""
 SELF_CSV=""
+EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,47p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -89,6 +93,11 @@ while (($# > 0)); do
   --self)
     require_value "$1" "${2:-}"
     SELF_CSV="$2"
+    shift 2
+    ;;
+  --extra-self)
+    require_value "$1" "${2:-}"
+    EXTRA_SELF_CSV="$2"
     shift 2
     ;;
   -*)
@@ -140,16 +149,18 @@ SELF_LOGINS=()
 if [[ -n "$SELF_CSV" ]]; then
   IFS=',' read -r -a SELF_LOGINS <<<"$SELF_CSV"
 else
-  # BABYSIT_SELF_LOGINS (csv) covers extra posting identities — e.g. a project
-  # bot account whose replies carry the classification tables.
-  if [[ -n "${BABYSIT_SELF_LOGINS:-}" ]]; then
-    IFS=',' read -r -a SELF_LOGINS <<<"$BABYSIT_SELF_LOGINS"
+  # --extra-self (csv) covers extra posting identities — e.g. a project bot
+  # account whose replies carry the classification tables — added on top of the
+  # personal login. The invoking skill wires the babysit_self_logins userConfig
+  # option here.
+  if [[ -n "$EXTRA_SELF_CSV" ]]; then
+    IFS=',' read -r -a SELF_LOGINS <<<"$EXTRA_SELF_CSV"
   fi
   personal_login="$(gh api user --jq .login 2>/dev/null | tr -d '\r')"
   [[ -n "$personal_login" ]] && SELF_LOGINS+=("$personal_login")
 fi
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
-  printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or set BABYSIT_SELF_LOGINS)\n' >&2
+  printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or --extra-self)\n' >&2
   exit 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"

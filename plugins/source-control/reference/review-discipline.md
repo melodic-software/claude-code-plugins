@@ -25,7 +25,7 @@ multi-finding comments. Every pass re-derives comment state from GitHub:
 
 1. **Filter out own prior replies.** Comments authored by your own posting identities
    (`gh api user --jq .login`, plus any project bot identity — the same set the readiness gate's
-   `--self` / `BABYSIT_SELF_LOGINS` covers) that ARE classification replies (contain the
+   `--self` / `--extra-self` covers) that ARE classification replies (contain the
    `| # | Finding | Classification |` table pattern) are NOT findings — skip them. Own follow-up
    replies citing commit SHAs are also not findings. Only comments from OTHER authors are
    potential finding sources.

@@ -16,7 +16,7 @@ Spawn a fresh 1:1 worker for a PR **only when the snapshot's `needs_worker` fiel
 the snapshot engine (see `needs_worker_reasons` for why):
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue --author <self-logins> --owners <watched-owners> --state-dir <state-dir> --write-state
+python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue --author @me --owners <watched-owners> --state-dir <state-dir> --write-state
 ```
 
 `classification` alone is the wrong gate: `active` is **sticky** — a PR with the same

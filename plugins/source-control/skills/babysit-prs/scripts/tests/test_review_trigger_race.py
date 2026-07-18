@@ -69,7 +69,26 @@ class ReviewGateStateTests(unittest.TestCase):
             review_trigger.DEFAULT_REVIEW_TRIGGER_CONFIG)
         self.assertEqual(gate["gate_state"], "absent")
         self.assertFalse(gate["request_signal_pending"])
-        self.assertFalse(gate["ci_gateway_green"])
+        # No ci_gateway_context configured -> the gateway is treated as
+        # satisfied. Harmless while dormant: gate_state "absent" still blocks
+        # candidacy (see test_dormant_gate_never_produces_a_candidate).
+        self.assertTrue(gate["ci_gateway_green"])
+
+    def test_unset_ci_gateway_context_is_treated_as_green(self) -> None:
+        # A configured gate with no ci_gateway_context (the documented
+        # gateway-unused fallback) must not stall the trigger forever.
+        config = review_trigger.ReviewTriggerConfig(
+            trigger_phrase="please review",
+            reviewer_logins=frozenset({"reviewbot"}),
+            gate_context="review-gate",
+            ci_gateway_context="",
+        )
+        rollup = [{"__typename": "StatusContext", "context": "review-gate",
+                   "state": "PENDING", "targetUrl": ""}]
+        gate = review_trigger.review_gate_state(
+            checks.classify_checks(rollup), config)
+        self.assertEqual(gate["gate_state"], "pending")
+        self.assertTrue(gate["ci_gateway_green"])
 
     def test_configured_gate_reflects_the_matching_context(self) -> None:
         rollup = [

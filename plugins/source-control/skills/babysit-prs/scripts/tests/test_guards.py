@@ -45,6 +45,17 @@ class MergeGuardFailsClosed(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertFalse(payload.get("inScope"))
 
+    def test_self_logins_at_me_refuses_out_of_scope_before_resolving(self):
+        # '@me' resolution is a network call; passing it with an out-of-scope
+        # owner must still refuse at exit 3 (owner check precedes resolution),
+        # so this runs with no gh available and must not hang or error.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "someone-else",
+            "--self-logins", "@me",
+        )
+        self.assertEqual(code, 3)
+        self.assertFalse(payload.get("inScope"))
+
     def test_short_expected_head_is_usage_error_exit_2(self):
         code, payload = run(
             MERGE, "owner/repo#1", "--allowed-owners", "owner",

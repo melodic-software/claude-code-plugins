@@ -452,7 +452,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        state_store.resolve_state_dir(args.state_dir)
+        args.state_dir = str(state_store.resolve_state_dir(args.state_dir))
         if args.gh_timeout_seconds is not None:
             gh.set_gh_timeout_seconds(args.gh_timeout_seconds)
         delta.validated_max_quiet_recheck_seconds(args.max_quiet_recheck_seconds)

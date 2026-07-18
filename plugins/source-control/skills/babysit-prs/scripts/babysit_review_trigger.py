@@ -289,8 +289,11 @@ def review_gate_state(
             check["effective_state"] == "PENDING" and not check["target_url"]
             for check in gate_statuses
         ),
-        "ci_gateway_green": bool(ci_gateway_checks)
-        and all(check["category"] == "success" for check in ci_gateway_checks),
+        "ci_gateway_green": (not ci_gateway_context)
+        or (
+            bool(ci_gateway_checks)
+            and all(check["category"] == "success" for check in ci_gateway_checks)
+        ),
         "non_review_checks_green": bool(non_review_checks)
         and all(check["category"] == "success" for check in non_review_checks),
     }

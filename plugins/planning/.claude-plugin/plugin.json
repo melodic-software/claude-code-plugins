@@ -1,16 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.17.0",
+  "version": "0.19.0",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
       "title": "Use AskUserQuestion for interview rounds",
-      "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
+      "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly).",
       "default": false
     }
   },
-  "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, actively maintain resolved domain language, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
+  "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -23,6 +23,7 @@
     "brainstorm",
     "prd",
     "interview",
+    "questionnaire",
     "design",
     "design-handoff",
     "devils-advocate",

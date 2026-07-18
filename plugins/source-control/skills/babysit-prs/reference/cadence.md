@@ -111,8 +111,8 @@ and cold-start rules still govern *when* that scoped refresh runs, they just nev
 into a `--queue` call.
 
 The periodic sweep reuses the run's own scope exactly like every other snapshot call this cycle:
-`--author <self-logins>` in default and worker mode, dropped only in autopilot or on an explicit
-user instruction to widen (see `SKILL.md`). It is never an implicit license to broaden discovery
+`--author @me` (your gh login, plus any `babysit_self_logins` extras) in default and worker mode,
+dropped only in autopilot or on an explicit user instruction to widen (see `SKILL.md`). It is never an implicit license to broaden discovery
 beyond the mode already in effect — a default or worker cycle's periodic sweep still never
 surfaces another author's PR. The interval rule governs only *when* to rediscover, never *what to
 do* with what the sweep finds: running a full sweep grants no action beyond what the run's actual

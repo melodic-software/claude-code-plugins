@@ -41,7 +41,13 @@ from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
 from babysit_feedback import is_dependency_author
-from babysit_gh import fetch_review_threads, gh_capture, gh_json, parse_repo_number
+from babysit_gh import (
+    fetch_review_threads,
+    gh_capture,
+    gh_json,
+    parse_repo_number,
+    resolve_authors,
+)
 from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
@@ -354,7 +360,10 @@ def main() -> int:
     parser.add_argument(
         "--self-logins",
         default=None,
-        help="comma-separated logins treated as self (exempt from the unprotected-base hold)",
+        help=(
+            "comma-separated logins treated as self (exempt from the "
+            "unprotected-base hold); '@me' resolves to your gh login"
+        ),
     )
     parser.add_argument(
         "--merge",
@@ -411,8 +420,6 @@ def main() -> int:
         )
         return 3
 
-    self_logins = parse_allowed_owners(args.self_logins)
-
     try:
         repo, number = parse_repo_number(args.pr)
     except ValueError as exc:
@@ -446,6 +453,21 @@ def main() -> int:
             )
         )
         return 3
+
+    # Resolve self logins only after every argument-shape refusal above: '@me'
+    # resolution is a network call, and the guard's contract is that malformed
+    # input is rejected before any network access.
+    try:
+        self_logins = {login.casefold() for login in resolve_authors(args.self_logins)}
+    except RuntimeError:
+        # '@me' could not be resolved to a gh login; fail closed by keeping only
+        # the explicit non-'@me' logins -- an unresolved self identity holds own
+        # PRs on an unprotected base rather than merging on a guessed identity.
+        self_logins = {
+            token.casefold()
+            for token in (args.self_logins or "").split(",")
+            if token.strip() and token.strip().casefold() != "@me"
+        }
 
     try:
         result = evaluate(

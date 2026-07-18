@@ -152,7 +152,8 @@ a human. Per PR, in its own fresh worker, autopilot:
 
 3. After the worker's final push, takes a fresh post-push snapshot (or uses the exact pushed
    commit after vetting it), then merges through `source-control-babysit-merge owner/repo#N
-   --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha>` once the
+   --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head
+   <post-push-head-sha>` once the
    deterministic gate proves the PR ready. Never reuse the pre-worker snapshot pin after a
    push. The gate is never bypassed; if a PR cannot be made ready, autopilot reports that one
    PR and moves on.
@@ -182,8 +183,10 @@ interpreter and fail with a clear message when Python is absent). Both fail clos
 `--allowed-owners`.
 
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
-  <watched-owners>` (read-only; add `--merge --expected-head <vetted-head-sha>` to merge, and
-  `--method <merge-method>` when configured). It gates on GitHub's own
+  <watched-owners> --self-logins @me,<self-logins>` (read-only; add `--merge --expected-head
+  <vetted-head-sha>` to merge, and `--method <merge-method>` when configured). `--self-logins`
+  exempts your own PRs from the unprotected-base hold: `@me` resolves to your gh login, plus any
+  `babysit_self_logins` extras (drop the trailing `,<self-logins>` when that value is empty). It gates on GitHub's own
   `mergeStateStatus == CLEAN` plus explicit cross-checks (branch rules, review decision,
   unresolved threads, check rollup keyed by check type and name, head match) and reports the
   exact `blockers`. If the expected-head pin is missing or no longer matches the live head, the
@@ -270,21 +273,21 @@ tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
-| `watched_owners` | `${user_config.watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `self_logins` | `${user_config.self_logins}` | `--author` (snapshot), `--self` (readiness gate) | `gh api user --jq .login` |
-| `default_tier` | `${user_config.default_tier}` | prose only — tier of explicit bare invocations | `safe` |
-| `merge_method` | `${user_config.merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
-| `review_trigger_phrase` | `${user_config.review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
-| `review_bot_logins` | `${user_config.review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
-| `review_gate_context` | `${user_config.review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
-| `ci_gateway_context` | `${user_config.ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
-| `extra_bot_logins` | `${user_config.extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
-| `approval_downgrade_logins` | `${user_config.approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
-| `skip_downgrade_logins` | `${user_config.skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
-| `max_quiet_recheck_seconds` | `${user_config.max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
-| `advisory_fix_round_cap` | `${user_config.advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
-| `worker_concurrency_cap` | `${user_config.worker_concurrency_cap}` | prose only — fan-out bound | `10` |
-| `worktree_root` | `${user_config.worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
+| `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate); joined onto `@me` for `--author` (snapshot) and `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
+| `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
+| `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
+| `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
+| `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only — fan-out bound | `10` |
+| `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | — |
 
 Configure via the `/plugin` dialog, or headless at install time with
@@ -322,7 +325,9 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
   fetch + extract findings, per-finding D1–D7.5 with verification gates
   ([review-discipline](../../reference/review-discipline.md) §3), mechanical readiness gate
-  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`),
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`;
+  the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
+  is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
   report
 - [ ] **Step 5 — Commit + push** fixes on the PR branch; clean working tree; follow-up replies
   cite commit SHAs
@@ -358,10 +363,12 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 
 4. Run the snapshot with the tier's scope:
    `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue
-   --author <self-logins> --owners <watched-owners> --state-dir <state-dir> --write-state`
-   (append the review-trigger flags only when configured; `--pr owner/repo#N` for single-PR
-   scope; `--repo <owner/repo-csv>` for a sharded session; drop `--author` only in autopilot or
-   on an explicit instruction to widen). Capture the prior cycle's `generated_at` per
+   --author @me --owners <watched-owners> --state-dir <state-dir> --write-state`
+   (the `@me` always scopes discovery to your own gh login; when `babysit_self_logins` is
+   non-empty and not a literal unexpanded token, extend to `--author @me,<self-logins>` to add
+   those extra identities; append the review-trigger flags only when configured; `--pr
+   owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a sharded session; drop
+   `--author` only in autopilot or on an explicit instruction to widen). Capture the prior cycle's `generated_at` per
    [reference/cadence.md](reference/cadence.md) before writing new state.
 
 5. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`,

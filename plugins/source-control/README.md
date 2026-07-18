@@ -144,35 +144,36 @@ repo's owner.
 
 | Key | Type | Default / absent behavior |
 |---|---|---|
-| `watched_owners` | string (multiple) | infer the current repo's owner |
-| `self_logins` | string (multiple) | `gh api user --jq .login` |
-| `default_tier` | string | `safe` (explicit invocations only) |
-| `merge_method` | string | repo convention, then squash |
-| `review_trigger_phrase` | string | review-trigger module dormant |
-| `review_bot_logins` | string (multiple) | review-trigger module dormant |
-| `review_gate_context` | string | review gate treated as absent |
-| `ci_gateway_context` | string | gateway check unused |
-| `extra_bot_logins` | string (multiple) | structural bot detection only |
-| `approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
-| `skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
-| `max_quiet_recheck_seconds` | number | 14400 |
-| `advisory_fix_round_cap` | number | 100 |
-| `worker_concurrency_cap` | number | 10 |
-| `worktree_root` | directory | `worktrees/` under the plugin data dir |
+| `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
+| `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
+| `babysit_default_tier` | string | `safe` (explicit invocations only) |
+| `babysit_merge_method` | string | repo convention, then squash |
+| `babysit_review_trigger_phrase` | string | review-trigger module dormant |
+| `babysit_review_bot_logins` | string (multiple) | review-trigger module dormant |
+| `babysit_review_gate_context` | string | review gate treated as absent |
+| `babysit_ci_gateway_context` | string | gateway check unused |
+| `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
+| `babysit_approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_max_quiet_recheck_seconds` | number | 14400 |
+| `babysit_advisory_fix_round_cap` | number | 100 |
+| `babysit_worker_concurrency_cap` | number | 10 |
+| `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |
+| `worktree_stale_days` | number | 14 (staleness threshold for `/worktree status`) |
+| `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the tracked
 `.claude/source-control.md` config — idempotent and safe to re-run.
-Optional environment variables:
+Remaining optional environment variables:
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `WORKTREE_STALE_DAYS` | `/worktree status` | Staleness threshold (default 14 days) |
-| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` / `FETCH_LOGS_MAX_BYTES` | `fetch-logs` | Scratch dir, repo override, size cap for CI-log ZIPs |
+| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
 
 The plugin-scope readiness gate accepts extra posting identities via its
-`--self` flag (fed from `self_logins`); the bash gate also still honors its
-legacy `BABYSIT_SELF_LOGINS` environment seam.
+`--extra-self` flag (fed from `babysit_self_logins`), added to your
+`gh api user` login; its `--self` flag still provides a full override.
 
 ## Security
 
