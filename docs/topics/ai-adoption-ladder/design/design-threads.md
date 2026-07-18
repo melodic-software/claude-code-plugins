@@ -179,6 +179,11 @@ Three-layer data model:
    definitively calculable from tracker metadata/exports).
 2. Human-attested — (a) counterfactual: would-have-done-anyway yes/no/partial;
    (b) manual-effort BAND (<1h / 1–4h / 1–2d / 1w+) — bands, not point estimates.
+   SUPERSEDED 2026-07-18 (WP3 architect round, interview-locked, revised same day on
+   stress-test evidence): band set corrected to six contiguous bands
+   `<1h / 1-4h / 4h-1d / 1d-1w / 1w-1mo / >1mo` — the draft left 4h–1d and 2d–1w unmapped,
+   and an open `>1w` top band erased the largest avoided-effort signal. WP3 PLAN.md is the
+   governing record.
 3. Agent/LLM — prompts for layer 2 at the task boundary; analyzes/aggregates over 1+2;
    NEVER estimates the return fields (models poor at effort estimation). Revisit trigger:
    models proven capable at effort estimation — constraint is conditional, not permanent.
@@ -222,6 +227,10 @@ The contract (agnostic on every axis — machine, repo, user, org, tool):
    schema.
 2. One minimal custom attribute namespace carries the work-item ID — verified semconv gap
    (no work-item-tracker attribute exists). This is the T5 return-accounting join key.
+   SHARPENED 2026-07-18 (WP2 architect round, interview-locked): the attribute is
+   `autonomy.work_item.url`, value = the item's canonical web URL in normalized form (native
+   short IDs collide across repos); resource-scoped on agent-session emission, span-scoped on
+   CI spans. WP2 PLAN.md is the governing record.
 3. W3C TRACEPARENT propagates across trigger → CI → agent session: one causal tree.
    Verified: headless agent sessions inherit TRACEPARENT natively. Unification by context
    propagation, not sink merging.
