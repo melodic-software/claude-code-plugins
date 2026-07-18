@@ -724,10 +724,17 @@ hook::git_resolve_index() {
     # command/exec carry their own options before the real command
     # (`command [-pVv]`, `exec [-cl] [-a name]`) and an optional `--`
     # end-of-options marker (`command -- git …`) — skip them so the git
-    # command behind the wrapper is still resolved.
+    # command behind the wrapper is still resolved. But `command -v`/`-V`
+    # only PRINT the command's path/description — nothing runs — so a git
+    # word behind them is a probe, not an invocation: bail out.
     command | exec | builtin | eval | !)
+      local is_command=0
+      [[ "${tok##*/}" == "command" ]] && is_command=1
       ((i++))
       while ((i < n)) && [[ "${w[i]}" == -* && "${w[i]}" != "--" ]]; do
+        if ((is_command)) && [[ "${w[i]}" == -*[vV]* ]]; then
+          return 1
+        fi
         [[ "${w[i]}" == "-a" ]] && ((i++))
         ((i++))
       done

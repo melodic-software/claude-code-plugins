@@ -203,6 +203,9 @@ run "command -p git reset --hard (command wrapper option, blocked)" "command -p 
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2
 run "command git status (wrapper, no dangerous op, allowed)" "command git status" 0
+run "command -v git reset --hard (introspection probe, allowed)" "command -v git reset --hard" 0
+run "command -V git commit (introspection probe, allowed)" "command -V git commit" 0
+run "command -pv git reset --hard (probe bundle with v, allowed)" "command -pv git reset --hard" 0
 run "git -c alias.x='!git' x reset --hard (shell alias appends args, blocked)" "git -c alias.x='!git' x reset --hard" 2
 run 'git -c alias.pf=push "--force" pf origin main (quoted alias, blocked)' 'git -c alias.pf='"'"'push "--force"'"'"' pf origin main' 2
 run "git push --push-op --dry-run --force origin (abbrev push-option eats dry-run, blocked)" "git push --push-op --dry-run --force origin" 2
