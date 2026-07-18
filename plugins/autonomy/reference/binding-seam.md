@@ -14,25 +14,31 @@ changes are reviewed migrations.
 
 ## Resolution ladder
 
-A consumer resolves a binding value in this order; the first rung that answers wins:
+A consumer resolves the effective binding as an ADDITIVE layer merge — a later layer adds to
+or refines earlier layers per value, never wholesale replacement:
 
-1. **Repo-local binding override** — tracked config in the consuming repository (the concrete
-   location is a tool-specific detail the setup capability documents).
+1. **User-global base** — the consumer's own machine-level binding config.
 2. **Org binding at the org-policy home** — the org's binding instance document. Reaching this
-   rung requires an org-policy-home pointer, which persists in repo-local or user-global
+   layer requires an org-policy-home pointer, which persists in repo-local or user-global
    config; the fetch mechanism is the hosting platform's own CLI with the consumer's own
    authentication (the contract grants no credentials).
-3. **Setup interview** — guided setup asks, then persists the answer into rung 1 so the next
-   resolution is deterministic.
+3. **Repo-local binding** — tracked config in the consuming repository (the concrete location
+   is a tool-specific detail the setup capability documents). Per value, this layer overrides
+   the org binding.
+4. **Local overlay** — the consumer's untracked personal refinement of the repo-local layer.
 
-Terminal default when no org exists (solo adopter, no org-policy home): the repo-local binding
-is the whole binding, populated with free-tier defaults — zero paid dependencies.
+A value no layer answers falls to the **setup interview**, which asks and persists the answer
+into the repo-local layer so the next resolution is deterministic.
+
+Terminal default when no org exists (solo adopter, no org-policy home): the merge degenerates
+to the local layers, populated with free-tier defaults — zero paid dependencies.
 
 ## Known limitation
 
 The org-policy-home pointer can go stale when an org moves its policy home. A consumer that
-fails to fetch rung 2 falls through to rung 3 rather than silently reusing a cached org
-binding; setup re-records the pointer.
+fails to fetch the org layer surfaces that failure (warned as not-considered) and falls to the
+remaining layers or the interview rather than silently reusing a cached org binding; setup
+re-records the pointer.
 
 ## Layout convention
 
