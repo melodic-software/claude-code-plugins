@@ -1,15 +1,16 @@
 # session-flow
 
-A Claude Code plugin bundling six skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling seven skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, whether its assumptions are still current, what to learn from it, and how to arm it
-for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, whether its assumptions are
+still current, what to learn from it, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
+| `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
@@ -62,6 +63,26 @@ external side effects (a push, a PR comment, a deploy) is gated so a re-fire can
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+```
+
+### clean-stop
+
+The go/stop mirror of `keep-going`: instead of recovering after an
+interruption, it makes the interruption safe beforehand. Sweeps every repo and
+worktree the session touched, inspects real state, and closes the gaps —
+pushes unpushed or coherently committable work durable, ensures every pushed
+non-default branch has a PR, files follow-ups as issues linked to that PR, and puts the
+resume context in the PR and issue bodies so a cold agent could pick it up.
+Ambiguous work-in-progress and stashes are surfaced rather than force-committed
+or dropped; destructive cleanup (deleting branches, removing worktrees) runs
+only on provably-safe state. Closes on a binary verdict: free-and-clear, or a
+named list of dangling items. It supersedes a local `handoff` when the machine
+itself may go away — breadcrumbs on the remote survive the disk. PR, issue, and
+worktree mechanics route to whatever capabilities are installed, falling back
+to direct `git` / `gh`.
+
+```shell
+/session-flow:clean-stop              # inspect → make durable → link → prune-safe → verdict
 ```
 
 ### retro
@@ -135,8 +156,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
 directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
 working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
-committed. Network: `reanchor` queries live host state via `git`/`gh` to verify a session's
-referenced PRs/issues/branches and installed-vs-repo plugin versions, and degrades to reporting
-what it could not verify when that authenticated egress is unavailable; every other skill is
-network-free (the retro transcript parser is stdlib-only Python 3.10+ reading local
-`~/.claude/projects/` transcripts).
+committed. Network: two skills reach the network. `reanchor` queries live host state via `git`/`gh`
+to verify a session's referenced PRs/issues/branches and installed-vs-repo plugin versions, and
+degrades to reporting what it could not verify when that authenticated egress is unavailable.
+`clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
+`git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
+and falling back to direct `git`/`gh` — to make session work durable on the remote. The other five
+skills — workflow, handoff, keep-going, retro, and orchestrate — are network-free (the retro
+transcript parser is stdlib-only Python 3.10+ reading local `~/.claude/projects/` transcripts).
