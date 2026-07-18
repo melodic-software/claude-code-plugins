@@ -31,6 +31,11 @@ re-anchor THAT. Otherwise re-anchor this portable baseline:
 - **Compare against the CURRENT official upstream, fetched now.** Re-read
   the vendor's live documentation for the surface in play this session —
   never training-data recall of it, never a stale in-repo summary of it.
+- **Resolve the applicable upstream version first.** When the repo pins a
+  supported major/minor, compare against the docs for THAT version — the
+  latest docs can legitimately prescribe APIs and defaults the pin does not
+  have. Divergence between the pinned line and latest is its own finding
+  (upgrade candidate or deliberate hold), never a false gap against the pin.
 - **Unverified conformance is not "clean".** A surface you did not compare
   is unaudited, not passing. Report what was compared and what was skipped;
   do not launder the unchecked into a green result.
