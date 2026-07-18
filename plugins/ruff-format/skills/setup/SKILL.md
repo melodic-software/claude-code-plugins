@@ -56,13 +56,14 @@ into a managed Python environment the repo already uses**, never by creating one
 globally, mirroring how the hook resolves the binary. Resolve the target from what the repo
 already declares:
 
-- An existing `.venv` (the environment the hook's walk targets) → install into it with the
-  repo's own tooling: `uv pip install ruff` when the repo uses uv, otherwise
-  `.venv`'s own `pip install ruff`. State the change and the target environment before
-  running.
-- A `pyproject.toml` whose tooling is uv or Poetry but with no environment yet → don't
-  create one; give that tool's own add command as guidance (`uv add --dev ruff`,
-  `poetry add --group dev ruff`) for the consumer to run.
+- A uv- or Poetry-managed project (`uv.lock`, `poetry.lock`, or the matching
+  `pyproject.toml` tool section) → use the project's own dependency command so the
+  manifest and lockfile record it — `uv add --dev ruff` / `poetry add --group dev ruff` —
+  never a bare install into the `.venv`, which the next `uv sync` or environment
+  recreation would silently remove. State the change before running.
+- A plain existing `.venv` with NO managing tool detected → install with the
+  environment's own `pip install ruff`. State the change and the target environment
+  before running.
 - Anything ambiguous — no `.venv`, no recognized project tool, or conflicting signals —
   stops with guidance rather than guessing; never create a virtual environment or
   `pip install` outside a managed environment. The README's astral install URL
