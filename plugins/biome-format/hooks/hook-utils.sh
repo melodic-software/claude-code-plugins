@@ -12,11 +12,12 @@
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
 readonly _HOOK_UTILS_LOADED=1
 
-# Per-hook kill switch via HOOK_<NAME>_ENABLED env var. Exits 0 (allow) if
-# disabled. Place after source, before stdin parsing.
-#   hook::check_enabled "MARKDOWN_FORMAT"  # checks HOOK_MARKDOWN_FORMAT_ENABLED
+# Per-hook kill switch via the plugin's <name>_enabled userConfig boolean,
+# read from the hook-process CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED mirror.
+# Exits 0 (allow) if disabled. Place after source, before stdin parsing.
+#   hook::check_enabled "MARKDOWN_FORMAT"  # checks CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED
 hook::check_enabled() {
-  local var_name="HOOK_${1}_ENABLED"
+  local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
   if [[ "${!var_name:-true}" != "true" ]]; then
     exit 0
   fi
@@ -115,12 +116,13 @@ hook::repo_root() {
 # late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
 # on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the
 # read timed out before a complete JSON payload arrived (caller may block).
-# Bound is HOOK_STDIN_READ_TIMEOUT seconds (default 2). jq (when present)
+# Bound is the stdin_read_timeout userConfig option in seconds (read via
+# CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2). jq (when present)
 # distinguishes a truncated read from a genuinely small-but-complete payload; a
 # missing/broken jq (exit 127) fails open like absent jq.
 #   INPUT=$(hook::buffer_stdin) || exit 0
 hook::buffer_stdin() {
-  local input="" read_status=0 read_timeout="${HOOK_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
+  local input="" read_status=0 read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
   start_epoch=${EPOCHREALTIME:-}
   IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
   input=$(printf '%s' "$input" | tr -d '\r')
@@ -132,8 +134,8 @@ hook::buffer_stdin() {
   if [[ "$read_status" -ne 0 && "$jq_rc" -ne 0 && "$jq_rc" -ne 127 ]]; then
     elapsed_ms=$(awk -v start="$start_epoch" -v end="$EPOCHREALTIME" 'BEGIN { printf "%.0f", (end - start) * 1000 }')
     timeout_ms=$(awk -v timeout="$read_timeout" 'BEGIN { printf "%.0f", timeout * 1000 }')
-    if [[ "$elapsed_ms" =~ ^[0-9]+$ && "$timeout_ms" =~ ^[0-9]+$ ]] \
-      && ((elapsed_ms + 100 >= timeout_ms)); then
+    if [[ "$elapsed_ms" =~ ^[0-9]+$ && "$timeout_ms" =~ ^[0-9]+$ ]] &&
+      ((elapsed_ms + 100 >= timeout_ms)); then
       echo "BLOCKED: hook stdin timed out before a complete JSON payload arrived." >&2
       return 2
     fi
@@ -171,8 +173,8 @@ hook::extract_bash_subject() {
   # Trim leading whitespace so the first token is real.
   cmd="${cmd#"${cmd%%[![:space:]]*}"}"
   local first_token="${cmd%%[[:space:]]*}"
-  while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+  while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] &&
+    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
     # A quote in the prefix token means a quoted value spans the next whitespace;
     # we cannot tokenize it safely — bail rather than leak a value fragment.
     if [[ "$first_token" == *[\"\']* ]]; then

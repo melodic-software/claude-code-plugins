@@ -117,7 +117,7 @@ assert_exit "file outside project root → exit 0" 0 "$RC"
 assert_silent "outside project root → no stderr" "$OUT"
 
 # Kill switch — disabled path is a clean no-op even on a real-shape token.
-OUT=$(HOOK_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "x='$AWS_TOKEN'")" 2>&1); RC=$?
+OUT=$(CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "x='$AWS_TOKEN'")" 2>&1); RC=$?
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
 

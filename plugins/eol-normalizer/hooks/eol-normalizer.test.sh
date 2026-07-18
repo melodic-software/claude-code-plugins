@@ -83,7 +83,7 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
+      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -121,7 +121,7 @@ if [[ "$(cr_count "$REPO/img.png")" == "1" ]]; then ok "unspecified .png -> CR p
 
 # --- Case 3: kill switch bypasses -------------------------------------------
 printf 'echo x\r\n' >"$REPO/off.sh"
-OUT=$(run_hook_env "$REPO/off.sh" HOOK_EOL_NORMALIZER_ENABLED=false)
+OUT=$(run_hook_env "$REPO/off.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch -> exit 0 silent"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 if [[ "$(cr_count "$REPO/off.sh")" == "1" ]]; then ok "kill switch -> CRLF preserved (not normalized)"; else fail "kill switch normalized despite off: CR=$(cr_count "$REPO/off.sh")"; fi
@@ -187,7 +187,7 @@ if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
 printf 'echo p\r\n' >"$REPO/tel1.sh"
-OUT_NS=$(run_hook_env "$REPO/tel1.sh" -u HOOK_TELEMETRY_SINK HOOK_EOL_NORMALIZER_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/tel1.sh" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -199,7 +199,7 @@ fi
 printf 'echo q\r\n' >"$REPO/tel2.sh"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel2.sh" HOOK_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel2.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -226,7 +226,7 @@ rm -f "$TEL"
 printf 'x\r\n' >"$REPO/tel3.png"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO/tel3.png" HOOK_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO/tel3.png" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/unspecified: status skipped"; else fail "telemetry/unspecified: status=$(jq -r '.status' "$TELS")"; fi

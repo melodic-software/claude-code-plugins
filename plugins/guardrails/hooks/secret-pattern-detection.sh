@@ -16,7 +16,7 @@
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
 # repo's concern); a generic allowlist exempts dependency caches, .env
 # examples, test fixtures, and machine-local CC state. Disable entirely with
-# HOOK_SECRET_PATTERN_DETECTION_ENABLED=false.
+# the secret_pattern_detection_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -41,8 +41,8 @@ INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
 
 case "$TOOL" in
-  Write | Edit | NotebookEdit) ;;
-  *) exit 0 ;;
+Write | Edit | NotebookEdit) ;;
+*) exit 0 ;;
 esac
 
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null | tr -d '\r')
@@ -67,8 +67,8 @@ PROJECT_DIR="$(hook::normalize_path "${CLAUDE_PROJECT_DIR:-}")"
 PROJECT_DIR="${PROJECT_DIR%/}"
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
-    "$PROJECT_DIR"/*) ;; # inside the project — proceed
-    *) exit 0 ;;         # outside the project — not this hook's concern
+  "$PROJECT_DIR"/*) ;; # inside the project — proceed
+  *) exit 0 ;;         # outside the project — not this hook's concern
   esac
 fi
 
@@ -82,27 +82,27 @@ fi
 #   - tests/fixtures, tests/testdata: scoped to test trees only
 #   - CC skill context/completed: research notes; code review is the backstop
 case "$ALLOW_FILE" in
-  *.claude/hooks/*) exit 0 ;;
-  *settings.local.json) exit 0 ;;
-  *CLAUDE.local.md) exit 0 ;;
-  # Dependency caches — anchored to a path-segment boundary (leading `/` or start
-  # of path) so a directory that merely CONTAINS the name (evil_node_modules/,
-  # .venv-backup/) is NOT exempted from the scan.
-  */.venv/* | .venv/*) exit 0 ;;
-  */node_modules/* | node_modules/*) exit 0 ;;
-  *.env.example | *.env.sample | *.env.template) exit 0 ;;
-  *tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) exit 0 ;;
-  *.claude/skills/*/context/*) exit 0 ;;
-  *.claude/skills/*/completed/*) exit 0 ;;
-  *) ;; # proceed to content check
+*.claude/hooks/*) exit 0 ;;
+*settings.local.json) exit 0 ;;
+*CLAUDE.local.md) exit 0 ;;
+# Dependency caches — anchored to a path-segment boundary (leading `/` or start
+# of path) so a directory that merely CONTAINS the name (evil_node_modules/,
+# .venv-backup/) is NOT exempted from the scan.
+*/.venv/* | .venv/*) exit 0 ;;
+*/node_modules/* | node_modules/*) exit 0 ;;
+*.env.example | *.env.sample | *.env.template) exit 0 ;;
+*tests/fixtures/* | *tests/testdata/* | *Tests/fixtures/* | *Tests/testdata/*) exit 0 ;;
+*.claude/skills/*/context/*) exit 0 ;;
+*.claude/skills/*/completed/*) exit 0 ;;
+*) ;; # proceed to content check
 esac
 
 # --- Extract content to check ---
 case "$TOOL" in
-  Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
-  Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-  NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
-  *) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
+*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
 esac
 [[ -n "${CONTENT:-}" ]] || exit 0
 
@@ -117,8 +117,11 @@ fi
 # Redaction: if the path could not be made repo-relative, emit the basename only
 # — never an absolute path (it would embed the developer's username) into telemetry.
 case "$FILE_REL" in
-  /* | [A-Za-z]:*) FILE_REL="${FILE_REL##*/}"; FILE_REL="${FILE_REL##*\\}" ;;
-  *) ;;
+/* | [A-Za-z]:*)
+  FILE_REL="${FILE_REL##*/}"
+  FILE_REL="${FILE_REL##*\\}"
+  ;;
+*) ;;
 esac
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
@@ -128,8 +131,8 @@ emit_tel() {
   hook::telemetry_enabled || return 0
   local data
   data=$(jq -n --arg file "$FILE_REL" --argjson violations "$2" \
-    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) \
-    || data='{"tool":"","file":"","violations":[]}'
+    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+    data='{"tool":"","file":"","violations":[]}'
   hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 

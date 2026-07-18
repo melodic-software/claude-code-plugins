@@ -66,17 +66,26 @@ linting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the
-`PSScriptAnalyzerSettings.psd1` already in your repository, which it reads
+The formatting and linting rules come from the
+`PSScriptAnalyzerSettings.psd1` already in your repository, which the hook reads
 automatically. To change the rules, edit that file.
 
-### Disable without uninstalling
+One behavior knob is exposed as a native `userConfig` option:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
 
-```json
-{ "env": { "HOOK_POWERSHELL_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure powershell-format`, or headless
+on the install command:
+
+```shell
+claude plugin install powershell-format@melodic-software --config powershell_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn the hook off for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
 
 ## License
 

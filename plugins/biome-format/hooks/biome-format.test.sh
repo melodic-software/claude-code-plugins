@@ -106,7 +106,7 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_BIOME_FORMAT_ENABLED=true bash "$HOOK"
+      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -237,7 +237,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-matching ext -> exit 0 silent"; el
 # --- Case 7: kill switch bypasses hook --------------------------------------
 printf 'const k=1;var j=2\n' >"$REPO/kill.ts"
 BEFORE_K="$(cat "$REPO/kill.ts")"
-OUT=$(run_hook_env "$REPO/kill.ts" HOOK_BIOME_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.ts")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -266,7 +266,7 @@ EXT_CFG="$WORK/external-cfg"
 mkdir -p "$EXT_CFG"
 printf '%s\n' '{ "javascript": { "formatter": { "quoteStyle": "double" } } }' >"$EXT_CFG/biome.json"
 printf 'const s = "hi";\nexport { s };\n' >"$REPO_ENV/q.ts"
-run_hook_env "$REPO_ENV/q.ts" HOOK_BIOME_FORMAT_ENABLED=true BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
+run_hook_env "$REPO_ENV/q.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
 if grep -q "const s = 'hi';" "$REPO_ENV/q.ts"; then
   ok "BIOME_CONFIG_PATH override neutralized -> repo config authoritative"
 else
@@ -278,7 +278,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.ts" -u HOOK_TELEMETRY_SINK HOOK_BIOME_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.ts" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -290,7 +290,7 @@ fi
 printf 'const unusedTel = 1;\n' >"$REPO/tel.ts"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.ts" HOOK_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -317,7 +317,7 @@ rm -f "$TEL"
 printf 'const s=1;var t=2\n' >"$REPO_NO/tel2.ts"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO_NO/tel2.ts" HOOK_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO_NO/tel2.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/gate-off: status skipped"; else fail "telemetry/gate-off: status=$(jq -r '.status' "$TELS")"; fi

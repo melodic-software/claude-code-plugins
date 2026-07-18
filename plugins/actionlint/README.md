@@ -40,16 +40,23 @@ your `PATH`.
 
 ## Configuration
 
-This plugin has no `userConfig`. actionlint auto-discovers its own
-`.github/actionlint.yaml` config from your repository when present.
+actionlint auto-discovers its own `.github/actionlint.yaml` config from your
+repository when present. One `userConfig` option tunes the hook itself:
 
-### Disable without uninstalling
+- **`actionlint_enabled`** (boolean, default `true`) — kill switch for the
+  actionlint-check hook.
 
-Set the kill switch in your settings `env` block:
+Configure interactively with `/plugin configure actionlint` or headless at
+install time:
 
-```json
-{ "env": { "HOOK_ACTIONLINT_ENABLED": "false" } }
+```shell
+claude plugin install actionlint@melodic-software --config actionlint_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings), so a value set
+here applies across every project. To disable actionlint for a single
+repository, disable the plugin in that project's `enabledPlugins` rather than
+setting `actionlint_enabled`.
 
 ## License
 

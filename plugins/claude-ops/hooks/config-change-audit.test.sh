@@ -30,7 +30,7 @@ assert_exit "unwired → exit 0" 0 "$RC"
 assert_silent "unwired → silent" "$OUT"
 
 TELK="$TEST_TMPDIR/telk.json"; SINKK="$(make_sink "$TELK")"
-env HOOK_TELEMETRY_SINK="$SINKK" HOOK_CONFIG_CHANGE_AUDIT_ENABLED=false \
+env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED=false \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_file_absent "kill switch → no envelope" "$TELK"
 

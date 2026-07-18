@@ -4,7 +4,7 @@
 #
 # ADVISORY: always exits 0 — Notification hooks cannot block (they return
 # terminalSequence output; exit 2 only shows stderr). Master kill switch
-# HOOK_DESKTOP_NOTIFICATION_ENABLED gates the whole hook. When on, it emits up
+# CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED gates the whole hook. When on, it emits up
 # to three INDEPENDENTLY-gated channels (each default ON):
 #   BELL            — audible terminal bell (bare BEL).
 #   TERMINAL_NOTIFY — OSC 9 desktop notification (race-free, cross-platform;
@@ -21,10 +21,10 @@
 # Channels are additive — enabling more stacks them.
 #
 # Config from the consumer's settings `env` block (all default ON when enabled):
-#   HOOK_DESKTOP_NOTIFICATION_ENABLED=false                  disable entirely
-#   HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false             mute the bell
-#   HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false  mute OSC 9
-#   HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=false         mute the OS toast
+#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false                  disable entirely
+#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false             mute the bell
+#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false  mute OSC 9
+#   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=false         mute the OS toast
 
 set -uo pipefail
 
@@ -94,11 +94,11 @@ CHANNELS=()
 # Deliberately NOT OSC 2 (window title): CC sets the terminal title to the
 # session name, and an OSC 2 here would clobber it on every prompt.
 SEQ=""
-if [[ "${HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED:-true}" == "true" ]]; then
+if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED:-true}" == "true" ]]; then
   SEQ+=$(printf '\033]9;%s\007' "$HEADLINE: $MESSAGE")
   CHANNELS+=("terminal_notify")
 fi
-if [[ "${HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED:-true}" == "true" ]]; then
+if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED:-true}" == "true" ]]; then
   SEQ+=$(printf '\007')
   CHANNELS+=("bell")
 fi
@@ -108,7 +108,7 @@ fi
 # pipe (>/dev/null 2>&1 &). A bare `&` child inherits fd1, so CC blocks for EOF
 # until the spawn's startup timeout and the hook hangs. The redirect keeps fd1
 # off the pipe; the hook's own terminalSequence JSON still reaches CC.
-if [[ "${HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "true" ]]; then
+if [[ "${CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED:-true}" == "true" ]]; then
   # Optional git branch context for the toast body (generic; empty outside a
   # git repo → body is just the message). Branch is also untrusted input — strip
   # C0 bytes through the same gate as .message (a ref name can't legally carry

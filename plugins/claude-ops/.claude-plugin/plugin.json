@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-ops",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Claude Code operations toolkit. Five skills: observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), known-issues (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), changelog (ingest Claude Code changelog entries and integrate them into the current repo), plugins (bring a machine's plugin fleet current on demand — marketplace refresh, effective-scope updates including in-repo project/local installs, new-plugin install per policy, scope-divergence detection and explicit convergence), and a re-runnable setup action that settles where the known-issues registry lives. Plus a family of seven advisory *-audit telemetry-emitter hooks (API errors, config changes, instruction loads, permission denials, pre-compaction, skill usage, tool failures) that emit the shared hook-telemetry envelope, and a reference sink that maps envelopes into the hook-events.jsonl the observability skill reads.",
   "author": {
     "name": "Melodic Software",
@@ -24,6 +24,61 @@
       "type": "string",
       "title": "New-plugin install policy for the plugins skill's sync action",
       "description": "Controls what `sync` does with catalog plugins that aren't installed yet. Valid values: \"ask\" (default — offer them in one batched multi-select prompt), \"all\" (install every one automatically), \"none\" (report only, never install). The manifest schema has no enum type, so this validates in prose, not JSON Schema; any other value is treated as \"ask\"."
+    },
+    "api_error_audit_enabled": {
+      "type": "boolean",
+      "title": "api-error-audit hook",
+      "description": "Emit turn-failure telemetry on API errors",
+      "default": true
+    },
+    "config_change_audit_enabled": {
+      "type": "boolean",
+      "title": "config-change-audit hook",
+      "description": "Emit telemetry on config-source mutations",
+      "default": true
+    },
+    "instructions_loaded_audit_enabled": {
+      "type": "boolean",
+      "title": "instructions-loaded-audit hook",
+      "description": "Emit telemetry on rule/instruction file loads",
+      "default": true
+    },
+    "permission_denied_audit_enabled": {
+      "type": "boolean",
+      "title": "permission-denied-audit hook",
+      "description": "Emit telemetry on permission denials",
+      "default": true
+    },
+    "pre_compact_audit_enabled": {
+      "type": "boolean",
+      "title": "pre-compact-audit hook",
+      "description": "Emit telemetry on context-compaction events",
+      "default": true
+    },
+    "skill_usage_audit_enabled": {
+      "type": "boolean",
+      "title": "skill-usage-audit hook",
+      "description": "Emit telemetry on skill usage; shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths) and also gates the shared skill-usage.jsonl store",
+      "default": true
+    },
+    "tool_failure_audit_enabled": {
+      "type": "boolean",
+      "title": "tool-failure-audit hook",
+      "description": "Emit telemetry on Write/Edit/Bash tool failures",
+      "default": true
+    },
+    "instructions_loaded_audit_log_session_start": {
+      "type": "boolean",
+      "title": "instructions-loaded-audit session_start logging",
+      "description": "Opt back into logging session_start instruction loads (dropped by default as deterministic and high-volume)",
+      "default": false
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Bound on reading the hook payload from stdin before failing open",
+      "default": 2,
+      "min": 1
     }
   }
 }

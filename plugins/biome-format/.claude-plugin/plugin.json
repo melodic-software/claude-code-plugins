@@ -1,12 +1,29 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "biome-format",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo — using the consuming repo's own Biome config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"]
+  "keywords": [
+    "biome",
+    "typescript",
+    "javascript",
+    "json",
+    "jsx",
+    "formatter",
+    "linter",
+    "hook"
+  ],
+  "userConfig": {
+    "biome_format_enabled": {
+      "type": "boolean",
+      "title": "biome-format hook",
+      "description": "Format and lint JS/TS/JSX/JSON on edit via Biome",
+      "default": true
+    }
+  }
 }
