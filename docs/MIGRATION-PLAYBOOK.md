@@ -759,11 +759,14 @@ surface to a published plugin for a single consumer's low-value nicety.
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
    both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
    marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
-   then `claude plugin install <plugin>@<marketplace> --scope project` — otherwise the marketplace is known
-   but the plugin is absent, and step 3's verify edit would run with no plugin hook.
-2. Set any non-default plugin `userConfig` toggles (on the install command via `--config`, or
-   `/plugin configure`); keep the `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge),
-   adapting the sink for any observability-contract divergence.
+   then `claude plugin install <plugin>@<marketplace> --scope project --config KEY=VALUE …`, seeding every
+   non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
+   is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
+   means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's
+   verify edit would run with no plugin hook.
+2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
+   `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any
+   observability-contract divergence.
 3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
    same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
    formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —
