@@ -1,6 +1,6 @@
 ---
 name: script-the-deterministic-work
-description: "Re-anchor the discipline that purely deterministic sub-work — counting, diffing, sorting, transforming, matching, sweeping, arithmetic — gets a script that runs and returns real output, and the model reasons only afterward over that output — then audit the work in flight for transforms executed by hand and re-derive them from a script's result. Use when: 'script the deterministic work', 'script it', 'don't eyeball that', 'you counted that by hand', 'compute that, don't estimate', 'diff it with a tool', 'stop hand-tallying', 'run it instead of guessing', or at conversation start on count-, diff-, or transform-heavy work."
+description: "Re-anchor the discipline that purely deterministic sub-work — counting, diffing, sorting, transforming, matching, sweeping, arithmetic — gets a script that runs and returns real output, and the model reasons only afterward over that output — then audit the work in flight for transforms executed by hand and re-derive them from a script's result. Use when: 'script the deterministic work', 'you should have scripted that', 'don't eyeball that', 'you counted that by hand', 'compute that, don't estimate', 'diff it with a tool', 'stop hand-tallying', 'run it instead of guessing', or at conversation start on count-, diff-, or transform-heavy work. Not for authoring a requested script or migration ('script it' as a work order is script-writing, not this corrector)."
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -101,9 +101,10 @@ it un-scripted and say why.
 
 The enforceability-tiers convention's own routing sends a **recurring**
 deterministic finding to a **standing** mechanism — a linter, analyzer, or
-commit hook that fires on every change. That is the territory of a
-config/automation-gaps capability: institutionalize the check so it never
-reaches review again.
+commit hook that fires on every change. That is the territory of an
+automation-gaps capability (`/claude-config:automation-gaps` when that
+plugin is installed; prose guidance otherwise): institutionalize the check
+so it never reaches review again.
 
 This skill owns the complementary case: the **one-off, session-time** need.
 The current task needs a count, a diff, or a transform right now; the answer
