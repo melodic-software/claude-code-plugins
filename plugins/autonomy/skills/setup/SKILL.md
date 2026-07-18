@@ -122,10 +122,41 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    produced OTLP JSON-lines to verify the pinned `schemaUrl` and the join attribute before
    declaring the emitting state reached.
 
+## Return-accounting capture slice
+
+Wires the capture-enabled state of
+[`${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md`](${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md),
+discovery-first. Everything wireable lands as reviewable changes; GUI-only or
+entitlement-gated surfaces get advisory steps with cost surfaced.
+
+1. **Detect the tracker class and close-flow surface** — which tracker the org's work items
+   live in, whether it supports native custom fields at the org's entitlement, and where the
+   task-boundary close flow is machine-editable (close-triggered workflow, tracker
+   automation).
+2. **WIRE where machine-editable + reviewable** — a close-triggered snippet
+   ([`templates/return-capture.md`](templates/return-capture.md)) posting the UNATTESTED
+   record + the attestation request addressed to the accountable human; the close flow never
+   blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
+   the marker-keyed structured comment otherwise (the universal floor).
+3. **Route record writes through the work-items comment seam where that plugin is present**
+   (race-safe, multi-tracker), layering marker-keyed upsert on top of its append-only
+   surface — never a parallel comment writer. The standalone snippet is only for adopters
+   without that seam, and carries the contract's stated create-create race with its
+   attestation-preserving dedupe rule.
+4. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
+   automation: steps + cost surfaced, explicit opt-in. Private-repo close-triggered runs
+   draw metered CI minutes — surfaced on the wire path.
+5. **Attestation routing** — the binding records the accountable-human routing per class,
+   including the standing attestation owner (or attestation-exempt marking) for
+   requester-less classes.
+6. **Record the binding** — tracker class + record surface choice land as the `capture`
+   section of the schema-versioned binding (additive, like the telemetry section).
+
 ## What this skill does NOT do
 
-- Wire capability slices that have not shipped yet (capture, adapters) — each lands with its
+- Wire capability slices that have not shipped yet (adapters) — each lands with its
   own work package and extends this skill.
+- Estimate, impute, or backfill the two human-attested return fields — ever.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or
   defaults; it never guesses silently.

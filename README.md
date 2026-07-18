@@ -118,7 +118,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Autonomy
 
-- [`autonomy`](plugins/autonomy) — Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, and telemetry contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, and wires standards-pinned OTLP emission with a zero-cost file-artifact default.
+- [`autonomy`](plugins/autonomy) — Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, and return-accounting contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, and wires human-attested return capture at the task boundary.
 
 ### Security
 
