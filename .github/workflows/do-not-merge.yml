@@ -48,7 +48,7 @@ jobs:
     if: ${{ always() }}
     permissions:
       pull-requests: read
-    uses: melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
+    uses: melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18 gh-CLI-free label refetch
     with:
       runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
       prerequisite-result: ${{ needs.select-runner.result }}
