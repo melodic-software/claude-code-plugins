@@ -32,8 +32,8 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment PRESERVED (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
 
 This record's `schema_version` uses major-only tokens (`"1"`, never `"1.0"`); the setup
-skill's own binding `schema_version` (`.claude/autonomy/binding.json`) uses semver strings —
-the two are separate version spaces with independent parsers.
+skill's own binding `schema_version` uses semver strings — the two are separate version
+spaces with independent parsers.
 
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`

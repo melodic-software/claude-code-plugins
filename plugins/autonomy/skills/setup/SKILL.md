@@ -148,8 +148,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    autonomous record; the automation actor without the label would let interactive items
    the bot closes leak into capture. An unlabeled item, or one closed by any other actor,
    never enters capture (interactive work, and human-closed eligible work, both stay
-   exempt). The guardrail matrix refines this into per-class scope when it ships; the
-   discriminator recorded here is the interim boundary, not a parallel class vocabulary.
+   exempt). Label-plus-automation-actor closure is itself a PROXY for execution evidence,
+   not a bound dispatch record: a close action run by the automation identity after a human
+   performed the underlying work is not distinguished from one following genuine autonomous
+   work by this gate alone. A first-class dispatch/execution-provenance signal is future
+   work the guardrail matrix owns — this interim gate is deliberately the cheapest signal
+   available today, not a claim of proof, and the discriminator recorded here is the interim
+   boundary, not a parallel class vocabulary.
 3. **Route comment writes through the bound tracker adapter's documented comment mechanics
    where a work-item-tracker binding is present** (comments are provider-specific mechanics
    there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
@@ -162,7 +167,10 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    draw metered CI minutes — surfaced on the wire path.
 5. **Attestation routing** — the binding records the accountable-human routing per class,
    including the standing attestation owner (or attestation-exempt marking) for
-   requester-less classes.
+   requester-less classes. An attestation-exempt class's close trigger posts NEITHER the
+   unattested record NOR the attestation request — `return-accounting.md` forbids a
+   perpetually-unattested default, so an exempt class's cost is reported separately,
+   outside this record schema entirely.
 6. **Record the binding** — the `capture` section of the schema-versioned binding (additive,
    like the telemetry section), with these serialized keys:
 
@@ -171,7 +179,7 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    | `tracker_class` | string, the detected tracker class |
    | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
    | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule |
-   | `routing` | object keyed by requester-less class name (standing routines, scheduled sweeps); each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`; a class with a requester needs no entry — the requester IS the routing |
+   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing |
 
    A binding missing the `capture` section has not wired this slice (absent-section
    tolerance, same as telemetry); a present section MUST carry all four keys — a partial
