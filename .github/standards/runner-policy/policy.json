@@ -203,7 +203,7 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@885302176345486ca6c2c392d83131f9b5389251": {
+    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "selectorResultInput": "prerequisite-result",
@@ -308,7 +308,7 @@
   "canonicalSelectorSecrets": {
     "observer-private-key": "${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}"
   },
-  "approvedHostedRunnerLabels": ["ubuntu-24.04", "ubuntu-slim", "windows-2025"],
+  "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],
   "hostedMatrixExpressions": ["${{ matrix.os }}", "${{ matrix.runner }}"],
   "governedReusableRunnerInput": {
     "name": "runner",
@@ -316,6 +316,7 @@
     "default": "ubuntu-24.04",
     "failureSentinel": "ci-runner-selection-failed"
   },
+  "fallbackLabelAllowlist": ["ubuntu-24.04"],
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
   "managedLabelPatterns": [
     "(?:^|[^a-z0-9-])(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"
