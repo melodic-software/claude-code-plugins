@@ -24,7 +24,7 @@
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
 # sandbox. The ONLY supported deliberate bypass is the kill switch
-# (HOOK_BLOCK_NO_VERIFY_ENABLED=false).
+# (block_no_verify_enabled userConfig option set to false).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -65,8 +65,8 @@ MAX_COMMAND_LEN=16384
 bash_subject() {
   local cmd="$1" tok
   tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+  while [[ "$tok" == "sudo" || "$tok" == *=* ]] &&
+    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
     cmd="${cmd#*[[:space:]]}"
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
     tok="${cmd%%[[:space:]]*}"
@@ -283,7 +283,7 @@ check_segment() {
       fi
       ((j += 2))
       ;;
-    --config=*|--config-env=*)
+    --config=* | --config-env=*)
       lc="${gw#*=}"
       lc="${lc,,}"
       [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
@@ -479,7 +479,7 @@ parse_and_check() {
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
-    "Shorten the command, or set HOOK_BLOCK_NO_VERIFY_ENABLED=false to bypass."
+    "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
 fi
 
 parse_and_check

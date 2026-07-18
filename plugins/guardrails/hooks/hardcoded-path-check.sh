@@ -16,7 +16,7 @@
 #
 # Consumer seams: gitignored files are skipped (git check-ignore against
 # $CLAUDE_PROJECT_DIR) — designate machine-local files there. Disable entirely
-# with HOOK_HARDCODED_PATH_CHECK_ENABLED=false.
+# with the hardcoded_path_check_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -48,8 +48,8 @@ INPUT=$(cat)
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
 
 case "$TOOL" in
-  Write | Edit | NotebookEdit) ;;
-  *) exit 0 ;;
+Write | Edit | NotebookEdit) ;;
+*) exit 0 ;;
 esac
 
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null | tr -d '\r')
@@ -68,39 +68,39 @@ if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   _scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
   _scope_project="${_scope_project%/}"
   case "$_scope_file" in
-    "$_scope_project"/*) ;; # inside the project — proceed
-    *) exit 0 ;;           # outside the project — not this hook's concern
+  "$_scope_project"/*) ;; # inside the project — proceed
+  *) exit 0 ;;            # outside the project — not this hook's concern
   esac
 fi
 
 # Skip files that legitimately contain path patterns (regex strings). These
 # cannot rely on the gitignore check below because they are tracked.
 case "$NORM_FILE" in
-  # Hook / hook-manager scripts contain path-detection patterns as regex strings.
-  *.claude/hooks/* | *.lefthook/*) exit 0 ;;
-  # Claude Code session/workflow state (under ~/.claude/projects/) lives OUTSIDE
-  # any repo working tree and is never committed; absolute paths there are expected
-  # machine-local glue. The gitignore check below cannot catch it — the path is
-  # outside $CLAUDE_PROJECT_DIR, so `git check-ignore` errors rather than matching.
-  *.claude/projects/*) exit 0 ;;
-  *) ;;
+# Hook / hook-manager scripts contain path-detection patterns as regex strings.
+*.claude/hooks/* | *.lefthook/*) exit 0 ;;
+# Claude Code session/workflow state (under ~/.claude/projects/) lives OUTSIDE
+# any repo working tree and is never committed; absolute paths there are expected
+# machine-local glue. The gitignore check below cannot catch it — the path is
+# outside $CLAUDE_PROJECT_DIR, so `git check-ignore` errors rather than matching.
+*.claude/projects/*) exit 0 ;;
+*) ;;
 esac
 
 # Skip gitignored files — designated for machine-specific state (settings.local.json,
 # CLAUDE.local.md, .venv/, node_modules/, etc.). git check-ignore does not require
 # the file to exist on disk, so this works for new Write operations too.
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] \
-  && git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
+if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] &&
+  git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 
 # Extract content to check — Write has .content, Edit has .new_string,
 # NotebookEdit has .new_source.
 case "$TOOL" in
-  Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
-  Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-  NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
-  *) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
+*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
 esac
 [[ -n "${CONTENT:-}" ]] || exit 0
 
@@ -127,8 +127,11 @@ fi
 # Redaction: if the path could not be made repo-relative, emit the basename only
 # — never an absolute path (it would embed the developer's username) into telemetry.
 case "$FILE_REL" in
-  /* | [A-Za-z]:*) FILE_REL="${FILE_REL##*/}"; FILE_REL="${FILE_REL##*\\}" ;;
-  *) ;;
+/* | [A-Za-z]:*)
+  FILE_REL="${FILE_REL##*/}"
+  FILE_REL="${FILE_REL##*\\}"
+  ;;
+*) ;;
 esac
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
@@ -138,8 +141,8 @@ emit_tel() {
   hook::telemetry_enabled || return 0
   local data
   data=$(jq -n --arg file "$FILE_REL" --argjson violations "$2" \
-    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) \
-    || data='{"tool":"","file":"","violations":[]}'
+    '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
+    data='{"tool":"","file":"","violations":[]}'
   hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 

@@ -82,7 +82,7 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_ACTIONLINT_ENABLED=true bash "$HOOK"
+      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -152,7 +152,7 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok ".txt under workflows -> exit 0 silent"; else fail ".txt not skipped (rc=$RC out=$OUT)"; fi
 
 # --- Case 6: kill switch bypasses hook --------------------------------------
-OUT=$(run_hook_env "$REPO/.github/workflows/violation.yml" HOOK_ACTIONLINT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/.github/workflows/violation.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent despite violation"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 
@@ -179,7 +179,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
-OUT_NS=$(run_hook_env "$REPO/.github/workflows/clean.yml" -u HOOK_TELEMETRY_SINK HOOK_ACTIONLINT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/.github/workflows/clean.yml" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -190,7 +190,7 @@ fi
 # --- Stub sink + violation -> envelope status ok with findings --------------
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/.github/workflows/violation.yml" HOOK_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/.github/workflows/violation.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -216,7 +216,7 @@ rm -f "$TEL"
 # --- Stub sink + clean file -> status ok, findings [] -----------------------
 TELC="$(mktemp)"
 SINKC="$(make_sink "cat >\"$TELC\"")"
-run_hook_env "$REPO/.github/workflows/clean.yml" HOOK_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
+run_hook_env "$REPO/.github/workflows/clean.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
 wait_for_sink "$TELC"
 if [[ -s "$TELC" ]]; then
   if [[ "$(jq -r '.status' "$TELC")" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status=$(jq -r '.status' "$TELC")"; fi
@@ -242,7 +242,7 @@ done
 OUT_ABS=$(
   cd "$UNRELATED" || exit 1
   printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" \
-    | env -u CLAUDE_PROJECT_DIR -i PATH="${KEEP#:}" HOOK_ACTIONLINT_ENABLED=true \
+    | env -u CLAUDE_PROJECT_DIR -i PATH="${KEEP#:}" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true \
         HOOK_TELEMETRY_SINK="$ABSENT_SINK" bash "$HOOK"
 )
 RC_ABS=$?

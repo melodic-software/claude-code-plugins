@@ -59,25 +59,33 @@ way but always allow the operation.
 
 ## Per-hook kill switches
 
-Each guard is toggled by its own env var (default **on**; set to `false` for a
-clean no-op). This per-hook control is the bundle's core contract — disable one
-guard without touching the others.
+Each guard is toggled by its own `userConfig` boolean (default **on**; set to
+`false` for a clean no-op). This per-hook control is the bundle's core
+contract — disable one guard without touching the others.
 
-| Guard | Kill switch |
-|-------|-------------|
-| secret-pattern-detection | `HOOK_SECRET_PATTERN_DETECTION_ENABLED` |
-| hardcoded-path-check | `HOOK_HARDCODED_PATH_CHECK_ENABLED` |
-| block-no-verify | `HOOK_BLOCK_NO_VERIFY_ENABLED` |
-| block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
-| cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
-| workflow-resilience-check | `HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED` |
-| flag-commit-pr-skill-bypass | `HOOK_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` |
+| Guard | Option |
+|-------|--------|
+| secret-pattern-detection | `secret_pattern_detection_enabled` |
+| hardcoded-path-check | `hardcoded_path_check_enabled` |
+| block-no-verify | `block_no_verify_enabled` |
+| block-hook-bypass | `block_hook_bypass_enabled` |
+| cli-flag-verify | `cli_flag_verify_enabled` |
+| workflow-resilience-check | `workflow_resilience_check_enabled` |
+| flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
-Set them in your settings `env` block:
+Set them interactively with `/plugin configure guardrails`, or headless on the
+install command:
 
-```json
-{ "env": { "HOOK_HARDCODED_PATH_CHECK_ENABLED": "false" } }
+```shell
+claude plugin install guardrails@melodic-software --config hardcoded_path_check_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn guards off for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
+
+A `stdin_read_timeout` option (seconds, default `2`) bounds how long each
+guard waits for its hook payload before failing open.
 
 ## Consumer seams
 
@@ -97,9 +105,9 @@ repo-specific policy of their own:
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,
   `CLAUDE.local.md`, and hook scripts.
 - **CLI-flag tuning.** `cli-flag-verify` checks a default binary set
-  (`claude gh dotnet docker npm kubectl terraform az aws`); override with
-  `HOOK_CLI_FLAG_VERIFY_BINS=bin1,bin2,…` and skip specific binaries with
-  `HOOK_CLI_FLAG_VERIFY_SKIP_BINS=bin1,bin2`.
+  (`claude gh dotnet docker npm kubectl terraform az aws`); override with the
+  `cli_flag_verify_bins` option (`bin1,bin2,…`) and skip specific binaries
+  with `cli_flag_verify_skip_bins`.
 - **Skill-availability gating.** `flag-commit-pr-skill-bypass` reads
   `enabledPlugins` from the consuming project's own `.claude/settings.json`
   (`.claude/settings.local.json` as an override, only for a key already present

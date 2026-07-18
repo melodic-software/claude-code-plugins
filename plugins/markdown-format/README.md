@@ -65,17 +65,27 @@ the advisory to appear again.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the markdownlint
-config already in your repository, which it reads automatically. To change the
-rules, edit your repo's markdownlint config.
+The rules themselves are never configured here — the plugin's only rule source is
+the markdownlint config already in your repository, which it reads automatically.
+To change the rules, edit your repo's markdownlint config.
 
-### Disable without uninstalling
+Two `userConfig` options tune the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Type | Default | Effect |
+|--------|------|---------|--------|
+| `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
+| `stdin_read_timeout` | number | `2` | Seconds the hook waits for its stdin payload before failing open. |
 
-```json
-{ "env": { "HOOK_MARKDOWN_FORMAT_ENABLED": "false" } }
+Set them interactively with `/plugin configure markdown-format`, or headless on
+the install command:
+
+```shell
+claude plugin install markdown-format@melodic-software --config markdown_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the project's).
+To disable formatting for a single repository, disable the whole plugin in that
+project's `enabledPlugins` instead.
 
 ## License
 

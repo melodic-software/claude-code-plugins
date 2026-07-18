@@ -6,7 +6,7 @@
 # NON-BLOCKING by policy: exit 0 always; never returns decision:"block".
 # The subject is the trigger value.
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
-# Kill switch: HOOK_PRE_COMPACT_AUDIT_ENABLED=false.
+# Kill switch: CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED=false.
 
 set -uo pipefail
 

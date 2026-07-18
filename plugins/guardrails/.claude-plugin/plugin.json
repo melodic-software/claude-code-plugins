@@ -1,12 +1,75 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["guard", "security", "secrets", "hooks", "pretooluse", "git", "hardcoded-paths", "cli-flags", "pull-request"]
+  "keywords": ["guard", "security", "secrets", "hooks", "pretooluse", "git", "hardcoded-paths", "cli-flags", "pull-request"],
+  "userConfig": {
+    "secret_pattern_detection_enabled": {
+      "type": "boolean",
+      "title": "secret-pattern-detection guard",
+      "description": "Block writes containing high-confidence secret/credential patterns",
+      "default": true
+    },
+    "hardcoded_path_check_enabled": {
+      "type": "boolean",
+      "title": "hardcoded-path-check guard",
+      "description": "Block writes containing hardcoded machine-specific paths",
+      "default": true
+    },
+    "block_no_verify_enabled": {
+      "type": "boolean",
+      "title": "block-no-verify guard",
+      "description": "Block git hook-bypass attempts (--no-verify, core.hooksPath=, lefthook disables)",
+      "default": true
+    },
+    "block_hook_bypass_enabled": {
+      "type": "boolean",
+      "title": "block-hook-bypass guard",
+      "description": "Block Bash file-write workarounds that circumvent Write/Edit hook gates",
+      "default": true
+    },
+    "cli_flag_verify_enabled": {
+      "type": "boolean",
+      "title": "cli-flag-verify guard",
+      "description": "Advise on hallucinated CLI flags written to files (never blocks)",
+      "default": true
+    },
+    "workflow_resilience_check_enabled": {
+      "type": "boolean",
+      "title": "workflow-resilience-check guard",
+      "description": "Advise on un-throttled Workflow fan-out (never blocks)",
+      "default": true
+    },
+    "flag_commit_pr_skill_bypass_enabled": {
+      "type": "boolean",
+      "title": "flag-commit-pr-skill-bypass guard",
+      "description": "Advise when direct git commit / gh pr create bypasses the source-control skills (never blocks)",
+      "default": true
+    },
+    "cli_flag_verify_bins": {
+      "type": "string",
+      "title": "cli-flag-verify binaries",
+      "description": "Comma-separated binaries cli-flag-verify scans; empty uses the built-in default set",
+      "default": ""
+    },
+    "cli_flag_verify_skip_bins": {
+      "type": "string",
+      "title": "cli-flag-verify skip list",
+      "description": "Comma-separated binaries cli-flag-verify must never scan",
+      "default": ""
+    },
+    "stdin_read_timeout": {
+      "type": "number",
+      "title": "Hook stdin read timeout (seconds)",
+      "description": "Bound on reading the hook payload from stdin before failing open",
+      "default": 2,
+      "min": 1
+    }
+  }
 }

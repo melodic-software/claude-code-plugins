@@ -19,9 +19,9 @@
 # NON-BLOCKING (advisory): exits 0 with hookSpecificOutput additionalContext
 # on unknown flags (exit 1 stderr is not shown to the agent per hook contract).
 #
-# Per-binary opt-out via HOOK_CLI_FLAG_VERIFY_SKIP_BINS=bin1,bin2 (e.g. for
+# Per-binary opt-out via the cli_flag_verify_skip_bins userConfig option (e.g. for
 # extension-heavy CLIs like gh where --help is non-exhaustive). Disable entirely
-# with HOOK_CLI_FLAG_VERIFY_ENABLED=false.
+# with the cli_flag_verify_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -50,9 +50,9 @@ VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 FILE=$(hook::read_file_path) || exit 0
 IS_MD=false
 case "$FILE" in
-  *.md) IS_MD=true ;;
-  *.sh | *.bash | *.ps1 | *.psm1) ;;
-  *) exit 0 ;;
+*.md) IS_MD=true ;;
+*.sh | *.bash | *.ps1 | *.psm1) ;;
+*) exit 0 ;;
 esac
 
 [[ -x "$VERIFIER" ]] || exit 0 # Verifier not present — fail open, don't block
@@ -60,7 +60,7 @@ esac
 # Repo root for telemetry data.file + relative sink resolution (file-anchored).
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 
-# Known binaries to check. Add via env: HOOK_CLI_FLAG_VERIFY_BINS=bin1,bin2,...
+# Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git` and `npx` are intentionally EXCLUDED — both are unreliable `--help`
 # flag lists whose residuals are all real-flag false positives:
 #   - `git <subcmd> --help` routes to the man page (or a short synopsis under
@@ -72,13 +72,13 @@ REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 #     cases produce visible FPs — same shape that excludes git.
 # Re-add either via the env var if it ever ships a stdout-parseable flag list.
 DEFAULT_BINS="claude gh dotnet docker npm kubectl terraform az aws"
-BINS_RAW="${HOOK_CLI_FLAG_VERIFY_BINS:-$DEFAULT_BINS}"
+BINS_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS:-$DEFAULT_BINS}"
 # Normalize: comma OR space separated → space separated.
 BINS="${BINS_RAW//,/ }"
 
 # Per-binary opt-outs. Comma-separated. Common case: gh extensions, docker plugin
 # subcommands where --help is not exhaustive.
-SKIP_RAW="${HOOK_CLI_FLAG_VERIFY_SKIP_BINS:-}"
+SKIP_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS:-}"
 SKIP="${SKIP_RAW//,/ }"
 
 is_skipped() {
@@ -140,17 +140,17 @@ extract_candidates() {
     while ((idx < ${#toks[@]})); do
       lead="${toks[idx]#[\`\'\"\(\!]}"
       case "$lead" in
-        sudo | command | env | time | exec | xargs | then | do | else | "!")
+      sudo | command | env | time | exec | xargs | then | do | else | "!")
+        ((idx++))
+        continue
+        ;;
+      *)
+        if [[ "$lead" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
           ((idx++))
           continue
-          ;;
-        *)
-          if [[ "$lead" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-            ((idx++))
-            continue
-          fi
-          break
-          ;;
+        fi
+        break
+        ;;
       esac
     done
     ((idx < ${#toks[@]})) || continue
@@ -176,39 +176,39 @@ extract_candidates() {
     for ((k = idx + 1; k < ${#toks[@]}; k++)); do
       tk="${toks[k]}"
       case "$tk" in
-        --)
-          break
-          ;;
-        --*)
-          chain_done=1
-          fl="${tk%%=*}" # drop =VALUE
-          if [[ "$fl" =~ ^(--[a-zA-Z][a-zA-Z0-9-]*) ]]; then
-            fl="${BASH_REMATCH[1]}"
-            case "$fl" in
-              --help | --version) ;;
-              *) seg_flags+=("$fl") ;;
-            esac
-          fi
-          ;;
-        -?*)
-          # short option: before the subcommand, skip it (chain keeps looking);
-          # after the subcommand, options have begun → chain ends.
-          ((chain_done == 0 && ${#chain[@]} > 0)) && chain_done=1
-          ;;
-        *)
-          ct="${tk%[\`\'\"\):;,]}"
-          ct="${ct#[\`\'\"\(]}"
-          # A second known bin starts a NESTED command whose flags are not this
-          # bin's — `docker run <img> dotnet restore --force-evaluate`,
-          # `xargs gh issue … --json`. Everything from here belongs to it; stop.
-          [[ " $BINS " == *" $ct "* ]] && break
-          # Only shaped lowercase words join the chain; a non-shaped positional
-          # (path, csproj, var, SLN file) is skipped without ending the chain so
-          # `dotnet list <SLN> package --flag` still resolves the full subcommand.
-          if ((chain_done == 0)) && [[ "$ct" =~ ^[a-z][a-z0-9-]*$ ]] && ((${#chain[@]} < 4)); then
-            chain+=("$ct")
-          fi
-          ;;
+      --)
+        break
+        ;;
+      --*)
+        chain_done=1
+        fl="${tk%%=*}" # drop =VALUE
+        if [[ "$fl" =~ ^(--[a-zA-Z][a-zA-Z0-9-]*) ]]; then
+          fl="${BASH_REMATCH[1]}"
+          case "$fl" in
+          --help | --version) ;;
+          *) seg_flags+=("$fl") ;;
+          esac
+        fi
+        ;;
+      -?*)
+        # short option: before the subcommand, skip it (chain keeps looking);
+        # after the subcommand, options have begun → chain ends.
+        ((chain_done == 0 && ${#chain[@]} > 0)) && chain_done=1
+        ;;
+      *)
+        ct="${tk%[\`\'\"\):;,]}"
+        ct="${ct#[\`\'\"\(]}"
+        # A second known bin starts a NESTED command whose flags are not this
+        # bin's — `docker run <img> dotnet restore --force-evaluate`,
+        # `xargs gh issue … --json`. Everything from here belongs to it; stop.
+        [[ " $BINS " == *" $ct "* ]] && break
+        # Only shaped lowercase words join the chain; a non-shaped positional
+        # (path, csproj, var, SLN file) is skipped without ending the chain so
+        # `dotnet list <SLN> package --flag` still resolves the full subcommand.
+        if ((chain_done == 0)) && [[ "$ct" =~ ^[a-z][a-z0-9-]*$ ]] && ((${#chain[@]} < 4)); then
+          chain+=("$ct")
+        fi
+        ;;
       esac
     done
 
@@ -261,8 +261,11 @@ emit_tel() {
   # Redaction: if the path could not be made repo-relative, emit the basename
   # only — never an absolute path (it would embed the developer's username).
   case "$file_rel" in
-    /* | [A-Za-z]:*) file_rel="${file_rel##*/}"; file_rel="${file_rel##*\\}" ;;
-    *) ;;
+  /* | [A-Za-z]:*)
+    file_rel="${file_rel##*/}"
+    file_rel="${file_rel##*\\}"
+    ;;
+  *) ;;
   esac
   if ((${#FAILURES[@]} > 0)); then
     local f raw="" bin rest chainstr flag disp
@@ -278,8 +281,8 @@ emit_tel() {
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \
-    '{tool:"",file:$file,findings:$findings}' 2>/dev/null) \
-    || data='{"tool":"","file":"","findings":[]}'
+    '{tool:"",file:$file,findings:$findings}' 2>/dev/null) ||
+    data='{"tool":"","file":"","findings":[]}'
   hook::emit_telemetry "cli-flag-verify" "PostToolUse" "ok" "$start" "$data" "$REPO_ROOT"
 }
 
@@ -300,7 +303,7 @@ if ((${#FAILURES[@]} > 0)); then
     fi
     hook::ctx_append "  UNKNOWN_FLAG: $disp (not found in '$helpref')"
     hook::ctx_append "    fix:   run '$helpref' and confirm the flag exists"
-    hook::ctx_append "    skip:  HOOK_CLI_FLAG_VERIFY_SKIP_BINS=$bin (env override)"
+    hook::ctx_append "    skip:  add $bin to the guardrails cli_flag_verify_skip_bins option"
   done
   hook::ctx_append ""
   hook::ctx_append "Subagent / training-recall flag claims are unverified — confirm"

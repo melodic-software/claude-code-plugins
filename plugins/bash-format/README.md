@@ -53,17 +53,27 @@ formatting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the `.shellcheckrc`
-and `.editorconfig` already in your repository, which it reads automatically. To
-change the rules, edit those files.
+The linting and formatting rules come from the `.shellcheckrc` and
+`.editorconfig` already in your repository, which the plugin reads automatically.
+To change the rules, edit those files.
 
-### Disable without uninstalling
+Two `userConfig` options tune the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
+| `stdin_read_timeout` | `2` | Seconds the hook waits for its stdin payload before failing open (min `1`). |
 
-```json
-{ "env": { "HOOK_BASH_FORMAT_ENABLED": "false" } }
+Set them interactively with `/plugin configure bash-format`, or headless on the
+install command:
+
+```shell
+claude plugin install bash-format@melodic-software --config bash_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the project's).
+To turn the hook off for a single repository, disable the whole plugin in that
+project's `enabledPlugins` instead.
 
 ## License
 

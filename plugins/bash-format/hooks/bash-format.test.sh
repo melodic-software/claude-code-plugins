@@ -87,12 +87,12 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_BASH_FORMAT_ENABLED=true bash "$HOOK"
+      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
 # Same as run_hook but with caller-supplied extra env (NAME=VALUE ...) and an
-# optional override of HOOK_BASH_FORMAT_ENABLED, passed through env.
+# optional override of CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED, passed through env.
 run_hook_env() {
   local file_path="$1"
   shift
@@ -159,7 +159,7 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-shell ext -> exit 0 silent"; else fail "non-shell not skipped (rc=$RC out=$OUT)"; fi
 
 # --- Case 5: kill switch bypasses hook --------------------------------------
-OUT=$(run_hook_env "$REPO/violation.sh" HOOK_BASH_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/violation.sh" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent despite violation"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 
@@ -254,7 +254,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.sh" -u HOOK_TELEMETRY_SINK HOOK_BASH_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.sh" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -265,7 +265,7 @@ fi
 # --- Stub sink + violation -> envelope status ok with findings --------------
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/violation.sh" HOOK_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/violation.sh" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -292,7 +292,7 @@ rm -f "$TEL"
 # --- Stub sink + clean file -> status ok, findings [] -----------------------
 TELC="$(mktemp)"
 SINKC="$(make_sink "cat >\"$TELC\"")"
-run_hook_env "$REPO/clean.sh" HOOK_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
+run_hook_env "$REPO/clean.sh" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
 wait_for_sink "$TELC"
 if [[ -s "$TELC" ]]; then
   if [[ "$(jq -r '.status' "$TELC")" == "ok" ]]; then ok "telemetry/clean: status ok"; else fail "telemetry/clean: status=$(jq -r '.status' "$TELC")"; fi
