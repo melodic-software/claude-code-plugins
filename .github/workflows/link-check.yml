@@ -13,26 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  select-runner:
-    name: Select runner
-    permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-
+  # This repository is public: the runner policy forbids the local-runner
+  # selector, so this lane runs on GitHub-hosted Linux (free on public repos).
   link-check:
-    # Routes through the governed selector to the fleet; the old strict-policy
-    # pause is retired now that this issue-writing lane no longer depends on
-    # hosted compute.
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
     # issues: write is scoped to this job (least privilege) — only the called
     # workflow files the rolling tracking issue.
     permissions:
@@ -40,7 +23,7 @@ jobs:
       issues: write
     uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+      runner: ubuntu-24.04
       args: >-
         --cache
         --max-cache-age 7d

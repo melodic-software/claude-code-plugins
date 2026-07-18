@@ -16,37 +16,16 @@ permissions:
   contents: read
 
 jobs:
-  # Resolves the capped review tier's label (not the default fleet label) so
-  # reviews queue on the dedicated review scale set instead of competing with
-  # build capacity. Routing through the fleet also retires the old
-  # strict-policy skip guard: review no longer depends on the hosted lane.
-  select-review:
-    name: Select runner
-    permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_REVIEW_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-
+  # This repository is public: the runner policy forbids the local-runner
+  # selector, so review runs on GitHub-hosted Linux (free on public repos).
   review:
-    needs: select-review
-    # !cancelled() overrides GitHub's skip propagation, so selector success must
-    # be required explicitly: a hard-failed selector emits no runner output and
-    # the hosted fallback below would otherwise run this privileged job.
-    if: ${{ !cancelled() && needs.select-review.result == 'success' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
     uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
-      runner: ${{ needs.select-review.outputs.runner || 'ubuntu-24.04' }}
+      runner: ubuntu-24.04
       # Passing skip-actors replaces the reusable's default (dependabot[bot]),
       # so the default member is restated alongside the sync bot.
       skip-actors: "dependabot[bot],melodic-standards-sync[bot]"

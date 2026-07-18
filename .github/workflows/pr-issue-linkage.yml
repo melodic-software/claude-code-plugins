@@ -25,29 +25,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  select-runner:
-    name: Select runner
-    permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-
+  # This repository is public: the runner policy forbids the local-runner
+  # selector, so the gate runs on GitHub-hosted Linux (free on public repos).
   pr-issue-linkage:
-    needs: select-runner
-    # Fail-closed selector-result reporter: always() so every routing outcome
-    # materializes the required check. The reusable receives the selector result
-    # and fail-closes on any non-success before validating the body, so a
-    # routing failure never dispatches this gate to paid hosted Linux.
-    if: ${{ always() }}
     permissions: {}
     uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
-      prerequisite-result: ${{ needs.select-runner.result }}
+      runner: ubuntu-24.04
