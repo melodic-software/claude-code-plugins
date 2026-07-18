@@ -27,7 +27,7 @@ fi
 # Drain stdin before any early exit so a pipefail producer never SIGPIPEs.
 INPUT="$(cat)"
 
-if [[ "${HOOK_CLEAN_DESTRUCTIVE_GUARD_ENABLED:-true}" == "false" ]]; then
+if [[ "${CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED:-true}" == "false" ]]; then
   exit 0
 fi
 

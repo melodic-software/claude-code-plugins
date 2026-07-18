@@ -94,7 +94,7 @@ assert_contains "settings.local.json true overrides settings.json false" "$out" 
 
 # --- kill switch — disabled path is a clean no-op even on a bypass shape -----
 out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$ENABLED_PROJECT" \
-  HOOK_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
+  CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
 assert_silent "kill switch off → no-op despite bypass shape" "$out"
 
 # --- empty stdin → silent (graceful no-op) -----------------------------------

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the source-control plugin's commit-subject / PR-title convention for this repository: interview the user, infer from the repo's own CLAUDE.md/rules/commit-msg hook/git log first, and write the tracked .claude/source-control.md config. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', or /commit or /pull-request report no declared convention. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the source-control plugin: interview the repo and write the tracked .claude/source-control.md commit-subject / PR-title convention config, and check/apply the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths). Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
 disable-model-invocation: true
@@ -161,11 +161,67 @@ safe default (Conventional Commits).
    Prompt the user to commit, since this file is team-shared and must be committed to take effect. Only
    report success once both checks pass: not ignored, and no unstaged changes remain for the path.
 
+## Babysit configuration (check / apply)
+
+`/source-control:babysit-prs` is configured through the plugin's native `userConfig` surface,
+not a tracked repo file. This section is invoked as `check` (read-only inspect) or `apply`
+(document the configuration paths); with no action argument alongside a babysit-configuration
+request, run `check`.
+
+### check (read-only)
+
+1. **Effective configuration.** Report every babysit `userConfig` key with its resolved value
+   or its inference when unset. The authoritative render is the effective-configuration block
+   that loads with `/source-control:babysit-prs` (its `help` mode prints it without taking any
+   other action); a surviving literal `${user_config.…}` placeholder there means the key is
+   unset. For each unset key state what will be inferred at run time — `babysit_watched_owners` →
+   the current repo's owner, `babysit_self_logins` → none (your `gh api user --jq .login` login is
+   always used, extras only add to it), `babysit_default_tier` → `safe`, `babysit_merge_method` →
+   repo convention then squash, the four review-trigger keys → module dormant,
+   `babysit_worktree_root` → the plugin data dir's `worktrees/` subdirectory.
+2. **Branch-protection posture across watched repos.** For each watched owner (or the current
+   repo's owner when `babysit_watched_owners` is unset), enumerate the repos babysit would touch —
+   repos with open PRs authored by the self logins, via
+   `gh search prs --state open --author @me --owner <owner> --json repository` — and
+   for each, read the default branch's effective rules
+   (`gh api repos/<owner>/<repo>/rules/branches/<default-branch>`, falling back to
+   `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` for classic protection).
+   Flag every repo reporting zero required reviews AND zero required status contexts as
+   **unprotected**: the merge gate refuses gate-proven merges there for non-self authors
+   (`--allow-unprotected` is the deliberate override), so an unprotected repo in an autopilot
+   fleet deserves a protection rule, not an override.
+3. **Windows long-path support for the worktree root.** On Windows, worktrees under the
+   (possibly deep) worktree root can exceed 260 characters. Probe `git config --get
+   core.longpaths` and the OS policy (registry value `LongPathsEnabled` under
+   `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`); report each as enabled/disabled with
+   the remediation (`git config --global core.longpaths true`; the OS value needs an elevated
+   change, so report it — never attempt it). Skip this probe silently on non-Windows.
+
+Report the three probe results together; `check` changes nothing.
+
+### apply
+
+`apply` never hand-edits stored plugin configuration (`pluginConfigs` is owned by Claude Code).
+It documents and walks the user through the two sanctioned paths:
+
+- **Interactive:** the `/plugin` dialog → the source-control plugin → configure — Claude Code
+  prompts per key using the manifest's types and defaults.
+- **Headless / CI:** `claude plugin install --config KEY=VALUE` (repeatable per key) — applied
+  on fresh install only; reconfiguring headless requires uninstall then reinstall.
+
+`--config` values are schema-validated and stored via the same path as the interactive
+configure flow. Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
+`babysit_review_bot_logins`, `babysit_extra_bot_logins`) substitute into the skill as comma-joined
+csv once stored. After either
+path, re-run `check` to confirm the effective configuration — apply is idempotent and safe to
+repeat.
+
 ## Output
 
 A tracked `.claude/source-control.md` in the consuming repo, plus a one-paragraph summary of the
 convention written (and which source it came from — inferred, or user-declared) and how to re-run this
-setup to reconfigure.
+setup to reconfigure. For babysit configuration: the `check` probe report (effective config,
+branch-protection posture, long-path posture) and, after `apply`, the configuration path used.
 
 ## What this skill does NOT do
 

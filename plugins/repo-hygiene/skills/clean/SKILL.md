@@ -10,7 +10,8 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive-guard.sh"
+          command: "bash"
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
 ---
 
 ## Pre-computed context
@@ -63,7 +64,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion — and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, recursive `Remove-Item`). After the dry-run → user-confirmation gate passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: `HOOK_CLEAN_DESTRUCTIVE_GUARD_ENABLED=false`.
+**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, recursive `Remove-Item`). After the dry-run → user-confirmation gate passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene`).
 
 ## Cleanup configuration
 

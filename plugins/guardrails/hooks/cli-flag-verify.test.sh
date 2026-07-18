@@ -53,7 +53,7 @@ run_fake() {
   local target="$case_dir/target.$ext"
   printf '%s\n' "$content" >"$target"
   PATH="$FAKE_BIN_DIR:$PATH" \
-    HOOK_CLI_FLAG_VERIFY_BINS=faketool \
+    CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
     LOCALAPPDATA="$case_dir/cache" \
     XDG_CACHE_HOME="$case_dir/cache" \
     bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" '{tool_input:{file_path:$fp}}')" 2>&1
@@ -127,15 +127,15 @@ dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"
 printf 'faketool sub --fake\n' >"$dis_dir/target.sh"
 dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" '{tool_input:{file_path:$fp}}')
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" HOOK_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
-  HOOK_CLI_FLAG_VERIFY_ENABLED=false bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
+  CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "disabled via env → exit 0" 0 "$RC"
 assert_silent "disabled via env → no output" "$OUT"
 
-OUT=$(PATH="$FAKE_BIN_DIR:$PATH" HOOK_CLI_FLAG_VERIFY_BINS=faketool \
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
-  HOOK_CLI_FLAG_VERIFY_SKIP_BINS=faketool bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
+  CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS=faketool bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "per-binary skip → exit 0" 0 "$RC"
 
 # ============================ TELEMETRY ====================================
@@ -145,7 +145,7 @@ tel_dir="$TEST_TMPDIR/fake-tel"
 mkdir -p "$tel_dir/cache"
 printf 'faketool sub --fake\n' >"$tel_dir/target.sh"
 tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" '{tool_input:{file_path:$fp}}')
-PATH="$FAKE_BIN_DIR:$PATH" HOOK_CLI_FLAG_VERIFY_BINS=faketool \
+PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$tel_dir/cache" XDG_CACHE_HOME="$tel_dir/cache" \
   HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" <<<"$tel_input" >/dev/null 2>&1 || true
 if wait_for_sink "$TEL"; then

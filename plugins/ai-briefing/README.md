@@ -23,7 +23,10 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 
 ## Optional build prerequisites
 
-The presentation pipeline follows Playwright's current supported environment matrix:
+The presentation pipeline follows Playwright's current supported environment matrix
+(verified 2026-07-18 against
+[Playwright system requirements](https://playwright.dev/docs/intro#system-requirements) —
+re-check that page before installing, the matrix moves with Playwright releases):
 
 - the latest Node.js 22.x, 24.x, or 26.x release, with npm;
 - Windows 11+ or Windows Server 2019+;
@@ -33,7 +36,12 @@ The presentation pipeline follows Playwright's current supported environment mat
 Setup preflights Node, npm, and the OS family. On Linux, Playwright's documented
 `install --with-deps` flow may invoke the system package manager and require elevation.
 Unsupported or missing prerequisites are reported before the existing runtime is changed.
-See [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements).
+
+The `setup --with-build-deps` install step is a POSIX-shell script: it requires
+Bash — on native Windows that is Git Bash (its platform gate accepts
+`MINGW*`/`MSYS*`/`CYGWIN*`; install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)).
+The build pipeline itself is portable Node and has no shell requirement.
 
 ## Source access policy
 

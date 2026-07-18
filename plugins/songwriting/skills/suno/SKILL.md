@@ -16,7 +16,7 @@ Suno is an AI music platform; the prompt is the instrument. This skill helps the
 
 The skill is a **prompt-craft assistant**, not an audio generator. Suno produces audio; this skill makes sure the prompt going INTO Suno is sharp, on-format, free of common pitfalls.
 
-Suno v5.5 (released March 26, 2026) preserved v5's prompt syntax but improved adherence to nuanced descriptors and added three personalization layers (Voices, Custom Models, My Taste). Everything below targets v5.5 unless noted; legacy v4 (~200-char style prompt) is out of scope.
+Suno v5.5 (released March 26, 2026; verified 2026-07-18 against <https://suno.com/blog/v5-5>) preserved v5's prompt syntax but improved adherence to nuanced descriptors and added three personalization layers (Voices, Custom Models, My Taste). Everything below targets v5.5 unless noted; legacy v4 (~200-char style prompt) is out of scope.
 
 ## Action Router
 
@@ -61,14 +61,16 @@ Order matters — early tags carry more weight. Front-load genre.
 
 Sweet spot: **5–8 distinct tags**. Fewer than 4 → generic. More than 10 → conflicting signals.
 
-### Character budgets (silent truncation past these)
+### Character budgets
 
 | Field | Limit | Notes |
 |-------|-------|-------|
 | Style prompt (v5/v5.5) | **~1,000 chars** | Up from ~200 in v4. Truncates silently. Front-load critical content. |
-| Lyrics | **~3,000 chars** | ~40-60 lines / 200-300 words. Past 3K → Suno rushes, skips sections, or cuts output short. |
-| Title | **~80 chars** | No effect on musical output |
+| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short. |
+| Title | **~100 chars** | Up from ~80 in v4. No effect on musical output |
 | Exclude field | Free-text in Advanced Options (Custom mode) | Same vocabulary as inline negatives |
+
+**Verified 2026-07-18** — no official Suno page states field limits; figures are third-party tester consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)).
 
 ### The lyrics field is a SECOND style channel
 
@@ -169,7 +171,7 @@ Simple mode = unified prompt + auto-lyrics. **Custom mode** = separate fields (s
 
 **`prompt <intent>`** — build both style and lyrics. Read [context/style.md](context/style.md) for layer detail, [context/lyrics.md](context/lyrics.md) for tag taxonomy. Produce two fenced blocks (style, lyrics), each labeled, within budget. End with 2-3 tweak suggestions.
 
-**`lyrics <intent>`** — load [context/lyrics.md](context/lyrics.md). Output a tagged lyrics block with section structure (`[Verse 1]`, `[Chorus]`, etc.). Include 1-2 performance cues (parentheticals, ellipses) where they fit naturally. Stay ≤3000 chars unless user asked for max.
+**`lyrics <intent>`** — load [context/lyrics.md](context/lyrics.md). Output a tagged lyrics block with section structure (`[Verse 1]`, `[Chorus]`, etc.). Include 1-2 performance cues (parentheticals, ellipses) where they fit naturally. Stay ≤3,000 chars — the quality sweet spot; the hard cap is 5,000 — unless user asked for max.
 
 **`style <intent>`** — load [context/style.md](context/style.md). Walk the 6-layer formula. Output one fenced style-prompt block + character count. Suggest 2-3 alternatives (different mood, different production).
 
@@ -210,9 +212,9 @@ If `<name>` is ambiguous (could be template OR research OR suggest), ask user wh
 
 ## Confidence flags (be honest about source quality)
 
-- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, character budgets, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, Creative Slider behavior — all HIGH.
+- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, Creative Slider behavior — all HIGH. Character budgets are NOT officially published — third-party tester consensus only (MEDIUM-HIGH).
 - **MEDIUM confidence**: community-validated techniques across multiple guides + Reddit consensus, but no official Suno doc. Capitalization weighting magnitude, vowel-stretching letter counts, hyphenation staccato, `(x2)` failure mode — all MEDIUM. Effects are real (multi-source agreement); exact magnitudes are folk wisdom.
-- **Resolved 2026-05-10**: lyrics char limit is **~3,000** (UI field). The earlier "5,000" figure was a single-source outlier from one hookgenius v5.5 page; cross-checking HookGenius char-limits, roo.beehiiv 2026, musicsmith.ai, and 2025 community guides yields consensus on 3,000. The 5,000 number may reflect API/programmatic context (chirp-crow), not the UI.
+- **Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass**: current third-party testers agree the lyrics **hard cap is 5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap. The earlier "3,000 consensus" conflated the old cap with the quality threshold. **~3,000 remains the practical budget** — past it Suno rushes, skips sections, or shortens output. Sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits). No official Suno page states field limits.
 
 When generating prompts, default to HIGH-confidence techniques. Surface MEDIUM-confidence tricks as opt-in suggestions, not commands.
 

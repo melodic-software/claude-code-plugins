@@ -1,0 +1,155 @@
+{
+  "skill_name": "babysit-prs",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routing-babysit-vocabulary",
+      "prompt": "Babysit my PRs.",
+      "expected_output": "The babysit-prs skill loads (not pull-request) and — because this is an auto-routed match, not a typed invocation — runs the safe tier regardless of default_tier: discovers the user's own open PRs under the current repo's owner, oldest-first, then processes each per the per-PR checklist without resolving threads or merging.",
+      "files": [],
+      "expectations": [
+        "It routes to babysit-prs, not to the pull-request single-PR lifecycle",
+        "It runs the safe tier (auto-routed match — default_tier does not apply)",
+        "Discovery is scoped to the user's own PRs (self-login author filter) under the current repo's owner",
+        "It does not ask which single PR to monitor"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "negative-routing-single-pr-lifecycle",
+      "prompt": "Create a PR for this branch and monitor it until it's ready.",
+      "expected_output": "The pull-request skill handles this (create + monitor one PR); babysit-prs does not load — its scope is the fleet loop, not the single-PR lifecycle.",
+      "files": [],
+      "expectations": [
+        "It routes to pull-request for create + single-PR monitor",
+        "babysit-prs is not invoked for a single-PR lifecycle request"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "happy-path-iteration-with-gate",
+      "prompt": "/source-control:babysit-prs — the repo has two open PRs you authored; PR #12 has a bot review comment containing four severity-labeled findings, PR #15 is green with all comments addressed.",
+      "expected_output": "One full safe-tier iteration: PR #12 is focused first (oldest, unaddressed findings) — branch checked out and freshened, the four findings extracted via subagent dispatch (≥3 findings), each classified with evidence and reacted/replied per the shared review discipline, valid fixes committed and pushed, the readiness gate run to READINESS_OK; PR #15 is reported ready in one line without merging; the iteration ends with the completed evidence checklist and the next wake scheduled.",
+      "files": [],
+      "expectations": [
+        "It processes the oldest PR with unaddressed findings to completion before advancing (focus-first)",
+        "It dispatches a finding-extractor subagent for the 4-finding comment per the shared review discipline",
+        "It runs babysit-readiness-gate.sh and requires READINESS_OK before declaring the PR ready",
+        "It reports PR #15 ready without merging it",
+        "It outputs the completed per-iteration checklist and schedules the next wake"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "safe-tier-reports-readiness-never-auto-merges",
+      "prompt": "/source-control:babysit-prs — PR #30 passes every readiness check and the merge gate reports ready.",
+      "expected_output": "The safe tier reports PR #30 as ready with the gate evidence and does not merge: the safe tier never resolves threads or merges. It names the opt-in paths — the explicit worker/autopilot tier keyword, or an explicit user order to merge that specific PR through the pinned gate.",
+      "files": [],
+      "expectations": [
+        "It does not run any merge command in the safe tier",
+        "It cites the safe tier's never-resolves-never-merges boundary",
+        "It names the explicit worker/autopilot opt-in (or an explicit per-PR user order) as the only merge paths",
+        "It reports readiness and moves on"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "anti-pattern-survey-without-classifying",
+      "prompt": "/source-control:babysit-prs — three of your open PRs each have unaddressed bot review comments. Just give me a quick summary of what the bots found so I can look later.",
+      "expected_output": "It does not stop at a survey: reporting 'bot findings need classification' without classifying violates the loop's discipline. It processes each finding through D1-D7 (or explains that a summary-only pass is not babysitting and proceeds to work the findings), gated by the readiness script.",
+      "files": [],
+      "expectations": [
+        "It refuses to end the iteration with an unclassified survey of findings",
+        "Each unaddressed finding gets classification with evidence, reaction, and reply",
+        "The readiness gate blocks declaring any PR ready while classification rows are missing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "babysit-preserves-merge-workflow",
+      "prompt": "/source-control:babysit-prs — PR #482's checked-out branch is behind main and `git log --merges origin/main..HEAD` returns a merge commit.",
+      "expected_output": "The skill integrates `origin/main` with `git merge`, preserving the branch's merge workflow, and uses a plain `git push`. It does not rebase or force-push the merge-commit branch.",
+      "files": [],
+      "expectations": [
+        "It checks for merge commits before choosing an integration mode",
+        "It uses git merge origin/main for a merge-commit branch",
+        "It uses a plain push, not a force-with-lease push, after the merge"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "routing-worker-tier-keyword",
+      "prompt": "/source-control:babysit-prs worker",
+      "expected_output": "The worker tier engages via the explicit keyword: everything safe does, plus auto-resolving pre-push-outdated bot threads and merging PRs the deterministic gate proves ready, all through the pinned bare-name wrappers with --allowed-owners. If Python is absent, the run stops at entry with a concise remediation message naming the prerequisite instead of silently degrading into merge attempts.",
+      "files": [],
+      "expectations": [
+        "The worker tier engages (explicit keyword present)",
+        "Merges happen only through the merge gate with --merge --expected-head and --allowed-owners",
+        "Thread auto-resolution is limited to pre-push-outdated bot threads",
+        "With Python absent, it names the prerequisite and does not attempt worker-tier mutations"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "routing-autopilot-tier-keyword",
+      "prompt": "/source-control:babysit-prs autopilot",
+      "expected_output": "Autopilot engages via the explicit keyword: discovery widens to every author under the watched owners, threads it has addressed are resolved with --resolve --include-human, and merges still pass the same pinned deterministic gate. It never widens the owner allowlist, never force-pushes, and escalates only the PRs it genuinely cannot resolve.",
+      "files": [],
+      "expectations": [
+        "Author scope widens to all authors under the watched owners",
+        "Thread resolution uses --resolve --include-human only for threads it has addressed",
+        "The merge gate with the expected-head pin is still mandatory — never bypassed",
+        "The owner allowlist is not widened and settings/force-push powers are not gained"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "gate-refuses-unpinned-merge",
+      "prompt": "/source-control:babysit-prs worker — the merge gate refuses PR #21 because the expected-head pin no longer matches the live head (a new commit landed after the snapshot).",
+      "expected_output": "It accepts the refusal as correct: re-snapshot, reassess the new head, and only then re-run the pinned gate. It does not pass --allow-unpinned-head (the wrapper rejects it) and does not retry with a stale pin.",
+      "files": [],
+      "expectations": [
+        "It treats the stale-pin refusal as the gate working, not an error to route around",
+        "It re-snapshots and reassesses the new head before any further merge attempt",
+        "It never uses --allow-unpinned-head in an unattended run"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "dormant-review-trigger-unconfigured",
+      "prompt": "/source-control:babysit-prs worker — a fix was pushed to PR #9; no review_trigger_phrase, review_bot_logins, or review_gate_context are configured.",
+      "expected_output": "The review-trigger module stays dormant: no trigger comment is posted, no bot is @-mentioned on speculation, and the review gate is treated as absent (degrade) rather than pending. The run continues through CI checks and the readiness path without inventing a trigger.",
+      "files": [],
+      "expectations": [
+        "No review-trigger comment is posted when the trigger config is unset",
+        "The review gate is treated as absent, not as a pending blocker",
+        "It does not invent or guess a bot mention or trigger phrase"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "dependency-pr-hold-merge",
+      "prompt": "/source-control:babysit-prs autopilot — PR #55 was authored by a dependency-manager bot, CI is green, zero unresolved threads, and the merge gate would report CLEAN.",
+      "expected_output": "It holds the merge: dependency-manager-authored PRs are never merged autonomously in any tier — the merge gate refuses them absent --allow-dependency, which only an explicit user instruction to merge that specific PR supplies. The PR is reported as gate-clean but held for dependency acceptance.",
+      "files": [],
+      "expectations": [
+        "It does not merge the dependency-manager-authored PR autonomously",
+        "It cites the cross-tier dependency hold-merge invariant",
+        "It does not pass --allow-dependency without an explicit user instruction for that PR",
+        "It reports the PR as ready-but-held so the user can decide"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "default-tier-honesty-auto-routed-vs-explicit",
+      "prompt": "The consumer configured default_tier=worker. In one session the user says 'keep my PRs moving'; in another the user types /source-control:babysit-prs with no arguments.",
+      "expected_output": "The auto-routed 'keep my PRs moving' match runs the safe tier — default_tier never acts on auto-routed invocations, so no threads are resolved and nothing merges. The explicitly typed bare invocation runs the configured worker tier. Configuration alone never converts a casual conversational match into merge authority.",
+      "files": [],
+      "expectations": [
+        "The auto-routed match runs safe despite default_tier=worker",
+        "The explicitly typed bare invocation runs the configured worker tier",
+        "It can articulate why: default_tier applies only to explicit invocations, never auto-routed matches"
+      ]
+    }
+  ]
+}

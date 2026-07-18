@@ -1,12 +1,26 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "markdown-format",
-  "version": "0.2.0",
+  "version": "0.5.0",
   "description": "Auto-format and lint Markdown on edit via markdownlint-cli2, using the consuming repo's own markdownlint config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["markdown", "markdownlint", "formatter", "linter", "hook"]
+  "keywords": [
+    "markdown",
+    "markdownlint",
+    "formatter",
+    "linter",
+    "hook"
+  ],
+  "userConfig": {
+    "markdown_format_enabled": {
+      "type": "boolean",
+      "title": "markdown-format hook",
+      "description": "Auto-format and lint Markdown on Write/Edit of .md/.mdc files",
+      "default": true
+    }
+  }
 }

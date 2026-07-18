@@ -56,7 +56,7 @@ assert_file_absent "session_start filtered by default" "$TELS"
 # --- session_start opt-in re-enables emission ------------------------------
 TELO="$TEST_TMPDIR/telo.json"; SINKO="$(make_sink "$TELO")"
 env HOOK_TELEMETRY_SINK="$SINKO" CLAUDE_PROJECT_DIR="$PROJ" \
-  HOOK_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true \
+  CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true \
   bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -nc --arg fp "$PROJ/CLAUDE.md" '{file_path:$fp, load_reason:"session_start"}')" >/dev/null 2>&1
 if wait_for_sink "$TELO"; then
   assert_eq "session_start opt-in subject" "CLAUDE.md:session_start" "$(jq -r '.data.subject' "$TELO")"
@@ -69,7 +69,7 @@ assert_exit "unwired → exit 0" 0 "$RC"
 assert_silent "unwired → silent" "$OUT"
 
 TELK="$TEST_TMPDIR/telk.json"; SINKK="$(make_sink "$TELK")"
-env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PROJECT_DIR="$PROJ" HOOK_INSTRUCTIONS_LOADED_AUDIT_ENABLED=false \
+env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PROJECT_DIR="$PROJ" CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED=false \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_file_absent "kill switch → no envelope" "$TELK"
 

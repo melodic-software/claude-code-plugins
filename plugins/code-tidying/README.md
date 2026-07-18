@@ -53,7 +53,11 @@ exclusions, and verification commands.
 
 - Self-contained: taxonomy, scope-budget research, exclusion lists, lane
   templates, and the throttle script all ship inside the plugin under
-  `${CLAUDE_PLUGIN_ROOT}`.
+  `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4+** (they use
+  `mapfile` and case-conversion expansions) — on native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
+  so they run under Git Bash; the scripts already handle CRLF and
+  drive-letter paths.
 - Graceful degrade: if the `discovery` plugin is installed, explore/research
   phases use `/discovery:explore` + `/discovery:research`; if `work-items` is
   installed, deferrals file through `/work-items:track add`; if

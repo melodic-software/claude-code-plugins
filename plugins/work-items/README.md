@@ -73,6 +73,13 @@ enough that one skill no longer predicts its contents.
 
 ## Requirements
 
+- **Bash + jq.** The skills' inline mechanics are POSIX-shell (`jq`, `mktemp`,
+  `git grep`, `date`) — on native Windows they run under Git Bash (install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)),
+  and `jq` is a separate install there
+  ([download](https://jqlang.org/download/)). `jq` is required for
+  correctness: when it is missing, stop and surface that remediation instead
+  of improvising a parse.
 - **The work-item-tracker seam.** The consuming repo provides the seam at
   `tools/work-item-tracker/` and binds its active provider in
   `.work-item-tracker.json`. The seam's contract and per-adapter mechanics are
