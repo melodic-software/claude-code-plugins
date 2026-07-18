@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import process from "node:process";
 
 const root = process.cwd();
@@ -195,6 +195,20 @@ if (existsSync(aiBriefingBrandOverlay)) {
     )
   ) {
     fail(aiBriefingBrandOverlay, "must not execute consumer-controlled brand configuration");
+  }
+}
+
+// The autonomy plugin's contract text is tool- and fleet-agnostic: the org
+// token and bare fleet repo names may not appear anywhere under it. Author
+// metadata in plugin.json is the single allowed occurrence.
+const autonomyRoot = join(pluginRoot, "autonomy");
+if (existsSync(autonomyRoot)) {
+  const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
+  for (const path of filesUnder(autonomyRoot)) {
+    if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+    if (fleetTokens.test(read(path))) {
+      fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
+    }
   }
 }
 
