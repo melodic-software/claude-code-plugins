@@ -155,23 +155,32 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    work the guardrail matrix owns — this interim gate is deliberately the cheapest signal
    available today, not a claim of proof, and the discriminator recorded here is the interim
    boundary, not a parallel class vocabulary.
-3. **Route comment writes through the bound tracker adapter's documented comment mechanics
+3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
+   comment-created (or native-field change) event handler, wired the same reviewable way as
+   the close trigger: on a new reply to the marker-tagged item, check the reply's actor
+   against the accountable-human routing, and on a parseable reply carrying both values,
+   perform the SAME marker-keyed upsert described above (not a second contract — this is the
+   one attestation upsert, wired from its own trigger surface). Where the tracker offers no
+   reply-triggered surface (no comment webhook, a plan/tier limit), this step routes through
+   the ADVISE step below instead of silently wiring only the close half and calling capture
+   complete.
+4. **Route comment writes through the bound tracker adapter's documented comment mechanics
    where a work-item-tracker binding is present** (comments are provider-specific mechanics
    there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
    primitive exists to reuse). The marker-keyed upsert and its attestation-preserving dedupe
    rule are THIS contract's own obligations and apply identically on both paths; the
    standalone snippet differs only in posting directly, and both paths carry the contract's
    stated create-create race rule.
-4. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
-   automation: steps + cost surfaced, explicit opt-in. Private-repo close-triggered runs
-   draw metered CI minutes — surfaced on the wire path.
-5. **Attestation routing** — the binding records the accountable-human routing per class,
+5. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
+   automation: steps + cost surfaced, explicit opt-in. Private-repo close- and
+   reply-triggered runs draw metered CI minutes — surfaced on the wire path.
+6. **Attestation routing** — the binding records the accountable-human routing per class,
    including the standing attestation owner (or attestation-exempt marking) for
    requester-less classes. An attestation-exempt class's close trigger posts NEITHER the
    unattested record NOR the attestation request — `return-accounting.md` forbids a
    perpetually-unattested default, so an exempt class's cost is reported separately,
    outside this record schema entirely.
-6. **Record the binding** — the `capture` section of the schema-versioned binding (additive,
+7. **Record the binding** — the `capture` section of the schema-versioned binding (additive,
    like the telemetry section), with these serialized keys:
 
    | Key | Value |

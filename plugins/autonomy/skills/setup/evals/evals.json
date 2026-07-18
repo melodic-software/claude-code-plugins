@@ -109,11 +109,12 @@
       "id": 9,
       "name": "capture-comment-floor-wire-path",
       "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker has no custom fields on our plan.",
-      "expected_output": "Detects the tracker class, selects the structured-comment universal floor (no entitled native fields), wires the close-triggered snippet posting the unattested marker-keyed record plus the attestation request as reviewable changes, routes comment writes through the work-items seam when present, records tracker class and record surface in the binding's capture section, and surfaces the private-repo CI-minutes caveat.",
+      "expected_output": "Detects the tracker class, selects the structured-comment universal floor (no entitled native fields), wires the close-triggered snippet posting the unattested marker-keyed record plus the attestation request as reviewable changes, wires a companion reply-triggered handler performing the same marker-keyed upsert, routes comment writes through the work-items seam when present, records tracker class and record surface in the binding's capture section, and surfaces the private-repo CI-minutes caveat.",
       "files": [],
       "expectations": [
         "Selects the structured-comment floor when native fields are not entitled",
         "Close-triggered snippet posts an unattested record plus attestation request, non-blocking",
+        "Wires a reply-triggered handler performing the same upsert, not a second contract",
         "Comment writes route through the work-items seam when that plugin is present",
         "Binding capture section records tracker class and record surface; minutes caveat surfaced"
       ]

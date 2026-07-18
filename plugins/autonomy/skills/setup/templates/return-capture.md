@@ -76,3 +76,13 @@ Wire the capture at the task boundary the org actually has: a close-triggered wo
 request. Route the comment write through the work-items comment seam where present;
 otherwise the standalone snippet posts directly (create-only-when-absent per the contract's
 race rule).
+
+## Attestation-reply trigger shape
+
+Wire a companion reply-triggered handler at the surface the org's tracker actually offers (a
+comment-created event, or the native-field equivalent where fields support change-triggered
+automation): on each new reply to the marker-tagged item, resolve the actor against the
+accountable-human routing and, on a parseable reply carrying both values, perform the SAME
+upsert above — not a second contract, the one attestation upsert wired from its own trigger.
+Where no reply-triggered surface is machine-editable, this is advisory: surface that
+attestation would require a manual upsert rather than silently wiring only the close half.
