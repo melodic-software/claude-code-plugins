@@ -31,12 +31,12 @@ updates:
       github-actions:
         patterns:
           - "*"
-    # The runner-policy allowlist pins ci-workflows reusable-workflow refs to
-    # independently reviewed SHAs, so a Dependabot bump to an unreviewed main
-    # commit can only fail the Runner policy lane. Those pins move through
-    # deliberate reviewed PRs after a standards allowlist update; composite
-    # actions (melodic-software/ci-workflows/.github/actions/*) are not
-    # SHA-allowlisted and stay Dependabot-managed.
+    # Every melodic-software/ci-workflows ref (reusable workflows AND composite
+    # actions) moves only through deliberate reviewed PRs per the standards
+    # runner-policy selector-revision lockstep. Reusable-workflow bumps to
+    # unreviewed commits fail the Runner policy lane; ungoverned composite-action
+    # bumps drifted pin-provenance comments org-wide
+    # (melodic-software/github-iac#89), so both are ignored here.
     ignore:
       - dependency-name: "melodic-software/ci-workflows/*"
   # Biome and Claude Code are executable CI dependencies locked at the root.

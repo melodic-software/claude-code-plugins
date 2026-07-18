@@ -1,0 +1,53 @@
+{
+  "skill_name": "recheck-against-upstream",
+  "evals": [
+    {
+      "id": 1,
+      "name": "gap-with-deprecation-drift-corrected-toward-upstream",
+      "prompt": "recheck against upstream — our CI config still passes the build flag the way we set it up a year ago. It works, so we've never touched it.",
+      "expected_output": "Re-anchors the discipline that 'it works / it's already set up this way' is not evidence of current conformance, fetches the CURRENT official upstream docs for that surface, diffs the repo state against them, and classifies a docs-say-X-we-do-Y difference with no recorded rationale as a Gap — calling out any renamed flag, changed default, or deprecation as drift even though the old form still functions, then correcting toward upstream.",
+      "files": [],
+      "expectations": [
+        "Rejects 'it works / already configured' as proof of conformance",
+        "Fetches current official upstream docs for the surface rather than relying on recall or an in-repo summary",
+        "Classifies the difference as a Gap and flags deprecation/version drift even when the old form still functions"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "deliberate-divergence-rechecked-not-reverted",
+      "prompt": "recheck against upstream — we pin this dependency to an old version on purpose; there's an ADR explaining the incompatibility that forced it.",
+      "expected_output": "Recognizes the recorded rationale makes this a Deliberate divergence, so it does NOT correct it toward upstream. Instead it re-checks whether the rationale STILL holds against the current docs — whether upstream has since shipped a fix that obsoletes the pin — reporting clean if the rationale stands and flagging it only if the docs have overtaken it.",
+      "files": [],
+      "expectations": [
+        "Classifies it as a deliberate divergence because a rationale is recorded, and does not revert it",
+        "Re-checks whether the recorded rationale still holds against current upstream rather than trusting it as permanent",
+        "Reports clean if the rationale stands; flags it only if upstream has obsoleted the workaround"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "undocumented-divergence-routes-to-human-and-adr",
+      "prompt": "recheck against upstream — our setup does something different from the official quickstart, and I can't find any note saying why.",
+      "expected_output": "Classifies a state that looks intentional but has no recorded rationale as an Undocumented divergence whose resolution is the human's call — it does not silently pick a side. It states both options (adopt the docs' way, or keep the divergence and record its rationale) and routes the resolution to the repo's ADR/docs convention read from the consuming project's own context.",
+      "files": [],
+      "expectations": [
+        "Classifies it as an undocumented divergence needing the human's decision rather than auto-correcting",
+        "States both resolution options (adopt upstream, or keep and document the rationale)",
+        "Routes resolution to the repo's ADR/docs convention rather than hardcoding a path"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "honest-skip-list-not-false-clean",
+      "prompt": "recheck against upstream — verify our whole integration matches the vendor docs. (There are several surfaces; you were only able to fetch the docs for one of them this session.)",
+      "expected_output": "Reports honestly on what was compared versus what was skipped: it does not report the surfaces it could not fetch as 'clean'. Unverified conformance is stated as unaudited, with an explicit skip list, treating firing the skill as a re-anchor rather than an accusation.",
+      "files": [],
+      "expectations": [
+        "Does not report un-compared surfaces as passing/clean",
+        "States an explicit list of what was compared versus skipped",
+        "Treats unverified conformance as unaudited rather than as a green result"
+      ]
+    }
+  ]
+}

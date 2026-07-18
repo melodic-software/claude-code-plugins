@@ -6,7 +6,7 @@ user-invocable: true
 disable-model-invocation: true
 hooks:
   PreToolUse:
-    - matcher: "Bash"
+    - matcher: "Bash|PowerShell"
       hooks:
         - type: command
           command: "python"
@@ -35,13 +35,14 @@ directory, symlink, or Windows reparse point.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
   `${user_config.disk_hygiene_enabled}`; a literal unexpanded token means unset = enabled), audit
   only and explain why execution is disabled. The hook
-  runs in shell-free exec form and reports its absolute Python interpreter in denial guidance. Use
-  that exact path as `<hook-python>` for every engine call; bare `python`/`python3` is rejected because
-  Bash aliases and functions can replace them. If the path is not known yet, submit the otherwise
-  exact scan shape once with bare `python`: the guard must deny it and report `<hook-python>`, after
-  which retry the scan with that absolute path. If the reported interpreter is older than Python
-  3.11, stop with the declared prerequisite instead of improvising a different scanner or deletion
-  path.
+  runs in shell-free exec form and reports its absolute Python interpreter and the authorized
+  `--data-root` value in denial guidance. Use that exact interpreter path as `<hook-python>` for
+  every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
+  replace them. If either value is not known yet, submit the otherwise exact scan shape once with
+  bare `python`: the guard must deny it and report both, after which retry the scan with the
+  absolute interpreter and the reported `--data-root`. If the reported interpreter is older than
+  Python 3.11, stop with the declared prerequisite instead of improvising a different scanner or
+  deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
 ## 1. Create a read-only snapshot
@@ -52,12 +53,23 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
-  --project-dir "${CLAUDE_PROJECT_DIR}"
+  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
-For a large root, first map its immediate children and fan out read-only analysis by subtree. Each
-worker receives a bounded subtree and returns evidence only. The parent owns classification, the single
-report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
+The guard validates `--data-root` against the value its own hook process received, so generated
+state provably lands in the plugin data directory even when the shell environment lacks
+`CLAUDE_PLUGIN_DATA`.
+
+For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
+cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
+immediate children, then fan out deeper scans per subtree that the evidence justifies. Every
+directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
+boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
+never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
+live re-verification checks a candidate with no live-I/O value left to give would otherwise still
+pay for). Each fan-out worker receives a bounded subtree and returns evidence only. The parent owns
+classification, the single report, every approval, preview, and all execution. Do not let workers
+delete or prepare approvals.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
@@ -130,7 +142,8 @@ Run the deterministic gate:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" preview \
-  --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json"
+  --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
 It rechecks containment, identity and full descendant set, hard protections, Git's index, and live
@@ -151,7 +164,8 @@ After an affirmative answer in this interactive session, run only:
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" apply --execute \
   --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json" \
-  --confirm-tier "<tier>" --approval-token "<token>" --report "<run-dir>/report-<tier>.json"
+  --confirm-tier "<tier>" --approval-token "<token>" --report "<run-dir>/report-<tier>.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
@@ -159,6 +173,26 @@ skill-scoped hook blocks those bypasses and forces one final permission prompt f
 apply command; confirm it only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
+
+### Unsupported-platform handoff (Windows, macOS)
+
+Preview returns `execution-platform-unsupported` on these platforms, so the engine never deletes
+there. The default outcome is the report. If — and only if — the human reviews the report and
+approves an exact path list in this interactive session (the same `AskUserQuestion` exact-tier-and-
+list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
+handoff, not an engine plan:
+
+1. Revalidate each path immediately before removal: size, mtime, and kind unchanged since the
+   audit evidence; no reparse point/symlink; any owner process named in the evidence still absent;
+   an exclusive-open probe succeeds (no live handle).
+2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
+   which was used.
+3. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
+   lock.
+
+The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
+bar as the engine apply prompt); confirm that prompt only when the command matches the exact
+approved list. Engine invocations from PowerShell stay hard-denied.
 
 Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
@@ -185,3 +219,10 @@ sparse files, hard links, compression, and delayed allocation affect it.
   research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
   using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
   forms, operators, redirections, aliases, and exported functions fail closed.
+- The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
+  metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
+  into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
+  own containment and the Bash lane remain the deletion authority.
+- The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
+  Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
+  are already long-form.
