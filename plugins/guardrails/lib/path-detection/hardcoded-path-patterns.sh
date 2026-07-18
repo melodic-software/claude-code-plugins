@@ -11,30 +11,12 @@
 # lacks -P entirely. Lookbehinds/lookaheads are replaced by grep -v
 # pipe-stage exclusions.
 
-# Per-OS machine-path regex BODIES — single source of truth shared by this
-# lib's hpp::scan_text and any driver that sources it. Extracting the bodies
-# lets a pattern change land once and reach every scan driver in lockstep.
-#
-# DEFINE single-quoted, EXPAND double-quoted ("$HPP_…"): a double-quoted
-# definition would collapse the escaped-repo body's doubled backslashes and
-# silently change what grep matches. POSIX ERE only. Only the BODIES are
-# shared — each call site keeps its own wrapping (macOS/Linux pipe exclusions
-# here; a boundary prefix in a driver).
-#
-# The 3 Windows bodies match the separator as single-backslash, forward-slash,
-# OR doubled-backslash (JSON-escaped) at EVERY position — (/|\\\\?) is fwd-slash
-# OR one-or-two backslashes — and accept an 8.3 short-name segment that ends
-# ~<digit> (e.g. ALICE~1) via the optional (~[0-9]+). These are the two shapes
-# a script-written temp path evaded with. The negative class still excludes a
-# bare ~ so a tilde-shorthand segment stays clean. macOS/Linux bodies are NOT
-# widened: no 8.3 / escaped-JSON analogue exists there, so widening is pure
-# false-positive risk.
-HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
-HPP_MACOS_USER_BODY='/Users/[^/$<{~]+/'
-HPP_LINUX_USER_BODY='/home/[^/$<{~]+/'
-HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)repos(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
-# shellcheck disable=SC1003  # literal backslashes in the ERE body, not a quote escape
-HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\repos\\\\[^\\$<{~]+(~[0-9]+)?\\\\'
+# The per-OS regex BODIES live in machine-path-patterns.sh — the org-shared,
+# standards-managed materialization — so a pattern change lands upstream once
+# and reaches every scan driver in lockstep. This lib keeps only its own
+# wrapping (the macOS/Linux pipe exclusions and OS-context suppression below).
+# shellcheck source=machine-path-patterns.sh
+source "${BASH_SOURCE[0]%/*}/machine-path-patterns.sh"
 
 # hpp::scan_text <content> [project-root] [file-path]
 #

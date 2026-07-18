@@ -258,6 +258,38 @@ path and prerequisite tests, local `--plugin-dir` smoke tests, and the repositor
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
 
+## Fresh-eyes checkpoints
+
+A context that produced work is structurally the weakest place to judge that work: the reasoning that
+made a mistake plausible is still active, so a self-check inherits the bias. A named subagent removes
+it — it starts in its own fresh context window, blind to the reasoning under review. A fork does not: it
+inherits the parent session's full conversation history, so it carries the same bias forward
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-18).
+
+The rule: **a skill step whose output judges work produced in the same context delegates that judgment
+to a fresh-context (non-fork) subagent** — a named subagent that starts with a fresh context window, not
+a fork. Mandatory in the skill's design, not left to the invoker to remember. Three bias classes name
+the trigger:
+
+- **author-verifier** — verifying a change the same context authored (a verification skill confirming
+  its own session's implementation, a pre-PR self-review);
+- **plan-attacker** — adversarially attacking a plan the same context helped shape (a devil's-advocate
+  pass run in the authoring session);
+- **self-grade** — scoring the same context's output against criteria (a quality gate in self mode, a
+  synthesis step grading its own lock).
+
+What does not need it: deterministic gates (a script's pass/fail cannot be biased by context — prefer
+one wherever the judgment is mechanical), and judgment over external input the context did not produce
+(triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
+exactly where bias is structural, and nothing elsewhere.
+
+The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself — where the gate's
+pass/fail *is* the verdict — not a subjective self-review that merely runs ahead of a gate. A build/test/lint
+pass gates behavior and the conventions its linters encode, not scope creep or the conventions it leaves
+unchecked; self-judging those stays the same-context judgment the rule targets even when a deterministic gate
+sits downstream. A step that self-reviews both is exempt only for the gated part — the rest is still owed a
+fresh-context pass.
+
 ## Authoritative references
 
 The complete categorized index of plugin-relevant official pages is

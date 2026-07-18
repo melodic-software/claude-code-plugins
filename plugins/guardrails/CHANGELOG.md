@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Changed
+
+- Header comment ordering in `machine-path-patterns.sh` corrected to the `shell=bash` →
+  description → pragma → code convention: the `SC2034` disable and its rationale comment now
+  sit immediately before the pattern definitions they guard, instead of ahead of the module
+  description. Comment-only change; pattern bodies are unchanged.
+
+## [0.6.1]
+
+### Changed
+
+- **Per-OS machine-path regex bodies sourced from a shared, standards-managed file.** The five
+  `HPP_*` pattern bodies (`HPP_WIN_USER_BODY`, `HPP_MACOS_USER_BODY`, `HPP_LINUX_USER_BODY`,
+  `HPP_WIN_REPO_BODY`, `HPP_ESCAPED_WIN_REPO_BODY`) — previously a hand-synced copy of the same
+  bodies carried by `ci-workflows`' `machine-specific-paths` action and `medley`'s
+  `tools/shared/path-detection` — now live in `machine-path-patterns.sh`, the org's
+  standards-managed materialization (`melodic-software/standards#172`). `hardcoded-path-patterns.sh`
+  sources it and keeps only its own scan wrapping (OS-context suppression, exclusion pipes).
+  Patterns are byte-identical to the prior inline copy; no behavior change.
+
 ## [0.6.0]
 
 ### Added
