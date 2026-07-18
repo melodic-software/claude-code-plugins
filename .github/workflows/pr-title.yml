@@ -4,7 +4,8 @@ name: pr-title
 # workflow from ci-workflows. Repos are squash-only with the squash title set to
 # PR_TITLE, so the PR title becomes the default-branch subject — this gates the
 # Conventional-Commits history. `edited` re-validates on a re-title. The emitted
-# required-check context is `pr-title / pr-title`.
+# required-check context is `pr-title / pr-title`. Public repo: runs on the
+# reusable's hosted default runner.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -20,52 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  select-runner:
-    name: Select runner for PR title
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
-  validate-pr-title:
-    # Fail-closed selector-result reporter: always() so every routing outcome
-    # materializes the required check. The reusable receives the selector result
-    # and fail-closes on any non-success, reporting the check as failed rather
-    # than dispatching validation to paid hosted Linux.
-    if: ${{ always() }}
-    needs: select-runner
+  pr-title:
     permissions:
       pull-requests: read # Reads the pull-request title for validation.
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
-      prerequisite-result: ${{ needs.select-runner.result }}
-
-  pr-title:
-    name: pr-title / pr-title
-    needs: [select-runner, validate-pr-title]
-    # Fail-closed through execution: !cancelled() (never a success-guard) so a
-    # selector failure still runs this required wrapper on the hosted fallback
-    # and the step below turns it red. A success-guard would skip the job, and a
-    # skipped required check reports success to branch protection. Happy path
-    # routes to the fleet (github-iac#78).
-    if: ${{ !cancelled() }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
-    permissions: {}
-    steps:
-      - name: Enforce routing and semantic validation results
-        env:
-          SELECTOR_RESULT: ${{ needs.select-runner.result }}
-          VALIDATION_RESULT: ${{ needs.validate-pr-title.result }}
-        run: |
-          if [[ "$SELECTOR_RESULT" != success || "$VALIDATION_RESULT" != success ]]; then
-            echo "Required PR-title gate failed: selector=$SELECTOR_RESULT validation=$VALIDATION_RESULT"
-            exit 1
-          fi
-          echo "PR-title routing and semantic validation passed."
+      runner: ubuntu-24.04
