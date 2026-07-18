@@ -279,6 +279,8 @@ tier authority.
 | `review_gate_context` | `${user_config.review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `ci_gateway_context` | `${user_config.ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `extra_bot_logins` | `${user_config.extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
+| `approval_downgrade_logins` | `${user_config.approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `skip_downgrade_logins` | `${user_config.skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `max_quiet_recheck_seconds` | `${user_config.max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
 | `advisory_fix_round_cap` | `${user_config.advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
 | `worker_concurrency_cap` | `${user_config.worker_concurrency_cap}` | prose only — fan-out bound | `10` |

@@ -55,6 +55,8 @@ placeholder-free `<slots>`). From there the agent passes explicit flags:
 | `review_gate_context` | `--review-gate-context` | snapshot |
 | `ci_gateway_context` | `--ci-gateway-context` | snapshot |
 | `extra_bot_logins` | `--extra-bot-logins` | snapshot |
+| `approval_downgrade_logins` | `--approval-downgrade-logins` | snapshot |
+| `skip_downgrade_logins` | `--skip-downgrade-logins` | snapshot |
 | `max_quiet_recheck_seconds` | `--max-quiet-recheck-seconds` | snapshot |
 | `advisory_fix_round_cap` | `--fix-round-cap` | snapshot, feedback ledger |
 | `worker_concurrency_cap` | (prose only — orchestration fan-out bound) | — |
@@ -81,6 +83,8 @@ the first repo needing divergent contexts triggers moving them to the tracked
 | `review_gate_context` | string | — | gate absent-degrade |
 | `ci_gateway_context` | string | — | gateway check unused |
 | `extra_bot_logins` | string, multiple | — | structural detection only |
+| `approval_downgrade_logins` | string, multiple | — | approval-downgrade heuristic dormant |
+| `skip_downgrade_logins` | string, multiple | — | skip-downgrade heuristic dormant |
 | `max_quiet_recheck_seconds` | number | 14400 | — |
 | `advisory_fix_round_cap` | number | 100 | — |
 | `worker_concurrency_cap` | number | 10 | — |

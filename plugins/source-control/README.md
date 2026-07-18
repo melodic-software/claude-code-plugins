@@ -153,6 +153,8 @@ repo's owner.
 | `review_gate_context` | string | review gate treated as absent |
 | `ci_gateway_context` | string | gateway check unused |
 | `extra_bot_logins` | string (multiple) | structural bot detection only |
+| `approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
 | `max_quiet_recheck_seconds` | number | 14400 |
 | `advisory_fix_round_cap` | number | 100 |
 | `worker_concurrency_cap` | number | 10 |
