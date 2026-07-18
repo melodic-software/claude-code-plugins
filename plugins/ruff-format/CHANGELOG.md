@@ -18,6 +18,13 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
   environment or installing globally, and re-verifies the binary probe after the install
   rather than trusting its exit code.
 
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

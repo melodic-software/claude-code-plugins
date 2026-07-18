@@ -16,6 +16,13 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
   prerequisite is a system tool, so it installs nothing and writes nothing (never
   `.gitattributes`).
 
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed
