@@ -275,7 +275,13 @@ the shared review discipline to plugin scope so neither skill loads the other's 
 - Non-source-repo smoke: `/source-control:babysit-prs` resolves and loads; 'babysit my PRs'
   routes to it.
 
-### Phase 2: PR-B — capability convergence [TODO]
+### Phase 2: PR-B — capability convergence [DOING]
+
+> PR #322 (`feat/babysit-prs-convergence`, 0.7.0). 8 engine modules + 8 CLIs + 2 bin/ wrappers +
+> tier surfaces + 174-test suite. Integration proven live (classify_pr→save_state→load_state,
+> scoped-clobber) + `claude --plugin-dir` skill discovery. Local lane: babysit engine green
+> in-lane + isolated; one pre-existing `markdown-format` telemetry timing flake under lane load
+> (unrelated). Awaiting CI + review.
 
 Port the dotfiles engine + tier system into `source-control:babysit-prs` (0.7.0), fully
 generalized per B4/B5/B6/B11/B13/B14/B15. Migration input = chezmoi SOURCE tree + the deployed
