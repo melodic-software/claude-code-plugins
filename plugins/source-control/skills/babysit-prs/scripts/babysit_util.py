@@ -16,7 +16,7 @@ from collections.abc import Collection
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeIs, cast
+from typing import Any, cast
 
 # Minimum accepted hex-prefix length for --expected-head-sha pins. Lives here --
 # not in the state module -- so the guarded mutation CLIs can validate pins
@@ -25,13 +25,13 @@ MIN_HEAD_SHA_PREFIX_LENGTH = 12
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 60.0
 
 
-def is_json_object(value: Any) -> TypeIs[dict[str, Any]]:
-    """Narrow a decoded JSON value to an object with string keys."""
+def is_json_object(value: Any) -> bool:
+    """True when a decoded JSON value is an object with string keys."""
     return isinstance(value, dict)
 
 
-def is_json_array(value: Any) -> TypeIs[list[Any]]:
-    """Narrow a decoded JSON value to an array."""
+def is_json_array(value: Any) -> bool:
+    """True when a decoded JSON value is an array."""
     return isinstance(value, list)
 
 
