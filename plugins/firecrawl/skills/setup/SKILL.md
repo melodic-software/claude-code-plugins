@@ -33,13 +33,17 @@ run each probe via Bash and report a PASS/FAIL/INFO table. Do not modify anythin
    that the CLI installs on first need and the main skill self-flags it; remediation is the
    `apply` guidance below. When present, report the version (`firecrawl --version`) and the
    auth line from `firecrawl --status` (which states authenticated/unauthenticated).
-2. **`FIRECRAWL_API_KEY`** — presence only, in the OS user environment. Test
-   `[[ -n "${FIRECRAWL_API_KEY:-}" ]]` and report **set** or **unset** — NEVER print, echo,
-   log, or persist the value. The verdict is state-dependent, matching the lazy-install design:
-   when set, PASS. When unset AND the CLI is also absent, INFO — both the binary and the key
-   arrive at first use, so nothing is broken yet. When unset but the CLI IS present, FAIL — a
-   binary that cannot authenticate. Cross-check against the `firecrawl --status` auth line
-   whenever the CLI is present.
+2. **Authentication** — the verdict comes from the CLI itself when present: the
+   `firecrawl --status` auth line is authoritative, because `firecrawl login`/`config` state
+   in the user-level config dir authenticates without any env var. Alongside it, report
+   `FIRECRAWL_API_KEY` presence only — test `[[ -n "${FIRECRAWL_API_KEY:-}" ]]` and report
+   **set** or **unset**; NEVER print, echo, log, or persist the value. Verdicts, matching the
+   lazy-install design: status says authenticated → PASS (INFO-note when the source is
+   persisted CLI config rather than the env var — env-var auth is the plugin's preferred
+   single source of truth, but never direct the user to ADD an env key on top of working
+   CLI-config auth; that would create the second source the plugin warns against). Status
+   says unauthenticated (or the CLI cannot answer) and the key is unset → FAIL. CLI absent
+   AND key unset → INFO — both arrive at first use, nothing is broken yet.
 3. **Optional env vars** — INFO the effective state of the other two the CLI reads
    (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only,
    again without printing any value.
