@@ -62,8 +62,10 @@ telemetry by work-item ID, via guided setup, with zero paid dependencies.
   done?" variant — the thread wording is canonical for the prompt.
 - The claude.ai artifact endpoint is intermittently erroring; the Google Doc is the reliable
   re-anchor copy.
-- The five-band contiguous scale is a deliberate correction of the T5 draft's gaps, locked
-  under the round's recommendation pre-authorization.
+- ~~The five-band contiguous scale is a deliberate correction of the T5 draft's gaps, locked
+  under the round's recommendation pre-authorization.~~ SUPERSEDED 2026-07-18: the contiguous
+  scale is now SIX bands per the D4 supersession above; migration authority for any further
+  band change is a reviewed contract migration, governed by the Plan's Phase 1 schema.
 - Tracker lifecycle metadata (layer 1b) is derivable from tracker exports/timestamps without
   new instrumentation.
 
