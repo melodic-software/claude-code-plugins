@@ -17,9 +17,10 @@ imposes no rules of its own.
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
 - **Config from the consumer.** `markdownlint-cli2` discovers config
-  (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) by walking up from the
-  repository root. The hook `cd`s to that root before linting so the right
-  cascade applies regardless of the session's working directory.
+  (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) per edited file, from
+  the file's directory up through its parents — so a nested config governs its
+  subtree. The hook `cd`s to the repository root before linting so that
+  discovery caps at the root regardless of the session's working directory.
 
 ## Requirements
 
@@ -64,7 +65,10 @@ the advisory to appear again.
 ```
 
 Then verify the runtime prerequisites with `/markdown-format:setup check`;
-`/markdown-format:setup apply` resolves anything the check reports.
+`/markdown-format:setup apply` resolves anything the check reports with
+guidance, and `/markdown-format:setup apply install-lint` additionally
+authorizes installing `markdownlint-cli2` as a dev dependency using the
+repository's own package manager.
 
 ## Configuration
 

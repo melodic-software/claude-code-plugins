@@ -51,9 +51,9 @@ consumer's explicit go-ahead in the invocation. `apply install-lint` adds
 `markdownlint-cli2` as a dev dependency in the consumer repository **using the
 repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml` →
 `pnpm add -D`, `yarn.lock` → `yarn add -D`, `bun.lock`/`bun.lockb` → `bun add -d`,
-`package-lock.json` → `npm install --save-dev`), then the `package.json`
-`"packageManager"` field when no lockfile exists, then npm only when neither signal is
-present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
+`package-lock.json` or `npm-shrinkwrap.json` → `npm install --save-dev`), then the
+`package.json` `"packageManager"` field when no lockfile exists, then npm only when
+neither signal is present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
 contradicts `packageManager`, stop with manager-specific guidance instead of guessing —
 never introduce a competing lockfile. The change is stated before running. For a Yarn repository, don't infer the linker — ask
 the repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` (Berry's default

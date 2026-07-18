@@ -12,8 +12,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   prerequisites read-only (Bash, `jq`, `markdownlint-cli2` resolution,
   discovered markdownlint config + trust boundary, effective toggle);
   `apply` re-checks and resolves — guidance for system tools and the native
-  toggle, and an explicitly requested consumer-repo
-  `npm install --save-dev markdownlint-cli2` as its only write path.
+  toggle, and an explicitly requested `apply install-lint` as its only write
+  path: `markdownlint-cli2` added as a dev dependency via the repository's own
+  package manager (npm, pnpm, Yarn, or Bun, resolved from the repo's lockfile
+  and `packageManager` field).
   Non-interactive when the action argument is supplied.
 
 ## [0.4.1]
