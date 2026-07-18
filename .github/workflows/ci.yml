@@ -30,7 +30,7 @@ jobs:
   # silently redirect to paid hosted Linux.
   select-runner:
     name: Select runner
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
+    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
       policy: ${{ vars.CI_RUNNER_POLICY }}
       self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
@@ -192,7 +192,7 @@ jobs:
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
       runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
       paths: .
