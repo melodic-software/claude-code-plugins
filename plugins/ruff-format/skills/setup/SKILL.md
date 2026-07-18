@@ -56,21 +56,22 @@ into a managed Python environment the repo already uses**, never by creating one
 globally, mirroring how the hook resolves the binary. Resolve the target from what the repo
 already declares:
 
-- A uv- or Poetry-managed project (`uv.lock`, `poetry.lock`, or the matching
-  `pyproject.toml` tool section) → use the project's own dependency command so the
-  manifest and lockfile record it — `uv add --dev ruff` / `poetry add --group dev ruff` —
-  never a bare install into the `.venv`, which the next `uv sync` or environment
-  recreation would silently remove. State the change before running. **Poetry only when
-  the environment is somewhere the hook resolves**: by default Poetry keeps its
-  virtualenv in a cache directory, not the repo `.venv`, and the hook resolves only the
-  repo-ancestor `.venv` interpreters or `PATH` — so first confirm an in-project
-  environment (`poetry config virtualenvs.in-project` effective true, or a repo `.venv`
-  Poetry manages). Without one, don't run the install; guide instead: enable
-  `poetry config virtualenvs.in-project true` and recreate the environment, or otherwise
-  put `ruff` on `PATH` — then re-check.
-- A plain existing `.venv` with NO managing tool detected → install with the
-  environment's own `pip install ruff`. State the change and the target environment
-  before running.
+- A tool-managed project — uv (`uv.lock`), Poetry (`poetry.lock` / `[tool.poetry]`), or
+  Pipenv (`Pipfile`/`Pipfile.lock`) → use that tool's own dependency command so the
+  manifest and lockfile record it — `uv add --dev ruff`, `poetry add --group dev ruff`,
+  `pipenv install --dev ruff` — never a bare install into the `.venv`, which the tool's
+  next sync, `pipenv clean`, or environment recreation would silently remove. State the
+  change before running. **And only when the environment is somewhere the hook
+  resolves**: Poetry and Pipenv both default their virtualenv to a cache directory, not
+  the repo `.venv`, while the hook resolves only repo-ancestor `.venv` interpreters or
+  `PATH` — so first confirm an in-project environment (Poetry:
+  `poetry config virtualenvs.in-project` effective true or a Poetry-managed repo
+  `.venv`; Pipenv: `PIPENV_VENV_IN_PROJECT=1` or a Pipenv-managed repo `.venv`). Without
+  one, don't run the install; guide instead — enable the tool's in-project mode and
+  recreate the environment, or otherwise put `ruff` on `PATH` — then re-check.
+- A plain existing `.venv` with NO managing tool detected (no uv/Poetry/Pipenv
+  markers) → install with the environment's own `pip install ruff`. State the change and
+  the target environment before running.
 - Anything ambiguous — no `.venv`, no recognized project tool, or conflicting signals —
   stops with guidance rather than guessing; never create a virtual environment or
   `pip install` outside a managed environment. The README's astral install URL
