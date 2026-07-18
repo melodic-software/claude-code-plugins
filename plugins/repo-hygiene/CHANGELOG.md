@@ -13,12 +13,16 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   clone whose upstream repository was deleted). Defaults to `--dry-run`; it is not composed
   into any tier and runs only on explicit request. Guards resolve both sides physically
   before a strict-containment check (a symlinked/junction ancestor cannot slip a target
-  outside the root), and refuse the containment root itself, symlink/reparse-point targets,
-  linked worktrees, and any plain directory still holding nested git repos. A repo (or bare
-  repo) is blocked on uncommitted changes, stash entries, registered worktrees, ignored
-  secret-class files (`--include-secrets` to override), or unpushed work — unpushed branches
-  or local-only tags (`--allow-unpushed` to override); a plain directory is scanned for the
-  same secret class, and any git state that cannot be inspected fails closed.
+  outside the root) and require the target to share the root's filesystem device (an
+  ancestor bind mount to another filesystem cannot escape it either), and refuse the
+  containment root itself, symlink/reparse-point targets, linked worktrees, and any plain
+  directory still holding nested git repos — a normal clone, a submodule/linked worktree, or
+  a bare mirror. A repo (or bare repo) is blocked on uncommitted changes, stash entries,
+  registered worktrees, ignored secret-class files (`--include-secrets` to override), or
+  unpushed work — unpushed branches or local-only tags (`--allow-unpushed` to override); a
+  plain directory is scanned for the same secret class, and any git state that cannot be
+  inspected (working tree, stash, or worktree list) fails closed. Removal itself runs
+  `rm -rf` bounded to one filesystem where supported.
 
 ## [0.2.1]
 

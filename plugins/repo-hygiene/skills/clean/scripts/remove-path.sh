@@ -12,14 +12,19 @@
 # Guards (all evaluated before any mutation):
 #   - target must be an existing directory strictly inside the resolved root
 #     (ghq root by default; --root overrides), never the root itself; both sides
-#     resolve symlinked components physically (pwd -P) so a symlinked ancestor
-#     under the root cannot slip an outside target past the containment check
+#     resolve symlinked components physically (pwd -P) so a symlinked/junction
+#     ancestor under the root cannot slip an outside target past the containment
+#     check, and the target must share the root's filesystem device so an
+#     ancestor bind mount to another filesystem cannot escape it either. Residual
+#     (out of the path-based model): a same-device bind mount is not detectable
+#     here.
 #   - symlink / reparse-point targets are refused (bash -L plus a Windows
 #     fsutil reparse query — deletion would traverse)
 #   - a linked-worktree target (.git file) is refused — `git worktree remove`
 #     owns that lifecycle
-#   - a plain-dir target still holding nested git repos is refused — each child
-#     clone/worktree owns its own removal and state inspection
+#   - a plain-dir target still holding nested git repos — a normal clone, a
+#     submodule/linked worktree, or a bare mirror — is refused; each child owns
+#     its own removal and state inspection
 #   - a repo target (normal or bare) is refused while it has: uncommitted
 #     changes, stash entries, registered linked worktrees, or ignored files in
 #     the SECRETS preserve class (CLEAN_TREE_PRESERVE_SECRETS — override with
@@ -153,6 +158,22 @@ if [[ "$TARGET_ABS" != "$ROOT_ABS"/* ]]; then
   exit 2
 fi
 
+# Physical resolution above defeats symlinked/junction ancestors, but a bind
+# mount (Linux `mount --bind`) is not a symlink — pwd -P cannot see through it,
+# so $root/external -> a bind mount of /outside would still pass the path check
+# while rm -rf traverses to the outside filesystem. Require the target to sit on
+# the same filesystem device as the root; a differing device is a mount crossing
+# the root boundary. Residual, out of the path-based containment model: a
+# SAME-device bind mount shares the root's device and is not caught here. Skipped
+# when stat cannot report a device (the pwd -P + path check still apply).
+dev_of() { stat -c '%d' "$1" 2>/dev/null || stat -f '%d' "$1" 2>/dev/null; }
+root_dev="$(dev_of "$ROOT_ABS")"
+target_dev="$(dev_of "$TARGET_ABS")"
+if [[ -n "$root_dev" && -n "$target_dev" && "$root_dev" != "$target_dev" ]]; then
+  echo "remove-path.sh: target is on a different filesystem/mount than the root — refusing" >&2
+  exit 2
+fi
+
 if [[ -f "$TARGET_ABS/.git" ]]; then
   echo "remove-path.sh: target is a linked worktree — use git worktree remove" >&2
   exit 2
@@ -176,14 +197,28 @@ fi
 
 # A plain-dir target is removed wholesale, but the repo guards below inspect only
 # the target itself — never its descendants. A leftover parent (a ghq owner dir,
-# any folder still holding child clones/submodules/linked worktrees) would take
-# their unpushed commits, stashes, and secrets down with it unseen. Refuse and
-# defer to per-child removal rather than guess each child's state. Matches a
-# child git dir (normal repo) or file (submodule / linked worktree).
-if [[ "$KIND" == dir ]] &&
-  [[ -n "$(find "$TARGET_ABS" -mindepth 2 -name .git -print -quit 2>/dev/null)" ]]; then
-  echo "remove-path.sh: target contains nested git repos — inspect and remove them individually first" >&2
-  exit 2
+# any folder still holding child clones/submodules/linked worktrees/bare mirrors)
+# would take their unpushed commits, stashes, and secrets down with it unseen.
+# Refuse and defer to per-child removal rather than guess each child's state.
+if [[ "$KIND" == dir ]]; then
+  # Normal repos + submodules/linked worktrees: any descendant named .git
+  # (a repo's .git directory, or a submodule/worktree's .git file).
+  nested="$(find "$TARGET_ABS" -mindepth 2 -name .git -print -quit 2>/dev/null)"
+  # Bare repos leave no .git entry, so detect them structurally the same way
+  # KIND detection does: a descendant dir holding HEAD + objects/ + refs/.
+  if [[ -z "$nested" ]]; then
+    while IFS= read -r -d '' head_file; do
+      d="${head_file%/HEAD}"
+      if [[ -d "$d/objects" && -d "$d/refs" ]]; then
+        nested="$d"
+        break
+      fi
+    done < <(find "$TARGET_ABS" -mindepth 2 -name HEAD -type f -print0 2>/dev/null)
+  fi
+  if [[ -n "$nested" ]]; then
+    echo "remove-path.sh: target contains nested git repos — inspect and remove them individually first" >&2
+    exit 2
+  fi
 fi
 
 if [[ "$KIND" != dir ]]; then
@@ -213,7 +248,14 @@ if [[ "$KIND" != dir ]]; then
   fi
 
   # Count beyond the main entry: any linked worktree must be removed first.
-  WORKTREE_COUNT="$(git -C "$TARGET_ABS" worktree list --porcelain 2>/dev/null | grep -c '^worktree ' || true)"
+  # Fail closed like the status/stash checks above: an uninspectable worktree
+  # list (corrupt worktree state) must block, not read as 0 and let rm -rf
+  # strand the linked worktrees.
+  if ! wt_out="$(git -C "$TARGET_ABS" worktree list --porcelain 2>/dev/null)"; then
+    echo "remove-path.sh: cannot inspect worktree state — refusing" >&2
+    exit 2
+  fi
+  WORKTREE_COUNT="$(printf '%s\n' "$wt_out" | grep -c '^worktree ' || true)"
 
   # refs/tags is scanned alongside refs/heads: a local-only tag (never pushed)
   # has no upstream, so the [[ -z "$upstream" ]] branch below counts it. Offline
@@ -294,9 +336,17 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-rm -rf "$TARGET_ABS"
+# Defense in depth beyond the device check above: stop rm from crossing into a
+# descendant mount point during the recursive delete. --one-file-system is GNU
+# coreutils (Linux, MSYS); omitted on BSD/macOS rm, which lacks the long option
+# (the device and path checks still bound the target itself).
+rm_flags=(-rf)
+if rm --version 2>/dev/null | grep -qi coreutils; then
+  rm_flags+=(--one-file-system)
+fi
+rm "${rm_flags[@]}" "$TARGET_ABS"
 if [[ -e "$TARGET_ABS" ]]; then
-  echo "remove-path.sh: removal incomplete (locked / in use): $TARGET_ABS" >&2
+  echo "remove-path.sh: removal incomplete (locked / in use / crosses a mount): $TARGET_ABS" >&2
   exit 1
 fi
 printf 'Applied: rm -rf %s\n' "$TARGET_ABS"

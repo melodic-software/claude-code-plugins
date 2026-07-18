@@ -198,6 +198,15 @@ out="$(bash "$REMOVE" "$ROOT/owner-dir" --root "$ROOT")" || rc=$?
 assert_exit "plain dir with nested git repo refused exits 2" 2 "$rc"
 assert_file_exists "nested child repo left intact by refusal" "$ROOT/owner-dir/child-clone/file.txt"
 
+# A nested *bare* repo (HEAD + objects/ + refs/, no .git entry) is caught by the
+# structural scan, not the .git-name scan.
+mkdir -p "$ROOT/mirror-owner"
+git_quiet init --bare "$ROOT/mirror-owner/project.git"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/mirror-owner" --root "$ROOT")" || rc=$?
+assert_exit "plain dir with nested bare repo refused exits 2" 2 "$rc"
+assert_file_exists "nested bare repo left intact by refusal" "$ROOT/mirror-owner/project.git/HEAD"
+
 # Plain leftover directory holding a secret-class file blocks like a repo does,
 # and --include-secrets clears it.
 mkdir -p "$ROOT/leftover-dir"
