@@ -60,6 +60,14 @@ needs video without the rest of the knowledge stack.
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first.
+- **Bash + coreutils** for the skills' inline mechanics (`book-distill`
+  hashes its progress-file slug with `sha256sum`/`shasum` on every run) — on
+  native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
+  so they run under Git Bash, which bundles `sha256sum`.
+- **`unzip` on `PATH` for the EPUB branch** — not bundled with Git Bash;
+  install it or extract the EPUB with another archive tool first. PDF-only
+  use does not need it.
 
 ## Install
 

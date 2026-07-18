@@ -38,6 +38,15 @@ Claude can also invoke it automatically when you ask to "audit MCP tools" or "ch
 - Does not test tool functionality — use the MCP Inspector for that.
 - Does not evaluate MCP resources — only tools.
 
+## Requirements
+
+- **Bash + coreutils** for the audit's inline mechanics — on native Windows,
+  install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
+  so they run under Git Bash.
+- **jq** on `PATH` for JSON handling
+  ([install](https://jqlang.org/download/); a separate install in Git Bash).
+
 ## Install
 
 ```shell
