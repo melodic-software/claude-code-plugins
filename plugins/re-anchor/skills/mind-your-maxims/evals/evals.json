@@ -1,0 +1,53 @@
+{
+  "skill_name": "mind-your-maxims",
+  "evals": [
+    {
+      "id": 1,
+      "name": "quantity-both-directions-omission-and-padding",
+      "prompt": "mind your maxims — review the answer I just gave the user about the migration steps.",
+      "expected_output": "Audits Quantity in both directions against the pointed-to maxims: flags any omitted asked-for detail, load-bearing caveat, or necessary step as under-informing, AND flags padding, restatement, or unneeded detail as over-informing. Names concrete located findings rather than a generic critique, and corrects the response forward this turn.",
+      "files": [],
+      "expectations": [
+        "Flags omission (missing detail/caveat/step) as a Quantity finding",
+        "Flags padding/restatement as a Quantity finding in the other direction",
+        "Names concrete located findings and corrects forward rather than giving a generic verdict"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "relation-buried-lede-and-adjacent-answer",
+      "prompt": "mind your maxims — the user asked whether the deploy is safe to run now, and my reply opened with three paragraphs of background before getting to the answer.",
+      "expected_output": "Flags a Relation failure: the answer to the question actually asked (is it safe to run now) is buried below setup — a buried lede — and/or an adjacent answer to a question not asked. Corrects by leading with the direct answer, treating a technically-correct-but-misplaced answer as still a finding.",
+      "files": [],
+      "expectations": [
+        "Identifies the buried lede / answer-below-setup as a Relation failure",
+        "Corrects by leading with the direct answer to the question asked",
+        "Treats a correct-but-misplaced answer as a finding, not a pass"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "transparency-and-quality-delegation",
+      "prompt": "mind your maxims — check my last answer; I stated the rate limit as a hard fact but I'm actually not sure it's current, and I gave a lot of numbers.",
+      "expected_output": "Audits Transparency — flags asserting through genuine uncertainty without disclosing it, and unstated knowledge boundaries — and corrects by flagging the uncertainty. It delegates the truthfulness/currency of the rate-limit claim itself to /re-anchor:do-your-research rather than adjudicating the fact here, keeping its own scope to how the message discloses its boundaries.",
+      "files": [],
+      "expectations": [
+        "Flags undisclosed uncertainty / unstated boundary as a Transparency finding",
+        "Delegates verifying the claim's truthfulness to /re-anchor:do-your-research rather than adjudicating the fact",
+        "Keeps its scope to message shape and boundary disclosure, not evidence"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "points-at-sources-and-excludes-benevolence",
+      "prompt": "mind your maxims — before we start, set the communication posture, and remind me what maxims this covers.",
+      "expected_output": "As a conversation-start posture-set, acknowledges the discipline as active without manufacturing an audit. It POINTS at the maxim sources (Grice / Cooperative principle, and arXiv:2403.15115 for the AI-augmented maxims) rather than restating them, and states that Benevolence is a deliberate out-of-scope exclusion (platform/safety-layer territory) rather than an audited axis.",
+      "files": [],
+      "expectations": [
+        "Treats a conversation-start invocation as posture-setting with nothing to audit yet",
+        "Points at the cited maxim sources rather than reproducing the maxim definitions",
+        "States Benevolence as a deliberate out-of-scope exclusion with its rationale"
+      ]
+    }
+  ]
+}
