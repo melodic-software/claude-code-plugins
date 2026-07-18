@@ -71,7 +71,7 @@ topology contract docs only (per-capability contracts land with WP2–WP6); guid
 as a v0 discovery-phase skill; the fleet binding instance lands in the org-policy home
 (`melodic-software/standards`) via a separate small PR that merges after the plugin PR.
 
-### Phase 1: Category vocabulary + generator [TODO]
+### Phase 1: Category vocabulary + generator [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -83,7 +83,7 @@ as a v0 discovery-phase skill; the fleet binding instance lands in the org-polic
 - `grep -c '\`autonomy\`' docs/CATALOG-TAXONOMY.md` ≥ 1
 - `grep -n 'autonomy' scripts/generate-catalog.mjs` shows a `CATEGORY_ORDER` entry
 
-### Phase 2: Plugin scaffold [TODO]
+### Phase 2: Plugin scaffold [DONE]
 
 First work item — migration-gate step 1: re-fetch the official plugins/plugin-manifest docs
 (fresh-docs mandate) before authoring. Migration-gate step 6 (PII/secrets strip) runs before
@@ -102,7 +102,7 @@ the first commit.
 - `node scripts/generate-catalog.mjs` reports in-sync
 - `grep -riE 'melodic-software|ci-workflows|github-iac' plugins/autonomy/ --exclude=plugin.json` returns empty (author metadata in plugin.json is the only allowed occurrence)
 
-### Phase 3: Topology contract docs [TODO]
+### Phase 3: Topology contract docs [DONE]
 
 All three docs in `plugins/autonomy/reference/` are tool-agnostic contract markdown: roles and
 surface classes only. Vendor and fleet names banned outright — real instances live in the
@@ -122,7 +122,7 @@ path) live in SKILL.md/README, never in `reference/`.
 - `grep -ci 'reviewable' plugins/autonomy/reference/wiring-vs-advisor.md` ≥ 1 and `grep -ci 'opt-in' …` ≥ 1
 - lychee lane passes (anchors valid; no dead cross-links)
 
-### Phase 4: guided-setup v0 skill [TODO]
+### Phase 4: guided-setup v0 skill [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -135,7 +135,7 @@ path) live in SKILL.md/README, never in `reference/`.
 - `claude plugin validate` exit 0
 - `grep -c 'disable-model-invocation: true' plugins/autonomy/skills/setup/SKILL.md` = 1
 
-### Phase 5: Acceptance gates (in-repo) [TODO]
+### Phase 5: Acceptance gates (in-repo) [DONE]
 
 | File | Action | What changes |
 |---|---|---|
