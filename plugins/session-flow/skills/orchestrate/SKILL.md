@@ -42,8 +42,9 @@ told:
    research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
    cost context too), so spend it on value + parallelism, not convenience.
 2. SPEC EVERY SPAWN — give each worker an objective, an output format, the tools/sources to use,
-   and explicit task boundaries. Vague delegation makes workers duplicate each other, leave gaps,
-   or wander.
+   explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
+   duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
+   an unspecified model silently inherits the parent session's — often its most expensive — model.
 3. FRESH-CONTEXT VERIFY — after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
@@ -65,7 +66,12 @@ told:
    / rate-limit headroom (thin headroom caps how many workers you run at once). Sizing is
    small/medium/large — a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
-   fallback.
+   fallback. Per-worker model tier is part of sizing: match the tier to the SUBTASK, not the
+   parent session — high-volume mechanical work (search, extraction, per-item transforms,
+   formatting) runs on a cheaper tier; the parent tier is reserved for judgment-heavy synthesis,
+   verification, and adjudication. The wider the fan-out, the cheaper the default per-worker
+   tier — a wide fan-out on the parent's premium model is a decision to justify explicitly,
+   never a default to inherit.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis — verify

@@ -334,7 +334,7 @@
       "name": "re-anchor",
       "source": "./plugins/re-anchor",
       "category": "quality",
-      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "determinism", "audit", "skill"]
+      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "audit", "skill"]
     },
     {
       "name": "education",
