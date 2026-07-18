@@ -28,8 +28,11 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch is now behind its
-   base. Fetch the resolved base ref explicitly and count against the just-fetched
-   tip: `git fetch <remote> <base-branch>`, then measure against `FETCH_HEAD`
+   base. Derive the base from the referenced PR's base branch (or, absent a PR,
+   the remote's default HEAD) — not an assumed `main` — and mark the check
+   unverifiable if the base cannot be resolved. Fetch that resolved base ref
+   explicitly and count against the just-fetched tip: `git fetch <remote>
+   <base-branch>`, then measure against `FETCH_HEAD`
    (e.g. `git rev-list --count HEAD..FETCH_HEAD`). A bare `git fetch`, or a count
    against a local `origin/<base>` tracking ref, can read falsely clean in a
    single-branch or shallow checkout where that ref was never updated —
