@@ -18,29 +18,25 @@ remediation. Both are non-interactive — never prompt when the action is given.
 
 ## `check` (read-only)
 
-Run each probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL.
-Do not modify anything.
+The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh`) is the single source of
+truth for what it requires and how it resolves things. **Read it first** — probe what it
+actually does, don't recite this file. Then run each probe via Bash and report a
+PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-1. **Bash version** — `bash --version | head -1`. Requires 3.2+; note that telemetry needs
-   5.0+ (`EPOCHREALTIME`) and formatting still runs without it.
+1. **Bash version** — check against the hook's documented floor (README Requirements),
+   noting any features the hook degrades without (for example telemetry's Bash builtin).
 2. **`jq`** — `command -v jq`. FAIL if absent: the hook then skips with a visible
    once-per-session notice instead of formatting.
-3. **`markdownlint-cli2`** — resolvable as `command -v markdownlint-cli2` OR
-   `<repo-root>/node_modules/.bin/markdownlint-cli2` (the hook's two sanctioned resolution
-   paths; it never falls back to `npx`). Validate the repo shim the way the hook does:
-   resolve symlinks and FAIL (with the reason) when the physical target escapes the
-   repository's `node_modules` tree — a shim the hook will reject must not PASS here.
-   FAIL if neither path resolves.
-4. **Consumer markdownlint config** — search the whole repository tree, not just the root:
-   the hook loads every config on the walk from an edited file's directory up to the repo
-   root, so `docs/.markdownlint.cjs` applies to `docs/foo.md` even when the root has none.
-   Find all `.markdownlint*` / `.markdownlint-cli2.*` files at any depth (skip
-   `node_modules`), report the root config the default cascade discovers (or INFO that none
-   exists — the tool's defaults then apply), list nested configs with their directory scope,
-   and surface the README's configuration trust boundary using the hook's own risk criteria:
-   any executable (`.cjs`/`.mjs`) config anywhere in the tree, AND any declarative
-   `.markdownlint-cli2.*` file declaring `customRules`, `markdownItPlugins`, or
-   `outputFormatters` — those keys load modules just like executable config.
+3. **`markdownlint-cli2`** — resolve it exactly the way the hook's resolution code does
+   (its sanctioned lookup paths, including its symlink/escape validation of a repo-local
+   shim). A binary or shim the hook would reject must not PASS here. FAIL when nothing the
+   hook would accept resolves.
+4. **Consumer markdownlint config** — mirror the hook's config walk: it loads configs from
+   an edited file's directory up to the repo root, so nested configs apply to nested files.
+   Search the whole tree (skip `node_modules`), report the root config the cascade
+   discovers (or INFO that none exists — tool defaults then apply), list nested configs
+   with their directory scope, and surface the README's configuration trust boundary for
+   every config the hook's own risk collection (`collect_risky_configs`) would flag.
 5. **Hook toggle** — report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
@@ -58,10 +54,11 @@ repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml
 present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
 contradicts `packageManager`, stop with manager-specific guidance instead of guessing —
 never introduce a competing lockfile. The change is stated before running. Yarn Berry/PnP
-repositories (a `.pnp.cjs`, or `yarn.lock` without `nodeLinker: node-modules` in
-`.yarnrc.yml`) get guidance instead of an install: PnP produces no
-`node_modules/.bin` shim, so the hook cannot resolve a PnP-installed binary — install
-`markdownlint-cli2` on `PATH` or switch the linker. After ANY remediation, re-run the
+repositories (a `.pnp.cjs`, or `yarn.lock` whose `.yarnrc.yml` `nodeLinker` is `pnp` or
+unset — PnP is Berry's default; only `node-modules` and `pnpm` materialize
+`node_modules`) get guidance instead of an install: PnP generates a loader file, not the
+`node_modules/.bin` shim the hook resolves — install `markdownlint-cli2` on `PATH` or
+switch the linker. After ANY remediation, re-run the
 relevant `check` probe and report its actual result — never claim resolved on the
 install command's exit code alone. For everything else `apply` only points:
 
