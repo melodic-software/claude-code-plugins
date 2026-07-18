@@ -209,11 +209,17 @@ if (existsSync(autonomyRoot)) {
   const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
   const autonomyReference = join(autonomyRoot, "reference") + sep;
   for (const path of filesUnder(autonomyRoot)) {
-    if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
-    if (fleetTokens.test(read(path))) {
+    let content = read(path);
+    if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
+      // Only the author block is exempt — description/keywords/etc. stay gated.
+      const manifest = JSON.parse(content);
+      delete manifest.author;
+      content = JSON.stringify(manifest);
+    }
+    if (fleetTokens.test(content)) {
       fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
     }
-    if (path.startsWith(autonomyReference) && vendorTokens.test(read(path))) {
+    if (path.startsWith(autonomyReference) && vendorTokens.test(content)) {
       fail(path, "autonomy reference/ contracts must use surface classes, never vendor names");
     }
   }

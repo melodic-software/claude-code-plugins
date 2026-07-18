@@ -18,13 +18,18 @@ it cannot infer, and every landed change is reviewable per
 
 ## Actions
 
-- **`check`** (read-only): resolve the effective binding across layers — user-global
-  (`~/.claude/autonomy/`) → project (`.claude/autonomy/`) → local overlay
-  (`.claude/autonomy/**/*.local.*`), additive — and report what is bound, what is missing, and
-  which layer contributes each value. No writes.
+- **`check`** (read-only): resolve the effective binding across ALL rungs of the binding-seam
+  resolution ladder — user-global (`~/.claude/autonomy/`) → project (`.claude/autonomy/`) →
+  local overlay (`.claude/autonomy/**/*.local.*`), additive, PLUS the org rung when the merged
+  layers carry an `org_policy_home` pointer: fetch the org binding via the host CLI with the
+  consumer's own auth and fold it in at its ladder position. Report what is bound, what is
+  missing, and which layer or rung contributes each value; an unreachable org-policy home is
+  WARNED as not-considered, never silently omitted. No writes.
 - **`apply`** (idempotent): run discovery, then write or update the project binding. Re-running
   reads the existing binding and proposes deltas; it never overwrites blind and never touches
-  unrelated user content.
+  unrelated user content. All project paths anchor at the PROJECT ROOT — resolve
+  `${CLAUDE_PROJECT_DIR}` (fall back to the repository toplevel) before writing; invoking the
+  skill from a subdirectory must never create a nested `.claude/autonomy/`.
 
 ## Argument surface (enumerated)
 
