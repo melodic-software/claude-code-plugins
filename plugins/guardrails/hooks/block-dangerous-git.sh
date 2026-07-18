@@ -106,10 +106,12 @@ abbrev_match() {
 }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
-# root-magic short form `:/`, and long-form magic whose comma list carries
-# `top` in any position with an EMPTY pattern (`:(top)`, `:(literal,top)` —
-# gitglossary pathspec magic) all address the whole tree. Top magic followed
-# by a pattern (`:(top)src/a`) scopes to that root-relative path and passes.
+# root-magic short form `:/`, long-form magic whose comma list carries `top`
+# with an empty or wildcard-only pattern (`:(top)`, `:(literal,top)`,
+# `:(top,glob)**` — git's pathspec fnmatch lets bare `*` cross directories,
+# so a wildcard-only pattern matches the whole tree), and a bare
+# wildcard-only operand (`*`, `**/*`) all address the whole tree. Top magic
+# followed by a real path (`:(top)src/a`) scopes to it and passes.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
   local magic pattern
@@ -119,9 +121,12 @@ is_tree_wide_pathspec() {
     magic="${1#:(}"
     pattern="${magic#*)}"
     magic="${magic%%)*}"
-    [[ ",${magic}," == *",top,"* && -z "$pattern" ]]
+    [[ ",${magic}," == *",top,"* ]] || return 1
+    [[ -z "$pattern" || "$pattern" =~ ^[*/]+$ ]]
     ;;
-  *) return 1 ;;
+  *)
+    [[ "$1" =~ ^[*/]*\*[*/]*$ ]]
+    ;;
   esac
 }
 
@@ -270,23 +275,33 @@ check_segment() {
     # the marker must not disarm the force check, and no force flag can
     # appear there either.
     # Dry-run is last-wins here too: `--no-dry-run` after a dry token re-arms
-    # the deletion, so track state instead of early-returning.
+    # the deletion, so track state instead of early-returning. --exclude and
+    # its accepted abbreviations (`--ex`) consume the next word as a pattern
+    # in BOTH scans, so a flag-looking exclude value neither disarms nor
+    # triggers anything.
     dry=0
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
       case "$x" in
-      -e | --exclude)
+      -e)
         ((k++))
         continue
         ;;
-      -e?* | --exclude=*) continue ;;
+      -e?*) continue ;;
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 1 && dry=0
         continue
         ;;
       *) ;;
       esac
+      if [[ "$x" == --*=* ]] && abbrev_match "exclude" "${x%%=*}" 1; then
+        continue
+      fi
+      if [[ "$x" != *=* ]] && abbrev_match "exclude" "$x" 1; then
+        ((k++))
+        continue
+      fi
       if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 \
         || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
         dry=1
@@ -297,13 +312,20 @@ check_segment() {
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
       case "$x" in
-      -e | --exclude)
+      -e)
         ((k++))
         continue
         ;;
-      -e?* | --exclude=*) continue ;;
+      -e?*) continue ;;
       *) ;;
       esac
+      if [[ "$x" == --*=* ]] && abbrev_match "exclude" "${x%%=*}" 1; then
+        continue
+      fi
+      if [[ "$x" != *=* ]] && abbrev_match "exclude" "$x" 1; then
+        ((k++))
+        continue
+      fi
       if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
         block "clean-force" \
           "BLOCKED: git clean with a force flag permanently deletes untracked files." \
@@ -389,9 +411,15 @@ check_segment() {
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
+      # --st is the shortest unique prefix of --staged (vs --source); --w is
+      # unique for --worktree.
       case "$x" in
       --staged) staged=1 ;;
       --worktree) worktree=1 ;;
+      --s* | --w*)
+        abbrev_match "staged" "$x" 2 && staged=1
+        abbrev_match "worktree" "$x" 1 && worktree=1
+        ;;
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ ]]; then
           rest="${x#-}"

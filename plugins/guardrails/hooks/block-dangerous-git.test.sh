@@ -72,6 +72,7 @@ run "git clean --f (abbreviated force, blocked)" "git clean --f" 2
 run "git clean -f -- --dry-run (dry-run pathspec after --, blocked)" "git clean -f -- --dry-run" 2
 run "git clean --dry-run --no-dry-run -f (negated dry run, blocked)" "git clean --dry-run --no-dry-run -f" 2
 run "git clean --no-dry-run -n -f (dry run after negation, allowed)" "git clean --no-dry-run -n -f" 0
+run "git clean -f --ex --dry-run (abbrev exclude eats dry-run, blocked)" "git clean -f --ex --dry-run" 2
 
 # --- checkout-dot / restore-dot ----------------------------------------------
 run "git checkout . (blocked)" "git checkout ." 2
@@ -92,6 +93,9 @@ run "git restore ':(top)' (top-magic pathspec, blocked)" "git restore ':(top)'" 
 run "git restore ':(literal,top)' (reordered top magic, blocked)" "git restore ':(literal,top)'" 2
 run "git restore ':(literal)x' (non-top magic, allowed)" "git restore ':(literal)x'" 0
 run "git restore ':(top)src/a' (top magic with subpath, allowed)" "git restore ':(top)src/a'" 0
+run "git restore ':(top,glob)**' (glob-all top, blocked)" "git restore ':(top,glob)**'" 2
+run "git restore '*' (bare wildcard-all, blocked)" "git restore '*'" 2
+run "git restore --staged --w . (abbrev worktree, blocked)" "git restore --staged --w ." 2
 run "git checkout -- . (dot after end-of-options, blocked)" "git checkout -- ." 2
 run "git checkout -- -f (pathspec named -f, allowed)" "git checkout -- -f" 0
 run "git reset -- --hard (pathspec named --hard, allowed)" "git reset -- --hard" 0
@@ -130,6 +134,7 @@ run "bash -c compound (wrapped operator chain, blocked)" "bash -c 'git status &&
 run "bash -c 'git status' (wrapped read-only, allowed)" "bash -c 'git status'" 0
 run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
 run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FOO git push --force" 2
+run "bash -O extglob -c 'git reset --hard' (shopt operand, blocked)" "bash -O extglob -c 'git reset --hard'" 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
