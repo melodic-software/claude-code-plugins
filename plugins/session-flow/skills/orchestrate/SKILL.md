@@ -43,8 +43,8 @@ told:
    cost context too), so spend it on value + parallelism, not convenience.
 2. SPEC EVERY SPAWN — give each worker an objective, an output format, the tools/sources to use,
    explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
-   duplicate each other, leave gaps, or wander; an unspecified model silently inherits the parent
-   session's — often its most expensive — model.
+   duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
+   an unspecified model silently inherits the parent session's — often its most expensive — model.
 3. FRESH-CONTEXT VERIFY — after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
