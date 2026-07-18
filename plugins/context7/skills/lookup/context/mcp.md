@@ -2,6 +2,10 @@
 
 Context7 HTTP MCP server — reads the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
+> Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
+> [Context7's docs](https://context7.com/docs); Claude Code config behavior verified against
+> [the MCP docs](https://code.claude.com/docs/en/mcp). Re-check both before acting on a row.
+
 ## Configuration (consumer-side, optional)
 
 Add to the consuming project's `.mcp.json` (or user-scope MCP config) — server entries live under the top-level `mcpServers` key. Anonymous (low-rate) usage needs no headers:
@@ -17,7 +21,7 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config) — server
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects) — but note Claude Code **fails to parse the config** when a referenced env var is unset with no default, so only use this form once `CONTEXT7_API_KEY` is actually set in your environment:
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). When a referenced env var is unset with no default, Claude Code still loads the config: it reports a missing-variable warning in `claude mcp list` and sends the **literal `${CONTEXT7_API_KEY}` text as-is** — silently broken auth, not a parse failure. Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback):
 
 ```json
 {

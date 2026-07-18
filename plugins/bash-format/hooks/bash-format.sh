@@ -39,6 +39,19 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq-free applicability pre-filter: never emit the jq notice for an edit this
+# hook would not process anyway (the Write|Edit matcher is broader than the
+# shell-file filter).
+RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
+case "$RAW_FILE" in
+*.sh | *.bash) ;;
+*) exit 0 ;;
+esac
+
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of a silent no-op (dim-9 doctrine).
+hook::require_jq PostToolUse bash-format "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
 *.sh | *.bash) ;;
@@ -130,53 +143,77 @@ shell_editorconfig_opt_in() {
 
 ran_any=0
 
+# Missing-tool notice accumulator: a run can lack shfmt AND shellcheck, and can
+# carry ShellCheck findings alongside a pending shfmt notice — everything must
+# compose into the single JSON document emitted at the end (hook::emit_channels).
+NOTICE=""
+append_notice() {
+  [[ -n "$NOTICE" ]] && NOTICE+=" "
+  NOTICE+="$1"
+}
+
 # Format pass (opt-in, mutating). No parser/printer flags — that keeps
 # .editorconfig formatting in effect. --apply-ignore is a utility flag (not a
 # parser/printer flag, so it does not disable editorconfig formatting): it makes
 # shfmt honor `ignore = true` editorconfig rules for this single direct file,
 # which it otherwise skips for direct-file invocations — so a repo's opt-out for
 # generated/vendored scripts is respected, not overwritten.
-if command -v shfmt >/dev/null 2>&1 && shell_editorconfig_opt_in; then
-  # --apply-ignore requires shfmt 3.8+ (2024-02). On older shfmt the flag is
-  # unknown and the call fails without formatting, so fall back to a plain
-  # in-place format — those versions cannot honor direct-file ignore rules
-  # anyway (that is exactly the capability --apply-ignore adds). On shfmt 3.8+
-  # the first call succeeds (skipping ignored files), so the fallback never runs.
-  shfmt --apply-ignore -w "$FILE" 2>/dev/null || shfmt -w "$FILE" 2>/dev/null
-  ran_any=1
+# The consumer opted in via .editorconfig but shfmt is absent → visible
+# once-per-session skip notice, not a silent gap (dim-9 doctrine). No opt-in →
+# quiet (N/A, the repo chose not to format).
+if shell_editorconfig_opt_in; then
+  if command -v shfmt >/dev/null 2>&1; then
+    # --apply-ignore requires shfmt 3.8+ (2024-02). On older shfmt the flag is
+    # unknown and the call fails without formatting, so fall back to a plain
+    # in-place format — those versions cannot honor direct-file ignore rules
+    # anyway (that is exactly the capability --apply-ignore adds). On shfmt 3.8+
+    # the first call succeeds (skipping ignored files), so the fallback never runs.
+    shfmt --apply-ignore -w "$FILE" 2>/dev/null || shfmt -w "$FILE" 2>/dev/null
+    ran_any=1
+  elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
+    append_notice "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' is not on PATH — formatting skipped for this session. Install: https://github.com/mvdan/sh#shfmt"
+  fi
 fi
 
 # Lint pass (always-on, non-mutating). -x follows `source`/`.` directives;
 # -f gcc gives one finding per line; -S warning drops info/style noise. Config
 # (.shellcheckrc) is auto-discovered from the file's directory upward.
+# ShellCheck absent → visible once-per-session skip notice (dim-9 doctrine).
+CTX=""
+FINDINGS_JSON='[]'
 if command -v shellcheck >/dev/null 2>&1; then
   ran_any=1
   SC_OUTPUT=$(shellcheck -x -f gcc -S warning "$FILE" 2>&1) || true
   if [[ -n "$SC_OUTPUT" ]]; then
-    hook::ctx_reset
-    hook::ctx_append "bash-format: $(basename "$FILE") has ShellCheck findings:"
+    CTX="bash-format: $(basename "$FILE") has ShellCheck findings:"$'\n'
     findings_raw=""
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
-      hook::ctx_append "  $line"
+      CTX+="  $line"$'\n'
       findings_raw+="$line"$'\n'
     done <<<"$SC_OUTPUT"
-    hook::ctx_flush PostToolUse
-
-    FINDINGS_JSON='[]'
     if [[ -n "$findings_raw" ]]; then
       FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
     fi
-    data_json=$(build_data_json "$FINDINGS_JSON")
-    emit_tel "bash-format" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
-    exit 0
   fi
+elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then
+  append_notice "bash-format: 'shellcheck' not found on PATH — shell lint skipped for this session. Install: https://github.com/koalaman/shellcheck#installing"
 fi
 
-# No findings. "skipped" when neither tool did anything (both absent / no opt-in);
-# "ok" when at least one pass ran cleanly.
+# Single emission point: findings on the agent channel, missing-tool notice on
+# both channels, composed into one JSON document.
+CTX="${CTX%$'\n'}"
+if [[ -n "$NOTICE" ]]; then
+  AGENT_CTX="$CTX"
+  [[ -n "$AGENT_CTX" ]] && AGENT_CTX+=$'\n'
+  AGENT_CTX+="$NOTICE"
+  hook::emit_channels PostToolUse "$AGENT_CTX" "$NOTICE"
+else
+  hook::emit_channels PostToolUse "$CTX" ""
+fi
+
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"
-data_json=$(build_data_json '[]')
+data_json=$(build_data_json "$FINDINGS_JSON")
 emit_tel "bash-format" "PostToolUse" "$status" "$start" "$data_json" "$REPO_ROOT"
 exit 0

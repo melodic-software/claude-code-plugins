@@ -190,7 +190,7 @@ def main() -> int:
         return 0
 
     command_kind = classify_exact_engine_command(command)
-    enabled = os.environ.get("HOOK_DISK_HYGIENE_ENABLED", "true").lower() != "false"
+    enabled = os.environ.get("CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED", "true").lower() != "false"
     if command_kind in {"scan", "preview"}:
         print(
             json.dumps(

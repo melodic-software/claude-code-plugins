@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Changed
+
+- **Runtime prerequisites declared and classified** (prerequisite-visibility
+  wave). README Requirements now name Bash + `jq` (Git Bash on native
+  Windows, where `jq` is a separate install) and classify `jq` as required
+  for correctness — stop with the install remediation, never improvise a
+  parse. The tracker-seam reference gains an explicit entry-point presence
+  check for the seam script with a remediation pointer
+  (`tools/work-item-tracker/CONTRACT.md`, `/work-items:setup`) instead of
+  failing on the first verb.
+
+## [0.9.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` names the
+  tracker as the contract's cross-lane index — tickets point, never store primary artifacts;
+  `/work-items:decompose` ticket provenance now cites the PR carrying the source plan instead of
+  the contract-slice path, which is pruned before merge and would dangle. Pre-PR publishes record
+  slug + phase (a label, not a path) and backfill the PR reference as a comment once it opens.
+
 ## [0.8.1]
 
 ### Changed

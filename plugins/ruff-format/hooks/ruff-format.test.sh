@@ -108,7 +108,7 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR HOOK_RUFF_FORMAT_ENABLED=true bash "$HOOK"
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -308,7 +308,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-matching ext -> exit 0 silent"; el
 # --- Case 7: kill switch bypasses hook ----------------------------------------
 printf 'k=1\n' >"$REPO/kill.py"
 BEFORE_K="$(cat "$REPO/kill.py")"
-OUT=$(run_hook_env "$REPO/kill.py" HOOK_RUFF_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.py")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -320,7 +320,7 @@ mkdir -p "$REPO_PATH"
 git -C "$REPO_PATH" init -q
 printf 'line-length = 88\n' >"$REPO_PATH/ruff.toml"
 printf 'p=1\n' >"$REPO_PATH/p.py"
-OUT=$(run_hook_env "$REPO_PATH/p.py" HOOK_RUFF_FORMAT_ENABLED=true PATH="$(dirname "$REAL_RUFF"):$PATH")
+OUT=$(run_hook_env "$REPO_PATH/p.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true PATH="$(dirname "$REAL_RUFF"):$PATH")
 RC=$?
 if [[ $RC -eq 0 ]] && grep -q 'p = 1' "$REPO_PATH/p.py"; then
   ok "PATH fallback -> Ruff resolved and file formatted"
@@ -333,7 +333,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ------------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.py" -u HOOK_TELEMETRY_SINK HOOK_RUFF_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.py" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -345,7 +345,7 @@ fi
 printf 'print(undefined_tel)\n' >"$REPO/tel.py"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.py" HOOK_RUFF_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -372,7 +372,7 @@ rm -f "$TEL"
 printf 's=1\n' >"$REPO_NO/tel2.py"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO_NO/tel2.py" HOOK_RUFF_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO_NO/tel2.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/gate-off: status skipped"; else fail "telemetry/gate-off: status=$(jq -r '.status' "$TELS")"; fi
@@ -381,6 +381,62 @@ else
   fail "telemetry/gate-off: no envelope written"
 fi
 rm -f "$TELS"
+
+# --- Missing-tool visibility (dim-9 doctrine) --------------------------------
+# Fake-bin dir of exec wrappers (no ruff): a repo with a governing Ruff config
+# but no binary must produce a visible once-per-session skip notice on both
+# channels, silent on the second run. jq removal then exercises the input gate.
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+REPO_NR="$WORK/no-ruff"
+mkdir -p "$REPO_NR"
+git -C "$REPO_NR" init -q
+printf 'line-length = 88\n' >"$REPO_NR/.ruff.toml"
+printf 'x=1\n' >"$REPO_NR/app.py"
+NR_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_nr() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-noruff-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NR/app.py" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NR_DATA" \
+        CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_NR=$(run_nr)
+RC_NR=$?
+if [[ $RC_NR -eq 0 ]]; then ok "ruff-absent -> exit 0"; else fail "ruff-absent exit $RC_NR"; fi
+if jq -e '(.systemMessage | contains("ruff")) and (.hookSpecificOutput.additionalContext | contains("Ruff config"))' <<<"$OUT_NR" >/dev/null 2>&1; then
+  ok "ruff-absent with governing config -> visible notice on both channels"
+else
+  fail "ruff-absent: notice missing or malformed: $OUT_NR"
+fi
+OUT_NR2=$(run_nr)
+if [[ -z "$OUT_NR2" ]]; then
+  ok "ruff-absent -> second run same session is silent (once-per-session)"
+else
+  fail "ruff-absent second run not silent: $OUT_NR2"
+fi
+
+# jq-absent -> visible once-per-session notice (input parsing gate).
+rm -f "$FAKEBIN/jq"
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_NOJQ=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NR/app.py" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+      CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]]; then
+  ok "jq-absent -> exit 0 with visible notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

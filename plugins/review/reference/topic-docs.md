@@ -19,7 +19,10 @@ reports sit under the memory root's reserved `reviews/` name rather than inside 
 | `fanout` ranked reports | `.work/reviews/<branch-slug>/<UTC-timestamp>-<topic>.md` — never committed |
 
 Reports are write-only process output; nothing downstream enforces against them, which is what makes
-them memory-tier by the convention's placement question.
+them memory-tier by the convention's placement question. They are therefore lane-local (contract
+≥ 2.0.0): a sibling worktree or cloud clone never sees them. Findings that must cross lanes
+graduate through the work-item tracker — the contract's cross-lane index — as tickets that point,
+never as pasted report bodies.
 
 ## Resolution (the contract's five-rung order, earlier wins)
 

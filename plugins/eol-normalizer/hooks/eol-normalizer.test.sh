@@ -82,8 +82,8 @@ run_hook() {
   local file_path="$1"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -93,8 +93,8 @@ run_hook_env() {
   shift
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
 }
 
@@ -121,7 +121,7 @@ if [[ "$(cr_count "$REPO/img.png")" == "1" ]]; then ok "unspecified .png -> CR p
 
 # --- Case 3: kill switch bypasses -------------------------------------------
 printf 'echo x\r\n' >"$REPO/off.sh"
-OUT=$(run_hook_env "$REPO/off.sh" HOOK_EOL_NORMALIZER_ENABLED=false)
+OUT=$(run_hook_env "$REPO/off.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch -> exit 0 silent"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 if [[ "$(cr_count "$REPO/off.sh")" == "1" ]]; then ok "kill switch -> CRLF preserved (not normalized)"; else fail "kill switch normalized despite off: CR=$(cr_count "$REPO/off.sh")"; fi
@@ -168,7 +168,10 @@ printf '#!/bin/sh\r\necho hi\r\n' >"$REPO/exec.sh"
 chmod 755 "$REPO/exec.sh"
 (
   # shellcheck disable=SC2329  # invoked indirectly: the sourced lib's `command -v perl` probe hits this shadow
-  command() { if [[ "${1:-}" == "-v" && "${2:-}" == "perl" ]]; then return 1; fi; builtin command "$@"; }
+  command() {
+    if [[ "${1:-}" == "-v" && "${2:-}" == "perl" ]]; then return 1; fi
+    builtin command "$@"
+  }
   # Prove the shim actually hides perl before relying on it.
   if command -v perl >/dev/null 2>&1; then
     echo "FAIL: test shim: perl shadow ineffective" >&2
@@ -187,7 +190,7 @@ if [[ -x "$REPO/exec.sh" ]]; then ok "fallback: executable mode preserved"; else
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
 printf 'echo p\r\n' >"$REPO/tel1.sh"
-OUT_NS=$(run_hook_env "$REPO/tel1.sh" -u HOOK_TELEMETRY_SINK HOOK_EOL_NORMALIZER_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/tel1.sh" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -199,7 +202,7 @@ fi
 printf 'echo q\r\n' >"$REPO/tel2.sh"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel2.sh" HOOK_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel2.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -226,7 +229,7 @@ rm -f "$TEL"
 printf 'x\r\n' >"$REPO/tel3.png"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO/tel3.png" HOOK_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO/tel3.png" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/unspecified: status skipped"; else fail "telemetry/unspecified: status=$(jq -r '.status' "$TELS")"; fi
@@ -235,6 +238,41 @@ else
   fail "telemetry/unspecified: no envelope written"
 fi
 rm -f "$TELS"
+
+# --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
+# Without jq the hook cannot parse its input at all; the skip must surface on
+# both channels once per session instead of silently disabling normalization.
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_nojq() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$1" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+        CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
+  )
+}
+NOJQ_FILE="$WORK/nojq.txt"
+printf 'x\n' >"$NOJQ_FILE"
+OUT_NOJQ=$(run_nojq "$NOJQ_FILE")
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]]; then
+  ok "jq-absent -> exit 0 with visible notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
+OUT_NOJQ2=$(run_nojq "$NOJQ_FILE")
+if [[ -z "$OUT_NOJQ2" ]]; then
+  ok "jq-absent -> second run same session is silent (once-per-session)"
+else
+  fail "jq-absent second run not silent: $OUT_NOJQ2"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -11,7 +11,7 @@ severity-ranked, deduplicated findings report.
 
 | Agent | Concern |
 |---|---|
-| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses |
+| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses; carries a named Fowler design-smell baseline (advisory, project standards override) |
 | `security-reviewer` | Cross-ecosystem security audit — OWASP Top 10, injection, secrets, auth (P1–P5 severity) |
 | `architecture-guardian` | Dependency direction, boundary integrity, pattern compliance |
 | `doc-drift-detector` | Documentation that no longer matches the code — stale, missing, aspirational |
@@ -34,6 +34,18 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   a persisted findings file — the only mutating mode).
+
+## Requirements
+
+- **git** — every reviewer works from diffs, branches, and history.
+- **`gh` CLI, authenticated** — required by `ci-log-auditor` (all CI-run
+  evidence routes through `gh api`) and by PR-scoped review flows; the agent
+  stops with a remediation message when `gh` is missing or unauthenticated.
+  Local-diff reviews without a CI/PR angle work without it.
+- **Bash** for the agents' inline commands — Git Bash on native Windows
+  (install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows));
+  no standalone `jq` is required.
 
 ## Works in any repo
 

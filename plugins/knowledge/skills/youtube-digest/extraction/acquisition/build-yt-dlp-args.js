@@ -26,11 +26,14 @@ export const YT_DLP_JS_RUNTIMES_ENV = "YOUTUBE_YT_DLP_JS_RUNTIMES";
  */
 
 /**
- * Auth / extractor runtime flags from environment (never commit cookie files).
+ * Auth / extractor runtime flags from the child environment (never commit cookie files).
  *
+ * These variables are the launcher-to-child interface, set by `run.mjs` from the
+ * knowledge plugin's `yt_dlp_cookies_file` / `yt_dlp_cookies_from_browser` /
+ * `yt_dlp_js_runtimes` userConfig options — not a consumer-facing env channel:
  * `YOUTUBE_YT_DLP_COOKIES_FILE` — path to Netscape cookies.txt
  * `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER` — e.g. `chrome`, `firefox`, `edge` (file wins if both set)
- * `YOUTUBE_YT_DLP_JS_RUNTIMES` — default `node`; set `off` to omit `--js-runtimes`
+ * `YOUTUBE_YT_DLP_JS_RUNTIMES` — default `node`; `off` omits `--js-runtimes`
  *
  * Override wins over env when `authOverride` fields are set (used for automatic browser fallback).
  *

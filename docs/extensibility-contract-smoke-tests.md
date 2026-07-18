@@ -113,3 +113,51 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   slash command only), so reconfiguring headless requires uninstall then reinstall.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
+
+## Test D — `multiple: true` userConfig substitution shape in skill content
+
+Run 2026-07-17 against Claude Code 2.1.212 on Windows. Rig: a throwaway `smokemulti` plugin
+declaring three `userConfig` options — a `string` with `multiple: true` and a `default` array, a
+plain `string` with a `default`, and a `multiple: true` `string` with no default — plus an `echo`
+skill whose body contains `${user_config.<key>}` and `${CLAUDE_PLUGIN_DATA}` between literal
+markers, instructed to output the lines verbatim. Loaded via `--plugin-dir` into a headless
+session from a scratch consumer directory; stored values supplied via `--settings` with a
+`pluginConfigs` block. All rig artifacts were session-scratch and removed after the run.
+
+**Question.** How does a `multiple: true` value serialize through `${user_config.KEY}`
+substitution in skill content — usable csv, JSON array, or not at all?
+
+**Commands.**
+
+```shell
+claude plugin validate <rig>/smokemulti
+# run 1: defaults only, no stored pluginConfigs
+claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti --allowedTools "Skill"
+# run 2: stored values, three candidate plugin-ID keys in one settings file
+# ("smokemulti", "smokemulti-inline", "smokemulti@inline" — distinct values each)
+claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
+  --settings <rig>/probe-settings.json --allowedTools "Skill"
+# run 3: same settings file with the "smokemulti@inline" entry removed
+```
+
+**Result.**
+
+- **`multiple: true` arrays substitute as comma-joined csv, no spaces, no brackets or quotes.**
+  Stored `["at-one", "at-two"]` rendered as `at-one,at-two`. The value is directly usable as a
+  csv CLI-flag argument; the fallback of downgrading multi-value keys to single comma-joined
+  strings is NOT needed. (Corollary: a value containing a literal comma is indistinguishable from
+  two values — keep multi-value keys to comma-free scalars such as logins and owner names.)
+- **Unset keys do not substitute — the literal `${user_config.KEY}` text survives** in the
+  rendered skill content. This includes keys whose manifest declares a `default`: with no stored
+  `pluginConfigs` value, run 1 rendered every `${user_config.*}` placeholder verbatim while
+  `${CLAUDE_PLUGIN_DATA}` substituted in the same body. A manifest `default` documents the
+  configure UI; it is not delivered through substitution. Skill prose that renders a
+  `${user_config.*}` value must therefore state the absent-behavior fallback beside each key and
+  treat a surviving literal placeholder as "unset".
+- **A `--plugin-dir` plugin reads `pluginConfigs["<name>@inline"]`.** Runs 2–3 isolate the ID:
+  with three candidate keys present, only the `smokemulti@inline` values substituted; with that
+  entry removed, nothing substituted. `${CLAUDE_PLUGIN_DATA}` resolved to
+  `~/.claude/plugins/data/smokemulti-inline` (forward slashes on Windows) — the inline-session
+  data dir is `<name>-inline`, distinct from an installed plugin's.
+- **`claude plugin validate` requires `title` (a string) on every `userConfig` entry** — a
+  manifest with `type`/`description`/`default` but no `title` fails validation.

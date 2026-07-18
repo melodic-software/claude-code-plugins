@@ -55,6 +55,129 @@ Every fact has exactly one home. Any other surface — a handoff, a
 summary, a map, a PR body — may only *reference* it (path, URL, or
 context pointer), never restate it. An index is not a store.
 
+## Visibility across execution contexts
+
+Tier placement decides more than git hygiene: it decides **which
+execution contexts can see a document at all**. A linked worktree, a
+subagent worktree, a background session, and a cloud clone each
+materialize a different slice of the repository, so a document's tier is
+also its visibility guarantee. This section is normative — a change to
+what a context may rely on seeing is a **major** contract change (see
+Versioning).
+
+### Context × tier visibility matrix
+
+The worktree rows assume the consuming repo materializes both native
+mechanisms below (`worktree.baseRef: "head"` and `.worktreeinclude`);
+without them, every spawned worktree behaves as the default-base row.
+
+| Context | Memory `<memory_dir>/<slug>/` | Contract `<contract_dir>/<slug>/` (branch tier) | Durable (vault backend) | Machine state (`${CLAUDE_PLUGIN_DATA}`) |
+|---|---|---|---|---|
+| Writing checkout (same session or another session in it) | visible | visible, including uncommitted edits | visible | visible |
+| Worktree spawned from local HEAD (`worktree.baseRef: "head"`) | invisible, except `.worktreeinclude`-carried patterns (one-way copy at creation time) | committed state visible; uncommitted edits invisible | visible | visible (machine-global) |
+| Worktree spawned from the default base (`origin/HEAD`) | invisible, except `.worktreeinclude`-carried patterns | invisible — task-branch commits absent | merged state only | visible |
+| Sibling lane (worktree on another branch) | invisible | invisible | merged state only | visible |
+| Cloud clone / CI checkout | invisible | pushed commits only | pushed state only | invisible |
+
+Two consequences drive the rules below: a contract document is visible
+to an isolated context only as **committed** state (commit plan updates
+with their phase — the lifecycle already requires this), and a memory
+document is visible **only in the checkout that wrote it** unless a
+`.worktreeinclude` pattern carries it.
+
+### Native mechanisms
+
+Four native mechanisms, no custom machinery:
+
+- **`worktree.baseRef: "head"`** — committed project
+  `.claude/settings.json`. Spawned worktrees (including subagent
+  worktrees) branch from local `HEAD` instead of `origin/HEAD`, so they
+  carry the task branch's contract commits. Verified honored at
+  project-settings scope on CC 2.1.212, including from linked worktrees
+  (a linked-worktree session reads its *own* checkout's
+  `.claude/settings.json`, and `"head"` resolves to that worktree's
+  `HEAD`). Escape hatch: a personal `.claude/settings.local.json`
+  (resolved to the main checkout, covering every worktree) silently
+  overrides this machine-wide — no skill, gate, or audit may assume the
+  setting is universally in force.
+- **`.worktreeinclude`** — repository root, `.gitignore` syntax; only
+  files that match a pattern *and* are gitignored are copied. The copy
+  is **one-way at worktree-creation time**: later edits sync in neither
+  direction, so carried files are read-only context, never a channel.
+  Carry cross-checkout-useful memory files (stage ledgers,
+  `EXPLORE.md` / `RESEARCH.md`); never baselines or raw scratch
+  (machine-bound). Caveat: a `WorktreeCreate` hook replaces the default
+  worktree creation entirely and `.worktreeinclude` is **not
+  processed** — the hook script owns any copying.
+- **By-value returns** — a worker running in its **own checkout**
+  (subagent worktree, background session) returns its results **by
+  value**; the orchestrating session writes the contract and durable
+  tiers in the parent checkout. Workers never write those tiers from an
+  isolated checkout — commits and promotions land where the lifecycle
+  can see them. The boundary is the checkout, not the process: a forked
+  subagent running in the parent's checkout may write the memory slice
+  directly (its writes are already visible), and raw per-worker output
+  may land in the parent checkout's memory slice when the orchestrator
+  directs it there.
+- **Tracker as the cross-lane index** — the work-item tracker is the
+  awareness layer across lanes: branch files stay lane-local, and a
+  session in another lane discovers state through tickets, which point
+  (PR URLs, promoted-doc locations) per the single-home rule.
+  Markdown-in-tickets as a primary artifact store is rejected: ticket
+  bodies are not diffable, carry no review gate, and drift from code.
+
+### Pointer discipline on durable surfaces
+
+Durable surfaces — tickets, PR bodies, promoted docs — never point at
+prunable or gitignored paths. The contract slice is deleted before
+merge and the memory slice never leaves its checkout, so such pointers
+dangle by design. Cite the PR, the promoted location, or distilled
+values instead: a ticket sourced from a plan records the PR that
+carried the plan, and a plan records distilled baseline numbers, never
+the memory-slice path of the raw capture.
+
+### Consumer adoption
+
+Repository settings and root files never travel with
+marketplace-installed plugins (plugins run from an isolated cache), so
+each consuming repository materializes the two files itself:
+
+```json
+{
+  "worktree": {
+    "baseRef": "head"
+  }
+}
+```
+
+as committed `.claude/settings.json`, and a `.worktreeinclude` at the
+repository root (substitute a non-default resolved `memory_dir` for
+`.work`):
+
+```text
+.work/.gitignore
+.work/*/EXPLORE.md
+.work/*/EXPLORE-*.md
+.work/*/RESEARCH.md
+.work/*/RESEARCH-*.md
+.work/*/*-checklist.md
+```
+
+The first line carries the memory root's self-ignore file so the copied
+files are ignored in the new worktree from creation; without it they
+surface as untracked until the self-ignore guard heals on the first
+memory-tier write.
+
+Also gitignore `.claude/worktrees/` so worktree contents never appear
+as untracked files. Rollout caveats: pulling a commit that adds
+`.claude/settings.json` into a clone already holding an untracked file
+at that path fails with "untracked working tree file would be
+overwritten" — move the local file aside, pull, then merge its values
+back; on Windows, deep repository base paths can trip git's path limit
+inside nested worktrees (`'$GIT_DIR' too big`) — keep the repository
+base path short. Routing this materialization through a setup-skill
+apply action is a recorded follow-on, not built today.
+
 ## The tracked concern file — `.claude/topic-docs.yaml`
 
 The consumer-side single source of truth. Shape in
@@ -220,22 +343,30 @@ citations of retired paths as ghost refs.
 
 ## Implementers
 
-| Plugin | Writes | Tier(s) |
-|---|---|---|
-| discovery | `EXPLORE.md`, `RESEARCH.md` | memory |
-| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory |
-| implementation | `PLAN.md` (Plan/progress), `verification/` manifest, baselines, raw captures | contract + memory |
-| session-flow | handoffs | memory (`handoffs/`) |
-| review | review reports | memory (`reviews/`) |
-| work-items | per-topic action ledger; tracker projections | memory; ticket edge |
-| knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) |
-| claude-ops | telemetry | machine state |
-| docs-hygiene | (reader) audit-noise detector recognizes these shapes | — |
+Plugins with their own placement deltas carry a deltas-only binding
+(`reference/topic-docs.md`); the rest adopt by reference — their
+relationship to the contract is fully stated by their table row.
+
+| Plugin | Writes | Tier(s) | Binding |
+|---|---|---|---|
+| discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
+| planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
+| implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
+| verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
+| session-flow | handoffs | memory (`handoffs/`) | delta doc |
+| review | review reports | memory (`reviews/`) | delta doc |
+| work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
+| toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
+| knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
+| claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
+| docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
 
 ## Versioning
 
 This contract is versioned in `CHANGELOG.md`. A change that moves a
-tier, renames a key in `topic-docs.yaml`, or alters the slug spec is a
-**major** contract change, and every implementer adopts it in the same
-release wave (clean break — this contract carries no compatibility
-machinery). Additive guidance is minor.
+tier, renames a key in `topic-docs.yaml`, alters the slug spec, or
+**changes a visibility guarantee** (what an execution context may rely
+on seeing, per the visibility matrix) is a **major** contract change,
+and every implementer adopts it in the same release wave (clean break —
+this contract carries no compatibility machinery). Additive guidance is
+minor.

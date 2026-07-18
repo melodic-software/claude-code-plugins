@@ -105,7 +105,7 @@ When `/testing:e2e` ran, persist an assertion-only evidence manifest (what was a
 For "run the live app and watch it behave" — beyond automated `/testing:e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
 
 - **Primary: `/testing:e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI.
-- **Supplementary: Claude Code's bundled `/verify` + `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (available on CC ≥2.1.145).
+- **Supplementary: Claude Code's bundled `/verify` + `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145 — verified 2026-07-18 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)).
 - **Graceful fallback** — if the bundled skills cannot infer the project's launch (or the CC version lacks them), fall back to `/testing:e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
 
 ## Edge cases

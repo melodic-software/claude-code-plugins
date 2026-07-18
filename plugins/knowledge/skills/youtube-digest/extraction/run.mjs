@@ -11,13 +11,15 @@
  * bash-only — it fails under PowerShell — and ignored by the ESM loader, which
  * does not honor NODE_PATH at all.)
  *
- * An OPTIONAL leading `--work-root <dir>` flag lets the invoking skill wire the
- * knowledge plugin's `library_dir` seam into the pipeline the same cross-platform
- * way: a double-quoted CLI arg (safe in bash and PowerShell) is translated here
- * into the `YOUTUBE_WORK_ROOT` env var the extraction scripts' `resolveWorkRoot()`
- * reads. Omit it for the repo-root default; the fallback chain then applies.
+ * OPTIONAL leading flags let the invoking skill wire the knowledge plugin's
+ * personal userConfig options into the pipeline the same cross-platform way: each
+ * double-quoted CLI arg (safe in bash and PowerShell) is translated here into the
+ * env var the extraction child reads — `--work-root` → `YOUTUBE_WORK_ROOT`
+ * (`resolveWorkRoot()`), plus the yt-dlp / throttle scalars. Omit a flag to keep
+ * the child's own default; for `--work-root` the repo-root fallback chain applies.
  *
- * Usage: node run.mjs [--work-root <dir>] <relative-script.js> [args…]
+ * Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>]
+ *   [--cookies-from-browser <name>] [--max-concurrent-acquires <n>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -28,16 +30,20 @@ import { buildChildEnv, parseRunArgs } from "./lib/run-args.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 let parsed;
+const usage =
+  "Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
+  "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] <relative-script.js> [args…]\n";
+
 try {
   parsed = parseRunArgs(process.argv.slice(2));
 } catch (error) {
-  process.stderr.write(`${error.message}\nUsage: node run.mjs [--work-root <dir>] <relative-script.js> [args…]\n`);
+  process.stderr.write(`${error.message}\n${usage}`);
   process.exit(2);
 }
-const { workRoot, script, rest } = parsed;
+const { script, rest } = parsed;
 
 if (!script) {
-  process.stderr.write("Usage: node run.mjs [--work-root <dir>] <relative-script.js> [args…]\n");
+  process.stderr.write(usage);
   process.exit(2);
 }
 
@@ -52,6 +58,6 @@ const registerHook = path.join(here, "register-hook.mjs");
 const result = spawnSync(
   process.execPath,
   ["--import", pathToFileURL(registerHook).href, target, ...rest],
-  { stdio: "inherit", env: buildChildEnv(process.env, workRoot) },
+  { stdio: "inherit", env: buildChildEnv(process.env, parsed) },
 );
 process.exit(result.status ?? 1);

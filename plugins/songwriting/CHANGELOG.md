@@ -3,6 +3,22 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **Suno fact tables re-verified 2026-07-18 and corrected** (fleet conformance
+  wave: freshness riders). Lyrics limit corrected to a 5,000-character hard cap
+  on v4.5/v5/v5.5 (~3,000 stays as the quality sweet spot; 3,000 was the
+  v4-era cap — the May consensus position flipped), title to ~100 characters,
+  and the tier matrix's Suno Studio row to Premier-exclusive. Confirmed tables
+  (Voices, release dates) carry dated riders with official links; unverifiable
+  rows keep their hedges undated; upload limits corrected to the current
+  pricing page (Free up to 8 min, Pro/Premier up to 30 min — the 60s/120s and
+  8-min figures were both stale). All `help.suno.com` source links fixed to
+  the working `/en/articles/` form. Character limits remain third-party-tester
+  sourced — Suno publishes no official field limits — and the riders say so.
+
 ## [0.4.0]
 
 ### Added

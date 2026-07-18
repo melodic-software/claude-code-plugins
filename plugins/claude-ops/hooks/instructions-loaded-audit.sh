@@ -11,12 +11,12 @@
 # Write-time filter: session_start loads are deterministic (the same always-load
 # files fire every boot) and high-volume, so they are dropped by default. Opt
 # back in for one-off debugging with:
-#   HOOK_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true
+#   CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true
 #
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
 # Kill switches:
-#   HOOK_INSTRUCTIONS_LOADED_AUDIT_ENABLED=false           — disable entirely
-#   HOOK_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true   — opt back into session_start
+#   CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED=false           — disable entirely
+#   CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true   — opt back into session_start
 
 set -uo pipefail
 
@@ -38,7 +38,7 @@ LOAD_REASON=$(hook::jq_field "$INPUT" '.load_reason' || true)
 
 # Drop session_start at write time unless explicitly opted back in.
 if [[ "$LOAD_REASON" == "session_start" &&
-  "${HOOK_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START:-false}" != "true" ]]; then
+  "${CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START:-false}" != "true" ]]; then
   exit 0
 fi
 

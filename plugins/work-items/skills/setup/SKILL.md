@@ -16,7 +16,9 @@ item) stays as-is. Idempotent: re-running reads the existing file and offers upd
 overwriting blind. The schedule file is a plain tracked JSON file the skill reads and writes directly
 (Read / Write / `jq`) — it is not a tracker record, so it does not route through the work-item-tracker
 seam; only operations on the work items themselves (labels, item lookups, edits) go through the bound
-provider. Setup also owns the optional canonical-role → label remap in the tracker binding (see
+provider. Check `jq` is on PATH (`command -v jq`) before the first schedule operation — missing, stop
+with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on
+native Windows) rather than failing mid-write. Setup also owns the optional canonical-role → label remap in the tracker binding (see
 "Canonical role labels" below).
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
