@@ -284,7 +284,10 @@ falsified as task-taxonomy source; security-section citation patch pending at cl
    isolation floor + connector prerequisites.
    - V1 standing subset (fleet 2→3): repo-scoped AGT classes with proven manual patterns —
      issue triage/dup/readiness sweeps, PR-queue tending, doc-freshness, dependency wave +
-     advisory triage, CI health review, eng-metrics digest, tech-debt + dead-code sweeps.
+     advisory triage, CI health review, eng-metrics digest, tech-debt sweep.
+     CORRECTED 2026-07-18 (WP2/WP3 round review, RESEARCH-routine-catalog row 25): dead-code
+     sweep removed — classified DET detect, so per part 1 it is plain cron filing work items,
+     not a routine; judgment-bearing triage of its findings folds into the tech-debt sweep.
    - Deferred with named triggers: prod-access (alert triage, SLO review, deploy
      verification) → telemetry connector exists; product-access (VoC, analytics anomaly,
      experiment readout) → analytics/feedback connected; org-access (on-call conflict,

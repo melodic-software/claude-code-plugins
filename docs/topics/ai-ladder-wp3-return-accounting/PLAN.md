@@ -218,7 +218,7 @@ dependency); both wait on WP1 implementation.
 | partial×band composition rule (band = whole-item manual cost; aggregation derives avoided cost) | Phase 1 contract clause | Stress-test MEDIUM #9; Boris Q2 asks whole manual cost |
 | Record integrity: bot-authored records only, foreign-author records ignored, attestation-rate health signal, requester/independent aggregation split | Phase 1 contract clauses + Phase 2 eval | Stress-test HIGH #4 |
 | Requester-less class routing (binding-declared standing owner or attestation-exempt) | Phase 1 clause + binding field | Stress-test MEDIUM #8; T7 routine classes have no requester by construction |
-| Standalone-path race stated + latest-bot-record-wins read rule | Phase 1 clause + Phase 2 eval | Stress-test HIGH #5; work-items adapter is the race-safe path where present |
+| Standalone-path race stated + attestation-preserving dedupe (attested outranks unattested; latest wins only among equals; close never downgrades) | Phase 1 clause + Phase 2 eval | Stress-test HIGH #5 + review fold; work-items adapter is the race-safe path where present |
 | Demo joins against the committed WP2 fixture | Phase 3 input | Stress-test MEDIUM #10 |
 
 No [FALLBACK] tags — every remaining item traces to the Brief, an interview lock, or a
