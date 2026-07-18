@@ -96,11 +96,13 @@ paste-ready, tool-agnostic brief for a spawned worker or fresh session.
 Verifies a session's working assumptions against live reality before it builds on them — the
 premise-freshness counterpart to `keep-going`'s recovery. For the PRs, issues, and branches a
 handoff or locked plan references, it confirms each is still in the claimed state; checks whether
-the working branch's base has drifted; confirms cited skills/plugins still exist under that name
-and that installed versions match the repo source; and flags memory-tier entries whose subjects
-have since landed. It reports the drift and hands back a re-anchored picture — it does not resume
-the work (that is `keep-going`), inventory worktrees (`/source-control:worktree` status), or triage
-PR feedback (`/source-control:babysit-prs`).
+the working branch is now behind its base; confirms cited skills/plugins still exist under that
+name and that installed versions match the repo source; and flags memory-tier entries whose
+subjects have since landed. It reports the drift and hands back a re-anchored picture — it does not
+resume the work (that is `keep-going`), enumerate worktrees, or triage PR feedback. When
+`source-control` is installed it cites that plugin's `worktree` status for the cross-worktree
+inventory and leaves PR-feedback triage to `babysit-prs`; otherwise it does the reduced local
+checks and reports the fuller inventory as unavailable.
 
 ```shell
 /session-flow:reanchor            # verify session premises → report drift → re-anchored picture

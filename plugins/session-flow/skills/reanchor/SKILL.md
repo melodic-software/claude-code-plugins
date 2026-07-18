@@ -27,12 +27,14 @@ back up.
    locked plan references, confirm it is still in the state the document claims
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
-2. **Base-branch drift.** Check whether the working branch's base has moved
-   since the session's inputs were written. Fetch the base branch first (`git
-   fetch`) so the behind-count is measured against the live remote base, not a
-   stale local `origin/<base>` ref that can read 0 even after the remote moved;
-   if that fetch cannot run, report base-drift as unverifiable rather than
-   assuming none. This is reanchor's own check. `/source-control:worktree`, when
+2. **Base-branch drift.** Check whether the working branch is now behind its
+   base. Fetch the base first (`git fetch`) so the behind-count is measured
+   against the live remote base, not a stale local `origin/<base>` ref that can
+   read 0 even after the remote moved; if that fetch cannot run, report the check
+   as unverifiable rather than assuming none. Unless the inputs record a base-tip
+   or merge-base baseline, report the *current* divergence rather than claiming
+   it all accrued since the inputs were written — the branch may already have
+   been behind. This is reanchor's own check. `/source-control:worktree`, when
    installed, is a related but distinct capability — a cross-worktree inventory
    by path / branch / PR / commit-age staleness — that does not report
    behind-base or dirty-tree signal; cite it for that inventory, not for the
