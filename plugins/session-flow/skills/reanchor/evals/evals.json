@@ -18,12 +18,12 @@
       "id": 2,
       "name": "plugin-version-drift",
       "prompt": "This handoff says to use a plugin skill a certain way, but that was written a while ago. Are the installed plugin versions still what the handoff assumes?",
-      "expected_output": "reanchor compares the installed plugin versions against the repo-source versions for the surfaces the handoff cites, and flags any drift (a version bump or a renamed/retired skill) that would silently invalidate the cited invocation or its assumed behavior.",
+      "expected_output": "reanchor confirms the cited surfaces still exist under that name and, when their source manifest is locatable in the working tree, compares the installed version against it and flags any drift; when the source manifest is not locatable, it reports the version comparison as unverifiable rather than guessing internal cache paths.",
       "files": [],
       "expectations": [
-        "Compares installed vs repo-source plugin versions for the cited surfaces",
-        "Flags renamed/retired/version-drifted skills or plugins the inputs name",
-        "Frames the drift as invalidating the handoff's assumed invocation/behavior"
+        "Confirms cited skills/plugins still exist under the named surface",
+        "Compares installed vs source-manifest version when the source is locatable in the working tree",
+        "Reports the comparison as unverifiable rather than guessing cache paths when the source is not locatable"
       ]
     },
     {

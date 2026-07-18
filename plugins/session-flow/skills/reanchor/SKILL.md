@@ -28,10 +28,12 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch is now behind its
-   base. Fetch the base first (`git fetch`) so the behind-count is measured
-   against the live remote base, not a stale local `origin/<base>` ref that can
-   read 0 even after the remote moved; if that fetch cannot run, report the check
-   as unverifiable rather than assuming none. Unless the inputs record a base-tip
+   base. Resolve the base's remote and branch and fetch that ref explicitly
+   (`git fetch <remote> <base-branch>`) — a bare `git fetch` can exit 0 while
+   updating only the tracked branch in a single-branch or shallow checkout,
+   leaving the base stale and the behind-count falsely clean. Measure the
+   behind-count against the freshly fetched base; if the fetch cannot run, report
+   the check as unverifiable rather than assuming none. Unless the inputs record a base-tip
    or merge-base baseline, report the *current* divergence rather than claiming
    it all accrued since the inputs were written — the branch may already have
    been behind. This is reanchor's own check. `/source-control:worktree`, when
@@ -41,8 +43,12 @@ back up.
    drift evidence here.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
-   name and that installed plugin versions match the repo source — a rename or a
-   version bump silently invalidates cited invocations and assumed behavior.
+   name and — when the session is working inside a plugin's source tree — that
+   the installed version (from the documented installed-plugins state) matches
+   that source manifest; a rename or version bump silently invalidates cited
+   invocations and assumed behavior. When a cited plugin's source manifest is not
+   locatable in the working tree, report the version comparison as unverifiable
+   rather than guessing Claude Code's internal cache layout.
 4. **Stale memory-tier files.** For the session's handoff / todo / working-memory
    files, flag entries whose subjects have since merged or landed, so the next
    step neither re-does settled work nor chases a closed thread.
