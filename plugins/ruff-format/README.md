@@ -63,17 +63,26 @@ and linting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the Ruff config
-already in your repository, which it reads automatically. To change the rules,
-edit that file.
+The rules themselves are never configured here — they come from the Ruff config
+already in your repository, which the plugin reads automatically. To change the
+rules, edit that file.
 
-### Disable without uninstalling
+One `userConfig` option tunes the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `ruff_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
 
-```json
-{ "env": { "HOOK_RUFF_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure ruff-format`, or headless on the
+install command:
+
+```shell
+claude plugin install ruff-format@melodic-software --config ruff_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the project's).
+To turn the plugin off for a single repository, disable it in that project's
+`enabledPlugins` instead.
 
 ## License
 

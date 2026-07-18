@@ -17,22 +17,49 @@
       "name": "bash-format",
       "source": "./plugins/bash-format",
       "category": "development",
-      "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"]
+      "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"],
+      "relevance": {
+        "topic": "shell scripts",
+        "signals": {
+          "filesRead": ["**/*.sh", "**/*.bash"],
+          "cli": ["shellcheck", "shfmt"]
+        }
+      }
     },
     {
       "name": "biome-format",
       "source": "./plugins/biome-format",
       "category": "development",
-      "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"]
+      "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"],
+      "relevance": {
+        "topic": "Biome",
+        "signals": {
+          "filesRead": ["**/biome.json", "**/biome.jsonc"],
+          "manifestDeps": [
+            {
+              "file": "[/\\\\]package\\.json$",
+              "pattern": "\"@biomejs/biome\""
+            }
+          ]
+        }
+      }
     },
     {
       "name": "ruff-format",
       "source": "./plugins/ruff-format",
       "category": "development",
-      "tags": ["ruff", "python", "formatter", "linter", "hook"]
+      "tags": ["ruff", "python", "formatter", "linter", "hook"],
+      "relevance": {
+        "topic": "Python",
+        "signals": {
+          "filesRead": ["**/*.py"],
+          "cli": ["ruff"]
+        }
+      }
     },
     {
       "name": "eol-normalizer",
+      "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",
       "category": "development",
       "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
@@ -47,13 +74,26 @@
       "name": "powershell-format",
       "source": "./plugins/powershell-format",
       "category": "development",
-      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"]
+      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"],
+      "relevance": {
+        "topic": "PowerShell",
+        "signals": {
+          "filesRead": ["**/*.ps1", "**/*.psm1"],
+          "cli": ["pwsh"]
+        }
+      }
     },
     {
       "name": "actionlint",
       "source": "./plugins/actionlint",
       "category": "development",
-      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"]
+      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"],
+      "relevance": {
+        "topic": "GitHub Actions workflows",
+        "signals": {
+          "filesRead": ["**/.github/workflows/**"]
+        }
+      }
     },
     {
       "name": "guardrails",
@@ -81,9 +121,16 @@
     },
     {
       "name": "mcp-tools",
+      "displayName": "MCP Tools",
       "source": "./plugins/mcp-tools",
       "category": "quality",
-      "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"]
+      "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"],
+      "relevance": {
+        "topic": "MCP servers",
+        "signals": {
+          "filesRead": ["**/.mcp.json"]
+        }
+      }
     },
     {
       "name": "prototype",
@@ -95,7 +142,13 @@
       "name": "knowledge",
       "source": "./plugins/knowledge",
       "category": "discovery",
-      "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"]
+      "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"],
+      "relevance": {
+        "topic": "books and PDFs",
+        "signals": {
+          "filesRead": ["**/*.pdf", "**/*.epub"]
+        }
+      }
     },
     {
       "name": "context7",
@@ -119,13 +172,27 @@
       "name": "firecrawl",
       "source": "./plugins/firecrawl",
       "category": "discovery",
-      "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"]
+      "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"],
+      "defaultEnabled": false,
+      "relevance": {
+        "topic": "Firecrawl",
+        "signals": {
+          "cli": ["firecrawl"],
+          "hosts": ["api.firecrawl.dev"]
+        }
+      }
     },
     {
       "name": "claude-config",
       "source": "./plugins/claude-config",
       "category": "claude-code",
-      "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"]
+      "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"],
+      "relevance": {
+        "topic": "Claude Code settings",
+        "signals": {
+          "filesRead": ["**/.claude/settings.json", "**/.claude/settings.local.json"]
+        }
+      }
     },
     {
       "name": "claude-memory",
@@ -149,7 +216,19 @@
       "name": "playwright",
       "source": "./plugins/playwright",
       "category": "testing",
-      "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"]
+      "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"],
+      "relevance": {
+        "topic": "Playwright",
+        "signals": {
+          "cli": ["playwright"],
+          "manifestDeps": [
+            {
+              "file": "[/\\\\]package\\.json$",
+              "pattern": "\"(@playwright/test|playwright)\"\\s*:"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "code-tidying",
@@ -165,6 +244,7 @@
     },
     {
       "name": "tdd",
+      "displayName": "TDD",
       "source": "./plugins/tdd",
       "category": "testing",
       "tags": ["knowledge", "skill", "tdd", "testing", "unit-testing", "test-design", "best-practices"]
@@ -179,13 +259,14 @@
       "name": "songwriting",
       "source": "./plugins/songwriting",
       "category": "music",
-      "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"]
+      "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"],
+      "defaultEnabled": false
     },
     {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
-      "tags": ["delivery", "git", "github", "commit", "pull-request", "worktree", "ci", "skill"]
+      "tags": ["delivery", "git", "github", "commit", "pull-request", "babysit", "worktree", "ci", "skill"]
     },
     {
       "name": "planning",
@@ -237,9 +318,11 @@
     },
     {
       "name": "kindle-dedrm",
+      "displayName": "Kindle DeDRM",
       "source": "./plugins/kindle-dedrm",
       "category": "personal",
-      "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"]
+      "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"],
+      "defaultEnabled": false
     },
     {
       "name": "codebase-health",
@@ -287,7 +370,13 @@
       "name": "skill-quality",
       "source": "./plugins/skill-quality",
       "category": "claude-code",
-      "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"]
+      "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"],
+      "relevance": {
+        "topic": "skill authoring",
+        "signals": {
+          "filesRead": ["**/SKILL.md"]
+        }
+      }
     },
     {
       "name": "machine-health",
@@ -297,15 +386,18 @@
     },
     {
       "name": "ai-briefing",
+      "displayName": "AI Briefing",
       "source": "./plugins/ai-briefing",
       "category": "personal",
-      "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"]
+      "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"],
+      "defaultEnabled": false
     },
     {
       "name": "miro",
       "source": "./plugins/miro",
       "category": "design",
-      "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"]
+      "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"],
+      "defaultEnabled": false
     }
   ],
   "renames": {

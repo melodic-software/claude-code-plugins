@@ -15,8 +15,12 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Notes
 
-- Pointers to `<memory_dir>/<slug>/` (default `.work/`) execution artifacts, prior research, upstream context.
-- Links, not recaps.
+- Durable pointers only: PRs, committed docs, prior items, external links.
+- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local — distill what matters into a
+  line here instead of pointing at a path other readers cannot resolve.
+- Links, not recaps — for anything durably linkable. The memory-tier distillation above is the
+  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
+  preserved context.
 
 ## Decisions-so-far
 

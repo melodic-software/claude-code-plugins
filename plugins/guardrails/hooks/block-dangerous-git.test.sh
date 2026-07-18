@@ -209,23 +209,23 @@ run "git restore --staged --no-staged . (staged cleared, worktree discard, block
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
-  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 run "allow-list push-force,reset-hard → reset allowed" "git reset --hard" 0 \
-  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force,reset-hard
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force,reset-hard
 run "allow-list push-force only → clean still blocked" "git clean -fd" 2 \
-  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force
 run "allow-list empty → blocked" "git push --force" 2 \
-  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=
 
 # --- kill switch ---------------------------------------------------------------
 run "kill switch off → no-op despite push --force" "git push --force" 0 \
-  HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false
 
 # --- over-length command fails CLOSED ------------------------------------------
 long_cmd="echo $(printf 'a%.0s' {1..20000})"
 run "command over the parse cap (fail-closed, blocked)" "$long_cmd" 2
 run "allow-list cannot bypass the parse cap (still blocked)" "$long_cmd" 2 \
-  HOOK_BLOCK_DANGEROUS_GIT_ALLOW=too-long
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=too-long
 
 # --- telemetry: block emits a `blocked` envelope --------------------------------
 TEL="$(mktemp -p "$TEST_TMPDIR")"

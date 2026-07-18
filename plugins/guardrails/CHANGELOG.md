@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.0]
+## [0.6.0]
 
 ### Added
 
@@ -11,19 +11,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   before they run — `push --force`/`-f` (never `--force-with-lease`), the equivalent
   leading-`+` refspec and `--mirror` force-push forms (a push dry-run disarms), `reset --hard`,
   `clean` with a force flag (a dry-run flag anywhere disarms the check — git honors it regardless
-  of order), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, and long-form magic carrying
-  `top`; path-scoped forms and index-only `restore --staged .` pass), and forced
-  `checkout -f`/`--force` and `switch -f`/`--discard-changes` (both throw away local
+  of order), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, exclude-only sets, and
+  long-form magic carrying `top`; path-scoped forms and index-only `restore --staged .` pass), and
+  forced `checkout -f`/`--force` and `switch -f`/`--discard-changes` (both throw away local
   modifications). Accepted unique-prefix abbreviations of the blocked long options match too
   (git parse-options accepts them: `reset --h` runs `--hard`). The parse-cap fail-closed path
   never consults the allow-list. `branch -D` is deliberately not blocked: deleted refs are
   reflog-recoverable and sanctioned skill flows issue it inline. Per-repo/per-user allow-list via
-  `HOOK_BLOCK_DANGEROUS_GIT_ALLOW` (comma list of `push-force`, `reset-hard`, `clean-force`,
-  `checkout-dot`, `restore-dot`) in a settings `env` block; kill switch
-  `HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false`. Capability adapted from mattpocock/skills
-  `git-guardrails-claude-code`; the implementation is the house argv-grammar parser, whose word-exact
-  matching avoids upstream's substring false-blocks (all `git push` blocked; `checkout .github/…`
-  matching `checkout .`).
+  the `block_dangerous_git_allow` userConfig option (comma list of `push-force`, `reset-hard`,
+  `clean-force`, `checkout-dot`, `restore-dot`, `checkout-force`); kill switch the
+  `block_dangerous_git_enabled` userConfig option set to false. Capability adapted from
+  mattpocock/skills `git-guardrails-claude-code`; the implementation is the house argv-grammar
+  parser, whose word-exact matching avoids upstream's substring false-blocks (all `git push`
+  blocked; `checkout .github/…` matching `checkout .`).
 
 ### Changed
 
@@ -33,3 +33,21 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `block-no-verify` behavior is unchanged with one alignment: the `core.hooksPath` block now applies
   exactly to `git commit` / `git push` (its documented scope) instead of firing on any git
   subcommand mid-walk.
+
+## [0.5.0]
+
+### Changed
+
+- **Per-hook kill switches and tuning scalars migrated to native `userConfig`** (the
+  fleet-wide kill-switch doctrine ruling). Each guard's toggle is now a `userConfig`
+  boolean named `<guard>_enabled` (default `true`), read by the hooks through the
+  native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process mirror; `cli-flag-verify`'s binary
+  set and skip list are now the `cli_flag_verify_bins` / `cli_flag_verify_skip_bins`
+  options. Configure interactively with `/plugin configure guardrails` or headless via
+  `claude plugin install --config KEY=VALUE`.
+- **BREAKING:** the `HOOK_<NAME>_ENABLED`, `HOOK_CLI_FLAG_VERIFY_BINS`, and
+  `HOOK_CLI_FLAG_VERIFY_SKIP_BINS` environment variables are retired and no
+  longer read. A consumer that set any of these in a
+  settings `env` block must re-express the value as the matching `userConfig` option.
+  Zero-config behavior is unchanged (all guards on, same defaults). The
+  `HOOK_TELEMETRY_SINK` consumer-side telemetry seam is unaffected.

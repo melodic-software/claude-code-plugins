@@ -1,12 +1,26 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ruff-format",
-  "version": "0.1.6",
+  "version": "0.2.1",
   "description": "Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo — using the consuming repo's own Ruff config.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["ruff", "python", "formatter", "linter", "hook"]
+  "keywords": [
+    "ruff",
+    "python",
+    "formatter",
+    "linter",
+    "hook"
+  ],
+  "userConfig": {
+    "ruff_format_enabled": {
+      "type": "boolean",
+      "title": "ruff-format hook",
+      "description": "Run Ruff check --fix and format on edit of a Python file",
+      "default": true
+    }
+  }
 }

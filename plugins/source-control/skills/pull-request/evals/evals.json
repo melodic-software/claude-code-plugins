@@ -103,18 +103,6 @@
       ]
     },
     {
-      "id": 9,
-      "name": "babysit-preserves-merge-workflow",
-      "prompt": "/pull-request babysit PR #482. The checked-out branch is behind main and `git log --merges origin/main..HEAD` returns a merge commit.",
-      "expected_output": "The skill integrates `origin/main` with `git merge`, preserving the branch's merge workflow, and uses a plain `git push`. It does not rebase or force-push the merge-commit branch.",
-      "files": [],
-      "expectations": [
-        "It checks for merge commits before choosing an integration mode",
-        "It uses git merge origin/main for a merge-commit branch",
-        "It uses a plain push, not a force-with-lease push, after the merge"
-      ]
-    },
-    {
       "id": 10,
       "name": "worktree-reuse-protects-dirty-tree",
       "prompt": "/pull-request merge 482 completed. Reuse this worktree for the next task, but `git status --porcelain` shows tracked edits and an untracked file.",

@@ -1,0 +1,77 @@
+{
+  "skill_name": "babysit-prs",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routing-babysit-vocabulary",
+      "prompt": "Babysit my PRs.",
+      "expected_output": "The babysit-prs skill loads (not pull-request) and starts an iteration: discovers open non-draft PRs oldest-first, then processes each per the per-PR checklist.",
+      "files": [],
+      "expectations": [
+        "It routes to babysit-prs, not to the pull-request single-PR lifecycle",
+        "It discovers all open non-draft PRs in the current repo, oldest first",
+        "It does not ask which single PR to monitor"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "negative-routing-single-pr-lifecycle",
+      "prompt": "Create a PR for this branch and monitor it until it's ready.",
+      "expected_output": "The pull-request skill handles this (create + monitor one PR); babysit-prs does not load — its scope is the all-PR loop, not the single-PR lifecycle.",
+      "files": [],
+      "expectations": [
+        "It routes to pull-request for create + single-PR monitor",
+        "babysit-prs is not invoked for a single-PR lifecycle request"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "happy-path-iteration-with-gate",
+      "prompt": "/source-control:babysit-prs — the repo has two open non-draft PRs; PR #12 has a codex review comment containing four severity-labeled findings, PR #15 is green with all comments addressed.",
+      "expected_output": "One full iteration: PR #12 is focused first (oldest, unaddressed findings) — branch checked out and freshened, the four findings extracted via subagent dispatch (≥3 findings), each classified with evidence and reacted/replied per the review discipline, valid fixes committed and pushed, the readiness gate run to READINESS_OK; PR #15 is skipped with a one-line status; the iteration ends with the completed evidence checklist and a ScheduleWakeup call.",
+      "files": [],
+      "expectations": [
+        "It processes the oldest PR with unaddressed findings to completion before advancing (focus-first)",
+        "It dispatches a finding-extractor subagent for the 4-finding comment per the shared review discipline",
+        "It runs babysit-readiness-gate.sh and requires READINESS_OK before declaring the PR ready",
+        "It outputs the completed per-iteration checklist and schedules the next wake"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "refusal-never-merges",
+      "prompt": "/source-control:babysit-prs — PR #30 passes every readiness gate. Go ahead and merge it since it's ready.",
+      "expected_output": "It reports PR #30 as ready with the readiness evidence but refuses to merge: babysit never merges — the user merges via /source-control:pull-request merge or gh pr merge manually.",
+      "files": [],
+      "expectations": [
+        "It does not run gh pr merge or any merge command",
+        "It cites the never-merges invariant",
+        "It reports readiness and moves on rather than merging"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "anti-pattern-survey-without-classifying",
+      "prompt": "/source-control:babysit-prs — three open PRs each have unaddressed bot review comments. Just give me a quick summary of what the bots found so I can look later.",
+      "expected_output": "It does not stop at a survey: reporting 'bot findings need classification' without classifying violates the loop's discipline. It processes each finding through D1-D7 (or explains that a summary-only pass is not babysitting and proceeds to work the findings), gated by the readiness script.",
+      "files": [],
+      "expectations": [
+        "It refuses to end the iteration with an unclassified survey of findings",
+        "Each unaddressed finding gets classification with evidence, reaction, and reply",
+        "The readiness gate blocks declaring any PR ready while classification rows are missing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "babysit-preserves-merge-workflow",
+      "prompt": "/source-control:babysit-prs — PR #482's checked-out branch is behind main and `git log --merges origin/main..HEAD` returns a merge commit.",
+      "expected_output": "The skill integrates `origin/main` with `git merge`, preserving the branch's merge workflow, and uses a plain `git push`. It does not rebase or force-push the merge-commit branch.",
+      "files": [],
+      "expectations": [
+        "It checks for merge commits before choosing an integration mode",
+        "It uses git merge origin/main for a merge-commit branch",
+        "It uses a plain push, not a force-with-lease push, after the merge"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,58 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **Personal tuning scalars migrated to native `userConfig`** (the fleet-wide kill-switch/scalar
+  doctrine ruling): `worktree_stale_days` (default 14), `babysit_self_logins` (csv, default
+  empty), and `fetch_logs_max_bytes` (default 52428800). The skills substitute the values into
+  their own content; `babysit-readiness-gate.sh` gained an additive `--extra-self` flag (the
+  `--self` full-override flag is unchanged) and `fetch-failed-logs.sh` gained `--max-bytes`.
+- **BREAKING:** the `WORKTREE_STALE_DAYS`, `BABYSIT_SELF_LOGINS`, and `FETCH_LOGS_MAX_BYTES`
+  environment variables are retired and no longer read; re-express any non-default value as the
+  matching `userConfig` option. `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` are unchanged.
+  Zero-config behavior is identical.
+
+## [0.6.0]
+
+### Added
+
+- **New `/source-control:babysit-prs` skill** — the all-PR self-pacing babysit loop, extracted
+  from `/source-control:pull-request` into its own skill (distinct discovery intent: fleet loop
+  vs single-PR lifecycle). Same behavior as the former `babysit` action: discovers every open
+  non-draft PR oldest-first, checks each out, keeps branches fresh, classifies every review
+  finding with GitHub-verified evidence, fixes valid findings, reports readiness. Never merges.
+  Invoke via `/source-control:babysit-prs` (loop pairing: `/loop /source-control:babysit-prs`).
+- **Plugin-scope shared review discipline** at `reference/review-discipline.md` — the canonical
+  home of finding extraction (with the mandatory ≥3-finding subagent dispatch), per-finding
+  D1–D7 verification gates, and self-reply filtering, cited by both `pull-request` and
+  `babysit-prs` instead of duplicating the rules per skill.
+
+### Changed
+
+- **Breaking:** the `babysit` action is removed from `/source-control:pull-request` — use
+  `/source-control:babysit-prs`. The pull-request description, action table, phase table, and
+  checklists no longer carry babysit content; `reference/monitor.md`'s cross-references into the
+  former babysit reference now cite the plugin-scope review discipline.
+- Shared scripts hoisted from `skills/pull-request/scripts/` to plugin-root `scripts/`
+  (`fetch-all-pr-comments.sh`, `babysit-readiness-gate.sh`, `test-helpers.sh`, with their
+  tests) — cited by both skills via `${CLAUDE_PLUGIN_ROOT}/scripts/`.
+
+### Removed
+
+- `discover-prs.sh` (+ test) — retired; the inline `gh pr list` filter in the babysit-prs
+  reference is the discovery contract.
+
+## [0.5.2]
+
+### Fixed
+
+- `/pull-request create`'s worktreeinclude sync check no longer reports phantom `CHANGED:` lines
+  for `.worktreeinclude` patterns that match no files — an unmatched glob stays a literal string
+  in Bash and previously fell through to the changed-file branch; it is now skipped.
+
 ## [0.5.1]
 
 ### Changed

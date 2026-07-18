@@ -13,11 +13,11 @@ notification, and — on macOS and Linux — an OS-native desktop toast.
   cannot block).
 - **Three additive channels**, each default on and independently mutable:
 
-| Channel | Env toggle | What it does |
+| Channel | Option | What it does |
 |---|---|---|
-| `bell` | `HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED` | Audible terminal bell (bare `BEL`). |
-| `terminal_notify` | `HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED` | OSC 9 desktop notification, emitted via the hook's `terminalSequence` output (Claude Code v2.1.141+ writes it through its own terminal path). |
-| `os_toast` | `HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED` | OS-native toast (see per-OS table). |
+| `bell` | `desktop_notification_bell_enabled` | Audible terminal bell (bare `BEL`). |
+| `terminal_notify` | `desktop_notification_terminal_notify_enabled` | OSC 9 desktop notification, emitted via the hook's `terminalSequence` output (Claude Code v2.1.141+ writes it through its own terminal path). |
+| `os_toast` | `desktop_notification_os_toast_enabled` | OS-native toast (see per-OS table). |
 
 ### Per-OS `os_toast` behavior
 
@@ -48,24 +48,31 @@ skipped while notifications still fire.
 
 ## Configuration
 
-This plugin has no `userConfig` — all of its variability is env-driven. Set any
-toggle in your settings `env` block (values are read literally; changes
-hot-reload):
+Every channel is toggled by its own `userConfig` boolean (default **on**; set to
+`false` to mute that channel). Mute the OS toast and keep the rest:
 
-```json
-{
-  "env": {
-    "HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED": "false",
-    "HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED": "false"
-  }
-}
+| Option | What it controls |
+|---|---|
+| `desktop_notification_enabled` | Master toggle for the whole hook. |
+| `desktop_notification_bell_enabled` | The `bell` channel. |
+| `desktop_notification_terminal_notify_enabled` | The `terminal_notify` (OSC 9) channel. |
+| `desktop_notification_os_toast_enabled` | The `os_toast` channel. |
+
+Set them interactively with `/plugin configure desktop-notification`, or headless
+on the install command:
+
+```shell
+claude plugin install desktop-notification@melodic-software --config desktop_notification_os_toast_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To silence notifications for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
 
 ### Disable without uninstalling
 
-```json
-{ "env": { "HOOK_DESKTOP_NOTIFICATION_ENABLED": "false" } }
-```
+Set `desktop_notification_enabled` to `false` (via `/plugin configure
+desktop-notification` or `--config desktop_notification_enabled=false`).
 
 ## Telemetry (opt-in)
 

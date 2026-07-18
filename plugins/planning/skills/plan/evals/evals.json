@@ -85,6 +85,20 @@
         "Uses the documented docs promotion path for the durable artifact",
         "Does not invoke or configure GitBook API, MCP, or Git Sync writes"
       ]
+    },
+    {
+      "id": 8,
+      "name": "grounds-plan-in-consumer-standards-index",
+      "prompt": "/planning:plan exploration and research are done and I accept planning without a separate /design pass (no new types). The task: add input validation to the three existing C# request handlers in this service. This repo has a standards index at docs/standards/README.md with standards-contract frontmatter, whose csharp row points at docs/standards/csharp.md.",
+      "expected_output": "Before formulating, the grounding step resolves the standards index through the plugin's standards-contract binding, matches the task's csharp surface against the index's Applies-when clues, and loads the relevant sections of docs/standards/csharp.md (selectively — not unrelated surfaces like markdown or testing-only files). The produced plan carries a Standards grounding element citing the sections loaded for the csharp surface with their layer provenance, and the plan content reflects those standards rather than merely naming them.",
+      "files": [],
+      "expectations": [
+        "Resolves the standards index via the binding's resolution ladder rather than guessing paths or skipping grounding",
+        "Loads only the standards files whose index rows match the task's surfaces, reading task-relevant sections rather than every file",
+        "The produced plan cites the standards sections loaded for the touched surface (the Standards grounding element)",
+        "Does not re-pull ambient content (auto-loaded CLAUDE.md or fired rules) as part of grounding",
+        "Writes nothing to the consumer repo as a side effect of grounding"
+      ]
     }
   ]
 }

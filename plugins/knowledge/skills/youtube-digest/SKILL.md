@@ -53,6 +53,26 @@ Every extraction command in this skill runs through `run.mjs`, and each writes i
 
 The `setup-deps.mjs` install step is exempt — it installs node dependencies into `${CLAUDE_PLUGIN_DATA}`, not the work root.
 
+## yt-dlp & throttle overrides
+
+Four more personal `userConfig` options tune YouTube acquisition. Each is wired the **same** cross-platform way as `--work-root` — a leading, double-quoted flag on the `run.mjs` invocation that the launcher forwards to the extraction child as an environment variable (these env vars are internal plumbing, not a channel to set by hand). Apply the **same guard** as `library_dir`: pass a flag only when its option holds a non-empty value other than the option default, and not still an unexpanded `${user_config.…}` token; otherwise omit it and the pipeline keeps its built-in default. All are leading and order-independent, so they combine with `--work-root` in any order:
+
+| Option | Flag | Pass when | Effect |
+|---|---|---|---|
+| `${user_config.yt_dlp_js_runtimes}` | `--js-runtimes "<value>"` | set and not the default `node` | `off` omits yt-dlp's `--js-runtimes`; any other value selects that runtime |
+| `${user_config.yt_dlp_cookies_file}` | `--cookies-file "<value>"` | non-empty | authenticated acquisition from a Netscape cookies.txt (never commit it) |
+| `${user_config.yt_dlp_cookies_from_browser}` | `--cookies-from-browser "<value>"` | non-empty | forces one browser's cookies instead of the automatic platform-ordered fallback; a cookies file wins over it |
+| `${user_config.max_concurrent_acquires}` | `--max-concurrent-acquires "<value>"` | set and not the default `1` | caps concurrent acquisitions (1–3); higher increases HTTP 429 risk |
+
+Example combining a non-default library dir with a forced cookie source (unset options contribute no flag):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" \
+  --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" \
+  --cookies-from-browser "${user_config.yt_dlp_cookies_from_browser}" \
+  <script.js> [args…]
+```
+
 ## Action router
 
 | Action | Status | Behavior |
@@ -360,7 +380,7 @@ Verify before starting (stop and route to fix path on failure):
 
 1. **youtube-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates); idempotent — safe to re-run, and re-run after a plugin update.
 2. **yt-dlp** — required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp` (Windows), `brew install yt-dlp` (macOS), `pip install -U yt-dlp` or distro package (Linux). Acquisition throttling + bot-check cookie fallback: `## Gotchas`
-   - **JS runtime:** `--js-runtimes node` by default (`YOUTUBE_YT_DLP_JS_RUNTIMES=off` to omit)
+   - **JS runtime:** `--js-runtimes node` by default (set the `yt_dlp_js_runtimes` option to `off` to omit)
 3. **ffmpeg** — required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7** — required for `watch` only (contact sheets). `magick -version`
 

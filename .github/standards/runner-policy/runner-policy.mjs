@@ -200,6 +200,19 @@ function validatePolicy(value) {
           }
         }
       }
+      // Every runner-input contract's reviewed secret mapping feeds a
+      // selector-routed caller whose secrets: block the generic credential
+      // scan then trusts, so each value must be one exact whole named-secret
+      // expression (the workflow_call input name may differ from the
+      // repository secret name) — a transformed or indirect expression would
+      // ride the reviewed boundary onto the fleet.
+      for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
+        if (typeof expression !== "string" || !EXACT_NAMED_SECRET_EXPRESSION.test(expression)) {
+          throw new ConfigurationError(
+            `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly one whole \${{ secrets.<NAME> }} expression`,
+          );
+        }
+      }
     } else {
       const unknownLabel = contract.fixedRunsOn.find(
         (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
@@ -298,7 +311,51 @@ function validateRepositoryConfig(value, policy) {
     exceptions.set(key, exception);
   }
 
-  return { ...value, exceptions };
+  const localRoutingGrants = new Map();
+  for (const [key, grant] of Object.entries(value.localRoutingGrants ?? {})) {
+    if (exceptions.has(key)) {
+      throw new ConfigurationError(
+        `${key} cannot declare both a hosted exception and a local-routing grant; granted selector routing and excepted hosted execution are mutually exclusive`,
+      );
+    }
+    const admitsAnything =
+      Object.values(grant.permissions).includes("write") ||
+      Object.hasOwn(grant, "environment") ||
+      Object.hasOwn(grant, "secrets") ||
+      Object.hasOwn(grant, "credentialActions");
+    if (!admitsAnything) {
+      throw new ConfigurationError(
+        `local-routing grant ${key} admits nothing beyond the ordinary read-only local boundary; declare a write permission, environment, secret, or credential action, or remove the grant`,
+      );
+    }
+    // GitHub evaluates expression-valued environment names (vars, needs,
+    // matrix contexts), so an expression could change the protected
+    // environment without any grant-inventory diff; only a literal name is
+    // an exact reviewed surface.
+    if (Object.hasOwn(grant, "environment") && grant.environment.includes("${{")) {
+      throw new ConfigurationError(
+        `local-routing grant ${key} must name one literal deployment environment, not an expression`,
+      );
+    }
+    for (const name of grant.secrets ?? []) {
+      if (name.toUpperCase() === "GITHUB_TOKEN") {
+        throw new ConfigurationError(
+          `local-routing grant ${key} must not name GITHUB_TOKEN as a secret; the GitHub-provided token is admitted by the grant's exact permissions mapping`,
+        );
+      }
+    }
+    for (const reference of grant.credentialActions ?? []) {
+      const action = reference.split("@", 1)[0];
+      if (!policy.localCredentialActions.has(action)) {
+        throw new ConfigurationError(
+          `local-routing grant ${key} names credential action ${action}, which is not in policy.localCredentialActions`,
+        );
+      }
+    }
+    localRoutingGrants.set(key, grant);
+  }
+
+  return { ...value, exceptions, localRoutingGrants };
 }
 
 async function readJson(filePath, location) {
@@ -1005,8 +1062,14 @@ function jobPermissionsSurface(workflow) {
 // routing contract (runner-input or hosted-only), so the candidate's actual
 // runner boundary is part of its security surface: a bumped SHA that keeps the
 // same workflow_call inputs/secrets and permissions but changes jobs.*.runs-on,
-// a matrix strategy, a nested reusable call, a container/service, or a
-// deployment environment must not be silently auto-approved.
+// a matrix strategy, a nested reusable call, a container/service, a
+// deployment environment, or run defaults must not be silently
+// auto-approved. Workflow- and job-level `defaults` belong here even though
+// they hold no credential and route nothing themselves:
+// `defaults.run.shell` and `defaults.run.working-directory` change the
+// interpreter and working directory GitHub applies to every `run:` step, so
+// a byte-identical step body can execute differently under a bumped SHA
+// that only edits `defaults`.
 function declaredValueSurface(mapping, key) {
   return Object.hasOwn(mapping, key)
     ? { declared: true, value: normalizeStructuralValue(mapping[key]) }
@@ -1035,6 +1098,7 @@ function jobRoutingSurface(workflow) {
             container: declaredValueSurface(job, "container"),
             services: declaredValueSurface(job, "services"),
             environment: declaredValueSurface(job, "environment"),
+            defaults: declaredValueSurface(job, "defaults"),
           },
         },
       ])
@@ -1159,8 +1223,31 @@ function credentialBearingEntries(mapping) {
 // credential expression lives directly in `run:` with no env/with block,
 // would drop that step out of the surface entirely instead of narrowing what
 // is recorded for it.
+//
+// Per-step gating is sound only while a credential can reach a step
+// exclusively through that step's own fields. A workflow- or job-scope
+// `env:` entry such as `TOKEN: ${{ secrets.X }}` breaks that assumption:
+// GitHub exports it to the runner process environment for every step in the
+// job, so a step whose body reads `$TOKEN` contains no credential
+// expression of its own and falls outside the filtered surface entirely. A
+// bumped SHA could then rewrite that step's body, or a sibling env value
+// that decides where the credential goes (an upload URL, an API host),
+// while every recorded field stayed byte-identical. When any credential
+// expression appears in workflow-level env or anywhere in the job outside
+// its steps, the whole job therefore switches to full recording: the
+// complete workflow env (sibling values included), the complete job mapping
+// outside steps, the job condition, and every step in full. The
+// inheritedCredentialContext flag is itself part of the recorded surface so
+// a bump that merely moves a job across that boundary can never compare
+// equal. Every recorded step also records its declared `if:` condition even
+// when the condition references no credential: the condition decides
+// whether an already credential-capable step runs at all, and it is the one
+// step field full recording would otherwise drop (it is destructured out of
+// `other`).
 function jobCredentialReferenceSurface(workflow, job, policy) {
   const { steps, if: jobCondition, ...jobWithoutSteps } = job;
+  const inheritedCredentialContext =
+    containsCredentialExpression(workflow.env) || containsCredentialExpression(jobWithoutSteps);
   const stepEntries = Array.isArray(steps)
     ? steps
         .map((step, index) => {
@@ -1169,9 +1256,9 @@ function jobCredentialReferenceSurface(workflow, job, policy) {
           }
           const { env, if: stepCondition, with: inputs, ...stepWithoutCredentialMappings } = step;
           const credentialActionRef = credentialActionUses(step, policy);
-          const conditionIsCredentialBearing = conditionContainsCredentialReference(stepCondition);
           const isCredentialBearing =
-            conditionIsCredentialBearing ||
+            inheritedCredentialContext ||
+            conditionContainsCredentialReference(stepCondition) ||
             credentialBearingEntries(env) !== undefined ||
             credentialBearingEntries(inputs) !== undefined ||
             credentialBearingEntries(stepWithoutCredentialMappings) !== undefined ||
@@ -1181,9 +1268,8 @@ function jobCredentialReferenceSurface(workflow, job, policy) {
           }
           return {
             index,
-            condition: conditionIsCredentialBearing
-              ? normalizeStructuralValue(stepCondition)
-              : undefined,
+            condition:
+              stepCondition === undefined ? undefined : normalizeStructuralValue(stepCondition),
             other: normalizeStructuralValue(stepWithoutCredentialMappings),
             env: normalizeStructuralValue(env),
             with: normalizeStructuralValue(inputs),
@@ -1196,11 +1282,17 @@ function jobCredentialReferenceSurface(workflow, job, policy) {
         .filter((entry) => entry !== undefined)
     : [];
   return {
-    workflowEnv: credentialBearingEntries(workflow.env),
-    jobCondition: conditionContainsCredentialReference(jobCondition)
-      ? normalizeStructuralValue(jobCondition)
-      : undefined,
-    job: credentialBearingEntries(jobWithoutSteps),
+    inheritedCredentialContext,
+    workflowEnv: inheritedCredentialContext
+      ? normalizeStructuralValue(workflow.env)
+      : credentialBearingEntries(workflow.env),
+    jobCondition:
+      inheritedCredentialContext || conditionContainsCredentialReference(jobCondition)
+        ? normalizeStructuralValue(jobCondition)
+        : undefined,
+    job: inheritedCredentialContext
+      ? normalizeStructuralValue(jobWithoutSteps)
+      : credentialBearingEntries(jobWithoutSteps),
     steps: stepEntries,
   };
 }
@@ -1225,6 +1317,7 @@ function reusableWorkflowSecuritySurface(workflow, policy) {
     permissions: normalizePermissionsSurface(workflow.permissions),
     inputs: normalizeDeclarationSurface(declaration.inputs),
     secrets: normalizeDeclarationSurface(declaration.secrets),
+    defaults: declaredValueSurface(workflow, "defaults"),
     jobPermissions: jobPermissionsSurface(workflow),
     routing: jobRoutingSurface(workflow),
     credentials: jobCredentialSurface(workflow, policy),
@@ -1335,6 +1428,7 @@ const DYNAMIC_ROUTING_FIELDS = [
   "container",
   "services",
   "environment",
+  "defaults",
 ];
 
 function dynamicRoutingReferenceJobIds(workflow) {
@@ -1355,12 +1449,56 @@ function dynamicRoutingReferenceJobIds(workflow) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+// GitHub resolves every `uses:` reference that starts with `./` from the
+// same commit as the workflow file that contains it: a job-level
+// `./.github/workflows/<file>.yml` nested reusable workflow and a
+// step-level `./path/to/action` local action both change content when the
+// source repository moves to a new SHA even though the reference string
+// itself stays byte-identical. This diff only ever fetches the one workflow
+// file being compared, so a bumped SHA can change the nested workflow's
+// runners or secrets, or the local action's executable content, while every
+// compared field of the caller stays identical and the candidate silently
+// inherits the reviewed contract. A nested workflow could in principle be
+// fetched and diffed recursively, but a local action cannot: it is an
+// arbitrary directory of executable content (action metadata, scripts,
+// bundled JavaScript) with no single canonical file this fetcher could
+// prove unchanged. Any commit-relative reference, on either the candidate
+// or a reviewed basis, therefore makes the revision ineligible for
+// surface-diff auto-approval and requires a human contract entry instead.
+function localReferenceJobIds(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.keys(jobs)
+    .filter((jobId) => {
+      const job = jobs[jobId];
+      if (job === null || typeof job !== "object" || Array.isArray(job)) {
+        return false;
+      }
+      if (typeof job.uses === "string" && job.uses.startsWith("./")) {
+        return true;
+      }
+      const steps = Array.isArray(job.steps) ? job.steps : [];
+      return steps.some(
+        (step) =>
+          step !== null &&
+          typeof step === "object" &&
+          !Array.isArray(step) &&
+          typeof step.uses === "string" &&
+          step.uses.startsWith("./"),
+      );
+    })
+    .sort((left, right) => left.localeCompare(right));
+}
+
 function securitySurfaceDiffField(basis, candidate) {
   for (const key of [
     "workflowCall",
     "permissions",
     "inputs",
     "secrets",
+    "defaults",
     "jobPermissions",
     "routing",
     "credentials",
@@ -1517,6 +1655,14 @@ async function resolveAutoApprovedContracts({
       );
       continue;
     }
+    const localReferenceCandidateJobs = localReferenceJobIds(candidateWorkflow);
+    if (localReferenceCandidateJobs.length > 0) {
+      diagnostics.set(
+        reference,
+        `job ${localReferenceCandidateJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+      );
+      continue;
+    }
     const candidateSurface = reusableWorkflowSecuritySurface(candidateWorkflow, policy);
     const malformedField = malformedWorkflowCallMappingField(candidateSurface);
     if (malformedField) {
@@ -1551,6 +1697,12 @@ async function resolveAutoApprovedContracts({
         if (dynamicRoutingBasisJobs.length > 0) {
           throw new ConfigurationError(
             `job ${dynamicRoutingBasisJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
+          );
+        }
+        const localReferenceBasisJobs = localReferenceJobIds(basisWorkflow);
+        if (localReferenceBasisJobs.length > 0) {
+          throw new ConfigurationError(
+            `job ${localReferenceBasisJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
           );
         }
         basisSurface = reusableWorkflowSecuritySurface(basisWorkflow, policy);
@@ -1646,6 +1798,26 @@ async function resolveAutoApprovedContracts({
       diagnostics.set(
         reference,
         `${parsed.workflow} carries a reviewed allowedCallerPermissions grant; its steps cannot be proven unchanged by this surface diff, so auto-approval is declined`,
+      );
+      continue;
+    }
+
+    // A runner-input contract with a nonempty allowedSecrets mapping lets a
+    // statically read-only caller forward those exact reviewed secrets to a
+    // workflow executing on a caller-chosen (potentially self-hosted) runner.
+    // What the called workflow's steps do with a forwarded secret is content
+    // this surface diff never inspects, the same unobservable trust as
+    // selectorResultInput and allowedCallerPermissions above, so a bumped SHA
+    // must never inherit a secret-forwarding grant automatically. Hosted-only
+    // contracts keep their existing eligibility: their secrets stay bound to
+    // the fixed hosted runner recorded in the reviewed contract.
+    if (
+      matchedBasis.contract.routing === "runner-input" &&
+      matchedBasis.contract.allowedSecretNames.size > 0
+    ) {
+      diagnostics.set(
+        reference,
+        `${parsed.workflow} receives reviewed caller secrets on a caller-chosen runner; its steps cannot be proven unchanged by this surface diff, so auto-approval is declined`,
       );
       continue;
     }
@@ -2393,7 +2565,18 @@ function hasStaticallyReadOnlyPermissions(workflow, job) {
   return Object.values(permissions).every((access) => access === "read" || access === "none");
 }
 
-function localCredentialRequirement(workflow, job) {
+// The one exact spelling a local-routing grant admits for a named secret,
+// mirroring EXACT_GITHUB_TOKEN_EXPRESSIONS and the allowedSecrets contract
+// rule: bracket aliases, case variants, added whitespace, and any transform
+// stay outside every grant.
+const EXACT_NAMED_SECRET_EXPRESSION = /^\$\{\{ secrets\.([A-Za-z_][A-Za-z0-9_]*) \}\}$/;
+
+function grantedSecretName(value, secretNames) {
+  const match = EXACT_NAMED_SECRET_EXPRESSION.exec(value);
+  return match !== null && secretNames.has(match[1]) ? match[1] : undefined;
+}
+
+function localCredentialRequirement(workflow, job, grantAllowance) {
   if (containsCredentialExpression(workflow.env)) {
     return "a credential expression in workflow-level env";
   }
@@ -2401,13 +2584,61 @@ function localCredentialRequirement(workflow, job) {
   if (conditionContainsCredentialReference(jobCondition)) {
     return "a credential expression in a job condition";
   }
-  if (containsCredentialExpression(jobWithoutSteps)) {
+  // A grant admits complete job-level env values under the same exact-
+  // expression rules as step env values (a granted write-token job commonly
+  // exports its token once at job scope); every other job field keeps the
+  // ordinary boundary, and without a grant job-level env stays inside it.
+  const { env: jobEnv, ...jobOutsideEnv } = jobWithoutSteps;
+  if (
+    containsCredentialExpression(grantAllowance === undefined ? jobWithoutSteps : jobOutsideEnv)
+  ) {
     return "a credential expression outside a narrow step env/with value";
+  }
+  const readOnly = hasStaticallyReadOnlyPermissions(workflow, job);
+  const credentialMappingRequirement = (mapping) => {
+    if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
+      if (containsCredentialExpression(mapping)) {
+        return "a transformed or indirect credential expression";
+      }
+      return undefined;
+    }
+    for (const value of Object.values(mapping)) {
+      if (!containsCredentialExpression(value)) {
+        continue;
+      }
+      if (
+        typeof value === "string" &&
+        EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) &&
+        // A grant pins the job's exact effective permission map, so the
+        // GitHub-provided token those permissions describe is admitted even
+        // when the pinned map holds a write scope.
+        (readOnly || grantAllowance !== undefined)
+      ) {
+        continue;
+      }
+      const grantedName =
+        grantAllowance !== undefined && typeof value === "string"
+          ? grantedSecretName(value, grantAllowance.secretNames)
+          : undefined;
+      if (grantedName !== undefined) {
+        grantAllowance.usedSecretNames.add(grantedName);
+        continue;
+      }
+      return EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value)
+        ? "GitHub-provided token use without statically read-only permissions"
+        : "an unapproved or transformed credential expression";
+    }
+    return undefined;
+  };
+  if (grantAllowance !== undefined && jobEnv !== undefined) {
+    const jobEnvRequirement = credentialMappingRequirement(jobEnv);
+    if (jobEnvRequirement) {
+      return jobEnvRequirement;
+    }
   }
   if (!Array.isArray(steps)) {
     return undefined;
   }
-  const readOnly = hasStaticallyReadOnlyPermissions(workflow, job);
   for (const step of steps) {
     if (step === null || typeof step !== "object" || Array.isArray(step)) {
       continue;
@@ -2420,22 +2651,9 @@ function localCredentialRequirement(workflow, job) {
       return "a credential expression outside a narrow step env/with value";
     }
     for (const mapping of [env, inputs]) {
-      if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
-        if (containsCredentialExpression(mapping)) {
-          return "a transformed or indirect credential expression";
-        }
-        continue;
-      }
-      for (const value of Object.values(mapping)) {
-        if (!containsCredentialExpression(value)) {
-          continue;
-        }
-        if (typeof value === "string" && EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) && readOnly) {
-          continue;
-        }
-        return EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value)
-          ? "GitHub-provided token use without statically read-only permissions"
-          : "an unapproved or transformed credential expression";
+      const requirement = credentialMappingRequirement(mapping);
+      if (requirement) {
+        return requirement;
       }
     }
   }
@@ -2445,10 +2663,10 @@ function localCredentialRequirement(workflow, job) {
 // Returns the step's full, unmodified `uses:` value (owner/repo action plus
 // its `@ref`) when that action is a policy-listed credential-minting action,
 // or undefined otherwise. This is the one place that decides whether a step
-// mints credentials; credentialAction() (the category used for findings and
-// jobCredentialSurface) and jobCredentialReferenceSurface (the exact-ref
-// value used for auto-approval's surface diff) both derive from it so the
-// two can never disagree on which steps count.
+// mints credentials; privilegedHostedRequirement (the category used for
+// findings and jobCredentialSurface) and jobCredentialReferenceSurface (the
+// exact-ref value used for auto-approval's surface diff) both derive from it
+// so the two can never disagree on which steps count.
 function credentialActionUses(step, policy) {
   if (step === null || typeof step !== "object" || Array.isArray(step)) {
     return undefined;
@@ -2460,34 +2678,65 @@ function credentialActionUses(step, policy) {
   return policy.localCredentialActions.has(action) ? step.uses : undefined;
 }
 
-function credentialAction(job, policy) {
-  if (!Array.isArray(job.steps)) {
-    return undefined;
-  }
-  for (const step of job.steps) {
-    const uses = credentialActionUses(step, policy);
-    if (uses !== undefined) {
-      const action = uses.split("@", 1)[0].toLowerCase();
-      return action;
-    }
-  }
-  return undefined;
-}
-
-function privilegedHostedRequirement(workflow, job, selector, target, policy, localCall) {
+function privilegedHostedRequirement(
+  workflow,
+  job,
+  selector,
+  target,
+  policy,
+  localCall,
+  grant,
+  grantUsage,
+) {
   const reusable = reusableWorkflowStatus(job, policy, workflow);
   const reviewedCallerPermissions =
     target?.kind === "selector-output" &&
     reusable.approved &&
     reusable.contract.allowedCallerPermissions !== undefined;
-  const permissionRequirement =
-    localCall?.approved || reviewedCallerPermissions
-      ? undefined
-      : permissionHostedRequirement(workflow, job, {
-          requireExplicitReadOnly: target?.kind === "selector-output",
-        });
-  if (permissionRequirement) {
-    return permissionRequirement;
+  // An approved runner-input contract governs the caller's secrets: block the
+  // same way an approved hosted-only contract does: reusableWorkflowStatus
+  // has already rejected any deviation from the reviewed name-to-expression
+  // map, so the generic credential scan omits only that property. This keeps
+  // a statically read-only secret-forwarding caller admissible without a
+  // caller-permission waiver; allowedCallerPermissions remains the only
+  // write-capable waiver, and secret-capable runner-input contracts decline
+  // auto-approval so every new SHA of such a workflow is human-reviewed.
+  const reviewedSecretBoundary = target?.kind === "selector-output" && reusable.approved;
+  // A local-routing grant admits only a directly declared, genuinely
+  // selector-routed job: a fixed hosted target keeps the ordinary privileged
+  // rules and exception inventory, mirroring the allowedCallerPermissions
+  // waiver's scope. A reusable-call job never takes the grant path — its
+  // caller permissions flow into an external workflow whose behavior at the
+  // pinned SHA only the central contract review sees, so
+  // allowedCallerPermissions stays the sole write-capable waiver for callers
+  // and a grant keyed to such a job surfaces as local-routing-grant-drift.
+  const grantApplies =
+    grant !== undefined && target?.kind === "selector-output" && typeof job.uses !== "string";
+  if (grantApplies) {
+    const permissionError = exactCanonicalMap(
+      effectivePermissions(workflow, job),
+      grant.permissions,
+      {},
+      new Set(Object.keys(grant.permissions)),
+      "job permissions",
+    );
+    if (permissionError) {
+      return {
+        reason: "privileged-control-plane",
+        description: `GITHUB_TOKEN permissions outside the reviewed local-routing grant (${permissionError})`,
+        rule: "privileged-hosted-only",
+      };
+    }
+  } else {
+    const permissionRequirement =
+      localCall?.approved || reviewedCallerPermissions
+        ? undefined
+        : permissionHostedRequirement(workflow, job, {
+            requireExplicitReadOnly: target?.kind === "selector-output",
+          });
+    if (permissionRequirement) {
+      return permissionRequirement;
+    }
   }
 
   // The selector's one exact observer secret is part of its reviewed hosted
@@ -2498,18 +2747,38 @@ function privilegedHostedRequirement(workflow, job, selector, target, policy, lo
     return undefined;
   }
 
-  if (Object.hasOwn(job, "environment")) {
+  if (
+    grantApplies &&
+    Object.hasOwn(grant, "environment") &&
+    job.environment !== grant.environment
+  ) {
     return {
       reason: "privileged-control-plane",
-      description: "a deployment environment",
+      description:
+        "a deployment environment declaration that does not match the reviewed local-routing grant",
+      rule: "privileged-hosted-only",
+    };
+  }
+  if (
+    Object.hasOwn(job, "environment") &&
+    !(grantApplies && job.environment === grant.environment)
+  ) {
+    return {
+      reason: "privileged-control-plane",
+      description: grantApplies
+        ? "a deployment environment outside the reviewed local-routing grant"
+        : "a deployment environment",
       rule: "privileged-hosted-only",
     };
   }
 
-  const credentialJob = reviewedCallerPermissions
+  const credentialJob = reviewedSecretBoundary
     ? Object.fromEntries(Object.entries(job).filter(([name]) => name !== "secrets"))
     : job;
-  const credentialRequirement = localCredentialRequirement(workflow, credentialJob);
+  const grantAllowance = grantApplies
+    ? { secretNames: new Set(grant.secrets ?? []), usedSecretNames: new Set() }
+    : undefined;
+  const credentialRequirement = localCredentialRequirement(workflow, credentialJob, grantAllowance);
   if (credentialRequirement) {
     return {
       reason: "privileged-control-plane",
@@ -2518,13 +2787,41 @@ function privilegedHostedRequirement(workflow, job, selector, target, policy, lo
     };
   }
 
-  const action = credentialAction(job, policy);
-  if (action) {
-    return {
-      reason: "privileged-control-plane",
-      description: `credential-minting action ${action}`,
-      rule: "privileged-hosted-only",
-    };
+  const usedCredentialActions = new Set();
+  if (Array.isArray(job.steps)) {
+    for (const step of job.steps) {
+      const uses = credentialActionUses(step, policy);
+      if (uses === undefined) {
+        continue;
+      }
+      // A grant pins the full ref, not the action name: the same action at a
+      // different ref is different credential-minting code, which must not
+      // reach the fleet on a workflow-only change.
+      const reference = uses.toLowerCase();
+      if (!(grantApplies && (grant.credentialActions ?? []).includes(reference))) {
+        return {
+          reason: "privileged-control-plane",
+          description: `credential-minting action ${uses.split("@", 1)[0].toLowerCase()}`,
+          rule: "privileged-hosted-only",
+        };
+      }
+      usedCredentialActions.add(reference);
+    }
+  }
+
+  // A named allowance the job never exercises is latent pre-approval: a later
+  // workflow-only change could start consuming the secret or minting action
+  // without any grant-inventory diff. Report it so the admitted job's surface
+  // and the reviewed inventory stay exactly equal.
+  if (grantApplies && grantUsage !== undefined) {
+    grantUsage.unused = [
+      ...(grant.secrets ?? [])
+        .filter((name) => !grantAllowance.usedSecretNames.has(name))
+        .map((name) => `secret ${name}`),
+      ...(grant.credentialActions ?? [])
+        .filter((action) => !usedCredentialActions.has(action))
+        .map((action) => `credential-minting action ${action}`),
+    ];
   }
 
   return undefined;
@@ -2749,6 +3046,7 @@ export async function auditRepository({
   };
   const findings = [];
   const consumedExceptions = new Set();
+  const consumedLocalRoutingGrants = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
   if (!disableAutoApproval) {
     const autoApproval = await resolveAutoApprovedContracts({ policy, workflowIndex, fetchImpl });
@@ -2793,6 +3091,7 @@ export async function auditRepository({
       }
       const key = `${file}#${jobId}`;
       const exception = config.exceptions.get(key);
+      const grant = config.localRoutingGrants.get(key);
       const selector = selectorStatus(job, policy);
       const localCall = selector.isSelector
         ? undefined
@@ -2834,10 +3133,39 @@ export async function auditRepository({
           }),
         );
       }
+      const grantUsage = grant ? { unused: [] } : undefined;
       const privilegedHosted = routingEnabled
-        ? privilegedHostedRequirement(workflow, job, selector, target, policy, localCall)
+        ? privilegedHostedRequirement(
+            workflow,
+            job,
+            selector,
+            target,
+            policy,
+            localCall,
+            grant,
+            grantUsage,
+          )
         : undefined;
       const hostedRequirement = privilegedHosted ?? structuralHostedRequirement(job);
+      if (
+        grant &&
+        routingEnabled &&
+        target?.kind === "selector-output" &&
+        typeof job.uses !== "string" &&
+        !hostedRequirement
+      ) {
+        consumedLocalRoutingGrants.add(key);
+        if (grantUsage.unused.length > 0) {
+          findings.push(
+            finding(
+              "local-routing-grant-drift",
+              file,
+              jobId,
+              `local-routing grant ${key} names ${grantUsage.unused.join(", ")} the job does not exercise; remove or narrow it`,
+            ),
+          );
+        }
+      }
       let hasForbiddenHostedLabel = false;
       let hasRawManagedLabel = false;
 
@@ -3018,6 +3346,19 @@ export async function auditRepository({
           key.split("#", 1)[0],
           key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
           `configured exception ${key} is unused; remove or correct it`,
+        ),
+      );
+    }
+  }
+
+  for (const key of config.localRoutingGrants.keys()) {
+    if (!consumedLocalRoutingGrants.has(key)) {
+      findings.push(
+        finding(
+          "local-routing-grant-drift",
+          key.split("#", 1)[0],
+          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
+          `configured local-routing grant ${key} is unused; remove or correct it`,
         ),
       );
     }

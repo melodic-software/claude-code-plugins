@@ -3,6 +3,51 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **Named design-smell baseline in `code-reviewer`** (Fowler, *Refactoring* 2nd ed., ch. 3): twelve
+  smells — Mysterious Name, Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession,
+  Repeated Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message Chains,
+  Middle Man, Refused Bequest — matched against the diff as advisory heuristics. Findings default
+  to SUGGESTION at medium/low confidence, carry an explicit confidence label the fanout
+  normalization pipeline passes straight through; escalation happens only through a documented
+  project rule (the rule carries the severity), and a project standard that endorses a flagged
+  pattern suppresses the smell. The prior duplicated-structural-boilerplate bullet is folded into
+  Duplicated Code. `fanout` and `quality-gate` inherit the baseline by dispatching the agent; the
+  external `pr-review-toolkit` orchestrator path and the self-mode general fallback do not reach it
+  (documented limitations). No config surface added — smell suppression rides the existing
+  `REVIEW.md` / project-rules seam. No live upstream; regeneration trigger is a Fowler edition
+  revision to ch. 3 or a change to `code-reviewer`'s design-smell taxonomy.
+
+## [0.11.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states review
+  reports are lane-local (invisible to sibling worktrees and clones) and cross-lane findings
+  graduate through the work-item tracker as tickets that point, never as pasted report bodies.
+
+## [0.10.0]
+
+### Added
+
+- **Standards-index criteria resolution in `/review:quality-gate`**: criteria mode resolves
+  review criteria through the consumer's standards index via the new
+  `reference/standards-contract.md` binding (synced from the marketplace's standards
+  convention) — repo review docs like `REVIEW.md` become inference sources inside the binding's
+  resolution ladder, with the severity baseline and agent checklists as the final fallback.
+  Step 1's "What conventions apply?" routes through the same index, so every review mode
+  (self/code/architecture/security/pr/slice/restatement) inherits index-grounded conventions and
+  reviews against the same rows plan formulation loaded.
+- **New `/review:setup` skill**: idempotent standards-index bootstrap implementing the binding's
+  normative Setup-and-migration section — conforming-index short-circuit, row-path validation,
+  directional version-delta migration, and a setup-owned `<standards_dir>/.gitignore` for
+  personal overlays.
+- **Tripwire test** `tests/standards-binding.test.sh` guards the binding references, the
+  ladder-pointer discipline, and the Step 1 index routing against future prose edits.
+
 ## [0.9.0]
 
 ### Added

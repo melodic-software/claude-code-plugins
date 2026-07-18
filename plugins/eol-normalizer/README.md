@@ -50,17 +50,25 @@ still runs.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the
-`.gitattributes` already in your repository, which it reads automatically. To
-change which files normalize to which endings, edit your `.gitattributes`.
+The normalization policy itself is your repository's `.gitattributes`, which the
+hook reads automatically — to change which files normalize to which endings,
+edit your `.gitattributes`. One `userConfig` option tunes the hook's own
+behavior:
 
-### Disable without uninstalling
+| Option | Type | Default | Effect |
+|--------|------|---------|--------|
+| `eol_normalizer_enabled` | boolean | `true` | Toggle the eol-normalizer hook. Set to `false` for a clean no-op. |
 
-Set the kill switch in your settings `env` block:
+Set it interactively with `/plugin configure eol-normalizer`, or headless on
+the install command:
 
-```json
-{ "env": { "HOOK_EOL_NORMALIZER_ENABLED": "false" } }
+```shell
+claude plugin install eol-normalizer@melodic-software --config eol_normalizer_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn the plugin off for a single repository, disable it in that
+project's `enabledPlugins` instead.
 
 ## License
 

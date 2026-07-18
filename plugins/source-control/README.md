@@ -1,8 +1,9 @@
 # source-control
 
-A Claude Code plugin bundling the git/GitHub delivery workflow as five
-composable skills — commit mechanics, the full PR lifecycle, worktree
-lifecycle management, convention setup, and merge-conflict resolution.
+A Claude Code plugin bundling the git/GitHub delivery workflow as six
+composable skills — commit mechanics, the single-PR lifecycle, the all-PR
+babysit loop, worktree lifecycle management, convention setup, and
+merge-conflict resolution.
 
 ## Skills
 
@@ -43,14 +44,18 @@ research-gated:
   react → reply → fix → verify-on-GitHub treatment.
 - **merge** — 6-gate readiness re-verification, squash merge, worktree
   reuse/cleanup, post-merge CI health check. Never auto-merges.
-- **babysit** — self-pacing all-PR loop (designed for
-  `/loop /pull-request babysit`): discovers every open PR, checks each out,
-  processes every finding individually with GitHub-verified evidence, and is
-  mechanically gated by the bundled `babysit-readiness-gate.sh` (classification
-  rows must cover source findings before readiness can be declared). Never
-  merges.
 - **fetch-logs** — tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
+
+### `/source-control:babysit-prs`
+
+Self-pacing all-PR loop (designed for `/loop /source-control:babysit-prs`):
+discovers every open non-draft PR, checks each out, keeps the branch fresh,
+processes every review finding individually with GitHub-verified evidence
+per the plugin-scope shared review discipline, and is mechanically gated by
+the bundled `babysit-readiness-gate.sh` (classification rows must cover
+source findings before readiness can be declared). Never merges — readiness
+is reported; the user merges.
 
 ### `/source-control:worktree`
 
@@ -108,23 +113,34 @@ user decision to abandon the integration.
 
 ## Configuration
 
-No `userConfig`. Run **`/source-control:setup`** to interview your repo and
+Run **`/source-control:setup`** to interview your repo and
 write the tracked `.claude/source-control.md` commit-subject / PR-title
 convention config — it is idempotent and safe to re-run to reconfigure.
-Optional environment variables:
+
+Personal tuning scalars are `userConfig` options (set interactively with
+`/plugin configure source-control`, or headless via
+`claude plugin install source-control@melodic-software --config KEY=VALUE`;
+they are user-scoped, stored in your user settings):
+
+| Option | Used by | Effect |
+|---|---|---|
+| `worktree_stale_days` | `/worktree status` | Staleness threshold (default 14 days) |
+| `babysit_self_logins` | `/babysit-prs` readiness gate | Extra posting identities (csv) whose replies count as your classification rows — e.g. a project bot account (default: your `gh api user` login) |
+| `fetch_logs_max_bytes` | `fetch-logs` | Size cap for CI-log ZIPs (default 52428800 = 50 MiB) |
+
+Remaining optional environment variables:
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `WORKTREE_STALE_DAYS` | `/worktree status` | Staleness threshold (default 14 days) |
-| `BABYSIT_SELF_LOGINS` | babysit readiness gate | Extra posting identities (csv) whose replies count as your classification rows — e.g. a project bot account (default: your `gh api user` login) |
-| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` / `FETCH_LOGS_MAX_BYTES` | `fetch-logs` | Scratch dir, repo override, size cap for CI-log ZIPs |
+| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
 
 ## Security
 
 - No hooks, no MCP servers, no telemetry, no outbound network beyond `git`
   and `gh` against the repository the session already targets.
 - Writes to GitHub (comments, reactions, thread resolution, PR creation,
-  merge) happen only inside the documented `/pull-request` phases, with the
-  merge decision always behind a human gate.
+  merge) happen only inside the documented `/pull-request` phases and the
+  `/babysit-prs` loop, with the merge decision always behind a human gate —
+  `/babysit-prs` never merges.
 - Bundled scripts are read-only against the GitHub API except where the
   skill body documents a write.

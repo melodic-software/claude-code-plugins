@@ -3,12 +3,35 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.2]
+## [0.11.1]
 
 ### Changed
 
 - Refresh of the bundled shared hook-utils library, which gains the git argv-grammar parser used by
   the guardrails plugin's git guards. No behavioral change to this plugin's hooks.
+
+## [0.11.0]
+
+### Changed
+
+- **Per-hook kill switches migrated to native `userConfig`** (the fleet-wide
+  kill-switch doctrine ruling). Each audit hook's toggle is now a `userConfig`
+  boolean (default `true`), read by the hooks through the native
+  `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process mirror: `api_error_audit_enabled`,
+  `config_change_audit_enabled`, `instructions_loaded_audit_enabled`,
+  `permission_denied_audit_enabled`, `pre_compact_audit_enabled`,
+  `skill_usage_audit_enabled` (shared by both skill-usage audit hooks), and
+  `tool_failure_audit_enabled`. The `instructions-loaded-audit` session_start
+  opt-in is now the `instructions_loaded_audit_log_session_start` option
+  (default `false`), and the stdin read bound is the `stdin_read_timeout` option
+  (default `2`). Configure interactively with `/plugin configure claude-ops` or
+  headless via `claude plugin install --config KEY=VALUE`.
+- **BREAKING:** the `HOOK_<NAME>_ENABLED` and
+  `HOOK_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` environment variables are
+  retired and no longer read. A consumer that set any of these in a settings
+  `env` block must re-express the value as the matching `userConfig` option.
+  Zero-config behavior is unchanged (all audit hooks on, same defaults). The
+  `HOOK_TELEMETRY_SINK` consumer-side telemetry seam is unaffected.
 
 ## [0.10.1]
 

@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block irreversible git operations on Bash tool calls.
 #
-# Default block-list is irreversible-only:
-#   push-force    — git push --force / -f (NOT --force-with-lease)
-#   reset-hard    — git reset --hard
-#   clean-force   — git clean with a force flag (-f, -fd, -fdx, --force)
-#   checkout-dot  — git checkout .  (worktree-wide discard; path-scoped is fine)
-#   restore-dot   — git restore .   (worktree discard; --staged-only is fine)
+# Default block-list is irreversible-only (form tokens):
+#   push-force     — git push --force / -f / +refspec / --mirror (NOT --force-with-lease)
+#   reset-hard     — git reset --hard
+#   clean-force    — git clean with a force flag (-f, -fd, -fdx, --force)
+#   checkout-dot   — git checkout .  (worktree-wide discard; path-scoped is fine)
+#   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
+#   checkout-force — git checkout -f / switch -f/--discard-changes
 #
 # NOT blocked: --force-with-lease (safe force), plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
 #
-# Per-repo/per-user allow-list: HOOK_BLOCK_DANGEROUS_GIT_ALLOW is a
-# comma-separated list of the form tokens above (e.g. "push-force,reset-hard"),
-# settable in a project's .claude/settings.json `env` block (per-repo) or user
-# settings (per-user). Kill switch: HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false.
+# Per-repo/per-user allow-list: the guardrails `block_dangerous_git_allow`
+# userConfig option is a comma-separated list of the form tokens above (e.g.
+# "push-force,reset-hard"). Set it with `/plugin configure guardrails` or
+# headless via `claude plugin install --config`; the hook reads it from the
+# CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW process mirror. Kill switch:
+# the `block_dangerous_git_enabled` userConfig option set to false.
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL via the shared parser in hook-utils.sh —
 # a quoted "git push --force" in prose never fires; `checkout .github/x` never
 # matches `checkout .`. Static matching over the literal command string only:
 # shell variable / command substitution is not evaluated. This is a friction
-# guard against accidental destruction, not a sandbox. An inline env prefix
-# (`HOOK_..._ENABLED=false git push -f`) does NOT disable the hook — the
-# prefix reaches only the spawned git process, not this hook.
+# guard against accidental destruction, not a sandbox. userConfig options are
+# resolved at plugin-enable time, so an inline env prefix on the command line
+# (`FOO=bar git push -f`) cannot alter this guard's behavior.
 #
 # BLOCKING: exits 2 on any detected form not in the allow-list.
 
@@ -72,10 +75,10 @@ emit_tel() {
   hook::emit_telemetry "block-dangerous-git" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Is a form token in the HOOK_BLOCK_DANGEROUS_GIT_ALLOW comma list?
+# Is a form token in the block_dangerous_git_allow userConfig comma list?
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 allowed() {
-  local tok="$1" list=",${HOOK_BLOCK_DANGEROUS_GIT_ALLOW:-},"
+  local tok="$1" list=",${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW:-},"
   [[ "$list" == *,"$tok",* ]]
 }
 
@@ -295,7 +298,7 @@ check_segment() {
         for ((k++; k < nseg; k++)); do
           [[ "${w[k]}" == +* ]] && block "push-force" \
             "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-            "Drop the + or use --force-with-lease, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+            "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
         done
         break
         ;;
@@ -319,26 +322,26 @@ check_segment() {
       --force)
         block "push-force" \
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
-          "Use --force-with-lease (refuses to clobber unseen remote work), or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+          "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
         ;;
       --force-with-lease | --force-with-lease=* | --force-if-includes) ;;
       +*)
         block "push-force" \
           "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-          "Drop the + or use --force-with-lease, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+          "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
         ;;
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "push-force" \
             "BLOCKED: git push -f is irreversible for anyone sharing the branch." \
-            "Use --force-with-lease (refuses to clobber unseen remote work), or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+            "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
         fi
         ;;
       *)
         if abbrev_match "mirror" "$x" 2; then
           block "push-force" \
             "BLOCKED: git push --mirror force-updates every remote ref." \
-            "Push specific refs instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=push-force."
+            "Push specific refs instead, or allow via the block_dangerous_git_allow option (add push-force)."
         fi
         ;;
       esac
@@ -360,7 +363,7 @@ check_segment() {
       fi
       abbrev_match "hard" "$x" 1 && block "reset-hard" \
         "BLOCKED: git reset --hard discards uncommitted work with no recovery path." \
-        "Commit or stash first (git stash push -u), use git reset --keep, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=reset-hard."
+        "Commit or stash first (git stash push -u), use git reset --keep, or allow via the block_dangerous_git_allow option (add reset-hard)."
     done
     ;;
   clean)
@@ -444,14 +447,14 @@ check_segment() {
         if [[ "$rest" == *f* ]]; then
           block "clean-force" \
             "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-            "Preview with git clean -n first; then allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=clean-force if intended."
+            "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
         fi
         continue
       fi
       if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
         block "clean-force" \
           "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-          "Preview with git clean -n first; then allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=clean-force if intended."
+          "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
       fi
     done
     ;;
@@ -482,7 +485,7 @@ check_segment() {
         for ((k++; k < nseg; k++)); do
           is_tree_wide_pathspec "${w[k]}" && block "checkout-dot" \
             "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-            "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+            "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
           if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
         done
         break
@@ -496,7 +499,7 @@ check_segment() {
         if abbrev_match "pathspec-from-file" "$rest" 11; then
           block "checkout-dot" \
             "BLOCKED: git checkout --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-            "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+            "Pass explicit paths instead, or allow via the block_dangerous_git_allow option (add checkout-dot)."
           if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
         else
           ((k++))
@@ -525,11 +528,11 @@ check_segment() {
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git checkout -f/--force throws away local modifications." \
-            "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
+            "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
         fi
         is_tree_wide_pathspec "$x" && block "checkout-dot" \
           "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-          "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+          "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
         if [[ "$x" != -* ]]; then
           if is_exclude_pathspec "$x"; then
             ((excl++))
@@ -547,7 +550,7 @@ check_segment() {
     done
     ((excl > 0 && pos == 0)) && block "checkout-dot" \
       "BLOCKED: an exclude-only git checkout pathspec restores everything outside the excluded set." \
-      "Add positive paths to scope the checkout, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+      "Add positive paths to scope the checkout, or allow via the block_dangerous_git_allow option (add checkout-dot)."
     ;;
   switch)
     # switch -f/--force (alias --discard-changes) throws away local
@@ -575,7 +578,7 @@ check_segment() {
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
-            "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
+            "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
         fi
         ;;
       esac
@@ -633,7 +636,7 @@ check_segment() {
           for ((k++; k < nseg; k++)); do
             is_tree_wide_pathspec "${w[k]}" && block "restore-dot" \
               "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-              "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+              "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
             if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
           done
           break
@@ -647,7 +650,7 @@ check_segment() {
           if abbrev_match "pathspec-from-file" "$rest" 11; then
             block "restore-dot" \
               "BLOCKED: git restore --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-              "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+              "Pass explicit paths instead, or allow via the block_dangerous_git_allow option (add restore-dot)."
             if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
           else
             ((k++))
@@ -669,7 +672,7 @@ check_segment() {
           fi
           is_tree_wide_pathspec "$x" && block "restore-dot" \
             "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-            "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+            "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
           if [[ "$x" != -* ]]; then
             if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
           fi
@@ -679,7 +682,7 @@ check_segment() {
       done
       ((excl > 0 && pos == 0)) && block "restore-dot" \
         "BLOCKED: an exclude-only git restore pathspec discards everything outside the excluded set." \
-        "Add positive paths to scope the restore, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+        "Add positive paths to scope the restore, or allow via the block_dangerous_git_allow option (add restore-dot)."
     fi
     ;;
   *) ;;
@@ -693,7 +696,7 @@ check_segment() {
 # can honestly allow it. Only the kill switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   echo "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." >&2
-  echo "Shorten the command, or set HOOK_BLOCK_DANGEROUS_GIT_ENABLED=false to bypass." >&2
+  echo "Shorten the command, or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
   emit_tel "blocked" "too-long"
   exit 2
 fi

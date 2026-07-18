@@ -11,7 +11,7 @@ severity-ranked, deduplicated findings report.
 
 | Agent | Concern |
 |---|---|
-| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses |
+| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses; carries a named Fowler design-smell baseline (advisory, project standards override) |
 | `security-reviewer` | Cross-ecosystem security audit — OWASP Top 10, injection, secrets, auth (P1–P5 severity) |
 | `architecture-guardian` | Dependency direction, boundary integrity, pattern compliance |
 | `doc-drift-detector` | Documentation that no longer matches the code — stale, missing, aspirational |

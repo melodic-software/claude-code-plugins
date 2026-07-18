@@ -12,7 +12,8 @@
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@f2d5e06757201f2fce187096a2c6fa805836c3d2",
       "melodic-software/ci-workflows/.github/workflows/select-runner.yml@3931f91ccba9bfe97500196091ae2cc039672952",
-      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52"
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@cdc5917c15aade1995bd810b60d818cadc635b52",
+      "melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5"
     ]
   },
   "approvedReusableWorkflowContracts": {
@@ -206,6 +207,79 @@
       "selectorResultInput": "prerequisite-result",
       "allowedInputs": ["runner", "prerequisite-result"],
       "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/link-check.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "args",
+        "issue-title",
+        "issue-labels",
+        "issue-type",
+        "auto-close"
+      ],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "label"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pester.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "hosted-only",
+      "allowedInputs": [
+        "run",
+        "pester-version",
+        "working-directory",
+        "sparse-checkout",
+        "sparse-checkout-cone-mode"
+      ],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["windows-2025"]
     }
   },
   "canonicalSelectorInputs": {

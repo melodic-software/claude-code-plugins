@@ -1,12 +1,45 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "desktop-notification",
-  "version": "0.1.3",
+  "version": "0.2.1",
   "description": "Alert you when Claude Code needs input — an audible terminal bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
+  "keywords": [
+    "notification",
+    "desktop",
+    "toast",
+    "bell",
+    "osc9",
+    "hook"
+  ],
+  "userConfig": {
+    "desktop_notification_enabled": {
+      "type": "boolean",
+      "title": "desktop-notification master toggle",
+      "description": "Master switch for the whole notification hook",
+      "default": true
+    },
+    "desktop_notification_bell_enabled": {
+      "type": "boolean",
+      "title": "bell channel",
+      "description": "Audible terminal bell (bare BEL)",
+      "default": true
+    },
+    "desktop_notification_terminal_notify_enabled": {
+      "type": "boolean",
+      "title": "terminal-notify channel",
+      "description": "OSC 9 terminal notification emitted via the hook's terminalSequence output",
+      "default": true
+    },
+    "desktop_notification_os_toast_enabled": {
+      "type": "boolean",
+      "title": "os-toast channel",
+      "description": "OS-native desktop toast (macOS/Linux)",
+      "default": true
+    }
+  }
 }

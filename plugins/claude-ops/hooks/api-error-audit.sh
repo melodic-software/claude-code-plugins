@@ -7,7 +7,7 @@
 # The subject is the StopFailure `error` type only: `error_details` may carry
 # prompt fragments or session metadata, so it is never captured (privacy-safe).
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
-# Kill switch: HOOK_API_ERROR_AUDIT_ENABLED=false.
+# Kill switch: CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED=false.
 
 set -uo pipefail
 

@@ -24,7 +24,7 @@
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
 # sandbox. The ONLY supported deliberate bypass is the kill switch
-# (HOOK_BLOCK_NO_VERIFY_ENABLED=false).
+# (block_no_verify_enabled userConfig option set to false).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -184,7 +184,7 @@ check_segment() {
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
-    "Shorten the command, or set HOOK_BLOCK_NO_VERIFY_ENABLED=false to bypass."
+    "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
 fi
 
 hook::bash_parse_segments "$COMMAND" check_segment

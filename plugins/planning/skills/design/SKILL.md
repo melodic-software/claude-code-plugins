@@ -165,7 +165,7 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 
 ## Key behaviors
 
-- **Collaborative always.** Never autonomously decide design. One question at a time, depth-first — resolve the load-bearing question before surfacing the next. Use `AskUserQuestion` when 2-4 discrete choices exist; prose for open-ended questions
+- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds — every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
 - **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write — another turn or agent may have modified them — and prefer appending or refining over wholesale rewrites

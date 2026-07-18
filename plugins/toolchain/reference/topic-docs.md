@@ -20,6 +20,11 @@ YAML document parses as null and fails the contract schema's `type: object`), ru
 conflict check on the chosen contract root when the tier is `branch`, and never edits the consumer's root
 `.gitignore`.
 
+The contract's visibility mechanisms (≥ 2.0.0 — committed worktree base setting,
+`.worktreeinclude`) are consumer-repo root materializations outside the concern file's schema;
+`/toolchain:setup` does not write them today (a setup-skill apply action is the contract's recorded
+follow-on).
+
 ## Where the artifacts land (owned by the companion plugins)
 
 The `implementation` and `verification` plugins bind this convention in their own

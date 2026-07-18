@@ -59,17 +59,25 @@ linting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the `biome.json`
-already in your repository, which it reads automatically. To change the rules,
-edit that file.
+The formatting rules come from the `biome.json` already in your repository, which
+the plugin reads automatically. To change the rules, edit that file.
 
-### Disable without uninstalling
+One `userConfig` option tunes the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `biome_format_enabled` | `true` | Toggle for the biome-format hook; set to `false` for a clean no-op |
 
-```json
-{ "env": { "HOOK_BIOME_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure biome-format`, or headless on the
+install command:
+
+```shell
+claude plugin install biome-format@melodic-software --config biome_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn the hook off for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
 
 ## License
 
