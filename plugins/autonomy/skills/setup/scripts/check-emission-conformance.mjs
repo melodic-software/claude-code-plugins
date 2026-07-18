@@ -17,16 +17,42 @@ import process from "node:process";
 
 const PINNED_SCHEMA_URL = "https://opentelemetry.io/schemas/1.43.0";
 const JOIN_ATTRIBUTE = "autonomy.work_item.url";
-const NORMALIZED_URL = /^https:\/\/[^\s?#]+[^\s?#/]$/;
 
 const findings = [];
+
+// A normalized canonical item URL must parse as a real URL, not merely match a
+// shape: https protocol, a non-empty hostname, none of query, fragment, or
+// trailing slash — and it must round-trip the WHATWG parser unchanged
+// (url.href === value), which is what "normalized" means. Round-tripping
+// rejects values the parser silently repairs (empty host `https:///items/101`
+// becomes `https://items/101`) and parsing rejects outright malformed ones
+// (non-numeric port `https://h:abc/items/101`).
+function isNormalizedCanonicalUrl(value) {
+  if (typeof value !== "string" || /\s/.test(value)) return false;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === "https:" &&
+    url.hostname.length > 0 &&
+    url.search === "" &&
+    url.hash === "" &&
+    url.href === value &&
+    !value.includes("?") &&
+    !value.includes("#") &&
+    !value.endsWith("/")
+  );
+}
 
 function checkAttributeList(attributes, where, hits) {
   for (const attribute of attributes ?? []) {
     if (attribute.key !== JOIN_ATTRIBUTE) continue;
     hits.count += 1;
     const value = attribute.value?.stringValue;
-    if (typeof value !== "string" || !NORMALIZED_URL.test(value)) {
+    if (!isNormalizedCanonicalUrl(value)) {
       findings.push(
         `${where}: ${JOIN_ATTRIBUTE} value ${JSON.stringify(value)} is not a normalized canonical item URL (https, no trailing slash, no query/fragment)`,
       );
@@ -34,31 +60,44 @@ function checkAttributeList(attributes, where, hits) {
   }
 }
 
+function checkSchemaUrl(declared, where, tally) {
+  if (!declared) return;
+  tally.schemaUrlDeclared += 1;
+  if (declared !== PINNED_SCHEMA_URL) {
+    findings.push(`${where}: schemaUrl ${declared} != pinned ${PINNED_SCHEMA_URL}`);
+  }
+}
+
 // Per the contract: contract-authored emissions declare the pinned schema URL;
 // a native tool's emission is consumed as-is and may declare none. So absence
-// on an individual line is tolerated, a declared URL must match the pin, and
-// at least one line in the whole checked set must declare it.
+// on an individual entry is tolerated, every declared URL (resource-entry or
+// scope level) must match the pin, and at least one emission in the whole
+// checked set must declare it. The join attribute is required per resource
+// entry — an export batch can carry several entries on one line, and a joined
+// pipeline entry must not vouch for an unjoined session entry beside it.
 function checkResourceBlocks(blocks, file, line, tally) {
-  const hits = { count: 0 };
+  const result = { hits: 0, entries: 0 };
   for (const [signalKey, block] of Object.entries(blocks)) {
     if (!Array.isArray(block)) continue;
-    for (const entry of block) {
-      const where = `${file}:${line} ${signalKey}`;
-      if (entry.schemaUrl) {
-        tally.schemaUrlDeclared += 1;
-        if (entry.schemaUrl !== PINNED_SCHEMA_URL) {
-          findings.push(`${where}: schemaUrl ${entry.schemaUrl} != pinned ${PINNED_SCHEMA_URL}`);
-        }
-      }
+    block.forEach((entry, entryIndex) => {
+      result.entries += 1;
+      const where = `${file}:${line} ${signalKey}[${entryIndex}]`;
+      const hits = { count: 0 };
+      checkSchemaUrl(entry.schemaUrl, where, tally);
       checkAttributeList(entry.resource?.attributes, `${where} resource`, hits);
       for (const scope of entry.scopeSpans ?? entry.scopeMetrics ?? entry.scopeLogs ?? []) {
+        checkSchemaUrl(scope.schemaUrl, `${where} scope`, tally);
         for (const item of scope.spans ?? scope.metrics ?? scope.logRecords ?? []) {
           checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`, hits);
         }
       }
-    }
+      if (hits.count === 0) {
+        findings.push(`${where}: resource entry carries no ${JOIN_ATTRIBUTE} attribute`);
+      }
+      result.hits += hits.count;
+    });
   }
-  return hits.count;
+  return result;
 }
 
 function filesUnder(target) {
@@ -90,13 +129,12 @@ for (const target of targets.flatMap(filesUnder)) {
       return;
     }
     linesChecked += 1;
-    const hits = checkResourceBlocks(parsed, target, index + 1, tally);
+    const { hits, entries } = checkResourceBlocks(parsed, target, index + 1, tally);
     joinAttributeHits += hits;
-    // Every emission must carry the join key somewhere (resource or item
-    // attributes) — a single global hit would let an unjoined session emission
-    // pass on the back of a conforming pipeline line.
-    if (hits === 0) {
-      findings.push(`${target}:${index + 1}: emission carries no ${JOIN_ATTRIBUTE} attribute`);
+    // Per-entry join enforcement lives in checkResourceBlocks; a line with no
+    // recognizable OTLP resource entries at all is its own finding.
+    if (entries === 0) {
+      findings.push(`${target}:${index + 1}: no OTLP resource entries found on this line`);
     }
   });
 }

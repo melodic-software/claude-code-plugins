@@ -69,12 +69,16 @@ capture shape.
 
 ## Session env block (work-item-dispatched)
 
+`export` each variable (or set them in the platform's step-level `env:` map) so the launched
+agent process inherits them — plain `sh` assignments stay shell-local and the session would
+emit nothing:
+
 ```sh
-CLAUDE_CODE_ENABLE_TELEMETRY=1
-OTEL_METRICS_EXPORTER=otlp
-OTEL_LOGS_EXPORTER=otlp
-OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
-OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<canonical-item-url>
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+export OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<canonical-item-url>
 ```
 
 ## Artifact upload + verification
