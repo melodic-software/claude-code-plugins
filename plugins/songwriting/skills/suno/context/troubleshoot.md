@@ -38,7 +38,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 
 ### "Lyrics are garbled / don't match what I wrote"
 
-**Why:** Complex rhyme schemes, run-on sentences, missing punctuation, or lyrics field exceeding 3000 chars (silent truncation past that).
+**Why:** Complex rhyme schemes, run-on sentences, missing punctuation, or lyrics exceeding ~3,000 chars — the quality threshold past which Suno rushes, skips, or garbles (hard cap is 5,000 on v4.5/v5/v5.5; verified 2026-07-18, third-party testers — no official limit published).
 
 **Fix:**
 
@@ -46,7 +46,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 2. Add periods/commas where natural breath happens
 3. Break long sentences across lines
 4. Simplify rhyme scheme — internal multi-syllable rhymes confuse the model
-5. Verify total char count — paste into a counter; if > 3000 chars, trim
+5. Verify total char count — paste into a counter; if > 3,000 chars, trim (quality threshold; the 5,000 hard cap is not the problem)
 
 ### "BPM is off by 20+"
 

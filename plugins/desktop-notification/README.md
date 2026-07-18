@@ -19,6 +19,10 @@ notification, and — on macOS and Linux — an OS-native desktop toast.
 | `terminal_notify` | `desktop_notification_terminal_notify_enabled` | OSC 9 desktop notification, emitted via the hook's `terminalSequence` output (Claude Code v2.1.141+ writes it through its own terminal path). |
 | `os_toast` | `desktop_notification_os_toast_enabled` | OS-native toast (see per-OS table). |
 
+Platform facts verified 2026-07-18: hook `terminalSequence` output landed in Claude Code
+v2.1.141 per the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md);
+channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks).
+
 ### Per-OS `os_toast` behavior
 
 | OS | Tool | Requirement |

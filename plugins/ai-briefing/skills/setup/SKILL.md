@@ -127,10 +127,10 @@ Tracked profile configuration belongs in the consuming repository. Never write i
    only to render and inspect generated local HTML/PDF artifacts; it must not be used as a
    collection browser. On Linux, Playwright's documented `--with-deps` path installs required
    operating-system packages. Other supported platforms install the browser shell and rely
-   on their platform prerequisites. Current supported targets are Windows 11+/Server 2019+,
-   macOS 14+, Debian 12/13, and Ubuntu 22.04/24.04/26.04 on x86-64 or arm64, using the latest
-   Node.js 22.x, 24.x, or 26.x with npm. The launch probe runs before the runtime swap. See
-   <https://playwright.dev/docs/intro#system-requirements>.
+   on their platform prerequisites. Supported OS and Node targets are whatever
+   [Playwright's system requirements](https://playwright.dev/docs/intro#system-requirements)
+   currently list (the README's matrix is a dated snapshot of that page — the link is
+   authoritative). The launch probe runs before the runtime swap.
 
 5. **Confirm.** Report the profile path, whether `sources.md` was created or preserved,
    which optional overlays were created, and whether build dependencies were installed or
