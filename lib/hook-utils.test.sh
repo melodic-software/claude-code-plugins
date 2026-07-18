@@ -554,6 +554,28 @@ else
 fi
 rm -rf "$DATA16"
 
+# --- Test 16b: hook::raw_file_path — jq-free extraction -----------------------
+if got=$(hook::raw_file_path '{"session_id":"s","tool_input":{"file_path":"src/app.py"},"tool_name":"Write"}') && [[ "$got" == "src/app.py" ]]; then
+  ok "raw_file_path: plain path extracted"
+else
+  fail "raw_file_path: plain path (got '$got')"
+fi
+if got=$(hook::raw_file_path '{"tool_input":{"file_path":"C:\\repo\\a.yml"}}') && [[ "$got" == 'C:\\repo\\a.yml' ]]; then
+  ok "raw_file_path: JSON-escaped Windows path returned escaped"
+else
+  fail "raw_file_path: escaped path (got '$got')"
+fi
+if got=$(hook::raw_file_path '{"tool_input":{"file_path":"a \"quoted\" name.md"}}') && [[ "$got" == 'a \"quoted\" name.md' ]]; then
+  ok "raw_file_path: escaped quotes inside value survive"
+else
+  fail "raw_file_path: quoted value (got '$got')"
+fi
+if hook::raw_file_path '{"tool_name":"Bash","tool_input":{"command":"ls"}}' >/dev/null; then
+  fail "raw_file_path: no file_path should return 1"
+else
+  ok "raw_file_path: absent file_path returns 1"
+fi
+
 # --- Test 17: hook::require_jq — gate behavior --------------------------------
 # jq present → returns 0, no output, no exit.
 out17=$( (

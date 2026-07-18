@@ -393,6 +393,21 @@ if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq
 else
   fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
 fi
+# Out-of-scope edit (a .md file) with jq absent -> fully silent: the jq-free
+# applicability pre-filter must run before the jq gate.
+JQ_DATA2="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_OOS=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-oos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/README.md" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA2" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC_OOS=$?
+if [[ $RC_OOS -eq 0 && -z "$OUT_OOS" ]]; then
+  ok "jq-absent + out-of-scope edit -> fully silent (pre-filter before gate)"
+else
+  fail "jq-absent out-of-scope edit (rc=$RC_OOS out=$OUT_OOS)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

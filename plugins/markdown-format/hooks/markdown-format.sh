@@ -37,6 +37,15 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq-free applicability pre-filter: never emit the jq notice for an edit this
+# hook would not process anyway (the Write|Edit matcher is broader than the
+# Markdown filter).
+RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
+case "$RAW_FILE" in
+*.md | *.mdc) ;;
+*) exit 0 ;;
+esac
+
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
 # the agent and user channels (dim-9 doctrine), exit 0.

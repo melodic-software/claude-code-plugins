@@ -37,6 +37,16 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq-free applicability pre-filter: never emit the jq notice for an edit this
+# hook would not lint anyway (the Write|Edit matcher is broader than the
+# workflow-file filter). Slashes normalized from JSON-escaped backslashes;
+# loose on separators, tight on location + extension.
+RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
+case "${RAW_FILE//\\//}" in
+*/.github/*workflows/*.yml | */.github/*workflows/*.yaml) ;;
+*) exit 0 ;;
+esac
+
 # jq is load-bearing for input parsing; absent → visible once-per-session skip
 # notice instead of a silent no-op (dim-9 doctrine).
 hook::require_jq PostToolUse actionlint "$INPUT"

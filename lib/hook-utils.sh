@@ -108,10 +108,26 @@ hook::notice_once() {
   return 0
 }
 
+# Best-effort jq-free extraction of tool_input.file_path from the raw hook
+# input, for the applicability pre-filter an extension-scoped hook runs BEFORE
+# its jq gate — a missing-jq notice must never fire for an edit the hook would
+# not process anyway (e.g. a README edit reaching a workflow-lint hook whose
+# Write|Edit matcher is broader than its file filter). The value is returned
+# JSON-escaped (backslashes doubled); that is fine for extension/segment
+# matching, which is all the pre-filter does. Returns 1 when no file_path is
+# present.
+#   RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
+hook::raw_file_path() {
+  [[ "$1" =~ \"file_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
+  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
 # jq gate for hooks whose input parsing cannot proceed without it. When jq is
 # absent: one visible skip notice per session, then exit 0 — an advisory hook
 # never blocks the tool over a missing prerequisite. Place after
-# hook::check_enabled, passing the buffered stdin for session scoping.
+# hook::check_enabled (and after any jq-free applicability pre-filter), passing
+# the buffered stdin for session scoping.
 #   hook::require_jq PostToolUse my-plugin "$INPUT"
 hook::require_jq() {
   command -v jq >/dev/null 2>&1 && return 0
