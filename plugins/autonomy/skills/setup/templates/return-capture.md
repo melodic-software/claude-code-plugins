@@ -39,8 +39,10 @@ the upsert — the automation leaves the record unattested (optionally re-reques
 expected reply shape). On a parseable reply, the bound automation identity edits the SAME
 marker comment, adding the attested fields — `attested: true`, `counterfactual`,
 `effort_band`, `attested_at`, `attested_by` (copied from the reply's platform actor),
-`attestor_role`, and `attestation_source` (the reply event's canonical URL, normalized per
-the telemetry contract's URL rule) — so the identity is auditable. `attestation_source` is a
+`attestor_role`, and `attestation_source` (the reply event's canonical URL as the platform
+serves it — a well-formed absolute https URL; query and fragment are PRESERVED, since many
+platforms identify the comment event in them; the telemetry contract's strip rule applies
+only to the work-item join key) — so the identity is auditable. `attestation_source` is a
 schema key, present on every attested record on both surfaces (on native fields it maps to a
 field of the same name). A reply missing either value is answered with the expected shape
 and does not upsert.

@@ -29,7 +29,7 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attested_at` | ISO 8601 UTC timestamp |
 | `attested_by` | the attesting human's platform identity, captured from the attestation action |
 | `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
-| `attestation_source` | canonical URL of the attestation source event (the human's reply), normalized per the telemetry contract's URL rule — the auditable identity citation |
+| `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment PRESERVED (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
 
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
