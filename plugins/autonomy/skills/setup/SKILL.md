@@ -36,8 +36,12 @@ it cannot infer, and every landed change is reviewable per
 | Argument | Values | Headless default |
 |---|---|---|
 | action | `check` \| `apply` | — (required) |
-| `--org-policy-home` | repository locator \| `none` | `none` |
+| `--org-policy-home` | repository locator, optionally `#<path>` to the binding document \| `none` | `none` |
 | `--budget-posture` | `free` \| `paid-opt-in` | `free` |
+
+A locator without `#<path>` triggers document discovery at bind time (the binding instance
+document is found by its schema-versioned shape per the org repo's own layout) and the
+resolved path is persisted alongside the pointer so later fetches are deterministic.
 
 `apply` with every argument supplied runs non-interactively — no prompts — so automation and
 headless use work. With arguments missing, discovery infers first and interviews only the
@@ -58,8 +62,9 @@ ask and offer to persist; otherwise → safe free-tier default).
 ## Written binding
 
 `apply` writes `.claude/autonomy/binding.json`, carrying `schema_version` (from `"1.0"`),
-the role→instance map, `org_policy_home` pointer (or `null`), `budget_posture`, and declared
-substrate. The file is tracked (team-shared); personal overrides go in
+the role→instance map (a role MAY be null — unborn, or no org instance; never invented),
+the `org_policy_home` pointer (or `null`) with its resolved document path when discovered,
+`budget_posture`, and declared substrate. The file is tracked (team-shared); personal overrides go in
 `.claude/autonomy/binding.local.json`. Recommend the consumer `.gitignore` line:
 `.claude/autonomy/**/*.local.*`. Layers resolve user-global → project → local overlay,
 additively.

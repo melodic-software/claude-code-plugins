@@ -10,7 +10,14 @@ A binding is a written, schema-versioned record mapping contract vocabulary to o
 each topology role to a repository, each capability's seam to the org's chosen instance, plus
 the org's declared postures (budget, substrate availability). Bindings carry a
 `schema_version` field from v0 — consumers read the version before the body, and schema
-changes are reviewed migrations.
+changes are reviewed migrations. A role MAY be bound to null: an unborn role (one whose birth
+trigger has not fired) or a role the org has no instance for stays explicitly unbound —
+consumers treat null as absent capability and never invent an instance.
+
+The org-policy-home pointer is a repository locator that MAY carry an explicit document path
+(`<repo-locator>#<path>`). Absent a path, the consumer discovers the binding instance
+document at bind time (by its schema-versioned binding shape, per the org repo's own layout)
+and PERSISTS the resolved path alongside the pointer so later fetches are deterministic.
 
 ## Resolution ladder
 
