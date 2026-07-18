@@ -8,5 +8,80 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["git", "github", "commit", "pull-request", "babysit", "worktree", "merge-conflict", "rebase", "ci", "code-review", "delivery", "skill"]
+  "keywords": ["git", "github", "commit", "pull-request", "babysit", "worktree", "merge-conflict", "rebase", "ci", "code-review", "delivery", "skill"],
+  "userConfig": {
+    "watched_owners": {
+      "type": "string",
+      "multiple": true,
+      "title": "Watched owners",
+      "description": "GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run."
+    },
+    "self_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Self logins",
+      "description": "Your GitHub logins (plus any bot identity you post as). Absent: resolved via `gh api user --jq .login`."
+    },
+    "default_tier": {
+      "type": "string",
+      "title": "Default tier",
+      "description": "Tier an explicit bare /source-control:babysit-prs invocation runs: safe, worker, or autopilot. Never applies to auto-routed invocations.",
+      "default": "safe"
+    },
+    "merge_method": {
+      "type": "string",
+      "title": "Merge method",
+      "description": "Merge method for gate-proven merges: merge, squash, or rebase. Absent: repo convention, then squash."
+    },
+    "review_trigger_phrase": {
+      "type": "string",
+      "title": "Review trigger phrase",
+      "description": "Comment phrase that requests an AI re-review (posted and recognized). Absent: the review-trigger module stays dormant."
+    },
+    "review_bot_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Review bot logins",
+      "description": "Logins of the AI review bots the trigger phrase addresses. Absent: the review-trigger module stays dormant."
+    },
+    "review_gate_context": {
+      "type": "string",
+      "title": "Review gate context",
+      "description": "Check/status context name of the AI-review gate. Absent: gate treated as absent (degrade)."
+    },
+    "ci_gateway_context": {
+      "type": "string",
+      "title": "CI gateway context",
+      "description": "Check/status context name of a CI gateway check. Absent: gateway classification unused."
+    },
+    "extra_bot_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Extra bot logins",
+      "description": "Additional logins to treat as bots when structural detection cannot identify them. Absent: structural detection only."
+    },
+    "max_quiet_recheck_seconds": {
+      "type": "number",
+      "title": "Max quiet recheck seconds",
+      "description": "Longest a quiet PR may go without a worker recheck.",
+      "default": 14400
+    },
+    "advisory_fix_round_cap": {
+      "type": "number",
+      "title": "Advisory fix-round cap",
+      "description": "Per-PR cap on advisory-only fix rounds (never caps blocking defects).",
+      "default": 100
+    },
+    "worker_concurrency_cap": {
+      "type": "number",
+      "title": "Worker concurrency cap",
+      "description": "Maximum per-PR workers dispatched concurrently in one cycle.",
+      "default": 10
+    },
+    "worktree_root": {
+      "type": "directory",
+      "title": "Worktree root",
+      "description": "Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir."
+    }
+  }
 }
