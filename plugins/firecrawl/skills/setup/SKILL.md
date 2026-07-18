@@ -42,8 +42,10 @@ run each probe via Bash and report a PASS/FAIL/INFO table. Do not modify anythin
    persisted CLI config rather than the env var — env-var auth is the plugin's preferred
    single source of truth, but never direct the user to ADD an env key on top of working
    CLI-config auth; that would create the second source the plugin warns against). Status
-   says unauthenticated (or the CLI cannot answer) and the key is unset → FAIL. CLI absent
-   AND key unset → INFO — both arrive at first use, nothing is broken yet.
+   says unauthenticated (or the CLI cannot answer) and the key is unset → FAIL. Status says
+   unauthenticated while the key IS set → FAIL with the invalid-key remediation (below), not
+   the unset-key one. CLI absent AND key unset → INFO — both arrive at first use, nothing is
+   broken yet.
 3. **Optional env vars** — INFO the effective state of the other two the CLI reads
    (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only,
    again without printing any value.
@@ -69,6 +71,12 @@ writes nothing, so every remediation is a pointer the user acts on:
   visible only in a new terminal/Claude Code session, and skip the immediate re-check for this
   remediation: report "set persistently; verify with `setup check` in a fresh session" instead
   of a false failure.
+- **Key set but `--status` says unauthenticated** (expired, revoked, or malformed key) —
+  direct the user to mint a fresh key on the <https://firecrawl.dev> dashboard and replace
+  the stored value wherever they keep it (env var or secret store) — never display, compare,
+  or handle the old value. Then re-run `firecrawl --status` (same session works when the
+  replacement was exported into it; a persistent-only change follows the fresh-session rule
+  above).
 
 After the user reports acting on any remediation, re-run the relevant `check` probe (for the
 key, re-check `firecrawl --status` / presence — never the value) and report its actual result.

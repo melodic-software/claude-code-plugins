@@ -60,7 +60,14 @@ already declares:
   `pyproject.toml` tool section) → use the project's own dependency command so the
   manifest and lockfile record it — `uv add --dev ruff` / `poetry add --group dev ruff` —
   never a bare install into the `.venv`, which the next `uv sync` or environment
-  recreation would silently remove. State the change before running.
+  recreation would silently remove. State the change before running. **Poetry only when
+  the environment is somewhere the hook resolves**: by default Poetry keeps its
+  virtualenv in a cache directory, not the repo `.venv`, and the hook resolves only the
+  repo-ancestor `.venv` interpreters or `PATH` — so first confirm an in-project
+  environment (`poetry config virtualenvs.in-project` effective true, or a repo `.venv`
+  Poetry manages). Without one, don't run the install; guide instead: enable
+  `poetry config virtualenvs.in-project true` and recreate the environment, or otherwise
+  put `ruff` on `PATH` — then re-check.
 - A plain existing `.venv` with NO managing tool detected → install with the
   environment's own `pip install ruff`. State the change and the target environment
   before running.
