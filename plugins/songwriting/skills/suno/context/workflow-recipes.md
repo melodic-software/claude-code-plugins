@@ -36,12 +36,12 @@ You have a generated song or uploaded demo. Now what?
 8. (Optional) Stem export → external DAW for final mix
 9. Export full mix
 
-**Upload limits** (unverified — conflicts with the 120-second Pro/Premier figure in the tier matrix elsewhere in this skill; re-verify before relying on either):
+**Upload limits** (verified 2026-07-18 against <https://suno.com/pricing>):
 
 | Tier | Max upload |
 |------|-----------|
-| Basic | 60 seconds |
-| Pro / Premier | 8 minutes |
+| Free | up to 8 minutes |
+| Pro / Premier | up to 30 minutes |
 
 ## Recipe 2: Edit / rearrange an existing song
 

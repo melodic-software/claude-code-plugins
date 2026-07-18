@@ -13,8 +13,9 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   v4-era cap — the May consensus position flipped), title to ~100 characters,
   and the tier matrix's Suno Studio row to Premier-exclusive. Confirmed tables
   (Voices, release dates) carry dated riders with official links; unverifiable
-  rows keep their hedges undated; conflicting upload-length figures are
-  cross-flagged instead of resolved. All `help.suno.com` source links fixed to
+  rows keep their hedges undated; upload limits corrected to the current
+  pricing page (Free up to 8 min, Pro/Premier up to 30 min — the 60s/120s and
+  8-min figures were both stale). All `help.suno.com` source links fixed to
   the working `/en/articles/` form. Character limits remain third-party-tester
   sourced — Suno publishes no official field limits — and the riders say so.
 

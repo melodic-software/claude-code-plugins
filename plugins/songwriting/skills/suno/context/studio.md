@@ -91,12 +91,12 @@ Studio's export menu has **3 scopes**:
 - An external instrumental for vocals to be generated over
 - Reference material for timing comparison
 
-Upload limits (unverified — conflicts with the 120-second Pro/Premier figure in the tier matrix elsewhere in this skill; re-verify before relying on either):
+Upload limits (verified 2026-07-18 against <https://suno.com/pricing>):
 
 | Tier | Max upload |
 |------|-----------|
-| Basic | 60 seconds |
-| Pro / Premier | 8 minutes |
+| Free | up to 8 minutes |
+| Pro / Premier | up to 30 minutes |
 
 ## What Studio does NOT do (current 1.2)
 

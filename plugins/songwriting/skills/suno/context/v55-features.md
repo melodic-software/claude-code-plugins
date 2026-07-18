@@ -96,7 +96,7 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 | Personas | ✓ | ✓ | ✓ |
 | Cover | ✓ | ✓ | ✓ |
 | Extend | ✓ | ✓ | ✓ |
-| Audio upload | 60s | 120s | 120s |
+| Audio upload | up to 8 min | up to 30 min | up to 30 min |
 | 2-track stems | ✓ | ✓ | ✓ |
 | 12-track stems | — | ✓ | ✓ |
 | Voices | — | ✓ | ✓ |
@@ -107,7 +107,7 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 (Verify against current Suno pricing page — tier feature lists drift.)
 
 - Studio row corrected 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
-- Audio-upload row conflicts with the 8-minute Pro/Premier figure stated elsewhere in this skill — unresolved; re-verify before relying on either.
+- Audio-upload row verified 2026-07-18 against <https://suno.com/pricing>: Free up to 8 minutes, Pro/Premier up to 30 minutes (the earlier 60s/120s figures were stale).
 - Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).
 
 ## Sources
