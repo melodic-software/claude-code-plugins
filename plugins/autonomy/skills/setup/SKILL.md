@@ -121,8 +121,6 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    [`scripts/check-emission-conformance.mjs`](scripts/check-emission-conformance.mjs) against
    produced OTLP JSON-lines to verify the pinned `schemaUrl` and the join attribute before
    declaring the emitting state reached.
->>>>>>> d385bc2f3e (feat(autonomy): guided-setup telemetry slice + conformance check (WP2 phase 2))
->>>>>>> 9b5cd0a3d1 (feat(autonomy): guided-setup telemetry slice + conformance check (WP2 phase 2))
 
 ## What this skill does NOT do
 
