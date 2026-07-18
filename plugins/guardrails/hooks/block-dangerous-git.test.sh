@@ -55,6 +55,7 @@ run "git reset --hard HEAD~1 (blocked)" "git reset --hard HEAD~1" 2
 run "git reset --soft HEAD~1 (allowed)" "git reset --soft HEAD~1" 0
 run "git reset (mixed, allowed)" "git reset" 0
 run "git reset --keep (allowed)" "git reset --keep HEAD~1" 0
+run "git reset --pathspec-from paths (abbreviated value skipped, allowed)" "git reset --pathspec-from paths" 0
 run "git commit -m 'reset --hard' (message literal, allowed)" "git commit -m 'reset --hard'" 0
 
 # --- clean-force --------------------------------------------------------------
@@ -101,6 +102,17 @@ run "git checkout -- -f (pathspec named -f, allowed)" "git checkout -- -f" 0
 run "git reset -- --hard (pathspec named --hard, allowed)" "git reset -- --hard" 0
 run "git checkout --pathspec-from-file=paths (unverifiable pathspec file, blocked)" "git checkout --pathspec-from-file=paths" 2
 run "git restore --pathspec-from-file paths (unverifiable pathspec file, blocked)" "git restore --pathspec-from-file paths" 2
+run "git checkout --pathspec-from paths (abbreviated pathspec file, blocked)" "git checkout --pathspec-from paths" 2
+run "git restore --pathspec-fr paths (shortest unique abbreviation, blocked)" "git restore --pathspec-fr paths" 2
+run "git restore --pathspec-from=paths (abbreviated = form, blocked)" "git restore --pathspec-from=paths" 2
+run "git checkout --pathspec-file-nul (boolean flag alone, allowed)" "git checkout --pathspec-file-nul" 0
+run "git restore ':/*' (root-magic wildcard, blocked)" "git restore ':/*'" 2
+run "git restore ':/**' (root-magic recursive wildcard, blocked)" "git restore ':/**'" 2
+run "git checkout ':/*' (root-magic wildcard, blocked)" "git checkout ':/*'" 2
+run "git restore ':/src' (root magic with subpath, allowed)" "git restore ':/src'" 0
+run "git restore ./ (dot-slash worktree discard, blocked)" "git restore ./" 2
+run "git restore .. (parent-dir discard, blocked)" "git restore .." 2
+run "git checkout -- ./ (dot-slash after end-of-options, blocked)" "git checkout -- ./" 2
 run "git checkout -f (forced discard, blocked)" "git checkout -f" 2
 run "git checkout --force main (forced switch, blocked)" "git checkout --force main" 2
 run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main" 2

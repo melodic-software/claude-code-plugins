@@ -106,12 +106,15 @@ abbrev_match() {
 }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
-# root-magic short form `:/`, long-form magic whose comma list carries `top`
-# with an empty or wildcard-only pattern (`:(top)`, `:(literal,top)`,
-# `:(top,glob)**` — git's pathspec fnmatch lets bare `*` cross directories,
-# so a wildcard-only pattern matches the whole tree), and a bare
-# wildcard-only operand (`*`, `**/*`) all address the whole tree. Top magic
-# followed by a real path (`:(top)src/a`) scopes to it and passes.
+# root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
+# and `:/**` match the whole tree from the repository root regardless of
+# cwd), long-form magic whose comma list carries `top` with an empty or
+# wildcard-only pattern (`:(top)`, `:(literal,top)`, `:(top,glob)**` —
+# git's pathspec fnmatch lets bare `*` cross directories, so a
+# wildcard-only pattern matches the whole tree), a bare wildcard-only
+# operand (`*`, `**/*`), and a dot-slash-only operand (`./`, `..` — the
+# same cwd-or-wider discard as `.`) all address the whole tree. Magic
+# followed by a real path (`:(top)src/a`, `:/src`) scopes to it and passes.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
   local magic pattern
@@ -124,8 +127,11 @@ is_tree_wide_pathspec() {
     [[ ",${magic}," == *",top,"* ]] || return 1
     [[ -z "$pattern" || "$pattern" =~ ^[*/]+$ ]]
     ;;
+  ":/"*)
+    [[ "${1#:/}" =~ ^[*/]+$ ]]
+    ;;
   *)
-    [[ "$1" =~ ^[*/]*\*[*/]*$ ]]
+    [[ "$1" =~ ^[*/]*\*[*/]*$ || "$1" =~ ^[./]+$ ]]
     ;;
   esac
 }
@@ -250,11 +256,13 @@ check_segment() {
   reset)
     # --hard and its accepted unique abbreviations (git parse-options accepts
     # any unambiguous prefix: `reset --h` runs --hard, verified empirically).
-    # --pathspec-from-file consumes the next word as its value.
+    # --pathspec-from-file (and its unique abbreviations ≥ --pathspec-fr —
+    # --pathspec-f is ambiguous with --pathspec-file-nul) consumes the next
+    # word as its value.
     for ((k = sub_idx + 1; k < nseg; k++)); do
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
-      if [[ "$x" == "--pathspec-from-file" ]]; then
+      if [[ "$x" != *=* ]] && abbrev_match "pathspec-from-file" "$x" 11; then
         ((k++))
         continue
       fi
@@ -355,12 +363,19 @@ check_segment() {
         break
         ;;
       # A pathspec file can carry `.` — unverifiable statically, so it fails
-      # closed under the same form token (allow-list to permit).
-      --pathspec-from-file | --pathspec-from-file=*)
-        block "checkout-dot" \
-          "BLOCKED: git checkout --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-          "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
-        ((k += 2))
+      # closed under the same form token (allow-list to permit). git accepts
+      # unique prefixes (≥ --pathspec-fr; --pathspec-f is ambiguous with
+      # --pathspec-file-nul), in space and `=` forms alike.
+      --pathspec-*)
+        rest="${x%%=*}"
+        if abbrev_match "pathspec-from-file" "$rest" 11; then
+          block "checkout-dot" \
+            "BLOCKED: git checkout --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
+            "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+          if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
+        else
+          ((k++))
+        fi
         continue
         ;;
       -b | -B | --orphan | --conflict)
@@ -450,12 +465,19 @@ check_segment() {
           break
           ;;
         # A pathspec file can carry `.` — unverifiable statically, so it fails
-        # closed under the same form token (allow-list to permit).
-        --pathspec-from-file | --pathspec-from-file=*)
-          block "restore-dot" \
-            "BLOCKED: git restore --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-            "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
-          ((k += 2))
+        # closed under the same form token (allow-list to permit). git accepts
+        # unique prefixes (≥ --pathspec-fr; --pathspec-f is ambiguous with
+        # --pathspec-file-nul), in space and `=` forms alike.
+        --pathspec-*)
+          rest="${x%%=*}"
+          if abbrev_match "pathspec-from-file" "$rest" 11; then
+            block "restore-dot" \
+              "BLOCKED: git restore --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
+              "Pass explicit paths instead, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+            if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
+          else
+            ((k++))
+          fi
           continue
           ;;
         -s | --source)
