@@ -66,8 +66,8 @@ the role→instance map (a role MAY be null — unborn, or no org instance; neve
 the `org_policy_home` pointer (or `null`) with its resolved document path when discovered,
 `budget_posture`, and declared substrate. The file is tracked (team-shared); personal overrides go in
 `.claude/autonomy/binding.local.json`. Recommend the consumer `.gitignore` line:
-`.claude/autonomy/**/*.local.*`. Layers resolve user-global → project → local overlay,
-additively.
+`.claude/autonomy/**/*.local.*`. Layers resolve per the binding-seam ladder —
+user-global → org binding (when pointed) → project → local overlay — additively.
 
 ## What this skill does NOT do
 
