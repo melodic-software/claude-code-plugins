@@ -283,6 +283,13 @@ one wherever the judgment is mechanical), and judgment over external input the c
 (triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
 exactly where bias is structural, and nothing elsewhere.
 
+The deterministic-gate exemption is narrow: it reaches the mechanical judgment itself — where the gate's
+pass/fail *is* the verdict — not a subjective self-review that merely runs ahead of a gate. A build/test/lint
+pass gates behavior and the conventions its linters encode, not scope creep or the conventions it leaves
+unchecked; self-judging those stays the same-context judgment the rule targets even when a deterministic gate
+sits downstream. A step that self-reviews both is exempt only for the gated part — the rest is still owed a
+fresh-context pass.
+
 ## Authoritative references
 
 The complete categorized index of plugin-relevant official pages is
