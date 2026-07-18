@@ -1197,16 +1197,25 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(pattern, str)
             ):
                 blockers.append("consumer-protected-path")
-        vcs = tracked_blocker(path, target)
-        if vcs:
-            blockers.append(vcs)
-        state, detail = candidate_handle_state(target, path, expected_paths)
-        if state != "clear":
-            blockers.append(
-                {"open": "live-handle", "needs_elevation": "needs-elevation"}.get(
-                    state, "handle-state-unverified"
+        if "truncated-not-inventoried" in blockers:
+            # Same rationale as the current_descendants short-circuit above: a
+            # truncated candidate can never leave "blocked" state, so skip the
+            # live VCS-repository walk (discover_current_repositories, an
+            # unbounded recursive scandir) and the live handle-state probe
+            # (POSIX's `lsof +D`, also unbounded) instead of running them
+            # against a subtree --max-depth was never asked to inventory.
+            state, detail = "unverified", "truncated-not-inventoried"
+        else:
+            vcs = tracked_blocker(path, target)
+            if vcs:
+                blockers.append(vcs)
+            state, detail = candidate_handle_state(target, path, expected_paths)
+            if state != "clear":
+                blockers.append(
+                    {"open": "live-handle", "needs_elevation": "needs-elevation"}.get(
+                        state, "handle-state-unverified"
+                    )
                 )
-            )
         blockers = sorted(set(blockers))
         logical_bytes = sum(
             entries[name].get("logical_size", 0)

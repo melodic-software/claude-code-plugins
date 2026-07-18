@@ -719,7 +719,7 @@ class HygieneTests(unittest.TestCase):
                 "truncated-not-inventoried", result["candidates"][0]["blockers"]
             )
 
-    def test_preview_skips_live_descendant_walk_for_truncated_candidate(self) -> None:
+    def test_preview_skips_live_recursive_checks_for_truncated_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             (root / "deep" / "sub").mkdir(parents=True)
@@ -732,23 +732,29 @@ class HygieneTests(unittest.TestCase):
                 "tier": "high",
                 "candidates": [candidate("deep")],
             }
-            with (
-                mock.patch.object(
-                    hygiene, "handle_state", return_value=("clear", None)
-                ),
-                mock.patch.object(
+
+            def refuse(name: str):
+                return mock.patch.object(
                     hygiene,
-                    "current_descendants",
+                    name,
                     side_effect=AssertionError(
-                        "a truncated candidate must not trigger the live, "
-                        "unbounded descendant walk --max-depth exists to avoid"
+                        f"a truncated candidate must not trigger {name}, an "
+                        "unbounded live walk --max-depth exists to avoid"
                     ),
-                ),
+                )
+
+            with refuse("current_descendants"), refuse("tracked_blocker"), refuse(
+                "candidate_handle_state"
             ):
                 result = hygiene.preview(snapshot, plan)
-            blockers = result["candidates"][0]["blockers"]
+            candidate_result = result["candidates"][0]
+            blockers = candidate_result["blockers"]
             self.assertIn("truncated-not-inventoried", blockers)
             self.assertNotIn("changed-since-scan", blockers)
+            self.assertEqual("unverified", candidate_result["handle_state"])
+            self.assertEqual(
+                "truncated-not-inventoried", candidate_result["handle_detail"]
+            )
 
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
