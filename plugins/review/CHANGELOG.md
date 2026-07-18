@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **Runtime prerequisites declared and classified** (prerequisite-visibility
+  wave). README gains a Requirements section (git; authenticated `gh`; Bash
+  via Git Bash on native Windows). `ci-log-auditor` now checks `gh`
+  presence/auth up front and stops with a remediation message instead of
+  auditing from partial evidence when the CLI is missing.
+
 ## [0.12.0]
 
 ### Added

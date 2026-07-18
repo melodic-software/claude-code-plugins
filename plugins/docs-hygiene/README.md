@@ -15,6 +15,19 @@ cover the flavor, noise, duplication, boundary, and rename axes of doc upkeep.
 | `/docs-hygiene:audit-encapsulation` | Detects external citations reaching into skill-private surfaces inside `.claude/skills/<name>/` (private subdirectories, heading anchors, schema files) and routes each violation to a remediation path. Ships its own public-surface contract reference. |
 | `/docs-hygiene:rename-references` | Sweeps stale references after renames — the forms plain token grep misses: slash-command tokens, relative paths from moved files, frontmatter chains and globs — via a 12-form pattern library with audit, half-rename detection, and apply modes. |
 
+## Requirements
+
+- **Bash + git + jq** — ambient skill mechanics (Git Bash on native Windows;
+  the skills' scripts strip CRLF and avoid Windows-hostile constructs).
+- **`markdownlint-cli2`** — **required by `/docs-hygiene:compress`**, whose
+  post-edit lint pass is the mandatory ship gate. It must be on `PATH` or
+  installed in the consuming repo (`node_modules/.bin/markdownlint-cli2`);
+  when absent, `compress` stops at the entry point with that remediation
+  instead of shipping unverified output. The other four skills do not use it.
+- **`caveman` plugin** (optional) — a compression backend for `compress`;
+  absent, an in-session fallback applies and every verification gate still
+  runs.
+
 ## Install
 
 ```shell
