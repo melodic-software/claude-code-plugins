@@ -1,6 +1,6 @@
 ---
 name: reanchor
-description: "Verify a session's working assumptions are still true before building on them — referenced PRs/issues/branches still in the state a handoff or plan claims, base-branch drift, cited skills/plugins that were renamed or version-drifted, and memory-tier files whose subjects have since landed. Reports what drifted and re-anchors; does not resume the work. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. Not for resuming work (use /session-flow:keep-going), per-worktree staleness (use /source-control:worktree status), or PR feedback triage (use /source-control:babysit-prs)."
+description: "Verify a session's working assumptions are still true before building on them — referenced PRs/issues/branches still in the state a handoff or plan claims, base-branch drift, cited skills/plugins that were renamed or version-drifted, and memory-tier files whose subjects have since landed. Reports what drifted and re-anchors; does not resume the work. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. Not for resuming work (use /session-flow:keep-going), per-worktree staleness (use /source-control:worktree status), PR feedback triage (use /source-control:babysit-prs), or re-anchoring a standing behavioral rule/discipline (that is the re-anchor plugin — this re-anchors factual premises, not rules)."
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -29,9 +29,11 @@ back up.
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch's base has moved
    since the session's inputs were written — the branch may now be behind, or a
-   premise ("this isn't on main yet") may already be false. For the full
+   premise ("this isn't on main yet") may already be false. When
+   `/source-control:worktree` is installed, cite its status for the full
    per-worktree staleness inventory (behind-base counts, dirty state, PR
-   linkage), cite `/source-control:worktree` status rather than recomputing it.
+   linkage) instead of recomputing it; otherwise do the reduced local check (a
+   `git` behind-count) and report the fuller inventory as unavailable.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
    name and that installed plugin versions match the repo source — a rename or a
@@ -55,11 +57,14 @@ back up.
 - **Does not resume or continue the work.** It verifies premises; picking the
   work back up is `/session-flow:keep-going`.
 - **Does not inventory worktrees.** Per-worktree/branch staleness (behind-base
-  counts, dirty state, PR linkage) lives in `/source-control:worktree` status;
-  this skill cites it, never reimplements it.
+  counts, dirty state, PR linkage) lives in `/source-control:worktree` status
+  when that plugin is installed; this skill cites it, never reimplements it, and
+  falls back to a reduced local base-drift check (flagging the fuller inventory
+  as unavailable) when it is absent.
 - **Does not classify PR feedback or run the PR loop.** Per-PR fresh-evidence
-  discipline and feedback triage stay in `/source-control:babysit-prs`; reanchor
-  only checks whether a *referenced* PR is still in its claimed state.
+  discipline and feedback triage are `/source-control:babysit-prs`'s job when
+  it is installed; reanchor never performs them — it only checks whether a
+  *referenced* PR is still in its claimed state.
 - **Does not re-anchor a standing rule or discipline.** Correcting behavioral
   doctrine mid-session is the `re-anchor` plugin's concern; this skill re-anchors
   factual assumptions, not rules.
@@ -73,5 +78,6 @@ back up.
 - Scope to what the session's inputs actually reference — re-anchoring is bounded
   by the premises in play, not a full-repo audit.
 - It composes with, not replaces, its neighbors: reanchor to learn what drifted,
-  then `keep-going` to resume, `/source-control:worktree` status for the worktree
-  inventory, `/source-control:babysit-prs` for PR work.
+  then `keep-going` (same plugin) to resume; and, when they are installed,
+  `/source-control:worktree` status for the worktree inventory and
+  `/source-control:babysit-prs` for PR work.
