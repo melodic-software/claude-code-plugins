@@ -27,6 +27,7 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:recheck-against-upstream-deep` | The fan-out tier of recheck-against-upstream — subagents compare a whole subsystem against upstream, doc-by-doc |
 | `/re-anchor:pick-for-the-problem` | Selection fitted to the problem — not reached for out of habit, availability, incumbency, or preconception |
 | `/re-anchor:mind-your-maxims` | Cooperative communication — Grice's maxims plus the AI-augmented transparency maxim |
+| `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -200,6 +201,28 @@ as posture-setting anytime and as an audit once output exists.
 
 ```shell
 /re-anchor:mind-your-maxims        # re-anchor + audit + correct
+```
+
+### script-the-deterministic-work
+
+Re-anchors the discipline of offloading deterministic sub-work to a script:
+when a sub-task's answer follows mechanically from its input (counting,
+diffing, sorting, transforming, matching, sweeping, arithmetic), write and
+run a script, read its real output, and reason only afterward over that
+output. The tier boundary re-anchors the consuming org's enforceability-tiers
+convention — deterministic work gets scripted, detect-then-judge gets only
+its detect half scripted while the verdict stays judgement, and
+reasoning-only is never scripted. The in-task "script it now" application has
+no standards doc yet, so the skill flags that gap. The discipline runs in
+both directions: analysis reasons over a script's output, and generation
+emits a deterministic scaffold (a PR body, an issue, a report, config
+boilerplate) from a script or a native template so model output is reserved
+for the judgment slots. Distinct from a standing-automation capability:
+recurring checks belong in a hook, this corrector owns the one-off,
+session-time script.
+
+```shell
+/re-anchor:script-the-deterministic-work   # re-anchor + audit + correct
 ```
 
 ## Consumer conventions
