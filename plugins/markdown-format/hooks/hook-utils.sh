@@ -710,6 +710,10 @@ hook::bash_parse_segments() {
   local n=${#chars[@]} i
   local word="" have=0 skipnext=0
   local -a seg=()
+  # Pending heredoc delimiters (FIFO) and their `<<-` tab-strip flags. A
+  # heredoc body is the command's stdin, not commands — recorded when `<<`
+  # is seen and skipped wholesale at the command-line newline.
+  local -a hd_delims=() hd_strip=()
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
@@ -803,6 +807,57 @@ hook::bash_parse_segments() {
         word=""
         have=0
       fi
+      # Heredoc `<<` / `<<-` (but NOT here-string `<<<`): the body on the
+      # following lines is the command's stdin, so record the delimiter and
+      # let the newline handler skip the body. A quoted/backslashed delimiter
+      # (`<<'EOF'`, `<<\EOF`) still terminates on a line reading `EOF`.
+      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] \
+        && { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
+        ((i++))
+        local hstrip=0
+        if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '-' ]]; then
+          hstrip=1
+          ((i++))
+        fi
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == ' ' || "${chars[i + 1]}" == $'\t' ]]; do ((i++)); done
+        local delim=""
+        while ((i + 1 < n)); do
+          nx="${chars[i + 1]}"
+          case "$nx" in
+          ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>') break ;;
+          "'")
+            ((i++))
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != "'" ]]; do
+              delim+="${chars[i + 1]}"
+              ((i++))
+            done
+            ((i + 1 < n)) && ((i++))
+            ;;
+          '"')
+            ((i++))
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != '"' ]]; do
+              delim+="${chars[i + 1]}"
+              ((i++))
+            done
+            ((i + 1 < n)) && ((i++))
+            ;;
+          '\')
+            ((i++))
+            ((i + 1 < n)) && {
+              delim+="${chars[i + 1]}"
+              ((i++))
+            }
+            ;;
+          *)
+            delim+="$nx"
+            ((i++))
+            ;;
+          esac
+        done
+        hd_delims+=("$delim")
+        hd_strip+=("$hstrip")
+        continue
+      fi
       if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '(' ]]; then
         # Process substitution <(list)/>(list): the list is a real command
         # substituted as a filename — it satisfies any pending target and
@@ -831,6 +886,32 @@ hook::bash_parse_segments() {
       if ((${#seg[@]})); then
         "$cb" "${seg[@]}"
         seg=()
+      fi
+      # A command-line newline ends the line that introduced any pending
+      # heredocs; their bodies (up to and including each delimiter line) are
+      # stdin, so consume them without tokenizing. Delimiters match in FIFO
+      # order; `<<-` strips leading tabs from body lines before comparing.
+      if [[ "$c" == $'\n' ]] && ((${#hd_delims[@]})); then
+        local hidx line lc d strip
+        for ((hidx = 0; hidx < ${#hd_delims[@]}; hidx++)); do
+          d="${hd_delims[hidx]}"
+          strip="${hd_strip[hidx]}"
+          while ((i + 1 < n)); do
+            line=""
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
+              line+="${chars[i + 1]}"
+              ((i++))
+            done
+            ((i + 1 < n)) && ((i++))
+            lc="$line"
+            if ((strip)); then
+              while [[ "$lc" == $'\t'* ]]; do lc="${lc#?}"; done
+            fi
+            [[ "$lc" == "$d" ]] && break
+          done
+        done
+        hd_delims=()
+        hd_strip=()
       fi
       ;;
     *)

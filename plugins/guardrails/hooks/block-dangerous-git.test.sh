@@ -44,6 +44,7 @@ run "git push --dry-run --force (push dry run disarms, allowed)" "git push --dry
 run "git push -n -f (short dry run disarms, allowed)" "git push -n -f origin main" 0
 run "git push --dry-run --no-dry-run --force (negated dry run, blocked)" "git push --dry-run --no-dry-run --force origin main" 2
 run "git push --mi backup (abbreviated mirror, blocked)" "git push --mi backup" 2
+run "git push --m backup (shortest unique mirror abbrev, blocked)" "git push --m backup" 2
 run "cd x && git push --force (compound, blocked)" "cd x && git push --force" 2
 run "quoted push --force prose (allowed)" 'echo "git push --force is banned"' 0
 
@@ -189,6 +190,11 @@ run "git push origin main >push.log (redirect target dropped, allowed)" "git pus
 run "cat <(git reset --hard) (process substitution, blocked)" "cat <(git reset --hard)" 2
 run "diff <(git status) <(git reset --hard) (second substitution, blocked)" "diff <(git status) <(git reset --hard)" 2
 run "cat <(git status) (safe substitution, allowed)" "cat <(git status)" 0
+run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
+run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
+run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
+run "real git reset --hard after a heredoc (blocked)" $'cat <<EOF\nhello\nEOF\ngit reset --hard' 2
+run "here-string git reset --hard (not a heredoc, blocked)" $'git reset --hard <<<input' 2
 run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0

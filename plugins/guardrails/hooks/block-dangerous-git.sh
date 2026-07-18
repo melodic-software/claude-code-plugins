@@ -338,7 +338,9 @@ check_segment() {
         fi
         ;;
       *)
-        if abbrev_match "mirror" "$x" 2; then
+        # --mirror's unique prefix floor is 1: `--m` is the only push option
+        # starting with m, and git accepts `git push --m` as a mirror push.
+        if abbrev_match "mirror" "$x" 1; then
           block "push-force" \
             "BLOCKED: git push --mirror force-updates every remote ref." \
             "Push specific refs instead, or allow via the block_dangerous_git_allow option (add push-force)."
