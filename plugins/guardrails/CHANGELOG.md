@@ -34,6 +34,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   exactly to `git commit` / `git push` (its documented scope) instead of firing on any git
   subcommand mid-walk.
 
+## [0.5.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced with the fleet's new prerequisite-visibility
+  helpers (jq-free notice emitters, once-per-session gate, jq gate). No
+  behavior change for this plugin's guards: their documented jq fail-open with
+  a stderr notice is unchanged.
+
 ## [0.5.0]
 
 ### Changed

@@ -3,6 +3,22 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Changed
+
+- **Missing jq now skips visibly** (prerequisite-visibility wave; doctrine: a
+  silently skipped feature is a defect). Without `jq` the hook can neither
+  classify the notification nor emit its terminal sequence, so it now surfaces
+  a once-per-session `systemMessage` notice (the Notification event has no
+  `additionalContext` channel) instead of silently dropping every
+  notification. Notice dedup state lives under
+  `${CLAUDE_PLUGIN_DATA}/skip-notices`.
+- Shared `hook-utils.sh` resynced with the new prerequisite-visibility helpers
+  (jq-free notice emitters, once-per-session gate, jq gate).
+- README now states the jq absence behavior and the Bash (Git Bash on native
+  Windows) hook runtime.
+
 ## [0.2.0]
 
 ### Changed

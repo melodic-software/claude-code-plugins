@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Canonical, self-locating wrapper for the guarded babysit-prs merge gate.
+# Exposing the gate as a stable bare command lets a narrow, non-interpreter allow
+# rule -- Bash(source-control-babysit-merge:*) -- survive Claude Code auto mode,
+# which drops wildcarded-interpreter rules like Bash(python*). Adds no capability
+# of its own: the deterministic gate in babysit_merge.py stays the only merge
+# path. It additionally refuses --allow-unpinned-head so that no unattended,
+# allow-rule-covered invocation can merge an unvetted head; the interactive
+# unpinned override remains available by invoking babysit_merge.py directly.
+set -euo pipefail
+export PYTHONUTF8=1
+here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+scripts="$here/../skills/babysit-prs/scripts"
+
+for arg in "$@"; do
+  if [[ "$arg" == "--allow-unpinned-head" ]]; then
+    printf '%s\n' \
+      'source-control-babysit-merge: --allow-unpinned-head is not permitted through the wrapper.' \
+      'Invoke babysit_merge.py directly for interactive unpinned use.' >&2
+    exit 2
+  fi
+done
+
+# shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
+. "$scripts/babysit-python.sh"
+babysit_python "$scripts/babysit_merge.py" "$@"

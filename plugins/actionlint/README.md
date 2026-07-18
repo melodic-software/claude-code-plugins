@@ -23,12 +23,19 @@ your `PATH`.
   ShellCheck deadlocks on large blocks under the Windows subprocess IPC path in
   actionlint 1.7.x, and either adds latency unsuited to an edit-time hook.
   Native workflow diagnostics are unaffected; run the full integrations in CI.
-- **Graceful degrade.** When `actionlint` is not on `PATH` the hook is a silent
-  no-op.
+- **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
+  skips and says so — a once-per-session notice to both Claude
+  (`additionalContext`) and you (`systemMessage`), never a silent no-op.
 
 ## Requirements
 
-- **actionlint** on `PATH`. See the
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+- **actionlint** on `PATH` — the linter itself. Absent: workflow lint skips
+  with a visible once-per-session notice. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
 
 ## Install

@@ -43,8 +43,14 @@ production code lives.
 
 ## Requirements
 
-None beyond Claude Code. Prototypes are built in whatever language and task runner your host
-project already uses; the plugin adds no runtime of its own.
+- **Bash** for the bundled ecosystem-detection script — on native Windows,
+  install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  it runs under Git Bash. Without Bash, detection reports "none detected" and
+  the skills read the host project directly to pick the stack.
+
+Prototypes are built in whatever language and task runner your host project
+already uses; the plugin adds no runtime of its own.
 
 ## License
 

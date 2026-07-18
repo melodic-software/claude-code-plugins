@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Canonical, self-locating wrapper for the guarded babysit-prs thread resolver.
+# Exposing the resolver as a stable bare command lets a narrow, non-interpreter
+# allow rule -- Bash(source-control-babysit-resolve-thread:*) -- survive Claude
+# Code auto mode, which drops wildcarded-interpreter rules like Bash(python*).
+# Adds no capability of its own: the deterministic guards in
+# babysit_resolve_thread.py stay the only resolve path.
+set -euo pipefail
+export PYTHONUTF8=1
+here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+scripts="$here/../skills/babysit-prs/scripts"
+
+# shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
+. "$scripts/babysit-python.sh"
+babysit_python "$scripts/babysit_resolve_thread.py" "$@"

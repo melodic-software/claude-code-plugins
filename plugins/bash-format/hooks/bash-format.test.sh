@@ -86,8 +86,8 @@ run_hook() {
   local file_path="$1"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -98,8 +98,8 @@ run_hook_env() {
   shift
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
 }
 
@@ -301,6 +301,113 @@ else
   fail "telemetry/clean: no envelope written"
 fi
 rm -f "$TELC"
+
+# --- Missing-tool visibility (dim-9 doctrine) --------------------------------
+# Fake-bin dir of exec wrappers so individual tools can be removed from PATH
+# without losing the coreutils the hook and the notice dedup need.
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink shellcheck shfmt; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+
+# ShellCheck absent -> visible once-per-session notice on both channels.
+rm -f "$FAKEBIN/shellcheck" "$FAKEBIN/shfmt"
+SC_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_no_tools() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-sc-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$1" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$SC_DATA" \
+        CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_SC=$(run_no_tools "$REPO/clean.sh")
+RC_SC=$?
+if [[ $RC_SC -eq 0 ]]; then ok "shellcheck-absent -> exit 0"; else fail "shellcheck-absent exit $RC_SC"; fi
+if jq -e '(.systemMessage | contains("shellcheck")) and (.hookSpecificOutput.additionalContext | contains("shellcheck"))' <<<"$OUT_SC" >/dev/null 2>&1; then
+  ok "shellcheck-absent -> visible notice on both channels"
+else
+  fail "shellcheck-absent: notice missing or malformed: $OUT_SC"
+fi
+OUT_SC2=$(run_no_tools "$REPO/clean.sh")
+if [[ -z "$OUT_SC2" ]]; then
+  ok "shellcheck-absent -> second run same session is silent (once-per-session)"
+else
+  fail "shellcheck-absent second run not silent: $OUT_SC2"
+fi
+
+# shfmt-absent WITH .editorconfig opt-in + shellcheck PRESENT with findings ->
+# ONE JSON document: findings in additionalContext, shfmt notice on both
+# channels (composition contract: a hook's stdout is a single JSON doc).
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$(command -v shellcheck)" >"$FAKEBIN/shellcheck"
+chmod +x "$FAKEBIN/shellcheck"
+REPO_MIX="$WORK/mixrepo"
+new_repo "$REPO_MIX"
+cat >"$REPO_MIX/.editorconfig" <<'EOF'
+root = true
+
+[*.sh]
+indent_style = space
+indent_size = 2
+EOF
+printf '#!/bin/bash\ncd /tmp\necho done\n' >"$REPO_MIX/finding.sh"
+MIX_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_MIX=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-mix-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_MIX/finding.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$MIX_DATA" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC_MIX=$?
+if [[ $RC_MIX -eq 0 ]]; then ok "shfmt-absent+findings -> exit 0"; else fail "shfmt-absent+findings exit $RC_MIX"; fi
+DOCS=$(jq -s 'length' <<<"$OUT_MIX" 2>/dev/null)
+if [[ "$DOCS" == "1" ]]; then
+  ok "shfmt-absent+findings -> single JSON document on stdout"
+else
+  fail "shfmt-absent+findings: stdout is not one JSON doc (docs=$DOCS): $OUT_MIX"
+fi
+if jq -e '(.hookSpecificOutput.additionalContext | contains("SC2164"))
+  and (.hookSpecificOutput.additionalContext | contains("shfmt"))
+  and (.systemMessage | contains("shfmt"))
+  and (.systemMessage | contains("SC2164") | not)' <<<"$OUT_MIX" >/dev/null 2>&1; then
+  ok "shfmt-absent+findings -> findings on agent channel, notice on both, findings not in systemMessage"
+else
+  fail "shfmt-absent+findings: composition wrong: $OUT_MIX"
+fi
+
+# jq-absent -> visible once-per-session notice (input parsing gate).
+rm -f "$FAKEBIN/jq"
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_NOJQ=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/clean.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]]; then
+  ok "jq-absent -> exit 0 with visible notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
+# Out-of-scope edit (a .md file) with jq absent -> fully silent: the jq-free
+# applicability pre-filter must run before the jq gate.
+JQ_DATA2="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_OOS=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-oos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/README.md" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA2" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK"
+)
+RC_OOS=$?
+if [[ $RC_OOS -eq 0 && -z "$OUT_OOS" ]]; then
+  ok "jq-absent + out-of-scope edit -> fully silent (pre-filter before gate)"
+else
+  fail "jq-absent out-of-scope edit (rc=$RC_OOS out=$OUT_OOS)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

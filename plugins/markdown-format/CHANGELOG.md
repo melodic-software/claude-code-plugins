@@ -3,12 +3,25 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.1]
+## [0.4.1]
 
 ### Changed
 
 - Refresh of the bundled shared hook-utils library, which gains the git argv-grammar parser used by
   the guardrails plugin's git guards. No behavioral change to this plugin's hooks.
+
+## [0.4.0]
+
+### Changed
+
+- **Missing-prerequisite notices now reach the user too, once per session**
+  (prerequisite-visibility wave). The jq and markdownlint-cli2 absence
+  warnings — previously an `additionalContext`-only message repeated on every
+  edit — now use the shared visible-skip mechanism: one notice per session on
+  both channels (`additionalContext` for Claude, `systemMessage` for the
+  user). Notice dedup state lives under `${CLAUDE_PLUGIN_DATA}/skip-notices`.
+- Shared `hook-utils.sh` resynced with the new prerequisite-visibility helpers
+  (jq-free notice emitters, once-per-session gate, jq gate).
 
 ## [0.3.0]
 

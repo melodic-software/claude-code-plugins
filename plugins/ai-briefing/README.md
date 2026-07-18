@@ -35,6 +35,12 @@ Setup preflights Node, npm, and the OS family. On Linux, Playwright's documented
 Unsupported or missing prerequisites are reported before the existing runtime is changed.
 See [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements).
 
+The `setup --with-build-deps` install step is a POSIX-shell script: it requires
+Bash — on native Windows that is Git Bash (its platform gate accepts
+`MINGW*`/`MSYS*`/`CYGWIN*`; install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)).
+The build pipeline itself is portable Node and has no shell requirement.
+
 ## Source access policy
 
 Automated X/Twitter collection is disabled. The plugin does not scrape profiles, timelines,

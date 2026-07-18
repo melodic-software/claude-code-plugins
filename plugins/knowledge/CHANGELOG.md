@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.7.1
+
+### Changed
+
+- README declares the shell mechanics with their Windows path (Git Bash
+  bundles the `sha256sum` that `book-distill` runs on every distillation) and
+  the EPUB branch's `unzip` requirement (not bundled with Git Bash) —
+  cross-platform declaration wave. PDF-only use needs neither extra install.
+
 ## 0.7.0
 
 ### Changed

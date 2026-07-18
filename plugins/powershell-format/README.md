@@ -46,11 +46,18 @@ Do not enable this plugin against an untrusted working tree.
 
 ## Requirements
 
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH` — the hook probes `pwsh` only; legacy
-  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook is
-  a silent no-op.
+  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook
+  stays quiet by design: a machine without PowerShell is treated as
+  not-applicable, not as a missing prerequisite.
 - The **PSScriptAnalyzer** module installed
-  (`Install-Module PSScriptAnalyzer`). If absent, the hook is a silent no-op.
+  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet (same
+  not-applicable classification).
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo — the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
