@@ -31,6 +31,11 @@
 #     --include-secrets); a plain-dir target is scanned for the same SECRETS
 #     class. Git state that cannot be inspected (corrupt index, unreadable
 #     object store) fails closed to a refusal rather than reading as clean
+#   - a target holding ignored skill-owned data/ (CLEAN_TREE_PRESERVE_SKILLDATA —
+#     irreplaceable user synthesis) is refused with no override, matching the
+#     clean skill's "always preserved; no flag removes it" policy — move the data
+#     out first (tracked or non-ignored skill data is caught as recoverable or
+#     dirty and needs no separate scan)
 #   - unpushed work (branch or local tag ahead of or missing its upstream,
 #     unresolvable upstream, or a detached HEAD) blocks the apply unless
 #     --allow-unpushed
@@ -66,7 +71,7 @@ Default: --dry-run (print guard results and the planned removal only).
 
 Output labels:
   Target / Root / Kind: <repo|bare-repo|dir>
-  TrackedDirty / StashCount / WorktreeCount / UnpushedRefs / SecretsCount
+  TrackedDirty / StashCount / WorktreeCount / UnpushedRefs / SecretsCount / SkillData
   Blocked: <reason or none>
   Planned / Applied: rm -rf <target>
 
@@ -185,6 +190,7 @@ STASH_COUNT=0
 WORKTREE_COUNT=0
 UNPUSHED_REFS=0
 SECRETS_COUNT=0
+SKILLDATA_COUNT=0
 
 # Structural bare-repo detection (HEAD + objects/ + refs/ at the top level) —
 # deliberately not `rev-parse --is-bare-repository`, which walks upward and
@@ -239,10 +245,17 @@ if [[ "$KIND" != dir ]]; then
     fi
     [[ -n "$stash_out" ]] && STASH_COUNT="$(printf '%s\n' "$stash_out" | wc -l | tr -d ' ')"
 
+    # Ignored files only: tracked content is recoverable from git and untracked
+    # (non-ignored) content already counts as dirty above. Ignored secret-class
+    # files (unrecoverable) and ignored skill-owned data/ (irreplaceable) are the
+    # loss the removal would cause silently.
     while IFS= read -r ignored; do
       [[ -z "$ignored" ]] && continue
       if clean_path_matches_secret_class "$ignored"; then
         SECRETS_COUNT=$((SECRETS_COUNT + 1))
+      fi
+      if clean_path_matches_skilldata "$ignored"; then
+        SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
       fi
     done < <(git -C "$TARGET_ABS" ls-files --others --ignored --exclude-standard 2>/dev/null | tr -d '\r')
   fi
@@ -286,13 +299,17 @@ if [[ "$KIND" != dir ]]; then
   fi
 else
   # Plain leftover directory: none of the repo guards above run, but the PR
-  # supports deleting such dirs, so a leftover secret-class file would otherwise
-  # be discarded silently. Walk descendants and gate on the same SECRETS class,
-  # passing target-relative paths so the dir-prefix patterns (.aws/, .vscode/…)
-  # match as well as the basename globs.
+  # supports deleting such dirs, so a leftover secret-class file or skill-owned
+  # data/ would otherwise be discarded silently. Walk descendants and gate on the
+  # same SECRETS and SKILLDATA classes, passing target-relative paths so the
+  # dir-prefix patterns (.aws/, .vscode/, .claude/skills/*/data/…) match too.
   while IFS= read -r -d '' f; do
-    if clean_path_matches_secret_class "${f#"$TARGET_ABS"/}"; then
+    rel="${f#"$TARGET_ABS"/}"
+    if clean_path_matches_secret_class "$rel"; then
       SECRETS_COUNT=$((SECRETS_COUNT + 1))
+    fi
+    if clean_path_matches_skilldata "$rel"; then
+      SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
     fi
   done < <(find "$TARGET_ABS" -mindepth 1 -print0 2>/dev/null)
 fi
@@ -305,6 +322,7 @@ printf 'StashCount: %s\n' "$STASH_COUNT"
 printf 'WorktreeCount: %s\n' "$WORKTREE_COUNT"
 printf 'UnpushedRefs: %s\n' "$UNPUSHED_REFS"
 printf 'SecretsCount: %s\n' "$SECRETS_COUNT"
+printf 'SkillData: %s\n' "$SKILLDATA_COUNT"
 
 BLOCKED=none
 EXIT=0
@@ -316,6 +334,11 @@ elif [[ "$STASH_COUNT" -gt 0 ]]; then
   EXIT=3
 elif [[ "$WORKTREE_COUNT" -gt 1 ]]; then
   BLOCKED="linked-worktrees ($((WORKTREE_COUNT - 1)) registered — remove them first)"
+  EXIT=3
+elif [[ "$SKILLDATA_COUNT" -gt 0 ]]; then
+  # Skill-owned data/ is irreplaceable user synthesis the clean skill always
+  # preserves with no removal flag — deliberately no override here either.
+  BLOCKED="skill-data ($SKILLDATA_COUNT skill-owned data file(s) — irreplaceable; move them out first, no override)"
   EXIT=3
 elif [[ "$SECRETS_COUNT" -gt 0 && "$INCLUDE_SECRETS" -eq 0 ]]; then
   BLOCKED="secrets ($SECRETS_COUNT ignored secret-class file(s) — pass --include-secrets to discard)"

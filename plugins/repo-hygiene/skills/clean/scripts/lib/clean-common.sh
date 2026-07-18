@@ -134,6 +134,28 @@ clean_path_matches_secret_class() {
   return 1
 }
 
+# Return 0 when a repo-relative path lies inside a skill-owned data/ directory
+# (CLEAN_TREE_PRESERVE_SKILLDATA) — irreplaceable user synthesis the clean skill
+# always preserves with no removal flag. Kept separate from the secret matcher
+# because the pattern carries a mid-path wildcard (.claude/skills/*/data/): a
+# quoted `[[ == ]]` would treat the `*` literally, so match as an unquoted glob.
+clean_path_matches_skilldata() {
+  local rel="$1" pat
+  rel="${rel//\\//}"
+  rel="${rel%/}"
+  for pat in "${CLEAN_TREE_PRESERVE_SKILLDATA[@]}"; do
+    pat="${pat%/}"
+    # Match the data dir itself and anything under it, at the repo root or nested
+    # (git ls-files may report the ignored dir as a bare path, find reports both).
+    # shellcheck disable=SC2254
+    case "$rel" in
+    $pat | $pat/* | */$pat | */$pat/*) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
 # Return 0 when a path is a filesystem reparse point (POSIX symlink, Windows
 # junction, or native Windows symlink). bash -L covers what MSYS maps to
 # symlinks; fsutil (readable without elevation) catches anything -L misses.

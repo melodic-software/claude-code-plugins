@@ -219,6 +219,31 @@ out="$(bash "$REMOVE" "$ROOT/leftover-dir" --root "$ROOT" --include-secrets)"
 rc=$?
 assert_exit "--include-secrets clears plain dir secret block" 0 "$rc"
 
+# Skill-owned data/ is irreplaceable — blocked with NO override, in a plain dir.
+mkdir -p "$ROOT/synth-dir/.claude/skills/notes/data"
+printf 'synthesis\n' >"$ROOT/synth-dir/.claude/skills/notes/data/corpus.md"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/synth-dir" --root "$ROOT")" || rc=$?
+assert_exit "plain dir with skill data blocked exits 3" 3 "$rc"
+assert_contains "plain dir skill-data block reason" "$out" "Blocked: skill-data"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/synth-dir" --root "$ROOT" --include-secrets)" || rc=$?
+assert_exit "--include-secrets does NOT clear skill-data block" 3 "$rc"
+
+# Gitignored skill data in an otherwise-clean pushed repo blocks: it is neither
+# dirty (ignored) nor secret-class, so only the skill-data scan catches it.
+make_pushed_repo "$ROOT/skill-repo" "$TEST_TMPDIR/skill-remote.git"
+printf '.claude/skills/*/data/\n' >"$ROOT/skill-repo/.gitignore"
+git_quiet -C "$ROOT/skill-repo" add .gitignore
+git_quiet -C "$ROOT/skill-repo" commit -m gitignore
+git_quiet -C "$ROOT/skill-repo" push
+mkdir -p "$ROOT/skill-repo/.claude/skills/notes/data"
+printf 'synthesis\n' >"$ROOT/skill-repo/.claude/skills/notes/data/corpus.md"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/skill-repo" --root "$ROOT")" || rc=$?
+assert_exit "repo with gitignored skill data blocked exits 3" 3 "$rc"
+assert_contains "repo skill-data block reason" "$out" "Blocked: skill-data"
+
 # A local-only (never-pushed) tag counts as unpushed work: the branch is pushed
 # but the annotated tag has no upstream.
 make_pushed_repo "$ROOT/tag-repo" "$TEST_TMPDIR/tag-remote.git"
