@@ -15,7 +15,8 @@ The dominant trigger is a reactive retry: a name was suggested and
 rejected, and the same context that produced it will only produce more of
 the same. So the generators run BLIND to the conversation, seeded only with
 a structured context brief (responsibility, firing context, scope
-boundaries, collision vocabulary, word- and name-level blocklists), each
+boundaries, collision vocabulary, word-level blocklist — rejected NAMES
+stay on the main thread's reject list, never in the brief), each
 working a distinct lens (responsibility-literal, moment-of-use,
 domain-lore). Diverge widely from
 independent perspectives, then converge once — and keep the first-seen

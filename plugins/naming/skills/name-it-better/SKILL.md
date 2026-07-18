@@ -113,7 +113,9 @@ rejected incumbent that the pre-scoring check could not match.
 3. **Merge and score.** Pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any) — carried by the
    main thread as an explicit reject list, never shared with the
-   generators — or that collides with the existing vocabulary. Score every
+   generators — that contains a word-level blocklist entry (a generator
+   can miss the brief's constraint; the merge step enforces it), or that
+   collides with the existing vocabulary. Score every
    surviving candidate against the criteria resolved above, breaking ties
    by their declared priority order.
 4. **Shortlist + recommend.** Present a short ranked list with a
