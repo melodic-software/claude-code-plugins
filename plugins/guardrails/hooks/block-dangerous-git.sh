@@ -337,6 +337,16 @@ check_segment() {
         ((k++))
         continue
       fi
+      # In a short bundle `-e` absorbs the REST of the bundle as its value
+      # (`-fen` = -f -e n — verified: it deletes), or the next word when it
+      # is the last letter (`-fe -n` = exclude pattern "-n" — also
+      # deletes). Only letters before the `e` are flags.
+      if [[ "$x" =~ ^-[A-Za-z]*e[A-Za-z]*$ ]]; then
+        rest="${x%%e*}"
+        [[ "$x" == *e ]] && ((k++))
+        [[ "$rest" == *n* ]] && dry=1
+        continue
+      fi
       if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 \
         || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
         dry=1
@@ -359,6 +369,18 @@ check_segment() {
       fi
       if [[ "$x" != *=* ]] && abbrev_match "exclude" "$x" 1; then
         ((k++))
+        continue
+      fi
+      # Same bundle rule as the dry-run pre-scan: letters at and after the
+      # first `e` are its value, so only the prefix carries flags.
+      if [[ "$x" =~ ^-[A-Za-z]*e[A-Za-z]*$ ]]; then
+        rest="${x%%e*}"
+        [[ "$x" == *e ]] && ((k++))
+        if [[ "$rest" == *f* ]]; then
+          block "clean-force" \
+            "BLOCKED: git clean with a force flag permanently deletes untracked files." \
+            "Preview with git clean -n first; then allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=clean-force if intended."
+        fi
         continue
       fi
       if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
@@ -504,10 +526,17 @@ check_segment() {
       x="${w[k]}"
       [[ "$x" == "--" ]] && break
       # --st is the shortest unique prefix of --staged (vs --source); --w is
-      # unique for --worktree.
+      # unique for --worktree. Both are --[no-] pairs and git honors the
+      # LAST selector (`--staged --worktree --no-worktree .` is index-only
+      # — verified), so --no- forms clear the corresponding flag.
       case "$x" in
       --staged) staged=1 ;;
       --worktree) worktree=1 ;;
+      --no-*)
+        rest="--${x#--no-}"
+        abbrev_match "staged" "$rest" 2 && staged=0
+        abbrev_match "worktree" "$rest" 1 && worktree=0
+        ;;
       --s* | --w*)
         abbrev_match "staged" "$x" 2 && staged=1
         abbrev_match "worktree" "$x" 1 && worktree=1

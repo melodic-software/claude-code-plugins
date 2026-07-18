@@ -697,7 +697,7 @@ hook::bash_parse_segments() {
   local c nx
   while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$cmd")
   local n=${#chars[@]} i
-  local word="" have=0
+  local word="" have=0 skipnext=0
   local -a seg=()
 
   for ((i = 0; i < n; i++)); do
@@ -770,14 +770,43 @@ hook::bash_parse_segments() {
       ;;
     ' ' | $'\t')
       if ((have)); then
-        seg+=("$word")
+        if ((skipnext)); then skipnext=0; else seg+=("$word"); fi
         word=""
         have=0
       fi
       ;;
+    '>' | '<')
+      # Redirection: bash removes the operator and its target word from
+      # argv (redirections may appear anywhere in a simple command), so
+      # `git reset --hard>/tmp/out` still runs reset --hard. A pure-digit
+      # word immediately before the operator is its fd prefix, not argv;
+      # an fd-dup/close form (`2>&1`, `>&-`) has no target word to skip.
+      if ((have)); then
+        if [[ "$word" =~ ^[0-9]+$ ]]; then
+          :
+        elif ((skipnext)); then
+          skipnext=0
+        else
+          seg+=("$word")
+        fi
+        word=""
+        have=0
+      fi
+      while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done
+      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
+        ((i++))
+        if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then
+          while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; do ((i++)); done
+        else
+          skipnext=1
+        fi
+      else
+        skipnext=1
+      fi
+      ;;
     ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
       if ((have)); then
-        seg+=("$word")
+        if ((skipnext)); then skipnext=0; else seg+=("$word"); fi
         word=""
         have=0
       fi
@@ -792,6 +821,6 @@ hook::bash_parse_segments() {
       ;;
     esac
   done
-  if ((have)); then seg+=("$word"); fi
+  if ((have)) && ((!skipnext)); then seg+=("$word"); fi
   if ((${#seg[@]})); then "$cb" "${seg[@]}"; fi
 }

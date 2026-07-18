@@ -62,6 +62,9 @@ run "git commit -m 'reset --hard' (message literal, allowed)" "git commit -m 're
 run "git clean -f (blocked)" "git clean -f" 2
 run "git clean -fd (blocked)" "git clean -fd" 2
 run "git clean -fdx (blocked)" "git clean -fdx" 2
+run "git clean -fen (e absorbs n as its value, blocked)" "git clean -fen" 2
+run "git clean -fe -n (trailing e absorbs -n, blocked)" "git clean -fe -n" 2
+run "git clean -nef (dry-run before e, allowed)" "git clean -nef" 0
 run "git clean --force (blocked)" "git clean --force" 2
 run "git clean -n (dry run, allowed)" "git clean -n" 0
 run "git clean -nd (dry run bundle, allowed)" "git clean -nd" 0 # spellchecker:disable-line
@@ -178,6 +181,14 @@ run "if true; then git reset --hard; fi (then-body, blocked)" "if true; then git
 run "while true; do git clean -fd; done (do-body, blocked)" "while true; do git clean -fd; done" 2
 run "if false; then :; else git push --force; fi (else-body, blocked)" "if false; then :; else git push --force; fi" 2
 run "if git reset --hard; then :; fi (if-condition, blocked)" "if git reset --hard; then :; fi" 2
+run "git reset --hard>/tmp/out (attached redirection, blocked)" "git reset --hard>/tmp/out" 2
+run "git reset --hard 2>&1 (fd-dup redirection, blocked)" "git reset --hard 2>&1" 2
+run "git checkout . >log (redirect after dot, blocked)" "git checkout . >log" 2
+run "git clean -f > -n (redirect target not a dry-run flag, blocked)" "git clean -f > -n" 2
+run "git push origin main >push.log (redirect target dropped, allowed)" "git push origin main >push.log" 0
+run "git restore --staged --worktree --no-worktree . (index-only, allowed)" "git restore --staged --worktree --no-worktree ." 0
+run "git restore --staged --no-w . (abbrev no-worktree, allowed)" "git restore --staged --no-w ." 0
+run "git restore --no-worktree --worktree . (worktree re-armed, blocked)" "git restore --no-worktree --worktree ." 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
