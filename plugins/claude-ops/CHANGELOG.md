@@ -3,6 +3,13 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Changed
+
+- Refresh of the bundled shared hook-utils library, which gains the git argv-grammar parser used by
+  the guardrails plugin's git guards. No behavioral change to this plugin's hooks.
+
 ## [0.11.1]
 
 ### Changed
