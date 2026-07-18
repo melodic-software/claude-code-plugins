@@ -139,7 +139,7 @@ path) live in SKILL.md/README, never in `reference/`.
 
 | File | Action | What changes |
 |---|---|---|
-| `scripts/validate-plugin-contracts.mjs` | Modify | Promote the fleet-name sweep to a standing gate scoped to `plugins/autonomy/**`: org token `melodic-software` + bare repo names (`ci-workflows`, `github-iac`), excluding plugin.json author metadata. |
+| `scripts/validate-plugin-contracts.mjs` | Modify | Promote the fleet-name sweep to a standing gate scoped to `plugins/autonomy/**`: org token `melodic-software` + bare repo names (`ci-workflows`, `github-iac`), excluding plugin.json author metadata. Also gate the Phase 3 vendor deny-list as a standing check scoped to `plugins/autonomy/reference/` — the tool-agnostic guarantee must not depend on one-off greps. |
 
 Gate run: `scripts/validate-plugins.sh`; `scripts/run-plugin-tests.sh` (verified: no per-plugin
 test file required); `node scripts/validate-plugin-contracts.mjs`; markdown/typos/lychee lanes;
