@@ -71,7 +71,7 @@ The go/stop mirror of `keep-going`: instead of recovering after an
 interruption, it makes the interruption safe beforehand. Sweeps every repo and
 worktree the session touched, inspects real state, and closes the gaps —
 pushes unpushed or coherently committable work durable, ensures every pushed
-branch has a PR, files follow-ups as issues linked to that PR, and puts the
+non-default branch has a PR, files follow-ups as issues linked to that PR, and puts the
 resume context in the PR and issue bodies so a cold agent could pick it up.
 Ambiguous work-in-progress and stashes are surfaced rather than force-committed
 or dropped; destructive cleanup (deleting branches, removing worktrees) runs

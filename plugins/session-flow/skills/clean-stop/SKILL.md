@@ -28,8 +28,11 @@ PR and issue bodies on the remote.
 
 1. **Inspect first — never assume.** Enumerate every repository and worktree
    this session touched and read its real state: uncommitted changes,
-   stashes, unpushed commits, branches without a PR, and which PRs/issues
-   already carry the resumable context. Act only on the gaps. Running
+   stashes, unpushed commits, branches without a PR, which PRs/issues already
+   carry the resumable context, and any ignored, machine-local state that is
+   not reproducible — a generated handoff, local config, hand-made
+   credentials — which `git status` hides but which dies with the disk just
+   the same. Act only on the gaps. Running
    clean-stop when a branch is already pushed and its PR already describes the
    work must NOT re-push, open a duplicate PR, or re-file issues — the sweep
    converges on what is missing, not on redoing what is done.
@@ -39,7 +42,11 @@ PR and issue bodies on the remote.
    ambiguous work-in-progress, a half-edit, a stash that will not cleanly
    apply — is not force-committed and not silently dropped: surface it in the
    verdict as an explicit "not durable, do X before shutdown" item. A bad
-   commit and a lost stash are both worse than a named dangling item.
+   commit and a lost stash are both worse than a named dangling item. Ignored,
+   machine-local state that must not go to the remote — secrets, credentials,
+   deliberately-ignored files — is never pushed; when it is not reproducible,
+   surface it as a "preserve off the machine before shutdown" item so it is
+   not silently lost with the disk.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR
    or issue body is created or updated, sweep everything outbound — remaining
    tasks, dependencies, resume context, any pasted terminal output or diffs —
@@ -55,9 +62,15 @@ PR and issue bodies on the remote.
    continue live in the PR and issue bodies — never only in a local file. The
    acceptance bar is a cold agent: someone who finds the PR or issue with no
    memory of this session should have everything needed to offer to continue.
-   Route the mechanics through whatever pull-request and work-item
-   capabilities are installed; fall back to direct `git` / `gh` when none is
-   present.
+   Every remote artifact is created unattended, so the issue-linkage decision
+   is made up front, never left for an interactive prompt: use the closing
+   keyword when the branch or context names an issue, otherwise an explicit
+   no-linkage reason. For an orphan branch — a hotfix, refactor, or drift
+   sweep with no issue in its name — drive a direct `gh pr create` supplying
+   that no-linkage reason, the guaranteed non-interactive path. Route through
+   an installed pull-request or work-item capability only when it can run
+   unattended with that decision passed in; if it would stop to ask, use the
+   direct `git` / `gh` path carrying the same decision instead.
 4. **Local hygiene.** Prune only what is provably safe: branches whose work is
    fully merged, worktrees with no uncommitted or stashed state and no
    irreplaceable ignored files, background work that has genuinely finished. A
@@ -93,7 +106,8 @@ PR and issue bodies on the remote.
 If the sweep finds everything already durable and linked — nothing
 uncommitted, nothing unpushed, every non-default branch that carries session
 work has a PR (work committed straight to the default branch is durable once
-pushed and needs none), no strandable local state — say so and give the
+pushed and needs none), nothing strandable left only on local disk — including
+non-reproducible ignored state a plain status hides — say so and give the
 free-and-clear verdict directly. A clean session is a valid, common outcome;
 do not manufacture work to look thorough.
 
