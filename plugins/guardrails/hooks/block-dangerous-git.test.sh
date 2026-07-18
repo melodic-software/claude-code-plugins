@@ -122,7 +122,10 @@ run "git restore ':(exclude)zzz' (exclude-only pathspec, blocked)" "git restore 
 run "git checkout ':!zzz' (exclude-only short magic, blocked)" "git checkout ':!zzz'" 2
 run "git restore ':^zzz' (exclude-only caret magic, blocked)" "git restore ':^zzz'" 2
 run "git restore ':(exclude)sub' root.txt (positive scopes exclude, allowed)" "git restore ':(exclude)sub' root.txt" 0
-run "git checkout main ':!docs' (ref counts as positive, allowed)" "git checkout main ':!docs'" 0
+run "git checkout main ':!docs' (tree-ish plus exclude-only, blocked)" "git checkout main ':!docs'" 2
+run "git checkout HEAD -- ':!docs' (tree-ish, exclude after --, blocked)" "git checkout HEAD -- ':!docs'" 2
+run "git checkout main ':!docs' src/ (positive path scopes, allowed)" "git checkout main ':!docs' src/" 0
+run "git checkout ':!a' src/ (exclude then positive, allowed)" "git checkout ':!a' src/" 0
 run "git restore ':' (bare no-pathspec marker, blocked)" "git restore ':'" 2
 run "git restore '::' (double-colon marker, blocked)" "git restore '::'" 2
 run "git checkout ':(literal)' (empty non-top magic, blocked)" "git checkout ':(literal)'" 2

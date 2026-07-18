@@ -170,7 +170,7 @@ is_exclude_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -370,16 +370,21 @@ check_segment() {
     ;;
   checkout)
     # Worktree-wide discard: a tree-wide pathspec operand, an exclude-only
-    # pathspec set (selects everything outside the excluded set), or a
+    # pathspec set (selects everything outside the excluded set — with or
+    # without a tree-ish: `checkout HEAD -- ':!docs'` and `checkout main
+    # ':!docs'` both overwrite everything except the exclusion), or a
     # forced checkout (`-f`/`--force` throws away local modifications even
     # while switching branches). Path-scoped checkouts (`checkout
     # .github/x`) tokenize as different words and never match. Skip values
     # of value-taking options so a branch named "." cannot be created but
-    # its option value never false-matches the operand scan. Any positive
-    # non-flag operand (a ref counts — a scoping limitation of static
-    # matching) clears the exclude-only condition.
+    # its option value never false-matches the operand scan. Only real
+    # pathspec operands count as positive scope: the first plain-word
+    # operand is the optional tree-ish (git puts the tree-ish before all
+    # pathspecs), so it never clears the exclude-only condition; a
+    # magic-prefixed first operand is already a pathspec and counts.
     excl=0
     pos=0
+    opseen=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -431,7 +436,15 @@ check_segment() {
           "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
           "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
         if [[ "$x" != -* ]]; then
-          if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
+          if is_exclude_pathspec "$x"; then
+            ((excl++))
+            opseen=1
+          elif ((opseen)) || [[ "$x" == :* ]]; then
+            ((pos++))
+            opseen=1
+          else
+            opseen=1
+          fi
         fi
         ;;
       esac
