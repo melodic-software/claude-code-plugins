@@ -39,8 +39,9 @@ PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 4. **Consumer Ruff config** — mirror the hook's opt-in walk: it stops at the FIRST
    (closest) governing config found walking from the edited file's directory up to the repo
    root, honoring Ruff's own same-directory precedence and counting a `pyproject.toml` only
-   when it carries a `[tool.ruff]` section (read the hook for the exact names and the
-   section test). Report the governing config the walk discovers, or INFO that none exists —
+   when it carries a `[tool.ruff]` section or any `[tool.ruff.*]` subtable such as
+   `[tool.ruff.lint]` (read the hook for the exact names and the section test — its test is
+   the authority). Report the governing config the walk discovers, or INFO that none exists —
    absence is the opt-out by design, so the plugin is inert (INFO, not FAIL), matching the
    README's "ships no rules of its own" stance.
 5. **Hook toggle** — report the effective `ruff_format_enabled` value:
