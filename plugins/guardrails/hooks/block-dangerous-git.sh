@@ -107,14 +107,15 @@ abbrev_match() {
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
-# and `:/**` match the whole tree from the repository root regardless of
+# and `:/?*` match the whole tree from the repository root regardless of
 # cwd), long-form magic whose comma list carries `top` with an empty or
-# wildcard-only pattern (`:(top)`, `:(literal,top)`, `:(top,glob)**` —
-# git's pathspec fnmatch lets bare `*` cross directories, so a
-# wildcard-only pattern matches the whole tree), a bare wildcard-only
-# operand (`*`, `**/*`), and a dot-slash-only operand (`./`, `..` — the
-# same cwd-or-wider discard as `.`) all address the whole tree. Magic
-# followed by a real path (`:(top)src/a`, `:/src`) scopes to it and passes.
+# wildcard-only pattern (`:(top)`, `:(literal,top)`, `:(top,glob)**`), and
+# any bare operand built only from wildcard and dot/slash characters (`*`,
+# `?*`, `./*`, `**/*`, `./`, `..`) all address the whole tree — git's
+# pathspec fnmatch lets `*` cross directories and `?` match any character,
+# and dot-slash-only operands are the same cwd-or-wider discard as `.`.
+# Magic followed by a real path (`:(top)src/a`, `:/src`) scopes to it and
+# passes, as does any pattern containing a literal name character.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
   local magic pattern
@@ -125,13 +126,13 @@ is_tree_wide_pathspec() {
     pattern="${magic#*)}"
     magic="${magic%%)*}"
     [[ ",${magic}," == *",top,"* ]] || return 1
-    [[ -z "$pattern" || "$pattern" =~ ^[*/]+$ ]]
+    [[ -z "$pattern" || "$pattern" =~ ^[./*?]+$ ]]
     ;;
   ":/"*)
-    [[ "${1#:/}" =~ ^[*/]+$ ]]
+    [[ "${1#:/}" =~ ^[./*?]+$ ]]
     ;;
   *)
-    [[ "$1" =~ ^[*/]*\*[*/]*$ || "$1" =~ ^[./]+$ ]]
+    [[ "$1" =~ ^[./*?]+$ ]]
     ;;
   esac
 }
@@ -406,16 +407,33 @@ check_segment() {
     # switch -f/--force (alias --discard-changes) throws away local
     # modifications the same way forced checkout does. `--d` alone is
     # ambiguous with --detach, so the abbreviation floor is --disc.
-    for ((k = sub_idx + 1; k < nseg; k++)); do
+    # -c/-C/--orphan/--conflict consume a branch-name/style value — space
+    # or attached `-cname` form (gitcli stuck values) — which must not be
+    # scanned as a flag bundle (`switch -cfix` creates branch "fix").
+    k=$((sub_idx + 1))
+    while ((k < nseg)); do
       x="${w[k]}"
-      [[ "$x" == "--" ]] && break
-      if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
-        || abbrev_match "discard-changes" "$x" 4 \
-        || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
-        block "checkout-force" \
-          "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
-          "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
-      fi
+      case "$x" in
+      --) break ;;
+      -c | -C | --orphan | --conflict)
+        ((k += 2))
+        continue
+        ;;
+      -c?* | -C?*)
+        ((k++))
+        continue
+        ;;
+      *)
+        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
+          || abbrev_match "discard-changes" "$x" 4 \
+          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+          block "checkout-force" \
+            "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
+            "Commit or stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-force."
+        fi
+        ;;
+      esac
+      ((k++))
     done
     ;;
   restore)

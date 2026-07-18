@@ -113,6 +113,11 @@ run "git restore ':/src' (root magic with subpath, allowed)" "git restore ':/src
 run "git restore ./ (dot-slash worktree discard, blocked)" "git restore ./" 2
 run "git restore .. (parent-dir discard, blocked)" "git restore .." 2
 run "git checkout -- ./ (dot-slash after end-of-options, blocked)" "git checkout -- ./" 2
+run "git restore '?*' (question-mark wildcard-all, blocked)" "git restore '?*'" 2
+run "git checkout '?*' (question-mark wildcard-all, blocked)" "git checkout '?*'" 2
+run "git restore './*' (dot-slash wildcard-all, blocked)" "git restore './*'" 2
+run "git restore ':/?*' (root-magic question wildcard, blocked)" "git restore ':/?*'" 2
+run "git restore '*.md' (extension-scoped wildcard, allowed)" "git restore '*.md'" 0
 run "git checkout -f (forced discard, blocked)" "git checkout -f" 2
 run "git checkout --force main (forced switch, blocked)" "git checkout --force main" 2
 run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main" 2
@@ -121,6 +126,9 @@ run "git switch -f main (forced switch, blocked)" "git switch -f main" 2
 run "git switch --discard-changes main (blocked)" "git switch --discard-changes main" 2
 run "git switch main (plain switch, allowed)" "git switch main" 0
 run "git switch -c feat/x (create, allowed)" "git switch -c feat/x" 0
+run "git switch -cfix (attached branch name with f, allowed)" "git switch -cfix" 0
+run "git switch -Cfix (attached force-create name, allowed)" "git switch -Cfix" 0
+run "git switch -cfix -f (force after attached value, blocked)" "git switch -cfix -f" 2
 
 # --- not blocked by design ----------------------------------------------------
 run "git branch -D feat/x (reflog-recoverable, allowed)" "git branch -D feat/x" 0
