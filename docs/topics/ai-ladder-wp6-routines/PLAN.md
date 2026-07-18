@@ -87,4 +87,134 @@ hosting defaults, and existing org schedulers reconciled rather than duplicated.
 
 ## Plan
 
-(unfilled — /architect)
+Recommendation-locked this round under the user's standing pre-authorization: catalog hub
+`reference/routines.md` with v1 definition leaves under `reference/routines/` (one file per
+v1 class, kebab-case class tokens below); class tokens for the v1 roster —
+`issue-triage-sweep`, `duplicate-detection-sweep`, `backlog-readiness-check`,
+`pr-queue-tending`, `doc-freshness-sweep`, `dependency-update-wave`, `advisory-cve-triage`,
+`tech-debt-sweep`, `eng-metrics-digest`, `ci-health-review` (ten classes; dead-code sweep
+stays excluded per the D4 correction — the architect-round confirmation the correction asked
+for); catalog table serialization = one markdown table (class token × judgment × output ×
+access × derived guardrail row × v1/deferred + join trigger).
+
+Prerequisites: WP4 implementation merged (`reference/trigger-dispatch.md` — routines are
+scheduled trigger adapters behind its queue contract) and WP5 implementation merged
+(`reference/guardrails.md` — the D2 mapping rules derive rows into its matrix). This package
+merges after both.
+
+### Phase 1: Catalog hub + mapping rules [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/routines.md` | Create | The T7 routine contract as the catalog hub: routine definition (a scheduled trigger adapter behind the governed queue — never a private execution/merge path); the two-family ubiquitous language imported per D6 (session-scoped: loop, goal, batch, dynamic workflow; standing: schedule, routine — with the corrected batch definition); trigger taxonomy (schedule / event / continuous); output contract (advisory report OR work item into the governed queue; direct change only through the matrix merge policy); the D2 catalog-to-matrix mapping rules verbatim (DET → plain cron, never a routine; AGT+report → C1; AGT+work-item → C1; AGT+direct-change → C2 where mechanically checkable else C3; AGT/HUM → human-gated disposition; access axis → prerequisites incl. L2 floor for repo-scoped, connector+entitlement for prod/product/org/ext, exfiltration caveat for external-watch, highest tier for unattended GUI actuation); the glance-layer catalog table: all 39 classes as rows (class token, judgment, output, access, derived row, v1 flag or named join trigger) — non-v1 rows carry precedent pointers only, no leaves; hosting stance per D7 (invariants only, profiles as non-normative examples). Zero vendor/fleet names in normative text. |
+
+**Sanity Check:**
+
+- `grep -c 'DET' plugins/autonomy/reference/routines.md` ≥ 1 and mapping rules present (`grep -ci 'plain cron' …/routines.md` ≥ 1)
+- Catalog rows: table row count = 39 (`grep -cE '^\| [a-z][a-z0-9-]+ \|' plugins/autonomy/reference/routines.md` = 39)
+- v1 rows = 10 (`grep -c '| v1 |' plugins/autonomy/reference/routines.md` = 10, or the chosen flag token)
+- `grep -c 'dead-code' plugins/autonomy/reference/routines.md` = 0 in the class-row set (excluded class does not appear as a routine row)
+- Vendor+fleet deny-list sweep exit 0; lychee lane passes
+
+### Phase 2: v1 definition leaves [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/routines/<class-token>.md` × 10 | Create | One leaf per v1 class, uniform D3 shape: purpose (toil addressed); trigger-taxonomy slot + suggested cadence default (issue-triage-sweep, duplicate-detection-sweep, backlog-readiness-check, pr-queue-tending: daily; doc-freshness-sweep, tech-debt-sweep, ci-health-review: weekly; dependency-update-wave, advisory-cve-triage: weekly with event-riding on advisories; eng-metrics-digest: weekly — all org-bindable values); access scope (repo); output contract (report vs work-item filing per class); guardrail row DERIVED via the D2 rules with the derivation shown (no hand-assigned rows); admission + escalation notes imported by citation from the guardrail contract; precedent pointer (the proven manual pattern). No vendor scheduling detail. |
+
+**Sanity Check:**
+
+- `ls plugins/autonomy/reference/routines/*.md | wc -l` = 10
+- Every leaf shows its derivation: `grep -lc 'derived' plugins/autonomy/reference/routines/*.md | wc -l` = 10
+- Every leaf names a cadence default: `grep -lc 'cadence' plugins/autonomy/reference/routines/*.md | wc -l` = 10
+- Vendor+fleet deny-list sweep exit 0
+
+### Phase 3: Guided-setup routine slice [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/skills/setup/SKILL.md` | Modify | Routine slice (D5): interview scheduling surfaces (CI cron, dev machine, self-run infra, vendor-hosted preview) + budget posture; wire free defaults as reviewable changes (CI-cron handler shape = CI-orchestration home role, enabling settings = settings-as-code home role); advise paid/preview surfaces with cost surfaced; DETECT-DIFF-RECONCILE existing org schedulers and bots — a live dependency/stale bot IS a catalog-class instance: record it in the binding (class token + surface), never stand up a second mechanism; record chosen routines + cadences as the additive `routines` section of the schema-versioned binding. Research scheduling surfaces live at setup time (preview-stage moving targets), never from this doc. |
+| `plugins/autonomy/skills/setup/templates/routine-definitions.md` | Create | Per-surface-class routine wiring shapes (CI-cron / local scheduler / self-run / vendor-preview as marked examples), parameterized by class token + cadence; every shape enqueues through the trigger contract's temporal adapter — no direct execution path. |
+| `plugins/autonomy/skills/setup/evals/evals.json` | Modify | Routine-slice cases: surface interview, free-default wiring, existing-bot reconciliation (record-don't-duplicate), paid-surface advisory refusal-to-default. |
+| `plugins/autonomy/README.md` + `plugins/autonomy/.claude-plugin/plugin.json` | Modify | Capability list + description + minor version bump. |
+
+**Sanity Check:**
+
+- `/skill-quality:check` + `validate-evals` pass; `claude plugin validate --strict` exit 0
+- `grep -ci 'detect-diff-reconcile' plugins/autonomy/skills/setup/SKILL.md` ≥ 2 (guardrail slice + routine slice each state it)
+- `grep -c 'temporal' plugins/autonomy/skills/setup/templates/routine-definitions.md` ≥ 1 (queue-entry via the trigger contract)
+- Fleet-name sweep exit 0
+
+### Phase 4: Derivation demonstration + gates [TODO]
+
+Acceptance probe: classify one NOVEL routine class end-to-end using only the shipped mapping
+rules (axes → guardrail row → prerequisites) — the acceptance criterion that an org can
+classify without contract changes; record the worked example in the PR body (not in the
+contract — it is evidence, not normative text). Then the full gate roster
+(`validate-plugins.sh`, `run-plugin-tests.sh`, `validate-plugin-contracts.mjs`,
+markdown/typos/lychee, `claude plugin validate --strict`, catalog regen). Near-duplicate
+audit statement: routines compose the WP4 temporal adapter + WP5 matrix; deterministic checks
+stay plain cron; no second scheduling or merge path created.
+
+**Sanity Check:**
+
+- Worked novel-class derivation present in the PR body
+- All gate scripts exit 0; catalog in-sync
+- Near-duplicate audit statement present in the PR body
+
+## Blast radius
+
+MEDIUM — one plugin's files; the catalog constrains WP7 and every adopting org's background
+maintenance, but all governance content is imported from WP4/WP5 by citation, not redefined.
+Fully git-revertible.
+
+## Stress-test summary
+
+(filled after the fresh-context plan review — see round record below)
+
+## Execution shape
+
+Fully sequential 1 → 2 → 3 → 4 — leaves derive through Phase 1's rules; the slice wires
+Phase 2's classes; Phase 4 proves Phase 1's rules on a novel class. Cross-package: after the
+WP4 and WP5 implementation PRs.
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | normative catalog + mapping-rule authoring |
+| 2 | main-session | ten uniform leaves, derivation judgment per class |
+| 3 | main-session | setup-skill judgment |
+| 4 | main-session | derivation probe + gate runs |
+
+## Open questions
+
+- Fleet routine stand-up + existing-scheduler reconciliation execution — /work-items backlog
+  post-merge (Brief out-of-scope, trigger recorded).
+
+## Decisions made (gate-passed)
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| v1 roster confirmed at 10 classes (dead-code sweep stays out) | Phase 1 table + Phase 2 leaf count | D4's correction is evidence-backed (RESEARCH-routine-catalog row 25: DET detect); D2's rule excludes DET mechanically |
+| Class tokens = kebab-case descriptive names (list in preamble) | Phases 1–2 | Matches every shipped contract token set; one token per catalog row |
+| Hub-and-leaves under `reference/routines/` | Phase 1–2 paths | Same layout decision as WP5's guardrail leaves (subdir per hub) |
+| Cadence defaults: daily for queue-tending sweeps, weekly for the rest | Phase 2 leaves | Proven manual patterns' observed frequency; org-bindable values, not contract |
+| Novel-class derivation as the Phase 4 acceptance probe | Phase 4 | Brief acceptance criterion stated verbatim; cheapest mechanical proof of the mapping rules |
+
+## Handoff to implementation
+
+### User-approval gates
+
+- Any change to the D2 mapping rules or the v1 roster during implementation → STOP
+  (user-locked content).
+- Any scope expansion beyond the four phases re-enters `/architect review`.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+Sequential 1→4, all main-session (table above). PLAN.md phase tags advance in the same
+commit as each phase.
+
+### Mechanical work
+
+Commit per phase on the implementation branch (suggest `feat/autonomy-routines`); gates
+re-run in full at Phase 4; PR body carries the derivation example + near-duplicate audit
+statement + this PLAN in a `<details>` block at close-out.

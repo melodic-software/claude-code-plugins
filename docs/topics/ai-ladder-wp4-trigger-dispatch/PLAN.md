@@ -81,4 +81,183 @@ intact end to end.
 
 ## Plan
 
-(unfilled — /architect)
+Recommendation-locked this round under the user's standing pre-authorization (same basis as
+the WP2/WP3 round): surface-class tokens `tracker-vcs-event` / `temporal` / `agent-internal` /
+`channel-feed`; transport enum `push` / `push-lifecycle` / `poll`; provenance enum `human` /
+`agent` / `system`; signal envelope = a JSON-fenced marker record on the queued item (the WP3
+marker-record precedent), keys `signal.class`, `signal.transport`, `signal.provenance`,
+`signal.identity`, `signal.raw_link`, `signal.traceparent`, plus optional `signal.work_class`
+(the T3 risk class the adapter STAMPS from the security-surface classification rules — see
+Phase 1 (3bis); absent = unclassified = fail-closed human-gated).
+
+Authoring constraint (cross-package link hygiene): this package merges before WP5, so
+normative text references the admission seam and classification rules by contract CONCEPT
+only — never a file link to a not-yet-existing guardrail doc; WP5 adds the file cross-links
+back to the then-existing `trigger-dispatch.md`.
+
+Prerequisite: WP2 telemetry PR merged (`reference/telemetry.md` exists — this contract imports
+its trace-tree obligation) and WP3 PR merged (marker-record precedent + return-accounting
+capture rides the same close boundary the dispatch drain crosses). Implementation ordering
+with WP5: this package's PR merges FIRST; admission enforcement here fail-closes when no
+admission binding exists (absent policy → every dispatch human-gated), and WP5 then ships the
+policy surface that relaxes it — no dead link in either direction, no dispatch window ever
+runs ungoverned.
+
+### Phase 1: Trigger-dispatch contract doc [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/trigger-dispatch.md` | Create | The T1 contract as tool-agnostic normative text. (1) Four signal-surface classes with tokens `tracker-vcs-event` (tracker/VCS-host events: label, assignment, @-mention, PR event), `temporal` (schedule + poll-fallback detectors), `agent-internal` (a session emits follow-up work), `channel-feed` (chat mention + continuous monitor) — ALL contract-active; per-org availability is a binding outcome, entitlement gaps route to the advisory path (WP1 D6), never a contract deferral; carried research gaps stated in SURFACE-CLASS vocabulary in this doc (channel-monitor ambient initiate-vs-notify UNVERIFIED; the relied-on channel-agent vendor surfaces are alpha/beta moving targets; one major chat platform has no first-party trigger, UNVERIFIED-absence) — vendor names for these gaps live in SKILL.md only, per the contract validator's vendor deny-list. (2) Two recorded signal attributes: initiator provenance (`human`/`agent`/`system` — audit + guardrail input, recorded never trusted as isolation, per T2) and transport (`push`/`push-lifecycle`/`poll`; push preferred where offered, poll universal fallback via `temporal`; `push-lifecycle` carries subscription expiry + renewal + validation handshake obligations, and EXPIRY semantics are normative: every `push-lifecycle` wiring is backed by a `temporal` poll-detector backstop for the same surface, or the subscription-health lapse fail-closes — files a human-gated alert item — so a lapsed subscription can never silently drop signals). (3) Six class-generic adapter obligations imported from the Brief D4 verbatim: normalize+enqueue only; idempotent dedup keyed on `signal.identity` (surface-native unique event id, else content hash — search-before-create against the queue); provenance capture + durable `signal.raw_link`; trace-context propagation (`signal.traceparent`, one causal tree per the telemetry contract); admission enforcement at the seam (policy content owned by the guardrail matrix; the adapter enforces, never defines; unadmitted → human-gated item or audited rejection; ABSENT admission binding → fail-closed: enqueue human-gated, never drop silently); closed-loop acknowledgment (bidirectional surfaces echo the item reference back; reply-less surfaces satisfy via `signal.raw_link` alone). (3bis) Work-class classification obligation: admission and the whole guardrail matrix key on the T3 risk class, so a queued item needs one — the adapter STAMPS `signal.work_class` from the classification rules on the org's SECURITY governance surface (owned by the guardrail contract; the adapter stamps, never defines): tracker-vcs-event resolves via the security-bound label→class rules; temporal signals carry the class their bound routine/detector definition derives; agent-internal items carry the class the emitting session's briefed work assigned (recorded with `agent` provenance, admission-checked like any input); channel-feed and any signal the rules cannot resolve stay UNCLASSIFIED → fail-closed human-gated. No repo-local (agent-writable) surface may supply the class used for admission. (4) Signal envelope serialization: JSON-fenced marker record on the queued item, the six required `signal.*` keys plus optional `signal.work_class`, `schema_version` from `"1.0"` — additive evolution, same governance as every contract schema. (5) Dispatch spec: push kick where the platform offers it + a standing scheduled drain as universal fallback and catch-up net for ENQUEUED items (default cadence hourly, org-bindable; the drain never re-scans a source surface — missed enqueues are the poll-detector backstop's job per (2)); one-entrypoint invariant — every kick funnels into the work-item queue capability's autonomous drain mode via the invocation-adapter seam; the race-safe lease makes concurrent kicks harmless; concurrency and per-run caps are guardrail-policy knobs — named descriptively here, serialized tokens (`autonomous_concurrency`, `items_per_run`) owned by the admission policy. (6) Executor surface classes imported from T4 unchanged (self-operated CLI/SDK incl. SDK-embedded pull daemons vs vendor-hosted with human-merge-gate cap); the executor-class determination that gates merge policy is SECURITY-surface data (the guardrail binding's `executor_class`), never a repo-local value; other executor hosting config stays deployment-owned (T7 stance) — contract fixes isolation floor L2+, credential scoping, queue contract only. Constraints restated normatively: no queue bypass, no second dispatch mechanism, no invented event bus, no new cost by default, vendor names only as marked examples. |
+
+**Sanity Check:**
+
+- `grep -c 'tracker-vcs-event' plugins/autonomy/reference/trigger-dispatch.md` ≥ 1 and same for `temporal`, `agent-internal`, `channel-feed`
+- `grep -c 'push-lifecycle' plugins/autonomy/reference/trigger-dispatch.md` ≥ 1 and expiry backstop stated (`grep -c 'poll-detector' …/trigger-dispatch.md` ≥ 1)
+- `grep -c 'signal.identity' plugins/autonomy/reference/trigger-dispatch.md` ≥ 1 and `grep -c 'signal.work_class' …/trigger-dispatch.md` ≥ 1
+- `grep -ci 'fail-closed' plugins/autonomy/reference/trigger-dispatch.md` ≥ 2 (absent-admission AND unclassified behavior stated)
+- `grep -ci 'UNVERIFIED' plugins/autonomy/reference/trigger-dispatch.md` ≥ 2 (research gaps carried in surface-class vocabulary, not laundered)
+- No forward file-link to a guardrail doc: `grep -c 'guardrails' plugins/autonomy/reference/trigger-dispatch.md` counts concept references only — `grep -cE '\]\((\./)?(guardrails|.*guardrails/.*)\.md' …/trigger-dispatch.md` = 0
+- Vendor+fleet deny-list grep empty over the doc (`node scripts/validate-plugin-contracts.mjs` exit 0)
+- lychee lane passes
+
+### Phase 2: Guided-setup trigger/dispatch slice [TODO]
+
+Extends the `setup` skill (discovery-first per D7/WP1 D7). First work item — fresh-docs
+mandate (repo CLAUDE.md): re-fetch the official docs for any vendor surface the slice names
+(CI events, schedule syntax, headless invocation) before editing SKILL.md.
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/skills/setup/SKILL.md` | Modify | Add the trigger/dispatch slice to discovery + apply: interview which signal surfaces exist per class, transport capability per surface, entitlements; wire the DIY floor as reviewable changes (platform event kick + scheduled drain; chat-platform bot or plain inbound webhook for `channel-feed` where wanted); advise plan-gated native integrations with cost surfaced; bind the drain (cadence default hourly, org override recorded); record the trigger binding as an ADDITIVE `triggers` section of the WP1 schema-versioned binding (absent-section tolerance; no major bump). Admission enforcement wiring points at the guardrail admission seam and states the fail-closed absent-binding behavior. All vendor env vars/event names live here, never in `reference/`. |
+| `plugins/autonomy/skills/setup/templates/trigger-adapters.md` | Create | Adapter snippet templates per surface class, surface-class-parameterized, fleet names banned: tracker-vcs-event (label/assignment event → enqueue step shape), temporal (scheduled drain + poll-detector shape), agent-internal (session files follow-up via the queue seam), channel-feed (webhook receiver → enqueue shape). Each template carries the six adapter obligations inline (dedup key derivation, raw-link capture, traceparent injection, ack echo). |
+| `plugins/autonomy/skills/setup/templates/ack-reply.md` | Create | Acknowledgment template wording for bidirectional surfaces: `Queued as <item-url> (autonomy: <class> signal)` — one line, item URL first (the join key), class token for audit; reply-less surfaces documented as satisfied by `signal.raw_link`. |
+| `plugins/autonomy/skills/setup/scripts/check-signal-envelope.mjs` | Create | Enforcement surface for the envelope: validates a queued item's JSON-fenced `signal.*` marker record — six required keys present, enum values legal (incl. `signal.work_class` ∈ C1–C5 when present), the ITEM URL normalized per the telemetry contract's strip rule, `signal.raw_link` validated only as a well-formed absolute https URL (query/fragment PRESERVED — comment anchors and permalinks need them; the strip rule is the join key's, not the raw link's), `schema_version` known. Mirrors `check-emission-conformance.mjs` (same exit contract 0/1/2). |
+| `plugins/autonomy/skills/setup/evals/evals.json` | Modify | Add trigger-slice cases: surface discovery interview path, DIY-floor wiring, plan-gated advisory refusal-to-default, absent-admission fail-closed statement, non-interactive argument-supplied run. |
+| `plugins/autonomy/README.md` | Modify | Shipped-capability list grows by the trigger-dispatch contract + setup slice. |
+| `plugins/autonomy/.claude-plugin/plugin.json` | Modify | Description extends; minor version bump. |
+
+**Sanity Check:**
+
+- `/skill-quality:check` + `validate-evals` pass (`skills_root` = `plugins/autonomy/skills`)
+- `claude plugin validate --strict` exit 0
+- `grep -c 'signal.identity' plugins/autonomy/skills/setup/templates/trigger-adapters.md` ≥ 1
+- `node plugins/autonomy/skills/setup/scripts/check-signal-envelope.mjs` (no args) exits 2 with usage
+- Fleet-name sweep (`validate-plugin-contracts.mjs`) exit 0
+
+### Phase 3: Conforming-path demonstration [TODO]
+
+Acceptance probe on a scratch consumer repo (NOT this repo, WP2 Phase 3 precedent — the ban
+there is on FLEET bindings/plugins, not on composing a sibling CAPABILITY: the scratch repo
+INSTALLS the work-items capability plugin, whose queue + race-safe lease IS the seam under
+demonstration; stubbing the lease would weaken the one-entrypoint proof to nothing): a
+tracker-vcs-event stub (label applied) runs the adapter shape → item lands in the governed
+queue carrying the full signal envelope + ack echo on the source surface; the scheduled-drain
+entrypoint claims it via the seam lease (autonomous drain mode) — demonstrating kick + drain
+funneling into ONE entrypoint; TRACEPARENT from the trigger hop is observed on the enqueue
+record (telemetry-contract import). `check-signal-envelope.mjs` passes against the created
+item. Absent-admission fail-closed is demonstrated live: with no admission binding present,
+the drained item is refused autonomous execution and remains human-gated, with the refusal
+audited on the item (this also exercises the unclassified → human-gated path: no security
+binding means no classification rules, so the item carries no `signal.work_class`).
+
+**Sanity Check:**
+
+- The scratch item body contains a valid `signal.*` marker record (`check-signal-envelope.mjs` exit 0)
+- The ack comment on the source surface contains the item URL
+- Drain transcript shows the seam lease claim and the fail-closed human-gated refusal (no admission binding)
+- No second dispatch path exercised anywhere in the demo; no paid service touched
+- Demo transcript attached to the PR body
+
+### Phase 4: Gates [TODO]
+
+Full in-repo gate run (WP2 Phase 4 roster): `scripts/validate-plugins.sh`,
+`scripts/run-plugin-tests.sh`, `node scripts/validate-plugin-contracts.mjs`, markdown/typos/
+lychee lanes, `claude plugin validate --strict`, catalog regen check. Near-duplicate audit
+statement: the dispatch entrypoint composes the work-item queue capability's existing
+autonomous drain — no second claim/dispatch mechanism was created.
+
+**Sanity Check:**
+
+- All gate scripts exit 0
+- `node scripts/generate-catalog.mjs` reports in-sync
+- Near-duplicate audit statement present in the PR body
+
+## Blast radius
+
+MEDIUM — one plugin's files, but the contract constrains WP5/WP6/WP7, every future adopter,
+and the admission seam WP5 binds to; new convention + cross-package coupling triggers match.
+Fully git-revertible; automated gates cover shared surfaces.
+
+## Stress-test summary
+
+Fresh-context plan review (WP4+WP5 batch): 14 findings, verdict FIX-THEN-SHIP, all folded.
+WP4's share — F1a (HIGH, cross-package): the envelope carried no T3 work class, leaving the
+autonomous happy-path non-functional (safe but dead) → `signal.work_class` + the (3bis)
+classification obligation, class source pinned to the security surface; F2 (HIGH): verbatim
+vendor names in reference/ collide with the contract validator's vendor deny-list →
+surface-class vocabulary in reference/, vendor specifics in SKILL.md; F3 (MED-HIGH): the
+telemetry strip rule misapplied to `signal.raw_link` would corrupt durable event links →
+strip rule confined to the item URL; F4 (MED): push-lifecycle expiry had no fail-closed
+semantics → poll-detector backstop / fail-closed lapse, and the drain's no-rescan limit
+stated; F5 (MED): the Phase 3 seam demo now explicitly installs the work-items capability
+(sibling capability ≠ banned fleet binding); F6 (MED, latent): forward file-links to
+not-yet-existing guardrail docs → concept-only references, WP5 back-links; F7 (LOW): cap
+knob token ownership pinned to the admission policy's serialized names. F8 (LOW) accepted:
+the no-second-dispatch and Boris checks stay prose PR-body audits, consistent with the
+WP2/WP3 round.
+
+## Execution shape
+
+Fully sequential 1 → 2 → 3 → 4 — Phase 2 cites Phase 1's contract; Phase 3 exercises Phase 2's
+templates and check script; Phase 4 gates the tree. Cross-package: this PR merges before the
+WP5 implementation PR (WP5's admission policy binds the seam this contract defines; the
+fail-closed absent-binding clause makes the interim safe).
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | normative contract authoring, tightly coupled to T1/T4/T7 imports |
+| 2 | main-session | setup-skill + template judgment, vendor-doc re-fetch gate |
+| 3 | main-session | scratch-repo runtime probe with divergence judgment |
+| 4 | main-session | gate runs |
+
+## Open questions
+
+- Fleet adapter materializations (reusable workflows, labels, drain-routine stand-up) —
+  /work-items backlog post-merge (Brief out-of-scope, trigger recorded).
+
+## Decisions made (gate-passed)
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| Surface-class tokens `tracker-vcs-event`/`temporal`/`agent-internal`/`channel-feed` | Phase 1 contract vocabulary | Brief D2 class descriptions; kebab-case matches every shipped contract token set |
+| Transport tokens `push`/`push-lifecycle`/`poll` | Phase 1 enum | Brief D3 three-value enum; `push-lifecycle` compresses PUSH-WITH-LIFECYCLE without semantic loss |
+| Signal envelope = JSON-fenced marker record, `signal.*` keys, `schema_version` "1.0" | Phase 1 serialization + Phase 2 check script | WP3 marker-record precedent (tracker-resident, adapter-written, queryable) |
+| Drain cadence default hourly, org-bindable | Phase 1 dispatch spec + Phase 2 slice | Universal catch-up net with bounded token cost; value is a binding knob, not contract |
+| Cap VALUES deferred to the WP5 admission policy; WP4 names the knobs | Phase 1 dispatch spec | Brief D5 assigns caps to guardrail policy; avoids double ownership |
+| WP4 merges before WP5; absent admission binding fail-closes to human-gated | Plan preamble + Phase 3 demo | Brief D4 obligation 5 (enforce, never define) + no-ungoverned-window requirement |
+| `signal.work_class` optional envelope key + security-surface classification obligation; unclassified → human-gated | Phase 1 (3bis) + Phase 2 check | Stress-test F1a: the matrix and admission key on C1–C5, which no trigger path assigned; agent-writable class sources are a bypass channel |
+| Executor-class merge gating reads the security binding's `executor_class`, never repo-local data | Phase 1 (6) | Stress-test F1b: hosted human-merge-gate cap must not be flippable from inside the blast radius |
+
+[FALLBACK — confirm or override] `check-signal-envelope.mjs` as a NEW deliverable (Phase 2) —
+invented beyond the Brief on the WP2 precedent (a pinned contract with no enforcement surface
+is undetectable drift). Flag if unwanted.
+
+## Handoff to implementation
+
+### User-approval gates
+
+- The envelope-check script above is [FALLBACK] — surface before authoring if contested.
+- If the platform's event kick cannot reach the drain entrypoint without a second dispatch
+  path, STOP and re-surface — the one-entrypoint invariant is non-negotiable.
+- Any scope expansion beyond the four phases re-enters `/architect review`.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+Sequential 1→4, all main-session (table above). PLAN.md phase tags advance in the same commit
+as each phase; scratch-repo demo per Phase 3; divergence escalation applies to every phase.
+
+### Mechanical work
+
+Commit per phase on the implementation branch (suggest `feat/autonomy-trigger-dispatch`);
+gates re-run in full at Phase 4; PR body carries the demo transcript + near-duplicate audit
+statement + this PLAN in a `<details>` block at close-out.

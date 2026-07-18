@@ -104,4 +104,135 @@ package commits, implies, or starts a build before the trigger earns it.
 
 ## Plan
 
-(unfilled — /architect)
+Recommendation-locked this round under the user's standing pre-authorization. Token sets
+(D-deferred, resolved here): lifecycle state tokens `leased` / `executing` / `verifying` /
+`disposing` / `escalated` / `complete` (terminal: `escalated`, `complete`); terminal-outcome
+tokens `success` / `gate-failed` / `needs-human` / `cap-exceeded`; stop-criteria family
+tokens `runner-owned` (deterministic) and `agent-signaled` (judgment, via the
+structured-output envelope field `stop_reason`); severity levels `notice` / `attention` /
+`urgent` (three levels — mapped to org-bound notification fan-out; tracker item always,
+channel notification per org route, personal-push tier org-bindable at `urgent`); default
+staleness window 72h with one re-escalation (severity bump, cap 1) — org-bindable knobs.
+Design-pack docs live under `reference/runner/` (hub `reference/runner.md`).
+
+Prerequisites: WP4 + WP5 + WP6 implementation PRs merged (this pack imports their contracts
+by citation). Design only — zero build artifacts; the runner-execution home stays unborn.
+
+### Phase 1: Charter import + spine and seam specs [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/runner.md` | Create | Design-pack hub: T4 charter imported verbatim-in-substance (queue-contract split interactive-upstream / autonomous-downstream; BOTH build triggers restated verbatim; self-run-primary substrate stance with the hosted human-merge-gate cap; anti-goals) with an explicit no-build-commitment clause; the two-layer composition spine per D2 — normative spine SHAPE in seam vocabulary (minimal composable orchestration, pluggable sandbox-provider seam × pluggable agent-adapter seam, autonomous/interactive split) with the 8 seams as its interface set; adopt-first binding stance recorded (qualifying spine library re-verified at trigger time; reimplement-the-pattern the named fallback); glance rule routing depth to the leaves. |
+| `plugins/autonomy/reference/runner/seams.md` | Create | The 8 seam specifications in contract vocabulary (invocation adapter, structured-output envelope, queue+lease, isolation policy, outcome-verification gate, merge-policy toggle, observability+cost, session/resume+caps): each seam's obligation set, its already-shipped owning contract where one exists (queue+lease → trigger-dispatch; isolation policy → guardrails; observability+cost → telemetry; capture at task boundary → return accounting) cited never restated, and the runner-side interface tokens. Envelope field names resolved: `stop_reason`, `outcome`, `evidence` (bundle ref), `resume_handle`. |
+
+**Sanity Check:**
+
+- `grep -ci 'build trigger' plugins/autonomy/reference/runner.md` ≥ 2 (both triggers restated)
+- `grep -c 'no build' plugins/autonomy/reference/runner.md` ≥ 1 (commitment clause present)
+- Seam count: `grep -cE '^## ' plugins/autonomy/reference/runner/seams.md` = 8
+- Vendor+fleet deny-list sweep exit 0; lychee lane passes
+
+### Phase 2: Lifecycle + stop-criteria + escalation leaves [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/runner/lifecycle.md` | Create | Full state model per D4: `leased → executing → verifying → disposing → (escalated | complete)`, every transition emitting telemetry per the telemetry contract (trace-linked); launch disposition thin (per-item PR through the platform's native flow); batched gated-merge serialization named as a growth stage with its evidence trigger (observed concurrent auto-merge collisions) binding to a platform-native merge-queue facility — never reimplemented. |
+| `plugins/autonomy/reference/runner/escalation.md` | Create | D5 resolved: terminal-handoff at launch — every stop terminal (`success`/`gate-failed`/`needs-human`/`cap-exceeded`); the runner files a human-gated work item with the evidence bundle (failure summary, run-transcript link, cost, trace link, `resume_handle`; human takeover = resume the persisted session); two-family stop-criteria taxonomy verbatim (runner-owned: turn/budget/wall-clock caps, execution error after retries, refusal, verification-gate failure, isolation violation; agent-signaled via `stop_reason`: ambiguity, design decision, security/data-integrity event, unresolvable blocker, no-progress); transient-recoverable retries with backoff, never escalates; severity axis (`notice`/`attention`/`urgent`) → org-bound fan-out with personal-push as an org-bindable route; acknowledgment-on-item + stale-unacked re-escalation (default 72h window, one severity-bump re-escalation, both org-bindable); mid-run interrupt deferred with its evidence trigger; escalation telemetry rides the telemetry contract's `autonomy.*` namespace (candidate upstream contribution noted). Research gaps carried verbatim (CI-action-class failure-reporting UNVERIFIED; cross-vendor needs-human signaling UNVERIFIED; managed-agent event-name drift — bind at build; deprecated approval-SDK never cited as living precedent). |
+| `plugins/autonomy/reference/runner/topology.md` | Create | D6: ownership seam map — design pack in the capability-distribution home; at trigger fire the runner-execution home is born owning implementation + build/release toolchain, consuming contracts never duplicating; security-sensitive runner bindings in the settings-as-code home (runner reads its governance, never writes it); non-security operational config deployment-owned; launch backend set per D3 (one free self-run L2 container-class backend; L3 deferred with the first-C5 trigger, fail-closed until bound; paid/cloud advisory + opt-in); birth-time decisions listed with arbiter USER-RESERVED (repo count/name/language, spine re-verification, exact managed-event names). |
+
+**Sanity Check:**
+
+- State tokens present: `grep -c 'disposing' plugins/autonomy/reference/runner/lifecycle.md` ≥ 1
+- `grep -c 'cap-exceeded' plugins/autonomy/reference/runner/escalation.md` ≥ 1 and `grep -c 'stop_reason' …/escalation.md` ≥ 1
+- `grep -ci 'UNVERIFIED' plugins/autonomy/reference/runner/escalation.md` ≥ 2
+- `grep -c 'USER-RESERVED' plugins/autonomy/reference/runner/topology.md` ≥ 1
+- Vendor+fleet deny-list sweep exit 0
+
+### Phase 3: Setup note + WP5 escalation-route join [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/skills/setup/SKILL.md` | Modify | A short runner note only: the design pack is bindable-when-born; setup records NOTHING runner-specific until the trigger fires except escalation notification routes (the guardrail slice's `escalation_routes` gains the severity axis + personal-push tier as route options — a schema-additive refinement, no major bump). No probe, no wiring, no binding section for the unborn home. |
+| `plugins/autonomy/README.md` + `plugins/autonomy/.claude-plugin/plugin.json` | Modify | Capability list gains the runner design pack; the roadmap row stays trigger-gated (build), now pointing at the pack; minor version bump. |
+
+**Sanity Check:**
+
+- `grep -ci 'unborn' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
+- README roadmap still carries the build trigger row (`grep -c 'build trigger' plugins/autonomy/README.md` ≥ 1)
+- `/skill-quality:check` passes; `claude plugin validate --strict` exit 0
+
+### Phase 4: Zero-build audit + gates [TODO]
+
+Acceptance probe (mechanical): the package introduces no executable/runtime artifact — the
+diff contains no new files outside `reference/`, `skills/setup/`, README, and plugin
+manifest; no new scripts; no repo-creation instruction anywhere. Then the full gate roster
+(`validate-plugins.sh`, `run-plugin-tests.sh`, `validate-plugin-contracts.mjs`,
+markdown/typos/lychee, `claude plugin validate --strict`, catalog regen). Near-duplicate
+audit statement: the pack cites the shipped contracts for every inherited obligation and
+defines only runner-new content.
+
+**Sanity Check:**
+
+- `git diff --name-only <base>` contains no path outside the four allowed surfaces; no `*.sh`/`*.mjs` additions
+- `grep -rci 'git init\|create the repo' plugins/autonomy/reference/runner*` = 0
+- All gate scripts exit 0; catalog in-sync; near-duplicate audit statement in the PR body
+
+## Blast radius
+
+MEDIUM — docs-only within one plugin, but the pack pre-commits topology and escalation
+contracts the eventual build must honor; WP5's last cross-package deferral resolves here.
+Fully git-revertible; zero runtime surface by design.
+
+## Stress-test summary
+
+(filled after the fresh-context plan review — see round record below)
+
+## Execution shape
+
+Fully sequential 1 → 2 → 3 → 4 — leaves depend on the hub's imported charter; the setup note
+cites Phase 2's escalation severity axis; Phase 4 audits the authored tree. Cross-package:
+after WP4+WP5+WP6 implementation PRs.
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | charter import fidelity + seam-spec judgment |
+| 2 | main-session | lifecycle/escalation normative authoring |
+| 3 | main-session | minimal setup-skill touch |
+| 4 | main-session | mechanical audit + gate runs |
+
+## Open questions
+
+- Birth-time decisions (repo count/name/language, spine re-verification, managed-event
+  names) — USER-RESERVED at trigger fire, restated in topology.md.
+
+## Decisions made (gate-passed)
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| Lifecycle tokens `leased/executing/verifying/disposing/escalated/complete` | Phase 2 leaf | D4's state model named each stage; kebab/lowercase matches shipped token sets |
+| Terminal outcomes `success/gate-failed/needs-human/cap-exceeded` | Phase 2 leaf | D5 names exactly these four |
+| Severity set `notice/attention/urgent`; 72h staleness, one re-escalation | Phase 2 leaf | D5 requires a severity axis + ack/re-escalation knobs with suggested defaults; three tiers is the smallest set covering tracker-only / channel / push fan-out |
+| Envelope fields `stop_reason/outcome/evidence/resume_handle` | Phases 1–2 | D5's evidence-bundle + resume requirements; smallest field set carrying them |
+| Hub-and-leaves under `reference/runner/` | Phase 1–2 paths | Same layout as WP5/WP6 hubs |
+| Escalation-route severity refinement lands in the WP5 security-binding schema additively | Phase 3 | WP5 D6 routes live there; additive-section rule (WP1 precedent) avoids a major bump |
+
+## Handoff to implementation
+
+### User-approval gates
+
+- Anything that reads as a build commitment or creates a runtime artifact → STOP (D1
+  user-locked; the zero-build audit is the backstop).
+- Birth-time decisions stay USER-RESERVED — never resolved by implementation.
+- Any scope expansion beyond the four phases re-enters `/architect review`.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+Sequential 1→4, all main-session (table above). PLAN.md phase tags advance in the same
+commit as each phase.
+
+### Mechanical work
+
+Commit per phase on the implementation branch (suggest `docs/autonomy-runner-design-pack` —
+docs-type: the package is normative text only); gates re-run in full at Phase 4; PR body
+carries the zero-build audit output + near-duplicate audit statement + this PLAN in a
+`<details>` block at close-out.
