@@ -61,7 +61,9 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
   fetch + extract findings, per-finding D1–D7.5 with verification gates
   ([review-discipline](../../reference/review-discipline.md) §3), mechanical readiness gate
-  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`),
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`;
+  the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
+  is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
   report
 - [ ] **Step 5 — Commit + push** fixes on the PR branch; clean working tree; follow-up replies
   cite commit SHAs

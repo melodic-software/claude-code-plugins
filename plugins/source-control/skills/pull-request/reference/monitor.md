@@ -204,7 +204,10 @@ Compare triggered workflows against the expected set from Phase 2.5. Flag mismat
 # Sometimes alone is enough to classify (lint failures, type errors)
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-annotations.sh" <pr-number> --failed
 
-# Tier 2 — Full failure ZIP via direct gh api (complete, untruncated)
+# Tier 2 — Full failure ZIP via direct gh api (complete, untruncated). When the
+# ${user_config.fetch_logs_max_bytes} option is a number other than the 52428800
+# default (not empty, not a literal unexpanded token), append
+# --max-bytes ${user_config.fetch_logs_max_bytes}
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-failed-logs.sh" <run-id>
 
 # Tier 3 — LAST RESORT interactive eyeball (TRUNCATES on large logs)

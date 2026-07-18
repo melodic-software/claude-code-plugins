@@ -8,7 +8,7 @@
 #   2. Per-job mode — emits failure markers from plain-text response
 #   3. --raw flag — dumps unfiltered content
 #   4. --keep-zip flag — leaves ZIP under scratch/
-#   5. Size cap (FETCH_LOGS_MAX_BYTES) — aborts with exit 3
+#   5. Size cap (--max-bytes) — aborts with exit 3
 #   6. gh api failure — exits 2
 #   7. Tiny non-ZIP response — exits 2 with diagnostic
 #   8. Missing arguments — exits 1
@@ -172,7 +172,7 @@ else
 fi
 
 # Case 5: Size cap aborts with exit 3
-FETCH_LOGS_MAX_BYTES=10 run_script_with_scratch_silent "$TEST_TMPDIR/scratch5" 33333
+run_script_with_scratch_silent "$TEST_TMPDIR/scratch5" 33333 --max-bytes 10
 assert_exit "size cap returns exit 3" 3 "$?"
 
 # Case 6: gh api failure — exits 2

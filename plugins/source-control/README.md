@@ -113,16 +113,26 @@ user decision to abandon the integration.
 
 ## Configuration
 
-No `userConfig`. Run **`/source-control:setup`** to interview your repo and
+Run **`/source-control:setup`** to interview your repo and
 write the tracked `.claude/source-control.md` commit-subject / PR-title
 convention config — it is idempotent and safe to re-run to reconfigure.
-Optional environment variables:
+
+Personal tuning scalars are `userConfig` options (set interactively with
+`/plugin configure source-control`, or headless via
+`claude plugin install source-control@melodic-software --config KEY=VALUE`;
+they are user-scoped, stored in your user settings):
+
+| Option | Used by | Effect |
+|---|---|---|
+| `worktree_stale_days` | `/worktree status` | Staleness threshold (default 14 days) |
+| `babysit_self_logins` | `/babysit-prs` readiness gate | Extra posting identities (csv) whose replies count as your classification rows — e.g. a project bot account (default: your `gh api user` login) |
+| `fetch_logs_max_bytes` | `fetch-logs` | Size cap for CI-log ZIPs (default 52428800 = 50 MiB) |
+
+Remaining optional environment variables:
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `WORKTREE_STALE_DAYS` | `/worktree status` | Staleness threshold (default 14 days) |
-| `BABYSIT_SELF_LOGINS` | `/babysit-prs` readiness gate | Extra posting identities (csv) whose replies count as your classification rows — e.g. a project bot account (default: your `gh api user` login) |
-| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` / `FETCH_LOGS_MAX_BYTES` | `fetch-logs` | Scratch dir, repo override, size cap for CI-log ZIPs |
+| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
 
 ## Security
 

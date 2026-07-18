@@ -269,7 +269,9 @@ verification gates per [review-discipline.md](../../../reference/review-discipli
   (read → explore → validate → classify → react → reply → fix → follow-up → author-conditional
   thread resolution, each verified on GitHub)
 - [ ] **E** — Readiness gate. Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>` — exit 0 `READINESS_OK`
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>` — when the
+  `${user_config.babysit_self_logins}` option is non-empty (and not a literal unexpanded token),
+  append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
   re-run. THEN confirm: all checks terminal + 2-min cooldown

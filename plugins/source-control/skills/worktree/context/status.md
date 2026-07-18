@@ -24,7 +24,7 @@ Full detail for the `/worktree status` action. SKILL.md carries the headline; th
    git log -1 --format='%ci' <branch> 2>/dev/null
    ```
 
-4. **Staleness**: Compare last commit date to today. Default threshold: **14 days** (configurable via `WORKTREE_STALE_DAYS` env var, falling back to 14 if unset or invalid).
+4. **Staleness**: Compare last commit date to today. Default threshold: **14 days**. The configured override is `${user_config.worktree_stale_days}` — use that value when it is a positive number, falling back to 14 when it is empty, invalid, or a literal unexpanded `${user_config.worktree_stale_days}` token.
 
 ## Status classification
 
