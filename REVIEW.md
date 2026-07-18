@@ -65,6 +65,11 @@ criterion; a citation here never substitutes prose that isn't needed, per
 - A high-risk security action — authentication, an authorization failure, a
   privilege change, sensitive-data access — has a corresponding audit-log
   entry (`conventions/review/observability.md#logging`).
+- A change that writes two or more related records, files, or state
+  locations carries an atomicity mechanism — a transaction, an atomic
+  rename, a constraint, or a compensation step — spanning them; an
+  interruption between steps must not leave state no code path expects
+  (`conventions/review/error-handling.md#atomicity`).
 
 ## Do not report
 
