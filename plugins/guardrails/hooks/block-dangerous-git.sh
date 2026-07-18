@@ -108,14 +108,17 @@ abbrev_match() {
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
 # and `:/?*` match the whole tree from the repository root regardless of
-# cwd), long-form magic whose comma list carries `top` with an empty or
-# wildcard-only pattern (`:(top)`, `:(literal,top)`, `:(top,glob)**`), and
-# any bare operand built only from wildcard and dot/slash characters (`*`,
-# `?*`, `./*`, `**/*`, `./`, `..`) all address the whole tree — git's
-# pathspec fnmatch lets `*` cross directories and `?` match any character,
-# and dot-slash-only operands are the same cwd-or-wider discard as `.`.
-# Magic followed by a real path (`:(top)src/a`, `:/src`) scopes to it and
-# passes, as does any pattern containing a literal name character.
+# cwd), long-form magic with an empty or wildcard-only pattern
+# (`:(top)`, `:(literal)`, `:(glob)**` — empirically git selects the whole
+# tree scope for all of them), bare/empty short magic (`:`, `::`, `:*`),
+# and any bare operand built only from wildcard and dot/slash characters
+# (`*`, `?*`, `./*`, `**/*`, `./`, `..`) all address the whole tree —
+# git's pathspec fnmatch lets `*` cross directories and `?` match any
+# character, and dot-slash-only operands are the same cwd-or-wider discard
+# as `.`. Magic followed by a real path (`:(top)src/a`, `:/src`) scopes to
+# it and passes, as does any pattern containing a literal name character.
+# Exclude magic (`:!x`, `:^x`, `:(exclude)x`) never selects on its own —
+# the operand scans track it at set level via is_exclude_pathspec.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_tree_wide_pathspec() {
   local magic pattern
@@ -125,15 +128,38 @@ is_tree_wide_pathspec() {
     magic="${1#:(}"
     pattern="${magic#*)}"
     magic="${magic%%)*}"
-    [[ ",${magic}," == *",top,"* ]] || return 1
+    [[ ",${magic}," == *",exclude,"* ]] && return 1
     [[ -z "$pattern" || "$pattern" =~ ^[./*?]+$ ]]
     ;;
   ":/"*)
     [[ "${1#:/}" =~ ^[./*?]+$ ]]
     ;;
+  ":!"* | ":^"*) return 1 ;;
+  ":"*)
+    [[ "${1#:}" =~ ^:?[./*?]*$ ]]
+    ;;
   *)
     [[ "$1" =~ ^[./*?]+$ ]]
     ;;
+  esac
+}
+
+# Is an operand an exclude-magic pathspec (`:!x`, `:^x`, `:(exclude)x`)?
+# An exclude-ONLY pathspec set selects everything OUTSIDE the excluded set
+# (git applies the exclusion against the full tree when no positive
+# pathspec accompanies it — verified empirically), so the checkout/restore
+# scans block when excludes appear without any positive operand.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+is_exclude_pathspec() {
+  local magic
+  case "$1" in
+  ":!"* | ":^"*) return 0 ;;
+  ":("*")"*)
+    magic="${1#:(}"
+    magic="${magic%%)*}"
+    [[ ",${magic}," == *",exclude,"* ]]
+    ;;
+  *) return 1 ;;
   esac
 }
 
@@ -144,7 +170,7 @@ is_tree_wide_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -343,12 +369,17 @@ check_segment() {
     done
     ;;
   checkout)
-    # Worktree-wide discard: a tree-wide pathspec operand, or a forced
-    # checkout (`-f`/`--force` throws away local modifications even while
-    # switching branches). Path-scoped checkouts (`checkout .github/x`)
-    # tokenize as different words and never match. Skip values of
-    # value-taking options so a branch named "." cannot be created but its
-    # option value never false-matches the operand scan.
+    # Worktree-wide discard: a tree-wide pathspec operand, an exclude-only
+    # pathspec set (selects everything outside the excluded set), or a
+    # forced checkout (`-f`/`--force` throws away local modifications even
+    # while switching branches). Path-scoped checkouts (`checkout
+    # .github/x`) tokenize as different words and never match. Skip values
+    # of value-taking options so a branch named "." cannot be created but
+    # its option value never false-matches the operand scan. Any positive
+    # non-flag operand (a ref counts — a scoping limitation of static
+    # matching) clears the exclude-only condition.
+    excl=0
+    pos=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -360,6 +391,7 @@ check_segment() {
           is_tree_wide_pathspec "${w[k]}" && block "checkout-dot" \
             "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
             "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+          if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
         done
         break
         ;;
@@ -398,10 +430,16 @@ check_segment() {
         is_tree_wide_pathspec "$x" && block "checkout-dot" \
           "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
           "Checkout specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
+        if [[ "$x" != -* ]]; then
+          if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
+        fi
         ;;
       esac
       ((k++))
     done
+    ((excl > 0 && pos == 0)) && block "checkout-dot" \
+      "BLOCKED: an exclude-only git checkout pathspec restores everything outside the excluded set." \
+      "Add positive paths to scope the checkout, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=checkout-dot."
     ;;
   switch)
     # switch -f/--force (alias --discard-changes) throws away local
@@ -469,6 +507,8 @@ check_segment() {
       esac
     done
     if ((staged == 0 || worktree == 1)); then
+      excl=0
+      pos=0
       k=$((sub_idx + 1))
       while ((k < nseg)); do
         x="${w[k]}"
@@ -479,6 +519,7 @@ check_segment() {
             is_tree_wide_pathspec "${w[k]}" && block "restore-dot" \
               "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
               "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+            if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
           done
           break
           ;;
@@ -506,10 +547,16 @@ check_segment() {
           is_tree_wide_pathspec "$x" && block "restore-dot" \
             "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
             "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
+          if [[ "$x" != -* ]]; then
+            if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
+          fi
           ;;
         esac
         ((k++))
       done
+      ((excl > 0 && pos == 0)) && block "restore-dot" \
+        "BLOCKED: an exclude-only git restore pathspec discards everything outside the excluded set." \
+        "Add positive paths to scope the restore, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
     fi
     ;;
   *) ;;

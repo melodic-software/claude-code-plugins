@@ -470,7 +470,10 @@ hook::shell_c_operand() {
       ((i++))
       break
       ;;
-    -o | +o | -O | +O) ((i += 2)) ;;
+    # -o/-O (and +o/+O) consume a set/shopt operand; --rcfile/--init-file
+    # consume a startup-file operand (bash) — none of these ends the option
+    # scan, so `bash --rcfile /dev/null -c '…'` still reaches its -c.
+    -o | +o | -O | +O | --rcfile | --init-file) ((i += 2)) ;;
     -*)
       [[ "$t" =~ ^-[A-Za-z]+$ && "$t" == *c* ]] && has_c=1
       ((i++))

@@ -118,6 +118,15 @@ run "git checkout '?*' (question-mark wildcard-all, blocked)" "git checkout '?*'
 run "git restore './*' (dot-slash wildcard-all, blocked)" "git restore './*'" 2
 run "git restore ':/?*' (root-magic question wildcard, blocked)" "git restore ':/?*'" 2
 run "git restore '*.md' (extension-scoped wildcard, allowed)" "git restore '*.md'" 0
+run "git restore ':(exclude)zzz' (exclude-only pathspec, blocked)" "git restore ':(exclude)zzz'" 2
+run "git checkout ':!zzz' (exclude-only short magic, blocked)" "git checkout ':!zzz'" 2
+run "git restore ':^zzz' (exclude-only caret magic, blocked)" "git restore ':^zzz'" 2
+run "git restore ':(exclude)sub' root.txt (positive scopes exclude, allowed)" "git restore ':(exclude)sub' root.txt" 0
+run "git checkout main ':!docs' (ref counts as positive, allowed)" "git checkout main ':!docs'" 0
+run "git restore ':' (bare no-pathspec marker, blocked)" "git restore ':'" 2
+run "git restore '::' (double-colon marker, blocked)" "git restore '::'" 2
+run "git checkout ':(literal)' (empty non-top magic, blocked)" "git checkout ':(literal)'" 2
+run "git checkout ':(glob)' (empty glob magic, blocked)" "git checkout ':(glob)'" 2
 run "git checkout -f (forced discard, blocked)" "git checkout -f" 2
 run "git checkout --force main (forced switch, blocked)" "git checkout --force main" 2
 run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main" 2
@@ -155,6 +164,8 @@ run "bash -c 'git status' (wrapped read-only, allowed)" "bash -c 'git status'" 0
 run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
 run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FOO git push --force" 2
 run "bash -O extglob -c 'git reset --hard' (shopt operand, blocked)" "bash -O extglob -c 'git reset --hard'" 2
+run "bash --rcfile /dev/null -c 'git reset --hard' (rcfile operand, blocked)" "bash --rcfile /dev/null -c 'git reset --hard'" 2
+run "bash --init-file rc -c 'git checkout .' (init-file operand, blocked)" "bash --init-file rc -c 'git checkout .'" 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
