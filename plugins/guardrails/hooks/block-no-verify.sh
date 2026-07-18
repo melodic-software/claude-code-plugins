@@ -91,6 +91,14 @@ check_segment() {
   local -a w=("$@")
   local nseg gi k x lc ch rest sub sub_idx cv
 
+  # A shell -c wrapper (`bash -lc 'git commit --no-verify'`) executes its
+  # operand as a full shell command — re-parse it with the same tokenizer so
+  # the wrapped invocation is checked faithfully.
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
+    return 0
+  fi
+
   hook::git_resolve_index "${w[@]}" || return 0
   gi=$HOOK_GIT_RESOLVED_GI
   # env -S splicing may have rewritten the argv — match on the resolved words.

@@ -134,6 +134,14 @@ check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry
 
+  # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
+  # a full shell command — re-parse it with the same tokenizer so the wrapped
+  # git invocation is checked faithfully (operators and quoting included).
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
+    return 0
+  fi
+
   hook::git_resolve_index "$@" || return 0
   gi=$HOOK_GIT_RESOLVED_GI
   # env -S splicing may have rewritten the argv — match on the resolved words.

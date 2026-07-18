@@ -433,6 +433,57 @@ hook::env_s_split() {
   ((have)) && HOOK_ENV_S_WORDS+=("$word")
 }
 
+# Detect a `sh -c` style shell wrapper in a segment's argv: a shell at the
+# command position (after leading env-var assignments) carrying a `-c` flag.
+# On match, the command-string operand lands in HOOK_SHELL_C_OPERAND for the
+# caller to re-parse with hook::bash_parse_segments — the operand is a full
+# shell command (operators, quoting, everything), so re-parsing with the same
+# tokenizer is the faithful treatment. Wrappers stacked in front of the shell
+# (`sudo bash -c …`) are NOT resolved here — a documented residual of the
+# static-matcher posture. A shell invoked on a script file (no -c) never
+# matches: file contents cannot be inspected statically.
+# shellcheck disable=SC2034  # result global is consumed by the sourcing guard
+hook::shell_c_operand() {
+  local -a w=("$@")
+  local n=${#w[@]} i=0 b t has_c=0
+  # Skip leading VAR=val assignments, mirroring the git resolver.
+  while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
+  ((i < n)) || return 1
+  b="${w[i]##*/}"
+  b="${b##*\\}"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32)
+    b="${b,,}"
+    b="${b%.exe}"
+    ;;
+  *) ;;
+  esac
+  case "$b" in
+  bash | sh | zsh | dash | ksh | mksh) ;;
+  *) return 1 ;;
+  esac
+  ((i++))
+  while ((i < n)); do
+    t="${w[i]}"
+    case "$t" in
+    --)
+      ((i++))
+      break
+      ;;
+    -o) ((i += 2)) ;;
+    -*)
+      [[ "$t" =~ ^-[A-Za-z]+$ && "$t" == *c* ]] && has_c=1
+      ((i++))
+      ;;
+    *) break ;;
+    esac
+  done
+  ((has_c)) || return 1
+  ((i < n)) || return 1
+  HOOK_SHELL_C_OPERAND="${w[i]}"
+  return 0
+}
+
 # Does an argv word name the git executable? Basename compared exactly on
 # POSIX; on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the
 # OS-gate in hook::normalize_path) so `GIT` / `git.exe` are caught there but a
@@ -461,6 +512,7 @@ hook::git_is_bin() {
 hook::git_resolve_index() {
   HOOK_GIT_RESOLVED_WORDS=("$@")
   HOOK_GIT_RESOLVED_GI=-1
+  # shellcheck disable=SC2178  # nameref to the array result global, not a string assignment
   local -n w=HOOK_GIT_RESOLVED_WORDS
   local n=${#w[@]} i=0 tok
 
@@ -498,7 +550,7 @@ hook::git_resolve_index() {
           i=0
           continue 2
           ;;
-        -u | -C | --chdir) ((i += 2)) ;;
+        -u | --unset | -C | --chdir) ((i += 2)) ;;
         -*) ((i++)) ;;
         *) ((i++)) ;;
         esac

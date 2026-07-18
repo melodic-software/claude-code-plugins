@@ -124,6 +124,12 @@ run "git -C . push --force (arg-consuming global, blocked)" "git -C . push --for
 run "env -i git push --force (wrapper, blocked)" "env -i git push --force" 2
 run "env -S 'git push --force' (split-string, blocked)" "env -S 'git push --force'" 2
 run "env -S quoted flag (inner-quote split-string, blocked)" "env -S 'git push \"--force\"'" 2
+run "bash -lc 'git reset --hard' (shell -c wrapper, blocked)" "bash -lc 'git reset --hard'" 2
+run "sh -c 'git push --force' (shell -c wrapper, blocked)" "sh -c 'git push --force'" 2
+run "bash -c compound (wrapped operator chain, blocked)" "bash -c 'git status && git clean -fd'" 2
+run "bash -c 'git status' (wrapped read-only, allowed)" "bash -c 'git status'" 0
+run "bash script.sh (script file, not -c, allowed)" "bash script.sh" 0
+run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FOO git push --force" 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
