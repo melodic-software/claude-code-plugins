@@ -1,0 +1,53 @@
+{
+  "skill_name": "pick-for-the-problem",
+  "evals": [
+    {
+      "id": 1,
+      "name": "names-the-selection-sin-and-re-derives-from-problem",
+      "prompt": "pick for the problem — let's just use Redis for this; I always reach for it when I need to store something between requests.",
+      "expected_output": "Re-anchors selection discipline, names the reflex as the Habit sin ('I always reach for it'), and re-derives from the problem first: it asks what is actually being solved, surveys more than one candidate against those requirements plus plausible future ones, and walks the native > official > vetted-third-party ladder rather than ratifying the reflex.",
+      "files": [],
+      "expectations": [
+        "Names the choice as a selection sin (habit) rather than accepting it",
+        "Re-derives from the actual problem before evaluating candidates",
+        "Surveys the field and walks the native > authoritative > vetted-third-party ladder"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "prices-the-coupling-and-routes-to-research",
+      "prompt": "pick for the problem — this third-party library looks perfect, let's add it as a dependency.",
+      "expected_output": "Treats the dependency as a coupling point and prices it at adoption time — abandonment, pricing pivot, license change, security posture, exit cost — and, because the maintenance/security/license judgement is load-bearing and drifts, routes to a research capability (/discovery:research, or -deep for a large surface) rather than issuing a verdict from recall, degrading to an explicit cited research pass when that capability is not installed.",
+      "files": [],
+      "expectations": [
+        "Weighs the dependency as a coupling point (abandonment, pricing, license, security, exit cost) at adoption time",
+        "Routes the load-bearing evaluation to research rather than judging maintenance/security from memory",
+        "Degrades to an explicit in-thread cited research pass when the research capability is not installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "flags-incumbency-and-native-skip",
+      "prompt": "pick for the problem — the repo already uses this ORM everywhere, so I'll pull it in for the new service too; also I'll hand-roll a little date-parsing helper.",
+      "expected_output": "Flags the incumbency sin ('the repo already uses X, so new work assumes X') and re-derives fit for the new service rather than treating current state as the requirement; separately flags hand-rolling a date-parsing helper as building what an existing native/vetted solution already serves. Distinguishes its selection-specific incumbency lens from the broader /re-anchor:reason-dont-recite.",
+      "files": [],
+      "expectations": [
+        "Names the incumbency sin and re-derives fit rather than assuming the repo's existing tool",
+        "Flags hand-building an already-solved, well-served problem as a finding",
+        "Distinguishes its narrow selection lens from the broader reason-dont-recite incumbency corrector"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "well-fitted-incumbent-choice-audits-clean",
+      "prompt": "pick for the problem — we picked Postgres here because we need transactional integrity and relational queries, and we evaluated the alternatives when we chose it.",
+      "expected_output": "Re-derivation confirms the choice fits the stated problem (transactional integrity, relational queries) and was field-surveyed, so it audits clean. The skill does not churn a well-fitted choice just because it was interrogated, and does not switch tools for its own sake — treating firing the skill as a re-anchor, not an accusation.",
+      "files": [],
+      "expectations": [
+        "Confirms a choice that was problem-derived and field-surveyed rather than manufacturing a switch",
+        "Does not treat interrogation as a mandate to change a well-fitted tool",
+        "Reports clean, treating firing the skill as a re-anchor not an accusation"
+      ]
+    }
+  ]
+}
