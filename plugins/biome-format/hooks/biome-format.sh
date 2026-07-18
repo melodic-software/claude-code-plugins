@@ -43,10 +43,14 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of a silent no-op (dim-9 doctrine).
+hook::require_jq PostToolUse biome-format "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
-  *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
-  *) exit 0 ;;
+*.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
+*) exit 0 ;;
 esac
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
@@ -83,8 +87,8 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
-    || printf '{"tool":"","file":"","findings":[]}'
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    printf '{"tool":"","file":"","findings":[]}'
 }
 
 emit_skipped() {
@@ -148,7 +152,14 @@ if [[ -z "$BIOME_BIN" ]]; then
   BIOME_BIN="$(command -v biome 2>/dev/null)" || BIOME_BIN=""
 fi
 
-[[ -n "$BIOME_BIN" ]] || emit_skipped
+# The repo opted in via a Biome config but no binary is available → visible
+# once-per-session skip notice, not a silent gap (dim-9 doctrine).
+if [[ -z "$BIOME_BIN" ]]; then
+  if hook::notice_once "biome-format-biome" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or PATH) — format/lint skipped for this session. Install: npm install --save-dev @biomejs/biome"
+  fi
+  emit_skipped
+fi
 
 # Pass the file as a path relative to CONFIG_DIR (the CWD Biome runs in) so the
 # github reporter echoes a clean repo-relative path (e.g. src/app.ts) instead of

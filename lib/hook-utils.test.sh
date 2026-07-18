@@ -460,6 +460,147 @@ else
 fi
 unset HOOK_TELEMETRY_SINK
 
+# --- Test 14: hook::json_escape ----------------------------------------------
+# Input via a variable: on Cygwin/MSYS bash a $'...' literal containing \r
+# passed as a direct argument inside $(...) loses the CR at parse time.
+in14=$'he said "hi" \\ path\nline2\ttab\rcr'
+esc=$(hook::json_escape "$in14")
+if [[ "$esc" == 'he said \"hi\" \\ path\nline2\ttab\rcr' ]]; then
+  ok "json_escape: quote/backslash/newline/tab/cr escaped"
+else
+  fail "json_escape: got '$esc'"
+fi
+esc2=$(hook::json_escape $'a\001b\033c')
+if [[ "$esc2" == "abc" ]]; then
+  ok "json_escape: residual C0 bytes dropped, other bytes kept"
+else
+  fail "json_escape: wrong residual-C0 handling: $(printf '%q' "$esc2")"
+fi
+
+# --- Test 15: hook::emit_skip_notice — valid JSON, both channels, jq-free -----
+notice=$(hook::emit_skip_notice PostToolUse 'my-plugin: tool "x" missing — skipped')
+if jq -e '.hookSpecificOutput.hookEventName == "PostToolUse"
+  and (.hookSpecificOutput.additionalContext | contains("missing"))
+  and (.systemMessage | contains("missing"))' <<<"$notice" >/dev/null 2>&1; then
+  ok "emit_skip_notice: valid JSON with both channels"
+else
+  fail "emit_skip_notice: bad JSON or missing fields: $notice"
+fi
+# jq-free path: PATH stripped of everything (tr fallback keeps the message).
+EMPTY15="$(mktemp -d)"
+notice_nojq=$(PATH="$EMPTY15" hook::emit_skip_notice PostToolUse "p: jq missing")
+rmdir "$EMPTY15" 2>/dev/null || true
+if [[ "$notice_nojq" == *'"systemMessage":"p: jq missing"'* ]]; then
+  ok "emit_skip_notice: emits without any external binaries"
+else
+  fail "emit_skip_notice: empty-PATH emission broken: $notice_nojq"
+fi
+# Combined: distinct agent context + user message in ONE document.
+combined=$(hook::emit_channels PostToolUse $'finding line 1\nfinding line 2' 'tool missing — skipped')
+if jq -e '(.hookSpecificOutput.additionalContext | contains("finding line 2"))
+  and .systemMessage == "tool missing — skipped"' <<<"$combined" >/dev/null 2>&1; then
+  ok "emit_channels: combined ctx + sysmsg in one document"
+else
+  fail "emit_channels: combined shape wrong: $combined"
+fi
+if [[ -z "$(hook::emit_channels PostToolUse "" "")" ]]; then
+  ok "emit_channels: both empty → no output"
+else
+  fail "emit_channels: emitted with both channels empty"
+fi
+sysmsg=$(hook::emit_system_message 'notify: jq missing')
+if jq -e '.systemMessage == "notify: jq missing" and (has("hookSpecificOutput") | not)' <<<"$sysmsg" >/dev/null 2>&1; then
+  ok "emit_system_message: systemMessage-only shape"
+else
+  fail "emit_system_message: wrong shape: $sysmsg"
+fi
+
+# --- Test 16: hook::notice_once — per-session dedup via CLAUDE_PLUGIN_DATA ----
+DATA16="$(mktemp -d)"
+INPUT_S1='{"session_id":"aaaa-1111","hook_event_name":"PostToolUse"}'
+INPUT_S2='{"session_id":"bbbb-2222","hook_event_name":"PostToolUse"}'
+if (CLAUDE_PLUGIN_DATA="$DATA16" hook::notice_once "k1" "$INPUT_S1"); then
+  ok "notice_once: first call emits"
+else
+  fail "notice_once: first call suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16" hook::notice_once "k1" "$INPUT_S1"); then
+  fail "notice_once: repeat call in same session emitted again"
+else
+  ok "notice_once: repeat call suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16" hook::notice_once "k1" "$INPUT_S2"); then
+  ok "notice_once: new session emits again"
+else
+  fail "notice_once: new session suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16" hook::notice_once "k2" "$INPUT_S1"); then
+  ok "notice_once: distinct key emits"
+else
+  fail "notice_once: distinct key suppressed"
+fi
+# No CLAUDE_PLUGIN_DATA → fail open toward visibility (emit every time).
+if (
+  unset CLAUDE_PLUGIN_DATA 2>/dev/null
+  hook::notice_once "k1" "$INPUT_S1"
+) &&
+  (
+    unset CLAUDE_PLUGIN_DATA 2>/dev/null
+    hook::notice_once "k1" "$INPUT_S1"
+  ); then
+  ok "notice_once: no data dir → fail-open emit"
+else
+  fail "notice_once: no data dir suppressed a notice"
+fi
+rm -rf "$DATA16"
+
+# --- Test 17: hook::require_jq — gate behavior --------------------------------
+# jq present → returns 0, no output, no exit.
+out17=$( (
+  hook::require_jq PostToolUse tp '{"session_id":"s"}'
+  echo "alive"
+) 2>/dev/null)
+if [[ "$out17" == "alive" ]]; then
+  ok "require_jq: jq present → pass-through"
+else
+  fail "require_jq: jq present misbehaved: $out17"
+fi
+# jq absent → notice on first run, exit 0; suppressed on second. Simulate the
+# REAL missing-jq shape (Git Bash without jq): a stub PATH that still carries
+# the coreutils notice_once needs (mkdir/find/tr) but no jq — an empty PATH
+# would also hide mkdir, making the dedup marker untrackable and the notice
+# fail-open on every run. bash is resolved via $BASH since the stub PATH has none.
+DATA17="$(mktemp -d)"
+FAKEBIN17="$(mktemp -d)"
+for t in mkdir find tr; do
+  real_t=$(command -v "$t")
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN17/$t"
+  chmod +x "$FAKEBIN17/$t"
+done
+run17() {
+  CLAUDE_PLUGIN_DATA="$DATA17" "$BASH" -c '
+    PATH="'"$FAKEBIN17"'"
+    source "'"$HOOK_DIR"'/hook-utils.sh"
+    hook::require_jq PostToolUse tp "{\"session_id\":\"cccc-3333\"}"
+    echo "unreachable"
+  ' 2>/dev/null
+}
+first17=$(run17)
+rc_first=$?
+second17=$(run17)
+rc_second=$?
+if [[ $rc_first -eq 0 && "$first17" == *'"systemMessage"'* && "$first17" != *unreachable* ]]; then
+  ok "require_jq: jq absent → visible notice + exit 0"
+else
+  fail "require_jq: first run rc=$rc_first out=$first17"
+fi
+if [[ $rc_second -eq 0 && "$second17" != *'"systemMessage"'* && "$second17" != *unreachable* ]]; then
+  ok "require_jq: second run same session → silent exit 0"
+else
+  fail "require_jq: second run rc=$rc_second out=$second17"
+fi
+rm -rf "$DATA17" "$FAKEBIN17"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

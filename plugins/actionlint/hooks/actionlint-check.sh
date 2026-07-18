@@ -5,8 +5,9 @@
 # ADVISORY: always exits 0. actionlint findings surface via additionalContext
 # but never block the edit. Make a commit hook or CI your hard gate.
 #
-# Graceful degrade: when actionlint is not on PATH the hook is a silent no-op
-# (exit 0) — the plugin ships no binary of its own.
+# Graceful degrade: when actionlint (or jq) is not on PATH the hook skips
+# (exit 0) with a visible once-per-session notice on both the agent and user
+# channels — the plugin ships no binary of its own.
 
 set -uo pipefail
 
@@ -36,13 +37,17 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of a silent no-op (dim-9 doctrine).
+hook::require_jq PostToolUse actionlint "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 # Only GitHub Actions workflow files. actionlint recognizes both .yml and .yaml
 # under .github/workflows/; other YAML is not a workflow and must be skipped.
 FILE_NORM="$(hook::normalize_path "$FILE")"
 case "$FILE_NORM" in
-  */.github/workflows/*.yml | */.github/workflows/*.yaml) ;;
-  *) exit 0 ;;
+*/.github/workflows/*.yml | */.github/workflows/*.yaml) ;;
+*) exit 0 ;;
 esac
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
@@ -78,15 +83,19 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
-    || printf '{"tool":"","file":"","findings":[]}'
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    printf '{"tool":"","file":"","findings":[]}'
 }
 
-# Graceful degrade: actionlint absent -> silent no-op. Telemetry (opt-in) records
-# a "skipped" status so a consumer sink can observe the coverage gap.
+# Graceful degrade: actionlint absent -> skip, made VISIBLE once per session on
+# both channels (agent + user). Telemetry (opt-in) also records a "skipped"
+# status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
   data_json=$(build_data_json '[]')
   emit_tel "actionlint" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  if hook::notice_once "actionlint-missing" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' not found on PATH — workflow lint skipped for this session. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+  fi
   exit 0
 fi
 

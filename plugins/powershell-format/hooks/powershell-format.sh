@@ -47,6 +47,11 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of a silent no-op (dim-9 doctrine). pwsh absence below stays
+# QUIET by design: a machine without PowerShell is a platform N/A, not a gap.
+hook::require_jq PostToolUse powershell-format "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
 *.ps1 | *.psm1 | *.psd1) ;;

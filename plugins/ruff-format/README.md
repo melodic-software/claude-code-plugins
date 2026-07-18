@@ -39,10 +39,16 @@ own and runs only when your repo has opted into Ruff.
 
 ## Requirements
 
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **Ruff** available to the repo — installed in the repo's `.venv` (the hook
   resolves `.venv/bin/ruff`, or `.venv/Scripts/ruff.exe` on Windows, walking up
   from the edited file) or on `PATH`. Ruff is never downloaded on the fly; if
-  it is not present, the hook is a silent no-op. **Ruff 0.12+ is recommended**
+  it is not present while a Ruff config governs the repo, the hook skips with a
+  visible once-per-session notice. **Ruff 0.12+ is recommended**
   (tested against 0.15.20): earlier releases lack stabilized version-aware
   syntax errors, and on much older releases the flags the hook passes may be
   absent, in which case the run is reported as a tool break rather than a

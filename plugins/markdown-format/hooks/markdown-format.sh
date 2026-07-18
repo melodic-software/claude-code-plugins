@@ -38,17 +38,14 @@ emit_tel() {
 INPUT=$(cat)
 
 # jq is required to parse Claude Code's hook payload and to emit structured
-# PostToolUse context. Keep this advisory and visible: exit 0 with a static JSON
-# message rather than turning every edit into a hook error or failing silently.
-if ! command -v jq >/dev/null 2>&1; then
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"markdown-format skipped: jq is required on PATH. Install jq, then retry the Markdown edit."}}'
-  exit 0
-fi
+# PostToolUse context. Absent → visible once-per-session skip notice on both
+# the agent and user channels (dim-9 doctrine), exit 0.
+hook::require_jq PostToolUse markdown-format "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
-  *.md | *.mdc) ;;
-  *) exit 0 ;;
+*.md | *.mdc) ;;
+*) exit 0 ;;
 esac
 
 # Resolve repo root early — needed for CWD-anchored config discovery and for
@@ -91,11 +88,11 @@ fi
 # harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
-    --arg tool     "$TOOL" \
-    --arg file     "$FILE_REL" \
+    --arg tool "$TOOL" \
+    --arg file "$FILE_REL" \
     --argjson findings "$1" \
-    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null \
-    || printf '{"tool":"","file":"","findings":[]}'
+    '{tool:$tool,file:$file,findings:$findings}' 2>/dev/null ||
+    printf '{"tool":"","file":"","findings":[]}'
 }
 
 # Resolve the consuming repository's pinned npm binary without invoking a
@@ -144,9 +141,12 @@ elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
   MDLINT=("$REPO_MDLINT")
 else
   # Never invoke a package runner here: hooks must not download or execute an
-  # unpinned package as a side effect of editing a file. Degrade visibly.
-  hook::emit_additional_context PostToolUse \
-    "markdown-format skipped: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable. Install it explicitly; this hook does not invoke npx or download tools."
+  # unpinned package as a side effect of editing a file. Degrade visibly on
+  # both channels, once per session (dim-9 doctrine).
+  if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse \
+      "markdown-format: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this session. Install it explicitly; this hook does not invoke npx or download tools."
+  fi
   emit_tel "skipped" '[]'
   exit 0
 fi
@@ -160,8 +160,8 @@ fi
 # create a false warning.
 RISK_CONFIGS=()
 CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROOT"
-CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" \
-  || CONFIG_TARGET_DIR="$(dirname "$FILE")"
+CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
+  CONFIG_TARGET_DIR="$(dirname "$FILE")"
 collect_risky_configs() {
   local cursor dir candidate config
   local dirs=()

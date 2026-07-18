@@ -51,6 +51,10 @@ emit_tel() {
 
 INPUT=$(cat)
 
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of a silent no-op (dim-9 doctrine).
+hook::require_jq PostToolUse ruff-format "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
 *.py | *.pyi) ;;
@@ -157,7 +161,14 @@ if [[ -z "$RUFF_BIN" ]]; then
   RUFF_BIN="$(command -v ruff 2>/dev/null)" || RUFF_BIN=""
 fi
 
-[[ -n "$RUFF_BIN" ]] || emit_skipped
+# The repo opted in via a Ruff config but no binary is available → visible
+# once-per-session skip notice, not a silent gap (dim-9 doctrine).
+if [[ -z "$RUFF_BIN" ]]; then
+  if hook::notice_once "ruff-format-ruff" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or PATH) — format/lint skipped for this session. Install: https://docs.astral.sh/ruff/installation/"
+  fi
+  emit_skipped
+fi
 
 # Pass the file as a path relative to the repo root (the CWD Ruff runs in) so
 # concise diagnostics echo a clean repo-relative path (e.g. src/app.py) instead

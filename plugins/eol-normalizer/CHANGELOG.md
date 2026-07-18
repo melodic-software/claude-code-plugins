@@ -3,6 +3,22 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Changed
+
+- **Missing jq now skips visibly** (prerequisite-visibility wave; doctrine: a
+  silently skipped feature is a defect). Without `jq` the hook cannot parse its
+  input, so it now surfaces a once-per-session notice to both Claude
+  (`additionalContext`) and the user (`systemMessage`) instead of silently
+  disabling normalization. Notice dedup state lives under
+  `${CLAUDE_PLUGIN_DATA}/skip-notices`.
+- Shared `hook-utils.sh` resynced with the new prerequisite-visibility helpers
+  (jq-free notice emitters, once-per-session gate, jq gate).
+- README now declares the full hook runtime: Bash (Git Bash on native Windows),
+  `jq`, and git, with the no-git-repo case classified as a quiet not-applicable
+  rather than a missing prerequisite.
+
 ## [0.2.0]
 
 ### Changed

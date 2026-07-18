@@ -3,6 +3,20 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Changed
+
+- **Missing jq now skips visibly** (prerequisite-visibility wave; doctrine: a
+  silently skipped feature is a defect). Without `jq` the hook cannot parse its
+  input, so it now surfaces a once-per-session notice to both Claude
+  (`additionalContext`) and the user (`systemMessage`) instead of a silent
+  no-op. `pwsh`/PSScriptAnalyzer absence deliberately stays quiet — a machine
+  without PowerShell is classified as not-applicable, and the README now says
+  so. Notice dedup state lives under `${CLAUDE_PLUGIN_DATA}/skip-notices`.
+- Shared `hook-utils.sh` resynced with the new prerequisite-visibility helpers
+  (jq-free notice emitters, once-per-session gate, jq gate).
+
 ## [0.2.0]
 
 ### Changed

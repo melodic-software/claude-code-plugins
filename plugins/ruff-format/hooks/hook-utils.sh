@@ -23,6 +23,106 @@ hook::check_enabled() {
   fi
 }
 
+# --- Prerequisite visibility --------------------------------------------------
+# Doctrine: a missing runtime prerequisite must surface to BOTH the agent
+# (additionalContext) and the user (systemMessage) — a silently skipped feature
+# is a defect. Everything in this section is jq-FREE by design: the most common
+# missing prerequisite is jq itself.
+
+# JSON-escape a string for embedding in a hand-built JSON document. Escapes
+# backslash, double quote, and the line-structure control bytes by name
+# (\n \r \t); the remaining C0 bytes JSON forbids raw are dropped — notice text
+# never carries meaningful control bytes beyond line structure. Byte-safe under
+# UTF-8: every escaped byte is ASCII, and UTF-8 continuation bytes are >= 0x80.
+hook::json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  # tr drops the residual C0 bytes; if tr itself is unavailable, fall back to
+  # the escaped string as-is — notice text is hook-authored and does not carry
+  # raw control bytes in practice.
+  local out
+  out=$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037' 2>/dev/null) || out="$s"
+  printf '%s' "$out"
+}
+
+# Emit hook JSON carrying an agent-channel context (additionalContext) and/or a
+# user-channel message (systemMessage) as ONE document — CC parses the hook's
+# whole stdout as a single JSON doc, so a run that has both lint findings and a
+# pending skip notice must compose them here rather than print twice. Either
+# channel may be empty; emits nothing when both are.
+#   hook::emit_channels PostToolUse "$ctx" "$sysmsg"
+hook::emit_channels() {
+  local event="$1" ctx="$2" sysmsg="$3"
+  [[ -n "$ctx" || -n "$sysmsg" ]] || return 0
+  local out="{"
+  if [[ -n "$ctx" ]]; then
+    out+='"hookSpecificOutput":{"hookEventName":"'"$(hook::json_escape "$event")"'","additionalContext":"'"$(hook::json_escape "$ctx")"'"}'
+    [[ -n "$sysmsg" ]] && out+=","
+  fi
+  [[ -n "$sysmsg" ]] && out+='"systemMessage":"'"$(hook::json_escape "$sysmsg")"'"'
+  out+="}"
+  printf '%s\n' "$out"
+}
+
+# Visible skip notice: the same message on both channels. The caller must exit 0
+# right after unless it composes via hook::emit_channels itself.
+#   hook::emit_skip_notice PostToolUse "my-plugin: tool X not found — ..."
+hook::emit_skip_notice() {
+  hook::emit_channels "$1" "$2" "$2"
+}
+
+# systemMessage-only variant for hook events with no additionalContext channel
+# (e.g. Notification).
+hook::emit_system_message() {
+  hook::emit_channels "" "" "$1"
+}
+
+# Once-per-session gate for skip notices. Returns 0 (emit now) the first time a
+# given <key> fires in the current session, 1 afterwards — a missing-tool notice
+# behind a broad matcher (every Write|Edit) must not repeat on every edit. The
+# session id is regex-extracted from the raw hook input JSON (jq-free, see
+# section header); marker files live under ${CLAUDE_PLUGIN_DATA} (survives
+# plugin updates; mkdir -p defensively since creation is documented only on
+# first *reference*) and markers older than 7 days are pruned so per-session
+# files cannot accumulate unboundedly. Fails open toward visibility: when no
+# marker can be tracked, emit every time.
+#   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
+hook::notice_once() {
+  local key="$1" input="${2:-}" session="no-session"
+  if [[ "$input" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    session="${BASH_REMATCH[1]}"
+    session="${session//[^A-Za-z0-9_-]/-}"
+  fi
+  local dir="${CLAUDE_PLUGIN_DATA:-}"
+  [[ -n "$dir" ]] || return 0
+  dir="$dir/skip-notices"
+  mkdir -p "$dir" 2>/dev/null || return 0
+  find "$dir" -type f -mtime +7 -delete 2>/dev/null
+  local marker="$dir/${key}.${session}"
+  [[ -f "$marker" ]] && return 1
+  : >"$marker" 2>/dev/null
+  return 0
+}
+
+# jq gate for hooks whose input parsing cannot proceed without it. When jq is
+# absent: one visible skip notice per session, then exit 0 — an advisory hook
+# never blocks the tool over a missing prerequisite. Place after
+# hook::check_enabled, passing the buffered stdin for session scoping.
+#   hook::require_jq PostToolUse my-plugin "$INPUT"
+hook::require_jq() {
+  command -v jq >/dev/null 2>&1 && return 0
+  local event="$1" plugin="$2" input="${3:-}"
+  if hook::notice_once "${plugin}-jq" "$input"; then
+    hook::emit_skip_notice "$event" \
+      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it."
+  fi
+  exit 0
+}
+
 # Normalize a path for the membership comparison below: backslashes → forward
 # slashes, and — only on Windows/MSYS, whose filesystem is case-insensitive —
 # fold a leading drive (POSIX `/c/...` or `c:/...`) to an upper-case drive

@@ -31,8 +31,14 @@ imposes no rules of its own.
 
 ## Requirements
 
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **git** on `PATH` — the attribute resolution (`git check-attr`) and repo-root
-  detection depend on it. Without a git repository the hook is a silent no-op.
+  detection depend on it. Without a git repository the hook is a quiet no-op
+  (nothing to normalize against — not a missing prerequisite).
 
 Rewriting uses `perl` when present, falling back to `tr`/`awk` otherwise, so no
 extra tooling is required.
