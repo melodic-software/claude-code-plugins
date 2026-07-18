@@ -126,7 +126,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Workflow
 
-- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of five skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), keep-going (recover and continue after any interruption — inventory off-thread work, inspect its real state, resume or restart it, then continue the main task), retro (structured session retrospective with transcript metrics and learning codification), and orchestrate (arm a session or worker with proactive-orchestration imperatives).
+- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of six skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), keep-going (recover and continue after any interruption — inventory off-thread work, inspect its real state, resume or restart it, then continue the main task), retro (structured session retrospective with transcript metrics and learning codification), orchestrate (arm a session or worker with proactive-orchestration imperatives), and reanchor (verify a session's working assumptions are still true against live reality — referenced PRs/issues/branches, base-branch drift, renamed/version-drifted surfaces, stale memory-tier files — before building on them).
 
 ### Project Management
 
