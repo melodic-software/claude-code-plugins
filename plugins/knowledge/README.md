@@ -60,6 +60,14 @@ needs video without the rest of the knowledge stack.
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first.
+- **Bash + coreutils** for the skills' inline mechanics (`book-distill`
+  hashes its progress-file slug with `sha256sum`/`shasum` on every run) — on
+  native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
+  so they run under Git Bash, which bundles `sha256sum`.
+- **`unzip` on `PATH` for the EPUB branch** — not bundled with Git Bash;
+  install it or extract the EPUB with another archive tool first. PDF-only
+  use does not need it.
 
 ## Install
 
@@ -82,15 +90,23 @@ resuming so the resume pointer survives.
 
 ## Configuration
 
-One personal option, prompted by Claude Code at enable time:
+Personal options, prompted by Claude Code at enable time (all optional; zero-config
+defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
 | `library_dir` | directory | `.` (repo root) | Project-relative directory where the plugin's ingestion pipelines land synthesized artifacts. `book-distill` is unaffected — it writes to the target skill you name at invocation — so today this is a reserved seam. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `yt_dlp_js_runtimes` | string | `node` | `youtube-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
+| `yt_dlp_cookies_file` | string | (empty) | `youtube-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
+| `yt_dlp_cookies_from_browser` | string | (empty) | `youtube-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |
+| `max_concurrent_acquires` | number | `1` | `youtube-digest`: cap on concurrent yt-dlp acquisitions during a batch (1–3). Higher increases HTTP 429 risk. |
 
 `book-distill` itself writes to a **target skill** you name at invocation, so it
 needs no configuration to run; `library_dir` is the shared artifact-landing seam
-the plugin's ingestion pipelines resolve through.
+the plugin's ingestion pipelines resolve through. The `youtube-digest` acquisition
+options above tune yt-dlp authentication and throttling; **course-platform
+credentials are intentionally not** `userConfig` — they stay in shell env vars
+because a `sensitive` option persists as plaintext on Windows today.
 
 ## License
 

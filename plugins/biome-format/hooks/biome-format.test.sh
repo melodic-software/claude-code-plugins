@@ -33,6 +33,47 @@ ok() {
   PASS=$((PASS + 1))
 }
 
+# --- Missing-binary visibility (dim-9 doctrine) ------------------------------
+# Needs NO real Biome, so it runs even when the rest of the suite skips: a repo
+# with a governing biome.json but no binary anywhere must produce a visible
+# once-per-session skip notice on both channels, silent on the second run.
+NB_WORK="$(mktemp -d)"
+NB_FAKEBIN="$NB_WORK/fakebin"
+mkdir -p "$NB_FAKEBIN"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$NB_FAKEBIN/$t"
+  chmod +x "$NB_FAKEBIN/$t"
+done
+NB_REPO="$NB_WORK/repo"
+mkdir -p "$NB_REPO"
+git -C "$NB_REPO" init -q
+printf '{}\n' >"$NB_REPO/biome.json"
+printf 'const x = 1\n' >"$NB_REPO/app.js"
+NB_DATA="$NB_WORK/plugdata"
+mkdir -p "$NB_DATA"
+run_nb() {
+  printf '{"session_id":"test-nobiome-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$NB_REPO/app.js" |
+    env -u CLAUDE_PROJECT_DIR PATH="$NB_FAKEBIN" CLAUDE_PLUGIN_DATA="$NB_DATA" \
+      CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true bash "$HOOK"
+}
+OUT_NB=$(run_nb)
+RC_NB=$?
+if [[ $RC_NB -eq 0 ]]; then ok "biome-absent -> exit 0"; else fail "biome-absent exit $RC_NB"; fi
+if jq -e '(.systemMessage | contains("biome")) and (.hookSpecificOutput.additionalContext | contains("Biome config"))' <<<"$OUT_NB" >/dev/null 2>&1; then
+  ok "biome-absent with governing config -> visible notice on both channels"
+else
+  fail "biome-absent: notice missing or malformed: $OUT_NB"
+fi
+OUT_NB2=$(run_nb)
+if [[ -z "$OUT_NB2" ]]; then
+  ok "biome-absent -> second run same session is silent (once-per-session)"
+else
+  fail "biome-absent second run not silent: $OUT_NB2"
+fi
+rm -rf "$NB_WORK"
+
 # Resolve a real Biome binary. node_modules/.bin/biome shims in each fixture
 # forward to this. Skip the suite when none is available.
 if [[ -n "${BIOME_TEST_BIN:-}" && -x "${BIOME_TEST_BIN}" ]]; then
@@ -40,8 +81,10 @@ if [[ -n "${BIOME_TEST_BIN:-}" && -x "${BIOME_TEST_BIN}" ]]; then
 elif command -v biome >/dev/null 2>&1; then
   REAL_BIOME="$(command -v biome)"
 else
-  echo "SKIP: no Biome binary (set BIOME_TEST_BIN or put biome on PATH) -- biome-format hook tests skipped"
-  exit 0
+  echo "SKIP: no Biome binary (set BIOME_TEST_BIN or put biome on PATH) -- remaining biome-format hook tests skipped"
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+  exit
 fi
 
 WORK="$(mktemp -d)"
@@ -105,8 +148,8 @@ run_hook() {
   local file_path="$1"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR HOOK_BIOME_FORMAT_ENABLED=true bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -116,8 +159,8 @@ run_hook_env() {
   shift
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
 }
 
@@ -237,7 +280,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-matching ext -> exit 0 silent"; el
 # --- Case 7: kill switch bypasses hook --------------------------------------
 printf 'const k=1;var j=2\n' >"$REPO/kill.ts"
 BEFORE_K="$(cat "$REPO/kill.ts")"
-OUT=$(run_hook_env "$REPO/kill.ts" HOOK_BIOME_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.ts")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -266,7 +309,7 @@ EXT_CFG="$WORK/external-cfg"
 mkdir -p "$EXT_CFG"
 printf '%s\n' '{ "javascript": { "formatter": { "quoteStyle": "double" } } }' >"$EXT_CFG/biome.json"
 printf 'const s = "hi";\nexport { s };\n' >"$REPO_ENV/q.ts"
-run_hook_env "$REPO_ENV/q.ts" HOOK_BIOME_FORMAT_ENABLED=true BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
+run_hook_env "$REPO_ENV/q.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
 if grep -q "const s = 'hi';" "$REPO_ENV/q.ts"; then
   ok "BIOME_CONFIG_PATH override neutralized -> repo config authoritative"
 else
@@ -278,7 +321,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ----------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.ts" -u HOOK_TELEMETRY_SINK HOOK_BIOME_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.ts" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -290,7 +333,7 @@ fi
 printf 'const unusedTel = 1;\n' >"$REPO/tel.ts"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.ts" HOOK_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -317,7 +360,7 @@ rm -f "$TEL"
 printf 'const s=1;var t=2\n' >"$REPO_NO/tel2.ts"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO_NO/tel2.ts" HOOK_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO_NO/tel2.ts" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/gate-off: status skipped"; else fail "telemetry/gate-off: status=$(jq -r '.status' "$TELS")"; fi

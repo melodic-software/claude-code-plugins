@@ -36,12 +36,12 @@ You have a generated song or uploaded demo. Now what?
 8. (Optional) Stem export → external DAW for final mix
 9. Export full mix
 
-**Upload limits** (verify current):
+**Upload limits** (verified 2026-07-18 against <https://suno.com/pricing>):
 
 | Tier | Max upload |
 |------|-----------|
-| Basic | 60 seconds |
-| Pro / Premier | 8 minutes |
+| Free | up to 8 minutes |
+| Pro / Premier | up to 30 minutes |
 
 ## Recipe 2: Edit / rearrange an existing song
 
@@ -169,4 +169,4 @@ Note: covers chain. Cover-of-cover-of-cover is allowed; each version traces back
 
 ## Sources
 
-`help.suno.com/articles/6141569` (Audio Uploads), `help.suno.com/articles/6141377` (Creative Sliders), `help.suno.com/articles/5663873` (Remix FAQs / Cover), `help.suno.com/articles/2409601` (Extend), `help.suno.com/articles/3271873` (Replace Section), `help.suno.com/articles/6141505` (Song Editor).
+`help.suno.com/en/articles/6141569` (Audio Uploads), `help.suno.com/en/articles/6141377` (Creative Sliders), `help.suno.com/en/articles/5663873` (Remix FAQs / Cover), `help.suno.com/en/articles/2409601` (Extend), `help.suno.com/en/articles/3271873` (Replace Section), `help.suno.com/en/articles/6141505` (Song Editor).

@@ -110,7 +110,7 @@ make_sink() {
 # instead of racing variable process-spawn latency (notably on Windows Git Bash).
 wait_for_sink() {
   local f="$1" tries="${2:-150}"
-  while (( tries-- > 0 )); do
+  while ((tries-- > 0)); do
     [[ -s "$f" ]] && return 0
     sleep 0.02
   done
@@ -143,8 +143,8 @@ JSONC
 # POSIX-vs-Windows path-form mismatch in the guard.
 run_hook() {
   local file_path="$1"
-  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$file_path" \
-    | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
+  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$file_path" |
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
 }
 
 # --- Fixture A: fixable only (Path A) — clean after fix, no additionalContext -
@@ -258,8 +258,8 @@ cp "$TEST_BIN/markdownlint-cli2" "$LOCAL_MDLINT"
 chmod +x "$LOCAL_MDLINT"
 LOCAL_FIXTURE="$REPO/fixtureLocal.md"
 printf '# Local\n\n* local item\n' >"$LOCAL_FIXTURE"
-OUT_LOCAL="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_FIXTURE" \
-  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_LOCAL="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_FIXTURE" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_LOCAL=$?
 if [[ $RC_LOCAL -eq 0 && -z "$OUT_LOCAL" ]]; then
   ok "repo-local markdownlint shim exits 0 with no advisory"
@@ -286,11 +286,11 @@ ln -s ../markdownlint-cli2/markdownlint-cli2 "$LOCAL_MDLINT"
 if [[ -L "$LOCAL_MDLINT" ]]; then
   LOCAL_SYMLINK_FIXTURE="$REPO/fixtureLocalSymlink.md"
   printf '# Local Symlink\n\n* symlink item\n' >"$LOCAL_SYMLINK_FIXTURE"
-  OUT_LOCAL_SYMLINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_SYMLINK_FIXTURE" \
-    | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  OUT_LOCAL_SYMLINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$LOCAL_SYMLINK_FIXTURE" |
+    env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
   RC_LOCAL_SYMLINK=$?
-  if [[ $RC_LOCAL_SYMLINK -eq 0 && -z "$OUT_LOCAL_SYMLINK" ]] \
-    && grep -q '^- symlink item$' "$LOCAL_SYMLINK_FIXTURE"; then
+  if [[ $RC_LOCAL_SYMLINK -eq 0 && -z "$OUT_LOCAL_SYMLINK" ]] &&
+    grep -q '^- symlink item$' "$LOCAL_SYMLINK_FIXTURE"; then
     ok "contained relative POSIX .bin symlink applied --fix"
   else
     fail "contained relative POSIX .bin symlink failed (rc=$RC_LOCAL_SYMLINK out=$OUT_LOCAL_SYMLINK)"
@@ -317,23 +317,26 @@ ESCAPE_WINDOWS_JUNCTION=false
 if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
   LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
-    TARGET_PATH="$(cygpath -aw "$ESCAPE_DIR")" \
+  TARGET_PATH="$(cygpath -aw "$ESCAPE_DIR")" \
     powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
-      'New-Item -ItemType Junction -Path $env:LINK_PATH -Target $env:TARGET_PATH | Out-Null' \
-      >/dev/null 2>&1 \
-    && ESCAPE_LINK_CREATED=true \
-    && ESCAPE_WINDOWS_JUNCTION=true
+    'New-Item -ItemType Junction -Path $env:LINK_PATH -Target $env:TARGET_PATH | Out-Null' \
+    >/dev/null 2>&1 &&
+    ESCAPE_LINK_CREATED=true &&
+    ESCAPE_WINDOWS_JUNCTION=true
 else
   mkdir -p "$REPO/node_modules/.bin"
   ln -s "$ESCAPE_TARGET" "$LOCAL_MDLINT" && ESCAPE_LINK_CREATED=true
 fi
 
 if [[ "$ESCAPE_LINK_CREATED" == true ]]; then
-  OUT_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
-    | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  # Fresh CLAUDE_PLUGIN_DATA: the skip notice is once-per-session, so an
+  # inherited data dir with a prior marker would suppress it and fail the assert.
+  PD_ESCAPE="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+  OUT_ESCAPE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
+    env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_ESCAPE" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
   RC_ESCAPE=$?
-  if [[ $RC_ESCAPE -eq 0 ]] \
-    && printf '%s' "$OUT_ESCAPE" | jq -e '.hookSpecificOutput.additionalContext | contains("contained repository-local")' >/dev/null 2>&1; then
+  if [[ $RC_ESCAPE -eq 0 ]] &&
+    printf '%s' "$OUT_ESCAPE" | jq -e '.hookSpecificOutput.additionalContext | contains("contained repository-local")' >/dev/null 2>&1; then
     ok "escaping repo-local markdownlint emits advisory"
   else
     fail "escaping repo-local markdownlint was not rejected (rc=$RC_ESCAPE out=$OUT_ESCAPE)"
@@ -346,7 +349,7 @@ if [[ "$ESCAPE_WINDOWS_JUNCTION" == true ]]; then
   # shellcheck disable=SC2016 # $env variables expand in PowerShell, not Bash.
   LINK_PATH="$(cygpath -aw "$REPO/node_modules")" \
     powershell.exe -NoLogo -NoProfile -NonInteractive -Command \
-      'Remove-Item -LiteralPath $env:LINK_PATH -Force' >/dev/null 2>&1
+    'Remove-Item -LiteralPath $env:LINK_PATH -Force' >/dev/null 2>&1
 else
   rm -rf "$REPO/node_modules"
 fi
@@ -354,8 +357,9 @@ fi
 # --- Missing markdownlint: visible advisory, never npx ----------------------
 # With neither PATH nor a contained local binary available, the hook must not
 # invoke the package runner (which could fetch from the network).
-OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
-  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+PD_NO_MDLINT="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+OUT_NO_MDLINT="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_MDLINT=$?
 if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("neither on PATH nor available as a contained repository-local")' >/dev/null 2>&1; then
@@ -375,12 +379,13 @@ command() {
   builtin command "$@"
 }
 EOF
-OUT_NO_JQ="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" \
-  | env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+PD_NO_JQ="$(mktemp -d -p "$WORK" pd.XXXXXX)"
+OUT_NO_JQ="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_JQ" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_NO_JQ=$?
 if [[ $RC_NO_JQ -eq 0 ]]; then ok "missing jq exits 0 (advisory)"; else fail "missing jq exit $RC_NO_JQ"; fi
-if printf '%s' "$OUT_NO_JQ" | jq -e '.hookSpecificOutput.additionalContext | contains("jq is required")' >/dev/null 2>&1; then
-  ok "missing jq emits visible additionalContext"
+if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not found on PATH")) and (.systemMessage | contains("jq not found on PATH"))' >/dev/null 2>&1; then
+  ok "missing jq emits visible notice on both channels"
 else
   fail "missing jq warning absent: $OUT_NO_JQ"
 fi
@@ -404,8 +409,8 @@ CJS
 TRUST_FILE="$REPO/trust-cjs.md"
 printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
 
-OUT_TRUST_1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
-  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_TRUST_1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_TRUST_1=$?
 if [[ $RC_TRUST_1 -eq 0 ]]; then ok "executable config advisory exits 0"; else fail "executable config advisory exit $RC_TRUST_1"; fi
 if printf '%s' "$OUT_TRUST_1" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.cjs")' >/dev/null 2>&1; then
@@ -419,8 +424,8 @@ else
   fail "trust advisory blocked markdownlint --fix"
 fi
 
-OUT_TRUST_2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
-  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_TRUST_2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if [[ -z "$OUT_TRUST_2" ]]; then
   ok "unchanged executable config warning appears only once"
 else
@@ -428,8 +433,8 @@ else
 fi
 
 printf '\n// reviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
-OUT_TRUST_3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
-  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_TRUST_3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if printf '%s' "$OUT_TRUST_3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory")' >/dev/null 2>&1; then
   ok "changed executable config state warns again"
 else
@@ -450,8 +455,8 @@ cat >"$ORIGINAL_CONFIG" <<'JSONC'
   "noProgress": true
 }
 JSONC
-OUT_TRUST_MODULES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
-  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_TRUST_MODULES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1; then
   ok "module-loading config keys emit visible trust advisory"
 else
@@ -461,8 +466,8 @@ fi
 # Negative control: a declarative rule-only config is not executable and loads
 # no modules, so it must not produce trust-warning noise.
 mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
-OUT_TRUST_SAFE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" \
-  | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_TRUST_SAFE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if [[ -z "$OUT_TRUST_SAFE" ]]; then
   ok "rule-only declarative config emits no trust advisory"
 else
@@ -470,8 +475,8 @@ else
 fi
 
 # --- Kill switch: disabled hook is a no-op ----------------------------------
-OUT_K="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FB" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=false bash "$HOOK")"
+OUT_K="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FB" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false bash "$HOOK")"
 RC_K=$?
 if [[ $RC_K -eq 0 && -z "$OUT_K" ]]; then
   ok "kill switch disables hook"
@@ -489,16 +494,16 @@ fi
 
 # Re-run fixture A with sink unset — must still produce empty stdout, exit 0.
 printf '# Title A2\r\n\r\nSome text\r\n\r\n- item one\r\n- item two' >"$REPO/fixtureA2.md"
-OUT_A_NOSINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$REPO/fixtureA2.md" \
-  | env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_A_NOSINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$REPO/fixtureA2.md" |
+  env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_A_NOSINK=$?
 if [[ $RC_A_NOSINK -eq 0 ]]; then ok "telemetry/sink-unset: exit 0 (parity)"; else fail "telemetry/sink-unset: expected 0, got $RC_A_NOSINK"; fi
 if [[ -z "$OUT_A_NOSINK" ]]; then ok "telemetry/sink-unset: empty stdout (parity)"; else fail "telemetry/sink-unset: stdout not empty: $OUT_A_NOSINK"; fi
 
 # Re-run fixture B with sink unset — must still emit additionalContext, exit 0.
 printf '# Doc B2\n\n## Section\n\ntext\n\n## Section\n\n* star item\n' >"$REPO/fixtureB2.md"
-OUT_B_NOSINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Edit"}' "$REPO/fixtureB2.md" \
-  | env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK HOOK_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+OUT_B_NOSINK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Edit"}' "$REPO/fixtureB2.md" |
+  env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_B_NOSINK=$?
 if [[ $RC_B_NOSINK -eq 0 ]]; then ok "telemetry/sink-unset B: exit 0 (parity)"; else fail "telemetry/sink-unset B: expected 0, got $RC_B_NOSINK"; fi
 if printf '%s' "$OUT_B_NOSINK" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
@@ -520,8 +525,8 @@ STUB_SINK="$(make_sink "cat >\"$TEL_FILE\"")"
 # Fixture with unfixable finding (MD024 duplicate heading): status ok + findings populated.
 printf '# Doc T\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixtureT.md"
 # shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_FILE
-_OUT_T="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureT.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_SINK" bash "$HOOK")"
+_OUT_T="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureT.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_SINK" bash "$HOOK")"
 RC_T=$?
 wait_for_sink "$TEL_FILE"
 
@@ -594,8 +599,8 @@ TEL_CLEAN="$(mktemp)"
 STUB_CLEAN="$(make_sink "cat >\"$TEL_CLEAN\"")"
 printf '# Clean Doc\n\nSome text.\n' >"$REPO/fixtureClean.md"
 # shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_CLEAN
-_OUT_CLEAN="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureClean.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_CLEAN" bash "$HOOK")"
+_OUT_CLEAN="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureClean.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$STUB_CLEAN" bash "$HOOK")"
 RC_CLEAN=$?
 wait_for_sink "$TEL_CLEAN"
 
@@ -618,8 +623,8 @@ FAIL_SINK_FILE="$(mktemp)"
 FAIL_SINK="$(make_sink "cat >\"$FAIL_SINK_FILE\"; exit 1")"
 printf '# Failing Sink Doc\n\nSome text.\n' >"$REPO/fixtureFailSink.md"
 # shellcheck disable=SC2034  # stdout captured for timing correctness; exit code is the assertion
-_OUT_FS="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureFailSink.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$FAIL_SINK" bash "$HOOK")"
+_OUT_FS="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureFailSink.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$FAIL_SINK" bash "$HOOK")"
 RC_FS=$?
 wait_for_sink "$FAIL_SINK_FILE"
 
@@ -633,13 +638,15 @@ printf '# Slow Sink Doc\n\nSome text.\n' >"$REPO/fixtureSlowSink.md"
 
 TS_SLOW_START=$EPOCHREALTIME
 # shellcheck disable=SC2034  # stdout captured so the $(...) blocks until fd1 closes — proves no fd1 leak
-_OUT_SLOW="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureSlowSink.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SLOW_SINK" bash "$HOOK")"
+_OUT_SLOW="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureSlowSink.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SLOW_SINK" bash "$HOOK")"
 RC_SLOW=$?
 TS_SLOW_END=$EPOCHREALTIME
-SS="${TS_SLOW_START%[.,]*}"; SF="${TS_SLOW_START#*[.,]}"
-ES="${TS_SLOW_END%[.,]*}"; EF="${TS_SLOW_END#*[.,]}"
-SLOW_MS=$(( (ES * 1000000 + 10#$EF - SS * 1000000 - 10#$SF) / 1000 ))
+SS="${TS_SLOW_START%[.,]*}"
+SF="${TS_SLOW_START#*[.,]}"
+ES="${TS_SLOW_END%[.,]*}"
+EF="${TS_SLOW_END#*[.,]}"
+SLOW_MS=$(((ES * 1000000 + 10#$EF - SS * 1000000 - 10#$SF) / 1000))
 
 echo "  (C1 slow-sink elapsed: ${SLOW_MS}ms)"
 if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
@@ -655,8 +662,8 @@ fi
 TEL_LEAK="$(mktemp)"
 LEAK_SINK="$(make_sink "cat >\"$TEL_LEAK\"")"
 printf '# Leak Doc\n\n## Section\n\ntext\n\n## Section\n\nmore text\n' >"$REPO/fixtureLeakCheck.md"
-OUT_LEAK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureLeakCheck.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$LEAK_SINK" bash "$HOOK")"
+OUT_LEAK="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureLeakCheck.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$LEAK_SINK" bash "$HOOK")"
 wait_for_sink "$TEL_LEAK"
 
 # The hook stdout must NOT contain the telemetry envelope's top-level keys
@@ -709,8 +716,8 @@ count_lm() { grep -c -- '-lm' "$CYG_LOG" 2>/dev/null || true; }
 : >"$CYG_LOG"
 : >"$JQ_LOG"
 printf '# Gate Doc\n\nClean text.\n' >"$REPO/fixtureGate.md"
-OUT_GATE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGate.md" \
-  | env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK HOOK_MARKDOWN_FORMAT_ENABLED=true PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
+OUT_GATE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGate.md" |
+  env -u CLAUDE_PROJECT_DIR -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
 RC_GATE=$?
 if [[ $RC_GATE -eq 0 && -z "$OUT_GATE" ]]; then
   ok "telemetry-gate/unwired: exit 0, empty stdout"
@@ -739,8 +746,8 @@ TEL_GATE="$(mktemp)"
 GATE_SINK="$(make_sink "cat >\"$TEL_GATE\"")"
 printf '# Gate Doc Wired\n\nClean text.\n' >"$REPO/fixtureGateWired.md"
 # shellcheck disable=SC2034  # stdout captured for timing correctness; content checked via TEL_GATE
-_OUT_GW="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGateWired.md" \
-  | env -u CLAUDE_PROJECT_DIR HOOK_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$GATE_SINK" PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
+_OUT_GW="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/fixtureGateWired.md" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$GATE_SINK" PATH="$SHIM_DIR:$PATH" bash "$HOOK")"
 wait_for_sink "$TEL_GATE"
 CYG_LM_WIRED="$(count_lm)"
 if [[ "$CYG_LM_WIRED" -eq 2 ]]; then

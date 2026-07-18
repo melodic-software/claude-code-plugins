@@ -1,9 +1,11 @@
 # Scope semantics — verified facts this skill depends on
 
 Every claim below was verified against a fetched official-docs page or an empirical test on a real
-machine during this skill's implementation, not assumed from training data. Re-verify against
-`code.claude.com/docs/en/plugins-reference` and `discover-plugins` if Claude Code's plugin CLI
-changes shape.
+machine, not assumed from training data. Last re-verified 2026-07-18 against
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference),
+[discover-plugins](https://code.claude.com/docs/en/discover-plugins), the published plugin-manifest
+JSON Schema, and the Claude Code changelog (version gates). Re-verify against those pages if Claude
+Code's plugin CLI changes shape.
 
 ## Scope-by-cwd loading
 
@@ -55,8 +57,8 @@ remove an `enabledPlugins` entry, and only that action surfaces a settings diff.
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
 **Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
-agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors — a monitor requires a
-full session restart. Recommend bare `/reload-plugins` by default; call out the restart requirement
+agents, hooks, MCP, and LSP servers in-process. It does **not** cover monitors — per
+`code.claude.com/docs/en/plugins-reference`, "monitors require a session restart". Recommend bare `/reload-plugins` by default; call out the restart requirement
 only when an updated plugin ships a monitor.
 
 `--force` is real (Claude Code ≥ 2.1.163), but scoped to one specific case: a plugin that provides an

@@ -63,7 +63,7 @@ done
 # --- 6. Kill switch --------------------------------------------------------------
 
 killed=$(
-  jq -n '{tool_input:{command:"git clean -fdx"}}' | HOOK_CLEAN_DESTRUCTIVE_GUARD_ENABLED=false bash "$SCRIPT" >/dev/null 2>&1
+  jq -n '{tool_input:{command:"git clean -fdx"}}' | CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED=false bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 )
 assert_exit "kill switch allows everything" 0 "$killed"

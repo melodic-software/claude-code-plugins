@@ -104,7 +104,7 @@ jq -s --arg since "$SINCE_ISO" '
 ' "$HOOK_LOG"
 ```
 
-Empty: `"hook log empty — set HOOK_OBSERVABILITY_LOG_ENABLED=true and re-run after hooks fire"`.
+Empty: `"hook log empty — wire HOOK_TELEMETRY_SINK to your sink script and re-run after hooks fire"`.
 
 ## 4. Recurring tool-call patterns
 
@@ -173,10 +173,10 @@ jq -s --arg since "$SINCE_ISO" '
 **Flag rules:**
 
 - HIGH: same `<bin>:<sha16>` appearing 3+ times (recurring agent confusion — escalation candidate for blocking exit 2 once FP rate < 1%)
-- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive — candidate for `HOOK_CLI_FLAG_VERIFY_SKIP_BINS`)
+- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive — candidate for the guardrails `cli_flag_verify_skip_bins` option)
 - INFO: total count, unique-pair count, per-binary distribution
 
-Empty: `"no cli-flag-verify violations — verifier may be advisory-clean OR HOOK_OBSERVABILITY_LOG_ENABLED is false / HOOK_CLI_FLAG_VERIFY_LOG_VIOLATIONS_ENABLED is false"`.
+Empty: `"no cli-flag-verify violations — verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
 
 ## 5. Drift candidates (rules-vs-code mismatches)
 

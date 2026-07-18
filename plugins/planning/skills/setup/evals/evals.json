@@ -41,6 +41,20 @@
         "Persists to the tracked .claude/topic-docs.yaml, recording only the keys the user chose",
         "Does not write the plugin directory or the plugin data directory"
       ]
+    },
+    {
+      "id": 4,
+      "name": "standards-bootstrap-second-run-is-a-no-op",
+      "prompt": "/planning:setup\n\nSet up the standards concern. This repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run of this setup.",
+      "expected_output": "The standards bootstrap reads state in order (concern file, then the index presence test, then inference sources), finds a conforming index at the binding's contract version, validates the row paths, and short-circuits: it reports the index healthy and proposes no changes — a second run produces no diff. It does not re-interview, does not rewrite the index or the setup-owned overlay .gitignore, does not offer a migration (versions match), and touches no other ignore file.",
+      "files": [],
+      "expectations": [
+        "Reads state via the binding's procedure: concern file, index presence test, then inference sources",
+        "Recognizes the conforming current-version index and proposes no changes (second run yields no diff)",
+        "Does not re-run the interview when the index is healthy at the binding's version",
+        "Does not offer migration when the index version matches the binding",
+        "Edits no ignore file other than the setup-owned standards-root .gitignore, and here leaves even that untouched"
+      ]
     }
   ]
 }

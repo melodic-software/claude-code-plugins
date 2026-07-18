@@ -32,7 +32,9 @@ directory, symlink, or Windows reparse point.
   never eligible for this engine, even when a native dry-run calls it eligible.
 - Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
-- If `HOOK_DISK_HYGIENE_ENABLED=false`, audit only and explain why execution is disabled. The hook
+- If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
+  `${user_config.disk_hygiene_enabled}`; a literal unexpanded token means unset = enabled), audit
+  only and explain why execution is disabled. The hook
   runs in shell-free exec form and reports its absolute Python interpreter in denial guidance. Use
   that exact path as `<hook-python>` for every engine call; bare `python`/`python3` is rejected because
   Bash aliases and functions can replace them. If the path is not known yet, submit the otherwise

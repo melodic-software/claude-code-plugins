@@ -25,12 +25,13 @@ Seven advisory `*-audit` telemetry emitters (across eight hook scripts —
 `skill-usage-audit` has two producers, see below) emit the marketplace
 [hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md) — one
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
-privacy-safe subject. Each is independently toggleable via
-`HOOK_<NAME>_ENABLED=false`. The six pure emitters are a no-op until a consumer
-wires a sink (below); `skill-usage-audit` is the exception — both its producers
-also write the shared `skill-usage.jsonl` second store unconditionally (disable
-the whole feature with `HOOK_SKILL_USAGE_AUDIT_ENABLED=false`, or relocate the
-store with the `skill_usage_dir` option).
+privacy-safe subject. Each is independently toggleable via its own `userConfig`
+boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
+The six pure emitters are a no-op until a consumer wires a sink (below);
+`skill-usage-audit` is the exception — both its producers also write the shared
+`skill-usage.jsonl` second store unconditionally (disable the whole feature with
+`skill_usage_audit_enabled=false`, or relocate the store with the
+`skill_usage_dir` option).
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
@@ -52,6 +53,39 @@ tell the paths apart; both share the same telemetry `hook` id and second store.
 None captures a command body, absolute path, error message, or argument body —
 only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
 the repo-relative path of the loaded rule file.
+
+### Per-hook kill switches
+
+Each audit hook is toggled by its own `userConfig` boolean (default **on**; set
+to `false` for a clean no-op) — disable one hook without touching the others.
+The hooks read them through the native `CLAUDE_PLUGIN_OPTION_<KEY>` hook-process
+mirror.
+
+| Hook | Option |
+|---|---|
+| `api-error-audit` | `api_error_audit_enabled` |
+| `config-change-audit` | `config_change_audit_enabled` |
+| `instructions-loaded-audit` | `instructions_loaded_audit_enabled` |
+| `permission-denied-audit` | `permission_denied_audit_enabled` |
+| `pre-compact-audit` | `pre_compact_audit_enabled` |
+| `skill-usage-audit` (both paths) | `skill_usage_audit_enabled` |
+| `tool-failure-audit` | `tool_failure_audit_enabled` |
+
+`instructions-loaded-audit` drops deterministic, high-volume `session_start`
+loads by default; set `instructions_loaded_audit_log_session_start=true` to opt
+back into logging them. A `stdin_read_timeout` option (seconds, default `2`)
+bounds how long each hook waits for its payload before failing open.
+
+Set them interactively with `/plugin configure claude-ops`, or headless on the
+install command:
+
+```shell
+claude plugin install claude-ops@melodic-software --config skill_usage_audit_enabled=false
+```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn a hook off for a single repository, disable the whole plugin
+in that project's `enabledPlugins` instead.
 
 ### Wiring the reference sink
 
@@ -114,6 +148,10 @@ your own repository's context:
 
 ## Requirements
 
+The audit hooks are Bash scripts (Git Bash on native Windows — install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
+use `jq`; without jq they fail open (no audit line is written).
+
 Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
 `otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
@@ -122,7 +160,10 @@ instead of failing.
 
 ## Configuration
 
-Three `userConfig` options:
+The per-hook kill switches, `instructions_loaded_audit_log_session_start`, and
+`stdin_read_timeout` are documented under
+[Per-hook kill switches](#per-hook-kill-switches). Three further `userConfig`
+options tune the skills:
 
 - **`install_new`** (string, optional) — new-catalog-plugin install policy for the `plugins`
   skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in one batched

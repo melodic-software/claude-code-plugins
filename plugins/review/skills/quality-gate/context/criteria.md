@@ -10,8 +10,8 @@ Loads review criteria as contextual reference. Reference mode, not action mode �
 
 ## How to use
 
-1. **Project criteria first.** Look for the project's own review documentation — a `REVIEW.md` at the repo root, a `review/` or `docs/review*` directory of per-concern criteria, review sections in `CLAUDE.md` or contributing guides. Read the hub file, then the per-concern files relevant to the change.
-2. **Baseline when the project has none.** Use `${CLAUDE_PLUGIN_ROOT}/context/severity.md` for severity vocabulary, plus the universal checklist baked into this plugin's `code-reviewer`, `security-reviewer`, and `architecture-guardian` agent definitions (completeness, consistency, convention compliance, security, dependency direction).
+1. **Resolve the project's standards index first.** Criteria resolution goes through the standards convention: jump to the "Resolution ladder" section of the plugin's contract binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) and follow it — the ladder is not restated here. Match the change's surfaces against the index's `Applies when` clues and read the matched standards files selectively (the sections relevant to this change). The project's other review documentation — a `REVIEW.md` at the repo root, a `review/` or `docs/review*` directory, review sections in `CLAUDE.md` or contributing guides — is an **inference source inside that ladder** when no index exists, not the primary. Tolerant reader: a version-skewed index degrades to best-effort routing per the binding; a broken index row is surfaced with an offered fix (Boy Scout) — never skipped silently.
+2. **Baseline when the ladder yields nothing.** Use `${CLAUDE_PLUGIN_ROOT}/context/severity.md` for severity vocabulary, plus the universal checklist baked into this plugin's `code-reviewer`, `security-reviewer`, and `architecture-guardian` agent definitions (completeness, consistency, convention compliance, security, dependency direction).
 
 ## Applying criteria to changes
 

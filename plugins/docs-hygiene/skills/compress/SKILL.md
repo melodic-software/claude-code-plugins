@@ -71,7 +71,7 @@ Flags (apply to both actions):
 ## Hard rules
 
 - **Semantic-diff dispatch is mandatory for default action.** Audit is read-only — no dispatch.
-- **Post-edit `markdownlint-cli2` MUST pass** (using the consuming repository's markdownlint config when present). Non-zero exit blocks ship; revert and surface failures.
+- **Post-edit `markdownlint-cli2` MUST pass** (using the consuming repository's markdownlint config when present). Non-zero exit blocks ship; revert and surface failures. `markdownlint-cli2` is **required for correctness** (it is the ship gate): if the binary is absent (neither on `PATH` nor as the repo's `node_modules/.bin/markdownlint-cli2`), STOP at the entry point before compressing anything and surface the remediation — install it explicitly (`npm install --save-dev markdownlint-cli2` or a global install); never treat absence as a lint failure and never ship unverified output.
 - **Default `<3% AND 0 semantic-loss → REVERT`.** Proven safe in the authoring repo's empirical baseline (always-loaded instruction files: 3/3 attempts reverted). `--force` bypasses.
 - **Summary output deterministic.** No timestamps; filenames sort lexically.
 - **Snapshot default = ephemeral** (`mktemp -d`, deleted post-dispatch). `--keep-snapshot` persists to `${CLAUDE_PLUGIN_DATA}/snapshots/` instead.

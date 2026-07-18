@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4]
+
+### Changed
+
+- README declares the Bash requirement of the bundled ecosystem-detection
+  script with its Windows path (Git Bash) and documents the no-Bash degrade
+  (detection reports "none detected"; the skills read the host project
+  directly) — cross-platform declaration wave.
+
 ## [0.2.3]
 
 ### Changed

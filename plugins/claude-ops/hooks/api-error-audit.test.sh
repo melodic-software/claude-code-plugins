@@ -34,7 +34,7 @@ assert_silent "unwired → silent" "$OUT"
 
 # --- Kill switch suppresses emission ---------------------------------------
 TELK="$TEST_TMPDIR/telk.json"; SINKK="$(make_sink "$TELK")"
-env HOOK_TELEMETRY_SINK="$SINKK" HOOK_API_ERROR_AUDIT_ENABLED=false \
+env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED=false \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_file_absent "kill switch → no envelope" "$TELK"
 

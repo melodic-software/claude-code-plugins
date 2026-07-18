@@ -1,53 +1,99 @@
 /**
  * Argument + environment helpers for the youtube extraction launcher (`run.mjs`).
  *
- * The launcher accepts an OPTIONAL leading `--work-root <dir>` flag ahead of the
- * target script. It exists so the invoking skill can wire the knowledge plugin's
- * `library_dir` seam into the pipeline WITHOUT a shell-specific env prefix:
- * `YOUTUBE_WORK_ROOT=… node …` is bash-only (it fails under PowerShell), so a
- * cross-platform double-quoted CLI arg is passed instead and translated here into
- * the `YOUTUBE_WORK_ROOT` environment variable `resolveWorkRoot()` reads.
+ * The launcher accepts OPTIONAL leading flags ahead of the target script that
+ * wire the knowledge plugin's personal userConfig options (`library_dir` and the
+ * yt-dlp / throttle scalars) into the pipeline WITHOUT a shell-specific env prefix:
+ * `YOUTUBE_WORK_ROOT=… node …` is bash-only (it fails under PowerShell), so each
+ * option is passed as a cross-platform double-quoted CLI arg and translated here
+ * into the environment variable the extraction child already reads. The env vars
+ * are an internal launcher-to-child interface, not a consumer-facing channel.
  *
  * Both helpers are pure so the launcher's contract is unit-testable without
  * spawning a child process.
  */
 
 /**
- * Split the launcher's argv (already sliced past `node run.mjs`) into an optional
- * work root, the target script, and its remaining arguments.
+ * Leading launcher flags, each mapped to the parsed-result key it fills and the
+ * environment variable the extraction child reads it from. `valueLabel` shapes the
+ * missing-value error message.
+ */
+const LEADING_FLAGS = {
+  "--work-root": { key: "workRoot", env: "YOUTUBE_WORK_ROOT", valueLabel: "directory value" },
+  "--js-runtimes": { key: "jsRuntimes", env: "YOUTUBE_YT_DLP_JS_RUNTIMES", valueLabel: "value" },
+  "--cookies-file": { key: "cookiesFile", env: "YOUTUBE_YT_DLP_COOKIES_FILE", valueLabel: "value" },
+  "--cookies-from-browser": {
+    key: "cookiesFromBrowser",
+    env: "YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER",
+    valueLabel: "value",
+  },
+  "--max-concurrent-acquires": {
+    key: "maxConcurrentAcquires",
+    env: "YOUTUBE_MAX_CONCURRENT_ACQUIRES",
+    valueLabel: "value",
+  },
+};
+
+/**
+ * @typedef {object} RunArgs
+ * @property {string} [workRoot]
+ * @property {string} [jsRuntimes]
+ * @property {string} [cookiesFile]
+ * @property {string} [cookiesFromBrowser]
+ * @property {string} [maxConcurrentAcquires]
+ * @property {string} [script]
+ * @property {string[]} rest
+ */
+
+/**
+ * Split the launcher's argv (already sliced past `node run.mjs`) into any leading
+ * option flags, the target script, and its remaining arguments. Flags are honored
+ * only in the leading position and in any order; the first token that is not a
+ * known flag is the script, so a script argument that happens to match a flag name
+ * is left untouched.
  *
  * @param {string[]} argv
- * @returns {{ workRoot: string | undefined, script: string | undefined, rest: string[] }}
+ * @returns {RunArgs}
  */
 export function parseRunArgs(argv) {
   const args = [...argv];
-  let workRoot;
-  if (args[0] === "--work-root") {
-    // A bare `--work-root` with no following value is a caller bug — surface it
-    // rather than silently swallowing the next token as an empty root.
+  /** @type {Record<string, string>} */
+  const flags = {};
+  while (args.length > 0 && Object.hasOwn(LEADING_FLAGS, args[0])) {
+    const flag = LEADING_FLAGS[args[0]];
+    // A bare flag with no following value is a caller bug — surface it rather than
+    // silently swallowing the next token (or the script) as an empty value.
     if (args.length < 2) {
-      throw new Error("`--work-root` requires a directory value");
+      throw new Error(`\`${args[0]}\` requires a ${flag.valueLabel}`);
     }
-    workRoot = args[1];
+    flags[flag.key] = args[1];
     args.splice(0, 2);
   }
   const [script, ...rest] = args;
-  return { workRoot, script, rest };
+  return { ...flags, script, rest };
 }
 
 /**
- * Build the child process environment, layering `YOUTUBE_WORK_ROOT` on top of the
- * inherited environment only when a non-empty work root was supplied. An empty or
- * missing work root leaves the environment untouched so `resolveWorkRoot()` keeps
- * its `CLAUDE_PROJECT_DIR` → `process.cwd()` fallback.
+ * Build the child process environment, layering each supplied launcher flag onto
+ * the inherited environment as the variable the extraction child reads. Empty or
+ * missing flags are skipped, so an unset option leaves the environment untouched
+ * and the child's own default/fallback applies.
  *
  * @param {NodeJS.ProcessEnv} baseEnv
- * @param {string | undefined} workRoot
+ * @param {RunArgs} [flags]
  * @returns {NodeJS.ProcessEnv}
  */
-export function buildChildEnv(baseEnv, workRoot) {
-  if (!workRoot) {
+export function buildChildEnv(baseEnv, flags = {}) {
+  /** @type {Record<string, string>} */
+  const overlay = {};
+  for (const { key, env } of Object.values(LEADING_FLAGS)) {
+    const value = flags[key];
+    if (value) {
+      overlay[env] = value;
+    }
+  }
+  if (Object.keys(overlay).length === 0) {
     return baseEnv;
   }
-  return { ...baseEnv, YOUTUBE_WORK_ROOT: workRoot };
+  return { ...baseEnv, ...overlay };
 }

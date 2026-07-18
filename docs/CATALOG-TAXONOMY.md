@@ -47,6 +47,7 @@ Domain-and-cross-cutting tier — filed by subject:
 | Category | Scope |
 |---|---|
 | `claude-code` | Operating Claude Code itself: its config, memory, telemetry, session plumbing, usage playbooks. Membership requires the subject to *be* Claude Code, not merely to run on it. |
+| `autonomy` | Governed autonomous agent operation: adoption discovery, guardrail and sandbox contracts, standing routines, autonomy telemetry and return-accounting conventions. |
 | `security` | Secret, path, and bypass guarding. |
 | `workflow` | Conducting the development session and process: staging, handoff, retrospective, orchestration priming. |
 | `project-management` | Tracking, triaging, and decomposing the work backlog. |
@@ -78,6 +79,7 @@ Category-level:
 |---|---|
 | First deployment plugin lands | Populate the `deployment` category (already reserved above). |
 | A non-music creative plugin lands | Broaden `music` — rename to `creative` or add a sibling creative category — rather than filing the newcomer under `music`. |
+| A broader automation plugin lands (automation that is not governed-autonomy-scoped) | Broaden `autonomy` or add a sibling category rather than filing the newcomer under `autonomy`. |
 
 Plugin-scoped (owned by the named plugin's README):
 
