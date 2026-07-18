@@ -32,26 +32,34 @@ curl -L -o KindleForPC-installer-2.8.70980.exe \
 
 # Resolve the latest Satsuoni pre-release tag dynamically. Requires the
 # authenticated `gh` CLI (declared in the plugin README). When gh is absent or
-# the query returns nothing, fall back to the pinned tag in
-# references/versions.md instead of composing a malformed URL.
+# the query returns nothing, fall back to the REAL pinned tag: before running
+# this block, read the DeDRM_tools tag out of references/versions.md (the
+# `releases/download/<tag>/DeDRM_tools.zip` asset row) and substitute it for
+# PINNED_TAG_FROM_VERSIONS_MD below. The guard refuses to continue with the
+# placeholder still in place, so a malformed URL can never be composed.
 LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || true)
 if [[ -z "${LATEST_TAG}" ]]; then
-  echo "gh unavailable or query failed — using the pinned DeDRM tag from references/versions.md"
-  LATEST_TAG="<pinned tag from references/versions.md>"
+  LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal tag, e.g. v10.0.20
+  if [[ "${LATEST_TAG}" == "PINNED_TAG_FROM_VERSIONS_MD" ]]; then
+    echo "gh unavailable and no pinned tag substituted — read it from references/versions.md, then rerun." >&2
+    exit 1
+  fi
+  echo "gh unavailable — using pinned DeDRM tag ${LATEST_TAG} from references/versions.md"
 fi
 curl -L -o "DeDRM_tools-${LATEST_TAG}.zip" \
   "https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip"
 
 # Resolve the current Kindle_Key_Finder zip URL from the tutorial article body.
-# Same guard: an empty match must stop, not feed basename/curl a malformed URL.
+# An empty match STOPS the block here — continuing would hit the hash and
+# extraction steps with no artifact and fail later with misleading errors.
 ZIP_URL=$(curl -s https://techy-notes.com/remove-drm-from-kindle-ebooks/ \
   | grep -oE 'https://techy-notes\.com/content/files/[0-9]+/[0-9]+/Kindle_Key_Finder_[0-9.]+\.JH\.zip' \
   | head -1)
 if [[ -z "${ZIP_URL}" ]]; then
-  echo "Key_Finder URL not found in the article — check references/sources.md for the mirror procedure" >&2
-else
-  curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
+  echo "Key_Finder URL not found in the article — follow references/sources.md 'How to add a new source' for a mirror, then rerun from this step." >&2
+  exit 1
 fi
+curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
 
 sha256sum KindleForPC-installer-2.8.70980.exe DeDRM_tools-*.zip Kindle_Key_Finder_*.JH.zip
 ```

@@ -19,9 +19,10 @@ invocations work from any subdirectory —
 `"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" <verb>`;
 the executable snippets in each action use that rooted form. The seam is required for correctness:
 before the first verb of an invocation, check the script exists at that path — absent, stop and
-surface the remediation (the repo has not provisioned the seam; point at
-`tools/work-item-tracker/CONTRACT.md` and `/work-items:setup`) instead of improvising provider
-commands. The repo's active provider is bound in
+surface the remediation (this repo has not provisioned the consumer-provided seam; it must be
+copied in from a repository that carries it, together with its `CONTRACT.md` and the bound
+adapter — `/work-items:setup` configures the recurring schedule and label remaps but does NOT
+create the seam) instead of improvising provider commands. The repo's active provider is bound in
 `.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim,
 dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly.
 Operations without a core verb (listing with arbitrary filters, search, aggregation, close,
