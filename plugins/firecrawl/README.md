@@ -47,6 +47,8 @@ appears worth its own surface.
 /plugin install firecrawl@melodic-software
 ```
 
+Then verify prerequisites with `/firecrawl:setup check`.
+
 ## Configuration
 
 This plugin has no `userConfig`. The CLI reads `FIRECRAWL_API_KEY`,

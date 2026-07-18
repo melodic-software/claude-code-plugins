@@ -3,6 +3,21 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/ruff-format:setup` skill** (fleet conformance wave, dim 8). A uniform check-centric
+  setup contract: `check` (default, read-only) reads the hook as the single source of truth
+  and reports a PASS/FAIL/INFO table for Bash, `jq`, the Ruff binary (resolved exactly as the
+  hook resolves it), the governing Ruff config opt-in, and the `ruff_format_enabled` toggle.
+  `apply` is idempotent and guidance-first: it re-runs `check`, points at system-tool
+  remediations, and the one write path — `apply install-ruff` — installs Ruff only into a
+  managed environment the repo already uses (an existing `.venv` via its own pip/uv; a
+  uv/Poetry project gets that tool's add command as guidance), never creating a virtual
+  environment or installing globally, and re-verifies the binary probe after the install
+  rather than trusting its exit code.
+
 ## [0.3.0]
 
 ### Changed

@@ -53,6 +53,8 @@ skipped while notifications still fire.
 /plugin install desktop-notification@melodic-software
 ```
 
+Then verify prerequisites with `/desktop-notification:setup check`.
+
 ## Configuration
 
 Every channel is toggled by its own `userConfig` boolean (default **on**; set to

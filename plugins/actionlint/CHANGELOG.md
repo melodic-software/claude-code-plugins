@@ -3,6 +3,28 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/actionlint:setup` skill** (fleet conformance wave: a uniform check-centric
+  setup contract across the hook plugins). `check` (default) is read-only — it
+  reads the hook script as the single source of truth and probes each runtime
+  prerequisite (Bash, `jq`, `actionlint`), the optional auto-discovered
+  `.github/actionlint.yaml`, and the effective `actionlint_enabled` toggle,
+  reporting a PASS/FAIL/INFO table with one remediation line per FAIL. `apply`
+  re-runs `check` then points at the resolution for each finding. Every
+  prerequisite is a `PATH` binary or the native toggle, so `apply` is
+  guidance-only with no write path — it never installs packages and never
+  modifies the repository, user settings, or the plugin cache.
+
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

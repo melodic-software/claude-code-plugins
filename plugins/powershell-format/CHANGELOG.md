@@ -3,6 +3,33 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/powershell-format:setup` skill** (fleet conformance wave: a uniform
+  check-centric setup contract across the hook plugins). `check` (default) is
+  read-only — it reads the hook script as the single source of truth and probes
+  each runtime prerequisite (Bash, `jq`, `pwsh` 7+, the PSScriptAnalyzer module),
+  the `PSScriptAnalyzerSettings.psd1` opt-in, and the effective
+  `powershell_format_enabled` toggle, reporting a PASS/FAIL/INFO table with one
+  remediation line per FAIL. It preserves the plugin's deliberate asymmetry: only
+  `jq` absence is a FAIL, while absent `pwsh` / module / settings file are
+  by-design not-applicable INFO. The module and settings probes surface the
+  README trust boundary (a settings file's `CustomRulePath` runs during
+  analysis). `apply` re-runs `check` then points at the resolution for each
+  finding — `pwsh` install and `Install-Module PSScriptAnalyzer` are user-scope
+  guidance only, never run. `apply` is guidance-only with no write path — it
+  never installs anything and never modifies the repository (including
+  `PSScriptAnalyzerSettings.psd1`), user settings, or the plugin cache.
+
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

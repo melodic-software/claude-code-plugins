@@ -63,6 +63,8 @@ linting still run.
 /plugin install biome-format@melodic-software
 ```
 
+Then verify prerequisites with `/biome-format:setup check`.
+
 ## Configuration
 
 The formatting rules come from the `biome.json` already in your repository, which

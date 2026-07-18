@@ -67,6 +67,8 @@ and linting still run.
 /plugin install ruff-format@melodic-software
 ```
 
+Then verify prerequisites with `/ruff-format:setup check`.
+
 ## Configuration
 
 The rules themselves are never configured here — they come from the Ruff config

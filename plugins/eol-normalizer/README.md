@@ -54,6 +54,8 @@ still runs.
 /plugin install eol-normalizer@melodic-software
 ```
 
+Then verify prerequisites with `/eol-normalizer:setup check`.
+
 ## Configuration
 
 The normalization policy itself is your repository's `.gitattributes`, which the

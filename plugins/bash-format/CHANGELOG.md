@@ -3,6 +3,24 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`/bash-format:setup` skill** (fleet conformance wave: a uniform check-centric
+  setup contract across the hook plugins). `check` (default) is read-only — it
+  reads the hook script as the single source of truth and probes each runtime
+  prerequisite (Bash, `jq`, ShellCheck for the lint pass, shfmt for the format
+  pass), the `.editorconfig` shell opt-in that gates formatting (mirroring the
+  hook's `shell_editorconfig_opt_in` logic — a section governing shell files,
+  not merely a present `.editorconfig`), the auto-discovered `.shellcheckrc`, and
+  the effective `bash_format_enabled` toggle, reporting a PASS/FAIL/INFO table
+  with one remediation line per FAIL. `apply` re-runs `check` then points at the
+  resolution for each finding. Every prerequisite is a `PATH` binary or the
+  native toggle, so `apply` is guidance-only with no write path — it never
+  installs packages and never modifies the repository (including `.editorconfig`
+  / `.shellcheckrc`), user settings, or the plugin cache.
+
 ## [0.4.1]
 
 ### Changed
