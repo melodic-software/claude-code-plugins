@@ -181,7 +181,8 @@ comment adapter; unattested field presence pinned; join derivation made pointer-
 Step 4 `/devils-advocate` (shared): folded — record integrity (bot-authored records only,
 platform-actor attestor identity, self-declared role never the trust anchor), attestation-rate
 health signal + requester/independent split, requester-less class routing rule, standalone
-create-create race stated with latest-bot-record-wins read rule, six-band set (user-locked,
+create-create race stated with attestation-preserving dedupe (attested outranks unattested;
+latest wins only among equals; a re-fired close never downgrades), six-band set (user-locked,
 supersedes D4 five bands), partial×band composition rule, committed WP2 fixture as the demo
 interface. Residual accepted: comment-surface forgery is mitigated by authorship filtering,
 not eliminated — native-field surfaces inherit platform ACLs and are the stronger branch where
