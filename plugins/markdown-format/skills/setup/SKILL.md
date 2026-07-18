@@ -1,7 +1,7 @@
 ---
 name: setup
 description: "Verify the markdown-format hook's runtime prerequisites and configuration for this repository. Use when: 'set up markdown-format', 'configure markdown-format', 'is markdown-format working', formatting silently isn't happening, or the hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
-argument-hint: "check | apply"
+argument-hint: "check | apply [install-lint]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -14,7 +14,8 @@ repository's own markdownlint config, and the only tunable is the native `userCo
 toggle — so `apply` is guidance-and-verify, never a repository write.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
-remediation. Both are non-interactive — never prompt when the action is given.
+remediation; `apply install-lint` additionally authorizes the consumer-repo dependency
+install described below. All are non-interactive — never prompt when the action is given.
 
 ## `check` (read-only)
 
@@ -53,12 +54,13 @@ repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml
 `"packageManager"` field when no lockfile exists, then npm only when neither signal is
 present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
 contradicts `packageManager`, stop with manager-specific guidance instead of guessing —
-never introduce a competing lockfile. The change is stated before running. Yarn Berry/PnP
-repositories (a `.pnp.cjs`, or `yarn.lock` whose `.yarnrc.yml` `nodeLinker` is `pnp` or
-unset — PnP is Berry's default; only `node-modules` and `pnpm` materialize
-`node_modules`) get guidance instead of an install: PnP generates a loader file, not the
-`node_modules/.bin` shim the hook resolves — install `markdownlint-cli2` on `PATH` or
-switch the linker. After ANY remediation, re-run the
+never introduce a competing lockfile. The change is stated before running. When the repository shows Plug'n'Play evidence (a
+`.pnp.cjs`/`.pnp.loader.mjs`, or `.yarnrc.yml` with `nodeLinker: pnp`), skip the install
+and give guidance — PnP generates a loader file, not the `node_modules/.bin` shim the
+hook resolves; install `markdownlint-cli2` on `PATH` or switch the linker. Otherwise
+install (Yarn Classic and Berry with a materializing linker both qualify) — the
+verify-after-remediation rule below is the backstop when an install still yields no
+usable shim. After ANY remediation, re-run the
 relevant `check` probe and report its actual result — never claim resolved on the
 install command's exit code alone. For everything else `apply` only points:
 
