@@ -39,5 +39,6 @@ locked (no step-skipping — trust before scale).
 
 Setup writes tracked config to `.claude/autonomy/` in the consuming repo (concern-named — the
 config outlives any plugin restructure). Personal overlays follow the marketplace overlay
-convention: `.claude/autonomy/**/*.local.*` stays gitignored; layers resolve
-user-global → project → local overlay, additively.
+convention: `.claude/autonomy/**/*.local.*` stays gitignored; layers resolve per the
+binding-seam ladder — user-global → org binding (when pointed) → project → local overlay —
+additively.

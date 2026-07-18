@@ -11,7 +11,7 @@ disable-model-invocation: true
 Discovery phase of autonomy adoption (v0). Maps the roles in
 [`${CLAUDE_PLUGIN_ROOT}/reference/role-topology.md`](${CLAUDE_PLUGIN_ROOT}/reference/role-topology.md) to this org's real instances
 and records the result as the schema-versioned binding the resolution ladder in
-[`${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md) reads at rung 1. Never assumes
+[`${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/binding-seam.md) reads at the repo-local layer. Never assumes
 any org, repo, tracker, or fleet shape — discovery reads what exists, the interview fills what
 it cannot infer, and every landed change is reviewable per
 [`${CLAUDE_PLUGIN_ROOT}/reference/wiring-vs-advisor.md`](${CLAUDE_PLUGIN_ROOT}/reference/wiring-vs-advisor.md).
