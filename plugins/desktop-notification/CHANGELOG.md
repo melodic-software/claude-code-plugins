@@ -3,6 +3,22 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **Freshness rider on the channel table** (fleet conformance wave). The
+  `terminalSequence` / Claude Code v2.1.141+ claim is re-verified against the
+  Claude Code changelog and dated, with links to the changelog and the hooks
+  reference.
+
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

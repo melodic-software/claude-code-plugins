@@ -398,6 +398,12 @@
       "category": "design",
       "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"],
       "defaultEnabled": false
+    },
+    {
+      "name": "autonomy",
+      "source": "./plugins/autonomy",
+      "category": "autonomy",
+      "tags": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
     }
   ],
   "renames": {

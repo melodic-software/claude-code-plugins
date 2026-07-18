@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3]
+
+### Changed
+
+- **Freshness riders on platform-fact docs** (fleet conformance wave). The
+  `plugins` skill's scope-semantics doc now carries a verified-date header
+  (all version-gated claims re-verified: `/reload-plugins --force` ≥ 2.1.163,
+  renames ≥ 2.1.193, `plugin prune` ≥ 2.1.121, `userConfig` type set); the
+  monitor-restart claim now cites its actual source (plugins-reference). The
+  setup skill's `pluginConfigs` claim is dated and pinned to ≥ 2.1.207.
+
 ## [0.11.2]
 
 ### Changed

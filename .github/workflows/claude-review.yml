@@ -47,6 +47,9 @@ jobs:
     uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
     with:
       runner: ${{ needs.select-review.outputs.runner || 'ubuntu-24.04' }}
+      # Passing skip-actors replaces the reusable's default (dependabot[bot]),
+      # so the default member is restated alongside the sync bot.
+      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:

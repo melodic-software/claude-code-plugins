@@ -21,6 +21,8 @@ Voices clones YOUR singing identity. v5.5 only. **Pro / Premier tier.** 18+, geo
 | Room | Acoustically neutral; no echoey bathroom takes |
 | Model gate | Must select v5.5 in Custom mode |
 
+Clip length, 2-minute auto-selection, and acapella-preferred rows verified 2026-07-18 against <https://help.suno.com/en/articles/11362369> (which also confirms the 18+ and geographic restrictions above); mic/room/model-gate rows are community best practice.
+
 ## Best-practice recording session
 
 **Single 90-120 second clip with intentional vocal variety** (per community empirical testing). Tonal and emotional variety within ONE clip produces stronger clones than multiple separate flat-dynamic clips.
@@ -137,4 +139,4 @@ If any matter for your workflow, contact Suno support directly.
 
 ## Sources
 
-`help.suno.com/articles/11362369` (Voices: Use Your Voice in Suno), `help.suno.com/articles/11362433` (Voices FAQ), `help.suno.com/categories/2327233-v-5-5-voices-custom-models-my-taste`.
+`help.suno.com/en/articles/11362369` (Voices: Use Your Voice in Suno), `help.suno.com/en/articles/11362433` (Voices FAQ), `help.suno.com/en/categories/2327233-v-5-5-voices-custom-models-my-taste`.

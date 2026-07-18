@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **Freshness rider on the Playwright environment matrix** (fleet conformance
+  wave: volatile platform facts carry a verified-date + official link). The
+  README matrix is dated and re-verified against Playwright's system
+  requirements; the setup skill no longer restates the version matrix and
+  defers to the linked page as authoritative.
+
 ## [0.5.1]
 
 ### Changed

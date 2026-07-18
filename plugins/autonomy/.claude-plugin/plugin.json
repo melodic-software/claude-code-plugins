@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "autonomy",
+  "version": "0.1.0",
+  "description": "Governed autonomous agent operation: role-topology, binding-seam, and wiring-vs-advisor contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state and writes its schema-versioned binding.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
+}
