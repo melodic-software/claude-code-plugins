@@ -5,7 +5,7 @@
       "id": 1,
       "name": "resuming-old-plan-verify-premises",
       "prompt": "I'm picking this plan back up after a few days. Before I act on it, is everything it assumes still true? It references a couple of open PRs and a branch that wasn't on main yet.",
-      "expected_output": "reanchor loads and verifies the plan's premises against live reality: for each referenced PR/issue/branch it checks the current state (still open vs merged/closed, same head/base, not renamed) and whether the branch's base has moved, then reports premise -> claimed state -> actual state plus the re-anchored picture. It does not resume the work itself.",
+      "expected_output": "reanchor loads and verifies the plan's premises against live reality: for each referenced PR/issue/branch it checks the current state (still open vs merged/closed, same head/base, not renamed) and whether the working branch is now behind its base, then reports premise -> claimed state -> actual state plus the re-anchored picture. It does not resume the work itself.",
       "files": [],
       "expectations": [
         "Routes to reanchor (verify premises), not straight into executing the plan",
@@ -28,14 +28,14 @@
     },
     {
       "id": 3,
-      "name": "stale-memory-and-base-drift",
+      "name": "stale-memory-and-current-base-divergence",
       "prompt": "Re-anchor this session — the handoff and todo file are from before the weekend and I think some of it already landed, plus main has probably moved.",
-      "expected_output": "reanchor flags handoff/todo entries whose subjects have since merged or landed (so settled work is not redone), checks whether the working branch's base has moved since the inputs were written, and reports the drift. For the full per-worktree staleness inventory it points at /source-control:worktree status rather than recomputing it.",
+      "expected_output": "reanchor flags handoff/todo entries whose subjects have since merged or landed (so settled work is not redone), then fetches the base and reports the working branch's CURRENT behind-base divergence — without attributing pre-existing behind-commits to post-handoff drift, since the handoff records no base-tip baseline.",
       "files": [],
       "expectations": [
         "Flags memory-tier entries whose subjects have since merged/landed",
-        "Checks base-branch drift since the inputs were written",
-        "Cites /source-control:worktree status for the full worktree inventory instead of reimplementing it"
+        "Fetches the base and reports current behind-base divergence",
+        "Does not claim the divergence all accrued since the inputs were written when no baseline SHA is recorded"
       ]
     },
     {
