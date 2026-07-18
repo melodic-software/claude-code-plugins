@@ -65,6 +65,45 @@
         "Grounds every bound value in an inspected signal or an explicit user answer",
         "Never treats any particular org/fleet layout as 'the usual place'"
       ]
+    },
+    {
+      "id": 6,
+      "name": "telemetry-existing-stack-wire-path",
+      "prompt": "/autonomy:setup apply\n\nWe already run an observability stack; its OTLP endpoint is otlp.internal.example:4318.",
+      "expected_output": "Wires emission toward the declared existing stack (session env block + CI snippet pointing at the org endpoint) as reviewable changes, records sink class existing-stack in the binding's telemetry section, and does not stand up the file-artifact default alongside it. No vendor is recommended; the org's own endpoint is used as given.",
+      "files": [],
+      "expectations": [
+        "Session env block and CI snippet target the declared endpoint",
+        "Binding telemetry section records sink class existing-stack",
+        "File-artifact default not wired when a stack exists",
+        "No observability vendor recommended or privileged"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "telemetry-free-default-when-no-stack",
+      "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free\n\nWire telemetry too; we have no observability stack.",
+      "expected_output": "Applies the file-artifact free default: CI pipeline-span JSON-lines writer plus per-job collector capture into one artifact directory, interactive coverage via a local collector store, OTEL_RESOURCE_ATTRIBUTES carrying autonomy.work_item.url for dispatched sessions, the conformance check named as the verification step, and the private-repo metered-cost caveat surfaced. Zero paid dependencies introduced.",
+      "files": [],
+      "expectations": [
+        "One artifact directory receives both pipeline and session JSON-lines",
+        "OTEL_RESOURCE_ATTRIBUTES carries autonomy.work_item.url for dispatched sessions",
+        "check-emission-conformance named as the verification step",
+        "Metered private-repo cost caveat surfaced; no paid dependency added"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "telemetry-paid-sink-advisory-not-default",
+      "prompt": "/autonomy:setup apply\n\nJust send everything to a hosted observability SaaS, whatever you think is best.",
+      "expected_output": "Refuses to default to a paid sink: surfaces that a hosted backend is a paid opt-in, presents the cost posture explicitly, names the free file-artifact default as the no-cost alternative, and picks no vendor on the user's behalf.",
+      "files": [],
+      "expectations": [
+        "Paid/hosted sink treated as advisory + explicit opt-in, never default",
+        "Cost surfaced before any opt-in question",
+        "Free file-artifact default offered as the alternative",
+        "No specific vendor chosen for the user"
+      ]
     }
   ]
 }

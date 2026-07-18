@@ -98,7 +98,7 @@ Prerequisite: WP1 implementation merged (`plugins/autonomy/` exists with `refere
 cut after that merge; WP3's PR follows this package's PR (its convention doc cites this
 contract — dead-link avoidance, same ordering rule as WP1's standards PR).
 
-### Phase 1: Telemetry contract doc [TODO]
+### Phase 1: Telemetry contract doc [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -114,7 +114,7 @@ contract — dead-link avoidance, same ordering rule as WP1's standards PR).
 - `grep -c 'no trailing slash' plugins/autonomy/reference/telemetry.md` ≥ 1 (URL normalization rule present)
 - `node scripts/validate-plugin-contracts.mjs` exit 0; lychee lane passes
 
-### Phase 2: Guided-setup telemetry slice [TODO]
+### Phase 2: Guided-setup telemetry slice [DONE]
 
 Extends the WP1 `setup` skill (discovery-first per D6/WP1 D7); all wiring lands as reviewable
 changes; paid sinks advisory + explicit opt-in with cost surfaced. First work item — fresh-docs
@@ -138,7 +138,7 @@ editing SKILL.md or citing vendor env vars.
 - `grep -c 'OTEL_RESOURCE_ATTRIBUTES' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
 - Fleet-name sweep (`validate-plugin-contracts.mjs`) exit 0
 
-### Phase 3: Conforming-path demonstration [TODO]
+### Phase 3: Conforming-path demonstration [DONE]
 
 Acceptance-criterion probe: one path demonstrates a single trace tree trigger → CI → agent
 session on the free default, zero paid dependencies. Scratch consumer repo (NOT this repo),
@@ -164,7 +164,7 @@ plugins; no standing capability is created (near-duplicate audit rationale).
 - The committed fixture exists and the same DuckDB assertions pass against it
 - Demo transcript + query output attached to the PR body; no paid service touched
 
-### Phase 4: Gates [TODO]
+### Phase 4: Gates [DONE]
 
 Full in-repo gate run (same roster as WP1 Phase 5): `scripts/validate-plugins.sh`,
 `scripts/run-plugin-tests.sh`, `node scripts/validate-plugin-contracts.mjs`,

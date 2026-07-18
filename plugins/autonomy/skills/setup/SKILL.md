@@ -74,18 +74,60 @@ ask and offer to persist; otherwise → safe free-tier default).
 - `substrate` — an object with kebab-case surface keys (`local-machine`, `ci-runners`,
   `self-run-infrastructure`), boolean values.
 
-Capability slices add their own sections under their slice name. The same file name is the
-shape at EVERY layer: the user-global layer is `~/.claude/autonomy/binding.json`, the project
-layer `.claude/autonomy/binding.json`, and each layer's personal overlay
-`binding.local.json` beside it. The project file is tracked (team-shared); recommend the
-consumer `.gitignore` line: `.claude/autonomy/**/*.local.*`. Layers resolve per the
-binding-seam ladder — user-global → org binding (when pointed) → project → local overlay —
-additively.
+The same file name is the shape at EVERY layer: the user-global layer is
+`~/.claude/autonomy/binding.json`, the project layer `.claude/autonomy/binding.json`, and
+each layer's personal overlay `binding.local.json` beside it. The project file is tracked
+(team-shared); recommend the consumer `.gitignore` line: `.claude/autonomy/**/*.local.*`.
+Layers resolve per the binding-seam ladder — user-global → org binding (when pointed) →
+project → local overlay — additively. Capability slices (like telemetry below) add their
+sections ADDITIVELY under their slice name: a binding without a slice's section is valid
+(absent-section tolerance) and no schema major bump is needed for an additive section.
+
+## Telemetry slice
+
+Wires the emitting state of
+[`${CLAUDE_PLUGIN_ROOT}/reference/telemetry.md`](${CLAUDE_PLUGIN_ROOT}/reference/telemetry.md)
+for all three execution contexts, discovery-first. Everything lands as reviewable changes;
+paid sinks are advisory + explicit opt-in with cost surfaced first.
+
+1. **Detect an existing observability stack** — interview + repo/env inspection (`OTEL_*`
+   endpoints in settings/env blocks, collector configs, known backend config files). Found →
+   wire emission toward it: agent-session env block (settings `env`) and a CI emission snippet
+   pointing at the org's endpoint. Paid/hosted stack → advisory with cost surfaced before any
+   opt-in.
+2. **No stack → the file-artifact free default** (zero paid dependencies):
+   - CI pipeline spans via the OTLP JSON-lines writer snippet in
+     [`templates/ci-otlp-artifact.md`](templates/ci-otlp-artifact.md), uploading the artifact
+     directory per run;
+   - agent-session signals via the ephemeral per-job collector in the same template (single
+     static OSS collector binary + file-exporter config writing JSON-lines into the same
+     artifact directory — per-job, no standing infrastructure);
+   - interactive sessions get the same coverage: env block toward the discovered stack when
+     one exists, else a local collector instance (same binary + config template) exporting
+     into a local query-on-read store directory.
+   - Cost caveat surfaced on private repos: artifact storage and per-job collector runtime
+     draw from metered pools.
+3. **Agent-session wiring (Claude Code specifics)** — `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
+   per-signal `OTEL_*_EXPORTER` values, and for work-item-dispatched sessions
+   `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>` (the
+   vendor attaches resource attributes to every metric datapoint and event — verified against
+   the official monitoring doc). Headless `-p` sessions inherit `TRACEPARENT`/`TRACESTATE`
+   from the environment; interactive sessions deliberately ignore inbound trace context.
+   Traces stay beta behind `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as
+   optional and never depends on beta span shapes.
+4. **Record the binding** — sink class, endpoint or artifact path, and the semconv pin land
+   as the `telemetry` section of the schema-versioned binding.
+5. **Conformance** — run
+   [`scripts/check-emission-conformance.mjs`](scripts/check-emission-conformance.mjs) against
+   produced OTLP JSON-lines to verify the pinned `schemaUrl` and the join attribute before
+   declaring the emitting state reached.
 
 ## What this skill does NOT do
 
-- Wire any capability slice (telemetry, capture, adapters) — those land with their own work
-  packages and extend this skill when they ship.
+- Wire capability slices that have not shipped yet (capture, adapters) — each lands with its
+  own work package and extends this skill.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or
   defaults; it never guesses silently.
+- Recommend or privilege any observability vendor — sink classes only; the deployment picks
+  instances.
