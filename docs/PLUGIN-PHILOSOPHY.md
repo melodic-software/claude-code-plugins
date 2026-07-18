@@ -261,13 +261,15 @@ per concern, cross-platform operation, and stress-testing before presentation.
 ## Fresh-eyes checkpoints
 
 A context that produced work is structurally the weakest place to judge that work: the reasoning that
-made a mistake plausible is still active, so a self-check inherits the bias. Subagents remove it — each
-runs in its own context window ([subagents](https://code.claude.com/docs/en/sub-agents), verified
-2026-07-17) — so the judging pass starts blind to the reasoning under review.
+made a mistake plausible is still active, so a self-check inherits the bias. A named subagent removes
+it — it starts in its own fresh context window, blind to the reasoning under review. A fork does not: it
+inherits the parent session's full conversation history, so it carries the same bias forward
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-18).
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
-to a fresh-context agent.** Mandatory in the skill's design, not left to the invoker to remember. Three
-bias classes name the trigger:
+to a fresh-context (non-fork) subagent** — a named subagent that starts with a fresh context window, not
+a fork. Mandatory in the skill's design, not left to the invoker to remember. Three bias classes name
+the trigger:
 
 - **author-verifier** — verifying a change the same context authored (a verification skill confirming
   its own session's implementation, a pre-PR self-review);
