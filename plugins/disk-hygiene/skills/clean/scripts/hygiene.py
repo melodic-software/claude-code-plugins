@@ -579,8 +579,10 @@ def scan_tree(
                     kind = "directory"
                     if path.name.casefold() in VCS_NAMES:
                         subtotal = 0
+                        truncated.append(relative)
                     elif protections:
                         subtotal = 0
+                        truncated.append(relative)
                     elif max_depth is not None and depth >= max_depth:
                         subtotal = 0
                         truncated.append(relative)

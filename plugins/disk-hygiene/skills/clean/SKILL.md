@@ -62,10 +62,12 @@ state provably lands in the plugin data directory even when the shell environmen
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
-immediate children, then fan out deeper scans per subtree that the evidence justifies. Directories
-cut off by `--max-depth` are recorded in `truncated_paths`; report them as coverage gaps, never as
-clean, and never plan them for removal (the preview blocks them as `truncated-not-inventoried`).
-Each fan-out worker receives a bounded subtree and returns evidence only. The parent owns
+immediate children, then fan out deeper scans per subtree that the evidence justifies. Every
+directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
+boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
+never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
+live re-verification checks a candidate with no live-I/O value left to give would otherwise still
+pay for). Each fan-out worker receives a bounded subtree and returns evidence only. The parent owns
 classification, the single report, every approval, preview, and all execution. Do not let workers
 delete or prepare approvals.
 

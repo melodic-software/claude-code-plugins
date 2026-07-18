@@ -42,6 +42,22 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
     }
 
 
+def refuse_call(name: str):
+    """Patch a hygiene function to fail the test if it is ever called.
+
+    Used to prove an already-blocked, unvisited candidate short-circuits
+    before reaching a live, unbounded filesystem/VCS/process check.
+    """
+    return mock.patch.object(
+        hygiene,
+        name,
+        side_effect=AssertionError(
+            f"an already-blocked, unvisited candidate must not trigger {name}, "
+            "an unbounded live check its blocker makes moot"
+        ),
+    )
+
+
 class HygieneTests(unittest.TestCase):
     def setUp(self) -> None:
         # Keep every load_policy(None) call independent of the developer
@@ -224,6 +240,7 @@ class HygieneTests(unittest.TestCase):
                 "baseline-protected-name", entries["Documents"]["protected_reasons"]
             )
             self.assertNotIn("Documents/draft.tmp", entries)
+            self.assertEqual(["Documents"], snapshot["truncated_paths"])
 
     def test_linked_worktree_marker_is_discovered_as_repository_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -732,19 +749,10 @@ class HygieneTests(unittest.TestCase):
                 "tier": "high",
                 "candidates": [candidate("deep")],
             }
-
-            def refuse(name: str):
-                return mock.patch.object(
-                    hygiene,
-                    name,
-                    side_effect=AssertionError(
-                        f"a truncated candidate must not trigger {name}, an "
-                        "unbounded live walk --max-depth exists to avoid"
-                    ),
-                )
-
-            with refuse("current_descendants"), refuse("tracked_blocker"), refuse(
-                "candidate_handle_state"
+            with (
+                refuse_call("current_descendants"),
+                refuse_call("tracked_blocker"),
+                refuse_call("candidate_handle_state"),
             ):
                 result = hygiene.preview(snapshot, plan)
             candidate_result = result["candidates"][0]
@@ -755,6 +763,31 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(
                 "truncated-not-inventoried", candidate_result["handle_detail"]
             )
+
+    def test_preview_skips_live_recursive_checks_for_unvisited_protected_candidate(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            protected = root / "Documents"
+            protected.mkdir(parents=True)
+            (protected / "draft.tmp").write_text("work product", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(["Documents"], snapshot["truncated_paths"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("Documents")],
+            }
+            with (
+                refuse_call("current_descendants"),
+                refuse_call("tracked_blocker"),
+                refuse_call("candidate_handle_state"),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            blockers = result["candidates"][0]["blockers"]
+            self.assertIn("truncated-not-inventoried", blockers)
+            self.assertNotIn("changed-since-scan", blockers)
 
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
