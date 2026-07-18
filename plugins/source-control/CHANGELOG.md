@@ -3,6 +3,64 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`/source-control:babysit-prs` capability convergence.** The skill gains opt-in `worker` and
+  `autopilot` tiers on top of the safe default: `worker` auto-resolves outdated bot threads and
+  merges PRs the deterministic gate proves ready; `autopilot` widens author and thread scope
+  under the watched owners. Both merge only behind `babysit_merge.py`'s gate — `mergeStateStatus
+  == CLEAN` cross-checked, head-SHA pinned, never `--admin`, never force-push.
+- **Decomposed Python engine** under `skills/babysit-prs/scripts/` (stdlib-only): `babysit_util`,
+  `babysit_gh` (one parameterized discovery function, one reviewThreads paginator), `babysit_state`
+  (scope-aware, schema-versioned, corrupt-state quarantine), `babysit_lease` (`--repo` scoping +
+  snapshot pairing), `babysit_checks`, `babysit_feedback`, `babysit_review_trigger` (bot-agnostic,
+  config-driven, dormant when unconfigured), `babysit_delta` (classification + fan-out + L3
+  foreign-activity detection). Thin CLIs: `pr_queue_snapshot`, `babysit_merge`,
+  `babysit_resolve_thread`, `manage_babysit_lease`, `manage_feedback_ledger`,
+  `prune_babysit_worktrees`, `refresh_pr_branch`, `request_review`. Relocated + reorganized test
+  suite runs in the plugin-tests lane (`engine.test.sh`, self-SKIP when Python is absent). Python
+  3.11+ is a declared prerequisite for the `worker`/`autopilot` tiers only; the safe default runs
+  Python-free.
+- **First-in-fleet plugin `bin/` wrappers** — `source-control-babysit-merge` and
+  `source-control-babysit-resolve-thread` expose the guarded mutations as bare commands whose
+  allow rules survive auto mode; the merge wrapper refuses `--allow-unpinned-head`.
+- **15 `babysit_`-prefixed `userConfig` keys** (watched owners, self logins, default tier, merge
+  method, the bot-agnostic review-trigger settings, bot-login fallbacks, downgrade-reviewer logins,
+  cadence and fan-out bounds, worktree root) plus a babysit check/apply section in
+  `/source-control:setup`. `babysit_self_logins` unifies with and extends the additive key
+  introduced in 0.7.0: it composes on your `gh api user` login as the self set for discovery scope,
+  readiness-gate rows, and the merge-gate self-exemption.
+
+### Changed
+
+- **Breaking:** the safe default narrows discovery from every open PR to your own PRs under the
+  current repository's owner (own-authorship boundary; Dependabot/dependency PRs are held from
+  merge in every tier). `worker`/`autopilot` widen scope explicitly.
+- State root moves from `CODEX_HOME` to `${CLAUDE_PLUGIN_DATA}`; all engine configuration is now
+  delivered via CLI flags substituted from the SKILL.md effective-config block.
+- Self-identity is additive across every consumer — `--extra-self` (readiness gate), `--author
+  @me,<extras>` (discovery), and `--self-logins @me,<extras>` (merge gate) each fold the configured
+  `babysit_self_logins` extras onto your gh login.
+
+### Fixed
+
+- Multi-login discovery queries `--author` once per login and unions the results (a comma-joined
+  value matched no one, silently dropping owned PRs for multi-login users).
+- Review-trigger candidacy no longer stalls forever when no CI gateway context is configured (the
+  documented gateway-unused fallback).
+- Snapshot state honors a `~`-prefixed `--state-dir`, sharing the resolved path with the other
+  engine CLIs instead of writing under a literal `./~/…` directory.
+- The merge gate recognizes your own PRs on unprotected bases (self logins are passed through),
+  no longer requiring the interactive `--allow-unprotected` override for own-authored PRs.
+
+### Removed
+
+- The `BABYSIT_*` environment-variable seams on the Python engine (owners, timeouts, quiet-recheck
+  window) — replaced by CLI flags fed from `userConfig`. The shared readiness gate's `--self`
+  (full override) / `--extra-self` (additive) contract is unchanged.
+
 ## [0.7.0]
 
 ### Changed

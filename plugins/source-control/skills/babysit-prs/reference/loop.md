@@ -1,10 +1,13 @@
-# Babysit loop (all-PR continuous iteration)
+# Babysit loop (safe-tier continuous iteration)
 
-Multi-PR orchestration layer wrapping the per-PR review discipline at the plugin-scope seam
+Multi-PR iteration layer wrapping the per-PR review discipline at the plugin-scope seam
 ([`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../../reference/review-discipline.md)).
 Designed for `/loop /source-control:babysit-prs` (dynamic, self-pacing via ScheduleWakeup).
-Processes every open PR in the repo — discovers, checks out, monitors, fixes, moves to next.
-Never merges.
+This is the safe tier's core loop and the Python-free degrade path for every tier: discover the
+in-scope PRs, check out, monitor, fix, move to next. This loop never merges; merge authority
+exists only behind the `worker`/`autopilot` pinned gate in SKILL.md, and those tiers run their
+per-PR work through dispatched workers per [orchestration.md](orchestration.md) rather than
+inline here.
 
 ## 5.0 Focus-first rule
 
@@ -36,20 +39,26 @@ from pushed fixes are picked up on the next iteration.
 ### 5.0.2 PR discovery
 
 ```bash
-gh pr list --state open --limit 200 --json number,title,headRefName,isDraft,author \
-  --jq '[.[] | select(.isDraft == false)] | sort_by(.number)'
+gh pr list --state open --author "@me" --limit 200 \
+  --json number,title,headRefName,isDraft,author --jq 'sort_by(.number)'
 ```
 
 Oldest-first (FIFO) — lowest PR number processed first.
 
-**Filters:**
+**Author scope:** `@me` is your `gh api user --jq .login` identity; the `babysit_self_logins` key
+in SKILL.md's effective-configuration block adds extra posting identities on top of it. Run the
+listing once per identity (`@me` plus each configured extra) and merge the results. Drop the author filter only
+in `autopilot` or on an explicit user instruction to widen. A widened discovery includes other
+authors' PRs — a dependency-manager PR with failing CI gets the same diagnose-and-fix
+attention as any other, but dependency-authored PRs are never merged autonomously in any tier
+(SKILL.md cross-tier invariants).
 
-- Skip `isDraft` PRs (signal "not ready for review")
-- Every open PR is in scope regardless of author or label — Dependabot included. A Dependabot PR
-  with failing CI needs the same diagnose-and-fix attention as any other; auto-merge (where
-  configured) only fires once CI is green, so babysit owns the red ones
+**Draft policy (replaces the old blanket draft skip):** drafts stay in the discovery list in
+every tier. In the safe tier a draft is evaluated — terminal state, CI, unaddressed findings —
+and reported, never fixed, never marked ready. Worker/autopilot draft handling (zero-blocker
+drafts route through a worker; `gh pr ready` only in autopilot) is defined in SKILL.md.
 
-**Zero-PR fast path:** if discovery returns an empty list, report `No open non-draft PRs need
+**Zero-PR fast path:** if discovery returns an empty list, report `No open PRs need
 attention.` and call `ScheduleWakeup(delaySeconds=1200, reason="no open PRs",
 prompt="/source-control:babysit-prs")`. Exit the iteration.
 
@@ -80,6 +89,10 @@ not model memory, not prior-iteration state, not comment counts (why:
 
 - State is terminal (MERGED/CLOSED)
 - All checks pass/skipping AND zero unaddressed findings
+
+**Draft PRs (safe tier):** evaluation stops after this rescan — report the draft's status
+(state, CI, unaddressed findings) and move on. The checkout, freshness-integration, fix, and
+thread-resolution steps below apply to non-draft PRs only (per §5.0.2's draft policy).
 
 PRs not needing attention are reported in a one-line status summary and skipped.
 
@@ -301,8 +314,10 @@ to re-evaluate fixes. After pushing, check each bot's trigger mode per
 [pull-request readiness.md](../../pull-request/reference/readiness.md) "Expected PR actors":
 
 - **"On every push" trigger** — re-reviews automatically, just wait
-- **Manual/smart trigger** (e.g., Codex) — post `@codex review` (or the bot's equivalent) as a
-  PR comment to request a re-review
+- **Manual/smart trigger** — when the review-trigger module is configured (SKILL.md
+  effective-configuration block), the orchestrator posts the configured trigger phrase per
+  [review-trigger.md](review-trigger.md); unconfigured, the module is dormant — note the bot's
+  own trigger convention from the consuming repo's docs and report instead of inventing one
 
 Research-gate non-trivial fixes (multi-source consensus) per
 [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.2. Max 3 CI fix
@@ -344,7 +359,14 @@ git checkout "$PARKING_BRANCH"
 
 ## 5.3 Self-pacing (ScheduleWakeup)
 
-At the end of each iteration, schedule the next wake based on observed state:
+At the end of each iteration, schedule the next wake. Cadence has one owner: the engine
+recommends, this loop schedules.
+
+**Engine-backed runs (Python present):** derive the wake interval from the snapshot's
+`recommended_cadence` — `active` 5 minutes, `normal` 15 minutes, `quiet` hourly, `idle` daily —
+per [cadence.md](cadence.md)'s states and thresholds.
+
+**Python-free degrade ladder** (no snapshot available this iteration):
 
 | Condition | Delay | Reason |
 |-----------|-------|--------|
@@ -354,7 +376,7 @@ At the end of each iteration, schedule the next wake based on observed state:
 
 ```text
 ScheduleWakeup(
-  delaySeconds: <per table above>,
+  delaySeconds: <per the engine recommendation, or the ladder above>,
   reason: "<specific reason for this delay>",
   prompt: "/source-control:babysit-prs"
 )
@@ -380,7 +402,8 @@ These constraints override any other instruction within the babysit loop:
   rule (§5.0). Complete the current wave before moving on
 - **Never skip AI review summaries** — AI-reviewer posts (issue-level comments with
   severity-labeled findings) are actionable comments requiring D1-D7. Same for every AI reviewer
-- **Never `gh pr merge`** — babysit declares readiness; the user merges
+- **Never `gh pr merge`** — this loop never merges. Merge authority exists only behind the
+  `worker`/`autopilot` pinned merge gate (SKILL.md), never a raw `gh pr merge`
 - **Never `git add -A` or `git add .`** — specific files only
 - **Never auto-fix human reviewer comments** — classify + reply + report to the user
 - **Never skip the event-delivery gate** — run §5.1.1 for every PR
