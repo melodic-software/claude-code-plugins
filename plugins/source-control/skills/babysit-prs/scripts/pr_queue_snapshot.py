@@ -34,10 +34,18 @@ def _csv(value: str | None) -> frozenset[str]:
 
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     owners = _csv(getattr(args, "owners", None))
-    author = getattr(args, "resolved_author", None) or getattr(args, "author", None)
+    resolved_authors = getattr(args, "resolved_authors", None)
+    if resolved_authors is None:
+        # Hand-built Namespaces (tests, callers) may skip resolution; derive
+        # the self set from the raw --author, dropping the unresolvable '@me'.
+        self_logins = frozenset(
+            login for login in _csv(getattr(args, "author", None)) if login != "@me"
+        )
+    else:
+        self_logins = frozenset(resolved_authors)
     return delta.ClassifyConfig(
         allowed_owners=owners,
-        self_logins=frozenset({author}) if author and author != "@me" else frozenset(),
+        self_logins=self_logins,
         feedback=FeedbackConfig(
             extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
             approval_downgrade_logins=_csv(
@@ -101,21 +109,20 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         # build_snapshot also runs from hand-built Namespaces (tests, callers)
         # that may omit optional flags; default the optional --author/--repo
         # rather than require them.
-        author = gh.resolve_author(getattr(args, "author", None))
-        if author:
-            args.resolved_author = author
-            config = build_config(args)
+        authors = gh.resolve_authors(getattr(args, "author", None))
+        args.resolved_authors = authors
+        config = build_config(args)
         scope_repos = resolve_scope_repos(args, config.allowed_owners)
         if scope_repos:
             targets, errors = gh.discover_prs(
-                repos=scope_repos, author=author, limit=args.limit
+                repos=scope_repos, authors=authors, limit=args.limit
             )
         else:
             owners = [
                 owner.strip() for owner in args.owners.split(",") if owner.strip()
             ]
             targets, errors = gh.discover_prs(
-                owners=owners, author=author, limit=args.limit
+                owners=owners, authors=authors, limit=args.limit
             )
 
     trigger_config = config.review_trigger
@@ -334,9 +341,11 @@ def main() -> int:
         "--author",
         default=None,
         help=(
-            "Restrict queue discovery to PRs by this author (deterministic scope "
-            "gate). Accepts a GitHub login or '@me' (resolved to the authenticated "
-            "user). Omit to include every author under the watched owners."
+            "Restrict queue discovery to PRs by these authors (deterministic "
+            "scope gate). Accepts a comma-separated list of GitHub logins and/or "
+            "'@me' (resolved to the authenticated user); each login is queried "
+            "separately and the results unioned. Omit to include every author "
+            "under the watched owners."
         ),
     )
     parser.add_argument(

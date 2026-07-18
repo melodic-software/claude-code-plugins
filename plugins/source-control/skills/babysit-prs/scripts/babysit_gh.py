@@ -187,6 +187,23 @@ def resolve_author(author: str | None) -> str | None:
     return login
 
 
+def resolve_authors(value: str | None) -> list[str]:
+    """Resolve a comma-separated author filter to concrete logins.
+
+    `self_logins` is a multi-value key, but `gh`'s `--author` accepts a single
+    login: a comma-joined value would match no one, silently dropping owned PRs
+    for users with more than one login. Split it, resolve each ('@me' -> the
+    authenticated user), and deduplicate case-insensitively (GitHub logins are
+    case-insensitive) while preserving order.
+    """
+    resolved: dict[str, str] = {}
+    for part in (value or "").split(","):
+        login = resolve_author(part.strip())
+        if login:
+            resolved.setdefault(login.casefold(), login)
+    return list(resolved.values())
+
+
 def _search_prs_for_owners(
     owners: list[str], limit: int, author: str | None
 ) -> tuple[dict[str, tuple[str, int]], list[str]]:
@@ -295,7 +312,7 @@ def discover_prs(
     *,
     owners: Iterable[str] | None = None,
     repos: Iterable[str] | None = None,
-    author: str | None = None,
+    authors: Iterable[str] | None = None,
     limit: int = 1000,
 ) -> tuple[list[tuple[str, int]], list[str]]:
     """Discover open PRs along exactly one axis: watched owners or explicit repos.
@@ -308,22 +325,35 @@ def discover_prs(
     repositories -- the normal shape for one babysit session per repo -- with
     the same limit-reached detection and no owner-wide sweep. Output is always
     sorted and deduplicated by `owner/repo#number`.
+
+    `gh`'s `--author` accepts a single login, so multiple authors are queried
+    one at a time and their results unioned; an empty author list discovers
+    every author under the axis. Errors are deduplicated across author passes
+    since they are keyed by owner/repo, not author.
     """
     owner_list = [owner for owner in (owners or []) if owner]
     repo_list = [repo for repo in (repos or []) if repo]
     if bool(owner_list) == bool(repo_list):
         raise ValueError("discover_prs requires exactly one of owners or repos")
+    author_list: list[str | None] = [author for author in (authors or []) if author]
+    if not author_list:
+        author_list = [None]
+    found: dict[str, tuple[str, int]] = {}
+    errors: list[str] = []
     if repo_list:
-        found: dict[str, tuple[str, int]] = {}
-        errors: list[str] = []
         per_repo_limit = max(limit, 1)
-        for repo in repo_list:
-            _list_prs_for_repo(repo, per_repo_limit, author, found, errors)
-        return sorted(found.values()), errors
-    searched, search_errors = _search_prs_for_owners(owner_list, limit, author)
-    listed, list_errors = _list_prs_for_owners(owner_list, limit, author)
-    merged = {**searched, **listed}
-    return sorted(merged.values()), [*search_errors, *list_errors]
+        for author in author_list:
+            for repo in repo_list:
+                _list_prs_for_repo(repo, per_repo_limit, author, found, errors)
+    else:
+        for author in author_list:
+            searched, search_errors = _search_prs_for_owners(owner_list, limit, author)
+            listed, list_errors = _list_prs_for_owners(owner_list, limit, author)
+            found.update(searched)
+            found.update(listed)
+            errors.extend(search_errors)
+            errors.extend(list_errors)
+    return sorted(found.values()), list(dict.fromkeys(errors))
 
 
 def view_pr(repo: str, number: int) -> dict[str, Any]:

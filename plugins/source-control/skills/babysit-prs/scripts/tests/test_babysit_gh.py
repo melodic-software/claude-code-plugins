@@ -59,6 +59,20 @@ class ResolveAuthorTests(unittest.TestCase):
             gh.resolve_author("@me")
 
 
+class ResolveAuthorsTests(unittest.TestCase):
+    def test_empty_yields_no_authors(self) -> None:
+        self.assertEqual(gh.resolve_authors(None), [])
+        self.assertEqual(gh.resolve_authors(""), [])
+        self.assertEqual(gh.resolve_authors(" , "), [])
+
+    def test_comma_separated_logins_resolve_dedupe_and_keep_order(self) -> None:
+        with mock.patch.object(gh, "run_gh", return_value="octocat\n"):
+            self.assertEqual(
+                gh.resolve_authors("alice, bob, @me, Alice"),
+                ["alice", "bob", "octocat"],
+            )
+
+
 class DiscoverPrsTests(unittest.TestCase):
     def test_exactly_one_axis_is_required(self) -> None:
         with self.assertRaises(ValueError):
@@ -114,6 +128,46 @@ class DiscoverPrsTests(unittest.TestCase):
                                   return_value=["owner/r"]):
             _, errors = gh.discover_prs(owners=["owner"], limit=100)
         self.assertTrue(any("owner search" in error for error in errors))
+
+    def test_multiple_authors_are_queried_separately_and_unioned(self) -> None:
+        searched_authors: list[str | None] = []
+
+        def fake_gh_json(args: list[str]) -> Any:
+            author = args[args.index("--author") + 1] if "--author" in args else None
+            if args and args[0] == "search":
+                searched_authors.append(author)
+                by_author = {
+                    "alice": [{"number": 1,
+                               "repository": {"nameWithOwner": "owner/r"}}],
+                    "bob": [{"number": 2,
+                             "repository": {"nameWithOwner": "owner/r"}}],
+                }
+                return by_author.get(author, [])
+            return []
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json):
+            found, errors = gh.discover_prs(
+                owners=["owner"], authors=["alice", "bob"], limit=100
+            )
+        self.assertEqual(sorted(searched_authors), ["alice", "bob"])
+        self.assertEqual(found, [("owner/r", 1), ("owner/r", 2)])
+        self.assertEqual(errors, [])
+
+    def test_owner_errors_are_deduped_across_authors(self) -> None:
+        def fake_gh_json(args: list[str]) -> Any:
+            if args and args[0] == "search":
+                raise RuntimeError("transient search failure")
+            return []
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
+                mock.patch.object(gh, "list_repos_for_owner",
+                                  return_value=["owner/r"]):
+            _, errors = gh.discover_prs(
+                owners=["owner"], authors=["alice", "bob"], limit=100
+            )
+        self.assertEqual(
+            len([error for error in errors if "owner search" in error]), 1
+        )
 
 
 def _graphql(nodes: list[dict[str, Any]], *, has_next: bool = False,
