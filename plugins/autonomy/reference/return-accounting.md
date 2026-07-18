@@ -29,10 +29,11 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attested_at` | ISO 8601 UTC timestamp |
 | `attested_by` | the attesting human's platform identity, captured from the attestation action |
 | `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
+| `attestation_source` | canonical URL of the attestation source event (the human's reply), normalized per the telemetry contract's URL rule — the auditable identity citation |
 
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
-`effort_band`, `attested_at`, `attested_by`, and `attestor_role` ABSENT — never null-imputed.
-An attested record carries all fields.
+`effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
+ABSENT — never null-imputed. An attested record carries all fields.
 
 Composition rule: `effort_band` answers the manual-cost question for the WHOLE delivered item
 regardless of the `counterfactual` value; `partial` qualifies the counterfactual only.

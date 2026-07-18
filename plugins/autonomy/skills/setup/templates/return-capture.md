@@ -38,10 +38,28 @@ Attestation requires a REPLY from the accountable human carrying BOTH values
 the upsert — the automation leaves the record unattested (optionally re-requesting with the
 expected reply shape). On a parseable reply, the bound automation identity edits the SAME
 marker comment, adding the attested fields — `attested: true`, `counterfactual`,
-`effort_band`, `attested_at`, `attested_by` (copied from the reply's platform actor), and
-`attestor_role` — plus a citation of the attestation source event (the reply's URL) so the
-identity is auditable. A reply missing either value is answered with the expected shape and
-does not upsert. Consumers ignore marker records from any author other than the bound
+`effort_band`, `attested_at`, `attested_by` (copied from the reply's platform actor),
+`attestor_role`, and `attestation_source` (the reply event's canonical URL, normalized per
+the telemetry contract's URL rule) — so the identity is auditable. `attestation_source` is a
+schema key, present on every attested record on both surfaces (on native fields it maps to a
+field of the same name). A reply missing either value is answered with the expected shape
+and does not upsert.
+
+Attested record shape (the same fenced JSON record, upserted):
+
+```json
+{
+  "schema_version": "1",
+  "work_item_url": "<canonical-item-url>",
+  "attested": true,
+  "counterfactual": "partial",
+  "effort_band": "1-4h",
+  "attested_at": "<iso-8601>",
+  "attested_by": "<platform-actor>",
+  "attestor_role": "<role>",
+  "attestation_source": "<reply-event-url>"
+}
+``` Consumers ignore marker records from any author other than the bound
 automation identity, and dedupe attestation-preservingly (attested outranks unattested;
 latest wins only among equals).
 

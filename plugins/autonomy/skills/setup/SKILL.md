@@ -137,7 +137,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    ([`templates/return-capture.md`](templates/return-capture.md)) posting the UNATTESTED
    record + the attestation request addressed to the accountable human; the close flow never
    blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
-   the marker-keyed structured comment otherwise (the universal floor).
+   the marker-keyed structured comment otherwise (the universal floor). The trigger is
+   GATED to autonomous-class work (the convention's capture scope): the snippet fires only
+   when the closing item carries the autonomous-work discriminator recorded in the binding —
+   the tracker binding's autonomous-eligible role label, and/or closure by the bound
+   automation identity — and skips capture otherwise (interactive work stays exempt). The
+   guardrail matrix refines this into per-class scope when it ships; the discriminator
+   recorded here is the interim boundary, not a parallel class vocabulary.
 3. **Route comment writes through the bound tracker adapter's documented comment mechanics
    where a work-item-tracker binding is present** (comments are provider-specific mechanics
    there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
