@@ -3,6 +3,19 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`setup` skill on the uniform contract** (fleet conformance wave, dim 8 —
+  the fleet's first conforming exemplar). `check` verifies the hook's runtime
+  prerequisites read-only (Bash, `jq`, `markdownlint-cli2` resolution,
+  discovered markdownlint config + trust boundary, effective toggle);
+  `apply` re-checks and resolves — guidance for system tools and the native
+  toggle, and an explicitly requested consumer-repo
+  `npm install --save-dev markdownlint-cli2` as its only write path.
+  Non-interactive when the action argument is supplied.
+
 ## [0.4.1]
 
 ### Changed

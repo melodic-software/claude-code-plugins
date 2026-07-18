@@ -63,6 +63,9 @@ the advisory to appear again.
 /plugin install markdown-format@melodic-software
 ```
 
+Then verify the runtime prerequisites with `/markdown-format:setup check`;
+`/markdown-format:setup apply` resolves anything the check reports.
+
 ## Configuration
 
 The rules themselves are never configured here — the plugin's only rule source is
