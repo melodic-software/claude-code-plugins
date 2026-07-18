@@ -1,6 +1,6 @@
 ---
 name: reanchor
-description: "Verify a session's working assumptions are still true before building on them — referenced PRs/issues/branches still in the state a handoff or plan claims, base-branch drift, cited skills/plugins that were renamed or version-drifted, and memory-tier files whose subjects have since landed. Reports what drifted and re-anchors; does not resume the work. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. Not for resuming work (use /session-flow:keep-going), per-worktree staleness (use /source-control:worktree status), PR feedback triage (use /source-control:babysit-prs), or re-anchoring a standing behavioral rule/discipline (that is the re-anchor plugin — this re-anchors factual premises, not rules)."
+description: "Verify a session's working assumptions are still true before building on them — referenced PRs/issues/branches still in the state a handoff or plan claims, base-branch drift, cited skills/plugins that were renamed or version-drifted, and memory-tier files whose subjects have since landed. Reports what drifted and re-anchors; does not resume the work. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. Not for resuming work (use /session-flow:keep-going), the cross-worktree staleness inventory, PR feedback triage, or re-anchoring a standing behavioral rule (this re-anchors factual premises, not rules)."
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -73,8 +73,8 @@ back up.
   it is installed; reanchor never performs them — it only checks whether a
   *referenced* PR is still in its claimed state.
 - **Does not re-anchor a standing rule or discipline.** Correcting behavioral
-  doctrine mid-session is the `re-anchor` plugin's concern; this skill re-anchors
-  factual assumptions, not rules.
+  doctrine mid-session (a standing-rule re-anchor) is a separate concern; this
+  skill re-anchors factual assumptions against live reality, not rules.
 - **Does not auto-fix drift.** It reports; the session decides.
 
 ## Gotchas
