@@ -11,9 +11,10 @@ disable-model-invocation: true
 Confirm the known-issues registry and skill-usage-log locations without editing Claude Code
 settings. `registry_dir` and `skill_usage_dir` are personal `userConfig` options. Claude Code
 prompts for them when the plugin is enabled, stores non-sensitive options in user settings, and
-ignores `pluginConfigs` entries in project and local settings on current releases.
+ignores `pluginConfigs` entries in project and local settings on current releases (≥ 2.1.207).
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract (verified 2026-07-18):
+<https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
 ## Task
 

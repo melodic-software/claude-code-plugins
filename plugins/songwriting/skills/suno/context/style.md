@@ -8,11 +8,11 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 |-------|-------|-------|
 | Style prompt (v5/v5.5) | **~1,000 chars** | Truncates silently — front-load critical content |
 | Style prompt (v4 legacy) | ~200 chars | Out of scope for this skill, noted for orientation |
-| Lyrics | **~3,000 chars** | ~40-60 lines / 200-300 words. Past 3K → Suno rushes, skips sections, or cuts output short |
-| Title | **~80 chars** | No effect on musical output |
+| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short |
+| Title | **~100 chars** | Up from ~80 in v4. No effect on musical output |
 | Exclude (Custom mode Advanced Options) | Free-text box | Same vocabulary as inline negatives |
 
-**Consensus verified 2026-05-10** across HookGenius, roo.beehiiv, musicsmith.ai — the earlier "5,000 lyrics" figure was a single-source outlier on one hookgenius v5.5 page (other hookgenius pages and the rest of the ecosystem agree on 3,000). The 5,000 figure may reflect API/programmatic context (chirp-crow model in ePhoneAI docs), not the UI lyrics field.
+**Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass.** Current third-party testers agree the lyrics hard cap is **5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap, and the earlier "3,000 consensus" conflated that old cap with the quality threshold. ~3,000 remains the practical budget. No official Suno page states field limits — sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits).
 
 ## The 6-layer formula
 

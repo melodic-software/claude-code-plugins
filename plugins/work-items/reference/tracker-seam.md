@@ -17,7 +17,20 @@ Every tracker operation goes through the work-item-tracker seam — the skill ca
 (contract: `tools/work-item-tracker/CONTRACT.md`). Resolve the seam path from the project root so
 invocations work from any subdirectory —
 `"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" <verb>`;
-the executable snippets in each action use that rooted form. The repo's active provider is bound in
+the executable snippets in each action use that rooted form. Two entry-point presence checks are
+required for correctness before an invocation's first verb, each stopping with its remediation
+rather than failing mid-action:
+
+- **`jq`** (`command -v jq`) — the actions' snippets parse with it unconditionally. Missing: stop
+  and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
+  Bash on native Windows) — never improvise a parse.
+- **The seam script** at the rooted path above. Missing: stop and surface that this repo has not
+  provisioned the consumer-provided seam; it must be copied in from a repository that carries it,
+  together with its `CONTRACT.md` and the bound adapter — `/work-items:setup` configures the
+  recurring schedule and label remaps but does NOT create the seam. Never improvise provider
+  commands.
+
+The repo's active provider is bound in
 `.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim,
 dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly.
 Operations without a core verb (listing with arbitrary filters, search, aggregation, close,
@@ -43,7 +56,7 @@ Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` f
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW
 items only when the work is genuinely orthogonal to the current session, large enough to need its
-own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting
+own `/planning:plan` pass, or needs research the current session isn't positioned to do. Auto-suggesting
 `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and
 surface what was fixed in the commit message / PR description.
 

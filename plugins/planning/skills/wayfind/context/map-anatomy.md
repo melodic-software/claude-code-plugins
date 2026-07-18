@@ -15,8 +15,12 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Notes
 
-- Pointers to `<memory_dir>/<slug>/` (default `.work/`) execution artifacts, prior research, upstream context.
-- Links, not recaps.
+- Durable pointers only: PRs, committed docs, prior items, external links.
+- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local — distill what matters into a
+  line here instead of pointing at a path other readers cannot resolve.
+- Links, not recaps — for anything durably linkable. The memory-tier distillation above is the
+  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
+  preserved context.
 
 ## Decisions-so-far
 
@@ -73,5 +77,5 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
   the map for `/work-items`.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
   coherent. Close the map and hand the destination to the pipeline entry that fits it
-  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:architect` → PLAN). The
+  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The
   map's lifecycle ends exactly where the normal planning pipeline's begins.

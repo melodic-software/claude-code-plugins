@@ -17,7 +17,7 @@ Build/test/lint, testing, and outcome verification were split out of this plugin
 three companion plugins. This plugin invokes them when installed and degrades
 gracefully when absent — no hard dependencies:
 
-- **`toolchain`** — `/toolchain:build` runs after each logical block and at completion;
+- **`toolchain`** — `/toolchain:check` runs after each logical block and at completion;
   when the plugin is absent this skill runs the project's own build/test command.
 - **`testing`** — `/testing:plan`, `/testing:write`, `/testing:diagnose` for coverage,
   authoring, and failure diagnosis.
@@ -60,7 +60,7 @@ plugins. `implementation` keeps its name, so the marketplace's `renames` map (wh
 renamed or removed plugin automatically) does not apply — install the plugins you relied on:
 
 ```shell
-/plugin install toolchain@melodic-software      # build, lint, setup
+/plugin install toolchain@melodic-software      # check (was build), lint, setup
 /plugin install testing@melodic-software        # test-plan, test-write, test-e2e, test-diagnose
 /plugin install verification@melodic-software   # verify-changes, verify-improvement
 ```

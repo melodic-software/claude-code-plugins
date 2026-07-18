@@ -1,0 +1,45 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bootstraps-standards-index-with-confirmation",
+      "prompt": "/review:setup\n\nThis repo has no docs/standards/ directory and no .claude/standards.yaml. It does have a hand-authored REVIEW.md at the repo root listing C# review criteria.",
+      "expected_output": "Reads state in the binding's order (concern file, index presence test, inference sources), finds no index, and uses the hand-authored REVIEW.md as an inference source for proposing index rows — requiring explicit confirmation before any conversion and never overwriting it. On acceptance it writes the skeleton index with standards-contract frontmatter at the binding's version plus the setup-owned docs/standards/.gitignore containing *.local.md, validates every row path, and writes .claude/standards.yaml only if the user relocates the root. Nothing is written before the user accepts.",
+      "files": [],
+      "expectations": [
+        "Reads state in order: .claude/standards.yaml, then the index presence test, then inference sources",
+        "Treats the hand-authored REVIEW.md as an inference source and requires explicit confirmation before conversion, never overwriting it",
+        "Writes the skeleton index with standards-contract frontmatter at the binding's version",
+        "Creates the setup-owned <standards_dir>/.gitignore containing *.local.md and edits no other ignore file",
+        "Writes nothing until the user accepts"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "second-run-is-a-no-op",
+      "prompt": "/review:setup\n\nThis repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run.",
+      "expected_output": "Finds a conforming index at the binding's contract version via the presence test, validates the row paths, and short-circuits: reports the index healthy and proposes no changes — a second run produces no diff. No re-interview, no rewrite of the index or the overlay .gitignore, and no migration offer since the versions match.",
+      "files": [],
+      "expectations": [
+        "Recognizes the conforming current-version index and proposes no changes (second run yields no diff)",
+        "Does not re-run the interview when the index is healthy at the binding's version",
+        "Does not offer migration when the index version matches the binding",
+        "Touches no files"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "newer-index-never-downgraded",
+      "prompt": "/review:setup\n\nThis repo's docs/standards/README.md carries standards-contract frontmatter at a NEWER version than this plugin's bundled contract binding.",
+      "expected_output": "Detects the directional version skew (index newer than the bundled contract), reports that the plugin should be updated, and stops: it never offers a migration, never rewrites the index to the older bundled version, and leaves every file untouched.",
+      "files": [],
+      "expectations": [
+        "Detects that the index version is newer than the bundled contract version",
+        "Reports that the plugin should be updated rather than offering any migration",
+        "Never rewrites or downgrades the index",
+        "Leaves the repository unchanged"
+      ]
+    }
+  ]
+}

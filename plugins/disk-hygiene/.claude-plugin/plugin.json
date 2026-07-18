@@ -8,5 +8,21 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["disk", "hygiene", "cleanup", "artifacts", "temporary-files", "audit", "skill"]
+  "keywords": [
+    "disk",
+    "hygiene",
+    "cleanup",
+    "artifacts",
+    "temporary-files",
+    "audit",
+    "skill"
+  ],
+  "userConfig": {
+    "disk_hygiene_enabled": {
+      "type": "boolean",
+      "title": "disk-hygiene execution guard",
+      "description": "Allow the clean skill’s execution tiers; false = audit-only mode",
+      "default": true
+    }
+  }
 }

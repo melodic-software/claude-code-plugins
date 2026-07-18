@@ -3,6 +3,130 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **New `/planning:questionnaire` skill** (user-invoked only): turns a decision another person
+  holds into a Markdown discovery questionnaire delivered async. It interviews the user about the
+  *send* only — recipient's role/expertise/relationship, and what the user needs back — never
+  about the subject the recipient holds, then writes questions aimed at that knowledge gap to the
+  topic's memory slice (default `.work/`; the self-ignoring memory tier keeps recipient names out
+  of git history) and reports the path. Delivery is out-of-band; an optional
+  "awaiting answer" work item goes through the work-item-tracker seam when one is bound and is
+  skipped gracefully otherwise. This is the third routing bucket beside `/planning:interview`'s
+  facts-vs-decisions split (a person-arbitered deferral); the interview-side pull-out reference
+  lands separately. Adapted from Matt Pocock's `to-questionnaire` (no live upstream sync path —
+  re-audit opportunistically). Ships with four evals covering the send-only contract, the
+  never-quiz-the-subject guardrail, self-answerable routing back to `/planning:interview`, and
+  tracker-absent graceful degrade.
+
+### Changed
+
+- Planning README: the interview row's stale "depth-first Q&A" phrasing now says frontier-rounds.
+
+## [0.18.0]
+
+### Changed
+
+- **Frontier-rounds cadence propagated to sibling skills** (`/planning:prd` Step 4, `/planning:design`
+  collaborative stance, `/planning:plan` scope-clarity check and confidence-gate interview
+  round): each asks every settled-prerequisite question as one numbered round with recommendations,
+  dependent questions waiting on their prerequisites — replacing the one-question-at-a-time cadence
+  the interview skill dropped in 0.13.0. `/planning:brainstorm`'s single intake question is
+  intentionally unchanged.
+- Siblings now render a round via `AskUserQuestion` only through the same `use_ask_user_question`
+  user config the interview skill reads (on, and ≤4 independent questions) instead of deciding
+  prose-vs-card inline.
+- The interview-round description in `/planning:plan` is stated once in
+  `context/tag-decisions.md`; the SKILL.md confidence-gate summary no longer duplicates it.
+
+## [0.17.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` records that
+  baselines are checkout-local and `PLAN.md` carries distilled values only;
+  `/planning:plan`'s baseline step no longer directs `PLAN.md` to reference the stored
+  memory-slice capture (pointer discipline — the path is invisible outside the writing checkout).
+- `/planning:wayfind` map-issue Notes carry durable pointers only (PRs, committed docs, prior
+  items, external links); memory-tier artifact content is distilled inline instead of pointed at —
+  tracker issues are durable surfaces under the contract's pointer discipline.
+
+## [0.16.0]
+
+### Added
+
+- **Proactive standards grounding in `/planning:plan`**: Step 2 opens with a "Ground in
+  consumer standards" formulation input that resolves the consumer's standards index through the
+  new `reference/standards-contract.md` binding (synced from the marketplace's standards
+  convention), matches task surfaces against the index's Applies-when clues, selectively loads
+  only non-ambient matched sections, and cites what it loaded in the plan's new "Standards
+  grounding" template element. Grounding depth rides the existing plan-scale table — trivial and
+  small plans skip it. The plan reviewer gains a matching standards-citation axis.
+- **Standards bootstrap in `/planning:setup`**: a second setup concern implements the binding's
+  normative Setup-and-migration section — idempotent index bootstrap with a conforming-index
+  short-circuit, row-path validation, directional version-delta migration, and a setup-owned
+  `<standards_dir>/.gitignore` for personal overlays. The ignore-file prohibition is scoped
+  accordingly: setup never edits an ignore file it did not itself create.
+- **Tripwire test** `tests/standards-binding.test.sh` guards the load-bearing grounding markers
+  (heading placement, binding references, ladder-pointer discipline) against future prose edits.
+
+## [0.15.0]
+
+### Changed
+
+- **BREAKING: `/planning:domain-modeling` moved out of this plugin** — it now lives in the new
+  `domain-driven-design` plugin as `/domain-driven-design:ubiquitous-language`. The skill maintains
+  vocabulary only and explicitly refuses bounded-context discovery, so "domain-modeling"
+  over-promised; the concern is DDD language stewardship, not planning-stage task shaping. Invokers
+  of `/planning:domain-modeling` must switch to the new command.
+- **Declared a dependency on `domain-driven-design`**, so installing `planning` auto-installs the
+  glossary steward and the pipeline's inline vocabulary updates (`interview`, `design`) keep working
+  cross-plugin.
+
+## [0.14.0]
+
+### Changed
+
+- **BREAKING: `/planning:architect` is renamed `/planning:plan`** (skill directory, frontmatter
+  `name`, and every in-repo reference). The `architect` name was a pre-migration shadow-compromise:
+  before plugins, a flat local skill named `plan` would have collided with surfaces already using
+  that word, so the skill shipped under `architect`. Plugin namespacing removed that constraint —
+  `/planning:plan` is unambiguous and says what the skill produces. Claude Code's built-in `/plan`
+  (the plan-mode toggle) is unaffected: plugin skills have no bare command form, so the full
+  invocation is always `/planning:plan`. Consumers invoking `/planning:architect` must switch to
+  `/planning:plan`; no `renames`-map entry is provided (clean break while the marketplace settles).
+  "architect this" remains a trigger phrase in the skill description.
+
+## [0.13.0]
+
+### Changed
+
+- **`/planning:interview` asks in frontier rounds instead of one question at a time** (behavioral
+  change): each round asks every question whose prerequisites are settled as one numbered set, each
+  with a recommendation; the answers recompute the frontier, and dependent questions wait for the
+  round after their prerequisite resolves. A frontier of one question degenerates to the previous
+  behavior. Partial replies resolve only what was answered — unanswered questions re-surface next
+  round, and accept-shorthands ("accept all recommendations", "yes to Q5–Q7") are honored. Adapted
+  from Matt Pocock's batch-grill-me rounds model.
+- The `me`-mode canonical framing now splits facts from decisions: facts are resolved from the
+  environment (with non-blocking sub-agent dispatch for slow lookups — only downstream questions
+  wait), and decisions always go to the user; the blanket "explore the environment instead of
+  asking" clause is gone.
+- The stop condition gains an explicit confirmation gate for `me`/`auto`: an empty frontier is not
+  sufficient — the user confirms the restated shared understanding before the contract persists.
+  `lock` is exempt (invoking it is the confirmation).
+
+### Added
+
+- `use_ask_user_question` user config (boolean, default `false`): opt in to rendering a round of
+  up to 4 independent questions through the `AskUserQuestion` tool; inline prose stays the default
+  and remains the fallback for larger or dependency-carrying rounds.
+- Question-budget guidance: upstream artifacts (research, exploration, PRD, design) count as
+  settled prerequisites, and a ballooning frontier routes to `/planning:wayfind` instead of a
+  marathon session. No numeric question cap.
+
 ## [0.12.0]
 
 ### Changed

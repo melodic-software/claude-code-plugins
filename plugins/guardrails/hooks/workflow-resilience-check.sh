@@ -9,7 +9,7 @@
 # fan-out trips server-side 529 (a 27-item Opus pipeline lost 22/27 agents this
 # way). Closes the inline-authoring gap that no file glob can reach.
 #
-# Kill switch: HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED=false
+# Kill switch: workflow_resilience_check_enabled userConfig option
 
 set -uo pipefail
 

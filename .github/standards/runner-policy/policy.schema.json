@@ -16,6 +16,7 @@
     "approvedHostedRunnerLabels",
     "hostedMatrixExpressions",
     "governedReusableRunnerInput",
+    "fallbackLabelAllowlist",
     "forbiddenHostedRunnerLabels",
     "managedLabelPatterns",
     "hostedExceptionReasons",
@@ -72,6 +73,7 @@
         "failureSentinel": { "const": "ci-runner-selection-failed" }
       }
     },
+    "fallbackLabelAllowlist": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "forbiddenHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "managedLabelPatterns": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "hostedExceptionReasons": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },

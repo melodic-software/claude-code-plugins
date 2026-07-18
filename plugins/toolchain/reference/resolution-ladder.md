@@ -1,6 +1,6 @@
 # Ecosystem command resolution ladder
 
-How `/toolchain:build` and `/toolchain:lint` resolve the per-ecosystem build/test/lint
+How `/toolchain:check` and `/toolchain:lint` resolve the per-ecosystem build/test/lint
 command surface. Both skills read this one document; neither bakes its own table.
 
 Implements the ecosystem-commands contract "Resolution ladder (plugin behavior)":

@@ -31,7 +31,7 @@ history; grouping lives in marketplace metadata.
 | D10 | `claude-ops` unchanged as plugin; skills deprefixed: `claude-code-changelog` → `changelog`, `claude-observability` → `observability`, `claude-troubleshooting` → `troubleshoot`. |
 | D11 | `mcp-tool-audit` → `mcp-tools`, skill → `audit` (verified generic-MCP, standalone domain). |
 | D12 | `codebase-audit` → `codebase-health`, skill → `audit`. |
-| D13 | `implementation` splits four ways: `toolchain` (`build`, `lint`, `setup`), `testing` (`plan`, `write`, `e2e`, `diagnose` — was test-*), `verification` (`confirm` — was verify-changes, `measure` — was verify-improvement), `implementation` (`implement`, `implement-dispatch`). Mechanism moves, obligation stays: implement builds via `/toolchain:build` seam; cross-plugin references presence-gated. |
+| D13 | `implementation` splits four ways: `toolchain` (`build` — since renamed `check`, `lint`, `setup`), `testing` (`plan`, `write`, `e2e`, `diagnose` — was test-*), `verification` (`confirm` — was verify-changes, `measure` — was verify-improvement), `implementation` (`implement`, `implement-dispatch`). Mechanism moves, obligation stays: implement builds via `/toolchain:check` seam; cross-plugin references presence-gated. |
 | D14 | `tdd` stays standalone; skill → `principles`. |
 | D15 | `work-items` skill splits five ways: `track` (add/start/done/list/stats/search/due/recheck/audit), `triage`, `work`, `decompose`, `scan`. |
 | D16 | `context7`: skill → `lookup` + new `setup` (absorbs configure, `disable-model-invocation: true`); `update` stays inline maintainer action. |
@@ -40,7 +40,7 @@ history; grouping lives in marketplace metadata.
 | D19 | Unchanged with grounds: guardrails whole (per-guard `HOOK_<NAME>_ENABLED` toggles exist), firecrawl one skill, `youtube` stays in knowledge, all shadow-dodge names kept on merit, hook-only formatter plugins stay separate, `event-storming`/`prototype`/`session-flow`/`miro`/`repo-hygiene`/`knowledge`/`discovery`/`planning`/`source-control`/`songwriting`/`docs-hygiene`(rest) unchanged. |
 | D20 | Base-concept-first naming for skill families; natural order for standalone names. |
 | D21 | Every upstream-sourced plugin carries an update/drift-check path. |
-| D22 | Category vocabulary (15, noun/gerund form): discovery, design, development, testing, verification, quality, maintenance, deployment(deferred), claude-code, security, workflow, project-management, operations, learning, music, personal. Lifecycle-primary + subject catch-all; activity/subject tiebreak (subject wins when it's the salient trait). Assignments: discovery{discovery,context7,firecrawl,knowledge}; design{planning,architecture,prototype,event-storming,miro}; development{implementation,toolchain,source-control,markdown-formatter,bash-lint,biome-format,ruff-format,powershell-format,actionlint,eol-normalizer}; testing{testing,playwright,tdd}; verification{verification}; quality{review,codebase-health,mcp-tools}; maintenance{debugging,bug-report,code-tidying,repo-hygiene,docs-hygiene}; claude-code{claude-config,claude-memory,claude-ops,desktop-notification,playbooks,skill-quality}; security{guardrails}; workflow{session-flow}; project-management{work-items}; operations{machine-health}; learning{education}; music{songwriting}; personal{kindle-dedrm,ai-briefing}. `category` normalized to these; fine-grained old values migrate to `tags`. |
+| D22 | Category vocabulary (15, noun/gerund form): discovery, design, development, testing, verification, quality, maintenance, deployment(deferred), claude-code, security, workflow, project-management, operations, learning, music, personal. Lifecycle-primary + subject catch-all; activity/subject tiebreak (subject wins when it's the salient trait). Assignments: discovery{discovery,context7,firecrawl,knowledge}; design{planning,architecture,prototype,event-storming,miro}; development{implementation,toolchain,source-control,markdown-format,bash-format,biome-format,ruff-format,powershell-format,actionlint,eol-normalizer}; testing{testing,playwright,tdd}; verification{verification}; quality{review,codebase-health,mcp-tools}; maintenance{debugging,bug-report,code-tidying,repo-hygiene,docs-hygiene}; claude-code{claude-config,claude-memory,claude-ops,desktop-notification,playbooks,skill-quality}; security{guardrails}; workflow{session-flow}; project-management{work-items}; operations{machine-health}; learning{education}; music{songwriting}; personal{kindle-dedrm,ai-briefing}. `category` normalized to these; fine-grained old values migrate to `tags`. |
 | D23 | Catalog presentation: grouped README section **generated** from marketplace.json (category+order) + plugin.json (description), between markers, **CI-enforced in-sync**. Retires the existing hand-maintained flat catalog + its description duplication. Build-tooling sub-task (generator + CI gate). |
 | D24 | Category vocabulary defined in one owner doc **`docs/CATALOG-TAXONOMY.md`** (15 categories + glosses, noun-form rule, lifecycle-primary/subject principle, singleton governance, category-level triggers, generation contract). marketplace.json conforms; consumers cite, never restate. Plugin-specific deferrals stay in their plugin docs. |
 
@@ -81,9 +81,9 @@ history; grouping lives in marketplace metadata.
 
 ### Deferred questions
 
-- Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/architect`.
+- Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/planning:plan`.
 - session-flow category label `workflow` — judgment call (no marketplace precedent); revisit if a stronger authoritative label emerges.
 
 ## Plan
 
-(unfilled — /architect)
+(unfilled — /planning:plan)

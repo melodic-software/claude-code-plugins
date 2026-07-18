@@ -9,7 +9,7 @@
 #      HOOK_TELEMETRY_SINK (the shared, generic seam).
 #
 # NON-BLOCKING: exit 0 always. Captures the skill name only — no argument body.
-# Kill switch: HOOK_SKILL_USAGE_AUDIT_ENABLED=false.
+# Kill switch: CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED=false.
 
 set -uo pipefail
 

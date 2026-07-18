@@ -1,6 +1,6 @@
 # Non-UI Live Testing Playbook
 
-Per-surface mapping of change-type → smoke-test invocation for non-UI code. Complements `e2e.md` (browser-driven UI evidence). Cites `/toolchain:build` for command shapes — never restates, never drifts.
+Per-surface mapping of change-type → smoke-test invocation for non-UI code. Complements `e2e.md` (browser-driven UI evidence). Cites `/toolchain:check` for command shapes — never restates, never drifts.
 
 Load on-demand when `/testing:e2e` is invoked for non-UI changes. UI changes route to `e2e.md`.
 
@@ -14,7 +14,7 @@ UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) MUST route to `
 
 ## Per-surface table
 
-Invocation commands come from `/toolchain:build`; framework, project-naming, and fixture detail come from the consuming project's testing conventions.
+Invocation commands come from `/toolchain:check`; framework, project-naming, and fixture detail come from the consuming project's testing conventions.
 
 | # | Surface class | Live-test pattern | Known gaps |
 |---|---------------|-------------------|------------|
@@ -22,7 +22,7 @@ Invocation commands come from `/toolchain:build`; framework, project-naming, and
 | 2 | API app (in-process) | The ecosystem's HTTP-test harness (e.g. WebApplicationFactory); shared-state fixture pattern when a process-global singleton forces it | Browser evidence handled via `e2e.md` when UI surfaces ship |
 | 3 | E2E orchestrator (e.g. Aspire AppHost) | Orchestrator boots in-process via its testing builder; assert resource health + endpoints | None |
 | 4 | Architecture rules | Run the project's architecture-test suite when touching project files or build infrastructure | None |
-| 5 | Hooks + shell scripts | The project's shell-test convention (`*.test.sh` siblings, bats) via its documented runner | Cross-platform — Git Bash only on Windows; tests may pass locally and fail in CI (see `/toolchain:build` bash context "CI-environment caveat") |
+| 5 | Hooks + shell scripts | The project's shell-test convention (`*.test.sh` siblings, bats) via its documented runner | Cross-platform — Git Bash only on Windows; tests may pass locally and fail in CI (see `/toolchain:check` bash context "CI-environment caveat") |
 | 6 | MCP server (per-runtime unit tests) | Unit-level coverage of tool handlers + transport plumbing | No protocol-level smoke test — see MCP stdio handshake pattern below |
 | 7 | MCP server stdio handshake | See "MCP stdio handshake" section below | No upstream harness; replace bespoke recipe if an official one ships |
 | 8 | Python infrastructure / scripts | pytest (via `uv run` in uv-managed projects); standard fixtures | None |
@@ -83,6 +83,6 @@ Wire as `*.handshake.test.<ext>` next to existing unit tests; runner inherits th
 ## Cross-references
 
 - `e2e.md` — UI surface; mandatory evidence artifacts (snapshot / screenshot / console / network / assertion)
-- `/toolchain:build` — SSOT for per-ecosystem build/test/lint invocations (per context file)
+- `/toolchain:check` — SSOT for per-ecosystem build/test/lint invocations (per context file)
 - `/verification:confirm outcome` — composes this playbook into outcome reports when changes affect non-UI runtime
 - The consuming project's testing conventions — naming, framework gotchas, test placement

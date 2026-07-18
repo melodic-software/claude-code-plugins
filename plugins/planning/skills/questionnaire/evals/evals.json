@@ -1,0 +1,54 @@
+{
+  "skill_name": "questionnaire",
+  "evals": [
+    {
+      "id": 1,
+      "name": "send-interview-happy-path",
+      "prompt": "/planning:questionnaire database sharding decision — our DBA knows the replication constraints and I don't.",
+      "expected_output": "The skill interviews the user about the send only — who the recipient is (role, expertise, relationship) and what the user needs back — then writes a discovery questionnaire aimed at the recipient/user knowledge gap to the topic's memory slice and reports the path.",
+      "files": [],
+      "expectations": [
+        "Output asks who the questionnaire is going to (role, expertise, relationship) in one exchange",
+        "Output asks what the user needs back (the decisions or facts they cannot resolve alone) in one exchange",
+        "Output writes the questionnaire to the topic's memory slice (default .work/), not the working directory or a tracked path, and reports the path",
+        "Every item the user named as needed-back is covered by a question in the document"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-quizzes-the-subject",
+      "prompt": "/planning:questionnaire compliance sign-off — legal holds the data-retention rules. Ask me whatever you need.",
+      "expected_output": "The skill refuses to interrogate the user about the data-retention rules themselves (the subject legal holds) — its questions to the user stay on the send: who at legal, what relationship, what the user needs to walk away able to decide.",
+      "files": [],
+      "expectations": [
+        "Output does NOT ask the user to answer questions about the subject the recipient holds (the retention rules)",
+        "Output's questions to the user are about the send: recipient, relationship, and what is needed back",
+        "The subject-matter questions appear only inside the questionnaire document, addressed to the recipient"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "routes-self-answerable-to-interview",
+      "prompt": "/planning:questionnaire cache eviction policy — actually I think I know the answer, I just haven't decided.",
+      "expected_output": "The skill recognizes the decision is the user's own to make (no third-party knowledge holder) and routes to /planning:interview instead of producing a questionnaire for nobody.",
+      "files": [],
+      "expectations": [
+        "Output does not produce a questionnaire when no other person holds the knowledge",
+        "Output recommends /planning:interview (or an equivalent decision conversation with the user) instead",
+        "The skill never invents a recipient to justify the artifact"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "tracker-handoff-degrades-gracefully",
+      "prompt": "/planning:questionnaire vendor API limits — our account manager at the vendor knows the real quotas. We don't use any issue tracker here.",
+      "expected_output": "With no work-item tracker bound, the skill still writes the questionnaire to the memory slice and reports the path as the complete deliverable — lifecycle tracking is skipped without error, and nothing is transmitted anywhere.",
+      "files": [],
+      "expectations": [
+        "Output completes with the document written and the path reported despite no tracker being available",
+        "Output does not hardcode a gh/GitHub call to track the questionnaire lifecycle",
+        "Output does not attempt to send or transmit the questionnaire itself; delivery stays with the user"
+      ]
+    }
+  ]
+}

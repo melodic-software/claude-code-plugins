@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "The response presents changelog content and/or a repo-impact analysis without editing any file",
-        "The response does NOT run the apply pipeline (no interview/architect/implement phases executed) on a passive version mention",
+        "The response does NOT run the apply pipeline (no interview/plan/implement phases executed) on a passive version mention",
         "If integration is relevant, the response offers `apply` as an explicit opt-in step rather than starting it automatically"
       ]
     },

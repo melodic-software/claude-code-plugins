@@ -37,7 +37,7 @@ When the action is `auto` (default), insert between Step 1 (Survey) and Step 2 (
 - Trigger observed: "interview me", "I'm not sure", "help me think", "fuzzy"
 - 2+ unstated assumptions visible (scale, users, frequency, untouchable areas)
 
-**Mixed (ask only the residue):** a single load-bearing unknown amid otherwise-clear intent → ask that one question, then synthesize the rest.
+**Mixed (ask only the residue):** one or a few load-bearing unknowns amid otherwise-clear intent → ask them as one residue round, then synthesize the rest.
 
 When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* — never fudge.
 
@@ -45,19 +45,19 @@ When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true ga
 
 ## Step 2 — Drive the decision tree
 
-The decision space is a TREE, not a flat list. Decisions have dependencies — resolving one branch can eliminate or unlock entire subtrees. Traverse depth-first: pick a branch, resolve it completely, then backtrack to the next sibling.
+The decision space is a TREE, not a flat list. Decisions have dependencies — resolving one branch can eliminate or unlock entire subtrees. Work the tree in **rounds**: the **frontier** is every decision whose prerequisites are already settled — the questions you can ask *now* without guessing at answers you haven't heard yet. Ask the whole frontier per round; the answers push the frontier outward.
 
-### Per-round loop
+### Frontier rounds
 
 Run rounds until the stop condition is met. Each round:
 
 1. **Restate the working understanding** in two or three sentences — what is decided, what branches remain open
-2. **Pick the most load-bearing BRANCH** — not just the highest-priority item, but the decision that blocks the most downstream decisions. Resolving "single-tenant vs multi-tenant" prunes entire subtrees (tenant isolation, data partitioning, tenant-scoped auth)
-3. **Codebase gate** — before asking, check if code already answers the question (Grep, Read, Glob). If it does, STATE the finding and skip to the next question. Don't ask what code can tell you
-4. **Ask ONE question with a recommended answer** — if the codebase gate didn't resolve it, ground the recommendation in observed codebase state. When no code signal exists, recommend based on conventions and state the basis
-5. **Capture the answer** in the working draft of the Brief (in your head or a scratch buffer, NOT on disk yet)
-6. **Prune the tree** — what branches did this answer eliminate? What new branches opened? What's the next blocking decision?
-7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/planning:domain-modeling` for the inline vocabulary update — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+2. **Compute the frontier** — every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
+3. **Codebase gate per frontier question** — check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait — the rest of the frontier is asked this round
+4. **Ask the frontier as one numbered set** — each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius — the answer that would change the most downstream work goes first
+5. **Capture the answers** in the working draft of the Brief (in your head or a scratch buffer, NOT on disk yet). Partial replies are normal: resolve what was answered, keep the rest OPEN — never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5–Q7")
+6. **Recompute the tree** — what subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
+7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:ubiquitous-language` for the inline vocabulary update — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
 ### Decision dependencies
 
@@ -93,13 +93,13 @@ Targets that catch the most rework downstream:
 
 ## Relentless `me` mode mechanics
 
-`me` mode (SKILL.md Stance "Relentless mode") drives every consequential branch to a decision, inline, one question at a time. The mechanics below specialize the per-round loop above.
+`me` mode (SKILL.md Stance "Relentless mode") drives every consequential branch to a decision, inline, in frontier rounds. The mechanics below specialize the rounds loop above.
 
-### Inline question format
+### Inline round format
 
-ONE question per turn, prose, NOT `AskUserQuestion`. **Template: SKILL.md Stance "Relentless mode"** — single source; not duplicated here.
+Each round is one numbered set in prose (surface rules: SKILL.md "Question surface"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** — single source; not duplicated here.
 
-`Q<N>` is a running counter across the session (Q1, Q2, … — visible depth). Wait for the answer before the next question. The closing probe is load-bearing: it invites the user to surface a hidden constraint that would flip the recommendation. Most answers come back as a one-tap "correct" — that is the format working, not under-questioning.
+`Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two — visible depth). Wait for the round's answers before computing the next round. The closing probe is load-bearing: it invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended" — that is the format working, not under-questioning.
 
 ### Dialogue + recommendation revision
 
@@ -127,27 +127,27 @@ Maintain a live ledger of branches as checkboxes in `<memory_dir>/<topic-slug>/i
 - [ ] moderation (blocked by: admin-role scope)
 ```
 
-Tick on resolve. Surface the open set periodically (every few questions, or on request) — not every turn, which would clutter the one-question flow. Loop until zero open *consequential* branches. No question cap.
+Tick on resolve. Surface the open set periodically (every few questions, or on request) — not every turn, which would clutter the round flow. Loop until zero open *consequential* branches. No question cap.
 
 ### Incremental persistence + branch-out
 
 - **Persist per lock-in.** The moment a branch resolves, write the answer to its ledger checkbox + the relevant Brief section. Overrides the per-round loop's "NOT on disk yet" — that applies to `auto`/`lock`, not `me`. Resolved branches must survive a crash / context clear / overflow.
 - **Context-pressure flush.** If the conversation is getting heavy, force-flush the ledger + partial Brief to disk and offer a handoff (`/session-flow:handoff` if installed, otherwise a resume note) before continuing.
-- **Branch out to ground a recommendation.** If a question needs more than the lightweight codebase gate — external best-practice, library API surface, deeper exploration — pause, run the research/exploration capability (or do the lookup inline), then return with a recommendation grounded in code read this session or an official source fetched this session. Never recommend a load-bearing technical choice from training recall.
+- **Branch out to ground a recommendation — without blocking the round.** If a question needs more than the lightweight codebase gate — external best-practice, library API surface, deeper exploration — dispatch the lookup to a sub-agent (or do it inline when fast) and treat the running lookup as an unsettled prerequisite: its downstream questions move to a later round while the rest of the frontier is asked now. When the result lands, the unblocked questions join the next round's frontier, grounded in code read this session or an official source fetched this session. Never recommend a load-bearing technical choice from training recall.
 - **Handoff for long sessions.** If branches outgrow one session, hand off (save-point + resume prompt) → clear → resume from the first open ledger checkbox.
 
 ## Step 3 — Recognize the stop condition
 
 Stop when ALL hold:
 
-- Every load-bearing unknown is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
+- The frontier is empty: every load-bearing unknown is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
 - The user can describe the goal in one paragraph without contradicting the constraints or acceptance criteria
 - Acceptance criteria are testable — each points at a check, observation, or measurement
-- The user signals readiness ("good, write it", "that's the task", or simply stops adding)
+- **Confirmation gate** (`me` and `auto`): the shared understanding is restated and the user explicitly confirms it — do not persist the contract or hand off on an empty frontier alone. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)
 
 Do NOT stop early because the user gets impatient. If a real load-bearing unknown remains, name it ("one open item: X — willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition — that is its own anti-pattern.
 
-**`me` mode:** the stop condition is an empty decision-tree ledger (every consequential branch decided) plus user readiness — never a question count.
+**`me` mode:** the stop condition is an empty decision-tree ledger (every consequential branch decided) plus the confirmation gate — never a question count.
 
 ## Step 4 — Section guidance for the Brief
 
@@ -171,7 +171,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
-**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/devils-advocate` and `/architect` can attack it later.
+**Captured assumptions** — what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The load-bearing innovation: what would otherwise be silent becomes explicit, and `/devils-advocate` and `/planning:plan` can attack it later.
 
 **Out-of-scope** — things raised during the interview and explicitly excluded. Distinct from non-goals (constraints up-front); these surfaced in conversation.
 
@@ -179,7 +179,7 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
 ### Brief template (the literal shape)
 
-Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/architect`.
+Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; the topic's contract slice, joining the memory slice under `contract_tier: local`). `/interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
 
 ```markdown
 ## Brief
@@ -203,10 +203,10 @@ Write this into `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; t
 - <thing the user raised and explicitly excluded>
 
 ### Deferred questions
-- <question> — defer until <when>; **arbiter: /architect** (default — /architect resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /architect approval gate; /architect proposes, user resolves)
+- <question> — defer until <when>; **arbiter: /planning:plan** (default — /planning:plan resolves unilaterally during planning) OR **arbiter: USER-RESERVED** (user must re-confirm at /planning:plan approval gate; /planning:plan proposes, user resolves)
 
 ## Plan
-<empty — populated by /architect>
+<empty — populated by /planning:plan>
 ```
 
-**Arbiter tag is load-bearing.** Default `/architect` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/architect` surface it at approval time.
+**Arbiter tag is load-bearing.** Default `/planning:plan` is fine for execution-shape decisions (orchestration shape, agent rosters, phase nesting) within already-approved scope. Use `USER-RESERVED` for any deferred question whose resolution could change the brief's acceptance criteria, out-of-scope list, or constraints. When in doubt, mark `USER-RESERVED` and let `/planning:plan` surface it at approval time.

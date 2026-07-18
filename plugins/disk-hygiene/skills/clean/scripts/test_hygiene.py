@@ -948,7 +948,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.dict(
-                "os.environ", {"HOOK_DISK_HYGIENE_ENABLED": "true"}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -961,7 +961,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.dict(
-                "os.environ", {"HOOK_DISK_HYGIENE_ENABLED": "false"}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -1150,7 +1150,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.dict(
-                "os.environ", {"HOOK_DISK_HYGIENE_ENABLED": "true"}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -1193,7 +1193,7 @@ class GuardTests(unittest.TestCase):
                 for key, value in os.environ.items()
                 if key != "CLAUDE_PLUGIN_DATA"
             }
-            environment["HOOK_DISK_HYGIENE_ENABLED"] = "true"
+            environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
             stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
             stdout = io.StringIO()
             with (

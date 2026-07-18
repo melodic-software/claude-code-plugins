@@ -33,8 +33,8 @@ Run the `/implementation:implement` "Step 1: Prerequisite Check" preflight first
 1. **Compose the brief** — an explicit scope fence (ALLOWED files/actions and FORBIDDEN files/actions, enumerated), a divergence-escalation clause (verbatim in every brief: "if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report — do not improvise"), the project invariants the task touches (from the consuming project's `CLAUDE.md` / rules), the phase's acceptance criteria, and any model routing the plan specifies
 2. **Dispatch** the worker
 3. **Verify the return against direct evidence before accepting edits** — worker returns are synthesis, not ground truth; promote their claims to direct evidence (diff read, grep, file Read) before building on them
-4. **Build/test main-side** — invoke `/toolchain:build` from the main window when the `toolchain` plugin is installed, otherwise run the project's own build/test command main-side; never accept a worker's green claim as the build signal
-5. **Route worker divergence reports into `/implementation:implement` "Step 3: Divergence Detection"** — a worker STOPping per the divergence-escalation clause is a divergence signal, severity-assessed the same way; the orchestrator revises the brief or routes back to the planning skill (`/planning:architect review` when installed)
+4. **Build/test main-side** — invoke `/toolchain:check` from the main window when the `toolchain` plugin is installed, otherwise run the project's own build/test command main-side; never accept a worker's green claim as the build signal
+5. **Route worker divergence reports into `/implementation:implement` "Step 3: Divergence Detection"** — a worker STOPping per the divergence-escalation clause is a divergence signal, severity-assessed the same way; the orchestrator revises the brief or routes back to the planning skill (`/planning:plan review` when installed)
 
 ## Divergence in non-interactive runs
 
@@ -62,8 +62,8 @@ Any criterion fails → clear + resume from the emitted prompt. **The phase-boun
 |-----------|--------|
 | Phase is inline-routed (main-window), interactive mode | Hand back to `/implementation:implement` classic cadence |
 | Phase is inline-routed or routing table absent, autonomous mode | Synthesize a worker row and dispatch — the orchestrator never does volume edits |
-| Worker divergence report | Severity-assess per `/implementation:implement` "Step 3: Divergence Detection"; Major → the planning skill (`/planning:architect review` when installed) |
-| Every worker return | Verify against direct evidence, then `/toolchain:build` main-side (when the `toolchain` plugin is installed; else the project's own build) |
+| Worker divergence report | Severity-assess per `/implementation:implement` "Step 3: Divergence Detection"; Major → the planning skill (`/planning:plan review` when installed) |
+| Every worker return | Verify against direct evidence, then `/toolchain:check` main-side (when the `toolchain` plugin is installed; else the project's own build) |
 | Phase sanity check passes | `/implementation:implement` "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it — see Phase boundaries) |
 | All phases complete | `/implementation:implement` "Step 5: Completion and Handoff" |
 
@@ -71,11 +71,11 @@ Any criterion fails → clear + resume from the emitted prompt. **The phase-boun
 
 - **Does not edit inline** — inline execution cadence, commit discipline, and mode context files (feature/bugfix/refactor) are `/implementation:implement`'s
 - **Does not create or revise plans** — a planning pass produces plans; this skill executes routing tables
-- **Does not replace `/toolchain:build`** — the `toolchain` plugin's build skill (when installed) is the SSOT; this skill invokes it main-side at the right moments, falling back to the project's own build command when that plugin is absent
+- **Does not replace `/toolchain:check`** — the `toolchain` plugin's check skill (when installed) is the SSOT; this skill invokes it main-side at the right moments, falling back to the project's own build command when that plugin is absent
 
 ## Gotchas
 
-- **Never accept a worker's green claim as the build signal.** Workers report synthesis; the main window runs `/toolchain:build` (or the project's own build when the `toolchain` plugin is absent) itself after every accepted return
+- **Never accept a worker's green claim as the build signal.** Workers report synthesis; the main window runs `/toolchain:check` (or the project's own build when the `toolchain` plugin is absent) itself after every accepted return
 - **A worker STOP is a divergence signal, not a failure.** Route it through the `/implementation:implement` Step 3 severity ladder; revising the brief is the cheap fix, a plan review the escalation
 - **Surface subagent results before ending the turn.** Results left unsurfaced at turn end are lost to the user
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary — classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them

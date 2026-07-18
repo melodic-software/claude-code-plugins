@@ -1,6 +1,6 @@
 # Topic-docs concern file — what `/toolchain:setup` offers
 
-This plugin's skills (`/toolchain:build`, `/toolchain:lint`, `/toolchain:setup`) write no lifecycle
+This plugin's skills (`/toolchain:check`, `/toolchain:lint`, `/toolchain:setup`) write no lifecycle
 documents of their own. `/toolchain:setup` reads this binding to offer the consuming repo the tracked
 `.claude/topic-docs.yaml` concern file — the shared, consumer-side source of truth that companion
 lifecycle plugins resolve for artifact placement.
@@ -19,6 +19,11 @@ only the keys that differ from the documented defaults (always at least one expl
 YAML document parses as null and fails the contract schema's `type: object`), runs the `git check-ignore`
 conflict check on the chosen contract root when the tier is `branch`, and never edits the consumer's root
 `.gitignore`.
+
+The contract's visibility mechanisms (≥ 2.0.0 — committed worktree base setting,
+`.worktreeinclude`) are consumer-repo root materializations outside the concern file's schema;
+`/toolchain:setup` does not write them today (a setup-skill apply action is the contract's recorded
+follow-on).
 
 ## Where the artifacts land (owned by the companion plugins)
 

@@ -24,14 +24,14 @@ Arguments: `$ARGUMENTS`
 
 Some efforts are **too big to hold at once AND too foggy to ticket** — you can't yet
 phrase half the questions, let alone answer them. `/interview` needs a coherent task;
-`/architect` needs a coherent plan; both presuppose you already know what you're deciding.
+`/planning:plan` needs a coherent plan; both presuppose you already know what you're deciding.
 `/wayfind` sits **upstream of all of them**: it turns a too-big-foggy effort into a shared
 **decision map** on the work-item tracker, then works that map's frontier one decision at a
 time until the fog burns off and a real destination (Brief / PRD / PLAN) can be handed onward.
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
-is coherent, the map closes and the normal pipeline (`/interview → /design → /architect →
+is coherent, the map closes and the normal pipeline (`/interview → /design → /planning:plan →
 /implement`) takes over. Fog-of-war framing adapted from Matt Pocock's wayfinder — this skill
 diverges by persisting the map as native tracker primitives, routing each decision to a
 first-party skill, and keeping execution artifacts in `<memory_dir>/<slug>/` (default
@@ -81,7 +81,9 @@ an interactive session — do not fabricate a map.
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
    ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
-   fog clears) / **Notes** (pointers to memory-tier `<memory_dir>/` artifacts, research, prior context) /
+   fog clears) / **Notes** (durable pointers only — PRs, committed docs, prior items, external links;
+   memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline
+   instead of pointing at paths other readers cannot resolve) /
    **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's
    resolution comment, never recopied here) / **Not-yet-specified** (fog, prose) /
    **Out-of-scope**. Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
@@ -123,13 +125,13 @@ an interactive session — do not fabricate a map.
    sharpened previously-foggy uncertainty, chart the new sharp items now.
 6. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
-   onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:architect`
+   onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`
    for a PLAN). A map's job ends where the pipeline's begins.
 
 ## Escalation — pull the user back to charting at choke points
 
 `/wayfind`'s description carries the proactive trigger. The sibling skills carry **pull-back
-lines**: when `/interview`, `/architect`, or `/implement` hits a task that is clearly
+lines**: when `/interview`, `/planning:plan`, or `/implement` hits a task that is clearly
 too-big-AND-foggy for their stage, they name `/planning:wayfind` as the better entry —
 **guiding the user, never auto-switching**. Wording lives in each of those skills; this skill
 owns the trigger's meaning (too-big + fog, both, not either alone).
@@ -144,7 +146,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
 | Feasibility / UX unknown | `/prototype:logic`, `/prototype:ui` | `prototype`-typed items route here |
 | External-evidence item | `/discovery:research` | `research`-typed items route here (autonomous) |
-| The plan itself | `/planning:architect` | Graduation target when the destination is a PLAN |
+| The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 
 ## What this skill does NOT do
 

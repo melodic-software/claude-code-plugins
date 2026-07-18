@@ -64,7 +64,7 @@ One command that guarantees, on any machine and from any directory, that the plu
 
 - **Does `plugin update -s project` avoid writing the repo's committed `.claude/settings.json`?** — RESOLVED, see Open questions VERIFIED line 1: hash-verified no write. Decision 4 stands, no re-approval needed.
 - **Is `/reload-plugins --force` required after sync, or is plain `/reload-plugins` sufficient?** — RESOLVED, see Open questions VERIFIED line 2: no `--force` flag exists; report recommends bare `/reload-plugins`.
-- **`all`-marketplaces argument interaction with third-party marketplaces lacking renames maps / non-git sources** — RESOLVED by /architect: graceful degradation — `marketplace update` handles every source type; a marketplace without a `renames` map simply has no rename residue; failures per-marketplace are reported and do not abort the sweep.
+- **`all`-marketplaces argument interaction with third-party marketplaces lacking renames maps / non-git sources** — RESOLVED by /planning:plan: graceful degradation — `marketplace update` handles every source type; a marketplace without a `renames` map simply has no rename residue; failures per-marketplace are reported and do not abort the sweep.
 
 ## Plan
 

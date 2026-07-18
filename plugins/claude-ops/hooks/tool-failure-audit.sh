@@ -8,7 +8,7 @@
 #   other      → tool_name only
 # Full command strings, error messages, file paths, and stdin are NEVER captured.
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
-# Kill switch: HOOK_TOOL_FAILURE_AUDIT_ENABLED=false.
+# Kill switch: CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED=false.
 
 set -uo pipefail
 

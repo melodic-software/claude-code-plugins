@@ -37,3 +37,10 @@ sanctioned lane and the guard's protections did not cover the platform's primary
 
 - Generated-state error messages name the `--data-root`/`CLAUDE_PLUGIN_DATA` pair instead of the
   environment variable alone.
+- **Execution kill switch migrated to native `userConfig`** (the fleet-wide kill-switch
+  doctrine ruling): the `disk_hygiene_enabled` boolean (default `true`) now gates the clean
+  skill's execution tiers, read by the skill-scoped guard through the native
+  `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` hook-process mirror. Configure with
+  `/plugin configure disk-hygiene` or `claude plugin install --config`.
+- **BREAKING:** the `HOOK_DISK_HYGIENE_ENABLED` environment variable is retired and no
+  longer read. Zero-config behavior is unchanged (execution allowed).

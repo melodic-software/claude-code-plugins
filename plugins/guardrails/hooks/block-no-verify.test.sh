@@ -177,7 +177,7 @@ run "git push (no env-var, allowed)" "git push" 0
 
 # --- Kill switch — disabled path is a clean no-op even on a bypass -----------
 run "kill switch off → no-op despite --no-verify" "git commit --no-verify -m test" 0 \
-  HOOK_BLOCK_NO_VERIFY_ENABLED=false
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false
 
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
 TEL="$(mktemp -p "$TEST_TMPDIR")"

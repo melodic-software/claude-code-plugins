@@ -5,7 +5,7 @@
       "id": 1,
       "name": "library-design-collaborative-artifacts",
       "prompt": "/planning:design library — I'm building a small result/error-handling library and want to figure out the types, contracts, and package topology before planning.",
-      "expected_output": "The skill decomposes the problem space, opens design threads with tracked resolution status, and builds design artifacts (capability-matrix, type-inventory, design-threads, topology) incrementally through collaborative discussion — one question at a time — rather than autonomously deciding the design.",
+      "expected_output": "The skill decomposes the problem space, opens design threads with tracked resolution status, and builds design artifacts (capability-matrix, type-inventory, design-threads, topology) incrementally through collaborative discussion — asking in frontier rounds, dependent threads waiting on their prerequisites — rather than autonomously deciding the design.",
       "files": [],
       "expectations": [
         "Output explores the design collaboratively, asking the user rather than unilaterally deciding the types/boundaries",
@@ -17,11 +17,11 @@
       "id": 2,
       "name": "never-autonomously-decides-design",
       "prompt": "/planning:design module for a new Notifications module — just design the whole thing for me and pick all the types and boundaries yourself.",
-      "expected_output": "The skill declines to autonomously finalize the design; it surfaces the decisions one at a time with recommendations marked (RECOMMENDED) and their basis, and drives resolution through the user rather than deciding alone.",
+      "expected_output": "The skill declines to autonomously finalize the design; it surfaces the open decisions as numbered rounds with recommendations marked (RECOMMENDED) and their basis, and drives resolution through the user rather than deciding alone.",
       "files": [],
       "expectations": [
         "Output does NOT autonomously decide the full design without user input",
-        "Output surfaces design decisions one at a time with a recommendation marked (RECOMMENDED) and a basis",
+        "Output surfaces design decisions in numbered rounds, each with a recommendation marked (RECOMMENDED) and a basis",
         "Output leaves the resolution of each thread to the user's confirmation"
       ]
     },
@@ -29,49 +29,49 @@
       "id": 3,
       "name": "early-exit-writes-resolution-artifact",
       "prompt": "/planning:design this is a single-file bug fix in paginate.js — there's no real design work here.",
-      "expected_output": "The skill takes the early-exit path and writes design-resolution.md with outcome: early-exit, tier C, and a one-line reason — so /architect's prerequisite check can verify the gate from the artifact — then points onward to /architect.",
+      "expected_output": "The skill takes the early-exit path and writes design-resolution.md with outcome: early-exit, tier C, and a one-line reason — so /planning:plan's prerequisite check can verify the gate from the artifact — then points onward to /planning:plan.",
       "files": [],
       "expectations": [
         "Output treats this as an early-exit (diagnostic, not failure) rather than forcing full design exploration",
         "Output writes a design-resolution.md artifact recording outcome: early-exit, a tier, and a reason",
-        "Output routes onward to /architect after the early-exit"
+        "Output routes onward to /planning:plan after the early-exit"
       ]
     },
     {
       "id": 4,
       "name": "handoff-delegates-to-gate",
-      "prompt": "/planning:design handoff — I think the design threads are all resolved, hand it off to architect.",
+      "prompt": "/planning:design handoff — I think the design threads are all resolved, hand it off to the plan skill.",
       "expected_output": "The handoff action delegates to /planning:design-handoff (the single canonical gate) to run the binary check against design-threads.md; the design skill does not apply its own gate criteria inline.",
       "files": [],
       "expectations": [
         "Output delegates the handoff gate to /planning:design-handoff rather than applying gate criteria itself",
         "Output does not invent its own separate pass/fail gate logic",
-        "The handoff is framed as producing an /architect-ready summary sourced from the artifacts"
+        "The handoff is framed as producing a plan-ready summary sourced from the artifacts"
       ]
     },
     {
       "id": 5,
       "name": "does-not-plan-implementation",
       "prompt": "/planning:design system for an event-driven order pipeline — and give me the implementation phases and file-level work items while you're at it.",
-      "expected_output": "The skill produces design artifacts (component map, communication patterns, design threads) but declines to produce implementation phases or file-level work items, deferring that to /architect.",
+      "expected_output": "The skill produces design artifacts (component map, communication patterns, design threads) but declines to produce implementation phases or file-level work items, deferring that to /planning:plan.",
       "files": [],
       "expectations": [
         "Output produces design-level artifacts (components, communication patterns, threads), not an implementation plan",
         "Output does NOT emit implementation phases or file-level work items",
-        "Output defers implementation planning to /architect"
+        "Output defers implementation planning to /planning:plan"
       ]
     },
     {
       "id": 6,
-      "name": "resolved-terms-delegate-to-domain-modeling",
+      "name": "resolved-terms-delegate-to-ubiquitous-language",
       "prompt": "/planning:design terminology — the user just confirmed that Shipment is canonical and Parcel is a rejected synonym. Sync the terminology and continue the design pass.",
-      "expected_output": "Records the terminology decision in the type inventory and invokes /planning:domain-modeling to maintain the consumer glossary, then continues the design workflow. It does not reimplement or prescribe glossary format/location itself.",
+      "expected_output": "Records the terminology decision in the type inventory and invokes /domain-driven-design:ubiquitous-language to maintain the consumer glossary, then continues the design workflow. It does not reimplement or prescribe glossary format/location itself.",
       "files": [],
       "expectations": [
-        "Invokes /planning:domain-modeling for the resolved Shipment vocabulary",
+        "Invokes /domain-driven-design:ubiquitous-language for the resolved Shipment vocabulary",
         "Does not prescribe a glossary filename, path, or duplicate entry format inside the design workflow",
         "Records the terminology decision in the design artifact as well as routing the glossary update",
-        "Continues the design workflow after domain-modeling returns"
+        "Continues the design workflow after ubiquitous-language returns"
       ]
     }
   ]

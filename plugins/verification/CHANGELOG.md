@@ -3,6 +3,28 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **Freshness rider on the bundled `/verify` + `/run` availability claim**
+  (fleet conformance wave). The ≥ 2.1.145 floor is re-verified against the
+  official bundled-skills docs and now carries a verified-date + link.
+
+## [0.2.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states
+  baselines and raw captures are checkout-local, and `/verification:measure` writes distilled
+  values only into `PLAN.md` — never a memory-slice capture path (pointer discipline).
+
+## [0.1.1]
+
+### Changed
+
+- References to the renamed `/toolchain:build` skill now invoke `/toolchain:check` (toolchain 0.2.0 breaking rename). Version bumped so existing installs pick up the rewritten prompts.
+
 ## [0.1.0]
 
 ### Added

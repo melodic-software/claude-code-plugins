@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## 0.7.0 — 2026-07-18
+
+Changed:
+
+- `/docs-hygiene:compress`: `markdownlint-cli2` absence is now classified
+  required-for-correctness — the skill stops at the entry point with an install
+  remediation instead of treating a missing ship gate like a lint failure
+  (prerequisite-visibility wave).
+- README gains a Requirements section declaring the runtime (Bash/git/jq
+  ambient, Git Bash on native Windows), the compress-only `markdownlint-cli2`
+  requirement with its absence behavior, and the optional `caveman` backend.
+
 ## 0.6.0 — 2026-07-17
 
 Changed:
