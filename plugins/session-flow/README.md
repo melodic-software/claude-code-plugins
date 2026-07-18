@@ -156,8 +156,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
 directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
 working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
-committed. Network: `reanchor` queries live host state via `git`/`gh` to verify a session's
-referenced PRs/issues/branches and installed-vs-repo plugin versions, and degrades to reporting
-what it could not verify when that authenticated egress is unavailable; every other skill is
-network-free (the retro transcript parser is stdlib-only Python 3.10+ reading local
-`~/.claude/projects/` transcripts).
+committed. Network: two skills reach the network. `reanchor` queries live host state via `git`/`gh`
+to verify a session's referenced PRs/issues/branches and installed-vs-repo plugin versions, and
+degrades to reporting what it could not verify when that authenticated egress is unavailable.
+`clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
+`git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
+and falling back to direct `git`/`gh` — to make session work durable on the remote. The other five
+skills — workflow, handoff, keep-going, retro, and orchestrate — are network-free (the retro
+transcript parser is stdlib-only Python 3.10+ reading local `~/.claude/projects/` transcripts).

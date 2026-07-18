@@ -33,26 +33,41 @@ PR and issue bodies on the remote.
    clean-stop when a branch is already pushed and its PR already describes the
    work must NOT re-push, open a duplicate PR, or re-file issues — the sweep
    converges on what is missing, not on redoing what is done.
-2. **Durability sweep.** Make the gaps durable. Push unpushed commits; for a
-   branch with coherently committable work, commit it with a real message and
-   push. What is NOT coherently committable — ambiguous work-in-progress, a
-   half-edit, a stash — is not force-committed and not silently dropped:
-   surface it in the verdict as an explicit "not durable, do X before
-   shutdown" item. A bad commit and a lost stash are both worse than a named
-   dangling item.
-3. **Linkage + breadcrumbs.** Every pushed branch gets a PR; every follow-up
-   gets filed as an issue LINKED to that PR; dependencies, remaining tasks,
-   and the context needed to continue live in the PR and issue bodies —
-   never only in a local file. The acceptance bar is a cold agent: someone
-   who finds the PR or issue with no memory of this session should have
-   everything needed to offer to continue. Route the mechanics through
-   whatever pull-request and work-item capabilities are installed; fall back
-   to direct `git` / `gh` when none is present.
+2. **Durability sweep.** Make the gaps durable. Push unpushed commits; for
+   coherently committable work — including a clean, coherent stash — commit
+   it with a real message and push. What is NOT coherently committable —
+   ambiguous work-in-progress, a half-edit, a stash that will not cleanly
+   apply — is not force-committed and not silently dropped: surface it in the
+   verdict as an explicit "not durable, do X before shutdown" item. A bad
+   commit and a lost stash are both worse than a named dangling item.
+3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR
+   or issue body is created or updated, sweep everything outbound — remaining
+   tasks, dependencies, resume context, any pasted terminal output or diffs —
+   for secrets, API keys, tokens, credentials, connection strings, and PII,
+   and replace each hit with a shape marker (`<REDACTED: API key>`), never the
+   value. This scrub is a hard gate: the breadcrumbs land on a remote shared
+   with others and pass no human review first, so nothing outbound is written
+   before it runs. Then link the work: every pushed *non-default* branch gets
+   a PR — a branch that is the repo's default (`main` / `master` / `trunk`, or
+   whatever `git symbolic-ref refs/remotes/origin/HEAD` resolves to) carries
+   no PR and needs none once pushed. Every follow-up gets filed as an issue
+   LINKED to that PR; dependencies, remaining tasks, and the context needed to
+   continue live in the PR and issue bodies — never only in a local file. The
+   acceptance bar is a cold agent: someone who finds the PR or issue with no
+   memory of this session should have everything needed to offer to continue.
+   Route the mechanics through whatever pull-request and work-item
+   capabilities are installed; fall back to direct `git` / `gh` when none is
+   present.
 4. **Local hygiene.** Prune only what is provably safe: branches whose work is
-   fully merged, worktrees with no uncommitted or stashed state, background
-   work that has genuinely finished. Anything still holding unmerged commits,
-   dirty state, or a running job is NOT pruned — it becomes a named item in
-   the verdict.
+   fully merged, worktrees with no uncommitted or stashed state and no
+   irreplaceable ignored files, background work that has genuinely finished. A
+   plain `git status` hides ignored files, but `git worktree remove` deletes
+   them — so before removing a worktree, inspect its ignored content
+   explicitly (`git status --ignored`) and preserve or surface anything not
+   reproducible: a local `.env`, credentials, generated handoff data, or files
+   a bootstrap copied in. Anything still holding unmerged commits, dirty state,
+   irreplaceable ignored files, or a running job is NOT pruned — it becomes a
+   named item in the verdict.
 5. **Free-and-clear verdict.** Close with one of two honest outcomes: "clean
    to shut down — everything durable and linked", or a named list of the
    dangling items that still need a hand, each with the one action that would
@@ -62,21 +77,25 @@ PR and issue bodies on the remote.
 
 - **Make durable without asking.** Pushing a commit, opening a PR for a
   pushed branch, and filing a linked follow-up issue are loss-prevention with
-  low blast radius and are the whole point of the invocation — do them.
-  Idempotency comes from step 1: act on gaps, never re-fire what already
-  landed.
+  low blast radius and are the whole point of the invocation — do them, once
+  the step 3 redaction gate has scrubbed anything outbound. Idempotency comes
+  from step 1: act on gaps, never re-fire what already landed.
 - **GATE destructive hygiene.** Deleting a branch, removing a worktree, or any
   force operation is irreversible — do it only when step 1 PROVED it safe
-  (fully merged, no uncommitted or stashed state). When safety cannot be
+  (fully merged, no uncommitted or stashed state, and — for a worktree — no
+  irreplaceable ignored files a plain status hides). When safety cannot be
   proven, do not prune; name the item in the verdict instead. Losing unmerged
-  work to a tidy-up is the exact failure this skill exists to prevent.
+  work, or the only copy of an ignored `.env`, to a tidy-up is the exact
+  failure this skill exists to prevent.
 
 ## Nothing-dirty case
 
 If the sweep finds everything already durable and linked — nothing
-uncommitted, nothing unpushed, every branch has a PR, no strandable local
-state — say so and give the free-and-clear verdict directly. A clean session
-is a valid, common outcome; do not manufacture work to look thorough.
+uncommitted, nothing unpushed, every non-default branch that carries session
+work has a PR (work committed straight to the default branch is durable once
+pushed and needs none), no strandable local state — say so and give the
+free-and-clear verdict directly. A clean session is a valid, common outcome;
+do not manufacture work to look thorough.
 
 ## What this skill does NOT do
 
