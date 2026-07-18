@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced with the fleet's new prerequisite-visibility
+  helpers (jq-free notice emitters, once-per-session gate, jq gate). No
+  behavior change for this plugin's guards: their documented jq fail-open with
+  a stderr notice is unchanged.
+
 ## [0.5.0]
 
 ### Changed

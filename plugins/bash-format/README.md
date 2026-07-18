@@ -33,12 +33,20 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-- **ShellCheck** on `PATH` for the lint pass.
-- **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo to
-  opt in).
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+- **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
+  a visible once-per-session notice.
+- **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
+  to opt in). Absent while the repo opts in: the format pass skips with a
+  visible once-per-session notice. Without the `.editorconfig` opt-in the
+  format pass stays quiet — the repo chose not to format.
 
-Each pass is independent: when a tool is absent its pass is skipped and the other
-still runs. With neither present the hook is a silent no-op.
+Each pass is independent: when a tool is absent its pass is skipped (visibly)
+and the other still runs.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while linting and

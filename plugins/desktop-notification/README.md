@@ -33,9 +33,12 @@ just the message.
 
 ## Requirements
 
-The hook runs on Bash 3.2+ and needs [`jq`](https://jqlang.github.io/jq/) on
-`PATH`. macOS needs nothing further; Linux needs `libnotify` only for the
-`os_toast` channel; Windows needs nothing (terminal channels only). Telemetry
+The hook runs on Bash 3.2+ (Git Bash on native Windows — install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
+needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
+are disabled with a visible once-per-session notice. macOS needs nothing
+further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
+nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
 skipped while notifications still fire.
 

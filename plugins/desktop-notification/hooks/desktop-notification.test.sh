@@ -79,8 +79,8 @@ build_input() {
 run() {
   local input="$1"
   shift
-  (cd "$UNRELATED" && printf '%s' "$input" \
-    | env -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
+  (cd "$UNRELATED" && printf '%s' "$input" |
+    env -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
       -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
       -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED \
       -u HOOK_TELEMETRY_SINK \
@@ -97,8 +97,8 @@ bel_count() {
 }
 
 # --- Case 1: master kill switch false → silent exit 0 -----------------------
-OUT="$(cd "$UNRELATED" && build_input permission_prompt \
-  | env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
+OUT="$(cd "$UNRELATED" && build_input permission_prompt |
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
     CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch false → silent exit 0"; else fail "kill switch (rc=$RC out=$OUT)"; fi
@@ -272,8 +272,8 @@ OSA_LOG="$WORK/osa.log"
 chmod +x "$SHIM/uname" "$SHIM/osascript"
 
 IN_EVIL="$(build_input permission_prompt "$EVIL")"
-(cd "$UNRELATED" && printf '%s' "$IN_EVIL" \
-  | env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
+(cd "$UNRELATED" && printf '%s' "$IN_EVIL" |
+  env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
     -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
     CLAUDE_PROJECT_DIR="$FAKE_REPO" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true \
     CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=true PATH="$SHIM:$PATH" \
@@ -293,6 +293,40 @@ if grep '^ARG=' "$OSA_LOG" 2>/dev/null | grep -q 'display notification'; then fa
 PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
 if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
+
+# --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
+# Without jq the hook can neither classify the notification nor emit its
+# terminalSequence; the skip must surface via systemMessage (the Notification
+# event has no additionalContext channel) once per session.
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_nojq() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-nojq-1","notification_type":"permission_prompt","message":"Needs your attention"}' |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+        CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_NOJQ=$(run_nojq)
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* && "$OUT_NOJQ" != *hookSpecificOutput* ]]; then
+  ok "jq-absent -> exit 0 with systemMessage-only notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
+OUT_NOJQ2=$(run_nojq)
+if [[ -z "$OUT_NOJQ2" ]]; then
+  ok "jq-absent -> second run same session is silent (once-per-session)"
+else
+  fail "jq-absent second run not silent: $OUT_NOJQ2"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

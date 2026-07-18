@@ -81,8 +81,8 @@ run_hook() {
   local file_path="$1"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -93,8 +93,8 @@ run_hook_env() {
   shift
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" \
-      | env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
+      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
 }
 
@@ -226,34 +226,94 @@ else
 fi
 rm -f "$TELC"
 
-# --- actionlint-absent graceful degrade -> exit 0 silent, status skipped ----
-# Shadow actionlint with an empty PATH dir containing only the tools the hook
-# needs (bash/jq/git/dirname...), proving the `command -v actionlint` guard
-# yields a silent no-op. Build a PATH that resolves core tools but not actionlint.
+# --- actionlint-absent -> exit 0, VISIBLE once-per-session notice, skipped ---
+# Shadow actionlint via a fake-bin dir of exec wrappers for every tool the hook
+# needs (jq may share a real dir with actionlint, so keeping whole dirs cannot
+# isolate the shadow). First run must emit the skip notice on both channels;
+# a second run in the same session (same CLAUDE_PLUGIN_DATA + session_id) must
+# be silent; telemetry still records status "skipped".
 ABSENT_TEL="$(mktemp)"
 ABSENT_SINK="$(make_sink "cat >\"$ABSENT_TEL\"")"
-# Resolve the real dirs of the tools we must keep, minus any dir holding actionlint.
-AL_DIR="$(dirname "$(command -v actionlint)")"
-KEEP=""
-for t in bash jq git dirname basename cat env printf mktemp; do
-  d="$(dirname "$(command -v "$t" 2>/dev/null)")"
-  [[ -n "$d" && "$d" != "$AL_DIR" ]] && KEEP="$KEEP:$d"
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
 done
-OUT_ABS=$(
-  cd "$UNRELATED" || exit 1
-  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" \
-    | env -u CLAUDE_PROJECT_DIR -i PATH="${KEEP#:}" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true \
-        HOOK_TELEMETRY_SINK="$ABSENT_SINK" bash "$HOOK"
-)
+ABSENT_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_absent() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-absent-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$ABSENT_DATA" \
+        CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$ABSENT_SINK" bash "$HOOK"
+  )
+}
+OUT_ABS=$(run_absent)
 RC_ABS=$?
-if [[ $RC_ABS -eq 0 && -z "$OUT_ABS" ]]; then ok "actionlint-absent -> exit 0 silent"; else fail "actionlint-absent (rc=$RC_ABS out=$OUT_ABS)"; fi
+if [[ $RC_ABS -eq 0 ]]; then ok "actionlint-absent -> exit 0"; else fail "actionlint-absent exit $RC_ABS"; fi
+if jq -e '(.systemMessage | contains("actionlint")) and (.hookSpecificOutput.additionalContext | contains("actionlint"))' <<<"$OUT_ABS" >/dev/null 2>&1; then
+  ok "actionlint-absent -> visible notice on both channels"
+else
+  fail "actionlint-absent: notice missing or malformed: $OUT_ABS"
+fi
 wait_for_sink "$ABSENT_TEL"
 if [[ -s "$ABSENT_TEL" ]]; then
   if [[ "$(jq -r '.status' "$ABSENT_TEL")" == "skipped" ]]; then ok "actionlint-absent -> telemetry status skipped"; else fail "actionlint-absent status=$(jq -r '.status' "$ABSENT_TEL")"; fi
 else
-  echo "  (actionlint-absent: no envelope -- PATH shadow could not resolve jq; skipping status assert)"
+  fail "actionlint-absent: no telemetry envelope written"
+fi
+OUT_ABS2=$(run_absent)
+RC_ABS2=$?
+if [[ $RC_ABS2 -eq 0 && -z "$OUT_ABS2" ]]; then
+  ok "actionlint-absent -> second run same session is silent (once-per-session)"
+else
+  fail "actionlint-absent second run (rc=$RC_ABS2 out=$OUT_ABS2)"
 fi
 rm -f "$ABSENT_TEL"
+
+# --- jq-absent -> exit 0, VISIBLE once-per-session notice --------------------
+# Same fake-bin, minus jq: the hook cannot parse its input at all, so the gate
+# must surface the skip instead of silently no-opping on every edit.
+rm -f "$FAKEBIN/jq"
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_nojq() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+        CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_NOJQ=$(run_nojq)
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]]; then
+  ok "jq-absent -> exit 0 with visible notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
+OUT_NOJQ2=$(run_nojq)
+if [[ -z "$OUT_NOJQ2" ]]; then
+  ok "jq-absent -> second run same session is silent (once-per-session)"
+else
+  fail "jq-absent second run not silent: $OUT_NOJQ2"
+fi
+# Out-of-scope edit (README, not a workflow file) with jq absent -> fully
+# silent: the jq-free applicability pre-filter must run before the jq gate.
+JQ_DATA2="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+OUT_OOS=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"session_id":"test-oos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/README.md" |
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA2" \
+      CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+)
+RC_OOS=$?
+if [[ $RC_OOS -eq 0 && -z "$OUT_OOS" ]]; then
+  ok "jq-absent + out-of-scope edit -> fully silent (pre-filter before gate)"
+else
+  fail "jq-absent out-of-scope edit (rc=$RC_OOS out=$OUT_OOS)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

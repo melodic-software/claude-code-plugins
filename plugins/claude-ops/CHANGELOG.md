@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced with the fleet's new prerequisite-visibility
+  helpers (jq-free notice emitters, once-per-session gate, jq gate). No
+  behavior change for this plugin's audit hooks. README now states the hook
+  runtime (Bash via Git Bash on native Windows, jq) and the jq fail-open
+  behavior.
+
 ## [0.11.0]
 
 ### Changed

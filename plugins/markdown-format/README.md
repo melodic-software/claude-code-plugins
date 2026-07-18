@@ -38,9 +38,9 @@ The hook requires the following tools:
 
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
-the hook exits `0` and reports a visible `additionalContext` warning. It never
-falls back to `npx`, installs a package, or performs a network request during a
-hook run.
+the hook exits `0` and reports a once-per-session notice to both Claude
+(`additionalContext`) and you (`systemMessage`). It never falls back to `npx`,
+installs a package, or performs a network request during a hook run.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.

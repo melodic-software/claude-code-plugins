@@ -148,6 +148,10 @@ your own repository's context:
 
 ## Requirements
 
+The audit hooks are Bash scripts (Git Bash on native Windows — install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
+use `jq`; without jq they fail open (no audit line is written).
+
 Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
 Optional: `duckdb` for OTEL store queries and `npx` for ccusage. The machine-level
 `otelcol-contrib` service and Aspire dashboard Compose stack are provisioned separately; the
