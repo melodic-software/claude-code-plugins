@@ -600,6 +600,11 @@ def scan_tree(
             except OSError as exc:
                 errors.append({"path": relative, "error": str(exc)})
                 continue
+            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
+                raise HygieneError(
+                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
+                    "--max-depth or split the audit into bounded subtrees"
+                )
             entries.append(
                 {
                     "path": relative,
@@ -608,11 +613,6 @@ def scan_tree(
                     "protected_reasons": sorted(set(protections)),
                 }
             )
-            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
-                raise HygieneError(
-                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
-                    "--max-depth or split the audit into bounded subtrees"
-                )
             if len(entries) % 25_000 == 0:
                 print(f"scanned {len(entries)} entries...", file=sys.stderr)
         return total

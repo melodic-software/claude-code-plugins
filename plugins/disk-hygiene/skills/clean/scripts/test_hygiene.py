@@ -789,6 +789,29 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("truncated-not-inventoried", blockers)
             self.assertNotIn("changed-since-scan", blockers)
 
+    def test_entry_cap_allows_exactly_the_configured_maximum(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "one.txt").write_text("x", encoding="utf-8")
+            (root / "two.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(2, len(snapshot["entries"]))
+
+    def test_entry_cap_rejects_one_more_than_the_configured_maximum(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "one.txt").write_text("x", encoding="utf-8")
+            (root / "two.txt").write_text("x", encoding="utf-8")
+            (root / "three.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries"),
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
