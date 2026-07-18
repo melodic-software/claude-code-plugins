@@ -339,6 +339,30 @@ class HygieneTests(unittest.TestCase):
                 result = hygiene.preview(snapshot, plan)
             self.assertIn("vcs-tracked-content", result["candidates"][0]["blockers"])
 
+    def test_annotate_tracked_scopes_git_query_to_inventoried_paths(self) -> None:
+        target = Path("/audit/root/profile")
+        repo = Path("/audit/root")
+        entries = [{"path": "keep.txt", "protected_reasons": []}]
+        captured: dict[str, list[str]] = {}
+
+        class FakeCompletedProcess:
+            returncode = 0
+            stdout = b""
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return FakeCompletedProcess()
+
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value="git"),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=fake_run),
+        ):
+            hygiene.annotate_tracked(entries, target, [repo], ["huge-vendored-dep"], [])
+
+        pathspecs = captured["cmd"][captured["cmd"].index("--") + 1 :]
+        self.assertEqual("profile", pathspecs[0])
+        self.assertIn(":(exclude)profile/huge-vendored-dep", pathspecs)
+
     def test_forged_snapshot_cannot_hide_fresh_protected_name(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -694,6 +718,37 @@ class HygieneTests(unittest.TestCase):
             self.assertIn(
                 "truncated-not-inventoried", result["candidates"][0]["blockers"]
             )
+
+    def test_preview_skips_live_descendant_walk_for_truncated_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "deep" / "sub").mkdir(parents=True)
+            (root / "deep" / "sub" / "leaf.txt").write_text("y", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("deep")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "current_descendants",
+                    side_effect=AssertionError(
+                        "a truncated candidate must not trigger the live, "
+                        "unbounded descendant walk --max-depth exists to avoid"
+                    ),
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            blockers = result["candidates"][0]["blockers"]
+            self.assertIn("truncated-not-inventoried", blockers)
+            self.assertNotIn("changed-since-scan", blockers)
 
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1238,6 +1293,25 @@ class GuardTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     "allow",
+                    self.run_guard(command)["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                )
+
+    def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            command = (
+                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+                f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r '
+                f'--data-root "{authorized}"'
+            )
+            with mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+            ):
+                self.assertEqual(
+                    "ask",
                     self.run_guard(command)["hookSpecificOutput"][
                         "permissionDecision"
                     ],

@@ -606,7 +606,7 @@ def scan_tree(
                     "protected_reasons": sorted(set(protections)),
                 }
             )
-            if len(entries) > MAX_SNAPSHOT_ENTRIES:
+            if len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 raise HygieneError(
                     f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
                     "--max-depth or split the audit into bounded subtrees"
@@ -617,7 +617,7 @@ def scan_tree(
 
     total_size = visit(target)
     repositories = sorted(set(repositories))
-    annotate_tracked(entries, target, repositories, repo_errors)
+    annotate_tracked(entries, target, repositories, truncated, repo_errors)
     return {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -641,6 +641,7 @@ def annotate_tracked(
     entries: list[dict[str, Any]],
     target: Path,
     repositories: list[Path],
+    truncated: list[str],
     errors: list[str],
 ) -> None:
     git = shutil.which("git")
@@ -649,6 +650,24 @@ def annotate_tracked(
         return
     by_path = {entry["path"]: entry for entry in entries}
     for repo in repositories:
+        # Scope the query to what --max-depth actually inventoried: a bare
+        # `ls-files` walks the whole repository regardless of the requested
+        # scan bound. `base` restricts to target's own subtree (or "." when
+        # target IS the repo, or a nested repo was discovered beneath
+        # target); each truncated directory is then subtracted so a
+        # bounded profile/root audit never pulls an unbounded repo-wide
+        # tracked-file list just to annotate a handful of scanned entries.
+        try:
+            base = target.relative_to(repo).as_posix()
+        except ValueError:
+            base = "."
+        pathspecs = [base]
+        for relative_truncated in truncated:
+            try:
+                exclude = (target / relative_truncated).relative_to(repo).as_posix()
+            except ValueError:
+                continue
+            pathspecs.append(f":(exclude){exclude}")
         try:
             run = subprocess.run(
                 [
@@ -659,6 +678,8 @@ def annotate_tracked(
                     "-z",
                     "--cached",
                     "--recurse-submodules",
+                    "--",
+                    *pathspecs,
                 ],
                 capture_output=True,
                 timeout=20,
@@ -1144,14 +1165,21 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             for name in entries
             if name == relative or name.startswith(relative + "/")
         }
-        try:
-            current_paths = current_descendants(target, path)
-        except PermissionError:
-            current_paths = set()
-            blockers.append("needs-elevation")
-        except OSError:
-            current_paths = set()
-            blockers.append("filesystem-state-unverified")
+        if "truncated-not-inventoried" in blockers:
+            # A truncated candidate is already hard-blocked from planning above;
+            # walking its live subtree here would be the same unbounded
+            # traversal --max-depth exists to avoid, for a candidate that can
+            # never become approvable anyway.
+            current_paths = expected_paths
+        else:
+            try:
+                current_paths = current_descendants(target, path)
+            except PermissionError:
+                current_paths = set()
+                blockers.append("needs-elevation")
+            except (OSError, HygieneError):
+                current_paths = set()
+                blockers.append("filesystem-state-unverified")
         if current_paths != expected_paths:
             blockers.append("changed-since-scan")
         for name in expected_paths:
@@ -1484,12 +1512,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global DATA_ROOT_OVERRIDE
     args = build_parser().parse_args(argv)
+    DATA_ROOT_OVERRIDE = args.data_root
     try:
         if sys.version_info < (3, 11):
             raise HygieneError("disk-hygiene requires Python 3.11 or newer")
-        global DATA_ROOT_OVERRIDE
-        DATA_ROOT_OVERRIDE = args.data_root
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if (
@@ -1579,6 +1607,12 @@ def main(argv: list[str] | None = None) -> int:
         return emit({"status": "needs-elevation", "error": str(exc)}, 3)
     except (OSError, subprocess.SubprocessError) as exc:
         return emit({"status": "filesystem-state-unverified", "error": str(exc)}, 3)
+    finally:
+        # Close the test-isolation window: a call to `main()` must never leave
+        # this override live for a later `state_output_path()` call (direct,
+        # or via a subsequent `main()` invocation in the same process) to
+        # observe a stale --data-root after this invocation has returned.
+        DATA_ROOT_OVERRIDE = None
 
 
 if __name__ == "__main__":
