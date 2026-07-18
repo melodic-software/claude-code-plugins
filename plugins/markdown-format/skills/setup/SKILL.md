@@ -27,7 +27,10 @@ Do not modify anything.
    once-per-session notice instead of formatting.
 3. **`markdownlint-cli2`** — resolvable as `command -v markdownlint-cli2` OR
    `<repo-root>/node_modules/.bin/markdownlint-cli2` (the hook's two sanctioned resolution
-   paths; it never falls back to `npx`). FAIL if neither resolves.
+   paths; it never falls back to `npx`). Validate the repo shim the way the hook does:
+   resolve symlinks and FAIL (with the reason) when the physical target escapes the
+   repository's `node_modules` tree — a shim the hook will reject must not PASS here.
+   FAIL if neither path resolves.
 4. **Consumer markdownlint config** — search the whole repository tree, not just the root:
    the hook loads every config on the walk from an edited file's directory up to the repo
    root, so `docs/.markdownlint.cjs` applies to `docs/foo.md` even when the root has none.
@@ -54,8 +57,13 @@ repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml
 `"packageManager"` field when no lockfile exists, then npm only when neither signal is
 present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
 contradicts `packageManager`, stop with manager-specific guidance instead of guessing —
-never introduce a competing lockfile. The change is stated before running. For everything
-else `apply` only points:
+never introduce a competing lockfile. The change is stated before running. Yarn Berry/PnP
+repositories (a `.pnp.cjs`, or `yarn.lock` without `nodeLinker: node-modules` in
+`.yarnrc.yml`) get guidance instead of an install: PnP produces no
+`node_modules/.bin` shim, so the hook cannot resolve a PnP-installed binary — install
+`markdownlint-cli2` on `PATH` or switch the linker. After ANY remediation, re-run the
+relevant `check` probe and report its actual result — never claim resolved on the
+install command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
