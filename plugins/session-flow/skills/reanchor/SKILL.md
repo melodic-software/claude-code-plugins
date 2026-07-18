@@ -28,9 +28,11 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch's base has moved
-   since the session's inputs were written — compute the behind-count yourself
-   with `git`, since a premise ("this isn't on main yet") may already be false.
-   This is reanchor's own check. `/source-control:worktree` status, when
+   since the session's inputs were written. Fetch the base branch first (`git
+   fetch`) so the behind-count is measured against the live remote base, not a
+   stale local `origin/<base>` ref that can read 0 even after the remote moved;
+   if that fetch cannot run, report base-drift as unverifiable rather than
+   assuming none. This is reanchor's own check. `/source-control:worktree`, when
    installed, is a related but distinct capability — a cross-worktree inventory
    by path / branch / PR / commit-age staleness — that does not report
    behind-base or dirty-tree signal; cite it for that inventory, not for the
@@ -47,8 +49,12 @@ back up.
 
 1. Gather the session's inputs — the handoff / plan / memory files and any PRs,
    issues, branches, skills, or plugin versions they name.
-2. Run the four checks above against live reality (git, `gh`, installed vs
-   repo-source manifests).
+2. Run the four checks above against live reality — fetch/read the live source
+   (`git fetch` the base, query `gh`, read installed vs repo-source manifests).
+   When a check cannot reach what it needs (no network, no `gh`, no fetch),
+   report that premise as **unverifiable** rather than assuming it is unchanged;
+   a silent "no drift" from stale local state is the exact failure this skill
+   exists to prevent.
 3. Report drift as a short list — premise → claimed state → actual state — plus
    the re-anchored picture. Surface it; do not silently rewrite the plan or
    auto-fix. The session re-plans on the corrected reality.
