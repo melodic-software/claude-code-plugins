@@ -34,8 +34,10 @@ Do not modify anything.
    Find all `.markdownlint*` / `.markdownlint-cli2.*` files at any depth (skip
    `node_modules`), report the root config the default cascade discovers (or INFO that none
    exists — the tool's defaults then apply), list nested configs with their directory scope,
-   and surface the README's configuration trust boundary for every executable
-   (`.cjs`/`.mjs`) config found anywhere in the tree.
+   and surface the README's configuration trust boundary using the hook's own risk criteria:
+   any executable (`.cjs`/`.mjs`) config anywhere in the tree, AND any declarative
+   `.markdownlint-cli2.*` file declaring `customRules`, `markdownItPlugins`, or
+   `outputFormatters` — those keys load modules just like executable config.
 5. **Hook toggle** — report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
@@ -46,10 +48,12 @@ Do not modify anything.
 Run `check`, then for each FAIL offer the resolution — never install anything without the
 consumer's explicit go-ahead in the invocation. `apply install-lint` adds
 `markdownlint-cli2` as a dev dependency in the consumer repository **using the
-repository's own package manager**, detected from its lockfile: `pnpm-lock.yaml` →
+repository's own package manager**, resolved in order: lockfile (`pnpm-lock.yaml` →
 `pnpm add -D`, `yarn.lock` → `yarn add -D`, `bun.lock`/`bun.lockb` → `bun add -d`,
-`package-lock.json` or none → `npm install --save-dev`. With no `package.json`, or an
-ambiguous multi-lockfile state, stop with manager-specific guidance instead of guessing —
+`package-lock.json` → `npm install --save-dev`), then the `package.json`
+`"packageManager"` field when no lockfile exists, then npm only when neither signal is
+present. With no `package.json`, an ambiguous multi-lockfile state, or a lockfile that
+contradicts `packageManager`, stop with manager-specific guidance instead of guessing —
 never introduce a competing lockfile. The change is stated before running. For everything
 else `apply` only points:
 
