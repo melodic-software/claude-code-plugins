@@ -82,6 +82,10 @@ rejected incumbent, and a required affix can introduce a blocked word
 1. **Build the structured context brief.** This brief — NOT the
    conversation — is all the generators receive, so it must carry every
    field they need, each captured by name:
+   - **Target modality** — what KIND of thing is being named (function,
+     type, module, file, CLI command, skill, domain term): it fixes
+     noun-for-a-thing vs verb-for-an-action and tells the final shaping
+     pass which syntactic conventions apply.
    - **Responsibility** — what the thing DOES, in one line.
    - **Firing / usage context** — when it is reached for, and how it reads
      at the call site.
