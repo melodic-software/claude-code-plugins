@@ -60,7 +60,11 @@ writes nothing, so every remediation is a pointer the user acts on:
   set `FIRECRAWL_API_KEY` as an OS user environment variable (Windows: `setx` or System
   Properties → Environment Variables; macOS/Linux: the login shell profile or a secret store).
   Prefer env-var auth over `firecrawl login` / `firecrawl config`, which write a second source
-  of truth. This skill never writes the key anywhere.
+  of truth. This skill never writes the key anywhere. Persistent env changes (`setx`, a
+  profile edit) do NOT reach the already-running session — tell the user the variable becomes
+  visible only in a new terminal/Claude Code session, and skip the immediate re-check for this
+  remediation: report "set persistently; verify with `setup check` in a fresh session" instead
+  of a false failure.
 
 After the user reports acting on any remediation, re-run the relevant `check` probe (for the
 key, re-check `firecrawl --status` / presence — never the value) and report its actual result.
