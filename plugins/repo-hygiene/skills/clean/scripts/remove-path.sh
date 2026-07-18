@@ -360,12 +360,16 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # Defense in depth beyond the device check above: stop rm from crossing into a
-# descendant mount point during the recursive delete. --one-file-system is GNU
-# coreutils (Linux, MSYS); omitted on BSD/macOS rm, which lacks the long option
-# (the device and path checks still bound the target itself).
+# descendant mount point during the recursive delete. GNU coreutils (Linux,
+# MSYS) spells this --one-file-system; BSD/macOS rm spells it -x. Detect GNU via
+# --version, else probe -x on a nonexistent path (accepted only by BSD rm; -f
+# makes the missing path a no-op). A shell whose rm supports neither falls back
+# to plain rm -rf — the device and path checks still bound the target itself.
 rm_flags=(-rf)
 if rm --version 2>/dev/null | grep -qi coreutils; then
   rm_flags+=(--one-file-system)
+elif rm -f -x "$TARGET_ABS.__onefs_probe__" 2>/dev/null; then
+  rm_flags+=(-x)
 fi
 rm "${rm_flags[@]}" "$TARGET_ABS"
 if [[ -e "$TARGET_ABS" ]]; then
