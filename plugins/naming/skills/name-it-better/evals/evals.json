@@ -5,10 +5,10 @@
       "id": 1,
       "name": "rejected-name-blind-retry-to-human-pick",
       "prompt": "name it better — you suggested `DataManager` for the class that validates and persists orders and I don't like it.",
-      "expected_output": "The skill builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist with reasons, rejected incumbents with reasons), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria priority, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
+      "expected_output": "The skill builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist with reasons — the rejected NAME itself stays out of the brief, held on the main-thread reject list, with only its abstracted rejection reason entering as a constraint), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria priority, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
       "files": [],
       "expectations": [
-        "Builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist, rejected incumbents) and seeds the generators with the brief ONLY (blind to the conversation), not the rejected name",
+        "Builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist carrying the abstracted rejection reason) and seeds the generators with the brief ONLY (blind to the conversation) — the rejected name itself never appears in the brief",
         "Fans out ~3 fresh-context generators across distinct lenses (responsibility-literal, moment-of-use, domain-lore)",
         "Carries `DataManager` as a main-thread reject list and disqualifies it at merge time, even if a generator independently re-derives it",
         "The rejected incumbent (`DataManager`) does not appear in the final shortlist",
