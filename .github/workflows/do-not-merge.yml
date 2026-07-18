@@ -9,7 +9,9 @@ name: do-not-merge
 # that passed before the label was applied stays green and the merge is never
 # blocked. `merge_group` re-checks the label in the queue (inert without a
 # queue). The emitted required-check context is `do-not-merge / do-not-merge`.
+# Public repo: runs on the reusable's hosted default runner.
 on:
+  # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
   pull_request_target:
     types: [opened, reopened, synchronize, labeled, unlabeled]
   merge_group:
@@ -25,30 +27,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  select-runner:
-    name: Select runner
-    permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5 # ec91c34 2026-07-17
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-
   do-not-merge:
-    needs: select-runner
-    # Fail-closed selector-result reporter: always() so every routing outcome
-    # materializes the required check. The reusable receives the selector result
-    # and fail-closes on any non-success before evaluating the label, so a
-    # routing failure never dispatches this gate to paid hosted Linux.
-    if: ${{ always() }}
     permissions:
       pull-requests: read
     uses: melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18 gh-CLI-free label refetch
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
-      prerequisite-result: ${{ needs.select-runner.result }}
+      runner: ubuntu-24.04
