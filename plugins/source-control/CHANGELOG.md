@@ -60,6 +60,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - The `BABYSIT_*` environment-variable seams on the Python engine (owners, timeouts, quiet-recheck
   window) — replaced by CLI flags fed from `userConfig`. The shared readiness gate's `--self`
   (full override) / `--extra-self` (additive) contract is unchanged.
+
 ## [0.7.0]
 
 ### Changed
