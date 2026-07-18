@@ -42,13 +42,14 @@ run each probe via Bash and report a PASS/FAIL/INFO table. Do not modify anythin
    persisted CLI config rather than the env var — env-var auth is the plugin's preferred
    single source of truth, but never direct the user to ADD an env key on top of working
    CLI-config auth; that would create the second source the plugin warns against). Status
-   says unauthenticated (or the CLI cannot answer) and the key is unset → FAIL. Status says
-   unauthenticated while the key IS set → FAIL with the invalid-key remediation (below), not
-   the unset-key one. Status CANNOT answer (error, timeout, network failure) while the key IS
-   set → INDETERMINATE, not FAIL: report the status error verbatim, suggest retrying
-   `firecrawl --status` (transient failures are common), and do not direct any key change on
-   an unanswered probe. CLI absent AND key unset → INFO — both arrive at first use, nothing
-   is broken yet.
+   says unauthenticated (an answered probe) and the key is unset → FAIL with the unset-key
+   remediation. Status says unauthenticated while the key IS set → FAIL with the invalid-key
+   remediation (below), not the unset-key one. Status CANNOT answer (error, timeout, network
+   failure) → INDETERMINATE regardless of the key's state, never a FAIL: persisted
+   `login`/`config` credentials may be valid and an unanswered probe proves nothing either
+   way — report the status error verbatim, suggest retrying `firecrawl --status`, and direct
+   no key change or key creation off an unanswered probe. CLI absent AND key unset → INFO —
+   both arrive at first use, nothing is broken yet.
 3. **Optional env vars** — INFO the effective state of the other two the CLI reads
    (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only,
    again without printing any value.

@@ -26,6 +26,11 @@ The hook scripts are the single source of truth for what they require and how th
 do, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table
 with one remediation line per FAIL. Do not modify anything.
 
+When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
+INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report the probes informationally and note that re-enabling
+restores the FAIL semantics.
+
 1. **Bash version** — check `${BASH_VERSION}` against the hook's documented floor (README
    Requirements: Bash 3.2+). INFO when below 5.0: `EPOCHREALTIME` is unset there, so the
    opt-in telemetry envelope is skipped while notifications still fire — a degrade, not a
