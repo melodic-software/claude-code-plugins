@@ -28,10 +28,14 @@ Do not modify anything.
 3. **`markdownlint-cli2`** — resolvable as `command -v markdownlint-cli2` OR
    `<repo-root>/node_modules/.bin/markdownlint-cli2` (the hook's two sanctioned resolution
    paths; it never falls back to `npx`). FAIL if neither resolves.
-4. **Consumer markdownlint config** — from the repository root, report which config file
-   `markdownlint-cli2` will discover (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …)
-   or INFO that none exists (the tool's defaults then apply). If the discovered config is
-   executable (`.cjs`/`.mjs`), surface the README's configuration trust boundary.
+4. **Consumer markdownlint config** — search the whole repository tree, not just the root:
+   the hook loads every config on the walk from an edited file's directory up to the repo
+   root, so `docs/.markdownlint.cjs` applies to `docs/foo.md` even when the root has none.
+   Find all `.markdownlint*` / `.markdownlint-cli2.*` files at any depth (skip
+   `node_modules`), report the root config the default cascade discovers (or INFO that none
+   exists — the tool's defaults then apply), list nested configs with their directory scope,
+   and surface the README's configuration trust boundary for every executable
+   (`.cjs`/`.mjs`) config found anywhere in the tree.
 5. **Hook toggle** — report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
@@ -40,10 +44,14 @@ Do not modify anything.
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL offer the resolution — never install anything without the
-consumer's explicit go-ahead in the invocation (e.g. `apply install-lint` may run
-`npm install --save-dev markdownlint-cli2` in the consumer repository when a
-`package.json` exists; that is a consumer-repo dependency change and is stated before
-running). For everything else `apply` only points:
+consumer's explicit go-ahead in the invocation. `apply install-lint` adds
+`markdownlint-cli2` as a dev dependency in the consumer repository **using the
+repository's own package manager**, detected from its lockfile: `pnpm-lock.yaml` →
+`pnpm add -D`, `yarn.lock` → `yarn add -D`, `bun.lock`/`bun.lockb` → `bun add -d`,
+`package-lock.json` or none → `npm install --save-dev`. With no `package.json`, or an
+ambiguous multi-lockfile state, stop with manager-specific guidance instead of guessing —
+never introduce a competing lockfile. The change is stated before running. For everything
+else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
