@@ -31,8 +31,11 @@ PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
    once-per-session notice instead of formatting.
 3. **`markdownlint-cli2`** — resolve it exactly the way the hook's resolution code does
    (its sanctioned lookup paths, including its symlink/escape validation of a repo-local
-   shim). A binary or shim the hook would reject must not PASS here. FAIL when nothing the
-   hook would accept resolves.
+   shim). A binary or shim the hook would reject must not PASS here. Then confirm the
+   resolved tool actually executes — run it with `--version` (a repo shim can resolve yet
+   still be broken: missing Node interpreter, dangling target); resolution without
+   successful execution is FAIL, with the execution error in the remediation line. FAIL
+   when nothing the hook would accept resolves.
 4. **Consumer markdownlint config** — mirror the hook's config walk: it loads configs from
    an edited file's directory up to the repo root, so nested configs apply to nested files.
    Search the whole tree (skip `node_modules`), report the root config the cascade
@@ -78,7 +81,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## What this skill does NOT do
 
-- Run the formatter — editing any `.md` file exercises the hook end-to-end.
+- Run the formatter — editing any `.md` file exercises the hook end-to-end. The only
+  execution `check` performs is the harmless `--version` liveness probe of the resolved
+  linter; it never lints, fixes, or touches repository content.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Download or execute tools during `check`; network use happens only in an explicitly
+- Download anything during `check`; network use happens only in an explicitly
   requested `apply install-lint` inside the consumer repository.
