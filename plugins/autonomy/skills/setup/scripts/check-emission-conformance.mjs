@@ -90,15 +90,19 @@ for (const target of targets.flatMap(filesUnder)) {
       return;
     }
     linesChecked += 1;
-    joinAttributeHits += checkResourceBlocks(parsed, target, index + 1, tally);
+    const hits = checkResourceBlocks(parsed, target, index + 1, tally);
+    joinAttributeHits += hits;
+    // Every emission must carry the join key somewhere (resource or item
+    // attributes) — a single global hit would let an unjoined session emission
+    // pass on the back of a conforming pipeline line.
+    if (hits === 0) {
+      findings.push(`${target}:${index + 1}: emission carries no ${JOIN_ATTRIBUTE} attribute`);
+    }
   });
 }
 
 if (linesChecked === 0) {
   findings.push("no OTLP JSON lines found under the given targets");
-}
-if (joinAttributeHits === 0 && linesChecked > 0) {
-  findings.push(`no occurrence of ${JOIN_ATTRIBUTE} anywhere in the checked output`);
 }
 if (tally.schemaUrlDeclared === 0 && linesChecked > 0) {
   findings.push(

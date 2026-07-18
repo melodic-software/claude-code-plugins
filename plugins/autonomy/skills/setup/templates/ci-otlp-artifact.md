@@ -10,13 +10,22 @@ lowerCamelCase keys (`resourceSpans`, `schemaUrl`).
 
 Emit one pipeline/task span per run as a single OTLP JSON line appended to
 `<artifact-dir>/pipeline.jsonl` — no dependency beyond a shell and the platform's own run
-metadata:
+metadata. When a traced trigger already ran, the inbound `TRACEPARENT`
+(`00-<trace-id>-<parent-span-id>-<flags>`) supplies BOTH the shared trace ID and the
+`parentSpanId`, so the pipeline span joins the trigger's tree instead of rooting a second
+one; with no inbound context, generate a fresh trace ID and omit `parentSpanId`:
 
 ```sh
-trace_id="<derived-or-generated 32-hex>"
+if [ -n "${TRACEPARENT:-}" ]; then
+  trace_id="$(printf '%s' "$TRACEPARENT" | cut -d- -f2)"
+  parent_field="\"parentSpanId\":\"$(printf '%s' "$TRACEPARENT" | cut -d- -f3)\","
+else
+  trace_id="<generated 32-hex>"
+  parent_field=""
+fi
 span_id="<generated 16-hex>"
 cat >> "<artifact-dir>/pipeline.jsonl" <<JSON
-{"resourceSpans":[{"schemaUrl":"https://opentelemetry.io/schemas/1.43.0","resource":{"attributes":[]},"scopeSpans":[{"scope":{"name":"<emitter-name>"},"spans":[{"traceId":"$trace_id","spanId":"$span_id","name":"<pipeline-name>","kind":2,"startTimeUnixNano":"<start-ns>","endTimeUnixNano":"<end-ns>","attributes":[{"key":"cicd.pipeline.run.id","value":{"stringValue":"<run-id>"}},{"key":"autonomy.work_item.url","value":{"stringValue":"<canonical-item-url>"}}]}]}]}]}
+{"resourceSpans":[{"schemaUrl":"https://opentelemetry.io/schemas/1.43.0","resource":{"attributes":[]},"scopeSpans":[{"scope":{"name":"<emitter-name>"},"spans":[{"traceId":"$trace_id","spanId":"$span_id",$parent_field"name":"<pipeline-name>","kind":2,"startTimeUnixNano":"<start-ns>","endTimeUnixNano":"<end-ns>","attributes":[{"key":"cicd.pipeline.run.id","value":{"stringValue":"<run-id>"}},{"key":"autonomy.work_item.url","value":{"stringValue":"<canonical-item-url>"}}]}]}]}]}
 JSON
 ```
 
