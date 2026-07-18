@@ -8,20 +8,20 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"],
+  "keywords": [
+    "powershell",
+    "psscriptanalyzer",
+    "pwsh",
+    "formatter",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",
       "title": "powershell-format hook",
       "description": "Format and lint PowerShell on edit via PSScriptAnalyzer",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

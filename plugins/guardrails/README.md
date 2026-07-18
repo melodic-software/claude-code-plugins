@@ -84,9 +84,6 @@ These options are user-scoped (stored in your user settings, not the
 project's). To turn guards off for a single repository, disable the whole
 plugin in that project's `enabledPlugins` instead.
 
-A `stdin_read_timeout` option (seconds, default `2`) bounds how long each
-guard waits for its hook payload before failing open.
-
 ## Consumer seams
 
 The guards scope and tune themselves to **your** repository — they ship no

@@ -52,15 +52,14 @@ still runs.
 
 The normalization policy itself is your repository's `.gitattributes`, which the
 hook reads automatically — to change which files normalize to which endings,
-edit your `.gitattributes`. Two `userConfig` options tune the hook's own
+edit your `.gitattributes`. One `userConfig` option tunes the hook's own
 behavior:
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `eol_normalizer_enabled` | boolean | `true` | Toggle the eol-normalizer hook. Set to `false` for a clean no-op. |
-| `stdin_read_timeout` | number | `2` | Seconds the hook waits for its stdin payload before failing open. |
 
-Set them interactively with `/plugin configure eol-normalizer`, or headless on
+Set it interactively with `/plugin configure eol-normalizer`, or headless on
 the install command:
 
 ```shell

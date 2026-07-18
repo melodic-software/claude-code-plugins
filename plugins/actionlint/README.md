@@ -41,12 +41,10 @@ your `PATH`.
 ## Configuration
 
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your
-repository when present. Two `userConfig` options tune the hook itself:
+repository when present. One `userConfig` option tunes the hook itself:
 
 - **`actionlint_enabled`** (boolean, default `true`) — kill switch for the
   actionlint-check hook.
-- **`stdin_read_timeout`** (number, default `2`, min `1`) — seconds to wait
-  reading the hook payload from stdin before failing open.
 
 Configure interactively with `/plugin configure actionlint` or headless at
 install time:

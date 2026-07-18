@@ -70,14 +70,13 @@ The formatting and linting rules come from the
 `PSScriptAnalyzerSettings.psd1` already in your repository, which the hook reads
 automatically. To change the rules, edit that file.
 
-Two behavior knobs are exposed as native `userConfig` options:
+One behavior knob is exposed as a native `userConfig` option:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
-| `stdin_read_timeout` | `2` | Seconds the hook waits for its stdin payload before failing open. |
 
-Set them interactively with `/plugin configure powershell-format`, or headless
+Set it interactively with `/plugin configure powershell-format`, or headless
 on the install command:
 
 ```shell

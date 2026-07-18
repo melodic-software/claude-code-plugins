@@ -8,20 +8,22 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"],
+  "keywords": [
+    "biome",
+    "typescript",
+    "javascript",
+    "json",
+    "jsx",
+    "formatter",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "biome_format_enabled": {
       "type": "boolean",
       "title": "biome-format hook",
       "description": "Format and lint JS/TS/JSX/JSON on edit via Biome",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

@@ -8,20 +8,21 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"],
+  "keywords": [
+    "bash",
+    "shell",
+    "shellcheck",
+    "shfmt",
+    "formatter",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "bash_format_enabled": {
       "type": "boolean",
       "title": "bash-format hook",
       "description": "Lint and format shell scripts on edit via ShellCheck + shfmt",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

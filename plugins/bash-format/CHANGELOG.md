@@ -9,12 +9,11 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 - **Kill switch migrated to native `userConfig`.** The bash-format toggle is now the
   `bash_format_enabled` option (default `true`), read by the hook through the native
-  `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED` hook-process mirror; the stdin read bound is
-  now the `stdin_read_timeout` option (default `2`). Configure interactively with
+  `CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED` hook-process mirror. Configure interactively with
   `/plugin configure bash-format` or headless via `claude plugin install --config KEY=VALUE`.
-- **BREAKING:** the `HOOK_BASH_FORMAT_ENABLED` and `HOOK_STDIN_READ_TIMEOUT` environment
-  variables are retired and no longer read. A consumer that set either in a settings `env`
-  block must re-express the value as the matching `userConfig` option. Zero-config behavior
+- **BREAKING:** the `HOOK_BASH_FORMAT_ENABLED` environment variable is retired and no
+  longer read. A consumer that set it in a settings `env` block must re-express the
+  value as the matching `userConfig` option. Zero-config behavior
   is unchanged (hook on, same defaults). The `HOOK_TELEMETRY_SINK` telemetry seam is
   unaffected.
 

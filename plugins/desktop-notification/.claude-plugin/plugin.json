@@ -8,7 +8,14 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["notification", "desktop", "toast", "bell", "osc9", "hook"],
+  "keywords": [
+    "notification",
+    "desktop",
+    "toast",
+    "bell",
+    "osc9",
+    "hook"
+  ],
   "userConfig": {
     "desktop_notification_enabled": {
       "type": "boolean",
@@ -33,13 +40,6 @@
       "title": "os-toast channel",
       "description": "OS-native desktop toast (macOS/Linux)",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

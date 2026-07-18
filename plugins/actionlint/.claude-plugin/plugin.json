@@ -8,20 +8,20 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"],
+  "keywords": [
+    "actionlint",
+    "github-actions",
+    "workflow",
+    "yaml",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "actionlint_enabled": {
       "type": "boolean",
       "title": "actionlint-check hook",
       "description": "Lint GitHub Actions workflow files on edit via actionlint",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

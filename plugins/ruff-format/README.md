@@ -67,14 +67,13 @@ The rules themselves are never configured here — they come from the Ruff confi
 already in your repository, which the plugin reads automatically. To change the
 rules, edit that file.
 
-Two `userConfig` options tune the hook itself:
+One `userConfig` option tunes the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `ruff_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
-| `stdin_read_timeout` | `2` | Seconds the hook waits for its payload before failing open. |
 
-Set them interactively with `/plugin configure ruff-format`, or headless on the
+Set it interactively with `/plugin configure ruff-format`, or headless on the
 install command:
 
 ```shell

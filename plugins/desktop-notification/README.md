@@ -69,9 +69,6 @@ These options are user-scoped (stored in your user settings, not the
 project's). To silence notifications for a single repository, disable the whole
 plugin in that project's `enabledPlugins` instead.
 
-A `stdin_read_timeout` option (seconds, default `2`) bounds how long the hook
-waits for its payload before failing open.
-
 ### Disable without uninstalling
 
 Set `desktop_notification_enabled` to `false` (via `/plugin configure

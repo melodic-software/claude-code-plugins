@@ -62,14 +62,13 @@ linting still run.
 The formatting rules come from the `biome.json` already in your repository, which
 the plugin reads automatically. To change the rules, edit that file.
 
-Two `userConfig` options tune the hook itself:
+One `userConfig` option tunes the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `biome_format_enabled` | `true` | Toggle for the biome-format hook; set to `false` for a clean no-op |
-| `stdin_read_timeout` | `2` | Seconds the hook waits for its payload before failing open |
 
-Set them interactively with `/plugin configure biome-format`, or headless on the
+Set it interactively with `/plugin configure biome-format`, or headless on the
 install command:
 
 ```shell

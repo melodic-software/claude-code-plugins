@@ -8,20 +8,19 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["ruff", "python", "formatter", "linter", "hook"],
+  "keywords": [
+    "ruff",
+    "python",
+    "formatter",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "ruff_format_enabled": {
       "type": "boolean",
       "title": "ruff-format hook",
       "description": "Run Ruff check --fix and format on edit of a Python file",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

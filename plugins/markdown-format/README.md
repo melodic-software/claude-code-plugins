@@ -69,14 +69,13 @@ The rules themselves are never configured here — the plugin's only rule source
 the markdownlint config already in your repository, which it reads automatically.
 To change the rules, edit your repo's markdownlint config.
 
-Two `userConfig` options tune the hook itself:
+One `userConfig` option tunes the hook itself:
 
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
-| `stdin_read_timeout` | number | `2` | Seconds the hook waits for its stdin payload before failing open. |
 
-Set them interactively with `/plugin configure markdown-format`, or headless on
+Set it interactively with `/plugin configure markdown-format`, or headless on
 the install command:
 
 ```shell

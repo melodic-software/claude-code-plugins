@@ -8,20 +8,19 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["markdown", "markdownlint", "formatter", "linter", "hook"],
+  "keywords": [
+    "markdown",
+    "markdownlint",
+    "formatter",
+    "linter",
+    "hook"
+  ],
   "userConfig": {
     "markdown_format_enabled": {
       "type": "boolean",
       "title": "markdown-format hook",
       "description": "Auto-format and lint Markdown on Write/Edit of .md/.mdc files",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }

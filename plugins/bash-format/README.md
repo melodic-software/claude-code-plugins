@@ -57,14 +57,13 @@ The linting and formatting rules come from the `.shellcheckrc` and
 `.editorconfig` already in your repository, which the plugin reads automatically.
 To change the rules, edit those files.
 
-Two `userConfig` options tune the hook itself:
+One `userConfig` option tunes the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
 | `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
-| `stdin_read_timeout` | `2` | Seconds the hook waits for its stdin payload before failing open (min `1`). |
 
-Set them interactively with `/plugin configure bash-format`, or headless on the
+Set it interactively with `/plugin configure bash-format`, or headless on the
 install command:
 
 ```shell

@@ -8,20 +8,21 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["eol", "line-endings", "crlf", "lf", "gitattributes", "normalizer", "hook"],
+  "keywords": [
+    "eol",
+    "line-endings",
+    "crlf",
+    "lf",
+    "gitattributes",
+    "normalizer",
+    "hook"
+  ],
   "userConfig": {
     "eol_normalizer_enabled": {
       "type": "boolean",
       "title": "eol-normalizer hook",
       "description": "Normalize a written file's line endings to its .gitattributes eol value",
       "default": true
-    },
-    "stdin_read_timeout": {
-      "type": "number",
-      "title": "Hook stdin read timeout (seconds)",
-      "description": "Bound on reading the hook payload from stdin before failing open",
-      "default": 2,
-      "min": 1
     }
   }
 }
