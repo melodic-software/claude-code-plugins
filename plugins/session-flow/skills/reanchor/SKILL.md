@@ -28,12 +28,13 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch's base has moved
-   since the session's inputs were written — the branch may now be behind, or a
-   premise ("this isn't on main yet") may already be false. When
-   `/source-control:worktree` is installed, cite its status for the full
-   per-worktree staleness inventory (behind-base counts, dirty state, PR
-   linkage) instead of recomputing it; otherwise do the reduced local check (a
-   `git` behind-count) and report the fuller inventory as unavailable.
+   since the session's inputs were written — compute the behind-count yourself
+   with `git`, since a premise ("this isn't on main yet") may already be false.
+   This is reanchor's own check. `/source-control:worktree` status, when
+   installed, is a related but distinct capability — a cross-worktree inventory
+   by path / branch / PR / commit-age staleness — that does not report
+   behind-base or dirty-tree signal; cite it for that inventory, not for the
+   drift evidence here.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
    name and that installed plugin versions match the repo source — a rename or a
@@ -56,11 +57,11 @@ back up.
 
 - **Does not resume or continue the work.** It verifies premises; picking the
   work back up is `/session-flow:keep-going`.
-- **Does not inventory worktrees.** Per-worktree/branch staleness (behind-base
-  counts, dirty state, PR linkage) lives in `/source-control:worktree` status
-  when that plugin is installed; this skill cites it, never reimplements it, and
-  falls back to a reduced local base-drift check (flagging the fuller inventory
-  as unavailable) when it is absent.
+- **Does not inventory worktrees.** Enumerating every worktree by
+  path / branch / PR / commit-age staleness is `/source-control:worktree`
+  status's job when that plugin is installed; reanchor does its own base-drift
+  check (a `git` behind-count on the working branch) and never reimplements that
+  cross-worktree inventory.
 - **Does not classify PR feedback or run the PR loop.** Per-PR fresh-evidence
   discipline and feedback triage are `/source-control:babysit-prs`'s job when
   it is installed; reanchor never performs them — it only checks whether a

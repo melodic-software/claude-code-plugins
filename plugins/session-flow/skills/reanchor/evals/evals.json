@@ -52,12 +52,12 @@
     {
       "id": 5,
       "name": "negative-routing-worktree-inventory",
-      "prompt": "Give me the staleness inventory across all my worktrees — which are behind their base, dirty, or have open PRs.",
-      "expected_output": "/source-control:worktree status handles the per-worktree/branch staleness inventory (behind-base counts, dirty state, PR linkage); reanchor does not load — it cites that inventory as an input, it does not compute it.",
+      "prompt": "Give me the staleness inventory across all my worktrees — which are stale by last-commit age and which have open PRs.",
+      "expected_output": "/source-control:worktree status handles the cross-worktree inventory (path, branch, PR linkage, commit-age staleness); reanchor does not load — that inventory is a separate capability, distinct from reanchor's own base-drift check.",
       "files": [],
       "expectations": [
         "Routes to /source-control:worktree status for the worktree inventory",
-        "reanchor is not invoked to compute per-worktree staleness"
+        "reanchor is not invoked to enumerate worktrees"
       ]
     },
     {
