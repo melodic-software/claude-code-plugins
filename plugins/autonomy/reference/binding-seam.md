@@ -9,7 +9,7 @@ policies. The contract defines the SHAPE of a binding; every concrete value is o
 A binding is a written, schema-versioned record mapping contract vocabulary to org instances:
 each topology role to a repository, each capability's seam to the org's chosen instance, plus
 the org's declared postures (budget, substrate availability). Bindings carry a
-`schema-version` field from v0 — consumers read the version before the body, and schema
+`schema_version` field from v0 — consumers read the version before the body, and schema
 changes are reviewed migrations.
 
 ## Resolution ladder

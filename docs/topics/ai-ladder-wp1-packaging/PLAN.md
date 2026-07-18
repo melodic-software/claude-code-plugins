@@ -112,7 +112,7 @@ path) live in SKILL.md/README, never in `reference/`.
 | File | Action | What changes |
 |---|---|---|
 | `plugins/autonomy/reference/role-topology.md` | Create | D1 five roles (capability-distribution, CI-orchestration, settings-as-code, org-policy, runner-execution [unborn; birth trigger = T4 build trigger]); D3 adapter split rule (handler logic → CI-orchestration home; enabling settings incl. admission policy → settings-as-code home); D5 composition stance (composes existing plugin seams — work-item queue/lease/dispatch, deterministic guardrail hooks, verification gates, session observability; near-duplicate skills banned). |
-| `plugins/autonomy/reference/binding-seam.md` | Create | Binding SHAPE + resolution ladder: repo-local binding override → org binding at the org-policy home → setup interview. Must specify: (a) the org-policy-home pointer persists in repo-local/user-global config and is the prerequisite of rung 2; (b) fetch mechanism = the host CLI with the consumer's own auth; (c) no-org terminal default = repo-local binding + free-tier defaults; (d) written bindings carry a schema-version from v0; (e) known limitation: pointer staleness when an org moves its policy home. Layout convention stated as shape only — one contract doc per capability lands in `reference/` with its owning WP; no future-filename enumeration. |
+| `plugins/autonomy/reference/binding-seam.md` | Create | Binding SHAPE + resolution ladder: repo-local binding override → org binding at the org-policy home → setup interview. Must specify: (a) the org-policy-home pointer persists in repo-local/user-global config and is the prerequisite of rung 2; (b) fetch mechanism = the host CLI with the consumer's own auth; (c) no-org terminal default = repo-local binding + free-tier defaults; (d) written bindings carry a `schema_version` field from v0; (e) known limitation: pointer staleness when an org moves its policy home. Layout convention stated as shape only — one contract doc per capability lands in `reference/` with its owning WP; no future-filename enumeration. |
 | `plugins/autonomy/reference/wiring-vs-advisor.md` | Create | D6 verbatim: WIRE when the target surface is machine-editable + local + reviewable, always landing as reviewable changes, never silent mutation; ADVISE (steps + cost surfaced) when org-external, entitlement-gated, paid, or GUI-only; paid anything = advisory + explicit opt-in first, regardless of wireability. |
 
 **Sanity Check:**
@@ -126,7 +126,7 @@ path) live in SKILL.md/README, never in `reference/`.
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/autonomy/skills/setup/SKILL.md` | Create | Setup contract (name `setup`, `disable-model-invocation: true`, `check` + `apply` actions, idempotent, non-interactive when complete arguments supplied). Scope: D7 discovery/interview of the adopting org's state (role homes present, substrate availability, budget posture); `apply` writes the discovered binding as tracked config `.claude/autonomy/` — **concern-named from day one** (concern = governed autonomous operation; a plugin split/rename leaves it valid; the versioned `docs/conventions/autonomy/` contract is deferred with trigger: second plugin consumes the config). Enumerated argument surface + pinned headless defaults (free tier everywhere per Brief cost constraint). Seam-2 obligations: `*.local.*` overlay, recommended `.gitignore` line (`.claude/autonomy/**/*.local.*`), user-global → project → local resolution, infer-and-persist convention ladder. Written binding carries `schema-version`. |
+| `plugins/autonomy/skills/setup/SKILL.md` | Create | Setup contract (name `setup`, `disable-model-invocation: true`, `check` + `apply` actions, idempotent, non-interactive when complete arguments supplied). Scope: D7 discovery/interview of the adopting org's state (role homes present, substrate availability, budget posture); `apply` writes the discovered binding as tracked config `.claude/autonomy/` — **concern-named from day one** (concern = governed autonomous operation; a plugin split/rename leaves it valid; the versioned `docs/conventions/autonomy/` contract is deferred with trigger: second plugin consumes the config). Enumerated argument surface + pinned headless defaults (free tier everywhere per Brief cost constraint). Seam-2 obligations: `*.local.*` overlay, recommended `.gitignore` line (`.claude/autonomy/**/*.local.*`), user-global → project → local resolution, infer-and-persist convention ladder. Written binding carries `schema_version`. |
 | `plugins/autonomy/skills/setup/evals/evals.json` | Create | Warranted (setup precedent: `codebase-health/setup`). Cases: trigger/routing, discovery happy path, no-org terminal default, one non-interactive argument-supplied run, one refusal/guardrail (never assumes fleet shape). |
 
 **Sanity Check:**
@@ -153,7 +153,7 @@ reviewed-and-accepted (first-party, MIT).
 **Sanity Check:**
 
 - All gate scripts exit 0
-- Scratch consumer repo contains `.claude/autonomy/` with a `schema-version` after the non-interactive run, with zero prompts issued
+- Scratch consumer repo contains `.claude/autonomy/` with a `schema_version` field after the non-interactive run, with zero prompts issued
 - Security-review record present in the PR body
 
 ### Phase 6: Fleet binding dogfood — standards PR [TODO]
