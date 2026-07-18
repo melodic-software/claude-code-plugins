@@ -126,6 +126,11 @@ run "git checkout main ':!docs' (tree-ish plus exclude-only, blocked)" "git chec
 run "git checkout HEAD -- ':!docs' (tree-ish, exclude after --, blocked)" "git checkout HEAD -- ':!docs'" 2
 run "git checkout main ':!docs' src/ (positive path scopes, allowed)" "git checkout main ':!docs' src/" 0
 run "git checkout ':!a' src/ (exclude then positive, allowed)" "git checkout ':!a' src/" 0
+run "git restore --conflict merge ':(exclude)docs' (option value not positive, blocked)" "git restore --conflict merge ':(exclude)docs'" 2
+run "git restore --c merge ':(exclude)docs' (abbrev conflict value, blocked)" "git restore --c merge ':(exclude)docs'" 2
+run "git restore --so HEAD ':(exclude)docs' (abbrev source value, blocked)" "git restore --so HEAD ':(exclude)docs'" 2
+run "git restore --so HEAD file (abbrev source, scoped, allowed)" "git restore --so HEAD file" 0
+run "git checkout --c merge HEAD ':!docs' (abbrev conflict value, blocked)" "git checkout --c merge HEAD ':!docs'" 2
 run "git restore ':' (bare no-pathspec marker, blocked)" "git restore ':'" 2
 run "git restore '::' (double-colon marker, blocked)" "git restore '::'" 2
 run "git checkout ':(literal)' (empty non-top magic, blocked)" "git checkout ':(literal)'" 2
@@ -169,6 +174,10 @@ run "env --unset FOO git push --force (two-word unset, blocked)" "env --unset FO
 run "bash -O extglob -c 'git reset --hard' (shopt operand, blocked)" "bash -O extglob -c 'git reset --hard'" 2
 run "bash --rcfile /dev/null -c 'git reset --hard' (rcfile operand, blocked)" "bash --rcfile /dev/null -c 'git reset --hard'" 2
 run "bash --init-file rc -c 'git checkout .' (init-file operand, blocked)" "bash --init-file rc -c 'git checkout .'" 2
+run "if true; then git reset --hard; fi (then-body, blocked)" "if true; then git reset --hard; fi" 2
+run "while true; do git clean -fd; done (do-body, blocked)" "while true; do git clean -fd; done" 2
+run "if false; then :; else git push --force; fi (else-body, blocked)" "if false; then :; else git push --force; fi" 2
+run "if git reset --hard; then :; fi (if-condition, blocked)" "if git reset --hard; then :; fi" 2
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \

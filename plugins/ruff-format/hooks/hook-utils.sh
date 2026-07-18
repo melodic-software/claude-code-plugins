@@ -614,7 +614,10 @@ hook::git_resolve_index() {
       fi
       continue
       ;;
-    if | while | until | for | case | select | coproc | '{' | '}')
+    # Compound-command reserved words at the execution position: a command
+    # can directly follow any of these within one segment (`if git …`,
+    # `then git …`, `do git …`), so skip them and keep resolving.
+    if | then | elif | else | while | until | for | do | case | select | coproc | '{' | '}')
       ((i++))
       continue
       ;;

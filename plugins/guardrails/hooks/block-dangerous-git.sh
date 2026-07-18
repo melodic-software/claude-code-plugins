@@ -426,6 +426,14 @@ check_segment() {
         continue
         ;;
       *)
+        # Value-taking options in accepted abbreviated form (--c for
+        # --conflict, --or for --orphan — verified unique floors) consume
+        # the next word, which must not count as an operand.
+        if [[ "$x" != *=* ]] \
+          && { abbrev_match "conflict" "$x" 1 || abbrev_match "orphan" "$x" 2; }; then
+          ((k += 2))
+          continue
+        fi
         if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
@@ -552,11 +560,19 @@ check_segment() {
           fi
           continue
           ;;
-        -s | --source)
+        -s | --source | --conflict)
           ((k += 2))
           continue
           ;;
         *)
+          # Value-taking options in accepted abbreviated form (--so for
+          # --source, --c for --conflict — verified unique floors) consume
+          # the next word, which must not count as a positive pathspec.
+          if [[ "$x" != *=* ]] \
+            && { abbrev_match "source" "$x" 2 || abbrev_match "conflict" "$x" 1; }; then
+            ((k += 2))
+            continue
+          fi
           is_tree_wide_pathspec "$x" && block "restore-dot" \
             "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
             "Restore specific paths, stash first, or allow via HOOK_BLOCK_DANGEROUS_GIT_ALLOW=restore-dot."
