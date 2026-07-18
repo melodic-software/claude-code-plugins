@@ -34,15 +34,18 @@ function checkAttributeList(attributes, where, hits) {
   }
 }
 
-function checkResourceBlocks(blocks, file, line) {
-  let sawSchemaUrl = false;
+// Per the contract: contract-authored emissions declare the pinned schema URL;
+// a native tool's emission is consumed as-is and may declare none. So absence
+// on an individual line is tolerated, a declared URL must match the pin, and
+// at least one line in the whole checked set must declare it.
+function checkResourceBlocks(blocks, file, line, tally) {
   const hits = { count: 0 };
   for (const [signalKey, block] of Object.entries(blocks)) {
     if (!Array.isArray(block)) continue;
     for (const entry of block) {
       const where = `${file}:${line} ${signalKey}`;
       if (entry.schemaUrl) {
-        sawSchemaUrl = true;
+        tally.schemaUrlDeclared += 1;
         if (entry.schemaUrl !== PINNED_SCHEMA_URL) {
           findings.push(`${where}: schemaUrl ${entry.schemaUrl} != pinned ${PINNED_SCHEMA_URL}`);
         }
@@ -54,9 +57,6 @@ function checkResourceBlocks(blocks, file, line) {
         }
       }
     }
-  }
-  if (!sawSchemaUrl) {
-    findings.push(`${file}:${line}: no schemaUrl declared on any resource block`);
   }
   return hits.count;
 }
@@ -78,6 +78,7 @@ if (targets.length === 0) {
 
 let joinAttributeHits = 0;
 let linesChecked = 0;
+const tally = { schemaUrlDeclared: 0 };
 for (const target of targets.flatMap(filesUnder)) {
   const lines = readFileSync(target, "utf8").split(/\r?\n/).filter(Boolean);
   lines.forEach((raw, index) => {
@@ -89,7 +90,7 @@ for (const target of targets.flatMap(filesUnder)) {
       return;
     }
     linesChecked += 1;
-    joinAttributeHits += checkResourceBlocks(parsed, target, index + 1);
+    joinAttributeHits += checkResourceBlocks(parsed, target, index + 1, tally);
   });
 }
 
@@ -99,6 +100,11 @@ if (linesChecked === 0) {
 if (joinAttributeHits === 0 && linesChecked > 0) {
   findings.push(`no occurrence of ${JOIN_ATTRIBUTE} anywhere in the checked output`);
 }
+if (tally.schemaUrlDeclared === 0 && linesChecked > 0) {
+  findings.push(
+    `no emission in the set declares the pinned schemaUrl (${PINNED_SCHEMA_URL}) — contract-authored emissions must`,
+  );
+}
 
 if (findings.length > 0) {
   console.error("Emission conformance FAILED:");
@@ -106,5 +112,5 @@ if (findings.length > 0) {
   process.exit(1);
 }
 console.log(
-  `Emission conformance OK: ${linesChecked} OTLP JSON lines, ${joinAttributeHits} join-attribute occurrence(s), schemaUrl pinned.`,
+  `Emission conformance OK: ${linesChecked} OTLP JSON lines, ${joinAttributeHits} join-attribute occurrence(s), ${tally.schemaUrlDeclared} pinned schemaUrl declaration(s).`,
 );

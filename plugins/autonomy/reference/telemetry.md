@@ -9,12 +9,15 @@ deliberately out of contract.
 ## Pillar 1 — standard OTLP, pinned semantic conventions
 
 Every execution context emits OTLP pinned to the OpenTelemetry CI/CD and VCS semantic
-conventions, release **v1.43.0**, declaring
-`schema_url: https://opentelemetry.io/schemas/1.43.0` on every emission. Attribute
-vocabulary is cited by that registry reference, never copied into this contract or any
-conforming document — the registry owns the names (illustrative citation only:
-`cicd.pipeline.run.id` and its sibling pipeline/task attributes, the `vcs.*` change and
-revision attributes).
+conventions, release **v1.43.0**. Every CONTRACT-AUTHORED emission (the writers and adapters
+an adoption wires) declares `schema_url: https://opentelemetry.io/schemas/1.43.0`; a native
+tool's own emission is consumed as-is — its schema declaration is whatever the tool emits
+(empirically, native agent-session output declares none), and the native-surface principle
+forbids rewriting it. A declared schema URL anywhere in a conforming output set MUST match
+the pin. Attribute vocabulary is cited by that registry reference, never copied into this
+contract or any conforming document — the registry owns the names (illustrative citation
+only: `cicd.pipeline.run.id` and its sibling pipeline/task attributes, the `vcs.*` change
+and revision attributes).
 
 Those conventions are Release Candidate: upstream renames still happen. The pin is exact;
 adopting a newer release (including the graduation-to-Stable rename wave) is a reviewed
