@@ -1,6 +1,6 @@
 ---
 name: compress
-description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: \"compress this doc\", \"tighten markdown\", \"cut prose\", \"shorten without losing meaning\", \"trim onboarding doc\", or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise removal (/declutter), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
+description: "Compress (tighten, shorten, trim) markdown files by dropping flavor — filler, hedging, articles — while preserving all content (directives, qualifiers, thresholds, examples), with a mandatory semantic-diff subagent that reverts any SEMANTIC LOSS or AMBIGUITY. Use when: \"compress this doc\", \"tighten markdown\", \"cut prose\", \"shorten without losing meaning\", \"trim onboarding doc\", or verbose prose in docs/, READMEs, rule bodies, skill bodies, or third-party pasted text — actions: default (snapshot → backend → semantic-diff subagent → revert-pass → markdownlint) and audit (read-only dry-run classifying SKIP/COMPRESS/UNCERTAIN per file); flags: --force (bypass <3% revert rule), --keep-snapshot; not for: session compaction (/compact), markdown noise classification (/audit-noise), code-comment trimming, or content relocation/SSOT consolidation (/extract-ssot)."
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
@@ -71,7 +71,7 @@ Flags (apply to both actions):
 ## Hard rules
 
 - **Semantic-diff dispatch is mandatory for default action.** Audit is read-only — no dispatch.
-- **Post-edit `markdownlint-cli2` MUST pass** (using the consuming repository's markdownlint config when present). Non-zero exit blocks ship; revert and surface failures.
+- **Post-edit `markdownlint-cli2` MUST pass** (using the consuming repository's markdownlint config when present). Non-zero exit blocks ship; revert and surface failures. `markdownlint-cli2` is **required for correctness** (it is the ship gate): if the binary is absent (neither on `PATH` nor as the repo's `node_modules/.bin/markdownlint-cli2`), STOP at the entry point before compressing anything and surface the remediation — install it explicitly (`npm install --save-dev markdownlint-cli2` or a global install); never treat absence as a lint failure and never ship unverified output.
 - **Default `<3% AND 0 semantic-loss → REVERT`.** Proven safe in the authoring repo's empirical baseline (always-loaded instruction files: 3/3 attempts reverted). `--force` bypasses.
 - **Summary output deterministic.** No timestamps; filenames sort lexically.
 - **Snapshot default = ephemeral** (`mktemp -d`, deleted post-dispatch). `--keep-snapshot` persists to `${CLAUDE_PLUGIN_DATA}/snapshots/` instead.
@@ -111,7 +111,7 @@ Observed failure points — each traces to a real incident; grown iteratively.
 - **Not a lint front-end.** `markdownlint-cli2` is the post-edit verifier, not the primary purpose
 - **Not a code-comment compressor.** Out of scope
 - **Not a `/code-review` / `/simplify` shadow.** The built-in `/code-review` and `/simplify` review code changes; `/compress` rewrites markdown prose. Different concerns
-- **Not `/declutter`.** `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/declutter` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
+- **Not `/audit-noise`.** `/compress` owns FLAVOR (filler, hedging, articles, redundant restatement). `/audit-noise` owns NOISE classification (historical citations, ghost refs, "Why this file exists" preambles, hard-coupled enumerated consumer lists) per its own taxonomy. Different concerns; both may apply to the same target iteratively
 - **Not a content-relocation / cite-don't-recap tool.** When an inline passage recaps detail that already lives in a cited single source of truth (another doc or rule), condensing it is content RELOCATION, not flavor removal — the mandatory semantic-diff net sees the words gone from THIS file and reverts them as SEMANTIC LOSS, blind to the SSOT. Apply "reference, don't duplicate" as a MANUAL editorial pass (verify the cited SSOT actually holds the detail first — an unread pointer is an unverified claim); use `/extract-ssot` when the duplicated cluster spans 3+ files
 
 ## Cross-references

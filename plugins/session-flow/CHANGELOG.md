@@ -1,5 +1,68 @@
 # Changelog — session-flow plugin
 
+## 0.9.0 — 2026-07-18
+
+Added:
+
+- reanchor: new skill. Verifies a session's working assumptions against live
+  reality before it builds on them — for the PRs/issues/branches a handoff or
+  locked plan references it confirms each is still in the claimed state, reports
+  current behind-base divergence, confirms cited skills/plugins still exist under
+  that name and that installed versions match the repo source, and flags
+  memory-tier entries whose subjects have since landed. It reports the drift and
+  re-anchors; it does not resume the work (the keep-going sibling), enumerate
+  worktrees, or triage PR feedback. The plugin now bundles six skills.
+
+## 0.8.0 — 2026-07-17
+
+Changed:
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states
+  handoffs and the workflow checklist are checkout-local; the checklist is the stage-ledger kind
+  the contract's `.worktreeinclude` template carries into new worktrees, while handoffs are
+  session-scoped and deliberately not carried.
+
+## 0.7.1
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
+## 0.7.0 — 2026-07-17
+
+Added:
+
+- keep-going: new skill. Recovers and continues a session after any
+  interruption (rate limit, crash, disconnect, gap) — inventory off-thread
+  work, inspect each item's real state from its artifact rather than
+  assuming, resume the resumable / restart the dead / surface the
+  unrecoverable, then reconcile the main thread from a fresh read of its
+  backing plan or handoff file and continue. Safe/idempotent work
+  auto-resumes; re-running side-effectful work (push, PR comment, deploy) is
+  gated against double-firing. It is the resume counterpart to handoff, and
+  the interruption cause is deliberately not diagnosed (recovery is
+  identical regardless). The plugin now bundles five skills.
+
+## 0.6.0 — 2026-07-16
+
+Changed:
+
+- orchestration-brief renamed to `orchestrate`. The default action
+  arms/primes the current session — the skill's primary job — which the old
+  name undersold by foregrounding the secondary export brief; the verb also
+  matches the action-skill naming convention. Invocation is now
+  `/session-flow:orchestrate`; the old `/session-flow:orchestration-brief`
+  token no longer resolves. Export modes are unchanged (`handoff` / `worker`
+  args), and the exported document is still an orchestration brief.
+
+Added:
+
+- orchestrate: seventh imperative CALIBRATE TO CONDITIONS — size the whole
+  orchestration (whether to delegate at all, fan-out width, nesting depth) to
+  the active model's capability, advisor/verifier availability, context
+  pressure, and concurrent-session / rate-limit headroom, with
+  small/medium/large fan-out sizing and single-agent as the floor.
+
 ## 0.5.0 — 2026-07-15
 
 Added:

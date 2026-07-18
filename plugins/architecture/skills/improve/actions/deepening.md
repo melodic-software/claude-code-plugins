@@ -65,8 +65,12 @@ Once the user picks a candidate, walk the decision tree: constraints, dependenci
 
 Side effects inline as decisions crystallize:
 
-- **New concept not in the project glossary?** If the project maintains a ubiquitous-language glossary, add the term immediately rather than batching it to the end.
-- **Sharpening a fuzzy term?** Update the glossary right there.
+- **New concept or sharpened term?** Invoke `/domain-driven-design:ubiquitous-language` immediately
+  when that skill is available in the current session; it owns active glossary maintenance and
+  known-context routing.
+  Otherwise preserve the existing fallback: update a consumer-declared ubiquitous-language glossary
+  in its own shape. If no convention exists, offer discovery-first lazy creation without prescribing
+  a filename.
 - **User rejects a candidate with a load-bearing reason?** Offer to record it as an architecture decision — only when the reason would help a future explorer avoid re-suggesting it.
 
 ### Design-It-Twice exploration mode

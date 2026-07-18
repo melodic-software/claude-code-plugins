@@ -1,0 +1,19 @@
+{
+  "test-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "example-org/test-marketplace"
+    },
+    "installLocation": "<PLUGIN_MARKETPLACES>/test-marketplace",
+    "lastUpdated": "2026-07-17T01:22:34.594Z"
+  },
+  "auto-update-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "example-org/auto-update-marketplace"
+    },
+    "installLocation": "<PLUGIN_MARKETPLACES>/auto-update-marketplace",
+    "lastUpdated": "2026-07-16T23:20:32.150Z",
+    "autoUpdate": true
+  }
+}

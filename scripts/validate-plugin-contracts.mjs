@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import process from "node:process";
 
 const root = process.cwd();
@@ -195,6 +195,33 @@ if (existsSync(aiBriefingBrandOverlay)) {
     )
   ) {
     fail(aiBriefingBrandOverlay, "must not execute consumer-controlled brand configuration");
+  }
+}
+
+// The autonomy plugin's contract text is tool- and fleet-agnostic: the org
+// token and bare fleet repo names may not appear anywhere under it. Author
+// metadata in plugin.json is the single allowed occurrence. The normative
+// reference/ docs additionally ban vendor names outright — surface classes
+// replace them; tool-specific detail lives in SKILL.md/README.
+const autonomyRoot = join(pluginRoot, "autonomy");
+if (existsSync(autonomyRoot)) {
+  const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
+  const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
+  const autonomyReference = join(autonomyRoot, "reference") + sep;
+  for (const path of filesUnder(autonomyRoot)) {
+    let content = read(path);
+    if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
+      // Only the author block is exempt — description/keywords/etc. stay gated.
+      const manifest = JSON.parse(content);
+      delete manifest.author;
+      content = JSON.stringify(manifest);
+    }
+    if (fleetTokens.test(content)) {
+      fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
+    }
+    if (path.startsWith(autonomyReference) && vendorTokens.test(content)) {
+      fail(path, "autonomy reference/ contracts must use surface classes, never vendor names");
+    }
   }
 }
 

@@ -1,24 +1,7 @@
 {
   "schemaVersion": 1,
   "repositoryOwner": "melodic-software",
-  "visibility": "private",
-  "selfHostedCi": true,
-  "exceptions": {
-    ".github/workflows/ci.yml#ci-status": {
-      "reason": "hosted-control-plane",
-      "justification": "The required CI gateway remains independent of selector and fleet health so route failures cannot become successful skipped checks."
-    },
-    ".github/workflows/claude-review.yml#review": {
-      "reason": "privileged-control-plane",
-      "justification": "Claude review mints an OIDC credential and writes pull-request comments, so it remains isolated on GitHub-hosted compute."
-    },
-    ".github/workflows/link-check.yml#link-check": {
-      "reason": "privileged-control-plane",
-      "justification": "The scheduled link checker can create or update repository issues and therefore remains on GitHub-hosted compute."
-    },
-    ".github/workflows/pr-title.yml#pr-title": {
-      "reason": "hosted-control-plane",
-      "justification": "The required PR-title gateway remains independent of selector and fleet health so route failures cannot become successful skipped checks."
-    }
-  }
+  "visibility": "public",
+  "selfHostedCi": false,
+  "exceptions": {}
 }

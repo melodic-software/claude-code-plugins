@@ -10,17 +10,17 @@
       "expectations": [
         "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode, since no open map exists yet for this topic",
         "Output applies the fog test to sort uncertainties into sharp candidate decision items versus foggy Not-yet-specified prose, instead of trying to answer every uncertainty itself",
-        "Output does not skip straight to /planning:interview or /planning:architect without first charting the fog"
+        "Output does not skip straight to /planning:interview or /planning:plan without first charting the fog"
       ]
     },
     {
       "id": 2,
       "name": "work-mode-routes-decision-item-to-target-skill",
-      "prompt": "/planning:wayfind work — on our decision map (#142), the next open, unblocked, unassigned item is #145, labeled wayfind:design, asking us to choose the aggregate boundaries for the new billing domain. Resolve it.",
+      "prompt": "/planning:wayfind work — on our decision map (#142), the next open, unblocked, unassigned item is #145, labeled 'wayfind: design', asking us to choose the aggregate boundaries for the new billing domain. Resolve it.",
       "expected_output": "Work mode picks #145 as the frontier item, claims it (assignee plus a claim-comment lease), and routes the decision by invoking /planning:design directly — since design-typed items route there — rather than deciding the aggregate boundaries itself inline.",
       "files": [],
       "expectations": [
-        "Output identifies #145 (wayfind:design) as the frontier item being resolved",
+        "Output identifies #145 ('wayfind: design') as the frontier item being resolved",
         "Output routes the decision to /planning:design, the routing target for design-typed items, rather than resolving the aggregate-boundary question itself inline",
         "Output claims the item (assignee plus claim comment) before starting resolution rather than working it unclaimed"
       ]

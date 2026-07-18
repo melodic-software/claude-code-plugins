@@ -4,7 +4,8 @@ name: pr-title
 # workflow from ci-workflows. Repos are squash-only with the squash title set to
 # PR_TITLE, so the PR title becomes the default-branch subject — this gates the
 # Conventional-Commits history. `edited` re-validates on a re-title. The emitted
-# required-check context is `pr-title / pr-title`.
+# required-check context is `pr-title / pr-title`. Public repo: runs on the
+# reusable's hosted default runner.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -20,47 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  select-runner:
-    name: Select runner for PR title
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
-  validate-pr-title:
-    # Run semantic validation only after a successful routing decision. A
-    # strict selector/configuration failure never dispatches this workload to
-    # paid hosted Linux.
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    needs: select-runner
+  pr-title:
     permissions:
       pull-requests: read # Reads the pull-request title for validation.
-    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
-
-  pr-title:
-    name: pr-title / pr-title
-    needs: [select-runner, validate-pr-title]
-    if: ${{ always() && !cancelled() }}
-    # This fail-closed required gateway must report selector failure even when
-    # the local fleet cannot accept the validation workload.
-    runs-on: ubuntu-24.04
-    permissions: {}
-    steps:
-      - name: Enforce routing and semantic validation results
-        env:
-          SELECTOR_RESULT: ${{ needs.select-runner.result }}
-          VALIDATION_RESULT: ${{ needs.validate-pr-title.result }}
-        run: |
-          if [[ "$SELECTOR_RESULT" != success || "$VALIDATION_RESULT" != success ]]; then
-            echo "Required PR-title gate failed: selector=$SELECTOR_RESULT validation=$VALIDATION_RESULT"
-            exit 1
-          fi
-          echo "PR-title routing and semantic validation passed."
+      runner: ubuntu-24.04

@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "protected_exact_names": [
+    ".git",
+    ".hg",
+    ".svn",
+    "NTUSER.DAT",
+    "ntuser.dat.LOG1",
+    "ntuser.dat.LOG2",
+    "Desktop",
+    "Documents",
+    "Downloads",
+    "Music",
+    "OneDrive",
+    "Pictures",
+    "Videos"
+  ],
+  "hints": [
+    {
+      "id": "common-temp-file",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "*.tmp",
+      "confidence_ceiling": "medium",
+      "reason": "Common temporary-file suffix; provenance and live ownership still need proof"
+    },
+    {
+      "id": "common-temp-directory",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "tmp-*",
+      "confidence_ceiling": "medium",
+      "reason": "Common temporary-directory prefix; naming alone is not sufficient evidence"
+    },
+    {
+      "id": "common-lock-file",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "*.lock",
+      "confidence_ceiling": "low",
+      "reason": "Lock-looking file; only stale when its owner and process state prove it"
+    },
+    {
+      "id": "python-bytecode-cache",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "__pycache__",
+      "confidence_ceiling": "medium",
+      "reason": "Regenerable Python bytecode cache; a live environment may still own it"
+    },
+    {
+      "id": "macos-finder-metadata",
+      "os": ["macos"],
+      "kind": "name_glob",
+      "pattern": ".DS_Store",
+      "confidence_ceiling": "medium",
+      "reason": "Finder metadata; confirm the target is not managed by another retention mechanism"
+    },
+    {
+      "id": "windows-explorer-metadata",
+      "os": ["windows"],
+      "kind": "name_glob",
+      "pattern": "Thumbs.db",
+      "confidence_ceiling": "medium",
+      "reason": "Explorer thumbnail cache; confirm it is outside an OS-managed root"
+    },
+    {
+      "id": "partial-download",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "*.partial",
+      "confidence_ceiling": "low",
+      "reason": "Partial download; may represent resumable user work"
+    },
+    {
+      "id": "chrome-partial-download",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "*.crdownload",
+      "confidence_ceiling": "low",
+      "reason": "Browser partial download; browser process and resume state must be checked"
+    },
+    {
+      "id": "claude-json-failed-atomic-write",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".claude.json.tmp.*",
+      "confidence_ceiling": "medium",
+      "reason": "Claude Code atomic-write staging remnant (.claude.json.tmp.<pid>.<hash>); confirm no live Claude Code process owns it"
+    },
+    {
+      "id": "agent-temp-git-scratch",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "temp_git_*",
+      "confidence_ceiling": "medium",
+      "reason": "AI-agent Git scratch/staging directory leaked outside a worktree; confirm no session or clone still references it"
+    },
+    {
+      "id": "pulumi-writability-probe",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".pulumi-write-test-*",
+      "confidence_ceiling": "medium",
+      "reason": "Pulumi orphaned writability probe; a completed or crashed run leaves it behind, but verify no engine process is active"
+    }
+  ]
+}

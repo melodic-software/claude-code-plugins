@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the toolchain plugin for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:build and /toolchain:lint resolve first, and offer the tracked .claude/topic-docs.yaml concern file that places plan and verification artifacts. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:build or /toolchain:lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the toolchain plugin for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first, and offer the tracked .claude/topic-docs.yaml concern file that places plan and verification artifacts. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Re-runnable — safe to invoke again to reconfigure."
 argument-hint: "[ecosystem] (no arguments — interview every inferred ecosystem; or name one to (re)configure just that ecosystem)"
 user-invocable: true
 disable-model-invocation: true
@@ -9,7 +9,7 @@ disable-model-invocation: true
 ## Purpose
 
 Write (or update) the consuming repo's tracked ecosystem command surface at
-`.claude/ecosystems/<ecosystem>.yaml` so `/toolchain:build` and `/toolchain:lint` resolve
+`.claude/ecosystems/<ecosystem>.yaml` so `/toolchain:check` and `/toolchain:lint` resolve
 commands deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))
 instead of inferring or falling back to bundled defaults every run. This skill is the ladder's
@@ -51,7 +51,7 @@ then specialize it to the repo:
 - **bash** / **powershell** — shell/PowerShell files present; keep the bundled check/fix commands
   unless the repo documents its own.
 - **markdown** — a markdownlint config present.
-- **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it, `/toolchain:build` does not).
+- **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it, `/toolchain:check` does not).
 - **cross-cutting** — repo-root config for `typos`/`gitleaks`/editorconfig-checker present (lint-only).
 
 Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact
@@ -101,7 +101,13 @@ tier is `branch` (local mode has no committed tier to guard): `git check-ignore 
 representative file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a
 bare directory misses `**` patterns) — a matching ignore rule is surfaced to
 the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
-resolved memory root self-ignores through its own `.gitignore`.
+resolved memory root self-ignores through its own `.gitignore`. Whenever the effective
+`vault_backend` is (or becomes) `gitbook` — preserved from an existing file or chosen by the user
+during this interview — report that GitBook is deferred and non-writable (see
+`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`): the effective writable promotion
+target remains `docs` until a later reviewed decision enables the backend. Do not configure or test a
+GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user chooses
+that change.
 
 ## Output
 
@@ -111,7 +117,7 @@ reconfigure.
 
 ## What this skill does NOT do
 
-- Run build/test/lint — that is `/toolchain:build` and `/toolchain:lint`.
+- Run build/test/lint — that is `/toolchain:check` and `/toolchain:lint`.
 - Write machine-local state — configuration lives in the consumer's tracked files, never in the plugin
   directory or the plugin data directory.
 - Ship or edit the bundled portable defaults — those are the plugin's rung-4 fallback, never written

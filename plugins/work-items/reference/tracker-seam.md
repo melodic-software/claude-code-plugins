@@ -1,6 +1,6 @@
 # Shared tracker context — every work-items skill
 
-The five work-items skills (`track`, `triage`, `work`, `decompose`, `scan`) share one tracker
+The five work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`) share one tracker
 seam, one label taxonomy, one canonical-role remap, and one topic-docs binding. Those invariants
 live here so each skill states them once by reference rather than restating them. Read this document
 (and the references it links) at the start of any work-items skill invocation.
@@ -25,9 +25,21 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" <verb>
 ```
 
-The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. The repo's
-active provider is bound in `.work-item-tracker.json` at the project root — the setup skill seeds it.
-Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
+The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. Two entry-point
+presence checks are required for correctness before an invocation's first verb, each stopping with its
+remediation rather than failing mid-action:
+
+- **`jq`** (`command -v jq`) — the actions' snippets parse with it unconditionally. Missing: stop
+  and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
+  Bash on native Windows) — never improvise a parse.
+- **The seam script** — `"$TRACKER"` above. The plugin bundles it, so it resolves at the plugin-dir
+  path by default; if it resolves at **neither** the plugin path nor the project-root fallback, the
+  plugin install is incomplete — stop and surface that the plugin must be reinstalled or repaired,
+  rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
+  recurring schedule and label remaps but does NOT create the seam.
+
+The repo's active provider is bound in `.work-item-tracker.json` at the project root — the setup skill
+seeds it. Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Adapter resolution") — so a repo can add
 an unshipped provider or shadow a bundled one without forking the plugin. Coordination — create, claim
 (assignee + lease), lease renew/reclaim, dependency links, sub-items, frontier selection, single-item
@@ -50,11 +62,11 @@ Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAU
 
 ## Default = fix, not file
 
-Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan` for small / medium drift
+Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` for small / medium drift
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) belongs in the current change, not the tracker. File NEW
 items only when the work is genuinely orthogonal to the current session, large enough to need its
-own `/architect` plan, or needs research the current session isn't positioned to do. Auto-suggesting
+own `/planning:plan` pass, or needs research the current session isn't positioned to do. Auto-suggesting
 `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and
 surface what was fixed in the commit message / PR description.
 

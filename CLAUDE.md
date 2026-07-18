@@ -27,6 +27,7 @@ from a fetched page this session, treat it as unverified and say so.
 | MCP | https://code.claude.com/docs/en/mcp |
 | Tools reference (monitors) | https://code.claude.com/docs/en/tools-reference |
 | Docs index (discover any other page) | https://code.claude.com/docs/llms.txt |
+| Official-doc index (all plugin-relevant pages) | docs/OFFICIAL-DOCS.md |
 
 Machine-readable JSON Schemas (editor validation for the JSON in this repo; Claude Code ignores the
 `$schema` field at load time): `marketplace.json` →
@@ -54,3 +55,9 @@ The durable design rules live in [`docs/PLUGIN-PHILOSOPHY.md`](docs/PLUGIN-PHILO
 extensibility model, plugin-form caveats, per-plugin migration gate, and plugin-acceptance security
 review live in [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md). Follow both for every
 migration.
+
+## Branching & PRs
+
+PRs required; squash merge; branch `<type>/<description>`. PR title follows Conventional Commits,
+enforced here by `.github/workflows/pr-title.yml` (squash merge sets the commit subject to the PR
+title). Org convention home: `melodic-software/standards` `conventions/`.

@@ -26,7 +26,7 @@ Progressive disclosure lives in `context/` (read on demand — do not recap inli
 `${CLAUDE_PLUGIN_DATA}/reports/` (when `--write` is passed). Honors
 [context/privacy.md](context/privacy.md).
 
-**Not `/troubleshoot`** — that skill tracks Anthropic product bugs and GitHub issues.
+**Not `/known-issues`** — that skill tracks Anthropic product bugs and GitHub issues.
 This skill reads **your** captured telemetry and ops signals.
 
 ## Context ladder (read on demand)
@@ -34,15 +34,16 @@ This skill reads **your** captured telemetry and ops signals.
 | File | When |
 |---|---|
 | [context/read-routing.md](context/read-routing.md) | Ad-hoc "which source for this question?" |
-| [context/otel-pipeline.md](context/otel-pipeline.md) | Collector/dashboard down, store empty, start/restart |
+| [context/otel-pipeline.md](context/otel-pipeline.md) | Collector/dashboard down, store empty, service health |
 | [context/otel-queries.md](context/otel-queries.md) | DuckDB SQL, Aspire CLI, views |
 | [context/operator-setup.md](context/operator-setup.md) | Install, env profile, retention scripts |
 | [context/data-sources.md](context/data-sources.md) | JSONL + ccusage jq (batch reports) |
 | [context/output-format.md](context/output-format.md) | Rendering scope reports |
 | [context/privacy.md](context/privacy.md) | Before any user-visible output |
 
-OTEL scripts + config: `otel/` (canonical, private backend). Hooks/CI cite the
-`scripts/start-{collector,dashboard}.sh` public facades, which delegate to `otel/`.
+OTEL query and retention helpers live in `otel/` (private backends) with stable entry points in
+`scripts/`. Machine provisioning owns the Collector configuration and all long-running service
+and dashboard lifecycle.
 
 ## Arguments
 
@@ -123,7 +124,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## Cross-references
 
-- `/troubleshoot` — CC product bugs (not telemetry reads)
+- `/known-issues` — CC product bugs (not telemetry reads)
 
 ## Gotchas
 
@@ -134,7 +135,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## What this skill does NOT do
 
-- **Does not track GitHub bugs** — use `/troubleshoot`
+- **Does not track GitHub bugs** — use `/known-issues`
 - **Does not modify code** — read-only
 - **Does not replace built-in `/insights`** or your own retrospective workflow
 - **Does not write to memory** unless user explicitly saves

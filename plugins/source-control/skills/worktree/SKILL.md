@@ -69,7 +69,7 @@ Create a new worktree with guided naming and setup verification. Full procedure 
 
 ## Action: `status`
 
-Inventory all worktrees with PR association and staleness detection. Collect Tier-0 facts with plain git + gh (`git worktree list --porcelain` parse, one batched `gh pr list`, last-commit dates), then apply the 6-status classification table (`active` / `stale` / `in-review` / `merged` / `prunable` / `locked`), staleness threshold (14-day default, `WORKTREE_STALE_DAYS` override), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association and staleness detection. Collect Tier-0 facts with plain git + gh (`git worktree list --porcelain` parse, one batched `gh pr list`, last-commit dates), then apply the 6-status classification table (`active` / `stale` / `in-review` / `merged` / `prunable` / `locked`), staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
 
 ---
 
@@ -114,5 +114,5 @@ This skill complements other workflow components — it does not duplicate their
 
 - **`gh` CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the `delete_branch_on_merge` check are skipped with note: "GitHub API unavailable — PR status unknown."
 - **Not in a git repo**: All actions exit immediately with "Not in a git repository."
-- **`WORKTREE_STALE_DAYS` invalid**: Falls back to 14-day default silently.
+- **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
 - **No worktrees exist**: `status` reports "No linked worktrees found." `cleanup` reports "Nothing to clean up."

@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "routes-reconfiguration-through-claude",
-      "prompt": "/claude-ops:setup\n\nKeep the troubleshooting registry in this repository.",
+      "prompt": "/claude-ops:setup\n\nKeep the known-issues registry in this repository.",
       "expected_output": "Recommends a portable project-relative path from repository evidence, directs the user to Claude Code's plugin configuration prompt, and verifies the rendered value on rerun before claiming success.",
       "files": [],
       "expectations": [

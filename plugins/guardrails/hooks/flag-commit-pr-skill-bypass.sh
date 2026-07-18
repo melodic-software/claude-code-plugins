@@ -38,7 +38,7 @@
 # substitution, and a determined author can construct a form that evades the
 # match. This is a nudge toward the canonical skills, not an enforcement gate.
 #
-# Kill switch: HOOK_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false
+# Kill switch: flag_commit_pr_skill_bypass_enabled userConfig option
 
 set -uo pipefail
 
@@ -70,8 +70,8 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 bash_subject() {
   local cmd="$1" tok
   tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+  while [[ "$tok" == "sudo" || "$tok" == *=* ]] &&
+    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
     cmd="${cmd#*[[:space:]]}"
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
     tok="${cmd%%[[:space:]]*}"
@@ -94,8 +94,8 @@ emit_tel() {
   fi
   local data
   data=$(jq -n --arg subject "$SUBJECT" --argjson forms "$forms_json" \
-    '{tool:"Bash",subject:$subject,forms:$forms}' 2>/dev/null) \
-    || data='{"tool":"Bash","subject":"","forms":[]}'
+    '{tool:"Bash",subject:$subject,forms:$forms}' 2>/dev/null) ||
+    data='{"tool":"Bash","subject":"","forms":[]}'
   hook::emit_telemetry "flag-commit-pr-skill-bypass" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -175,8 +175,8 @@ FORMS=()
 # carrying the Co-Authored-By line. Either marker present → the caller already
 # replicates the skill's mechanic; stay quiet.
 if [[ "$STRIPPED_LC" =~ (^|[[:space:];&|()]+)git[[:space:]]+commit([[:space:]]|$) ]]; then
-  if ! [[ "$COMMAND_LC" =~ (^|[[:space:]])(-f|--file)[[:space:]]+-([[:space:]]|$) ]] \
-    || ! [[ "$COMMAND_LC" =~ --trailer ]]; then
+  if ! [[ "$COMMAND_LC" =~ (^|[[:space:]])(-f|--file)[[:space:]]+-([[:space:]]|$) ]] ||
+    ! [[ "$COMMAND_LC" =~ --trailer ]]; then
     MESSAGES+=("direct \`git commit\` (missing the canonical \`-F -\` stdin form + \`--trailer\` Co-Authored-By line) — prefer the \`/commit\` skill (source-control plugin), which encapsulates the heredoc mechanic, Conventional Commits pre-check, and attribution trailer.")
     FORMS+=("git-commit-bypass")
   fi

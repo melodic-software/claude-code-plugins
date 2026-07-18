@@ -2,11 +2,15 @@
 
 Install, configure, command reference, flags, env vars, and Windows-specific gotchas.
 
+> Verified 2026-07-18 against `ctx7` 0.5.5 (live `--help`/`--version` output) and
+> [Context7's CLI docs](https://context7.com/docs/clients/cli).
+> The CLI moves fast — re-check against a current install before acting on a row.
+
 ## Install
 
 ```bash
 npm install -g ctx7@latest
-ctx7 --version  # 0.3.13 or later
+ctx7 --version  # 0.5.5 or later
 ```
 
 Fallback (no global install): `npx ctx7@latest <command>` — slower per-invocation, no PATH ceremony.
@@ -27,10 +31,12 @@ Set it wherever your project manages local environment variables (shell profile,
 
 | Command | Purpose |
 |---|---|
-| `ctx7 library <name> <query>` | Resolve library name → Context7 library ID |
+| `ctx7 library <name> [query]` | Resolve library name → Context7 library ID (query optional since 0.5.x; still pass one for ranking) |
 | `ctx7 docs <libraryId> <query>` | Fetch documentation for a resolved library |
 | `ctx7 setup [flags]` | Configure Context7 for an IDE (this plugin does NOT use it — see below) |
 | `ctx7 login` / `logout` / `whoami` | OAuth flow (this plugin does NOT use it — env var is enough) |
+| `ctx7 remove` / `uninstall` | Remove a `setup`-installed agent configuration (this plugin does NOT use it) |
+| `ctx7 upgrade` | Self-upgrade the CLI |
 | `ctx7 skills install <repo> [skill]` | Install skills from a GitHub repo (this plugin does NOT use it — see below) |
 | `ctx7 skills search <keywords>` | Search the Context7 skills registry |
 | `ctx7 skills suggest` | Auto-suggest skills based on project dependencies |
@@ -39,7 +45,11 @@ Set it wherever your project manages local environment variables (shell profile,
 | `ctx7 skills list` | List installed skills in the current directory |
 | `ctx7 skills remove <name>` | Uninstall a skill |
 
-Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls`, `search` ↔ `s`, `generate` ↔ `gen/g`.
+**The whole `ctx7 skills` surface is deprecated upstream as of 0.5.5** — hidden from `--help`, still
+runnable, with an in-tool warning that it "will stop working in the next major release". This plugin
+never invokes it (see below), so no behavior here depends on it.
+
+Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls`, `search` ↔ `s`, `generate` ↔ `gen`, `remove` ↔ `rm`.
 
 ## Flags
 
@@ -47,8 +57,8 @@ Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--base-url <url>` | `https://context7.com/api` | Point at a custom Context7 backend |
-| `-V, --version` | | Print version |
+| `--base-url <url>` | `https://context7.com` | Point at a custom Context7 backend (API paths are appended) |
+| `-v, --version` | | Print version |
 | `-h, --help` | | Help for the current command |
 
 ### Per-command (`library`, `docs`)
@@ -57,7 +67,7 @@ Short aliases: `ctx7 skills` ↔ `ctx7 skill`, `install` ↔ `i`, `list` ↔ `ls
 |---|---|
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 
-**No `--tokens`, `--limit`, `--format`, or `-v/--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`) — returns ~1.8× more content by default.
+**No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`) — returns ~1.8× more content by default.
 
 ### Setup / install flags (why this plugin doesn't use them)
 

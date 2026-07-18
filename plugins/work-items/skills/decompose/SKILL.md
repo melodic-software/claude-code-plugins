@@ -1,6 +1,6 @@
 ---
 name: decompose
-description: "Break a plan, spec, or PRD into independently-grabbable work items using vertical-slice (tracer-bullet) decomposition, with HITL/AFK classification and dependency ordering. Use when: 'decompose', 'break a plan into tickets', 'decompose into tickets', 'create issues from plan', 'decompose this PRD', 'split this plan into work items', 'turn the plan into tickets', 'vertical-slice this plan'. Reads a PLAN.md / PRD.md / item body / conversation, drafts thin end-to-end slices, classifies each AFK (agent-ready) vs HITL (needs-human), gets approval, then publishes blockers-first via the seam with native dependency edges. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:scan (TODO sweep)."
+description: "Break a plan, spec, or PRD into independently-grabbable work items using vertical-slice (tracer-bullet) decomposition, with HITL/AFK classification and dependency ordering. Use when: 'decompose', 'break a plan into tickets', 'decompose into tickets', 'create issues from plan', 'decompose this PRD', 'split this plan into work items', 'turn the plan into tickets', 'vertical-slice this plan'. Reads a PLAN.md / PRD.md / item body / conversation, drafts thin end-to-end slices, classifies each AFK (agent-ready) vs HITL (needs-human), gets approval, then publishes blockers-first via the seam with native dependency edges. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:scan-todos (TODO sweep)."
 argument-hint: "[source] — empty = topic PLAN.md; prd = topic PRD.md; #<number> = item body; or conversation context"
 user-invocable: true
 disable-model-invocation: false
@@ -134,7 +134,11 @@ Use agent-brief body format (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.m
 ## Parent
 
 Refs #<parent-item> (if source was an existing item)
-<!-- or: Source: <contract_dir>/<slug>/PLAN.md Phase N (write the resolved path) -->
+<!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan (#<pr>) when it
+     exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
+     when the PR opens, backfill it as a comment on each published item so the provenance
+     survives the slice prune. Never write the contract-slice path: the slice is pruned before
+     merge, so the pointer would dangle (topic-docs pointer discipline). -->
 
 ## What to build
 

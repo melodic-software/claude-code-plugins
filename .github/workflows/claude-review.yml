@@ -8,6 +8,7 @@ name: claude-review
 # Fork PRs receive no secrets and a read-only token, so they are simply not
 # reviewed by design (no token-exfiltration surface). Requires `claude-code-plugins` to be
 # in the CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope.
+# Public repo: runs on the reusable's hosted default runner.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
@@ -17,14 +18,16 @@ permissions:
 
 jobs:
   review:
-    # Privileged review remains hosted by policy. Skip it while strict local-only
-    # emergency routing is active; prefer-self-hosted restores the hosted lane.
-    if: ${{ vars.CI_RUNNER_POLICY != 'self-hosted-only' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    with:
+      runner: ubuntu-24.04
+      # Passing skip-actors replaces the reusable's default (dependabot[bot]),
+      # so the default member is restated alongside the sync bot.
+      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:

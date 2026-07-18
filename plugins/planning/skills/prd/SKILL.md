@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "Produce a Product Requirements Document that locks product intent — problem, users, success metrics — before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use for 'write a PRD', 'spec out a feature', 'product brief', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /architect)."
+description: "Produce a Product Requirements Document that locks product intent — problem, users, success metrics — before any engineering plan, with tiers (one-pager / consumer-feature / b2b-internal), a synthesize path, and a review mode. Use for 'write a PRD', 'spec out a feature', 'product brief', or any user-facing business-driven change needing written alignment; skip for refactors, infra, bug fixes, and engineering-internal work (route to /interview or /planning:plan)."
 argument-hint: "[tier] [task description] (e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review)"
 user-invocable: true
 disable-model-invocation: false
@@ -20,13 +20,13 @@ Arguments: `$ARGUMENTS`
 
 Most product-feature rework comes from skipping the *what for whom and why* layer and jumping straight to *how*. `/prd` produces the lockable product intent contract — what we are building, for which users, against what measurable success — before any engineering plan, exploration, or research begins.
 
-This is the **product-intent** stage. **Upstream of exploration**, **upstream of `/architect`**, and may run **before or alongside `/interview`** depending on task shape:
+This is the **product-intent** stage. **Upstream of exploration**, **upstream of `/planning:plan`**, and may run **before or alongside `/interview`** depending on task shape:
 
 - `/prd` — answers *what should we build, for whom, and why*. Outcome-focused. Required for new user-facing features, business-driven changes, cross-team initiatives
 - `/interview` — answers *what is the engineering contract for this task*. Constraint and acceptance-criteria focused. Required whenever intent is fuzzy, regardless of source
-- Complementary, not redundant. A product feature usually wants both: `/prd` (product intent) → `/interview` (engineering contract) → exploration → research → `/design` → `/architect`. Engineering-internal work skips `/prd` entirely
+- Complementary, not redundant. A product feature usually wants both: `/prd` (product intent) → `/interview` (engineering contract) → exploration → research → `/design` → `/planning:plan`. Engineering-internal work skips `/prd` entirely
 
-The PRD is **never an implementation plan**. Boundaries: problem, users, success — yes. Architecture, files, tests, code shapes — no. That is `/architect`'s job. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/architect` pick up after.
+The PRD is **never an implementation plan**. Boundaries: problem, users, success — yes. Architecture, files, tests, code shapes — no. That is `/planning:plan`'s job. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
 
 **Cost framing**: locking product intent up-front is the cheapest version of the conversation. Every later session that runs against a written PRD costs less than one that infers product goals from a half-formed thought.
 
@@ -40,7 +40,7 @@ Invoke `/prd` when ALL of these are true:
 
 ## Skip conditions — when to NOT invoke `/prd`
 
-If ANY of these hold, do NOT write a PRD. Tell the user explicitly: *"This is engineering-internal — no PRD. Recommend `/interview` (if intent is fuzzy) or `/architect` (if it's clear)."*
+If ANY of these hold, do NOT write a PRD. Tell the user explicitly: *"This is engineering-internal — no PRD. Recommend `/interview` (if intent is fuzzy) or `/planning:plan` (if it's clear)."*
 
 - **Refactors** (no behaviour change)
 - **Infrastructure** (build, CI, hooks, config, dependency bumps, lockfiles)
@@ -54,11 +54,11 @@ If ambiguous (could go either way), surface the question once and let the user p
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the first argument; if absent, ask via `AskUserQuestion`.
+Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the first argument; if absent, ask for it (surface rules below).
 
 | Argument | Action | Use case |
 |----------|--------|----------|
-| *(empty)* | **Smart default** | If a prior PRD exists for the topic, offer resume/revise/start-fresh. Otherwise prompt for tier + task via `AskUserQuestion`. |
+| *(empty)* | **Smart default** | If a prior PRD exists for the topic, offer resume/revise/start-fresh. Otherwise prompt for tier + task. |
 | `<task description>` (no tier word) | **Full PRD, prompt for tier** | Run skip-condition check, then ask which template tier (one-pager / consumer-feature / B2B-internal). |
 | `one-pager <task>` | **Tier 1 — thin one-pager** | Small feature, single team, fast lock. ~½ page. |
 | `consumer <task>` or `consumer-feature <task>` | **Tier 2 — consumer feature** | User-facing app feature with metrics, user stories, risk surface. ~1 page. |
@@ -66,7 +66,7 @@ Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the fir
 | `synthesize <task>` | **Synthesis-only PRD** | Skip Q&A — produce PRD from existing conversation context. Use when conversation already has rich product context and re-asking would waste the user's time. Still runs skip-condition check (Step 1) and survey (Step 2). |
 | `review` | **PRD review** | Critique an existing PRD.md against template + skip-conditions. |
 
-Tier choice rationale lives in [`context/templates.md`](context/templates.md). When tier is unclear from the task description, present the three tiers via `AskUserQuestion` with one-line descriptions — the side-by-side rendering helps the user choose without skimming docs.
+Tier choice rationale lives in [`context/templates.md`](context/templates.md). When tier is unclear from the task description, present the three tiers with one-line descriptions — via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on (the side-by-side rendering helps the user choose without skimming docs), numbered inline prose otherwise.
 
 ## The PRD process
 
@@ -74,7 +74,7 @@ Tier choice rationale lives in [`context/templates.md`](context/templates.md). W
 
 Before any other work, validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
 
-> *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend: `/interview` for fuzzy intent OR `/architect` directly if scope is clear."*
+> *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend: `/interview` for fuzzy intent OR `/planning:plan` directly if scope is clear."*
 
 Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR clarifies the user-facing/business framing.
 
@@ -91,11 +91,11 @@ Spend the first turn grounding yourself, in parallel:
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
-Survey output is a one-paragraph summary in your reply. Then transition to depth-first Q&A.
+Survey output is a one-paragraph summary in your reply. Then transition to frontier-rounds Q&A.
 
 ### Step 3 — Pick the template tier
 
-If not specified in `$ARGUMENTS`, surface tier choice via `AskUserQuestion`:
+If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
 
 | Tier | When |
 |------|------|
@@ -113,13 +113,13 @@ When invoked with `synthesize`, skip Step 4 Q&A entirely. Produce the PRD from e
 
 Use when conversation already contains rich product context and re-asking would waste time. The user is signaling "I've told you enough — write it." Respect that signal.
 
-If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful — `/interview` or `/architect` picks them up downstream.
+If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful — `/interview` or `/planning:plan` picks them up downstream.
 
-### Step 4 — Drive depth-first Q&A
+### Step 4 — Drive frontier-rounds Q&A
 
 **Skipped when `synthesize` action was invoked** — go directly to Step 5.
 
-ONE question at a time, depth-first — resolve the load-bearing question, then surface the next; never batch unrelated questions. Use `AskUserQuestion` when there are 2-4 distinct named options the user benefits from seeing side by side; use prose for open-ended questions.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise.
 
 Question shapes that recur, in priority order:
 
@@ -132,13 +132,13 @@ Question shapes that recur, in priority order:
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold — adoption %, conversion %, time saved, error rate." |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
-| Open questions | "What is genuinely undecided that the architect needs an answer to?" |
+| Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
 Stop asking once every required section has either a resolved answer or an explicit "open question with revisit trigger".
 
 ### Step 5 — Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/architect` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`) — the topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (architect's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars) — the same slug `/interview`, `/design`, and `/planning:plan` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`) — the topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
 
 Frontmatter:
 
@@ -159,7 +159,7 @@ Required sections (every tier — verbosity varies):
 4. **Users** — primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
 5. **Success metrics** — named metric + threshold + measurement window
 6. **Dependencies / risks** — outside-team dependencies + top 1-3 risks with mitigations
-7. **Open questions** — anything genuinely undecided that `/architect` needs answered
+7. **Open questions** — anything genuinely undecided that `/planning:plan` needs answered
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
@@ -180,7 +180,7 @@ After writing the PRD, recommend the next step. The recommendation depends on re
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/interview` (it will read the topic's `PRD.md` as scope)
 - **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if installed, otherwise whatever codebase-exploration capability the environment provides
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if installed, otherwise the strongest research capability available
-- **Engineering scope clear and externals understood** → `/architect`
+- **Engineering scope clear and externals understood** → `/planning:plan`
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -195,11 +195,11 @@ When invoked with `review`:
 5. Check success metrics have a *measurement window* and *threshold*, not vague language
 6. Present findings: what's strong, what's missing, what to revise
 
-Complementary to `/devils-advocate` — review checks structure and convention; stress-test (run later against `/architect`'s plan, not the PRD) checks failure modes.
+Complementary to `/devils-advocate` — review checks structure and convention; stress-test (run later against `/planning:plan`'s plan, not the PRD) checks failure modes.
 
 ## What this skill does NOT do
 
-- **Does not plan implementation** — the PRD is *what for whom and why*. Architecture, files, tests, code is `/architect`'s job. If you find yourself writing "we'll add `XHandler` to module Y", stop and move that to the open-questions section as an architecture decision for later
+- **Does not plan implementation** — the PRD is *what for whom and why*. Architecture, files, tests, code is `/planning:plan`'s job. If you find yourself writing "we'll add `XHandler` to module Y", stop and move that to the open-questions section as an architecture decision for later
 - **Does not run exploration or research** — Step 2's survey is a *fast grounding pass*, not deep work. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
 - **Does not gate other skills** — engineering-internal tasks skip `/prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea** — not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
@@ -214,11 +214,11 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 | Pre-task: any fuzzy task — including post-PRD constraint discovery | `/interview` | Produces the Brief in `PLAN.md` (reads PRD if present) |
 | Need codebase grounding | `/discovery:explore` (if installed) | Reads PRD + PLAN as scope |
 | Need external evidence | `/discovery:research` (if installed) | Reads PRD + PLAN as scope |
-| Need design exploration (types, contracts, topology) | `/design` | Reads PRD + PLAN; produces design artifacts that `/architect` consumes |
-| Plan the implementation | `/architect` | Reads PRD + PLAN + explore + research findings |
-| Stress-test the plan | `/devils-advocate` | Adversarial pass on `/architect` output (not the PRD) |
+| Need design exploration (types, contracts, topology) | `/design` | Reads PRD + PLAN; produces design artifacts that `/planning:plan` consumes |
+| Plan the implementation | `/planning:plan` | Reads PRD + PLAN + explore + research findings |
+| Stress-test the plan | `/devils-advocate` | Adversarial pass on `/planning:plan` output (not the PRD) |
 
-`/prd` is sister to `/architect`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the contract slice, and feed each other.
+`/prd` is sister to `/planning:plan`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the contract slice, and feed each other.
 
 ## Gotchas
 
@@ -226,5 +226,5 @@ Complementary to `/devils-advocate` — review checks structure and convention; 
 - **Success metrics need a window.** "Increase engagement" is not a metric; "DAU/MAU rises from X to Y over 30 days post-launch" is. If a metric has no number and no window, it can't validate the feature
 - **Don't write a PRD for engineering-internal work.** Skip-condition check is mandatory. PRDs for refactors, hooks, lint rules waste cycles and dilute the convention
 - **Tier governs verbosity, not which sections exist.** All three tiers have the same seven required sections. Tier-1 is one line per section; tier-3 is a full paragraph. Don't drop sections to "save time" — drop words
-- **The PRD is never an architecture document.** When discussion drifts to implementation, anchor back to *what for whom*. Capture architecture questions in the **open questions** section for `/architect` to resolve
+- **The PRD is never an architecture document.** When discussion drifts to implementation, anchor back to *what for whom*. Capture architecture questions in the **open questions** section for `/planning:plan` to resolve
 - **Resume vs revise vs start-fresh on prior PRDs.** Never silently overwrite. If scope shifted, append a dated restart note capturing why before rewriting

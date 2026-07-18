@@ -1,6 +1,6 @@
 # Topic-docs placement — what this plugin reads and writes
 
-How the work-items skills (`track`, `work`, `triage`, `decompose`, `scan`) resolve topic-document
+How the work-items skills (`track`, `work`, `triage`, `decompose`, `scan-todos`) resolve topic-document
 paths in a consuming repo. The skills read this one document; they bake no paths of their own.
 
 Implements the topic-docs convention:
@@ -18,6 +18,12 @@ this document binds this plugin's artifacts to it.
 
 The memory root is configurable via the concern file's `memory_dir` key. This plugin never writes
 the contract tier (`<contract_dir>/<slug>/`).
+
+The tracker is the contract's **cross-lane index** (≥ 2.0.0): tickets are how sessions in other
+worktrees, clones, and machines discover work state, so ticket bodies point (PR URLs,
+promoted-doc locations) and never store primary artifacts. Pointer discipline applies:
+`/work-items:decompose` cites the PR carrying the source plan as provenance, never the
+contract-slice path (pruned before merge) or a memory path (never leaves its checkout).
 
 ## What this plugin reads — the tier-selected plan lookup
 

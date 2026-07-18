@@ -1,0 +1,53 @@
+{
+  "skill_name": "point-dont-copy",
+  "evals": [
+    {
+      "id": 1,
+      "name": "copied-doc-content-corrected-to-pointer",
+      "prompt": "point don't copy — review the onboarding doc I just wrote. It pastes in the framework's configuration reference and rewords its retry-policy section in my own words.",
+      "expected_output": "The skill re-anchors pointer-over-copy discipline, then audits the doc and names two located findings — the pasted config reference and the reworded retry-policy paraphrase — flagging that a paraphrase drifts the same as a verbatim copy, and corrects each forward by replacing it with a pointer/citation to the living source.",
+      "files": [],
+      "expectations": [
+        "Flags both the verbatim-pasted reference and the reworded paraphrase as duplication findings",
+        "States that a reworded paraphrase drifts the same as a verbatim copy",
+        "Corrects forward by replacing the copied content with a pointer/citation to the owning source"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "legitimate-local-content-not-flagged",
+      "prompt": "point don't copy — check this doc. It has a config block I adapted for our repo's paths, one exact error string I observed from our failing build, and a dated one-shot research summary I wrote.",
+      "expected_output": "The skill recognizes all three as content this project owns rather than copies — an adapted config, an empirically observed error string, and a point-in-time research deliverable — and does NOT flatten them into pointers. It reports the doc clean on the duplication axis, distinguishing owning a fact from copying one.",
+      "files": [],
+      "expectations": [
+        "Does NOT flag the adapted-for-this-repo config, the observed error string, or the dated research deliverable as violations",
+        "Explains the distinction between owning content and copying a source's facts",
+        "Returns a clean result on the duplication axis rather than manufacturing a finding"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "internal-name-coupling-and-closed-list-reopened",
+      "prompt": "point don't copy — audit this reference doc. It tells readers to 'call scripts/build-index.js' and lists 'the four tools this supports: A, B, C, D'.",
+      "expected_output": "The skill flags the internal-script-name reference (rename blast radius) and the closed capability enumeration as findings, and corrects forward: point at the public invocation contract instead of the internal script path, and reopen the closed list into a general duty with the four named only as marked examples.",
+      "files": [],
+      "expectations": [
+        "Flags the reference to the internal script name and recommends pointing at the public invocation contract",
+        "Flags the closed 'the four tools' enumeration as drift-prone",
+        "Reopens the enumeration into an open-ended duty with current mechanisms as marked examples"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "threshold-two-not-three",
+      "prompt": "point don't copy — the same three-line policy blurb now appears in two different docs. Is that a problem yet, or do we wait for a third copy?",
+      "expected_output": "The skill applies the threshold of two: duplication starts at the second copy, so it flags the two-place repetition now and recommends consolidating to one source and pointing at it — not waiting for a third copy — while allowing a genuine, merits-based case for local divergence.",
+      "files": [],
+      "expectations": [
+        "Treats two copies as duplication to resolve now, not something to tolerate until a third appears",
+        "Recommends consolidating to a single source and pointing at it",
+        "Leaves room for a merits-based legitimate-divergence exception rather than an absolute rule"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the planning plugin for this repository: interview the user, resolve where topic documents land per the topic-docs convention, and persist the tracked concern file .claude/topic-docs.yaml. Use when: 'set up planning', 'configure the planning plugin', 'planning setup', 'where do planning artifacts land', or a planning skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure."
+description: "Configure the planning plugin for this repository across its two concerns: resolve where topic documents land per the topic-docs convention (persisting .claude/topic-docs.yaml), and bootstrap the consumer's standards index per the standards convention (persisting docs/standards/ and, on relocation, .claude/standards.yaml). Use when: 'set up planning', 'configure the planning plugin', 'planning setup', 'where do planning artifacts land', 'set up standards', 'bootstrap the standards index', or a planning skill reports missing or thin config. Re-runnable — safe to invoke again to reconfigure or migrate."
 argument-hint: "(no arguments — interactive interview)"
 user-invocable: true
 disable-model-invocation: true
@@ -36,32 +36,66 @@ Idempotent: re-running reads the current state and offers an update rather than 
    memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`,
    `memory_dir`, and `vault_backend` at their defaults unless the repo's own conventions say
    otherwise — but offer every schema key and preserve every key an existing file carries (a
-   re-run never drops one); do not invent knobs beyond the schema.
+   re-run never drops one); do not invent knobs beyond the schema. Whenever the effective
+   `vault_backend` is (or becomes) `gitbook` — preserved from an existing file, inferred from the
+   repo's own `CLAUDE.md` / `.claude/rules`, or chosen by the user during this interview — report
+   that GitBook is deferred and non-writable: the effective writable promotion target remains
+   `docs` until a later reviewed decision enables the backend. Do not configure or test a GitBook
+   API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user chooses that
+   change.
 4. **Run the conflict check before writing** — only when the chosen tier is `branch` (local mode
    has no committed tier to guard). `git check-ignore -v` on a representative file path
    inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a bare directory misses
    `**` patterns): if a consumer ignore rule matches, STOP and surface the exact rule and
    source line — a "committed" tier that git ignores is the failure the guard exists to catch.
    Resolving the rule is the user's edit to make: **never modify the consumer's root
-   `.gitignore`** (or any ignore file) yourself.
+   `.gitignore`** (or any ignore file this setup did not itself create — the standards root's
+   own bootstrap-shipped `.gitignore` below is the one setup-owned exception).
 5. **Persist.** Write `.claude/topic-docs.yaml` (tracked, team-shared), recording only the keys
    the user chose — absent keys mean the documented defaults, so an all-defaults answer may
    yield a file with `contract_tier: branch` alone or the schema-valid empty mapping `{}`
    (optionally followed by comments), never a comment-only document, which YAML parses as null.
    Preserve every schema key an existing file carries.
 
+## Second concern — standards bootstrap
+
+Settle where the consumer's **standards** live — the adopted conventions and criteria the
+planning skills ground plans in — by implementing the normative "Setup and migration" section of
+the plugin's contract binding
+[`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md).
+The procedure (state reading via the index presence test, the conforming-index short-circuit, the
+hand-authored-README confirmation gate, interview, skeleton write, row-path validation,
+DIRECTIONAL version-delta detection with guided migration, idempotent re-run) lives there —
+implement it by reference, do not restate it. Plugin-side notes only:
+
+- **State reading order:** `.claude/standards.yaml` → index presence test at the resolved
+  `<standards_dir>/README.md` → inference sources (existing docs directories, ecosystem configs,
+  ambient `CLAUDE.md` content).
+- **Bootstrap writes** (interactive, user-accepted — no silent writes): the skeleton index with
+  its `standards-contract` frontmatter at the binding's version, and the setup-owned
+  `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
+  `.claude/standards.yaml` only when the user relocates the root from the documented default.
+- **Optional offers, never demands:** pointer-rule generation for indexed ecosystem surfaces
+  (interactive only), and reorganizing mixed or spread standards content toward the SRP + index
+  shape.
+- **Migration is this skill re-run** — no separate action; direction and messaging per the
+  binding.
+
 ## Output
 
-A written (or confirmed) `.claude/topic-docs.yaml`, plus a one-line summary of the effective
-values, the conflict-check result, and how to re-run this setup to reconfigure.
+A written (or confirmed) `.claude/topic-docs.yaml`, plus — when the standards concern was
+exercised — a written (or confirmed-healthy) standards index and its overlay `.gitignore`, a
+one-line summary of the effective values, the conflict-check and row-validation results, and how
+to re-run this setup to reconfigure or migrate.
 
 ## What this skill does NOT do
 
 - Run a planning stage — that is the pipeline skills (`/planning:brainstorm`, `/planning:prd`,
   `/planning:interview`, `/planning:design`, `/planning:design-handoff`,
-  `/planning:devils-advocate`, `/planning:architect`).
-- Edit the consumer's root `.gitignore` or any ignore file — the conflict check surfaces rules;
-  the user resolves them. (The memory root's own self-ignoring `.gitignore` is created by the
-  first memory-tier write, announced — not by setup.)
+  `/planning:devils-advocate`, `/planning:plan`).
+- Edit the consumer's root `.gitignore` or any ignore file it did not itself create — the
+  conflict check surfaces rules; the user resolves them. (The memory root's own self-ignoring
+  `.gitignore` is created by the first memory-tier write, announced — not by setup. The single
+  setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.)
 - Write anything into the plugin directory or the plugin data directory
   (`${CLAUDE_PLUGIN_DATA}` is for caches and generated state only).

@@ -31,7 +31,7 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 - [ ] `/work-items:track done <N>` (or rely on PR `Closes #N` auto-close)
 - [ ] Comment with merge SHA + retro pointer if applicable
 
-## Action: stats / list / search / scan / audit
+## Action: stats / list / search / scan-todos / audit
 
 - [ ] Single-action read-only — no checkbox chain (run once, report)
 

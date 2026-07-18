@@ -16,6 +16,7 @@
     "approvedHostedRunnerLabels",
     "hostedMatrixExpressions",
     "governedReusableRunnerInput",
+    "fallbackLabelAllowlist",
     "forbiddenHostedRunnerLabels",
     "managedLabelPatterns",
     "hostedExceptionReasons",
@@ -49,7 +50,7 @@
       "propertyNames": { "$ref": "#/$defs/reusableWorkflowReference" },
       "additionalProperties": { "$ref": "#/$defs/reusableWorkflowContract" }
     },
-    "canonicalSelectorInputs": { "$ref": "#/$defs/nonEmptyStringMap" },
+    "canonicalSelectorInputs": { "$ref": "#/$defs/canonicalSelectorInputMap" },
     "optionalCanonicalSelectorInputs": { "$ref": "#/$defs/stringMap" },
     "canonicalSelectorSecrets": { "$ref": "#/$defs/nonEmptyStringMap" },
     "approvedHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
@@ -72,6 +73,7 @@
         "failureSentinel": { "const": "ci-runner-selection-failed" }
       }
     },
+    "fallbackLabelAllowlist": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "forbiddenHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "managedLabelPatterns": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "hostedExceptionReasons": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
@@ -117,6 +119,17 @@
       "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
       "additionalProperties": { "$ref": "#/$defs/nonWhitespaceString" }
     },
+    "canonicalSelectorInputMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "#/$defs/nonWhitespaceString" },
+          { "$ref": "#/$defs/nonEmptyUniqueStringArray" }
+        ]
+      }
+    },
     "uniqueStringArray": {
       "type": "array",
       "uniqueItems": true,
@@ -127,6 +140,33 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/nonWhitespaceString" }
+    },
+    "readWritePermissionAccess": { "enum": ["read", "write", "none"] },
+    "readPermissionAccess": { "enum": ["read", "none"] },
+    "writePermissionAccess": { "enum": ["write", "none"] },
+    "githubPermissionMap": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "actions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "artifact-metadata": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "attestations": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "checks": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "code-quality": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "contents": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "deployments": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "discussions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "id-token": { "$ref": "#/$defs/writePermissionAccess" },
+        "issues": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "models": { "$ref": "#/$defs/readPermissionAccess" },
+        "packages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pull-requests": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "security-events": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "statuses": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "vulnerability-alerts": { "$ref": "#/$defs/readPermissionAccess" }
+      }
     },
     "reusableWorkflowContract": {
       "oneOf": [{ "$ref": "#/$defs/runnerInputContract" }, { "$ref": "#/$defs/hostedOnlyContract" }]
@@ -140,7 +180,9 @@
         "runnerInput": { "$ref": "#/$defs/inputName" },
         "selectorResultInput": { "$ref": "#/$defs/inputName" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
-        "allowedSecrets": { "$ref": "#/$defs/stringMap" }
+        "allowedSecrets": { "$ref": "#/$defs/stringMap" },
+        "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
+        "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
       }
     },
     "hostedOnlyContract": {
@@ -151,7 +193,23 @@
         "routing": { "const": "hosted-only" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
-        "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" }
+        "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
+        "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
+      }
+    },
+    "autoApprovalProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basisSha", "approvedAt"],
+      "properties": {
+        "basisSha": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$"
+        },
+        "approvedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        }
       }
     }
   }

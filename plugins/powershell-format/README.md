@@ -46,11 +46,18 @@ Do not enable this plugin against an untrusted working tree.
 
 ## Requirements
 
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH` — the hook probes `pwsh` only; legacy
-  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook is
-  a silent no-op.
+  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook
+  stays quiet by design: a machine without PowerShell is treated as
+  not-applicable, not as a missing prerequisite.
 - The **PSScriptAnalyzer** module installed
-  (`Install-Module PSScriptAnalyzer`). If absent, the hook is a silent no-op.
+  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet (same
+  not-applicable classification).
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo — the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
@@ -66,17 +73,26 @@ linting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the
-`PSScriptAnalyzerSettings.psd1` already in your repository, which it reads
+The formatting and linting rules come from the
+`PSScriptAnalyzerSettings.psd1` already in your repository, which the hook reads
 automatically. To change the rules, edit that file.
 
-### Disable without uninstalling
+One behavior knob is exposed as a native `userConfig` option:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `powershell_format_enabled` | `true` | Toggle for the powershell-format hook; set `false` for a clean no-op. |
 
-```json
-{ "env": { "HOOK_POWERSHELL_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure powershell-format`, or headless
+on the install command:
+
+```shell
+claude plugin install powershell-format@melodic-software --config powershell_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn the hook off for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
 
 ## License
 

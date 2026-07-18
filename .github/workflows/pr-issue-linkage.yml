@@ -1,0 +1,34 @@
+name: pr-issue-linkage
+
+# Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
+# #N, including owner/repo#N, or the literal "No linked issue" when the PR closes
+# nothing) and a non-empty `## Related` section, via the shared
+# pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
+# base-branch definition, so a head-branch edit cannot bypass the gate — safe
+# here because the reusable reads PR body metadata from the event payload only
+# and runs no head code. `edited` re-validates on a body edit. `merge_group`
+# reports the check green in the queue (the body was validated at PR time; inert
+# without a queue). The emitted required-check context is
+# `pr-issue-linkage / pr-issue-linkage`. Public repo: runs on the reusable's
+# hosted default runner.
+on:
+  # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+
+permissions: {}
+
+# pull_request_target runs the base-branch definition, so github.ref is the base
+# branch: the PR number scopes cancellation and github.ref covers merge_group
+# (which carries no pull_request object); the fallback is inert without a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-issue-linkage:
+    permissions: {}
+    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    with:
+      runner: ubuntu-24.04

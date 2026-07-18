@@ -33,9 +33,9 @@ plugin per hook.
   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — every extra skill is an
   always-paid context line. The standing exception is the `setup` lane, always its own skill with
   `disable-model-invocation: true` — see the philosophy's "Setup is explicit and repeatable".
-- **Hooks group by concern.** Per-hook selectivity comes from an env kill-switch
-  (`HOOK_<PLUGIN>_ENABLED`), a `matcher`, or an `if` guard — author-managed control inside the bundle,
-  the ecosystem norm.
+- **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
+  the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard —
+  author-managed control inside the bundle.
 - **Whole-product / vendor-brand bundles** driven by distribution are a separate, allowed shape.
 
 ### Decompose an oversized skill before packaging it
@@ -78,9 +78,9 @@ skill still has one discovery intent.
 `skillOverrides` setting explicitly *excludes* plugin skills (those are managed through `/plugin`), so
 there is no clean per-skill à-la-carte toggle. Bundling several skills is therefore acceptable only
 *within* one cohesive capability you would never split — it forbids lumping *distinct* capabilities into
-a single plugin. Hooks differ: the env kill-switch gives clean per-hook control inside a bundle. The
-discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via env) versus
-**opt-in-per-invocation** components (skills — group by capability).
+a single plugin. Hooks differ: a per-hook `userConfig` toggle gives clean per-hook control inside a
+bundle. The discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via
+`userConfig`) versus **opt-in-per-invocation** components (skills — group by capability).
 
 **Buckets are catalog metadata, never structure.** Category grouping lives in `marketplace.json`
 `category` / `tags` and catalog docs only: the disk layout stays flat (`plugins/<name>`, no
@@ -117,20 +117,29 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   is failing at its job — the namespace is not naming the domain, or the skill is not naming its
   action. Fix it by, in preference order: rename the skill to its real action verb; rename the
   plugin to its domain noun; decompose, when the single skill actually hides distinct discovery
-  intents (per the Organization section's split rule above). The one exemption is
+  intents (per the Organization section's split rule above). Two exemptions:
   **root-echo** — the domain's core action shares the domain's root word
-  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`); that is honest naming, not
-  a true doubling, and is accepted.
+  (`implementation:implement`, `code-tidying:tidy`, `work-items:work`) — and
+  **wrapper-echo** — a single-skill vendor-CLI wrapper whose one router skill repeats the tool
+  name (`firecrawl:firecrawl`, `playwright:playwright`), per the philosophy's Naming section.
+  Both are honest naming, not true doubling, and are accepted.
 - **Skill families order base-concept-first.** Sibling skills sharing a base concept put the base
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling.
-- **A vendor-CLI plugin names its skills after the vendor's own CLI verbs.** A tool-scoped plugin
-  wrapping a CLI mirrors that CLI's verb vocabulary — `/playwright:test` mirrors
-  `npx playwright test`; a firecrawl decomposition would use `scrape` / `crawl` / `map` per
-  `firecrawl-cli` — the consumer already knows the vendor's verbs.
-- **Generic skill names are safe under namespacing** (`help`, `list`, `configure`) — the overloaded-term
+  a sibling. **Execution tier counts as structural:** a variant that changes execution *topology* — an
+  isolated forked subagent (`context: fork`) or a heavier dispatch tier (workflow engine, forked
+  subagent, or inline fallback) — is fixed in frontmatter and cannot be a runtime argument, so it earns
+  a sibling. `discovery`'s `explore-deep` (a `context: fork` variant of `explore`) and `research-deep`
+  (a dispatch variant of `research`) are siblings on this axis; the `-deep` suffix names that isolation
+  tier, not a depth knob on the same execution path — a true effort knob on one execution path still
+  takes an argument.
+- **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
+  tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary —
+  `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
+  `scrape` / `crawl` / `map` per `firecrawl-cli` — the consumer already knows the vendor's verbs.
+  While it remains a single-skill router, the wrapper-echo exemption above applies instead.
+- **Generic skill names are safe under namespacing** (`help`, `list`, `update`) — the overloaded-term
   caution governs plugin *identity*, not a namespaced skill leaf.
 - **Tool-scope shows up as brand-in-name, not a structural split.** A branded name signals a tool-scoped
   plugin; a plain domain-noun signals a tool-agnostic one. No marketplace separates plugins by tool-scope
@@ -251,15 +260,17 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
 value, infers-and-records, or asks — never guesses silently.
 
-## Setup action — every configurable plugin ships one
+## Setup action — required iff the criteria hold
 
-Every plugin that carries any `userConfig` or tracked-config seam ships a re-runnable `setup` /
-`configure` action (a skill) that interviews the consumer and writes the tracked config. It is
-idempotent — safe to re-run to reconfigure. The Thariq `config.json` first-run pattern is **rejected**
-for plugins: it is not an official mechanism, and it writes into `${CLAUDE_PLUGIN_ROOT}`, which is
-replaced on every update (the plugins-reference caching note), so its state does not survive. Setup
-writes only the consumer configuration the plugin owns. Claude Code's native configuration surface
-collects `userConfig` and owns `pluginConfigs`; a setup skill never edits that key directly.
+Whether a plugin needs a `setup` skill, and the uniform contract it follows (`setup` name,
+`disable-model-invocation: true`, `check` + `apply` actions, non-interactive completion), is owned
+by [PLUGIN-PHILOSOPHY.md § Setup is explicit and repeatable](PLUGIN-PHILOSOPHY.md). Migration work
+applies it as-is. Playbook-specific additions: the Thariq `config.json` first-run pattern is
+**rejected** for plugins — it is not an official mechanism, and it writes into
+`${CLAUDE_PLUGIN_ROOT}`, which is replaced on every update (the plugins-reference caching note), so
+its state does not survive. Setup writes only the consumer configuration the plugin owns; Claude
+Code's native configuration surface collects `userConfig` and owns `pluginConfigs` — a setup skill
+never edits that key directly.
 
 ## Upstream sync — every upstream-sourced plugin ships an update path
 
@@ -278,14 +289,14 @@ a skill ships them only when they earn their keep.
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
 from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …) or lives in a **hook** plugin
-(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup` /
-`configure` skill *is* warrantable — it makes interview and write-config decisions (the
+(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup`
+skill *is* warrantable — it makes interview and write-config decisions (the
 `codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
-Coverage against this rule is snapshotted per audit in
-[`evals-coverage.md`](evals-coverage.md); that doc is the point-in-time record, this section is the
-policy.
+This section is the policy; current coverage is verified on demand — a live glob of
+`plugins/*/skills/*/evals/evals.json` against the tree, read against the warrant rule above — never a
+checked-in snapshot that decays the moment a skill lands.
 
 **Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
 description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
@@ -313,7 +324,7 @@ against the plugin you actually invoked. Then:
    partial signal: `/skill-quality:skill-quality check <skill>` (`check` is an action argument to the
    `skill-quality` skill, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills — its check fires on a `## Actions` heading —
-   so a warranted non-router skill (e.g. `diagnose`) passes `check` without flagging the gap. Rely on the
+   so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
 2. **Schema** — `/skill-quality:skill-quality validate-evals <skill>` (same `skills_root`) validates
    `evals/evals.json` against the bundled schema (structure only — it does not run the cases, and it
@@ -559,15 +570,22 @@ For each skill/hook/agent being migrated:
 3. **De-couple from the source repo.** Remove hardcoded paths/names; route project-specifics to the
    consumer's context.
 4. **Bundle + isolate.** Move required assets inside the plugin; reference via `${CLAUDE_PLUGIN_ROOT}`.
-5. **Expose extensibility.** Declare `userConfig` for consumer choices; document each option.
+5. **Expose extensibility.** Declare `userConfig` for consumer choices; document each option. Apply
+   the userConfig full-potential criterion and the exec-form hook rule from
+   [PLUGIN-PHILOSOPHY.md § Configuration ownership and scope](PLUGIN-PHILOSOPHY.md): no custom
+   config channel where the native schema fits, and no `${user_config.*}` in shell-form hooks.
 6. **Strip PII / secrets.** Hard gate — before the first commit.
-7. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
-8. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
+7. **Check component stances.** Every component the plugin ships conforms to the component stance
+   table in [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md) — no `commands/`, no unjustified
+   `settings.json` `agent`, wait-listed components absent; setup criteria applied per its setup
+   section; runtime prerequisites degrade per its failure-behavior rules.
+8. **Idempotent, modular, extensible.** Re-running is safe; pieces compose; variability is declared.
+9. **Validate.** `claude plugin validate`; test with `--plugin-dir` in a clean repo that is NOT the
    source repo (proves repo-agnosticism).
-9. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
+10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
    consumer depends on records the change in the plugin's changelog — see "Version pinning and update
    delivery" above.
-10. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
+11. **Publish.** Add the entry to `.claude-plugin/marketplace.json` — the plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest
@@ -603,7 +621,8 @@ license-gated units to per-item triage rather than a blanket hold. The ordering 
 A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted
 here — new, or a version bump that adds a trust surface — passes this review** in addition to the migration
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
-Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `CLAUDE.md` fresh-docs mandate.
+Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
+plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
 
 1. **Code execution — hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
@@ -612,7 +631,7 @@ Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `
    Check: which binaries it spawns; whether it mutates files in place and is
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
-   (`HOOK_<PLUGIN>_ENABLED`) exists.
+   (a per-hook `userConfig` boolean with a `default` of `true`) exists.
 2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the **only** plugin that ships one
    (local `stdio`, bundled — see its §2 trust accept above); no plugin ships a **remote** MCP server, which
    remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
@@ -640,9 +659,15 @@ Facts verified against the plugins/MCP reference 2026-07-09; re-verify per the `
    third-party SaaS is a trust delegation — record accept/deny with rationale. Note the platform already blocks
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons" —
    don't design around that.
+7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
+   consumer's main thread — prohibited by default per the component stance table in
+   [PLUGIN-PHILOSOPHY.md](PLUGIN-PHILOSOPHY.md); an exception requires the documented justification
+   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
+   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
+   is reviewed like any hook script.
 
-Record accept/deny + rationale for any plugin touching surfaces 2, 5, or 6; a later version bump that
-introduces a new surface re-triggers this review.
+Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
+that introduces a new surface re-triggers this review.
 
 ## Local development loop
 
@@ -706,8 +731,10 @@ extension points, never by teaching the plugin a consumer's specifics.
 **The plugin is generic; the consumer's own seams restore its specifics.** Map each behavior the
 in-repo hook had that the generalized plugin dropped to one of these, in order:
 
-- **Kill switch / toggles** → the plugin's own env var, set in the consumer's `settings.json` `env`
-  (the name changes from the in-repo `HOOK_<OLD>_ENABLED` to the plugin's `HOOK_<PLUGIN>_ENABLED`).
+- **Kill switch / toggles** → the plugin's own `userConfig` toggles (`/plugin configure`
+  interactively, `claude plugin install --config` headless) — user-scoped, replacing the in-repo
+  `HOOK_<OLD>_ENABLED` env var. Per-repo control is the plugin's `enabledPlugins` entry; a genuinely
+  project-scoped per-hook need is a plugin gap (below), not an env var.
 - **Project conventions** → for a hook plugin, the consumer's own tool config files that the hook already
   reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …) — that is where these plugins pick up project
   conventions, **not** `CLAUDE.md`. (`CLAUDE.md` / `.claude/rules` reach only a plugin's *skill/agent*
@@ -722,7 +749,7 @@ in-repo hook had that the generalized plugin dropped to one of these, in order:
   so the remap preserves the real contract rather than a guessed one.
 
 If a genuine specific has **no** seam, that is a real plugin gap → add a declared extension
-(`userConfig`, or a new env var consistent with the plugin's existing ones) — but only when it carries
+(`userConfig`, or a tracked consumer-project config key) — but only when it carries
 real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
 surface to a published plugin for a single consumer's low-value nicety.
 
@@ -732,10 +759,14 @@ surface to a published plugin for a single consumer's low-value nicety.
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
    both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
    marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
-   then `claude plugin install <plugin>@<marketplace> --scope project` — otherwise the marketplace is known
-   but the plugin is absent, and step 3's verify edit would run with no plugin hook.
-2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
-   sink script (the bridge), adapting the sink for any observability-contract divergence.
+   then `claude plugin install <plugin>@<marketplace> --scope project --config KEY=VALUE …`, seeding every
+   non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
+   is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
+   means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's
+   verify edit would run with no plugin hook.
+2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
+   `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any
+   observability-contract divergence.
 3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
    same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
    formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —
@@ -841,7 +872,7 @@ point every consuming skill's `file:` link and `setup-deps.mjs` fingerprint at t
 byte-drift CI gate are needed — there is only one committed copy, so nothing can drift. The
 invariant that **replaces** the byte-drift gate is delivery-by-version: editing the shared source
 obligates a plugin `version` bump, since the version is the update cache key. (`knowledge`'s
-`repo-analysis` + `video-digestion`, shared by its `youtube` and `course-digest` skills, is the
+`repo-analysis` + `video-digestion`, shared by its `youtube-digest` and `course-digest` skills, is the
 reference instance.) Reach for the cross-plugin shape above only once a *second plugin* genuinely
 needs the same source.
 
@@ -914,7 +945,7 @@ accepted).
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
   <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
 
-## Knowledge-artifacts consuming repo + integration flow — decision record (2026-07-13)
+## Knowledge-corpus consuming repo + integration flow — decision record (2026-07-13)
 
 The `knowledge` plugin's ingest artifacts (transcripts, keyframes, source media, syntheses) get a
 single dedicated consuming home rather than living in any one product repo, so a session can analyze
@@ -922,7 +953,7 @@ the whole corpus and fit relevant findings into *any* target repo. Decided with 
 interview session against medley EPIC #1273 / wave-2 map #1369 (issue #1393); recorded here because
 the wave's codification requirement puts convention decisions in tracked docs, not issue comments.
 
-- **Repo:** `melodic-software/knowledge-artifacts`, private, org-owned. Organization ownership was
+- **Repo:** `melodic-software/knowledge-corpus`, private, org-owned. Organization ownership was
   chosen because source media is retained and storage/bandwidth usage belongs with the shared corpus,
   not a personal account. Created pure-IaC via the `melodic-software/github-iac` governed registry
   (no ad-hoc `gh`, no import/drift window); the repo comes into being at the Pulumi deploy.

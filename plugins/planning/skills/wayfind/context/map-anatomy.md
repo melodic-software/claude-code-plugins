@@ -15,8 +15,12 @@ graduate into. One paragraph. This is the map's success condition.>
 
 ## Notes
 
-- Pointers to `<memory_dir>/<slug>/` (default `.work/`) execution artifacts, prior research, upstream context.
-- Links, not recaps.
+- Durable pointers only: PRs, committed docs, prior items, external links.
+- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local — distill what matters into a
+  line here instead of pointing at a path other readers cannot resolve.
+- Links, not recaps — for anything durably linkable. The memory-tier distillation above is the
+  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
+  preserved context.
 
 ## Decisions-so-far
 
@@ -39,7 +43,7 @@ an exclusion here is itself a decision; note why.>
 
 ## Typed decision items
 
-Each sub-issue is one **sharp** question. The `wayfind:<type>` label sets both the routing
+Each sub-issue is one **sharp** question. The `wayfind: <type>` label sets both the routing
 target (which skill resolves it) and the default mode:
 
 | Type | Default mode | Meaning |
@@ -51,7 +55,7 @@ target (which skill resolves it) and the default mode:
 | `task` | per-item | Decision-unblocking do-work — no feature code, no PR tie |
 
 Mode is materialized as the `needs-human` label (present = HITL). Extension policy: a new
-`wayfind:<type>` value requires an existing routing target — never a type with nowhere to go.
+`wayfind: <type>` value requires an existing routing target — never a type with nowhere to go.
 
 ## Invariants (checked at every `work` session start)
 
@@ -73,5 +77,5 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
   the map for `/work-items`.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
   coherent. Close the map and hand the destination to the pipeline entry that fits it
-  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:architect` → PLAN). The
+  (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The
   map's lifecycle ends exactly where the normal planning pipeline's begins.

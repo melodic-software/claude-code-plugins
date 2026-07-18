@@ -16,7 +16,7 @@ about work items, tracked work, or what to do next):
 /work-items:work                       # auto-select + claim + execute one item
 /work-items:triage 42
 /work-items:decompose                  # break the topic's PLAN.md into tickets
-/work-items:scan                       # sweep TODO/FIXME/HACK markers
+/work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
 ```
 
 ## Skills
@@ -27,7 +27,7 @@ about work items, tracked work, or what to do next):
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
 | `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
-| `/work-items:scan` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
+| `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, writes the tracked `.github/recurring-schedule.json`, and offers the canonical-role → label remap in the tracker binding (re-runnable). |
 
 ## `/work-items:track` actions
@@ -74,6 +74,13 @@ enough that one skill no longer predicts its contents.
 
 ## Requirements
 
+- **Bash + jq.** The skills' inline mechanics are POSIX-shell (`jq`, `mktemp`,
+  `git grep`, `date`) — on native Windows they run under Git Bash (install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)),
+  and `jq` is a separate install there
+  ([download](https://jqlang.org/download/)). `jq` is required for
+  correctness: when it is missing, stop and surface that remediation instead
+  of improvising a parse.
 - **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
   `lib/`, and the `github` + `local-markdown` adapters) under
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares

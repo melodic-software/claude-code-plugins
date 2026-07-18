@@ -1,0 +1,55 @@
+{
+  "skill_name": "keep-going",
+  "evals": [
+    {
+      "id": 1,
+      "name": "inspect-real-state-not-assume",
+      "prompt": "keep going — we got cut off. You had a couple of background jobs running before the disconnect.",
+      "expected_output": "The skill inventories the off-thread work, then inspects each item's ACTUAL state from its source of truth (task output / logs / transcript) rather than assuming it finished or died, resumes the resumable ones, reconciles the main thread from a fresh read of its backing artifact, and reports a recovered / restarted / still-running / lost list.",
+      "files": [],
+      "expectations": [
+        "Inventories the off-thread work rather than only continuing the main thread",
+        "Inspects each item's real state from its artifact — does not assume 'probably done' or 'probably died'",
+        "Reconciles the main thread from a fresh read of its plan/checklist/task artifact, not a remembered claim",
+        "Ends with a recovered / restarted / still-running / lost report"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "gate-side-effectful-refire",
+      "prompt": "keep going. Before the crash you were about to push a commit and post a PR comment — I'm not sure whether either went through.",
+      "expected_output": "The skill auto-resumes safe/idempotent work but GATES the push and the PR comment: because step-2 inspection cannot prove they did not already land, it stops and asks before re-running them rather than double-firing the side effects.",
+      "files": [],
+      "expectations": [
+        "Does NOT blindly re-run the push or the PR comment",
+        "Attempts to inspect whether each side effect already landed",
+        "When it cannot prove a side effect did not land, stops and asks before repeating it",
+        "Still auto-resumes safe, idempotent, read-only work without gating"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "nothing-off-thread-still-reconciles",
+      "prompt": "keep going — I think we just got interrupted mid-task, nothing was running in the background.",
+      "expected_output": "The inventory finds no off-thread work, the skill says so, and it goes straight to reconciling the main thread from its real state and continuing — recovering a mid-turn interruption on the main thread alone is still the job.",
+      "files": [],
+      "expectations": [
+        "Reports that no off-thread work was found rather than inventing recovery items",
+        "Proceeds to reconcile the main thread from its real state and continue",
+        "Does not stall just because there was nothing off-thread to recover"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "does-not-diagnose-limit-type",
+      "prompt": "keep going — was that a 5-hour limit or the weekly one that cut us off?",
+      "expected_output": "The skill does not try to classify the interruption type (short vs weekly limit vs crash) — the recovery is identical regardless — and instead runs the inventory / inspect / recover / reconcile flow.",
+      "files": [],
+      "expectations": [
+        "Does not attempt to diagnose or classify the interruption/limit type",
+        "Proceeds with the recovery flow that is the same regardless of cause",
+        "Focuses on real-state inspection and continuation, not the interruption's origin"
+      ]
+    }
+  ]
+}

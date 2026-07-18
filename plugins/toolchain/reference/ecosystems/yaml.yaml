@@ -1,7 +1,7 @@
 # Bundled portable default — yaml (GitHub Actions workflows). Rung-4 fallback
 # ONLY (consumer .claude/ecosystems/yaml.yaml overrides key-by-key). Contract + schema:
 # https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
-# Lint-only surface: /toolchain:lint runs it; /toolchain:build does not (no build/test phase).
+# Lint-only surface: /toolchain:lint runs it; /toolchain:check does not (no build/test phase).
 globs: [".github/**/*.yml", ".github/**/*.yaml"]
 build-cmd: null
 test-cmd: null
@@ -15,4 +15,4 @@ install-hint: |
   actionlint: winget install rhysd.actionlint | brew install actionlint
   check-jsonschema: pip install check-jsonschema
   zizmor: pip install zizmor
-notes: "Lint-only — owned by /toolchain:lint. /toolchain:build does not run this ecosystem."
+notes: "Lint-only — owned by /toolchain:lint. /toolchain:check does not run this ecosystem."

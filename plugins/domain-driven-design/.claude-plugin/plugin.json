@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "domain-driven-design",
+  "version": "0.1.0",
+  "description": "Domain-driven-design practice skills. Today: actively maintains a consuming project's ubiquitous-language glossary — resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, sharpens what-it-IS definitions, and routes entries to already-known bounded contexts without discovering boundaries.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ddd",
+    "domain-driven-design",
+    "ubiquitous-language",
+    "glossary",
+    "domain-modeling",
+    "vocabulary",
+    "bounded-contexts",
+    "skill"
+  ]
+}

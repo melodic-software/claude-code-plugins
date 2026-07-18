@@ -46,6 +46,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/normalize-eol.sh"
 
 INPUT=$(cat)
 
+# jq is load-bearing for input parsing; absent → visible once-per-session skip
+# notice instead of silently disabling the whole hook (dim-9 doctrine).
+hook::require_jq PostToolUse eol-normalizer "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
@@ -79,8 +83,8 @@ build_data_json() {
     --arg tool "$TOOL" \
     --arg file "$FILE_REL" \
     --arg action "$1" \
-    '{tool:$tool,file:$file,action:$action}' 2>/dev/null \
-    || printf '{"tool":"","file":"","action":""}'
+    '{tool:$tool,file:$file,action:$action}' 2>/dev/null ||
+    printf '{"tool":"","file":"","action":""}'
 }
 
 # The lib mutates the file in place (side effect persists past the subshell) and
@@ -90,8 +94,8 @@ ACTION=$(normalize_eol_file "$REPO_ROOT" "$FILE")
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
 # attr was unspecified, the path is -text, or content sniffed binary.
 case "$ACTION" in
-  lf | crlf) status="ok" ;;
-  *) status="skipped" ;;
+lf | crlf) status="ok" ;;
+*) status="skipped" ;;
 esac
 
 data_json=$(build_data_json "$ACTION")

@@ -3,6 +3,30 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Changed
+
+- Simulation session teardown is phrased shell-agnostically at both sites
+  (`rm -rf` on POSIX/Git Bash, `Remove-Item -Recurse -Force` on PowerShell)
+  instead of an unconditional `rm -rf` with no Windows path — cross-platform
+  declaration wave.
+
+## [0.5.2]
+
+### Changed
+
+- Soft references to the moved vocabulary skill now invoke `/domain-driven-design:ubiquitous-language` (was `/planning:domain-modeling`). Version bumped so existing installs receive the retargeted references.
+
+## [0.5.1]
+
+### Changed
+
+- Workshop and simulation glossary graduation now delegates to `/planning:domain-modeling` when that
+  skill is available. The standalone fallback remains discovery-first and lazy, and the boundary is
+  explicit: glossary maintenance consumes already-established contexts and never performs context
+  discovery.
+
 ## [0.5.0]
 
 ### Added

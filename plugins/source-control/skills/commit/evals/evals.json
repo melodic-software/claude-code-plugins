@@ -63,6 +63,22 @@
     },
     {
       "id": 6,
+      "name": "pathspec-commit-preserves-staged-deletion",
+      "prompt": "Another Claude Code session has unrelated files staged on this same branch. I've already run `git rm --cached config/local-secrets.yaml` (it's staying on disk, just added to .gitignore) and staged an edit to src/app.ts. Commit only my two paths (config/local-secrets.yaml and src/app.ts) without touching the other session's staged work.",
+      "expected_output": "The skill uses the pathspec-limited commit form (git commit -- config/local-secrets.yaml src/app.ts ...) rather than a bare git commit, since the index holds staged files outside this commit's scope. Before invoking it, the skill detects that config/local-secrets.yaml is staged as D via git diff --cached --name-status and is still present on disk, recognizes that --only mode would silently re-add it from the worktree and drop the deletion, and hides the file (e.g. mv config/local-secrets.yaml config/local-secrets.yaml.__commit_hide__) before the commit and restores it afterward via a failure-safe mechanism (e.g. a trap) so the file survives even if the commit fails. The resulting commit records the deletion of config/local-secrets.yaml and the edit to src/app.ts; the other session's staged paths remain staged and untouched; config/local-secrets.yaml is present on disk afterward, untracked.",
+      "files": [],
+      "expectations": [
+        "The skill uses a pathspec-limited commit (git commit -- <paths>...) rather than a bare git commit, because other paths are staged outside this commit's scope",
+        "The skill detects the staged deletion via cached status (git diff --cached --name-status reporting D), not a bare on-disk existence check",
+        "The skill does NOT pass the still-present D-status file straight through to the pathspec commit unmodified — it recognizes that --only mode reads the worktree and would silently drop the deletion",
+        "The skill temporarily hides the still-present file (moves it aside) before the commit and restores it afterward, rather than deleting it from disk outright",
+        "The restore is failure-safe: the file is put back even if the commit itself fails (e.g. a rejecting commit-msg hook), not only on success",
+        "The other session's staged paths outside the given pathspec are left staged and untouched",
+        "After the commit, the deletion is recorded in the commit and the file is still present on disk as untracked (git rm --cached's 'stop tracking, keep locally' intent is preserved)"
+      ]
+    },
+    {
+      "id": 7,
       "name": "trailer-policy-none-honored-in-pathspec-form",
       "prompt": "The index already has other unrelated staged files from another session. Commit only src/api/me.js with the null-user fix, scoped by pathspec.",
       "expected_output": "With .claude/source-control.md declaring trailer_policy: none, the skill omits --trailer from the git commit invocation entirely — including when it uses the pathspec-limited form (git commit -F - --cleanup=verbatim -- <path> <<EOF) for the dirty shared index, not just the default canonical form. No Co-Authored-By trailer is appended.",

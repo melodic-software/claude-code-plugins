@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.0]
+## [0.11.0]
 
 Bundle the work-item-tracker seam into the plugin so installing it delivers the engine and the
 shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam distribution decision.
@@ -31,6 +31,45 @@ shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam
 - **Adapter operations reference and CONTRACT are provider-neutral.** The GitHub adapter reference and
   the contract no longer cite a specific consuming repo's convention docs or bot-auth wrapper; writes
   optionally route through a bot wrapper when the consuming repo provides one, otherwise bare `gh`.
+
+## [0.10.0]
+
+### Changed
+
+- **Runtime prerequisites declared and classified** (prerequisite-visibility
+  wave). README Requirements now name Bash + `jq` (Git Bash on native
+  Windows, where `jq` is a separate install) and classify `jq` as required
+  for correctness — stop with the install remediation, never improvise a
+  parse. The tracker-seam reference gains an explicit entry-point presence
+  check for the seam script with a remediation pointer
+  (`tools/work-item-tracker/CONTRACT.md`, `/work-items:setup`) instead of
+  failing on the first verb.
+
+## [0.9.0]
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` names the
+  tracker as the contract's cross-lane index — tickets point, never store primary artifacts;
+  `/work-items:decompose` ticket provenance now cites the PR carrying the source plan instead of
+  the contract-slice path, which is pruned before merge and would dangle. Pre-PR publishes record
+  slug + phase (a label, not a path) and backfill the PR reference as a comment once it opens.
+
+## [0.8.1]
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
+## [0.8.0]
+
+### Changed (breaking)
+
+- **Skill renamed: `scan` → `scan-todos`.** `/work-items:scan` no longer exists; invoke
+  `/work-items:scan-todos`. Under the `work-items` namespace the bare verb read as scanning
+  tracker items; the skill sweeps the codebase's source comments for TODO/FIXME/HACK/XXX
+  markers, so the name now states its object. No behavior change; no alias or renames-map
+  entry — clean break per the marketplace's settling-phase rename policy.
 
 ## [0.7.0]
 

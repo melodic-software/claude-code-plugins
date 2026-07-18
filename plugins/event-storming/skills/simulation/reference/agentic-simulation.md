@@ -335,7 +335,7 @@ Use `{domain}-{date}-{random4}` format, e.g., `devconf-20260321-a7f2`, where `{r
 **Cleanup protocol:**
 At session end, ask user: "Delete persona temp files? (They can be archived for session replay.)"
 
-- If yes: `rm -rf {session_dir}/` (deletes the session directory itself — `{session_dir}` already resolves to `{system_temp}/eventstorming-session-{session_id}`)
+- If yes: delete the session directory recursively with the host shell's remover — `rm -rf "{session_dir}/"` on POSIX/Git Bash, `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell; keep the path quoted, it may contain spaces (`{session_dir}` already resolves to `{system_temp}/eventstorming-session-{session_id}`)
 - If no: archive to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (the per-plugin data directory that survives updates). Session archives are per-run state, not skill source; never write them into the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`, read-only under cache isolation) or into the consumer's project tree
 
 ---
@@ -602,7 +602,7 @@ The legend MUST be incrementally updated as each phase introduces new building b
 **Ubiquitous Language capture (facilitator observation, not a formal phase):**
 Per Brandolini (Ch. 1): "When new terms arise, and the discussion shows that they have an exact meaning in that context, I start capturing key term definitions on a special sticky note and place them just below the normal flow." In simulation, the facilitator notes domain-specific terms with precise contextual meanings as they emerge organically during ANY phase — not as a dedicated step. Use gray stickies placed below the main flow. These are NOT Wikipedia definitions — just what each term means in THIS domain conversation. Examples: "CFP: Call for Papers", "Track: Parallel session stream."
 
-At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary — one entry per term with a 1–2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. If the repo keeps no committed glossary, offer to create one lazily (a single file at the repo root; per-context files plus a root map once multiple bounded contexts each own their own language). When the `planning` plugin is installed, `/planning:design` owns this format — defer to it for format details.
+At Wrapping Up, these gray stickies become graduation candidates: offer each resolved term for the consumer repo's committed project glossary — one entry per term with a 1–2 sentence definition of what it IS and a plain `Avoid:` line listing the rejected synonyms, project-context terms only. When `/domain-driven-design:ubiquitous-language` is available in the current session, delegate this active maintenance to it; the skill discovers the consumer's format and location and routes only among contexts already established by the workshop or project. Without that skill, preserve the same discovery-first, lazy fallback and ask when placement is ambiguous. Glossary graduation never discovers bounded contexts.
 
 **Bounded context identification (POST-WORKSHOP homework — not a workshop phase):**
 Brandolini is emphatic (Ch. 6): "Once the workshop is officially over, and participants left the workshop room, we can start talking software, ...finally!" and "We can't assume the business side to know about bounded contexts. BCs are mostly a software development issue." BC discovery is the software architect's homework AFTER the workshop, using these 6 heuristics from Ch. 6:
@@ -649,7 +649,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 
 - Update the plugin data store with version metrics, board URLs, and findings (`${CLAUDE_PLUGIN_DATA}/history.jsonl`)
 - Ask user about persona temp files: "Delete persona profiles? (Can be archived for session replay)"
-  - Delete: `rm -rf {session_dir}/`
+  - Delete the session directory recursively, path quoted (`rm -rf "{session_dir}/"` on POSIX/Git Bash; `Remove-Item -LiteralPath "{session_dir}" -Recurse -Force` on PowerShell)
   - Archive: copy to `${CLAUDE_PLUGIN_DATA}/sessions/{session_id}/` (see "Cleanup protocol" above)
 - Clean up test/smoke-test boards (with user confirmation via `miro_delete_board`)
 - Optionally clean up old version boards (keep only latest, with user approval)
@@ -836,7 +836,9 @@ Create a NEW Miro board. This is a different workshop with different participant
 **Round 2: Alternative Paths + Unfulfilled Expectations**
 
 - For each command: "What if it fails? What if it's rejected? What if it partially succeeds?"
-- Place happy path events on top (y=0), alternatives below (y=+250)
+- Place happy path events on the Main Flow row; route failure/rejection alternatives to the
+  Exception flows row and additional/secondary alternatives to the Secondary alternatives row
+  (see the Process Modeling Y-Coordinate Table in `miro-integration.md`)
 - **Events that are NOT happening** (Ch. 14): Model unfulfilled expectations via time-triggered events. "End of day happened before Greeting Received" models a forgotten birthday. Prompt agents: "What SHOULD happen but doesn't? What deadlines expire? What expectations go unfulfilled?" Making the time-frame explicit leads to interesting insights
 - Continue until all paths reach a stable state (System Happy + User Happy)
 

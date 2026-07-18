@@ -1,0 +1,35 @@
+name: do-not-merge
+
+# Blocks merging while the PR carries the `do-not-merge` label, via the shared
+# do-not-merge-gate reusable from ci-workflows. Runs on pull_request_target so
+# the base-branch definition evaluates (a head edit cannot neuter the gate);
+# safe because the reusable reads PR label metadata via the API and runs no head
+# code. `labeled`/`unlabeled` are required so applying or removing the label
+# re-evaluates the gate — a status check binds to a SHA, so without them a check
+# that passed before the label was applied stays green and the merge is never
+# blocked. `merge_group` re-checks the label in the queue (inert without a
+# queue). The emitted required-check context is `do-not-merge / do-not-merge`.
+# Public repo: runs on the reusable's hosted default runner.
+on:
+  # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+  merge_group:
+
+permissions:
+  pull-requests: read
+
+# pull_request_target runs the base-branch definition, so github.ref is the base
+# branch: the PR number scopes cancellation and github.ref covers merge_group
+# (which carries no pull_request object); the fallback is inert without a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  do-not-merge:
+    permissions:
+      pull-requests: read
+    uses: melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18 gh-CLI-free label refetch
+    with:
+      runner: ubuntu-24.04

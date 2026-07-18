@@ -79,14 +79,14 @@ build_input() {
 run() {
   local input="$1"
   shift
-  (cd "$UNRELATED" && printf '%s' "$input" \
-    | env -u HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED \
-      -u HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
-      -u HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED \
+  (cd "$UNRELATED" && printf '%s' "$input" |
+    env -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
+      -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED \
       -u HOOK_TELEMETRY_SINK \
       CLAUDE_PROJECT_DIR="$FAKE_REPO" \
-      HOOK_DESKTOP_NOTIFICATION_ENABLED=true \
-      HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=false \
+      CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true \
+      CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=false \
       "$@" \
       bash "$HOOK" 2>/dev/null)
 }
@@ -97,9 +97,9 @@ bel_count() {
 }
 
 # --- Case 1: master kill switch false → silent exit 0 -----------------------
-OUT="$(cd "$UNRELATED" && build_input permission_prompt \
-  | env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
-    HOOK_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" 2>&1)"
+OUT="$(cd "$UNRELATED" && build_input permission_prompt |
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
+    CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch false → silent exit 0"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 
@@ -127,7 +127,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-actionable type → silent exit 0"
 
 # --- Case 5: empty stdin → silent exit 0 ------------------------------------
 OUT="$(cd "$UNRELATED" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
-  HOOK_DESKTOP_NOTIFICATION_ENABLED=true bash "$HOOK" </dev/null 2>&1)"
+  CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true bash "$HOOK" </dev/null 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "empty stdin → silent exit 0"; else fail "empty stdin (rc=$RC out=$OUT)"; fi
 
@@ -137,19 +137,19 @@ if printf '%s' "$OUT" | grep -q ']9;'; then ok "backward-compat → OSC 9 presen
 if [[ "$(bel_count "$OUT")" == "2" ]]; then ok "backward-compat → 2 BELs (OSC terminator + standalone bell)"; else fail "backward-compat → BEL count $(bel_count "$OUT"), want 2"; fi
 
 # --- Case 7: BELL off → OSC 9 + terminator only, 1 BEL ----------------------
-OUT="$(run "$(build_input permission_prompt)" HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
+OUT="$(run "$(build_input permission_prompt)" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
 if printf '%s' "$OUT" | grep -q ']9;'; then ok "BELL off → OSC 9 terminator intact"; else fail "BELL off → OSC 9 missing: $OUT"; fi
 if [[ "$(bel_count "$OUT")" == "1" ]]; then ok "BELL off → 1 BEL (OSC terminator only)"; else fail "BELL off → BEL count $(bel_count "$OUT"), want 1"; fi
 
 # --- Case 8: TERMINAL_NOTIFY off → bare BEL, no OSC 9 -----------------------
-OUT="$(run "$(build_input permission_prompt)" HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
+OUT="$(run "$(build_input permission_prompt)" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
 if printf '%s' "$OUT" | grep -q ']9;'; then fail "TERMINAL_NOTIFY off → OSC 9 still present: $OUT"; else ok "TERMINAL_NOTIFY off → no OSC 9"; fi
 if printf '%s' "$OUT" | jq -e '.terminalSequence' >/dev/null 2>&1; then ok "TERMINAL_NOTIFY off → terminalSequence present"; else fail "TERMINAL_NOTIFY off → no terminalSequence: $OUT"; fi
 if [[ "$(bel_count "$OUT")" == "1" ]]; then ok "TERMINAL_NOTIFY off → 1 BEL (standalone bell only)"; else fail "TERMINAL_NOTIFY off → BEL count $(bel_count "$OUT"), want 1"; fi
 
 # --- Case 9: both terminal channels off → silent stdout ---------------------
 OUT="$(run "$(build_input permission_prompt)" \
-  HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
+  CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
 if [[ -z "$OUT" ]]; then ok "both terminal channels off → silent stdout"; else fail "both off → stdout not empty: $OUT"; fi
 
 # ============================================================================
@@ -190,8 +190,8 @@ rm -f "$TEL"
 TEL="$(mktemp)"
 STUB="$(make_sink "cat >\"$TEL\"")"
 _OUT="$(run "$(build_input permission_prompt)" \
-  HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false \
-  HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false \
+  CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false \
+  CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false \
   HOOK_TELEMETRY_SINK="$STUB")"
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
@@ -240,7 +240,7 @@ EVIL="$(printf -- '-danger"q\033]9;INJECTED\007mid\tafter\nline2')"
 # BELL off → the only legitimate control bytes are ONE framing ESC (\033, opens
 # OSC 9) and ONE terminating BEL (\007). Any ESC/BEL/newline/tab from .message
 # must be gone: esc==1, bel==1, and zero other C0 bytes.
-OUT="$(run "$(build_input permission_prompt "$EVIL")" HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
+OUT="$(run "$(build_input permission_prompt "$EVIL")" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
 RC=$?
 SEQ="$(jq -r '.terminalSequence' <<<"$OUT")"
 ESC_N="$(printf '%s' "$SEQ" | tr -cd '\033' | wc -c | tr -d ' \r')"
@@ -272,11 +272,11 @@ OSA_LOG="$WORK/osa.log"
 chmod +x "$SHIM/uname" "$SHIM/osascript"
 
 IN_EVIL="$(build_input permission_prompt "$EVIL")"
-(cd "$UNRELATED" && printf '%s' "$IN_EVIL" \
-  | env -u HOOK_TELEMETRY_SINK -u HOOK_DESKTOP_NOTIFICATION_BELL_ENABLED \
-    -u HOOK_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
-    CLAUDE_PROJECT_DIR="$FAKE_REPO" HOOK_DESKTOP_NOTIFICATION_ENABLED=true \
-    HOOK_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=true PATH="$SHIM:$PATH" \
+(cd "$UNRELATED" && printf '%s' "$IN_EVIL" |
+  env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED \
+    CLAUDE_PROJECT_DIR="$FAKE_REPO" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true \
+    CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED=true PATH="$SHIM:$PATH" \
     bash "$HOOK" >/dev/null 2>&1)
 wait_for_sink "$OSA_LOG"
 
@@ -293,6 +293,40 @@ if grep '^ARG=' "$OSA_LOG" 2>/dev/null | grep -q 'display notification'; then fa
 PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
 if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
+
+# --- jq-absent -> visible once-per-session notice (dim-9 doctrine) -----------
+# Without jq the hook can neither classify the notification nor emit its
+# terminalSequence; the skip must surface via systemMessage (the Notification
+# event has no additionalContext channel) once per session.
+FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+run_nojq() {
+  (
+    cd "$UNRELATED" || return 1
+    printf '{"session_id":"test-nojq-1","notification_type":"permission_prompt","message":"Needs your attention"}' |
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$JQ_DATA" \
+        CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=true bash "$HOOK"
+  )
+}
+OUT_NOJQ=$(run_nojq)
+RC_NOJQ=$?
+if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* && "$OUT_NOJQ" != *hookSpecificOutput* ]]; then
+  ok "jq-absent -> exit 0 with systemMessage-only notice"
+else
+  fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
+fi
+OUT_NOJQ2=$(run_nojq)
+if [[ -z "$OUT_NOJQ2" ]]; then
+  ok "jq-absent -> second run same session is silent (once-per-session)"
+else
+  fail "jq-absent second run not silent: $OUT_NOJQ2"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

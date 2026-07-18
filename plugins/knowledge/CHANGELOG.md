@@ -4,6 +4,60 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.7.1
+
+### Changed
+
+- README declares the shell mechanics with their Windows path (Git Bash
+  bundles the `sha256sum` that `book-distill` runs on every distillation) and
+  the EPUB branch's `unzip` requirement (not bundled with Git Bash) —
+  cross-platform declaration wave. PDF-only use needs neither extra install.
+
+## 0.7.0
+
+### Changed
+
+- **`youtube-digest` yt-dlp / throttle scalars migrated to personal `userConfig`.** Four
+  options — `yt_dlp_js_runtimes` (string, default `node`; `off` omits `--js-runtimes`),
+  `yt_dlp_cookies_file` (string, path to a Netscape cookies.txt), `yt_dlp_cookies_from_browser`
+  (string, e.g. `chrome`/`firefox`/`edge`), and `max_concurrent_acquires` (number, default 1,
+  1–3) — are now configured through Claude Code's plugin-configuration prompt and wired into the
+  extraction pipeline as leading `run.mjs` flags (`--js-runtimes`, `--cookies-file`,
+  `--cookies-from-browser`, `--max-concurrent-acquires`), exactly as `library_dir` wires
+  `--work-root`. The launcher translates each flag into the environment variable the extraction
+  child already reads.
+- **BREAKING: the `YOUTUBE_YT_DLP_JS_RUNTIMES`, `YOUTUBE_YT_DLP_COOKIES_FILE`,
+  `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER`, and `YOUTUBE_MAX_CONCURRENT_ACQUIRES` shell env vars are
+  no longer a documented consumer channel.** Configure the four options above instead. The env
+  vars remain only as the internal launcher-to-child interface `run.mjs` sets from those options;
+  setting them by hand in your shell is no longer supported. Zero-config behavior is unchanged —
+  unset options contribute no flag and the pipeline keeps its built-in defaults.
+
+### Notes
+
+- **Course-platform credentials deliberately remain shell env vars.** `COURSE_*` / `TEACHABLE_*`
+  are excluded from this migration: a `sensitive: true` userConfig option still persists as
+  plaintext in `~/.claude/.credentials.json` on Windows, so those secrets stay in shell env until
+  keychain-backed sensitive storage lands there (documented at the course-digest auth-env site).
+
+## 0.6.1
+
+### Changed
+
+- References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
+
+## 0.6.0
+
+### Changed
+
+- **BREAKING: `youtube` skill renamed to `youtube-digest`.** Invoke as
+  `/knowledge:youtube-digest` (previously `/knowledge:youtube`). Sibling skills follow a
+  source+operation grammar (`book-distill`, `course-digest`); the platform noun alone named
+  the source but not the operation. Triggers are unchanged — "youtube", "watch this YouTube
+  video", and youtube.com/youtu.be URLs still route to the skill. In-flight watch slices are
+  unaffected (`.work/<watch-epic>/...` layout is unchanged); resume with
+  `/knowledge:youtube-digest resume <video-slug>`.
+
 ## 0.5.6
 
 ### Added

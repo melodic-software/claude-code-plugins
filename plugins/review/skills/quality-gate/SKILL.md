@@ -22,6 +22,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 - **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
+- **Criteria resolution** — review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
 - **Findings location** — resolve through the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the `.claude/topic-docs.yaml` concern file's `memory_dir` first (`<memory_dir>/reviews/<branch-slug>/`); else a review-artifacts location declared in the project's `CLAUDE.md` / rules (use it, and offer to persist it into the concern file — prose is an inference source, not the runtime authority); else the default `.work/reviews/<branch-slug>/`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory, where `<branch-slug>` is the branch name lowercased with `/` and other non-`[a-z0-9._-]` characters replaced by `-`, and `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ` (ISO-basic UTC, colon-free, Windows-safe). Self-ignore guard: the session's first memory-tier write verifies the resolved memory root contains a `.gitignore` with `*`, creating it (announced) when absent. Write repo-relative paths only — never absolute machine paths.
 
 ## Step 0: Detect review mode
@@ -45,7 +46,7 @@ Ambiguous → present the modes and ask. **Read the matching context file before
 
 1. **What changed?** — pre-computed facts above + the review diff base
 2. **What was the goal?** — the original task, approved plan, or user intent from conversation
-3. **What conventions apply?** — the project's own rules for the changed file types
+3. **What conventions apply?** — resolve the project's standards for the changed surfaces through the standards index per the Shared-inputs criteria-resolution binding, so every review mode grounds in the same rows plan formulation loaded
 
 ## Step 2: Execute the review
 

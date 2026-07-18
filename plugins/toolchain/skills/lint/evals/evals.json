@@ -10,7 +10,7 @@
       "expectations": [
         "Auto-detects affected ecosystems (typescript, bash) from the changed files",
         "Runs in check mode by default — reports violations WITHOUT modifying any files",
-        "Runs lint/format checks only, not a build or test cycle (that is /toolchain:build)",
+        "Runs lint/format checks only, not a build or test cycle (that is /toolchain:check)",
         "Presents a per-ecosystem results table with pass / FAIL / skip / — statuses"
       ]
     },
@@ -30,10 +30,10 @@
       "id": 3,
       "name": "owns-yaml-and-cross-cutting-surfaces",
       "prompt": "/toolchain:lint all — the change set includes a GitHub Actions workflow YAML and touches several text files across the repo.",
-      "expected_output": "Runs the lint-only `yaml` and `cross-cutting` surfaces that /toolchain:build does not — yaml for the workflow file, and cross-cutting (typos/gitleaks/editorconfig-checker) when any text file changed and the repo opts into those tools — resolving the editorconfig-checker binary-name variant before substituting it in.",
+      "expected_output": "Runs the lint-only `yaml` and `cross-cutting` surfaces that /toolchain:check does not — yaml for the workflow file, and cross-cutting (typos/gitleaks/editorconfig-checker) when any text file changed and the repo opts into those tools — resolving the editorconfig-checker binary-name variant before substituting it in.",
       "files": [],
       "expectations": [
-        "Runs the `yaml` surface for the workflow file (a `/toolchain:lint`-only surface not covered by `/toolchain:build`)",
+        "Runs the `yaml` surface for the workflow file (a `/toolchain:lint`-only surface not covered by `/toolchain:check`)",
         "Runs the `cross-cutting` surface when any text file changed AND the repo opts into its tools",
         "Honors each ecosystem's opt-in — does not run cross-cutting tools the repo has not configured"
       ]

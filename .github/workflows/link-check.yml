@@ -3,7 +3,8 @@ name: link-check
 # Advisory online external-link check (not part of ci-status). Runs weekly and
 # on demand; files a rolling tracking issue on failure rather than gating merges.
 # Deterministic on-disk link integrity is covered separately by the offline
-# lychee check; this lane catches dead external URLs in the docs.
+# lychee check; this lane catches dead external URLs in the docs. Public repo:
+# runs on the reusable's hosted default runner.
 on:
   schedule:
     - cron: '23 6 * * 1'
@@ -14,16 +15,14 @@ permissions:
 
 jobs:
   link-check:
-    # This issue-writing advisory lane remains hosted by policy and is paused
-    # while strict local-only emergency routing is active.
-    if: ${{ vars.CI_RUNNER_POLICY != 'self-hosted-only' }}
     # issues: write is scoped to this job (least privilege) — only the called
     # workflow files the rolling tracking issue.
     permissions:
       contents: read
       issues: write
-    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c # 99ac2f8 2026-07-11
+    uses: melodic-software/ci-workflows/.github/workflows/link-check.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
     with:
+      runner: ubuntu-24.04
       args: >-
         --cache
         --max-cache-age 7d

@@ -156,9 +156,9 @@ Run these checks BEFORE starting any simulation:
 | Criterion | Source Reference | Expected | How to Check | Weight |
 |-----------|----------------|----------|--------------|--------|
 | Color grammar strict | Ch. 13-14 | Policy (violet) between every Event→Command | Visual audit of flow | Critical |
-| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies (violet at y=200) | Critical |
+| Three passes completed | Ch. 14-15 | Rush to Goal → Speak Out Loud → Magic Words | Check for corrected policies on the Pass 2 corrections row (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Critical |
 | "Always/Immediately" applied | Ch. 14 | Magic Words challenge breaks 50%+ of policies | Count corrected vs original policies | High |
-| Alternative paths modeled | Ch. 15 | Failure events at y=250 for each command | Count failure events | High |
+| Alternative paths modeled | Ch. 15 | Failure events on the Exception flows / Secondary alternatives rows for each command (see the Process Modeling Y-Coordinate Table in `miro-integration.md`) | Count failure events | High |
 | Read models present | Ch. 14 | light_green stickies showing info needed for decisions | Board check | High |
 | Win conditions met (4/4) | Ch. 13 | All paths complete, grammar preserved, hot spots addressed, stakeholders happy | Explicit win condition assessment | Critical |
 | Legend complete | Ch. 14 | Full color grammar shown | Count legend entries | Medium |

@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "name": "relentless-me-mode-one-at-a-time",
+      "name": "relentless-me-mode-frontier-rounds",
       "prompt": "/planning:interview me — I want to add rate limiting to the public API but haven't thought through the details.",
-      "expected_output": "In me-mode the skill runs a relentless depth-first Q&A, asking ONE question per turn in inline prose (not AskUserQuestion), each question leading with a recommendation and its basis, and grounds answers in the codebase where the code already answers a question.",
+      "expected_output": "In me-mode the skill runs a relentless frontier-rounds interview: each round asks every question whose prerequisites are settled as one numbered set in inline prose (not AskUserQuestion), each question leading with a recommendation and its basis, and grounds answers in the codebase where the code already answers a question.",
       "files": [],
       "expectations": [
-        "Output asks one question at a time rather than batching multiple questions",
+        "Output asks the round's independent frontier questions together as one numbered set, not spread across separate turns",
         "Each question leads with a recommended answer and a one-line basis",
-        "Questions are asked inline in prose, not via a side-by-side AskUserQuestion card",
+        "The round is asked inline in prose, not via a side-by-side AskUserQuestion card",
         "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it"
       ]
     },
@@ -42,23 +42,24 @@
       "id": 4,
       "name": "brief-persisted-not-plan",
       "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
-      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /architect — it produces the WHAT contract, not an implementation approach.",
+      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
       "files": [],
       "expectations": [
         "Output writes a Brief with goal, constraints, and testable acceptance criteria",
-        "Output does NOT draft an implementation plan / approach (that is /architect's job)",
-        "Output recommends a next step (explore, research, or /architect) rather than starting to code"
+        "Output does NOT draft an implementation plan / approach (that is /planning:plan's job)",
+        "Output recommends a next step (explore, research, or /planning:plan) rather than starting to code"
       ]
     },
     {
       "id": 5,
-      "name": "no-askuserquestion-for-dependent-questions",
+      "name": "dependent-questions-split-across-rounds",
       "prompt": "/planning:interview me about the caching approach for the product catalog — the cache key depends on the eviction policy which depends on the read pattern.",
-      "expected_output": "Because these decisions are dependent (a later question's framing depends on an earlier answer), the skill asks them one at a time in prose rather than as a batched side-by-side AskUserQuestion card.",
+      "expected_output": "Because these decisions form a dependency chain (each question's framing depends on the previous answer), the skill splits them across rounds — the prerequisite question first, each dependent question only after its prerequisite is answered — and never batches a question into the same round as a question it depends on, nor renders them as an AskUserQuestion card without the user opt-in.",
       "files": [],
       "expectations": [
-        "Output asks the dependent decisions one at a time in prose",
-        "Output does NOT use a batched AskUserQuestion card for these sequential/dependent decisions",
+        "Output asks the prerequisite decision first and defers each dependent decision to a later round, after its prerequisite is answered",
+        "Output does NOT batch a question into the same round as a question it depends on",
+        "Output does NOT use an AskUserQuestion card absent the use_ask_user_question opt-in",
         "Each question still leads with a recommendation and basis"
       ]
     },
@@ -72,6 +73,31 @@
         "Output identifies the task as mechanical / non-behavioral (a comment typo)",
         "Output does NOT run a Q&A loop or produce a Brief for it",
         "Output tells the user the task does not warrant an interview"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "engineering-term-resolution-delegates",
+      "prompt": "/planning:interview me — in this engineering task we resolved that Subscriber is canonical and Member is rejected. Continue the interview after preserving that decision.",
+      "expected_output": "Invokes /domain-driven-design:ubiquitous-language immediately for the resolved engineering vocabulary, then resumes the interview at the current round. It does not write a parallel glossary format itself, and a general-domain session would not mutate repo docs.",
+      "files": [],
+      "expectations": [
+        "Invokes /domain-driven-design:ubiquitous-language immediately for the resolved term",
+        "Does not prescribe or reimplement glossary format/location in the interview skill",
+        "Resumes the interview loop after the vocabulary update",
+        "Keeps the repository write explicitly scoped to an engineering session"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "facts-looked-up-decisions-asked",
+      "prompt": "/planning:interview me — migrate our config loader to support environment overrides. I don't remember what format the current config file uses, and I'm torn on whether overrides should win over file values or vice versa.",
+      "expected_output": "The skill resolves the current config format from the codebase itself (a fact — read, stated, never asked) and puts the override-precedence choice to the user as a round question with a recommendation (a decision — real tradeoffs, never resolved on the user's behalf).",
+      "files": [],
+      "expectations": [
+        "The current config format is resolved by inspecting the codebase and stated as a finding, not asked as a question",
+        "The override-precedence choice is asked as a question with a recommendation, not silently decided",
+        "Output does not ask the user to confirm a fact the code already answers"
       ]
     }
   ]

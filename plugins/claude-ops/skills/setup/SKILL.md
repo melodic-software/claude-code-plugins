@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Validate claude-ops personal path configuration and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the troubleshooting registry live', or 'where is skill usage logged'."
+description: "Validate claude-ops personal path configuration and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'."
 argument-hint: "(no arguments — interactive validation)"
 user-invocable: true
 disable-model-invocation: true
@@ -8,12 +8,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Confirm the troubleshooting registry and skill-usage-log locations without editing Claude Code
+Confirm the known-issues registry and skill-usage-log locations without editing Claude Code
 settings. `registry_dir` and `skill_usage_dir` are personal `userConfig` options. Claude Code
 prompts for them when the plugin is enabled, stores non-sensitive options in user settings, and
-ignores `pluginConfigs` entries in project and local settings on current releases.
+ignores `pluginConfigs` entries in project and local settings on current releases (≥ 2.1.207).
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract (verified 2026-07-18):
+<https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
 ## Task
 
@@ -43,6 +44,6 @@ any configuration action the user must take in Claude Code. Never claim an unobs
 
 ## Boundaries
 
-- Do not run troubleshooting or registry operations.
+- Do not run known-issues or registry operations.
 - Do not configure observability stores; those have separate documented controls.
 - Do not write Claude Code settings or invent organization-specific configuration.

@@ -19,7 +19,10 @@ The recurring-schedule pass is the bulk / initial-config path; the per-item `add
 pass re-reads the on-disk file and offers updates rather than overwriting blind. The schedule file is a
 plain tracked JSON file the skill reads and writes directly (Read / Write / `jq`) — it is not a tracker
 record, so it does not route through the work-item-tracker seam; only operations on the work items
-themselves (labels, item lookups, edits) go through the bound provider.
+themselves (labels, item lookups, edits) go through the bound provider. Check `jq` is on PATH
+(`command -v jq`) before the first schedule operation — missing, stop with the install remediation
+(<https://jqlang.org/download/>; a separate install under Git Bash on native Windows) rather than
+failing mid-write.
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md) (step "If

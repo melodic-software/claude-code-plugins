@@ -1,5 +1,29 @@
 # Changelog — docs-hygiene plugin
 
+## 0.7.0 — 2026-07-18
+
+Changed:
+
+- `/docs-hygiene:compress`: `markdownlint-cli2` absence is now classified
+  required-for-correctness — the skill stops at the entry point with an install
+  remediation instead of treating a missing ship gate like a lint failure
+  (prerequisite-visibility wave).
+- README gains a Requirements section declaring the runtime (Bash/git/jq
+  ambient, Git Bash on native Windows), the compress-only `markdownlint-cli2`
+  requirement with its absence behavior, and the optional `caveman` backend.
+
+## 0.6.0 — 2026-07-17
+
+Changed:
+
+- Renamed the `declutter` skill → `audit-noise` (breaking). Update any
+  `/docs-hygiene:declutter` invocations to `/docs-hygiene:audit-noise`; the
+  plugin ID (`docs-hygiene`) is unchanged, only the skill's leaf name moved.
+  The skill is a read-only classifier — per the marketplace naming grammar
+  `audit` = read-only report — and "declutter" remains a description trigger
+  word. The detect-script env vars moved with it:
+  `DECLUTTER_REPO_ROOT` → `AUDIT_NOISE_REPO_ROOT`.
+
 ## 0.5.0 — 2026-07-15
 
 Changed:

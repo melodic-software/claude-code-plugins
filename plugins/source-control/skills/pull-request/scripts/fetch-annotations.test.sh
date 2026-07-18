@@ -20,8 +20,8 @@ SCRIPT="$SCRIPT_DIR/fetch-annotations.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# shellcheck source=test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/test-helpers.sh"
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../scripts" && pwd)/test-helpers.sh"
 
 # Skip suite if jq missing — script depends on it.
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"

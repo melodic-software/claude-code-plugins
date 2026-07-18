@@ -73,6 +73,19 @@
         "Output does not commit to a specific format before establishing the user's goal",
         "When it does converge, it biases toward starting with Big Picture per Brandolini's transition funnel"
       ]
+    },
+    {
+      "id": 7,
+      "name": "glossary-graduation-delegates-not-discovers",
+      "prompt": "At Big Picture wrap-up we resolved two domain terms and already established their bounded contexts. /domain-driven-design:ubiquitous-language is available in this session. Graduate the terms without re-running context discovery.",
+      "expected_output": "Delegates each resolved term to /domain-driven-design:ubiquitous-language for consumer-convention glossary maintenance and routing among the already-established contexts. It does not apply bounded-context discovery heuristics or prescribe a glossary filename.",
+      "files": [],
+      "expectations": [
+        "Invokes /domain-driven-design:ubiquitous-language for active glossary graduation",
+        "Uses the contexts already established by the workshop rather than discovering new ones",
+        "Does not run, repeat, or inline bounded-context discovery heuristics",
+        "Does not prescribe a universal glossary or map filename"
+      ]
     }
   ]
 }

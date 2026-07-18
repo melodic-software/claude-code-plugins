@@ -1,15 +1,18 @@
 # session-flow
 
-A Claude Code plugin bundling four skills for one cohesive capability: managing the lifecycle of a
-working session — where you are in the work, how to pause and resume it, what to learn from it, and
-how to arm it for delegation-heavy tasks.
+A Claude Code plugin bundling six skills for one cohesive capability: managing the lifecycle of a
+working session — where you are in the work, how to pause and resume it, how to recover it after an
+interruption, whether its assumptions are still current, what to learn from it, and how to arm it
+for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
+| `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
-| `/session-flow:orchestration-brief` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
+| `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
+| `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 
 ## What each skill does
 
@@ -47,6 +50,20 @@ skill always STOPS after emitting the save-point — continuing would defeat the
 /session-flow:handoff --bg            # hand the resume prompt to a background agent
 ```
 
+### keep-going
+
+The resume counterpart to `handoff`: recovers a session after any interruption — a rate limit, a
+crash, a disconnect, or a long gap. Inventories the off-thread work (background tasks, shells,
+monitors, scheduled tasks, workflows, subagents — whatever the current harness exposes), inspects
+each item's real state from its own artifact rather than assuming it finished or died, resumes the
+resumable and restarts the dead, then reconciles the main thread from a fresh read of its backing
+plan or handoff file and continues. Safe, idempotent work auto-resumes; re-running anything with
+external side effects (a push, a PR comment, a deploy) is gated so a re-fire cannot double-apply.
+
+```shell
+/session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+```
+
 ### retro
 
 Structured session retrospective: extracts transcript metrics via a bundled stdlib-only parser
@@ -61,17 +78,34 @@ codifies user-approved learnings. Health scores persist across sessions for tren
 /session-flow:retro quick      # abbreviated, for limited context
 ```
 
-### orchestration-brief
+### orchestrate
 
-Arms the current session for an orchestration-heavy task by loading six proactive-orchestration
+Arms the current session for an orchestration-heavy task by loading seven proactive-orchestration
 imperatives (delegate/fan-out, spec-every-spawn, fresh-context verify, run-workers-well, nested
-subagents, surface drift) as standing instructions — or exports them as a paste-ready, tool-agnostic
-brief for a spawned worker or fresh session.
+subagents, surface drift, calibrate-to-conditions) as standing instructions — or exports them as a
+paste-ready, tool-agnostic brief for a spawned worker or fresh session.
 
 ```shell
-/session-flow:orchestration-brief                # prime this session
-/session-flow:orchestration-brief worker         # paste-ready worker brief
-/session-flow:orchestration-brief handoff compact # headline-only fresh-session brief
+/session-flow:orchestrate                # prime this session
+/session-flow:orchestrate worker         # paste-ready worker brief
+/session-flow:orchestrate handoff compact # headline-only fresh-session brief
+```
+
+### reanchor
+
+Verifies a session's working assumptions against live reality before it builds on them — the
+premise-freshness counterpart to `keep-going`'s recovery. For the PRs, issues, and branches a
+handoff or locked plan references, it confirms each is still in the claimed state; checks whether
+the working branch is now behind its base; confirms cited skills/plugins still exist under that
+name and that installed versions match the repo source; and flags memory-tier entries whose
+subjects have since landed. It reports the drift and hands back a re-anchored picture — it does not
+resume the work (that is `keep-going`), enumerate worktrees, or triage PR feedback. When
+`source-control` is installed it cites that plugin's `worktree` status for the cross-worktree
+inventory and leaves PR-feedback triage to `babysit-prs`; otherwise it does the reduced local
+checks and reports the fuller inventory as unavailable.
+
+```shell
+/session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
 ## Consumer conventions
@@ -101,5 +135,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
 directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
 working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
-committed. Network: none — the bundled transcript parser is stdlib-only Python 3.10+ reading local
-`~/.claude/projects/` transcripts.
+committed. Network: `reanchor` queries live host state via `git`/`gh` to verify a session's
+referenced PRs/issues/branches and installed-vs-repo plugin versions, and degrades to reporting
+what it could not verify when that authenticated egress is unavailable; every other skill is
+network-free (the retro transcript parser is stdlib-only Python 3.10+ reading local
+`~/.claude/projects/` transcripts).

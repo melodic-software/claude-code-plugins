@@ -18,7 +18,7 @@
 # a shell parser, and neutralizing quotes re-blocks inert prose. An LLM never
 # emits this form; the deny-list plus human oversight are the adversarial layers.
 # The only supported deliberate bypass is the kill switch
-# (HOOK_BLOCK_HOOK_BYPASS_ENABLED=false).
+# (block_hook_bypass_enabled userConfig option set to false).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -54,8 +54,8 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 bash_subject() {
   local cmd="$1" tok
   tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+  while [[ "$tok" == "sudo" || "$tok" == *=* ]] &&
+    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
     cmd="${cmd#*[[:space:]]}"
     cmd="${cmd#"${cmd%%[![:space:]]*}"}"
     tok="${cmd%%[[:space:]]*}"
@@ -156,9 +156,9 @@ if [[ "$EXEC_LC" =~ $_cat_redir ]]; then
 fi
 
 # echo ... > file (stdout-to-real-file only; not stderr/fd redirects or /dev/null)
-if [[ "$EXEC_LC" =~ $_echo_redir ]] \
-  && [[ "$EXEC_LC" =~ $_echo_file_out ]] \
-  && ! [[ "$EXEC_LC" =~ $_echo_devnull ]]; then
+if [[ "$EXEC_LC" =~ $_echo_redir ]] &&
+  [[ "$EXEC_LC" =~ $_echo_file_out ]] &&
+  ! [[ "$EXEC_LC" =~ $_echo_devnull ]]; then
   block_bypass "echo-redirect" "echo > file write bypasses Write/Edit hooks"
 fi
 
@@ -166,8 +166,8 @@ fi
 # the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
 # is not a false positive; scan the RAW command (COMMAND_LC) for the write
 # indicators — they legitimately live inside the quoted `-c` payload the strip removes.
-if [[ "$EXEC_LC" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] \
-  && [[ "$COMMAND_LC" =~ $_py_write ]]; then
+if [[ "$EXEC_LC" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
+  [[ "$COMMAND_LC" =~ $_py_write ]]; then
   block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
 fi
 

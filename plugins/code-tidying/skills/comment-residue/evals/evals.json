@@ -61,13 +61,13 @@
     },
     {
       "id": 6,
-      "name": "markdown-is-declutter-not-comment-residue",
+      "name": "markdown-is-audit-noise-not-comment-residue",
       "prompt": "Run comment-residue on docs/notes.md — it contains 'used to do X, now does Y' narration. Flag it.",
-      "expected_output": "Does NOT audit the markdown file — code-comment residue is code-file-only; markdown noise is the sibling /declutter's territory. It reports no code targets and routes markdown to /declutter.",
+      "expected_output": "Does NOT audit the markdown file — code-comment residue is code-file-only; markdown noise is the sibling /audit-noise's territory. It reports no code targets and routes markdown to /audit-noise.",
       "files": [],
       "expectations": [
         "The .md file is not audited (no findings emitted for it)",
-        "Output routes markdown noise to /declutter rather than handling it here"
+        "Output routes markdown noise to /audit-noise rather than handling it here"
       ]
     }
   ]

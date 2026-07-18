@@ -27,3 +27,8 @@ the contract's solo/offline mode. Roots are configurable via the concern file's 
 `/verification:confirm` reads the contract-tier `PLAN.md` (produced upstream) for intent; when a plan
 states a measurable goal, `/verification:measure` records its baseline values + target into that same
 `PLAN.md`. The plan artifact itself is owned by the `implementation` / planning stages, not written here.
+
+Baselines and raw captures are machine-bound and checkout-local; per the contract's pointer
+discipline (≥ 2.0.0), what `/verification:measure` writes into `PLAN.md` is **distilled values
+only** — never a memory-slice capture path. The committed manifest is what isolated contexts and
+reviewers see; it meets the redaction bar for exactly that reason.

@@ -1,12 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "education",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
+  "keywords": [
+    "teach",
+    "learn",
+    "learning",
+    "coach",
+    "tutor",
+    "pedagogy",
+    "primer",
+    "onboarding",
+    "skill"
+  ]
 }

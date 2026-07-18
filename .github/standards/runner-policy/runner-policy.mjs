@@ -182,6 +182,37 @@ function validatePolicy(value) {
           );
         }
       }
+      if (
+        Object.hasOwn(contract, "allowedCallerPermissions") &&
+        !Object.values(contract.allowedCallerPermissions).includes("write")
+      ) {
+        throw new ConfigurationError(
+          `reusable workflow contract ${reference}.allowedCallerPermissions must include at least one write permission`,
+        );
+      }
+      if (Object.hasOwn(contract, "allowedCallerPermissions")) {
+        for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
+          const expected = `\${{ secrets.${name} }}`;
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) || expression !== expected) {
+            throw new ConfigurationError(
+              `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly ${JSON.stringify(expected)} when allowedCallerPermissions is present`,
+            );
+          }
+        }
+      }
+      // Every runner-input contract's reviewed secret mapping feeds a
+      // selector-routed caller whose secrets: block the generic credential
+      // scan then trusts, so each value must be one exact whole named-secret
+      // expression (the workflow_call input name may differ from the
+      // repository secret name) — a transformed or indirect expression would
+      // ride the reviewed boundary onto the fleet.
+      for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
+        if (typeof expression !== "string" || !EXACT_NAMED_SECRET_EXPRESSION.test(expression)) {
+          throw new ConfigurationError(
+            `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly one whole \${{ secrets.<NAME> }} expression`,
+          );
+        }
+      }
     } else {
       const unknownLabel = contract.fixedRunsOn.find(
         (label) => !knownGitHubHostedRunnerLabels.has(label.toLowerCase()),
@@ -201,6 +232,14 @@ function validatePolicy(value) {
       allowedInputs: new Set(contract.allowedInputs),
       allowedSecrets: contract.allowedSecrets,
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
+      ...(contract.allowedCallerPermissions
+        ? {
+            allowedCallerPermissions: Object.freeze({
+              ...contract.allowedCallerPermissions,
+            }),
+            allowedCallerPermissionNames: new Set(Object.keys(contract.allowedCallerPermissions)),
+          }
+        : {}),
       ...(contract.fixedRunsOn ? { fixedRunsOn: new Set(contract.fixedRunsOn) } : {}),
     });
   }
@@ -217,6 +256,11 @@ function validatePolicy(value) {
   if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.default)) {
     throw new ConfigurationError(
       "policy.governedReusableRunnerInput.default must be an approved hosted runner label",
+    );
+  }
+  if (!new Set(value.fallbackLabelAllowlist).has(value.governedReusableRunnerInput.default)) {
+    throw new ConfigurationError(
+      "policy.governedReusableRunnerInput.default must be in policy.fallbackLabelAllowlist",
     );
   }
   if (
@@ -272,7 +316,51 @@ function validateRepositoryConfig(value, policy) {
     exceptions.set(key, exception);
   }
 
-  return { ...value, exceptions };
+  const localRoutingGrants = new Map();
+  for (const [key, grant] of Object.entries(value.localRoutingGrants ?? {})) {
+    if (exceptions.has(key)) {
+      throw new ConfigurationError(
+        `${key} cannot declare both a hosted exception and a local-routing grant; granted selector routing and excepted hosted execution are mutually exclusive`,
+      );
+    }
+    const admitsAnything =
+      Object.values(grant.permissions).includes("write") ||
+      Object.hasOwn(grant, "environment") ||
+      Object.hasOwn(grant, "secrets") ||
+      Object.hasOwn(grant, "credentialActions");
+    if (!admitsAnything) {
+      throw new ConfigurationError(
+        `local-routing grant ${key} admits nothing beyond the ordinary read-only local boundary; declare a write permission, environment, secret, or credential action, or remove the grant`,
+      );
+    }
+    // GitHub evaluates expression-valued environment names (vars, needs,
+    // matrix contexts), so an expression could change the protected
+    // environment without any grant-inventory diff; only a literal name is
+    // an exact reviewed surface.
+    if (Object.hasOwn(grant, "environment") && grant.environment.includes("${{")) {
+      throw new ConfigurationError(
+        `local-routing grant ${key} must name one literal deployment environment, not an expression`,
+      );
+    }
+    for (const name of grant.secrets ?? []) {
+      if (name.toUpperCase() === "GITHUB_TOKEN") {
+        throw new ConfigurationError(
+          `local-routing grant ${key} must not name GITHUB_TOKEN as a secret; the GitHub-provided token is admitted by the grant's exact permissions mapping`,
+        );
+      }
+    }
+    for (const reference of grant.credentialActions ?? []) {
+      const action = reference.split("@", 1)[0];
+      if (!policy.localCredentialActions.has(action)) {
+        throw new ConfigurationError(
+          `local-routing grant ${key} names credential action ${action}, which is not in policy.localCredentialActions`,
+        );
+      }
+    }
+    localRoutingGrants.set(key, grant);
+  }
+
+  return { ...value, exceptions, localRoutingGrants };
 }
 
 async function readJson(filePath, location) {
@@ -684,6 +772,28 @@ function auditLocalPermissionFlow({
       target?.kind === "hosted-reusable" ||
       target?.kind === "hosted-local-reusable";
     if (hostedExecution && capability !== "read-only") {
+      // The direct audit of this same job classifies a declared packages-only
+      // write map (with no other privileged surface) as publication — with the
+      // structural container categories taking precedence over that downgrade;
+      // this flow pass must demand the same category or the two checks
+      // contradict each other on one exception key. Anything else — a broader
+      // declared map, an additional privileged surface, or an undeclared map
+      // that merely inherits the caller's write capability — stays privileged.
+      const declaredRequirement = privilegedHostedRequirement(
+        record.workflow,
+        job,
+        selector,
+        target,
+        policy,
+        undefined,
+        undefined,
+        undefined,
+      );
+      let requiredReason = "privileged-control-plane";
+      if (declaredRequirement?.reason === "publication") {
+        const structuralRequirement = structuralHostedRequirement(job);
+        requiredReason = structuralRequirement ? structuralRequirement.reason : "publication";
+      }
       const key = `${record.file}#${jobId}`;
       const exception = config.exceptions.get(key);
       if (!exception) {
@@ -692,18 +802,18 @@ function auditLocalPermissionFlow({
             "hosted-exception-required",
             record.file,
             jobId,
-            "a fixed-hosted called job inherits write-capable caller permissions and requires a privileged-control-plane exception",
+            `a fixed-hosted called job inherits write-capable caller permissions and requires a ${requiredReason} exception`,
           ),
         );
       } else {
         consumedExceptions.add(key);
-        if (exception.reason !== "privileged-control-plane") {
+        if (exception.reason !== requiredReason) {
           findings.push(
             finding(
               "hosted-exception-category",
               record.file,
               jobId,
-              `inherited write-capable caller permissions require exception reason privileged-control-plane, not ${exception.reason}`,
+              `inherited write-capable caller permissions require exception reason ${requiredReason}, not ${exception.reason}`,
             ),
           );
         }
@@ -711,6 +821,12 @@ function auditLocalPermissionFlow({
     }
   }
   return findings;
+}
+
+function canonicalExpectation(expected) {
+  return Array.isArray(expected)
+    ? `one of ${JSON.stringify(expected)}`
+    : `exactly ${JSON.stringify(expected)}`;
 }
 
 function exactCanonicalMap(actual, required, optional, allowedNames, location) {
@@ -722,14 +838,20 @@ function exactCanonicalMap(actual, required, optional, allowedNames, location) {
   if (unexpected.length > 0) {
     return `${location} has unapproved properties: ${unexpected.join(", ")}`;
   }
+  // A canonical value is either one exact governed expression or an exact set of
+  // them (e.g. the default and review-tier self-hosted-label variables). Set
+  // membership stays fail-closed: any expression outside the reviewed set is
+  // rejected, and a single-string value keeps identical exact-match behavior.
   for (const [name, expected] of Object.entries(required)) {
-    if (actual[name] !== expected) {
-      return `${location}.${name} must be exactly ${JSON.stringify(expected)}`;
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    if (!allowed.includes(actual[name])) {
+      return `${location}.${name} must be ${canonicalExpectation(expected)}`;
     }
   }
   for (const [name, expected] of Object.entries(optional)) {
-    if (Object.hasOwn(actual, name) && actual[name] !== expected) {
-      return `${location}.${name} must be exactly ${JSON.stringify(expected)}`;
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    if (Object.hasOwn(actual, name) && !allowed.includes(actual[name])) {
+      return `${location}.${name} must be ${canonicalExpectation(expected)}`;
     }
   }
   return undefined;
@@ -812,16 +934,19 @@ function selectorStatus(job, policy) {
   return { approved: true, isSelector: true };
 }
 
-function reusableWorkflowStatus(job, policy) {
+function reusableWorkflowStatus(job, policy, workflow) {
   if (typeof job?.uses !== "string") {
     return { isReusable: false, approved: false };
   }
   const contract = policy.approvedReusableWorkflowContracts.get(job.uses);
   if (!contract) {
+    const declinedAutoApproval = policy.autoApprovalDiagnostics?.get(job.uses);
     return {
       isReusable: true,
       approved: false,
-      reason: "the reusable workflow path@SHA has no reviewed runner-input contract",
+      reason: declinedAutoApproval
+        ? `the reusable workflow path@SHA has no reviewed runner-input contract (auto-approval declined: ${declinedAutoApproval})`
+        : "the reusable workflow path@SHA has no reviewed runner-input contract",
     };
   }
   if (job.secrets === "inherit") {
@@ -868,7 +993,869 @@ function reusableWorkflowStatus(job, policy) {
       reason: `the reviewed reusable workflow must receive its ${contract.runnerInput} input explicitly`,
     };
   }
+  if (contract.allowedCallerPermissions) {
+    const permissionError = exactCanonicalMap(
+      effectivePermissions(workflow, job),
+      contract.allowedCallerPermissions,
+      {},
+      contract.allowedCallerPermissionNames,
+      "reusable workflow caller permissions",
+    );
+    if (permissionError) {
+      return { isReusable: true, approved: false, reason: permissionError };
+    }
+  }
   return { isReusable: true, approved: true, contract };
+}
+
+const RAW_GITHUB_CONTENT_BASE = "https://raw.githubusercontent.com";
+
+function normalizeStructuralValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeStructuralValue);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, nested]) => [key, normalizeStructuralValue(nested)])
+        .sort(([left], [right]) => left.localeCompare(right)),
+    );
+  }
+  return value;
+}
+
+function normalizePermissionsSurface(permissions) {
+  if (permissions === undefined) {
+    return { declaration: "omitted" };
+  }
+  if (permissions === "read-all" || permissions === "write-all") {
+    return { declaration: "all", value: permissions };
+  }
+  if (permissions === null || typeof permissions !== "object" || Array.isArray(permissions)) {
+    return { declaration: "invalid", value: permissions };
+  }
+  return {
+    declaration: "mapping",
+    value: normalizeStructuralValue(permissions),
+  };
+}
+
+function normalizeDeclarationSurface(declaration) {
+  if (declaration === undefined || declaration === null) {
+    return { declaration: "mapping", value: {} };
+  }
+  if (typeof declaration !== "object" || Array.isArray(declaration)) {
+    return { declaration: "invalid", value: normalizeStructuralValue(declaration) };
+  }
+  return { declaration: "mapping", value: normalizeStructuralValue(declaration) };
+}
+
+// The security-relevant surface of a reusable workflow: whether it remains
+// callable, the GITHUB_TOKEN permissions it requests, the workflow_call
+// inputs/secrets contract it exposes to callers, its job routing, whether
+// any job trips the same privileged-control-plane credential detection
+// already enforced against every directly declared or repository-local job,
+// and the exact credential-bearing values (not just that category) each job
+// references. Dependabot SHA bumps are eligible for deterministic
+// auto-approval only when this surface is structurally identical between a
+// previously reviewed SHA and the new SHA. Changes outside this deliberately
+// bounded surface do not change the runner contract and can be
+// auto-approved.
+//
+// The workflow-level permissions block is only the caller-visible default: a
+// job can declare its own permissions: block that grants more than that
+// default (job-level permissions are never widened by the workflow-level
+// block, only narrowed or overridden). jobPermissionsSurface captures the
+// effective (job-level-overrides-workflow-level) permissions of every job so
+// a bumped SHA that adds or widens a job-level permissions grant is not
+// silently treated as an unchanged security surface.
+function jobPermissionsSurface(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.fromEntries(
+    Object.entries(jobs)
+      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .map(([jobId, job]) => [
+        jobId,
+        normalizePermissionsSurface(effectivePermissions(workflow, job)),
+      ])
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+// The reusable contract this feature auto-approves is specifically a
+// routing contract (runner-input or hosted-only), so the candidate's actual
+// runner boundary is part of its security surface: a bumped SHA that keeps the
+// same workflow_call inputs/secrets and permissions but changes jobs.*.runs-on,
+// a matrix strategy, a nested reusable call, a container/service, a
+// deployment environment, or run defaults must not be silently
+// auto-approved. Workflow- and job-level `defaults` belong here even though
+// they hold no credential and route nothing themselves:
+// `defaults.run.shell` and `defaults.run.working-directory` change the
+// interpreter and working directory GitHub applies to every `run:` step, so
+// a byte-identical step body can execute differently under a bumped SHA
+// that only edits `defaults`.
+function declaredValueSurface(mapping, key) {
+  return Object.hasOwn(mapping, key)
+    ? { declared: true, value: normalizeStructuralValue(mapping[key]) }
+    : { declared: false };
+}
+
+function jobRoutingSurface(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.fromEntries(
+    Object.entries(jobs)
+      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .map(([jobId, job]) => [
+        jobId,
+        {
+          runsOn: declaredValueSurface(job, "runs-on"),
+          strategy: declaredValueSurface(job, "strategy"),
+          reusableWorkflow: {
+            uses: declaredValueSurface(job, "uses"),
+            with: declaredValueSurface(job, "with"),
+            secrets: declaredValueSurface(job, "secrets"),
+          },
+          executionBoundary: {
+            container: declaredValueSurface(job, "container"),
+            services: declaredValueSurface(job, "services"),
+            environment: declaredValueSurface(job, "environment"),
+            defaults: declaredValueSurface(job, "defaults"),
+          },
+        },
+      ])
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function workflowCallSurface(workflow) {
+  const declaration = workflowCallDeclaration(workflow);
+  if (declaration === undefined) {
+    return { declared: false };
+  }
+
+  if (
+    workflow.on !== null &&
+    typeof workflow.on === "object" &&
+    !Array.isArray(workflow.on) &&
+    Object.hasOwn(workflow.on, "workflow_call")
+  ) {
+    const rawDeclaration = workflow.on.workflow_call;
+    if (
+      rawDeclaration !== null &&
+      (typeof rawDeclaration !== "object" || Array.isArray(rawDeclaration))
+    ) {
+      return { declared: true, valid: false };
+    }
+  }
+
+  return { declared: true, valid: true };
+}
+
+// A fetched external reusable workflow's jobs are never added to the local
+// workflowIndex, so without this they never pass through
+// privilegedHostedRequirement the way every directly declared or
+// repository-local job does. That gap would let a Dependabot SHA bump add a
+// localCredentialActions entry (e.g. actions/create-github-app-token) or an
+// unapproved credential expression to a called job's steps/env while leaving
+// permissions, workflow_call, and runs-on unchanged, and auto-approval would
+// never observe it. Applying privilegedHostedRequirement here, per job, with
+// no selector/target/localCall context (so the credential and environment
+// checks are not skipped), closes that gap using the exact same detection
+// logic already trusted for direct/local jobs.
+function jobCredentialSurface(workflow, policy) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.fromEntries(
+    Object.entries(jobs)
+      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .map(([jobId, job]) => [
+        jobId,
+        privilegedHostedRequirement(
+          workflow,
+          job,
+          { isSelector: false },
+          undefined,
+          policy,
+          undefined,
+        ) ?? null,
+      ])
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+// jobCredentialSurface records only privilegedHostedRequirement()'s category
+// (reason/description/rule), the same generic description — e.g. "an
+// unapproved or transformed credential expression" — regardless of which
+// exact secret or GitHub context property the expression references. A
+// candidate revision that swaps one already-declared/allowed secret for a
+// different secret in the identical env/with position trips the same
+// category and produces an identical requirement object, so that coarse
+// comparison alone lets the candidate silently inherit the previously
+// reviewed contract even though the actual credential changed. This mirrors
+// localCredentialRequirement's own traversal (workflow-level env, job
+// condition, job fields outside steps, then each step's condition,
+// non-credential fields, env, and with), but instead of stopping at the
+// first credential-bearing value and returning a category, it records every
+// credential-bearing value's own normalized text, so a same-category,
+// different-secret change becomes a visible diff. The same coarseness
+// applies to a step's `uses:` reference for a localCredentialActions entry
+// (e.g. `actions/create-github-app-token`): that reference mints no
+// credential expression itself, so credentialBearingEntries never records
+// it, and jobCredentialSurface's privilegedHostedRequirement category names
+// only the bare action, not its pinned `@ref`. A candidate that repoints the
+// same credential-minting action at a different, unreviewed ref therefore
+// left every compared field byte-identical. jobCredentialReferenceSurface
+// closes that gap by recording each step's normalized credential-action
+// `uses:` value directly, via credentialActionUses (the same
+// localCredentialActions detection credentialAction() uses), so a ref-only
+// change becomes a visible diff here even though it changes no credential
+// expression and no category.
+function credentialBearingEntries(mapping) {
+  if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
+    return containsCredentialExpression(mapping)
+      ? { "*": normalizeStructuralValue(mapping) }
+      : undefined;
+  }
+  const entries = Object.entries(mapping)
+    .filter(([, value]) => containsCredentialExpression(value))
+    .map(([key, value]) => [key, normalizeStructuralValue(value)])
+    .sort(([left], [right]) => left.localeCompare(right));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+// Once a step is identified as credential-bearing (its condition, env, with,
+// or any other field such as `run:` holds a credential expression, or it
+// invokes a localCredentialActions entry), every field the diff records for
+// that step -- `other`, `env`, `with` -- switches from credentialBearingEntries'
+// filtered subset (only the entries that themselves contain a credential
+// expression) to the step's full normalized content. A candidate can keep an
+// already-reviewed credential expression byte-identical while rewriting the
+// step's `run:` body or swapping a non-localCredentialActions `uses:` action
+// to consume that same credential differently; neither change touches a
+// field that itself contains a credential expression, so the filtered subset
+// alone would stay unchanged and the diff would never see it. Recording the
+// full step once it is known to be credential-bearing closes that gap
+// without also treating every ordinary, non-credential-bearing step's
+// cosmetic changes as security-relevant. The credential-bearing gate itself
+// must check every field family (condition, env, with, the remaining step
+// body, and credentialAction) -- omitting one, e.g. a step whose only
+// credential expression lives directly in `run:` with no env/with block,
+// would drop that step out of the surface entirely instead of narrowing what
+// is recorded for it.
+//
+// Per-step gating is sound only while a credential can reach a step
+// exclusively through that step's own fields. A workflow- or job-scope
+// `env:` entry such as `TOKEN: ${{ secrets.X }}` breaks that assumption:
+// GitHub exports it to the runner process environment for every step in the
+// job, so a step whose body reads `$TOKEN` contains no credential
+// expression of its own and falls outside the filtered surface entirely. A
+// bumped SHA could then rewrite that step's body, or a sibling env value
+// that decides where the credential goes (an upload URL, an API host),
+// while every recorded field stayed byte-identical. When any credential
+// expression appears in workflow-level env or anywhere in the job outside
+// its steps, the whole job therefore switches to full recording: the
+// complete workflow env (sibling values included), the complete job mapping
+// outside steps, the job condition, and every step in full. The
+// inheritedCredentialContext flag is itself part of the recorded surface so
+// a bump that merely moves a job across that boundary can never compare
+// equal. Every recorded step also records its declared `if:` condition even
+// when the condition references no credential: the condition decides
+// whether an already credential-capable step runs at all, and it is the one
+// step field full recording would otherwise drop (it is destructured out of
+// `other`).
+function jobCredentialReferenceSurface(workflow, job, policy) {
+  const { steps, if: jobCondition, ...jobWithoutSteps } = job;
+  const inheritedCredentialContext =
+    containsCredentialExpression(workflow.env) || containsCredentialExpression(jobWithoutSteps);
+  const stepEntries = Array.isArray(steps)
+    ? steps
+        .map((step, index) => {
+          if (step === null || typeof step !== "object" || Array.isArray(step)) {
+            return undefined;
+          }
+          const { env, if: stepCondition, with: inputs, ...stepWithoutCredentialMappings } = step;
+          const credentialActionRef = credentialActionUses(step, policy);
+          const isCredentialBearing =
+            inheritedCredentialContext ||
+            conditionContainsCredentialReference(stepCondition) ||
+            credentialBearingEntries(env) !== undefined ||
+            credentialBearingEntries(inputs) !== undefined ||
+            credentialBearingEntries(stepWithoutCredentialMappings) !== undefined ||
+            credentialActionRef !== undefined;
+          if (!isCredentialBearing) {
+            return undefined;
+          }
+          return {
+            index,
+            condition:
+              stepCondition === undefined ? undefined : normalizeStructuralValue(stepCondition),
+            other: normalizeStructuralValue(stepWithoutCredentialMappings),
+            env: normalizeStructuralValue(env),
+            with: normalizeStructuralValue(inputs),
+            credentialAction:
+              credentialActionRef !== undefined
+                ? normalizeStructuralValue(credentialActionRef)
+                : undefined,
+          };
+        })
+        .filter((entry) => entry !== undefined)
+    : [];
+  return {
+    inheritedCredentialContext,
+    workflowEnv: inheritedCredentialContext
+      ? normalizeStructuralValue(workflow.env)
+      : credentialBearingEntries(workflow.env),
+    jobCondition:
+      inheritedCredentialContext || conditionContainsCredentialReference(jobCondition)
+        ? normalizeStructuralValue(jobCondition)
+        : undefined,
+    job: inheritedCredentialContext
+      ? normalizeStructuralValue(jobWithoutSteps)
+      : credentialBearingEntries(jobWithoutSteps),
+    steps: stepEntries,
+  };
+}
+
+function jobCredentialReferencesSurface(workflow, policy) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.fromEntries(
+    Object.entries(jobs)
+      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .map(([jobId, job]) => [jobId, jobCredentialReferenceSurface(workflow, job, policy)])
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function reusableWorkflowSecuritySurface(workflow, policy) {
+  const declaration = workflowCallDeclaration(workflow) ?? {};
+  return {
+    workflowCall: workflowCallSurface(workflow),
+    permissions: normalizePermissionsSurface(workflow.permissions),
+    inputs: normalizeDeclarationSurface(declaration.inputs),
+    secrets: normalizeDeclarationSurface(declaration.secrets),
+    defaults: declaredValueSurface(workflow, "defaults"),
+    jobPermissions: jobPermissionsSurface(workflow),
+    routing: jobRoutingSurface(workflow),
+    credentials: jobCredentialSurface(workflow, policy),
+    credentialReferences: jobCredentialReferencesSurface(workflow, policy),
+  };
+}
+
+function malformedWorkflowCallMappingField(surface) {
+  for (const field of ["inputs", "secrets"]) {
+    if (surface[field].declaration === "invalid") {
+      return field;
+    }
+  }
+  return undefined;
+}
+
+// jobPermissionsSurface, jobRoutingSurface, and jobCredentialSurface each
+// filter out a job whose value is not a mapping (e.g. `jobs.extra: []` or a
+// scalar) before comparing surfaces, the same shape auditRepository rejects
+// locally as job-shape. Filtering keeps those surfaces from ever calling
+// privilegedHostedRequirement with a malformed job, but it also makes a
+// malformed job invisible to the diff: a bumped SHA could add one without
+// changing anything the compared surface inspects, and the resulting policy
+// pass would only fail later when GitHub actually validates the called
+// workflow. Auto-approval must treat a malformed fetched job as a failure of
+// its own, on both the candidate and every reviewed basis, before the
+// per-job surfaces are ever computed or diffed.
+function malformedJobIds(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.keys(jobs)
+    .filter((jobId) => {
+      const job = jobs[jobId];
+      return job === null || typeof job !== "object" || Array.isArray(job);
+    })
+    .sort((left, right) => left.localeCompare(right));
+}
+
+// jobRoutingSurface records only the literal declared value of each routing
+// field (runs-on, strategy, the reusable-call uses/with/secrets, and the
+// container/services/environment execution boundary). A fetched reusable
+// workflow's own job graph can route indirectly through another job's
+// `needs` context -- most commonly needs.<job-id>.outputs.<name>, the same
+// pattern this analyzer already trusts for local selector routing -- so a
+// job's routing field can stay a byte-identical expression across a SHA
+// bump while the producer side of that reference (an output value, a job
+// `result`, or an entire needs.<job-id>/needs object passed through a
+// function or an object filter) changes the actual runner, container, or
+// environment boundary underneath it. Resolving that producer chain
+// generically, through arbitrary steps, scripts, or GitHub's own expression
+// functions, cannot be done statically and safely, so any job whose
+// routing-relevant fields reference `needs` in any form is ineligible for
+// surface-diff auto-approval and fails closed instead of being silently
+// treated as unchanged.
+//
+// This is deliberately a coarse, allowlist-style catch-all rather than a
+// blocklist of specific indirection spellings. Earlier revisions of this
+// detector matched only `needs.<job>.outputs.<name>` (property dereference),
+// then only that plus GitHub's equivalent index syntax on the job-id and
+// `outputs` segments (`needs['<job>']`, `.outputs['<name>']`). Each revision
+// closed one gap and left the next one open -- most recently, an object
+// filter such as `needs.*.outputs.runner` (GitHub's `*` wildcard, commonly
+// used inside `join(needs.*.outputs.runner, '')`) has no named job-id
+// segment at all, so a job-id-shaped pattern can never enumerate it. GitHub's
+// expression grammar for context/property access is large and can grow
+// (object filters, new functions, new index forms); precisely pattern
+// matching every syntax that can dereference `needs` is an open-ended
+// arms race this analyzer will keep losing one finding at a time. Instead of
+// enumerating dangerous `needs` spellings, this check only recognizes
+// definitely-safe routing fields: ones that do not mention `needs` at all.
+// Requiring a property or index accessor immediately after the word --
+// `needs.` or `needs[` -- is itself an enumeration of one dereference shape
+// and reopens the same gap: GitHub's expression functions can accept `needs`
+// as a bare argument and return a dereferenceable object, for example
+// `fromJSON(toJSON(needs)).pick.outputs.runner`, where the token immediately
+// following `needs` is the function's closing `)`, not `.` or `[`. The
+// catch-all therefore matches the bare `needs` word on its own, in any
+// letter case (GitHub's expression evaluator treats context and property
+// names case-insensitively; see the case-insensitive `NEEDS_REFERENCE` flag
+// below) -- declines auto-approval for that job regardless of what precedes
+// or follows the token. False positives (a routing field that happens to
+// mention `needs` but is not actually exploitable) are accepted: they only
+// cost a human review instead of an auto-approval, which is the safe
+// direction to err for a security gate.
+const NEEDS_REFERENCE = /\bneeds\b/i;
+
+function containsNeedsReference(value) {
+  if (typeof value === "string") {
+    return NEEDS_REFERENCE.test(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsNeedsReference);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).some(containsNeedsReference);
+  }
+  return false;
+}
+
+const DYNAMIC_ROUTING_FIELDS = [
+  "runs-on",
+  "strategy",
+  "uses",
+  "with",
+  "secrets",
+  "container",
+  "services",
+  "environment",
+  "defaults",
+];
+
+function dynamicRoutingReferenceJobIds(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.keys(jobs)
+    .filter((jobId) => {
+      const job = jobs[jobId];
+      if (job === null || typeof job !== "object" || Array.isArray(job)) {
+        return false;
+      }
+      return DYNAMIC_ROUTING_FIELDS.some(
+        (field) => Object.hasOwn(job, field) && containsNeedsReference(job[field]),
+      );
+    })
+    .sort((left, right) => left.localeCompare(right));
+}
+
+// GitHub resolves every `uses:` reference that starts with `./` from the
+// same commit as the workflow file that contains it: a job-level
+// `./.github/workflows/<file>.yml` nested reusable workflow and a
+// step-level `./path/to/action` local action both change content when the
+// source repository moves to a new SHA even though the reference string
+// itself stays byte-identical. This diff only ever fetches the one workflow
+// file being compared, so a bumped SHA can change the nested workflow's
+// runners or secrets, or the local action's executable content, while every
+// compared field of the caller stays identical and the candidate silently
+// inherits the reviewed contract. A nested workflow could in principle be
+// fetched and diffed recursively, but a local action cannot: it is an
+// arbitrary directory of executable content (action metadata, scripts,
+// bundled JavaScript) with no single canonical file this fetcher could
+// prove unchanged. Any commit-relative reference, on either the candidate
+// or a reviewed basis, therefore makes the revision ineligible for
+// surface-diff auto-approval and requires a human contract entry instead.
+function localReferenceJobIds(workflow) {
+  const jobs =
+    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
+      ? workflow.jobs
+      : {};
+  return Object.keys(jobs)
+    .filter((jobId) => {
+      const job = jobs[jobId];
+      if (job === null || typeof job !== "object" || Array.isArray(job)) {
+        return false;
+      }
+      if (typeof job.uses === "string" && job.uses.startsWith("./")) {
+        return true;
+      }
+      const steps = Array.isArray(job.steps) ? job.steps : [];
+      return steps.some(
+        (step) =>
+          step !== null &&
+          typeof step === "object" &&
+          !Array.isArray(step) &&
+          typeof step.uses === "string" &&
+          step.uses.startsWith("./"),
+      );
+    })
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function securitySurfaceDiffField(basis, candidate) {
+  for (const key of [
+    "workflowCall",
+    "permissions",
+    "inputs",
+    "secrets",
+    "defaults",
+    "jobPermissions",
+    "routing",
+    "credentials",
+    "credentialReferences",
+  ]) {
+    if (JSON.stringify(basis[key]) !== JSON.stringify(candidate[key])) {
+      return key;
+    }
+  }
+  return undefined;
+}
+
+// Every field here is a human-reviewed contract term that this module's
+// surface diff cannot re-derive from the fetched workflow bytes alone, so
+// two matching reviewed revisions could otherwise disagree on it without
+// differingReviewedContractFields ever noticing: a candidate SHA would
+// silently inherit whichever matching basis sorts first, even though a
+// second matching basis was reviewed with different terms.
+// allowedCallerPermissions is that same kind of term -- an exact
+// caller-side permission grant a human approved for a specific reviewed
+// SHA, not something the diffed callee surface encodes -- so it must be
+// compared here on the same basis as allowedInputs, allowedSecrets, and
+// fixedRunsOn.
+function reviewedContractSurface(contract) {
+  return normalizeStructuralValue({
+    routing: contract.routing,
+    ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
+    ...(contract.selectorResultInput ? { selectorResultInput: contract.selectorResultInput } : {}),
+    allowedInputs: [...contract.allowedInputs].sort((left, right) => left.localeCompare(right)),
+    allowedSecrets: contract.allowedSecrets,
+    ...(contract.fixedRunsOn
+      ? {
+          fixedRunsOn: [...contract.fixedRunsOn].sort((left, right) => left.localeCompare(right)),
+        }
+      : {}),
+    ...(contract.allowedCallerPermissions
+      ? { allowedCallerPermissions: contract.allowedCallerPermissions }
+      : {}),
+  });
+}
+
+function differingReviewedContractFields(surfaces) {
+  const fields = new Set(surfaces.flatMap((surface) => Object.keys(surface)));
+  return [...fields]
+    .filter((field) => new Set(surfaces.map((surface) => JSON.stringify(surface[field]))).size > 1)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function fetchReusableWorkflowSource(workflowPath, revision, fetchImpl) {
+  const [owner, repo, , , file] = workflowPath.split("/", 5);
+  const url = `${RAW_GITHUB_CONTENT_BASE}/${owner}/${repo}/${revision}/.github/workflows/${file}`;
+  let response;
+  try {
+    response = await fetchImpl(url);
+  } catch (error) {
+    throw new ConfigurationError(
+      `could not fetch ${workflowPath}@${revision} for auto-approval diffing: ${error.message}`,
+    );
+  }
+  if (!response.ok) {
+    throw new ConfigurationError(
+      `could not fetch ${workflowPath}@${revision} for auto-approval diffing: ${response.status} ${response.statusText}`,
+    );
+  }
+  return response.text();
+}
+
+// Deterministic, non-LLM auto-approval: a new path@SHA reusable-workflow
+// reference that has no reviewed contract yet is eligible only when (a) the
+// exact same workflow path already has at least one reviewed contract at a
+// different SHA (i.e. the source is already trusted), and (b) fetching both
+// the previously approved SHA and the new SHA from the source repository and
+// structurally diffing workflow_call presence and validity, permissions,
+// workflow_call inputs/secrets, and job routing shows no change. If multiple
+// reviewed revisions match that fetched surface, their effective reviewed
+// contracts must also agree; contract ambiguity fails closed rather than
+// letting policy insertion order select the inherited authority. Every
+// reviewed basis must be fetched, parsed, and validated before any matching
+// basis can confer authority; partial evidence fails closed. Candidate or basis
+// failures, lack of a usable match, surface diffs, and contract disagreement
+// are surfaced back to the operator via deterministic diagnostics.
+async function resolveAutoApprovedContracts({
+  policy,
+  workflowIndex,
+  fetchImpl = fetch,
+  now = () => new Date(),
+}) {
+  const approved = new Map();
+  const diagnostics = new Map();
+
+  const basesByWorkflowPath = new Map();
+  for (const [reference, contract] of policy.approvedReusableWorkflowContracts) {
+    const parsed = parseReusableWorkflowReference(reference);
+    const bases = basesByWorkflowPath.get(parsed.workflow) ?? [];
+    bases.push({ revision: parsed.revision, contract });
+    basesByWorkflowPath.set(parsed.workflow, bases);
+  }
+
+  const candidates = new Map();
+  for (const record of workflowIndex.values()) {
+    if (!record.workflow) {
+      continue;
+    }
+    for (const job of Object.values(record.workflow.jobs)) {
+      if (job === null || typeof job !== "object" || Array.isArray(job)) {
+        continue;
+      }
+      const parsed = parseReusableWorkflowReference(job.uses);
+      if (
+        !parsed ||
+        !REUSABLE_WORKFLOW_PATH.test(parsed.workflow) ||
+        !FULL_SHA.test(parsed.revision) ||
+        policy.selectorWorkflowPaths.has(parsed.workflow) ||
+        policy.approvedReusableWorkflowContracts.has(job.uses) ||
+        candidates.has(job.uses)
+      ) {
+        continue;
+      }
+      candidates.set(job.uses, parsed);
+    }
+  }
+
+  for (const [reference, parsed] of candidates) {
+    const bases = basesByWorkflowPath.get(parsed.workflow);
+    if (!bases || bases.length === 0) {
+      continue; // no already-trusted source for this workflow path; fail closed as today
+    }
+
+    let candidateWorkflow;
+    try {
+      const candidateSource = await fetchReusableWorkflowSource(
+        parsed.workflow,
+        parsed.revision,
+        fetchImpl,
+      );
+      candidateWorkflow = parseWorkflow(candidateSource, parsed.workflow);
+    } catch (error) {
+      diagnostics.set(reference, error.message);
+      continue;
+    }
+    const malformedCandidateJobs = malformedJobIds(candidateWorkflow);
+    if (malformedCandidateJobs.length > 0) {
+      diagnostics.set(
+        reference,
+        `job ${malformedCandidateJobs[0]} is malformed; jobs.${malformedCandidateJobs[0]} must be a mapping`,
+      );
+      continue;
+    }
+    const dynamicRoutingCandidateJobs = dynamicRoutingReferenceJobIds(candidateWorkflow);
+    if (dynamicRoutingCandidateJobs.length > 0) {
+      diagnostics.set(
+        reference,
+        `job ${dynamicRoutingCandidateJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
+      );
+      continue;
+    }
+    const localReferenceCandidateJobs = localReferenceJobIds(candidateWorkflow);
+    if (localReferenceCandidateJobs.length > 0) {
+      diagnostics.set(
+        reference,
+        `job ${localReferenceCandidateJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+      );
+      continue;
+    }
+    const candidateSurface = reusableWorkflowSecuritySurface(candidateWorkflow, policy);
+    const malformedField = malformedWorkflowCallMappingField(candidateSurface);
+    if (malformedField) {
+      diagnostics.set(
+        reference,
+        `${malformedField} declaration is malformed; on.workflow_call.${malformedField} must be a mapping when declared`,
+      );
+      continue;
+    }
+
+    const matchingBases = [];
+    const basisFailures = [];
+    const declineReasons = [];
+    for (const basis of [...bases].sort((left, right) =>
+      left.revision.localeCompare(right.revision),
+    )) {
+      let basisSurface;
+      try {
+        const basisSource = await fetchReusableWorkflowSource(
+          parsed.workflow,
+          basis.revision,
+          fetchImpl,
+        );
+        const basisWorkflow = parseWorkflow(basisSource, parsed.workflow);
+        const malformedBasisJobs = malformedJobIds(basisWorkflow);
+        if (malformedBasisJobs.length > 0) {
+          throw new ConfigurationError(
+            `job ${malformedBasisJobs[0]} is malformed; jobs.${malformedBasisJobs[0]} must be a mapping`,
+          );
+        }
+        const dynamicRoutingBasisJobs = dynamicRoutingReferenceJobIds(basisWorkflow);
+        if (dynamicRoutingBasisJobs.length > 0) {
+          throw new ConfigurationError(
+            `job ${dynamicRoutingBasisJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
+          );
+        }
+        const localReferenceBasisJobs = localReferenceJobIds(basisWorkflow);
+        if (localReferenceBasisJobs.length > 0) {
+          throw new ConfigurationError(
+            `job ${localReferenceBasisJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+          );
+        }
+        basisSurface = reusableWorkflowSecuritySurface(basisWorkflow, policy);
+        const malformedBasisField = malformedWorkflowCallMappingField(basisSurface);
+        if (malformedBasisField) {
+          throw new ConfigurationError(
+            `${malformedBasisField} declaration is malformed; on.workflow_call.${malformedBasisField} must be a mapping when declared`,
+          );
+        }
+      } catch (error) {
+        basisFailures.push(
+          `reviewed basis ${parsed.workflow}@${basis.revision} could not be fetched, parsed, or validated: ${error.message}`,
+        );
+        continue;
+      }
+      const diffField = securitySurfaceDiffField(basisSurface, candidateSurface);
+      if (!diffField) {
+        matchingBases.push(basis);
+        continue;
+      }
+      declineReasons.push(
+        `${diffField} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
+      );
+    }
+
+    if (basisFailures.length > 0) {
+      diagnostics.set(reference, basisFailures.join("; "));
+      continue;
+    }
+
+    if (matchingBases.length === 0) {
+      diagnostics.set(
+        reference,
+        declineReasons[0] ??
+          `no previously approved revision of ${parsed.workflow} could be diffed`,
+      );
+      continue;
+    }
+
+    const contractSurfaces = matchingBases.map(({ contract }) => reviewedContractSurface(contract));
+    const contractDiffFields = differingReviewedContractFields(contractSurfaces);
+    if (contractDiffFields.length > 0) {
+      diagnostics.set(
+        reference,
+        `surface-matching reviewed revisions of ${parsed.workflow} disagree on effective reviewed contract terms (${contractDiffFields.join(
+          ", ",
+        )}): ${matchingBases.map(({ revision }) => revision).join(", ")}`,
+      );
+      continue;
+    }
+
+    const matchedBasis = matchingBases[0];
+
+    // The compared surface (workflow_call declaration, permissions, job
+    // routing, and credential use) proves the reusable workflow's caller-
+    // facing contract and execution boundary are unchanged, but a
+    // selectorResultInput contract is trusted for something this surface
+    // cannot observe: that the called workflow's own steps actually consume
+    // the forwarded needs.<selector>.result and fail the job when the
+    // selector did not succeed. failClosedSelectorConditionStatus only
+    // proves the caller passes that input; nothing here inspects the
+    // reusable workflow's steps to prove it still honors that input rather
+    // than, say, ignoring it and exiting 0. A bumped SHA could therefore
+    // keep every compared field identical while silently defeating the
+    // fail-closed guarantee a required check relies on. Auto-approval must
+    // decline every selector-result contract and require human review.
+    if (matchedBasis.contract.selectorResultInput) {
+      diagnostics.set(
+        reference,
+        `${parsed.workflow} is a fail-closed selector-result reporter; its required-check behavior cannot be proven unchanged by this surface diff, so auto-approval is declined`,
+      );
+      continue;
+    }
+
+    // allowedCallerPermissions is the same category of unobservable trust as
+    // selectorResultInput, with a larger blast radius. It exists specifically
+    // to let a caller's job keep a privileged, potentially self-hosted-
+    // reachable grant (e.g. pull-requests:write, id-token:write) that
+    // privilegedHostedRequirement would otherwise force hosted or reject
+    // outright -- see the reviewedCallerPermissions exception it carves out
+    // of permissionHostedRequirement and localCredentialRequirement. The
+    // compared surface proves the reusable workflow's declared permissions,
+    // routing, and credential *references* are unchanged, but it never reads
+    // step bodies (run: scripts, non-credential-bearing uses:) for content, so
+    // it cannot prove the bumped SHA's steps still use that grant safely
+    // rather than, say, exfiltrating the id-token or misusing pull-requests:
+    // write. Carrying an already-approved privileged grant forward onto
+    // unreviewed executable content would silently defeat the human review
+    // that grant exists to require. Auto-approval must decline every
+    // privileged-caller-permission contract and require human review of the
+    // new SHA's content.
+    if (matchedBasis.contract.allowedCallerPermissions) {
+      diagnostics.set(
+        reference,
+        `${parsed.workflow} carries a reviewed allowedCallerPermissions grant; its steps cannot be proven unchanged by this surface diff, so auto-approval is declined`,
+      );
+      continue;
+    }
+
+    // A runner-input contract with a nonempty allowedSecrets mapping lets a
+    // statically read-only caller forward those exact reviewed secrets to a
+    // workflow executing on a caller-chosen (potentially self-hosted) runner.
+    // What the called workflow's steps do with a forwarded secret is content
+    // this surface diff never inspects, the same unobservable trust as
+    // selectorResultInput and allowedCallerPermissions above, so a bumped SHA
+    // must never inherit a secret-forwarding grant automatically. Hosted-only
+    // contracts keep their existing eligibility: their secrets stay bound to
+    // the fixed hosted runner recorded in the reviewed contract.
+    if (
+      matchedBasis.contract.routing === "runner-input" &&
+      matchedBasis.contract.allowedSecretNames.size > 0
+    ) {
+      diagnostics.set(
+        reference,
+        `${parsed.workflow} receives reviewed caller secrets on a caller-chosen runner; its steps cannot be proven unchanged by this surface diff, so auto-approval is declined`,
+      );
+      continue;
+    }
+
+    approved.set(reference, {
+      ...matchedBasis.contract,
+      autoApproved: { basisSha: matchedBasis.revision, approvedAt: now().toISOString() },
+    });
+  }
+
+  return { approved, diagnostics };
 }
 
 function normalizedConditionExpression(value) {
@@ -1240,7 +2227,7 @@ function runnerTargetStatus(jobId, job, jobs, workflow, policy, file, workflowIn
   if (local.approved && local.routing === "internal-routing") {
     return { approved: true, kind: "transparent-local-reusable" };
   }
-  const reusable = reusableWorkflowStatus(job, policy);
+  const reusable = reusableWorkflowStatus(job, policy, workflow);
   if (!local.approved && reusable.isReusable && !reusable.approved) {
     return { approved: false, kind: "invalid", reason: reusable.reason };
   }
@@ -1395,6 +2382,18 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
       };
     }
     return undefined;
+  }
+  // packages is registry-publication authority, not repository/organization
+  // state: a job whose only write scope is packages belongs to the durable
+  // publication category, so artifact provenance can stay on hosted
+  // infrastructure after the control-plane reasons retire. Any additional
+  // write scope keeps the job in the privileged category.
+  if (writable.length === 1 && writable[0] === "packages") {
+    return {
+      reason: "publication",
+      description: "write GITHUB_TOKEN permissions (packages)",
+      rule: "privileged-hosted-only",
+    };
   }
   return {
     reason: "privileged-control-plane",
@@ -1605,7 +2604,23 @@ function hasStaticallyReadOnlyPermissions(workflow, job) {
   return Object.values(permissions).every((access) => access === "read" || access === "none");
 }
 
-function localCredentialRequirement(workflow, job) {
+// The one exact spelling a local-routing grant admits for a named secret,
+// mirroring EXACT_GITHUB_TOKEN_EXPRESSIONS and the allowedSecrets contract
+// rule: bracket aliases, case variants, added whitespace, and any transform
+// stay outside every grant.
+const EXACT_NAMED_SECRET_EXPRESSION = /^\$\{\{ secrets\.([A-Za-z_][A-Za-z0-9_]*) \}\}$/;
+
+function grantedSecretName(value, secretNames) {
+  const match = EXACT_NAMED_SECRET_EXPRESSION.exec(value);
+  return match !== null && secretNames.has(match[1]) ? match[1] : undefined;
+}
+
+function localCredentialRequirement(
+  workflow,
+  job,
+  grantAllowance,
+  { admitGitHubToken = false } = {},
+) {
   if (containsCredentialExpression(workflow.env)) {
     return "a credential expression in workflow-level env";
   }
@@ -1613,13 +2628,65 @@ function localCredentialRequirement(workflow, job) {
   if (conditionContainsCredentialReference(jobCondition)) {
     return "a credential expression in a job condition";
   }
-  if (containsCredentialExpression(jobWithoutSteps)) {
+  // A grant admits complete job-level env values under the same exact-
+  // expression rules as step env values (a granted write-token job commonly
+  // exports its token once at job scope); every other job field keeps the
+  // ordinary boundary, and without a grant job-level env stays inside it.
+  const { env: jobEnv, ...jobOutsideEnv } = jobWithoutSteps;
+  if (
+    containsCredentialExpression(grantAllowance === undefined ? jobWithoutSteps : jobOutsideEnv)
+  ) {
     return "a credential expression outside a narrow step env/with value";
+  }
+  const readOnly = hasStaticallyReadOnlyPermissions(workflow, job);
+  const credentialMappingRequirement = (mapping) => {
+    if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
+      if (containsCredentialExpression(mapping)) {
+        return "a transformed or indirect credential expression";
+      }
+      return undefined;
+    }
+    for (const value of Object.values(mapping)) {
+      if (!containsCredentialExpression(value)) {
+        continue;
+      }
+      if (
+        typeof value === "string" &&
+        EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) &&
+        // A grant pins the job's exact effective permission map, so the
+        // GitHub-provided token those permissions describe is admitted even
+        // when the pinned map holds a write scope. admitGitHubToken extends
+        // the same reasoning to the publication category: the packages-only
+        // permission map the exception reviews is exactly the capability the
+        // GitHub-provided token carries, so referencing that token adds no
+        // credential surface beyond the already-categorized permissions.
+        (readOnly || grantAllowance !== undefined || admitGitHubToken)
+      ) {
+        continue;
+      }
+      const grantedName =
+        grantAllowance !== undefined && typeof value === "string"
+          ? grantedSecretName(value, grantAllowance.secretNames)
+          : undefined;
+      if (grantedName !== undefined) {
+        grantAllowance.usedSecretNames.add(grantedName);
+        continue;
+      }
+      return EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value)
+        ? "GitHub-provided token use without statically read-only permissions"
+        : "an unapproved or transformed credential expression";
+    }
+    return undefined;
+  };
+  if (grantAllowance !== undefined && jobEnv !== undefined) {
+    const jobEnvRequirement = credentialMappingRequirement(jobEnv);
+    if (jobEnvRequirement) {
+      return jobEnvRequirement;
+    }
   }
   if (!Array.isArray(steps)) {
     return undefined;
   }
-  const readOnly = hasStaticallyReadOnlyPermissions(workflow, job);
   for (const step of steps) {
     if (step === null || typeof step !== "object" || Array.isArray(step)) {
       continue;
@@ -1632,74 +2699,175 @@ function localCredentialRequirement(workflow, job) {
       return "a credential expression outside a narrow step env/with value";
     }
     for (const mapping of [env, inputs]) {
-      if (mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
-        if (containsCredentialExpression(mapping)) {
-          return "a transformed or indirect credential expression";
-        }
-        continue;
-      }
-      for (const value of Object.values(mapping)) {
-        if (!containsCredentialExpression(value)) {
-          continue;
-        }
-        if (typeof value === "string" && EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) && readOnly) {
-          continue;
-        }
-        return EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value)
-          ? "GitHub-provided token use without statically read-only permissions"
-          : "an unapproved or transformed credential expression";
+      const requirement = credentialMappingRequirement(mapping);
+      if (requirement) {
+        return requirement;
       }
     }
   }
   return undefined;
 }
 
-function credentialAction(job, policy) {
-  if (!Array.isArray(job.steps)) {
+// Returns the step's full, unmodified `uses:` value (owner/repo action plus
+// its `@ref`) when that action is a policy-listed credential-minting action,
+// or undefined otherwise. This is the one place that decides whether a step
+// mints credentials; privilegedHostedRequirement (the category used for
+// findings and jobCredentialSurface) and jobCredentialReferenceSurface (the
+// exact-ref value used for auto-approval's surface diff) both derive from it
+// so the two can never disagree on which steps count.
+function credentialActionUses(step, policy) {
+  if (step === null || typeof step !== "object" || Array.isArray(step)) {
     return undefined;
   }
-  for (const step of job.steps) {
-    if (step === null || typeof step !== "object" || Array.isArray(step)) {
-      continue;
-    }
-    if (typeof step.uses !== "string") {
-      continue;
-    }
-    const action = step.uses.split("@", 1)[0].toLowerCase();
-    if (policy.localCredentialActions.has(action)) {
-      return action;
-    }
+  if (typeof step.uses !== "string") {
+    return undefined;
   }
-  return undefined;
+  const action = step.uses.split("@", 1)[0].toLowerCase();
+  return policy.localCredentialActions.has(action) ? step.uses : undefined;
 }
 
-function privilegedHostedRequirement(workflow, job, selector, target, policy, localCall) {
-  const permissionRequirement = localCall?.approved
-    ? undefined
-    : permissionHostedRequirement(workflow, job, {
-        requireExplicitReadOnly: target?.kind === "selector-output",
-      });
-  if (permissionRequirement) {
-    return permissionRequirement;
+function privilegedHostedRequirement(
+  workflow,
+  job,
+  selector,
+  target,
+  policy,
+  localCall,
+  grant,
+  grantUsage,
+) {
+  const reusable = reusableWorkflowStatus(job, policy, workflow);
+  const reviewedCallerPermissions =
+    target?.kind === "selector-output" &&
+    reusable.approved &&
+    reusable.contract.allowedCallerPermissions !== undefined;
+  // An approved runner-input contract governs the caller's secrets: block the
+  // same way an approved hosted-only contract does: reusableWorkflowStatus
+  // has already rejected any deviation from the reviewed name-to-expression
+  // map, so the generic credential scan omits only that property. This keeps
+  // a statically read-only secret-forwarding caller admissible without a
+  // caller-permission waiver; allowedCallerPermissions remains the only
+  // write-capable waiver, and secret-capable runner-input contracts decline
+  // auto-approval so every new SHA of such a workflow is human-reviewed.
+  const reviewedSecretBoundary = target?.kind === "selector-output" && reusable.approved;
+  // A local-routing grant admits only a directly declared, genuinely
+  // selector-routed job: a fixed hosted target keeps the ordinary privileged
+  // rules and exception inventory, mirroring the allowedCallerPermissions
+  // waiver's scope. A reusable-call job never takes the grant path — its
+  // caller permissions flow into an external workflow whose behavior at the
+  // pinned SHA only the central contract review sees, so
+  // allowedCallerPermissions stays the sole write-capable waiver for callers
+  // and a grant keyed to such a job surfaces as local-routing-grant-drift.
+  const grantApplies =
+    grant !== undefined && target?.kind === "selector-output" && typeof job.uses !== "string";
+  // The publication downgrade holds only while packages:write is the job's
+  // entire privileged surface: a deployment environment, credential
+  // expression, or credential-minting action found below still demands the
+  // privileged category, so the weaker requirement is held until every later
+  // check passes rather than returned at the permission check. The one
+  // admission is the exact GitHub-provided token expression, which carries
+  // only the already-categorized packages-only permission map.
+  let publicationRequirement;
+  if (grantApplies) {
+    const permissionError = exactCanonicalMap(
+      effectivePermissions(workflow, job),
+      grant.permissions,
+      {},
+      new Set(Object.keys(grant.permissions)),
+      "job permissions",
+    );
+    if (permissionError) {
+      return {
+        reason: "privileged-control-plane",
+        description: `GITHUB_TOKEN permissions outside the reviewed local-routing grant (${permissionError})`,
+        rule: "privileged-hosted-only",
+      };
+    }
+  } else {
+    const permissionRequirement =
+      localCall?.approved || reviewedCallerPermissions
+        ? undefined
+        : permissionHostedRequirement(workflow, job, {
+            requireExplicitReadOnly: target?.kind === "selector-output",
+          });
+    if (permissionRequirement?.reason === "publication") {
+      publicationRequirement = permissionRequirement;
+    } else if (permissionRequirement) {
+      return permissionRequirement;
+    }
   }
 
   // The selector's one exact observer secret is part of its reviewed hosted
   // reusable-workflow contract. Exact hosted-only reusable secret mappings are
   // likewise governed by approvedReusableWorkflowContracts rather than this
-  // local-workload boundary.
+  // local-workload boundary. A pending publication downgrade still scans the
+  // caller outside that reviewed secrets mapping first: a contract allowlists
+  // input names, not values, so a credential expression smuggled through a
+  // `with:` value would otherwise ride the weaker category.
   if (selector.isSelector || target?.kind === "hosted-reusable") {
-    return undefined;
+    if (publicationRequirement === undefined) {
+      return undefined;
+    }
+    const boundaryJob = Object.fromEntries(
+      Object.entries(job).filter(([name]) => name !== "secrets"),
+    );
+    const callerCredentialRequirement = localCredentialRequirement(
+      workflow,
+      boundaryJob,
+      undefined,
+      {
+        admitGitHubToken: true,
+      },
+    );
+    if (callerCredentialRequirement) {
+      return {
+        reason: "privileged-control-plane",
+        description: callerCredentialRequirement,
+        rule: "privileged-hosted-only",
+      };
+    }
+    return publicationRequirement;
   }
 
-  if (Object.hasOwn(job, "environment")) {
+  if (
+    grantApplies &&
+    Object.hasOwn(grant, "environment") &&
+    job.environment !== grant.environment
+  ) {
     return {
       reason: "privileged-control-plane",
-      description: "a deployment environment",
+      description:
+        "a deployment environment declaration that does not match the reviewed local-routing grant",
+      rule: "privileged-hosted-only",
+    };
+  }
+  if (
+    Object.hasOwn(job, "environment") &&
+    !(grantApplies && job.environment === grant.environment)
+  ) {
+    return {
+      reason: "privileged-control-plane",
+      description: grantApplies
+        ? "a deployment environment outside the reviewed local-routing grant"
+        : "a deployment environment",
       rule: "privileged-hosted-only",
     };
   }
 
-  const credentialRequirement = localCredentialRequirement(workflow, job);
+  const credentialJob = reviewedSecretBoundary
+    ? Object.fromEntries(Object.entries(job).filter(([name]) => name !== "secrets"))
+    : job;
+  const grantAllowance = grantApplies
+    ? { secretNames: new Set(grant.secrets ?? []), usedSecretNames: new Set() }
+    : undefined;
+  const credentialRequirement = localCredentialRequirement(
+    workflow,
+    credentialJob,
+    grantAllowance,
+    {
+      admitGitHubToken: publicationRequirement !== undefined,
+    },
+  );
   if (credentialRequirement) {
     return {
       reason: "privileged-control-plane",
@@ -1708,16 +2876,44 @@ function privilegedHostedRequirement(workflow, job, selector, target, policy, lo
     };
   }
 
-  const action = credentialAction(job, policy);
-  if (action) {
-    return {
-      reason: "privileged-control-plane",
-      description: `credential-minting action ${action}`,
-      rule: "privileged-hosted-only",
-    };
+  const usedCredentialActions = new Set();
+  if (Array.isArray(job.steps)) {
+    for (const step of job.steps) {
+      const uses = credentialActionUses(step, policy);
+      if (uses === undefined) {
+        continue;
+      }
+      // A grant pins the full ref, not the action name: the same action at a
+      // different ref is different credential-minting code, which must not
+      // reach the fleet on a workflow-only change.
+      const reference = uses.toLowerCase();
+      if (!(grantApplies && (grant.credentialActions ?? []).includes(reference))) {
+        return {
+          reason: "privileged-control-plane",
+          description: `credential-minting action ${uses.split("@", 1)[0].toLowerCase()}`,
+          rule: "privileged-hosted-only",
+        };
+      }
+      usedCredentialActions.add(reference);
+    }
   }
 
-  return undefined;
+  // A named allowance the job never exercises is latent pre-approval: a later
+  // workflow-only change could start consuming the secret or minting action
+  // without any grant-inventory diff. Report it so the admitted job's surface
+  // and the reviewed inventory stay exactly equal.
+  if (grantApplies && grantUsage !== undefined) {
+    grantUsage.unused = [
+      ...(grant.secrets ?? [])
+        .filter((name) => !grantAllowance.usedSecretNames.has(name))
+        .map((name) => `secret ${name}`),
+      ...(grant.credentialActions ?? [])
+        .filter((action) => !usedCredentialActions.has(action))
+        .map((action) => `credential-minting action ${action}`),
+    ];
+  }
+
+  return publicationRequirement;
 }
 
 function structuralHostedRequirement(job) {
@@ -1903,6 +3099,8 @@ export async function auditRepository({
   policyPath = DEFAULT_POLICY_PATH,
   repositoryVisibility,
   githubRepository,
+  disableAutoApproval = process.env.CI_RUNNER_POLICY_DISABLE_AUTO_APPROVAL === "true",
+  fetchImpl = fetch,
 } = {}) {
   const resolvedRoot = path.resolve(root);
   const resolvedConfig = path.isAbsolute(configPath)
@@ -1937,7 +3135,18 @@ export async function auditRepository({
   };
   const findings = [];
   const consumedExceptions = new Set();
+  const consumedLocalRoutingGrants = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
+  if (!disableAutoApproval) {
+    const autoApproval = await resolveAutoApprovedContracts({ policy, workflowIndex, fetchImpl });
+    if (autoApproval.approved.size > 0) {
+      policy.approvedReusableWorkflowContracts = new Map([
+        ...policy.approvedReusableWorkflowContracts,
+        ...autoApproval.approved,
+      ]);
+    }
+    policy.autoApprovalDiagnostics = autoApproval.diagnostics;
+  }
   const localPermissionVisits = new Set();
   const localIncomingFiles = new Set();
   for (const record of workflowIndex.values()) {
@@ -1971,6 +3180,7 @@ export async function auditRepository({
       }
       const key = `${file}#${jobId}`;
       const exception = config.exceptions.get(key);
+      const grant = config.localRoutingGrants.get(key);
       const selector = selectorStatus(job, policy);
       const localCall = selector.isSelector
         ? undefined
@@ -2012,10 +3222,47 @@ export async function auditRepository({
           }),
         );
       }
+      const grantUsage = grant ? { unused: [] } : undefined;
       const privilegedHosted = routingEnabled
-        ? privilegedHostedRequirement(workflow, job, selector, target, policy, localCall)
+        ? privilegedHostedRequirement(
+            workflow,
+            job,
+            selector,
+            target,
+            policy,
+            localCall,
+            grant,
+            grantUsage,
+          )
         : undefined;
-      const hostedRequirement = privilegedHosted ?? structuralHostedRequirement(job);
+      // A held publication downgrade must not mask the structural container
+      // categories: a containerized packages-only publisher stays in the
+      // job-container/service-container inventory. Privileged requirements
+      // keep their ordinary precedence over structural ones.
+      const structuralHosted = structuralHostedRequirement(job);
+      const hostedRequirement =
+        privilegedHosted?.reason === "publication"
+          ? (structuralHosted ?? privilegedHosted)
+          : (privilegedHosted ?? structuralHosted);
+      if (
+        grant &&
+        routingEnabled &&
+        target?.kind === "selector-output" &&
+        typeof job.uses !== "string" &&
+        !hostedRequirement
+      ) {
+        consumedLocalRoutingGrants.add(key);
+        if (grantUsage.unused.length > 0) {
+          findings.push(
+            finding(
+              "local-routing-grant-drift",
+              file,
+              jobId,
+              `local-routing grant ${key} names ${grantUsage.unused.join(", ")} the job does not exercise; remove or narrow it`,
+            ),
+          );
+        }
+      }
       let hasForbiddenHostedLabel = false;
       let hasRawManagedLabel = false;
 
@@ -2196,6 +3443,19 @@ export async function auditRepository({
           key.split("#", 1)[0],
           key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
           `configured exception ${key} is unused; remove or correct it`,
+        ),
+      );
+    }
+  }
+
+  for (const key of config.localRoutingGrants.keys()) {
+    if (!consumedLocalRoutingGrants.has(key)) {
+      findings.push(
+        finding(
+          "local-routing-grant-drift",
+          key.split("#", 1)[0],
+          key.includes("#") ? key.slice(key.indexOf("#") + 1) : undefined,
+          `configured local-routing grant ${key} is unused; remove or correct it`,
         ),
       );
     }

@@ -1,5 +1,25 @@
 # Changelog — discovery plugin
 
+## 0.6.0 — 2026-07-17
+
+### Changed
+
+- Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states that
+  `EXPLORE.md` / `RESEARCH.md` are checkout-local and are the cross-checkout-useful kind the
+  contract's `.worktreeinclude` template carries into new worktrees. The by-value boundary is the
+  checkout, not the process: the `-deep` forks run in the parent's checkout and write the
+  artifacts there directly; only workers dispatched into their own checkout return findings by
+  value for the parent to write.
+
+## 0.5.1 — 2026-07-15
+
+### Fixed
+
+- **`/discovery:setup` reports `vault_backend: gitbook` as deferred and non-writable.** Offering or
+  preserving the key now cites the ADR (`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`)
+  and states that durable writes still target `docs`; the skill never configures or tests a GitBook
+  API, MCP, or Git Sync writer.
+
 ## 0.5.0 — 2026-07-15
 
 ### Added

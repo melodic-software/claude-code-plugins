@@ -24,7 +24,7 @@
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
 # sandbox. The ONLY supported deliberate bypass is the kill switch
-# (HOOK_BLOCK_NO_VERIFY_ENABLED=false).
+# (block_no_verify_enabled userConfig option set to false).
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -59,22 +59,7 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-# Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
-# env-assignment prefixes stripped and the token basenamed. Never the full
-# command.
-bash_subject() {
-  local cmd="$1" tok
-  tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] \
-    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
-    cmd="${cmd#*[[:space:]]}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    tok="${cmd%%[[:space:]]*}"
-  done
-  printf 'Bash:%s' "${tok##*/}"
-}
-
-SUBJECT=$(bash_subject "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -96,215 +81,45 @@ block() {
   exit 2
 }
 
-# Does an argv word name the git executable? Basename compared exactly on POSIX;
-# on Windows/MSYS also case-folded and `.exe`-stripped (mirrors the OS-gate in
-# hook-utils normalize_path) so `GIT` / `git.exe` are caught there but a
-# case-variant stays distinct on a case-sensitive POSIX filesystem.
-is_git_bin() {
-  local b="${1##*/}"
-  b="${b##*\\}"
-  case "${OSTYPE:-}" in
-  msys* | cygwin* | win32)
-    local lc="${b,,}"
-    lc="${lc%.exe}"
-    [[ "$lc" == "git" ]]
-    ;;
-  *) [[ "$b" == "git" ]] ;;
-  esac
-}
-
-# Decode an ANSI-C `$'…'` body to its literal bytes (\xHH, \NNN octal, \uHHHH,
-# \n, \\, …). %-escaped so the body can never act as a printf format specifier;
-# `--` guards a body that begins with `-`. Errors are swallowed (fail-open on a
-# malformed body — the raw text still flows through the caller unchanged).
-ansi_c_decode() {
-  local b="${1//%/%%}"
-  # shellcheck disable=SC2059  # the body IS the format — that is how ANSI-C escapes decode; %-escaped above so it cannot inject a specifier
-  printf -- "$b" 2>/dev/null
-}
-
-# Locate a real `git` executable at the segment's command position (after
-# env-var prefixes and known wrappers), or return 1 when absent. Results go in
-# globals, NOT a $( ) echo: `env -S` splicing rewrites the argv, and the caller
-# must match on the rewritten words, so the index alone is not enough.
-#   RESOLVED_GI    — index of git in RESOLVED_WORDS
-#   RESOLVED_WORDS — the (possibly rewritten) segment argv
-# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
-resolve_git_index() {
-  RESOLVED_WORDS=("$@")
-  RESOLVED_GI=-1
-  local -n w=RESOLVED_WORDS
-  local n=${#w[@]} i=0 tok
-
-  while ((i < n)); do
-    tok="${w[i]}"
-    if [[ "$tok" == *=* ]]; then
-      ((i++))
-      continue
-    fi
-
-    case "${tok##*/}" in
-    env)
-      ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        # -S/--split-string re-splits its operand into argv (GNU env), so a
-        # quoted 'git commit --no-verify' would otherwise hide from the
-        # resolver as one non-git word. Splice the split words back into the
-        # scan and restart at the command position.
-        -S | --split-string)
-          local sval=""
-          ((i + 1 < n)) && sval="${w[i + 1]}"
-          local -a sw=()
-          read -r -a sw <<<"$sval"
-          w=("${sw[@]}" "${w[@]:i+2}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -S* | --split-string=*)
-          local sval="${w[i]#-S}"
-          sval="${sval#--split-string=}"
-          local -a sw=()
-          read -r -a sw <<<"$sval"
-          w=("${sw[@]}" "${w[@]:i+1}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -u | -C | --chdir) ((i += 2)) ;;
-        -*) ((i++)) ;;
-        *) ((i++)) ;;
-        esac
-      done
-      continue
-      ;;
-    nice | nohup)
-      ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        -n | --adjustment) ((i += 2)) ;;
-        --adjustment=*) ((i++)) ;;
-        -*) ((i++)) ;;
-        *) break ;;
-        esac
-      done
-      if ((i < n)) && [[ "${w[i]}" =~ ^-?[0-9]+$ ]]; then
-        ((i++))
-      fi
-      continue
-      ;;
-    sudo)
-      ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        -u | -g | -h | -p | -C | -D | -R | -T | --user | --group | --chdir) ((i += 2)) ;;
-        -*) ((i++)) ;;
-        *) ((i++)) ;;
-        esac
-      done
-      continue
-      ;;
-    timeout)
-      ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        -s | --signal | -k | --kill-after) ((i += 2)) ;;
-        --preserve-status | --foreground | --verbose) ((i++)) ;;
-        -*) ((i++)) ;;
-        *) break ;;
-        esac
-      done
-      if ((i < n)) && [[ "${w[i]}" =~ ^[0-9]+([.][0-9]+)?(s|m|h|d)?$ ]]; then
-        ((i++))
-      fi
-      continue
-      ;;
-    # eval concatenates and re-executes its arguments, so for the unquoted
-    # form (`eval git commit ...`) scanning the following words is exact.
-    command | exec | builtin | eval | !)
-      ((i++))
-      continue
-      ;;
-    time)
-      ((i++))
-      if ((i < n)) && [[ "${w[i]}" == "-p" ]]; then
-        ((i++))
-      fi
-      continue
-      ;;
-    if | while | until | for | case | select | coproc | '{' | '}')
-      ((i++))
-      continue
-      ;;
-    *)
-      if is_git_bin "$tok"; then
-        RESOLVED_GI=$i
-        return 0
-      fi
-      return 1
-      ;;
-    esac
-  done
-  return 1
-}
-
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
 # when the segment is a real `git commit`/`git push` carrying a bypass token.
+# Parsing spine (tokenizer, git resolver, subcommand walk) lives in
+# hook-utils.sh; only the bypass-form matching is this guard's own.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
-  local nseg=${#w[@]} gi j k x lc ch rest sub sub_idx gw
+  local nseg gi k x lc ch rest sub sub_idx cv
 
-  resolve_git_index "${w[@]}" || return 0
-  gi=$RESOLVED_GI
+  # A shell -c wrapper (`bash -lc 'git commit --no-verify'`) executes its
+  # operand as a full shell command — re-parse it with the same tokenizer so
+  # the wrapped invocation is checked faithfully.
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
+    return 0
+  fi
+
+  hook::git_resolve_index "${w[@]}" || return 0
+  gi=$HOOK_GIT_RESOLVED_GI
   # env -S splicing may have rewritten the argv — match on the resolved words.
-  w=("${RESOLVED_WORDS[@]}")
+  w=("${HOOK_GIT_RESOLVED_WORDS[@]}")
   nseg=${#w[@]}
 
-  # Resolve the subcommand: walk words after the git executable, skipping git
-  # global options. The listed options consume the FOLLOWING word as their
-  # value (two-word form); their =-forms and every other option are single
-  # words handled by the generic `-*` skip. core.hooksPath is checked only on
-  # git config arguments (-c/--config/--config-env), not commit messages or
-  # pathspecs.
-  sub=""
-  sub_idx=-1
-  j=$((gi + 1))
-  while ((j < nseg)); do
-    gw="${w[j]}"
-    case "$gw" in
-    -c | --config | --config-env)
-      if ((j + 1 < nseg)); then
-        lc="${w[j + 1],,}"
-        [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-          "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
-          "Fix the hook failure instead of bypassing git hooks."
-      fi
-      ((j += 2))
-      ;;
-    --config=*|--config-env=*)
-      lc="${gw#*=}"
-      lc="${lc,,}"
-      [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-        "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
-        "Fix the hook failure instead of bypassing git hooks."
-      ((j++))
-      ;;
-    -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
-      ((j += 2))
-      ;;
-    -*)
-      ((j++))
-      ;;
-    *)
-      sub="$gw"
-      sub_idx=$j
-      break
-      ;;
-    esac
-  done
+  # core.hooksPath is checked only on git config arguments (collected by the
+  # subcommand walk from -c/--config/--config-env), never commit messages or
+  # pathspecs. The check applies whether or not a subcommand was found — the
+  # hooksPath block below still needs commit/push, so gate after.
+  hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
+  sub=$HOOK_GIT_SUB
+  sub_idx=$HOOK_GIT_SUB_IDX
   [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
+
+  for cv in ${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"}; do
+    lc="${cv,,}"
+    [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
+      "BLOCKED: core.hooksPath assignment is not allowed with git commit/push." \
+      "Fix the hook failure instead of bypassing git hooks."
+  done
 
   # Form 2: hook-manager env-var prefix (commit OR push) — only leading env
   # assignments before the git executable (not commit messages or pathspecs).
@@ -366,123 +181,13 @@ check_segment() {
   return 0
 }
 
-# Single linear pass: read the command into a char array once (O(n)), then walk
-# it splitting top-level segments on UNQUOTED control operators and tokenizing
-# each segment into argv words honoring '…', "…", $'…', and backslash escapes
-# (including backslash-newline continuation). Each completed segment is checked
-# as it closes, so no full segment list is retained.
-# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
-parse_and_check() {
-  local -a chars=()
-  local c nx
-  while IFS= read -rN1 c; do chars+=("$c"); done < <(printf '%s' "$COMMAND")
-  local n=${#chars[@]} i
-  local word="" have=0
-  local -a seg=()
-
-  for ((i = 0; i < n; i++)); do
-    c="${chars[i]}"
-    case "$c" in
-    "'")
-      ((i++))
-      while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
-        word+="${chars[i]}"
-        ((i++))
-      done
-      have=1
-      ;;
-    '"')
-      ((i++))
-      while ((i < n)) && [[ "${chars[i]}" != '"' ]]; do
-        if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
-          nx="${chars[i + 1]}"
-          case "$nx" in
-          '"' | '\' | '$' | '`')
-            word+="$nx"
-            ((i += 2))
-            continue
-            ;;
-          $'\n')
-            ((i += 2))
-            continue
-            ;;
-          *) ;;
-          esac
-        fi
-        word+="${chars[i]}"
-        ((i++))
-      done
-      have=1
-      ;;
-    '$')
-      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == "'" ]]; then
-        i=$((i + 2))
-        local body=""
-        while ((i < n)) && [[ "${chars[i]}" != "'" ]]; do
-          if [[ "${chars[i]}" == '\' ]] && ((i + 1 < n)); then
-            body+="${chars[i]}${chars[i + 1]}"
-            ((i += 2))
-            continue
-          fi
-          body+="${chars[i]}"
-          ((i++))
-        done
-        word+="$(ansi_c_decode "$body")"
-        have=1
-      else
-        word+="$c"
-        have=1
-      fi
-      ;;
-    '\')
-      if ((i + 1 < n)); then
-        nx="${chars[i + 1]}"
-        if [[ "$nx" == $'\n' ]]; then
-          ((i++))
-        else
-          word+="$nx"
-          ((i++))
-          have=1
-        fi
-      else
-        have=1
-      fi
-      ;;
-    ' ' | $'\t')
-      if ((have)); then
-        seg+=("$word")
-        word=""
-        have=0
-      fi
-      ;;
-    ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
-      if ((have)); then
-        seg+=("$word")
-        word=""
-        have=0
-      fi
-      if ((${#seg[@]})); then
-        check_segment "${seg[@]}"
-        seg=()
-      fi
-      ;;
-    *)
-      word+="$c"
-      have=1
-      ;;
-    esac
-  done
-  if ((have)); then seg+=("$word"); fi
-  if ((${#seg[@]})); then check_segment "${seg[@]}"; fi
-}
-
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
-    "Shorten the command, or set HOOK_BLOCK_NO_VERIFY_ENABLED=false to bypass."
+    "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
 fi
 
-parse_and_check
+hook::bash_parse_segments "$COMMAND" check_segment
 
 emit_tel "ok" ""
 exit 0

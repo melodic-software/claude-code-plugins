@@ -1,12 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "docs-hygiene",
-  "version": "0.5.0",
-  "description": "Documentation-hygiene toolkit of five skills: compress (flavor-trim markdown with a semantic-diff safety net), declutter (classify markdown noise), extract-ssot (deduplicate repeated content into a single source of truth), audit-encapsulation (detect citations into skill-private surfaces), and rename-references (sweep stale references after renames).",
+  "version": "0.7.0",
+  "description": "Documentation-hygiene toolkit of five skills: compress (flavor-trim markdown with a semantic-diff safety net), audit-noise (classify markdown noise), extract-ssot (deduplicate repeated content into a single source of truth), audit-encapsulation (detect citations into skill-private surfaces), and rename-references (sweep stale references after renames).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["documentation", "markdown", "maintenance", "hygiene", "deduplication", "refactoring"]
+  "keywords": [
+    "documentation",
+    "markdown",
+    "maintenance",
+    "hygiene",
+    "deduplication",
+    "refactoring"
+  ]
 }

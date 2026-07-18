@@ -6,7 +6,7 @@
 # NON-BLOCKING: exit 0 always. The subject is the source identifier
 # (path-only, privacy-safe).
 # Pure telemetry emitter: no sink wired (HOOK_TELEMETRY_SINK unset) → no-op.
-# Kill switch: HOOK_CONFIG_CHANGE_AUDIT_ENABLED=false.
+# Kill switch: CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED=false.
 
 set -uo pipefail
 

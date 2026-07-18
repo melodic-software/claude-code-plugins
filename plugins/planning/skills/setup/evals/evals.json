@@ -18,10 +18,12 @@
       "id": 2,
       "name": "rerun-preserves-existing-concern-file-keys",
       "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
-      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
+      "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. It explicitly reports that GitBook is deferred and non-writable, so durable writes still use docs and no GitBook API, MCP, or Git Sync writer is configured. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
         "Reports the existing file's effective values (absent keys = documented defaults) as the interview baseline",
+        "Reports vault_backend: gitbook as preserved but deferred and non-writable, with docs as the effective promotion target",
+        "Does not configure, test, or invoke a GitBook API, MCP, or Git Sync writer",
         "Preserves every key the existing concern file carries — a re-run never drops one",
         "Does not invent knobs beyond the schema",
         "Writes nothing until the user accepts the values"
@@ -38,6 +40,20 @@
         "Never edits the consumer's root .gitignore or any ignore file",
         "Persists to the tracked .claude/topic-docs.yaml, recording only the keys the user chose",
         "Does not write the plugin directory or the plugin data directory"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "standards-bootstrap-second-run-is-a-no-op",
+      "prompt": "/planning:setup\n\nSet up the standards concern. This repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run of this setup.",
+      "expected_output": "The standards bootstrap reads state in order (concern file, then the index presence test, then inference sources), finds a conforming index at the binding's contract version, validates the row paths, and short-circuits: it reports the index healthy and proposes no changes — a second run produces no diff. It does not re-interview, does not rewrite the index or the setup-owned overlay .gitignore, does not offer a migration (versions match), and touches no other ignore file.",
+      "files": [],
+      "expectations": [
+        "Reads state via the binding's procedure: concern file, index presence test, then inference sources",
+        "Recognizes the conforming current-version index and proposes no changes (second run yields no diff)",
+        "Does not re-run the interview when the index is healthy at the binding's version",
+        "Does not offer migration when the index version matches the binding",
+        "Edits no ignore file other than the setup-owned standards-root .gitignore, and here leaves even that untouched"
       ]
     }
   ]
