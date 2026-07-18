@@ -42,6 +42,22 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
     }
 
 
+def refuse_call(name: str):
+    """Patch a hygiene function to fail the test if it is ever called.
+
+    Used to prove an already-blocked, unvisited candidate short-circuits
+    before reaching a live, unbounded filesystem/VCS/process check.
+    """
+    return mock.patch.object(
+        hygiene,
+        name,
+        side_effect=AssertionError(
+            f"an already-blocked, unvisited candidate must not trigger {name}, "
+            "an unbounded live check its blocker makes moot"
+        ),
+    )
+
+
 class HygieneTests(unittest.TestCase):
     def setUp(self) -> None:
         # Keep every load_policy(None) call independent of the developer
@@ -224,6 +240,7 @@ class HygieneTests(unittest.TestCase):
                 "baseline-protected-name", entries["Documents"]["protected_reasons"]
             )
             self.assertNotIn("Documents/draft.tmp", entries)
+            self.assertEqual(["Documents"], snapshot["truncated_paths"])
 
     def test_linked_worktree_marker_is_discovered_as_repository_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -338,6 +355,30 @@ class HygieneTests(unittest.TestCase):
             ):
                 result = hygiene.preview(snapshot, plan)
             self.assertIn("vcs-tracked-content", result["candidates"][0]["blockers"])
+
+    def test_annotate_tracked_scopes_git_query_to_inventoried_paths(self) -> None:
+        target = Path("/audit/root/profile")
+        repo = Path("/audit/root")
+        entries = [{"path": "keep.txt", "protected_reasons": []}]
+        captured: dict[str, list[str]] = {}
+
+        class FakeCompletedProcess:
+            returncode = 0
+            stdout = b""
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return FakeCompletedProcess()
+
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value="git"),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=fake_run),
+        ):
+            hygiene.annotate_tracked(entries, target, [repo], ["huge-vendored-dep"], [])
+
+        pathspecs = captured["cmd"][captured["cmd"].index("--") + 1 :]
+        self.assertEqual("profile", pathspecs[0])
+        self.assertIn(":(exclude)profile/huge-vendored-dep", pathspecs)
 
     def test_forged_snapshot_cannot_hide_fresh_protected_name(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -666,6 +707,178 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertFalse((root / "candidate").exists())
             self.assertEqual("work product", untouched.read_text(encoding="utf-8"))
+
+
+    def test_scan_max_depth_truncates_and_preview_blocks_planning(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "deep" / "sub").mkdir(parents=True)
+            (root / "loose.tmp").write_text("x", encoding="utf-8")
+            (root / "deep" / "sub" / "leaf.txt").write_text("y", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            entries = hygiene.entry_map(snapshot)
+            self.assertIn("loose.tmp", entries)
+            self.assertIn("deep", entries)
+            self.assertNotIn("deep/sub", entries)
+            self.assertEqual(["deep"], snapshot["truncated_paths"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("deep")],
+            }
+            with mock.patch.object(
+                hygiene, "handle_state", return_value=("clear", None)
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "truncated-not-inventoried", result["candidates"][0]["blockers"]
+            )
+
+    def test_preview_skips_live_recursive_checks_for_truncated_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "deep" / "sub").mkdir(parents=True)
+            (root / "deep" / "sub" / "leaf.txt").write_text("y", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("deep")],
+            }
+            with (
+                refuse_call("current_descendants"),
+                refuse_call("tracked_blocker"),
+                refuse_call("candidate_handle_state"),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            candidate_result = result["candidates"][0]
+            blockers = candidate_result["blockers"]
+            self.assertIn("truncated-not-inventoried", blockers)
+            self.assertNotIn("changed-since-scan", blockers)
+            self.assertEqual("unverified", candidate_result["handle_state"])
+            self.assertEqual(
+                "truncated-not-inventoried", candidate_result["handle_detail"]
+            )
+
+    def test_preview_skips_live_recursive_checks_for_unvisited_protected_candidate(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            protected = root / "Documents"
+            protected.mkdir(parents=True)
+            (protected / "draft.tmp").write_text("work product", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(["Documents"], snapshot["truncated_paths"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("Documents")],
+            }
+            with (
+                refuse_call("current_descendants"),
+                refuse_call("tracked_blocker"),
+                refuse_call("candidate_handle_state"),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            blockers = result["candidates"][0]["blockers"]
+            self.assertIn("truncated-not-inventoried", blockers)
+            self.assertNotIn("changed-since-scan", blockers)
+
+    def test_entry_cap_allows_exactly_the_configured_maximum(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "one.txt").write_text("x", encoding="utf-8")
+            (root / "two.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(2, len(snapshot["entries"]))
+
+    def test_entry_cap_rejects_one_more_than_the_configured_maximum(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "one.txt").write_text("x", encoding="utf-8")
+            (root / "two.txt").write_text("x", encoding="utf-8")
+            (root / "three.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries"),
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+
+    def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("x", encoding="utf-8")
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            output = data_root / "run" / "snapshot.json"
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key != "CLAUDE_PLUGIN_DATA"
+            }
+            stdout_io = io.StringIO()
+            with (
+                mock.patch.dict("os.environ", environment, clear=True),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            self.assertTrue(output.exists())
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual([], payload["truncated_paths"])
+
+    def test_capped_scan_reports_advisory_and_bounded_rerun_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            for index in range(3):
+                (root / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            stdout_io = io.StringIO()
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 1),
+                mock.patch.dict(
+                    "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+                ),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                    ]
+                )
+            self.assertEqual(2, code)
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual("invalid-or-blocked", payload["status"])
+            self.assertIn("--max-depth", payload["error"])
+            self.assertIn("os_autoclean", payload)
 
 
 class StandingPolicyTests(unittest.TestCase):
@@ -1044,6 +1257,160 @@ class GuardTests(unittest.TestCase):
                 self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 command,
             )
+
+    def run_guard_powershell(self, command: str) -> dict[str, object] | None:
+        stdin = io.StringIO(
+            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
+
+    def test_guard_scan_accepts_only_hook_authorized_data_root(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            # resolve() yields the long-form path: the guard rejects the "~" in
+            # Windows 8.3 short names as a shell-expansion character.
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            other = str(Path(temporary).resolve() / "elsewhere")
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            with mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+            ):
+                self.assertEqual(
+                    "allow",
+                    self.run_guard(f'{base} --data-root "{authorized}"')[
+                        "hookSpecificOutput"
+                    ]["permissionDecision"],
+                )
+                self.assertEqual(
+                    "deny",
+                    self.run_guard(f'{base} --data-root "{other}"')[
+                        "hookSpecificOutput"
+                    ]["permissionDecision"],
+                )
+
+    def test_guard_denies_data_root_without_hook_authority(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            command = (
+                f'"{self.python_command()}" "{script}" scan --target t --output s '
+                f'--data-root "{Path(temporary).resolve()}"'
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key != "CLAUDE_PLUGIN_DATA"
+            }
+            environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
+            stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+            stdout = io.StringIO()
+            with (
+                mock.patch("sys.stdin", stdin),
+                redirect_stdout(stdout),
+                mock.patch.dict("os.environ", environment, clear=True),
+            ):
+                self.assertEqual(0, guard.main())
+            result = json.loads(stdout.getvalue())
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+
+    def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        self.assertEqual(
+            "allow",
+            self.run_guard(f"{base} --max-depth 3")["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
+        for value in ("0", "007", "3x", "-1"):
+            self.assertEqual(
+                "deny",
+                self.run_guard(f"{base} --max-depth {value}")["hookSpecificOutput"][
+                    "permissionDecision"
+                ],
+                value,
+            )
+
+    def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            command = (
+                f'"{self.python_command()}" "{script}" preview --snapshot s --plan p '
+                f'--data-root "{authorized}"'
+            )
+            with mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+            ):
+                self.assertEqual(
+                    "allow",
+                    self.run_guard(command)["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                )
+
+    def test_guard_apply_accepts_optional_authorized_data_root(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            command = (
+                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+                f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r '
+                f'--data-root "{authorized}"'
+            )
+            with mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": authorized}, clear=False
+            ):
+                self.assertEqual(
+                    "ask",
+                    self.run_guard(command)["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                )
+
+    def test_powershell_engine_invocation_is_denied(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_powershell(
+            f'& "{self.python_command()}" "{script}" scan --target t --output s'
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_powershell_deletion_spellings_force_final_prompt(self) -> None:
+        for command in (
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "rm C:/tmp/example",
+            "del C:/tmp/example",
+            "[IO.File]::Delete('C:/tmp/example')",
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "ask",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_powershell_read_only_support_work_defers(self) -> None:
+        for command in (
+            "git status --short",
+            "gh pr list --repo owner/repo",
+            "Get-ChildItem -Force C:/tmp",
+            "Get-Item C:/tmp/example | Select-Object Length",
+        ):
+            self.assertIsNone(self.run_guard_powershell(command), command)
 
 
 if __name__ == "__main__":

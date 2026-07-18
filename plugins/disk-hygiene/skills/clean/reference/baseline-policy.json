@@ -33,6 +33,22 @@
       "reason": "Common temporary-directory prefix; naming alone is not sufficient evidence"
     },
     {
+      "id": "common-temp-underscore",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "tmp_*",
+      "confidence_ceiling": "medium",
+      "reason": "Common temporary prefix (underscore variant); naming alone is not sufficient evidence"
+    },
+    {
+      "id": "scratch-artifact",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": "scratch*",
+      "confidence_ceiling": "low",
+      "reason": "Scratch-named artifact, commonly an AI-session or ad-hoc data dump; provenance and durable-consumer questions still need proof"
+    },
+    {
       "id": "common-lock-file",
       "os": ["all"],
       "kind": "name_glob",

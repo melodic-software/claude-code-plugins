@@ -53,7 +53,21 @@ identity, and only then calls descriptor-relative `rmdir`. Windows and macOS ret
 The skill-scoped Bash guard accepts only complete literal words in the three declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
-the host platform's path case rules; POSIX path identity is never case-folded.
+the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
+is accepted only when it matches the `CLAUDE_PLUGIN_DATA` the guard's own hook process received from
+the runtime — the shell environment is never trusted for it, and absent hook authority the flag fails
+closed. `--max-depth` accepts only a bare positive-integer literal.
+
+The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
+read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
+known deletion spellings and .NET Delete calls are downgraded to a final human permission prompt —
+the same bar as the engine apply prompt. That lane is a raised bar, not fail-closed: an unknown
+mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain
+the deletion authority.
+
+A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
+directories have no captured descendant set, so the preview blocks them (and anything beneath them)
+as `truncated-not-inventoried`; they are coverage gaps, never candidates.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state

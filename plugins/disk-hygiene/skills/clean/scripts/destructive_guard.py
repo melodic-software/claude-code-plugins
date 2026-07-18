@@ -103,6 +103,54 @@ def _script_path_key(value: str) -> str | None:
     return os.path.normcase(os.fspath(resolved))
 
 
+def _data_root_key(value: str) -> str:
+    """Canonical key for a generated-state root that may not exist yet."""
+    return os.path.normcase(os.fspath(Path(value).expanduser().resolve(strict=False)))
+
+
+def _is_authorized_data_root(value: str) -> bool:
+    """Accept only the data root this hook process was told about by the runtime."""
+    authority = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not authority:
+        return False
+    return _data_root_key(value) == _data_root_key(authority)
+
+
+def _display_data_root() -> str | None:
+    authority = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not authority:
+        return None
+    return os.fspath(Path(authority).expanduser().resolve(strict=False)).replace(
+        "\\", "/"
+    )
+
+
+def _valid_optional_value(flag: str, value: str) -> bool:
+    if not _argument(value):
+        return False
+    if flag == "--max-depth":
+        return re.fullmatch(r"[1-9][0-9]{0,3}", value) is not None
+    if flag == "--data-root":
+        return _is_authorized_data_root(value)
+    return True
+
+
+def _consume_optional_pairs(tokens: list[str], allowed: frozenset[str]) -> bool:
+    seen: list[str] = []
+    while tokens:
+        flag = tokens[0]
+        if (
+            flag not in allowed
+            or flag in seen
+            or len(tokens) < 2
+            or not _valid_optional_value(flag, tokens[1])
+        ):
+            return False
+        seen.append(flag)
+        tokens = tokens[2:]
+    return True
+
+
 def classify_exact_engine_command(command: str) -> str | None:
     """Return scan/preview/apply only for one complete, canonical invocation."""
     tokens = _literal_shell_words(command)
@@ -116,38 +164,31 @@ def classify_exact_engine_command(command: str) -> str | None:
 
     if tokens[2] == "scan":
         if (
-            len(tokens) not in {7, 9, 11}
+            len(tokens) not in {7, 9, 11, 13, 15}
             or tokens[3] != "--target"
             or not _argument(tokens[4])
             or tokens[5] != "--output"
             or not _argument(tokens[6])
         ):
             return None
-        optional = tokens[7:]
-        seen: list[str] = []
-        while optional:
-            flag = optional[0]
-            if (
-                flag not in {"--policy", "--project-dir"}
-                or flag in seen
-                or len(optional) < 2
-                or not _argument(optional[1])
-            ):
-                return None
-            seen.append(flag)
-            optional = optional[2:]
+        if not _consume_optional_pairs(
+            tokens[7:],
+            frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
+        ):
+            return None
         return "scan"
     if tokens[2] == "preview":
         valid = (
-            len(tokens) == 7
+            len(tokens) in {7, 9}
             and tokens[3] == "--snapshot"
             and _argument(tokens[4])
             and tokens[5] == "--plan"
             and _argument(tokens[6])
+            and _consume_optional_pairs(tokens[7:], frozenset({"--data-root"}))
         )
         return "preview" if valid else None
     if tokens[2] == "apply":
-        if len(tokens) != 14:
+        if len(tokens) not in {14, 16}:
             return None
         valid = all(
             (
@@ -162,6 +203,7 @@ def classify_exact_engine_command(command: str) -> str | None:
                 re.fullmatch(r"[0-9a-f]{24}", tokens[11]) is not None,
                 tokens[12] == "--report",
                 _argument(tokens[13]),
+                _consume_optional_pairs(tokens[14:], frozenset({"--data-root"})),
             )
         )
         return "apply" if valid else None
@@ -172,9 +214,71 @@ def is_exact_engine_apply(command: str) -> bool:
     return classify_exact_engine_command(command) == "apply"
 
 
+_POWERSHELL_MUTATION_WORDS = re.compile(
+    r"(?i)(?<![\w./\\-])("
+    r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|rimraf|unlink"
+    r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
+    r")(?![\w-])"
+)
+_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)::\s*delete")
+
+
+def powershell_decision(command: str) -> tuple[str, str] | None:
+    """Return a (decision, reason) pair for a PowerShell command, or None to defer.
+
+    PowerShell stays available for read-only support work (git, gh, metadata
+    inspection), so this lane gates known filesystem-mutation spellings and any
+    engine invocation rather than denying unknown commands. Engine calls stay on
+    the Bash lane's fail-closed deny-unknown guard; mutation spellings surface
+    the same final human permission prompt as the engine apply lane, so the
+    unsupported-platform manual handoff remains possible but never silent.
+    """
+    if "hygiene.py" in command.casefold():
+        return (
+            "deny",
+            "disk-hygiene engine invocations must go through the Bash tool's "
+            "exact guarded command shapes, not PowerShell.",
+        )
+    match = _POWERSHELL_MUTATION_WORDS.search(command)
+    if match:
+        return (
+            "ask",
+            f'disk-hygiene flagged the deletion spelling "{match.group(0)}". '
+            "Confirm only if this is the explicitly approved manual handoff and "
+            "the command touches exactly the paths you approved.",
+        )
+    if _POWERSHELL_DOTNET_DELETE.search(command):
+        return (
+            "ask",
+            "disk-hygiene flagged a .NET Delete call. Confirm only if this is "
+            "the explicitly approved manual handoff and the command touches "
+            "exactly the paths you approved.",
+        )
+    return None
+
+
+def _bash_denial_guidance() -> str:
+    data_root = _display_data_root()
+    data_sentence = (
+        f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
+        if data_root
+        else (
+            " The hook process did not receive CLAUDE_PLUGIN_DATA, so --data-root"
+            " cannot be validated and engine calls fail closed."
+        )
+    )
+    return (
+        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations using the hook's absolute Python interpreter "
+        f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
+        + data_sentence
+        + " Use non-Bash read-only tools for supporting inspection."
+    )
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
+        tool_name = payload.get("tool_name", "")
         command = payload["tool_input"]["command"]
         if not isinstance(command, str):
             raise TypeError("command is not text")
@@ -183,10 +287,16 @@ def main() -> int:
             json.dumps(
                 decision(
                     "deny",
-                    f"disk-hygiene guard could not validate the Bash call: {exc}",
+                    f"disk-hygiene guard could not validate the shell call: {exc}",
                 )
             )
         )
+        return 0
+
+    if tool_name == "PowerShell":
+        verdict = powershell_decision(command)
+        if verdict:
+            print(json.dumps(decision(*verdict)))
         return 0
 
     command_kind = classify_exact_engine_command(command)
@@ -214,8 +324,7 @@ def main() -> int:
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
         if command_kind == "apply"
-        else "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations using the hook's absolute Python interpreter "
-        f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them. Use non-Bash read-only tools for supporting inspection.'
+        else _bash_denial_guidance()
     )
     print(json.dumps(decision("deny", reason)))
     return 0
