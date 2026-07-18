@@ -258,6 +258,11 @@ function validatePolicy(value) {
       "policy.governedReusableRunnerInput.default must be an approved hosted runner label",
     );
   }
+  if (!new Set(value.fallbackLabelAllowlist).has(value.governedReusableRunnerInput.default)) {
+    throw new ConfigurationError(
+      "policy.governedReusableRunnerInput.default must be in policy.fallbackLabelAllowlist",
+    );
+  }
   if (
     approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel) ||
     forbiddenHostedRunnerLabels.has(
