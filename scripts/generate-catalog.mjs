@@ -30,6 +30,7 @@ const CATEGORY_ORDER = [
   "maintenance",
   "deployment",
   "claude-code",
+  "autonomy",
   "security",
   "workflow",
   "project-management",

@@ -72,6 +72,19 @@
         "Output asks the user which mode to apply rather than silently committing to one",
         "Output does not fabricate a review under an assumed mode before the user chooses"
       ]
+    },
+    {
+      "id": 7,
+      "name": "criteria-mode-resolves-through-standards-index",
+      "prompt": "/review:quality-gate criteria\n\nThis repo has a standards index at docs/standards/README.md with standards-contract frontmatter; its csharp row points at docs/standards/csharp.md and its testing row at docs/standards/testing.md. The change under review touches only C# files.",
+      "expected_output": "Criteria mode resolves criteria through the standards index via the plugin's standards-contract binding: it follows the binding's resolution ladder, matches the change's csharp surface against the index's Applies-when clues, and reads the relevant sections of docs/standards/csharp.md — not the unmatched testing row. Repo review docs like REVIEW.md are treated as an inference source inside the ladder only when no index exists. The baseline severity vocabulary and agent checklists remain the final fallback, and nothing is written to the repo.",
+      "files": [],
+      "expectations": [
+        "Resolves criteria through the standards index via the binding's resolution ladder rather than jumping straight to REVIEW.md or docs discovery",
+        "Loads only the standards files whose index rows match the change's surfaces (csharp, not testing)",
+        "Falls back to the baseline severity vocabulary and agent checklists only when the ladder yields nothing",
+        "Writes nothing to the repository as a side effect of criteria resolution"
+      ]
     }
   ]
 }

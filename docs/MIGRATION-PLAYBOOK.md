@@ -33,9 +33,9 @@ plugin per hook.
   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — every extra skill is an
   always-paid context line. The standing exception is the `setup` lane, always its own skill with
   `disable-model-invocation: true` — see the philosophy's "Setup is explicit and repeatable".
-- **Hooks group by concern.** Per-hook selectivity comes from an env kill-switch
-  (`HOOK_<PLUGIN>_ENABLED`), a `matcher`, or an `if` guard — author-managed control inside the bundle,
-  the ecosystem norm.
+- **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
+  the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard —
+  author-managed control inside the bundle.
 - **Whole-product / vendor-brand bundles** driven by distribution are a separate, allowed shape.
 
 ### Decompose an oversized skill before packaging it
@@ -78,9 +78,9 @@ skill still has one discovery intent.
 `skillOverrides` setting explicitly *excludes* plugin skills (those are managed through `/plugin`), so
 there is no clean per-skill à-la-carte toggle. Bundling several skills is therefore acceptable only
 *within* one cohesive capability you would never split — it forbids lumping *distinct* capabilities into
-a single plugin. Hooks differ: the env kill-switch gives clean per-hook control inside a bundle. The
-discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via env) versus
-**opt-in-per-invocation** components (skills — group by capability).
+a single plugin. Hooks differ: a per-hook `userConfig` toggle gives clean per-hook control inside a
+bundle. The discriminating axis is **silent-always-on** components (hooks — keep atomic, or toggle via
+`userConfig`) versus **opt-in-per-invocation** components (skills — group by capability).
 
 **Buckets are catalog metadata, never structure.** Category grouping lives in `marketplace.json`
 `category` / `tags` and catalog docs only: the disk layout stays flat (`plugins/<name>`, no
@@ -631,7 +631,7 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    Check: which binaries it spawns; whether it mutates files in place and is
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
-   (`HOOK_<PLUGIN>_ENABLED`) exists.
+   (a per-hook `userConfig` boolean with a `default` of `true`) exists.
 2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the **only** plugin that ships one
    (local `stdio`, bundled — see its §2 trust accept above); no plugin ships a **remote** MCP server, which
    remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
@@ -731,8 +731,10 @@ extension points, never by teaching the plugin a consumer's specifics.
 **The plugin is generic; the consumer's own seams restore its specifics.** Map each behavior the
 in-repo hook had that the generalized plugin dropped to one of these, in order:
 
-- **Kill switch / toggles** → the plugin's own env var, set in the consumer's `settings.json` `env`
-  (the name changes from the in-repo `HOOK_<OLD>_ENABLED` to the plugin's `HOOK_<PLUGIN>_ENABLED`).
+- **Kill switch / toggles** → the plugin's own `userConfig` toggles (`/plugin configure`
+  interactively, `claude plugin install --config` headless) — user-scoped, replacing the in-repo
+  `HOOK_<OLD>_ENABLED` env var. Per-repo control is the plugin's `enabledPlugins` entry; a genuinely
+  project-scoped per-hook need is a plugin gap (below), not an env var.
 - **Project conventions** → for a hook plugin, the consumer's own tool config files that the hook already
   reads (`biome.json`, `.shellcheckrc`, `.editorconfig`, …) — that is where these plugins pick up project
   conventions, **not** `CLAUDE.md`. (`CLAUDE.md` / `.claude/rules` reach only a plugin's *skill/agent*
@@ -747,7 +749,7 @@ in-repo hook had that the generalized plugin dropped to one of these, in order:
   so the remap preserves the real contract rather than a guessed one.
 
 If a genuine specific has **no** seam, that is a real plugin gap → add a declared extension
-(`userConfig`, or a new env var consistent with the plugin's existing ones) — but only when it carries
+(`userConfig`, or a tracked consumer-project config key) — but only when it carries
 real behavior, not cosmetic prose a consumer's `CLAUDE.md` already establishes. Resist adding config
 surface to a published plugin for a single consumer's low-value nicety.
 
@@ -757,10 +759,14 @@ surface to a published plugin for a single consumer's low-value nicety.
    `enabledPlugins` (project `settings.json`, so clones inherit it on trust — the interactive trust prompt
    both registers and installs the enabled plugin). Headless/CI has no such prompt, and registering a
    marketplace does not install its plugins, so do both explicitly: `claude plugin marketplace add <repo>`
-   then `claude plugin install <plugin>@<marketplace> --scope project` — otherwise the marketplace is known
-   but the plugin is absent, and step 3's verify edit would run with no plugin hook.
-2. Rewire the kill-switch env var to the plugin's name; keep the `HOOK_TELEMETRY_SINK` wiring and the
-   sink script (the bridge), adapting the sink for any observability-contract divergence.
+   then `claude plugin install <plugin>@<marketplace> --scope project --config KEY=VALUE …`, seeding every
+   non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
+   is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
+   means uninstall/reinstall. Otherwise the marketplace is known but the plugin is absent, and step 3's
+   verify edit would run with no plugin hook.
+2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the
+   `HOOK_TELEMETRY_SINK` wiring and the sink script (the bridge), adapting the sink for any
+   observability-contract divergence.
 3. **Verify before retiring** the old hook (blue-green — keep it recoverable, but never run both on the
    same edit). Matching `PostToolUse` hooks run concurrently, so leaving both registered would race two
    formatters on the just-edited file (last-writer-wins clobbering, plus doubled telemetry and context) —

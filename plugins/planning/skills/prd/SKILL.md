@@ -54,11 +54,11 @@ If ambiguous (could go either way), surface the question once and let the user p
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the first argument; if absent, ask via `AskUserQuestion`.
+Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the first argument; if absent, ask for it (surface rules below).
 
 | Argument | Action | Use case |
 |----------|--------|----------|
-| *(empty)* | **Smart default** | If a prior PRD exists for the topic, offer resume/revise/start-fresh. Otherwise prompt for tier + task via `AskUserQuestion`. |
+| *(empty)* | **Smart default** | If a prior PRD exists for the topic, offer resume/revise/start-fresh. Otherwise prompt for tier + task. |
 | `<task description>` (no tier word) | **Full PRD, prompt for tier** | Run skip-condition check, then ask which template tier (one-pager / consumer-feature / B2B-internal). |
 | `one-pager <task>` | **Tier 1 — thin one-pager** | Small feature, single team, fast lock. ~½ page. |
 | `consumer <task>` or `consumer-feature <task>` | **Tier 2 — consumer feature** | User-facing app feature with metrics, user stories, risk surface. ~1 page. |
@@ -66,7 +66,7 @@ Parse `$ARGUMENTS` to determine the action. Tier choice can be passed as the fir
 | `synthesize <task>` | **Synthesis-only PRD** | Skip Q&A — produce PRD from existing conversation context. Use when conversation already has rich product context and re-asking would waste the user's time. Still runs skip-condition check (Step 1) and survey (Step 2). |
 | `review` | **PRD review** | Critique an existing PRD.md against template + skip-conditions. |
 
-Tier choice rationale lives in [`context/templates.md`](context/templates.md). When tier is unclear from the task description, present the three tiers via `AskUserQuestion` with one-line descriptions — the side-by-side rendering helps the user choose without skimming docs.
+Tier choice rationale lives in [`context/templates.md`](context/templates.md). When tier is unclear from the task description, present the three tiers with one-line descriptions — via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on (the side-by-side rendering helps the user choose without skimming docs), numbered inline prose otherwise.
 
 ## The PRD process
 
@@ -91,11 +91,11 @@ Spend the first turn grounding yourself, in parallel:
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale — the contract is branch-tracked, so git log is the history).
 
-Survey output is a one-paragraph summary in your reply. Then transition to depth-first Q&A.
+Survey output is a one-paragraph summary in your reply. Then transition to frontier-rounds Q&A.
 
 ### Step 3 — Pick the template tier
 
-If not specified in `$ARGUMENTS`, surface tier choice via `AskUserQuestion`:
+If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
 
 | Tier | When |
 |------|------|
@@ -115,11 +115,11 @@ Use when conversation already contains rich product context and re-asking would 
 
 If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful — `/interview` or `/planning:plan` picks them up downstream.
 
-### Step 4 — Drive depth-first Q&A
+### Step 4 — Drive frontier-rounds Q&A
 
 **Skipped when `synthesize` action was invoked** — go directly to Step 5.
 
-ONE question at a time, depth-first — resolve the load-bearing question, then surface the next; never batch unrelated questions. Use `AskUserQuestion` when there are 2-4 distinct named options the user benefits from seeing side by side; use prose for open-ended questions.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions — inline prose otherwise.
 
 Question shapes that recur, in priority order:
 

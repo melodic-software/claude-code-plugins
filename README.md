@@ -16,6 +16,36 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
+### Enable plugin suggestions for an organization
+
+Some catalog entries declare `relevance` signals so Claude Code can suggest the plugin when a
+session's work matches (matching runs locally; nothing is reported anywhere). Suggestions are
+opt-in per marketplace: they surface only after an administrator allowlists the marketplace in
+[managed settings](https://code.claude.com/docs/en/settings#settings-files) — declare the
+marketplace source AND allowlist its name in the same file:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "melodic-software": {
+      "source": {
+        "source": "github",
+        "repo": "melodic-software/claude-code-plugins"
+      }
+    }
+  },
+  "pluginSuggestionMarketplaces": ["melodic-software"]
+}
+```
+
+The source declaration is required for any non-official marketplace: the allowlisted name is
+ignored if the locally registered marketplace came from a different source, which stops an
+unrelated catalog from registering under an allowlisted name to get its plugins suggested.
+Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
+
+A few personal or external-service plugins install disabled (`defaultEnabled: false`) until the
+user opts in with `/plugin enable`; an existing install is never flipped by catalog changes.
+
 ## Catalog
 
 <!-- catalog:start -->
@@ -31,7 +61,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 
 - [`architecture`](plugins/architecture) — Scans an existing codebase for module-level architecture friction — shallow modules, seam leaks, and locality gaps — using Ousterhout's deep-module lens, presents candidates as a self-contained HTML report, and runs an interview loop on the selected candidate before handing off for planning.
 - [`prototype`](plugins/prototype) — Builds throwaway code to answer a design question before committing to architecture — a logic facet (an interactive terminal app over a portable state model) and a UI facet (radically different visual variants on one route).
-- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, actively maintain resolved domain language, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.
+- [`planning`](plugins/planning) — Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate.
 - [`domain-driven-design`](plugins/domain-driven-design) — Domain-driven-design practice skills. Today: actively maintains a consuming project's ubiquitous-language glossary — resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, sharpens what-it-IS definitions, and routes entries to already-known bounded contexts without discovering boundaries.
 - [`naming`](plugins/naming) — Generates and evaluates fresh name candidates for anything — an identifier, file, module, skill, repo, or domain term — by fanning out blind, fresh-context generators from distinct lenses (responsibility-literal, moment-of-use, domain-lore), then scoring a shortlist against the consuming org's naming criteria. The human always picks; it never auto-locks a name. An optional tournament mode adds elimination rounds with independent judges for high-stakes, hard-to-refactor names.
 - [`event-storming`](plugins/event-storming) — EventStorming for domain discovery — a methodology skill (Big Picture / Process Modeling / Design-Level facilitation reference, notation, patterns) and a simulation skill (agentic multi-persona workshops that produce a structured-markdown model by default; a live Miro-board rendering path is available when the first-party miro plugin is enabled).
@@ -46,7 +76,7 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 - [`eol-normalizer`](plugins/eol-normalizer) — Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
 - [`powershell-format`](plugins/powershell-format) — Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo — using the consuming repo's own analyzer settings.
 - [`actionlint`](plugins/actionlint) — Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.
-- [`source-control`](plugins/source-control) — Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, multi-PR babysit loop), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (interview the repo and write the tracked commit-subject / PR-title convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.
+- [`source-control`](plugins/source-control) — Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (interview the repo and write the tracked commit-subject / PR-title convention config plus babysit-prs userConfig), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.
 - [`implementation`](plugins/implementation) — Disciplined implementation stage: execute approved plans inline (`/implementation:implement`) or via orchestrated worker subagents (`/implementation:implement-dispatch`) with incremental validation, TDD-by-default cadence, green-checkpoint commits, scope-fence drift detection, and divergence detection that routes back to planning. Build/test/lint, testing, and outcome verification live in the companion `toolchain`, `testing`, and `verification` plugins, invoked when installed.
 - [`toolchain`](plugins/toolchain) — Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint`), plus a re-runnable `/toolchain:setup` that writes the tracked per-ecosystem command config those skills resolve first.
 
@@ -86,13 +116,17 @@ Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace
 - [`claude-ops`](plugins/claude-ops) — Claude Code operations toolkit. Five skills: observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), known-issues (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), changelog (ingest Claude Code changelog entries and integrate them into the current repo), plugins (bring a machine's plugin fleet current on demand — marketplace refresh, effective-scope updates including in-repo project/local installs, new-plugin install per policy, scope-divergence detection and explicit convergence), and a re-runnable setup action that settles where the known-issues registry lives. Plus a family of seven advisory *-audit telemetry-emitter hooks (API errors, config changes, instruction loads, permission denials, pre-compaction, skill usage, tool failures) that emit the shared hook-telemetry envelope, and a reference sink that maps envelopes into the hook-events.jsonl the observability skill reads.
 - [`skill-quality`](plugins/skill-quality) — Skill-authoring QA tooling: a static contract checker that runs seventeen deterministic checks over a Claude Code skill (frontmatter, listing-budget cap, trigger-keyword preservation, line caps, broken internal refs, markdownlint, gotchas surface, evals presence) and a bundled evals.json schema for validation. Runs against any repo's skills directory via the convention-resolution ladder — no baked layout.
 
+### Autonomy
+
+- [`autonomy`](plugins/autonomy) — Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, and telemetry contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, and wires standards-pinned OTLP emission with a zero-cost file-artifact default.
+
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Seven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Eight safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
-- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of five skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), keep-going (recover and continue after any interruption — inventory off-thread work, inspect its real state, resume or restart it, then continue the main task), retro (structured session retrospective with transcript metrics and learning codification), and orchestrate (arm a session or worker with proactive-orchestration imperatives).
+- [`session-flow`](plugins/session-flow) — Session-lifecycle toolkit of six skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), keep-going (recover and continue after any interruption — inventory off-thread work, inspect its real state, resume or restart it, then continue the main task), retro (structured session retrospective with transcript metrics and learning codification), orchestrate (arm a session or worker with proactive-orchestration imperatives), and reanchor (verify a session's working assumptions are still true against live reality — referenced PRs/issues/branches, base-branch drift, renamed/version-drifted surfaces, stale memory-tier files — before building on them).
 
 ### Project Management
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/standards/standards.schema.json",
+  "title": "Standards concern file (.claude/standards.yaml)",
+  "description": "Consumer-side single source of truth for the standards convention. Every key is optional; absent keys mean the documented defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "standards_dir": {
+      "type": "string",
+      "default": "docs/standards",
+      "description": "Team standards root, relative to the resolution root (git top-level). Holds the standards index (README.md with standards-contract frontmatter), SRP-organized standards files, and gitignored *.local.md personal overlays."
+    }
+  }
+}

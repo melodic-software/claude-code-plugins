@@ -3,6 +3,14 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **Freshness rider on the setup skill's `pluginConfigs` claim** (fleet
+  conformance wave). The claim is re-verified, dated, and pinned to the
+  release that introduced the behavior (≥ 2.1.207).
+
 ## [0.4.0]
 
 ### Changed

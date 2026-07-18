@@ -1,8 +1,9 @@
 # source-control
 
-A Claude Code plugin bundling the git/GitHub delivery workflow as five
-composable skills — commit mechanics, the full PR lifecycle, worktree
-lifecycle management, convention setup, and merge-conflict resolution.
+A Claude Code plugin bundling the git/GitHub delivery workflow as six
+composable skills — commit mechanics, the single-PR lifecycle, the tiered
+babysit fleet loop, worktree lifecycle management, convention setup, and
+merge-conflict resolution.
 
 ## Skills
 
@@ -43,14 +44,40 @@ research-gated:
   react → reply → fix → verify-on-GitHub treatment.
 - **merge** — 6-gate readiness re-verification, squash merge, worktree
   reuse/cleanup, post-merge CI health check. Never auto-merges.
-- **babysit** — self-pacing all-PR loop (designed for
-  `/loop /pull-request babysit`): discovers every open PR, checks each out,
-  processes every finding individually with GitHub-verified evidence, and is
-  mechanically gated by the bundled `babysit-readiness-gate.sh` (classification
-  rows must cover source findings before readiness can be declared). Never
-  merges.
 - **fetch-logs** — tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
+
+### `/source-control:babysit-prs`
+
+Tiered, self-pacing fleet loop over your own open PRs (designed for
+`/loop /source-control:babysit-prs`):
+
+- **safe (default)** — discovers YOUR open PRs under the current repo's
+  owner (or the configured watched owners), checks each out, keeps the
+  branch fresh, processes every review finding individually with
+  GitHub-verified evidence per the plugin-scope shared review discipline,
+  mechanically gated by the bundled `babysit-readiness-gate.sh`. Never
+  resolves threads, never merges — readiness is reported. Runs Python-free.
+- **worker** (explicit keyword) — everything safe does, plus auto-resolving
+  pre-push-outdated bot threads and merging PRs a deterministic gate proves
+  100% ready (`mergeStateStatus == CLEAN` plus explicit cross-checks, with
+  an expected-head pin carried to GitHub's server-side match-head-commit
+  guard). Requires Python 3 (stdlib only).
+- **autopilot** (explicit keyword) — maximum autonomy for a solo owner:
+  every author under the watched owners, resolves any thread it has
+  addressed, merges through the same gate, escalates only what it genuinely
+  cannot solve. Requires Python 3.
+
+Cross-tier invariants: never an unprotected force-push, never `--admin`,
+never GitHub settings or branch-protection changes, never a repository
+outside the watched owners, and dependency-manager-authored PRs
+(Dependabot/Renovate-class) are never merged autonomously in any tier. A
+merge-capable tier engages only when the invocation names it — the
+configured `default_tier` applies to explicitly typed invocations only,
+never to auto-routed conversational matches. The two guarded mutations run
+only through the plugin's pinned wrappers (`source-control-babysit-merge`,
+`source-control-babysit-resolve-thread`), which fail closed without an
+owner allowlist and reject unattended unpinned merges.
 
 ### `/source-control:worktree`
 
@@ -83,9 +110,12 @@ user decision to abandon the integration.
 
 ## Works in any repo
 
-- **Self-contained.** Everything runs on `git`, `gh`, and scripts bundled
-  under `${CLAUDE_PLUGIN_ROOT}`; transient CI-log scratch goes to
-  `${CLAUDE_PLUGIN_DATA}` (or `mktemp`).
+- **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
+  and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
+  Windows); `unzip` is additionally required by the CI-log fetch path
+  (`fetch-failed-logs`), which exits with a remediation message when it is
+  absent. Transient CI-log scratch goes to `${CLAUDE_PLUGIN_DATA}` (or
+  `mktemp`).
 - **Graceful degrade.** Adjacent capabilities — review agents, a simplifier,
   a verify skill, a research skill, a work-item tracker, a CI-log-audit
   agent, a GitHub-events push channel — are used when your environment
@@ -108,23 +138,57 @@ user decision to abandon the integration.
 
 ## Configuration
 
-No `userConfig`. Run **`/source-control:setup`** to interview your repo and
-write the tracked `.claude/source-control.md` commit-subject / PR-title
-convention config — it is idempotent and safe to re-run to reconfigure.
-Optional environment variables:
+`/source-control:babysit-prs` is configured through the plugin's native
+`userConfig` surface — the `/plugin` dialog, or
+`claude plugin install --config KEY=VALUE` for headless installs; run
+`/source-control:setup` for guided check/apply. Every key is optional:
+zero-config behavior is the safe tier over your own PRs under the current
+repo's owner.
+
+| Key | Type | Default / absent behavior |
+|---|---|---|
+| `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
+| `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
+| `babysit_default_tier` | string | `safe` (explicit invocations only) |
+| `babysit_merge_method` | string | repo convention, then squash |
+| `babysit_review_trigger_phrase` | string | review-trigger module dormant |
+| `babysit_review_bot_logins` | string (multiple) | review-trigger module dormant |
+| `babysit_review_gate_context` | string | review gate treated as absent |
+| `babysit_ci_gateway_context` | string | gateway check unused |
+| `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
+| `babysit_approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_max_quiet_recheck_seconds` | number | 14400 |
+| `babysit_advisory_fix_round_cap` | number | 100 |
+| `babysit_worker_concurrency_cap` | number | 10 |
+| `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |
+| `worktree_stale_days` | number | 14 (staleness threshold for `/worktree status`) |
+| `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
+
+The commit-subject / PR-title convention is separate: run
+**`/source-control:setup`** to interview your repo and write the tracked
+`.claude/source-control.md` config — idempotent and safe to re-run.
+Remaining optional environment variables:
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `WORKTREE_STALE_DAYS` | `/worktree status` | Staleness threshold (default 14 days) |
-| `BABYSIT_SELF_LOGINS` | babysit readiness gate | Extra posting identities (csv) whose replies count as your classification rows — e.g. a project bot account (default: your `gh api user` login) |
-| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` / `FETCH_LOGS_MAX_BYTES` | `fetch-logs` | Scratch dir, repo override, size cap for CI-log ZIPs |
+| `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
+
+The plugin-scope readiness gate accepts extra posting identities via its
+`--extra-self` flag (fed from `babysit_self_logins`), added to your
+`gh api user` login; its `--self` flag still provides a full override.
 
 ## Security
 
 - No hooks, no MCP servers, no telemetry, no outbound network beyond `git`
   and `gh` against the repository the session already targets.
 - Writes to GitHub (comments, reactions, thread resolution, PR creation,
-  merge) happen only inside the documented `/pull-request` phases, with the
-  merge decision always behind a human gate.
+  merge) happen only inside the documented `/pull-request` phases and the
+  `/babysit-prs` loop. `/babysit-prs` merges only in its explicit
+  `worker`/`autopilot` opt-in tiers, and only through a deterministic merge
+  gate (expected-head pin, fail-closed owner allowlist, dependency-PR and
+  unprotected-repo refusals) — the safe default never resolves threads or
+  merges, and configuration alone can never grant an auto-routed invocation
+  merge authority.
 - Bundled scripts are read-only against the GitHub API except where the
   skill body documents a write.

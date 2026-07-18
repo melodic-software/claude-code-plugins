@@ -22,29 +22,12 @@ concurrency:
 # local ci-status gateway aggregates every lane into the
 # single required check the org ci-gate ruleset keys on.
 jobs:
-  # One governed routing gate feeds every lane in this workflow: the liveness
-  # selector makes one routing decision per workflow instead of fanning out
-  # identical preflights. The short hygiene checks still share one checkout and
-  # one ephemeral worker to avoid runner-registration churn. A
-  # selector/configuration failure blocks the complete workload; it cannot
-  # silently redirect to paid hosted Linux.
-  select-runner:
-    name: Select runner
-    uses: melodic-software/ci-workflows/.github/workflows/select-runner.yml@3415de3ff2fafee40e4d087eb6073d2f6952b595 # 3415de3 2026-07-13
-    with:
-      policy: ${{ vars.CI_RUNNER_POLICY }}
-      self-hosted-label: ${{ vars.CI_SELF_HOSTED_LABEL }}
-      hosted-runner: ${{ vars.CI_HOSTED_RUNNER }}
-      scope: ${{ vars.CI_RUNNER_SCOPE }}
-      managed-runner-prefix: ${{ vars.CI_MANAGED_RUNNER_PREFIX }}
-      observer-client-id: ${{ vars.CI_RUNNER_OBSERVER_CLIENT_ID }}
-    secrets:
-      observer-private-key: ${{ secrets.CI_RUNNER_OBSERVER_PRIVATE_KEY }}
-
+  # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
+  # public repositories); the local-runner selector is not permitted here. The
+  # short hygiene checks still share one checkout to avoid per-check setup
+  # churn.
   hygiene:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -187,20 +170,16 @@ jobs:
         run: scripts/aggregate-hygiene-results.sh
 
   zizmor:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
     permissions:
       contents: read
     # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@de50a08b6093d231519ee7a4c9371db76c0a7e1e # de50a08 2026-07-12
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
     with:
-      runner: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+      runner: ubuntu-24.04
       paths: .
 
   hook-utils-sync:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -219,10 +198,28 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  standards-contract-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin binding copies match the canonical contract
+        run: scripts/sync-standards-contract.sh --check
+      - name: Run sync-standards-contract tests
+        run: bash scripts/sync-standards-contract.test.sh
+      - name: Verify contract, changelog, and carrying plugins bumped together
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-standards-contract.sh --check-bump "origin/$BASE_REF"
+
   cross-plugin-source-drift:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -235,9 +232,7 @@ jobs:
         run: bash scripts/check-cross-plugin-source-drift.test.sh
 
   plugin-gate:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -287,9 +282,7 @@ jobs:
   # and fails on any drift, then runs the bundle over stdio so a build that
   # compiles but cannot serve MCP is caught here, not on a consumer's machine.
   miro-plugin:
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out
@@ -329,9 +322,7 @@ jobs:
 
   runner-policy:
     name: Runner policy
-    needs: select-runner
-    if: ${{ !cancelled() && needs.select-runner.result == 'success' }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -355,21 +346,20 @@ jobs:
 
   ci-status:
     needs:
-      - select-runner
       - hygiene
       - hook-utils-sync
+      - standards-contract-sync
       - cross-plugin-source-drift
       - plugin-gate
       - miro-plugin
       - runner-policy
       - zizmor
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
-    # selector/fleet failure still runs this required aggregate on the hosted
-    # fallback and the result join below turns it red. A success-guard would skip
-    # the job, and a skipped required check reports success to branch protection.
-    # Happy path routes to the fleet (github-iac#78).
+    # lane failure still runs this required aggregate and the result join below
+    # turns it red. A success-guard would skip the job, and a skipped required
+    # check reports success to branch protection.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.select-runner.outputs.runner || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Aggregate lane results

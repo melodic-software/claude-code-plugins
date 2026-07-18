@@ -77,7 +77,7 @@ assert_file_absent "non-Skill → no envelope" "$TELN"
 PROJ5="$TEST_TMPDIR/proj5"; mkdir -p "$PROJ5"
 TELK="$TEST_TMPDIR/telk.json"; SINKK="$(make_sink "$TELK")"
 env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PROJECT_DIR="$PROJ5" \
-  HOOK_SKILL_USAGE_AUDIT_ENABLED=false \
+  CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED=false \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_file_absent "kill switch → no second store" "$PROJ5/.claude/observability/skill-usage.jsonl"
 assert_file_absent "kill switch → no envelope" "$TELK"

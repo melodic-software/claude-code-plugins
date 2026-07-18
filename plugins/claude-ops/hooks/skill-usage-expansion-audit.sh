@@ -23,7 +23,7 @@
 # the user-typed path rather than silently drop it.
 #
 # NON-BLOCKING: exit 0 always. Captures the command name only — no argument body.
-# Kill switch: HOOK_SKILL_USAGE_AUDIT_ENABLED=false (shared with the tool-path
+# Kill switch: CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED=false (shared with the tool-path
 # producer — one switch disables the whole skill-usage-audit feature).
 
 set -uo pipefail

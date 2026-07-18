@@ -124,7 +124,7 @@ run "here-string alone (allowed)" "grep foo <<< \"haystack\"" 0
 
 # --- Kill switch — disabled path is a clean no-op even on a bypass ----------
 run "kill switch off → no-op despite cat > file" "cat > foo.txt" 0 \
-  HOOK_BLOCK_HOOK_BYPASS_ENABLED=false
+  CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=false
 
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
 TEL="$(mktemp -p "$TEST_TMPDIR")"

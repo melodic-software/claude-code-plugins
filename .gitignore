@@ -12,6 +12,7 @@ Thumbs.db
 # Local-only Claude Code state
 .claude/settings.local.json
 .claude/observability/
+.claude/worktrees/
 CLAUDE.local.md
 
 # Test-result artifacts (Pester runner output)

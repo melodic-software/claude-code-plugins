@@ -27,6 +27,40 @@
           "justification": { "type": "string", "pattern": "\\S" }
         }
       }
+    },
+    "localRoutingGrants": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^\\.github/workflows/[^/#]+\\.ya?ml#[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["permissions", "justification"],
+        "properties": {
+          "permissions": { "$ref": "#/$defs/githubPermissionMap" },
+          "environment": { "type": "string", "pattern": "\\S" },
+          "secrets": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "credentialActions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9_.-]+/[a-z0-9_.-]+@[0-9a-f]{40}$"
+            }
+          },
+          "justification": { "type": "string", "pattern": "\\S" }
+        }
+      }
     }
   },
   "allOf": [
@@ -39,5 +73,33 @@
         "properties": { "selfHostedCi": { "const": false } }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "readWritePermissionAccess": { "enum": ["read", "write", "none"] },
+    "readPermissionAccess": { "enum": ["read", "none"] },
+    "writePermissionAccess": { "enum": ["write", "none"] },
+    "githubPermissionMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "artifact-metadata": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "attestations": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "checks": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "code-quality": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "contents": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "deployments": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "discussions": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "id-token": { "$ref": "#/$defs/writePermissionAccess" },
+        "issues": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "models": { "$ref": "#/$defs/readPermissionAccess" },
+        "packages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pages": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "pull-requests": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "security-events": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "statuses": { "$ref": "#/$defs/readWritePermissionAccess" },
+        "vulnerability-alerts": { "$ref": "#/$defs/readPermissionAccess" }
+      }
+    }
+  }
 }

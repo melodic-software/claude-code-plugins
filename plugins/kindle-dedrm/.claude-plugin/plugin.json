@@ -1,12 +1,21 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "kindle-dedrm",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router with setup, sync, update, cleanup, and status, each state mutation paired with a documented compensating reversal.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows"]
+  "keywords": [
+    "kindle",
+    "dedrm",
+    "calibre",
+    "ebook",
+    "epub",
+    "drm",
+    "knowledge",
+    "windows"
+  ]
 }

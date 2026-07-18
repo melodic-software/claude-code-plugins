@@ -42,8 +42,11 @@ Tiers are cumulative (`build` includes `caches`; `all` = `build` + `git`), and
 - **Session-scoped destructive guard.** While the skill is active, a PreToolUse
   hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
   `git checkout --`, and recursive `Remove-Item`; the confirmed command runs only
-  through the skill's own gate. Kill switch:
-  `HOOK_CLEAN_DESTRUCTIVE_GUARD_ENABLED=false`.
+  through the skill's own gate. Kill switch: the `clean_destructive_guard_enabled`
+  userConfig option set to `false` (`/plugin configure repo-hygiene`, or
+  `claude plugin install repo-hygiene@melodic-software --config clean_destructive_guard_enabled=false`;
+  user-scoped — per-repository disable means disabling the plugin in that
+  project's `enabledPlugins`).
 - **Autonomous sessions abort** the destructive tiers rather than deleting
   unattended.
 

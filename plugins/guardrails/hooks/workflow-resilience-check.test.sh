@@ -52,7 +52,7 @@ out=$(run_hook "$(workflow_script_json 'const a = await agent("do x"); const b =
 assert_silent "no fan-out stays silent" "$out"
 
 # CASE 7: kill switch off → silent even on un-throttled fan-out.
-out=$(run_hook "$(workflow_script_json 'await pipeline(FILES, s1)')" HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED=false)
+out=$(run_hook "$(workflow_script_json 'await pipeline(FILES, s1)')" CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=false)
 assert_silent "kill switch silences hook" "$out"
 
 # CASE 8: saved scriptPath with un-throttled fan-out → advisory fires (reads file).

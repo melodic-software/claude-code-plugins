@@ -182,7 +182,7 @@ Take me home (ad-lib: home, home)
 
 ### Confidence note
 
-Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous) and confirmed by Suno's own "Song Editor" article (`help.suno.com/articles/6141505`). The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing — HIGH confidence on syntax, HIGH-MEDIUM on the broader "treat lyrics as second style channel" framing.
+Parameterized syntax is documented across multiple community guides (hookgenius, blakecrosley, jackrighteous) and confirmed by Suno's own "Song Editor" article (`help.suno.com/en/articles/6141505`). The full **per-section instrumentation control** as a primary technique (vs just vocal/mood modifiers) is community-validated through extensive empirical testing — HIGH confidence on syntax, HIGH-MEDIUM on the broader "treat lyrics as second style channel" framing.
 
 ## Performance shaping (community-validated, MEDIUM confidence)
 

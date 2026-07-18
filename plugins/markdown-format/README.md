@@ -17,9 +17,10 @@ imposes no rules of its own.
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
 - **Config from the consumer.** `markdownlint-cli2` discovers config
-  (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) by walking up from the
-  repository root. The hook `cd`s to that root before linting so the right
-  cascade applies regardless of the session's working directory.
+  (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) per edited file, from
+  the file's directory up through its parents — so a nested config governs its
+  subtree. The hook `cd`s to the repository root before linting so that
+  discovery caps at the root regardless of the session's working directory.
 
 ## Requirements
 
@@ -38,9 +39,9 @@ The hook requires the following tools:
 
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
-the hook exits `0` and reports a visible `additionalContext` warning. It never
-falls back to `npx`, installs a package, or performs a network request during a
-hook run.
+the hook exits `0` and reports a once-per-session notice to both Claude
+(`additionalContext`) and you (`systemMessage`). It never falls back to `npx`,
+installs a package, or performs a network request during a hook run.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
@@ -63,19 +64,34 @@ the advisory to appear again.
 /plugin install markdown-format@melodic-software
 ```
 
+Then verify the runtime prerequisites with `/markdown-format:setup check`;
+`/markdown-format:setup apply` resolves anything the check reports with
+guidance, and `/markdown-format:setup apply install-lint` additionally
+authorizes installing `markdownlint-cli2` as a dev dependency using the
+repository's own package manager.
+
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the markdownlint
-config already in your repository, which it reads automatically. To change the
-rules, edit your repo's markdownlint config.
+The rules themselves are never configured here — the plugin's only rule source is
+the markdownlint config already in your repository, which it reads automatically.
+To change the rules, edit your repo's markdownlint config.
 
-### Disable without uninstalling
+One `userConfig` option tunes the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Type | Default | Effect |
+|--------|------|---------|--------|
+| `markdown_format_enabled` | boolean | `true` | Toggle the markdown-format hook; set `false` for a clean no-op. |
 
-```json
-{ "env": { "HOOK_MARKDOWN_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure markdown-format`, or headless on
+the install command:
+
+```shell
+claude plugin install markdown-format@melodic-software --config markdown_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the project's).
+To disable formatting for a single repository, disable the whole plugin in that
+project's `enabledPlugins` instead.
 
 ## License
 
