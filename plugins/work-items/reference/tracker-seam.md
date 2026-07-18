@@ -17,12 +17,20 @@ Every tracker operation goes through the work-item-tracker seam — the skill ca
 (contract: `tools/work-item-tracker/CONTRACT.md`). Resolve the seam path from the project root so
 invocations work from any subdirectory —
 `"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" <verb>`;
-the executable snippets in each action use that rooted form. The seam is required for correctness:
-before the first verb of an invocation, check the script exists at that path — absent, stop and
-surface the remediation (this repo has not provisioned the consumer-provided seam; it must be
-copied in from a repository that carries it, together with its `CONTRACT.md` and the bound
-adapter — `/work-items:setup` configures the recurring schedule and label remaps but does NOT
-create the seam) instead of improvising provider commands. The repo's active provider is bound in
+the executable snippets in each action use that rooted form. Two entry-point presence checks are
+required for correctness before an invocation's first verb, each stopping with its remediation
+rather than failing mid-action:
+
+- **`jq`** (`command -v jq`) — the actions' snippets parse with it unconditionally. Missing: stop
+  and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
+  Bash on native Windows) — never improvise a parse.
+- **The seam script** at the rooted path above. Missing: stop and surface that this repo has not
+  provisioned the consumer-provided seam; it must be copied in from a repository that carries it,
+  together with its `CONTRACT.md` and the bound adapter — `/work-items:setup` configures the
+  recurring schedule and label remaps but does NOT create the seam. Never improvise provider
+  commands.
+
+The repo's active provider is bound in
 `.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim,
 dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly.
 Operations without a core verb (listing with arbitrary filters, search, aggregation, close,
