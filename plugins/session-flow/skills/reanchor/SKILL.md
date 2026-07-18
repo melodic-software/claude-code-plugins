@@ -28,12 +28,13 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch is now behind its
-   base. Resolve the base's remote and branch and fetch that ref explicitly
-   (`git fetch <remote> <base-branch>`) — a bare `git fetch` can exit 0 while
-   updating only the tracked branch in a single-branch or shallow checkout,
-   leaving the base stale and the behind-count falsely clean. Measure the
-   behind-count against the freshly fetched base; if the fetch cannot run, report
-   the check as unverifiable rather than assuming none. Unless the inputs record a base-tip
+   base. Fetch the resolved base ref explicitly and count against the just-fetched
+   tip: `git fetch <remote> <base-branch>`, then measure against `FETCH_HEAD`
+   (e.g. `git rev-list --count HEAD..FETCH_HEAD`). A bare `git fetch`, or a count
+   against a local `origin/<base>` tracking ref, can read falsely clean in a
+   single-branch or shallow checkout where that ref was never updated —
+   `FETCH_HEAD` always holds what this fetch actually retrieved. If the fetch
+   cannot run, report the check as unverifiable rather than assuming none. Unless the inputs record a base-tip
    or merge-base baseline, report the *current* divergence rather than claiming
    it all accrued since the inputs were written — the branch may already have
    been behind. This is reanchor's own check. `/source-control:worktree`, when
