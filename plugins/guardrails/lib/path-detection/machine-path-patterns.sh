@@ -1,4 +1,7 @@
 # shellcheck shell=bash
+# The bodies are consumed by the sourcing drivers, never in this file itself —
+# SC2034 "appears unused" is a false positive for a define-only library.
+# shellcheck disable=SC2034
 # Machine-specific path detection — shared per-OS regex BODIES, define-only.
 #
 # No functions, no env reads, no I/O, no exit calls. A scan driver sources
@@ -26,9 +29,14 @@
 # macOS/Linux bodies need a driver-side boundary prefix so a substring like
 # "doc/Users/guide" inside a longer word does not false-match.
 #
-# The bodies are consumed by the sourcing drivers, never in this file itself —
-# SC2034 "appears unused" is a false positive for a define-only library.
-# shellcheck disable=SC2034
+# The trailing separator every body ends in is its right boundary: a match
+# needs at least one child segment past the root, so a bare root — the home
+# or checkout directory itself, e.g. C:\Users\Alice, /home/alice, or
+# D:\repos\acme — is intentionally NOT matched. Dropping it re-admits prose
+# false positives (the segment class permits spaces, so "/Users/ for details"
+# would match), and where a bare root ends at a value boundary is
+# format-specific — a driver-owned concern like the left prefix. A consumer
+# that needs bare-root detection adds that right boundary in its own driver.
 HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
 HPP_MACOS_USER_BODY='/Users/[^/$<{~]+/'
 HPP_LINUX_USER_BODY='/home/[^/$<{~]+/'
