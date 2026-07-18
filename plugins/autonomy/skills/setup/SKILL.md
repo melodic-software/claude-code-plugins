@@ -138,11 +138,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    record + the attestation request addressed to the accountable human; the close flow never
    blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
    the marker-keyed structured comment otherwise (the universal floor).
-3. **Route record writes through the work-items comment seam where that plugin is present**
-   (race-safe, multi-tracker), layering marker-keyed upsert on top of its append-only
-   surface — never a parallel comment writer. The standalone snippet is only for adopters
-   without that seam, and carries the contract's stated create-create race with its
-   attestation-preserving dedupe rule.
+3. **Route comment writes through the bound tracker adapter's documented comment mechanics
+   where a work-item-tracker binding is present** (comments are provider-specific mechanics
+   there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
+   primitive exists to reuse). The marker-keyed upsert and its attestation-preserving dedupe
+   rule are THIS contract's own obligations and apply identically on both paths; the
+   standalone snippet differs only in posting directly, and both paths carry the contract's
+   stated create-create race rule.
 4. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
    automation: steps + cost surfaced, explicit opt-in. Private-repo close-triggered runs
    draw metered CI minutes — surfaced on the wire path.

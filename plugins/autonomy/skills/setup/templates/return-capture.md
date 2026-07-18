@@ -33,11 +33,15 @@ never overwrites or downgrades an existing record):
 
 ## Attestation upsert
 
-On a reply/reaction from the accountable human, the bound automation identity edits the SAME
+Attestation requires a REPLY from the accountable human carrying BOTH values
+(`counterfactual` and `effort_band`); a bare reaction cannot carry them and never triggers
+the upsert — the automation leaves the record unattested (optionally re-requesting with the
+expected reply shape). On a parseable reply, the bound automation identity edits the SAME
 marker comment, adding the attested fields — `attested: true`, `counterfactual`,
 `effort_band`, `attested_at`, `attested_by` (copied from the reply's platform actor), and
 `attestor_role` — plus a citation of the attestation source event (the reply's URL) so the
-identity is auditable. Consumers ignore marker records from any author other than the bound
+identity is auditable. A reply missing either value is answered with the expected shape and
+does not upsert. Consumers ignore marker records from any author other than the bound
 automation identity, and dedupe attestation-preservingly (attested outranks unattested;
 latest wins only among equals).
 
