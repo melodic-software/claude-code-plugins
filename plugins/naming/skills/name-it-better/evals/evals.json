@@ -5,10 +5,10 @@
       "id": 1,
       "name": "rejected-name-blind-retry-to-human-pick",
       "prompt": "name it better — you suggested `DataManager` for the class that validates and persists orders and I don't like it.",
-      "expected_output": "The skill distills a context brief (responsibility, scope, constraints, surrounding vocabulary, overloaded-term blocklist), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
+      "expected_output": "The skill builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist with reasons, rejected incumbents with reasons), fans out ~3 fresh-context generators seeded ONLY with the brief (blind to this conversation) across the three lenses, merges and collision-checks, scores against the resolved criteria priority, and presents a ranked shortlist with a single marked RECOMMENDED pick — then stops for the human to choose.",
       "files": [],
       "expectations": [
-        "Distills a context brief and seeds the generators with the brief ONLY (blind to the conversation), not the rejected name",
+        "Builds a structured context brief with named fields (responsibility, firing/usage context, scope boundaries, collision vocabulary, word-level blocklist, rejected incumbents) and seeds the generators with the brief ONLY (blind to the conversation), not the rejected name",
         "Fans out ~3 fresh-context generators across distinct lenses (responsibility-literal, moment-of-use, domain-lore)",
         "Carries `DataManager` as a main-thread reject list and disqualifies it at merge time, even if a generator independently re-derives it",
         "The rejected incumbent (`DataManager`) does not appear in the final shortlist",
@@ -63,6 +63,19 @@
         "Disqualifies the rejected incumbent and any candidate colliding with `OrderService` BEFORE the elimination rounds begin, not just at the finalist",
         "Neither the rejected incumbent nor a colliding candidate appears as the finalist or among the runners-up",
         "Still widens to ~5 generators, runs elimination rounds with independent judges, and ends at a human pick"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "rejection-reason-becomes-next-round-constraint",
+      "prompt": "name it better for this cache wrapper. [after a first shortlist] no — `Store` is wrong, it's read-through only and never owns the data, and stop giving me `Manager` names.",
+      "expected_output": "The skill treats the rejection as data: it captures the REASON as explicit new brief constraints — a scope-boundary correction (read-through only, does not own the data) and word-level blocklist entries (`Store`, `Manager`) with their reasons — then runs a fresh blind fan-out seeded with the corrected brief. Rejected names and words never re-enter, and it ends at a human pick over the new shortlist.",
+      "files": [],
+      "expectations": [
+        "Captures the rejection reason as explicit new brief constraints (a scope-boundary correction plus word-level blocklist entries), not a one-off filter",
+        "Blocklists `Store` and `Manager` with their reasons so neither re-enters any later round",
+        "Runs a fresh blind fan-out on the corrected brief rather than patching the previous round's candidates",
+        "Ends at a human pick over the new shortlist"
       ]
     }
   ]

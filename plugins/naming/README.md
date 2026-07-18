@@ -14,8 +14,10 @@ lenses, then hand the human a scored shortlist to choose from.
 The dominant trigger is a reactive retry: a name was suggested and
 rejected, and the same context that produced it will only produce more of
 the same. So the generators run BLIND to the conversation, seeded only with
-a distilled context brief, each working a distinct lens
-(responsibility-literal, moment-of-use, domain-lore). Diverge widely from
+a structured context brief (responsibility, firing context, scope
+boundaries, collision vocabulary, word- and name-level blocklists), each
+working a distinct lens (responsibility-literal, moment-of-use,
+domain-lore). Diverge widely from
 independent perspectives, then converge once — and keep the first-seen
 suggestion from anchoring the choice. The method grounding is in the
 skill's `context/sources.md`.
@@ -37,9 +39,10 @@ presents it as such.
 - **Criteria source of truth.** The skill scores against the consuming
   organization's naming and domain-language conventions when the project
   declares them (its `CLAUDE.md` / `.claude/rules/` or a standards source
-  it points to). When none is declared, it falls back to the general
-  naming criteria grounded in the skill's `context/sources.md`. A criterion
-  the user wants that is missing from their conventions flows UP into those
+  it points to). When none is declared, it falls back to a research-ordered
+  general criteria priority — semantic accuracy first, trigger utility last
+  — grounded in the skill's `context/sources.md`. A criterion the user
+  wants that is missing from their conventions flows UP into those
   conventions, not into the skill.
 - **Adjacent capabilities.** Resolving what a domain concept IS routes to a
   domain-modelling capability; propagating a chosen name across call sites
