@@ -603,8 +603,17 @@ hook::git_resolve_index() {
       ;;
     # eval concatenates and re-executes its arguments, so for the unquoted
     # form (`eval git commit ...`) scanning the following words is exact.
+    # command/exec carry their own options before the real command
+    # (`command [-pVv]`, `exec [-cl] [-a name]`) and an optional `--`
+    # end-of-options marker (`command -- git …`) — skip them so the git
+    # command behind the wrapper is still resolved.
     command | exec | builtin | eval | !)
       ((i++))
+      while ((i < n)) && [[ "${w[i]}" == -* && "${w[i]}" != "--" ]]; do
+        [[ "${w[i]}" == "-a" ]] && ((i++))
+        ((i++))
+      done
+      ((i < n)) && [[ "${w[i]}" == "--" ]] && ((i++))
       continue
       ;;
     time)

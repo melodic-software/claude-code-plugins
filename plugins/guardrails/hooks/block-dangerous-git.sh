@@ -105,6 +105,21 @@ abbrev_match() {
   [[ "$full" == "$p"* ]]
 }
 
+# Does a bare word (no `=`) name a value-consuming push option, in full or
+# as an accepted unique-prefix abbreviation? git push consumes the next word
+# as the value for these, so the scans must skip that word — otherwise a
+# `--dry-run`/`--force` sitting in the value slot is misread as a flag.
+# Floors verified empirically (shortest prefix git accepts without
+# "ambiguous option"): --pu (push-option), --rep (repo), --rece
+# (receive-pack; --rec is ambiguous with --recurse-submodules), --e (exec).
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+is_push_value_opt() {
+  local x="$1"
+  [[ "$x" == *=* ]] && return 1
+  abbrev_match "push-option" "$x" 2 || abbrev_match "repo" "$x" 3 \
+    || abbrev_match "receive-pack" "$x" 4 || abbrev_match "exec" "$x" 1
+}
+
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
 # and `:/?*` match the whole tree from the repository root regardless of
@@ -197,16 +212,26 @@ check_segment() {
   # the first word of an expansion as another alias — enforced through
   # HOOK_NO_ALIAS, which dynamic scoping carries into the recursive call.
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local cv exp
+    local cv exp reparse a
     local -a cfgv=() expw=()
     cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
       [[ "$cv" == "alias.${sub}="* ]] || continue
       exp="${cv#*=}"
       if [[ "$exp" == '!'* ]]; then
-        hook::bash_parse_segments "${exp#!}" check_segment
+        # Shell alias: git runs the expansion as a shell command with the
+        # invocation's trailing args appended (positional), so append them
+        # (shell-quoted) before re-parsing the whole string as a command.
+        reparse="${exp#!}"
+        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+        hook::bash_parse_segments "$reparse" check_segment
       else
-        read -ra expw <<<"$exp"
+        # Git alias: its expansion is dequoted with shell quoting rules
+        # (so `push "--force"` yields --force, not "--force"). Splice the
+        # dequoted words in place of the alias name and keep the trailing
+        # invocation args, which git appends to the expanded argv.
+        hook::env_s_split "$exp"
+        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
         HOOK_NO_ALIAS=1
         check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
         HOOK_NO_ALIAS=0
@@ -246,6 +271,12 @@ check_segment() {
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
         ;;
+      --*)
+        if is_push_value_opt "$x"; then
+          ((k += 2))
+          continue
+        fi
+        ;;&
       *)
         if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 2 \
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
@@ -276,6 +307,15 @@ check_segment() {
         ((k++))
         continue
         ;;
+      --*)
+        # An abbreviated value-consuming push option eats the next word;
+        # otherwise fall through (`;;&`) so --force and --mirror below still
+        # match.
+        if is_push_value_opt "$x"; then
+          ((k += 2))
+          continue
+        fi
+        ;;&
       --force)
         block "push-force" \
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \

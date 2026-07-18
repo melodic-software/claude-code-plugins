@@ -193,6 +193,15 @@ run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alia
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
 run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "git -c alias.rh='reset --hard' status" 0
+run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
+run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
+run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2
+run "command git status (wrapper, no dangerous op, allowed)" "command git status" 0
+run "git -c alias.x='!git' x reset --hard (shell alias appends args, blocked)" "git -c alias.x='!git' x reset --hard" 2
+run 'git -c alias.pf=push "--force" pf origin main (quoted alias, blocked)' 'git -c alias.pf='"'"'push "--force"'"'"' pf origin main' 2
+run "git push --push-op --dry-run --force origin (abbrev push-option eats dry-run, blocked)" "git push --push-op --dry-run --force origin" 2
+run "git push --push-option ci --force origin (full push-option value, blocked)" "git push --push-option ci --force origin" 2
+run "git push --recurse-submodules=check origin (non-value long option, allowed)" "git push --recurse-submodules=check origin" 0
 run "git restore --staged --worktree --no-worktree . (index-only, allowed)" "git restore --staged --worktree --no-worktree ." 0
 run "git restore --staged --no-w . (abbrev no-worktree, allowed)" "git restore --staged --no-w ." 0
 run "git restore --no-worktree --worktree . (worktree re-armed, blocked)" "git restore --no-worktree --worktree ." 2
