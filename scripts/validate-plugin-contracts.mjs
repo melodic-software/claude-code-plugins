@@ -200,14 +200,21 @@ if (existsSync(aiBriefingBrandOverlay)) {
 
 // The autonomy plugin's contract text is tool- and fleet-agnostic: the org
 // token and bare fleet repo names may not appear anywhere under it. Author
-// metadata in plugin.json is the single allowed occurrence.
+// metadata in plugin.json is the single allowed occurrence. The normative
+// reference/ docs additionally ban vendor names outright — surface classes
+// replace them; tool-specific detail lives in SKILL.md/README.
 const autonomyRoot = join(pluginRoot, "autonomy");
 if (existsSync(autonomyRoot)) {
   const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
+  const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
+  const autonomyReference = join(autonomyRoot, "reference") + sep;
   for (const path of filesUnder(autonomyRoot)) {
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
     if (fleetTokens.test(read(path))) {
       fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
+    }
+    if (path.startsWith(autonomyReference) && vendorTokens.test(read(path))) {
+      fail(path, "autonomy reference/ contracts must use surface classes, never vendor names");
     }
   }
 }
