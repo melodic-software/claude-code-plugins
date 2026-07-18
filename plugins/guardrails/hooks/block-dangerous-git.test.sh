@@ -145,6 +145,10 @@ run "git checkout --f main (abbreviated force, blocked)" "git checkout --f main"
 run "git checkout -bf (attached branch name f, allowed)" "git checkout -bf" 0
 run "git switch -f main (forced switch, blocked)" "git switch -f main" 2
 run "git switch --discard-changes main (blocked)" "git switch --discard-changes main" 2
+run "git switch --di other (shortest discard abbrev, blocked)" "git switch --di other" 2
+run "git switch --dis other (discard abbrev, blocked)" "git switch --dis other" 2
+run "git switch --detach main (detach, not discard, allowed)" "git switch --detach main" 0
+run "git switch --de main (detach abbrev, allowed)" "git switch --de main" 0
 run "git switch main (plain switch, allowed)" "git switch main" 0
 run "git switch -c feat/x (create, allowed)" "git switch -c feat/x" 0
 run "git switch -cfix (attached branch name with f, allowed)" "git switch -cfix" 0

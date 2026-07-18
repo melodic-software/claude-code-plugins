@@ -557,7 +557,8 @@ check_segment() {
   switch)
     # switch -f/--force (alias --discard-changes) throws away local
     # modifications the same way forced checkout does. `--d` alone is
-    # ambiguous with --detach, so the abbreviation floor is --disc.
+    # ambiguous with --detach, so the discard-changes floor is --di (the
+    # shortest unambiguous prefix: `--di`/`--dis` are accepted, verified).
     # -c/-C/--orphan/--conflict consume a branch-name/style value — space
     # or attached `-cname` form (gitcli stuck values) — which must not be
     # scanned as a flag bundle (`switch -cfix` creates branch "fix").
@@ -576,7 +577,7 @@ check_segment() {
         ;;
       *)
         if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
-          || abbrev_match "discard-changes" "$x" 4 \
+          || abbrev_match "discard-changes" "$x" 2 \
           || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
