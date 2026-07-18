@@ -9,10 +9,11 @@ All notable changes to the `naming` plugin are documented here. Format follows
 
 - **Structured context brief.** The loose "distill a brief" step is now a
   brief with named fields — responsibility, firing/usage context, scope
-  boundaries (what it is NOT), collision vocabulary, word-level blocklist
-  (with reasons), and rejected incumbents (with reasons) — mirroring the
-  replicated concept → word → structure naming model. The generators
-  receive this brief, and only this brief.
+  boundaries (what it is NOT), collision vocabulary, and word-level
+  blocklist (with reasons) — mirroring the replicated concept → word →
+  structure naming model. The generators receive this brief, and only this
+  brief; rejected incumbent NAMES stay on the main-thread reject list and
+  never enter it.
 - **Declared criteria priority.** The fallback general criteria are now
   research-ordered — semantic accuracy (anti-misleading) > scope fit >
   comprehensibility > trigger/evocative utility — and this ordering governs
