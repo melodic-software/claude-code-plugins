@@ -3,6 +3,15 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- README states the POSIX-shell requirement of the `setup --with-build-deps`
+  install step with its Windows path (Git Bash; the script's platform gate
+  already accepts MINGW/MSYS/CYGWIN) — cross-platform declaration wave. The
+  Node build pipeline is unchanged and remains shell-free.
+
 ## [0.5.0]
 
 ### Changed

@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Fixed
+
+- The `clean` skill's PreToolUse destructive-guard hook now uses the
+  interpreter-named exec form (`command: "bash"`,
+  `args: [".../destructive-guard.sh"]`) instead of naming the bare `.sh` as
+  the command — the doctrine-prescribed Windows-safe spawn shape
+  (cross-platform declaration wave).
+
 ## [0.2.0]
 
 ### Changed

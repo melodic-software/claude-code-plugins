@@ -10,7 +10,8 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "\"${CLAUDE_PLUGIN_ROOT}\"/skills/clean/scripts/destructive-guard.sh"
+          command: "bash"
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
 ---
 
 ## Pre-computed context
