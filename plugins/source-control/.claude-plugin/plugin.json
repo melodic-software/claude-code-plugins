@@ -1,12 +1,34 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing all-PR loop — discover, fix, report readiness, never merges), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (interview the repo and write the tracked commit-subject / PR-title convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["git", "github", "commit", "pull-request", "babysit", "worktree", "merge-conflict", "rebase", "ci", "code-review", "delivery", "skill"]
+  "keywords": ["git", "github", "commit", "pull-request", "babysit", "worktree", "merge-conflict", "rebase", "ci", "code-review", "delivery", "skill"],
+  "userConfig": {
+    "worktree_stale_days": {
+      "type": "number",
+      "title": "Worktree staleness threshold (days)",
+      "description": "Days since last commit before /worktree status classifies a worktree as stale",
+      "default": 14,
+      "min": 1
+    },
+    "babysit_self_logins": {
+      "type": "string",
+      "title": "Babysit extra self identities",
+      "description": "Comma-separated extra posting identities (e.g. a project bot account) whose replies count as your classification rows in the /babysit-prs readiness gate, in addition to your gh login",
+      "default": ""
+    },
+    "fetch_logs_max_bytes": {
+      "type": "number",
+      "title": "CI-log fetch size cap (bytes)",
+      "description": "Abort a CI-log ZIP fetch larger than this",
+      "default": 52428800,
+      "min": 1
+    }
+  }
 }

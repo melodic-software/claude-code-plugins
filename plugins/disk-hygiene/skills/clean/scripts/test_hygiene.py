@@ -852,7 +852,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.dict(
-                "os.environ", {"HOOK_DISK_HYGIENE_ENABLED": "true"}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -865,7 +865,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.dict(
-                "os.environ", {"HOOK_DISK_HYGIENE_ENABLED": "false"}, clear=False
+                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())

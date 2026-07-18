@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **Personal tuning scalars migrated to native `userConfig`** (the fleet-wide kill-switch/scalar
+  doctrine ruling): `worktree_stale_days` (default 14), `babysit_self_logins` (csv, default
+  empty), and `fetch_logs_max_bytes` (default 52428800). The skills substitute the values into
+  their own content; `babysit-readiness-gate.sh` gained an additive `--extra-self` flag (the
+  `--self` full-override flag is unchanged) and `fetch-failed-logs.sh` gained `--max-bytes`.
+- **BREAKING:** the `WORKTREE_STALE_DAYS`, `BABYSIT_SELF_LOGINS`, and `FETCH_LOGS_MAX_BYTES`
+  environment variables are retired and no longer read; re-express any non-default value as the
+  matching `userConfig` option. `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` are unchanged.
+  Zero-config behavior is identical.
+
 ## [0.6.0]
 
 ### Added
