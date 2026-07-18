@@ -41,9 +41,12 @@ modify anything.
    analog: resolution is entirely `.gitattributes`-driven).
 4. **Consumer `.gitattributes` `eol=` policy** — using the hook's own resolver
    (`git check-attr eol` anchored at the repo root), confirm whether any `eol=lf`/`eol=crlf`
-   rule governs tracked paths. Report what governs, or INFO that none does — absence is the
-   opt-out by design, so the plugin is inert (INFO, not FAIL), matching the README's "ships
-   no policy of its own" stance.
+   rule governs paths the hook would touch. `check-attr` answers for ANY candidate path,
+   tracked or not — the hook normalizes a first write to a brand-new file the same as an
+   edit to a tracked one — so probe representative candidate paths (or report the declared
+   patterns), never a tracked-files listing that would miss untracked matches. Report what
+   governs, or INFO that none does — absence is the opt-out by design, so the plugin is
+   inert (INFO, not FAIL), matching the README's "ships no policy of its own" stance.
 5. **Hook toggle** — report the effective `eol_normalizer_enabled` value:
    `${user_config.eol_normalizer_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
