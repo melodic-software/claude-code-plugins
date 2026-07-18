@@ -28,8 +28,9 @@ back up.
    — open vs merged/closed, same head, same base, not renamed. A plan that
    assumes an in-flight PR is often built on one that already landed.
 2. **Base-branch drift.** Check whether the working branch is now behind its
-   base. Derive the base from the referenced PR's base branch (or, absent a PR,
-   the remote's default HEAD) — not an assumed `main` — and mark the check
+   base. Derive the base from the base branch of the PR whose head is the current
+   working branch (or, absent such a PR, the remote's default HEAD) — not another
+   referenced PR's base and not an assumed `main` — and mark the check
    unverifiable if the base cannot be resolved. Fetch that resolved base ref
    explicitly and count against the just-fetched tip: `git fetch <remote>
    <base-branch>`, then measure against `FETCH_HEAD`
@@ -48,9 +49,10 @@ back up.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
    name and — when the session is working inside a plugin's source tree — that
-   the installed version (from the documented installed-plugins state) matches
-   that source manifest; a rename or version bump silently invalidates cited
-   invocations and assumed behavior. When a cited plugin's source manifest is not
+   the version effective in the current project's scope (honoring user / project /
+   local scope precedence, not merely the highest installed version a plugin
+   listing reports) matches that source manifest; a rename or version bump
+   silently invalidates cited invocations and assumed behavior. When a cited plugin's source manifest is not
    locatable in the working tree, report the version comparison as unverifiable
    rather than guessing Claude Code's internal cache layout.
 4. **Stale memory-tier files.** For the session's handoff / todo / working-memory
