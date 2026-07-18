@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## 0.9.0 — 2026-07-18
+
+Added:
+
+- reanchor: new skill. Verifies a session's working assumptions against live
+  reality before it builds on them — for the PRs/issues/branches a handoff or
+  locked plan references it confirms each is still in the claimed state, checks
+  base-branch drift, confirms cited skills/plugins still exist under that name
+  and that installed versions match the repo source, and flags memory-tier
+  entries whose subjects have since landed. It reports the drift and re-anchors;
+  it does not resume the work (keep-going), inventory worktrees
+  (/source-control:worktree status), or triage PR feedback
+  (/source-control:babysit-prs). The plugin now bundles six skills.
+
 ## 0.8.0 — 2026-07-17
 
 Changed:

@@ -1,8 +1,9 @@
 # session-flow
 
-A Claude Code plugin bundling five skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling six skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, what to learn from it, and how to arm it for delegation-heavy tasks.
+interruption, whether its assumptions are still current, what to learn from it, and how to arm it
+for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -11,6 +12,7 @@ interruption, what to learn from it, and how to arm it for delegation-heavy task
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
+| `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 
 ## What each skill does
 
@@ -87,6 +89,21 @@ paste-ready, tool-agnostic brief for a spawned worker or fresh session.
 /session-flow:orchestrate                # prime this session
 /session-flow:orchestrate worker         # paste-ready worker brief
 /session-flow:orchestrate handoff compact # headline-only fresh-session brief
+```
+
+### reanchor
+
+Verifies a session's working assumptions against live reality before it builds on them — the
+premise-freshness counterpart to `keep-going`'s recovery. For the PRs, issues, and branches a
+handoff or locked plan references, it confirms each is still in the claimed state; checks whether
+the working branch's base has drifted; confirms cited skills/plugins still exist under that name
+and that installed versions match the repo source; and flags memory-tier entries whose subjects
+have since landed. It reports the drift and hands back a re-anchored picture — it does not resume
+the work (that is `keep-going`), inventory worktrees (`/source-control:worktree` status), or triage
+PR feedback (`/source-control:babysit-prs`).
+
+```shell
+/session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
 ## Consumer conventions
