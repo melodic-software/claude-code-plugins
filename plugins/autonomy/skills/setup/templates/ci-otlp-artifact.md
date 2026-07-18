@@ -77,6 +77,10 @@ emit nothing:
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export OTEL_METRICS_EXPORTER=otlp
 export OTEL_LOGS_EXPORTER=otlp
+# Session spans are beta: both flags below are required for the session to
+# join the trace tree; without them only metrics/logs are emitted.
+export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<canonical-item-url>
 ```
