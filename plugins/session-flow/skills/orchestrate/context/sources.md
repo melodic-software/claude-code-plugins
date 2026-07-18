@@ -112,3 +112,11 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   they scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
   is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
   rate-limit headroom is a hard ceiling on parallel workers).
+- **Per-worker model tier is an explicit spawn decision.** The subagents doc names cost control as
+  a purpose of subagents: "Control costs by routing tasks to faster, cheaper models like Haiku"
+  *(verbatim, verified)*, and documents the model-resolution order — `CLAUDE_CODE_SUBAGENT_MODEL`
+  env var, then the per-invocation `model` parameter, then the agent definition's `model`
+  frontmatter, then the main conversation's model; an omitted `model` "defaults to `inherit`"
+  *(verbatim, verified)*. A spawn that never states a tier therefore runs every worker on the
+  parent session's model — the mechanism behind premium-model fan-outs (imperatives 2 and 7's
+  tiering clauses). — <https://code.claude.com/docs/en/sub-agents>
