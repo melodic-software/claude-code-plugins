@@ -75,7 +75,11 @@ already declares:
   `poetry config virtualenvs.in-project` effective true or a Poetry-managed repo
   `.venv`; Pipenv: `PIPENV_VENV_IN_PROJECT=1` or a Pipenv-managed repo `.venv`). Without
   one, don't run the install; guide instead — enable the tool's in-project mode and
-  recreate the environment, or otherwise put `ruff` on `PATH` — then re-check.
+  recreate the environment, or otherwise put `ruff` on `PATH` — then re-check. uv with NO
+  existing `.venv`: record the dependency without touching environments —
+  `uv add --dev ruff --no-sync` (`uv add` otherwise syncs and would create `.venv`,
+  violating this skill's never-create guarantee) — then hand `uv sync` to the consumer as
+  their own step and defer the re-check until after it.
 - A plain existing `.venv` with NO managing tool detected (none of the uv, Poetry, or
   Pipenv markers above — lockfiles OR their pyproject sections) → install with the
   environment's own `pip install ruff`. State the change and the target environment
