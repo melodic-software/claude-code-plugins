@@ -1,6 +1,6 @@
 # What's new in v5.5
 
-**Released March 26, 2026.** v5.5 is a personalization-focused upgrade over v5 (Sep 2025). Core prompt syntax unchanged from v5; what changed is **adherence quality** plus three new identity layers.
+**Released March 26, 2026** (verified 2026-07-18 against <https://suno.com/blog/v5-5>; still the current model). v5.5 is a personalization-focused upgrade over v5 (Sep 2025). Core prompt syntax unchanged from v5; what changed is **adherence quality** plus three new identity layers.
 
 ## Three new layers
 
@@ -18,6 +18,8 @@
 | Verification | Speak a random phrase — proves voice ownership |
 | Privacy | Private by default, account-locked, non-shareable |
 | Activation | Select voice from dropdown in Custom mode + raise Audio Influence |
+
+Clip length, 2-minute auto-selection, verification, and privacy rows verified 2026-07-18 against <https://help.suno.com/en/articles/11362369>; Pro/Premier tier per <https://suno.com/blog/v5-5>.
 
 **Critical prompting rule when a Voice is active:**
 
@@ -37,6 +39,8 @@ For best clone quality: record 3 acapella clips across emotional range (gentle, 
 | Training time | 2-5 minutes |
 | Result | Fine-tuned v5.5 reflecting YOUR production patterns, instrumentation, harmonic preferences |
 | Privacy | Private, non-shareable |
+
+Partially verified 2026-07-18: max-3-models and Pro/Premier rows confirmed against <https://help.suno.com/en/articles/11362305>; min-tracks and training-time figures are not in official docs — treat as unverified.
 
 **Key behavior:** style tags now operate **relative to your baseline**, not generic averages. If your catalog is heavy on lo-fi tape saturation, "polished mix" might still come out warmer than generic Suno polished mix.
 
@@ -60,7 +64,7 @@ For best clone quality: record 3 acapella clips across emotional range (gentle, 
 | Feature | v4 | v5 (Sep 2025) | v5.5 (Mar 2026) |
 |---------|----|----|------|
 | Style prompt limit | ~200 chars | ~1,000 chars | ~1,000 chars |
-| Lyrics limit | smaller (varied) | ~3,000 chars | ~3,000 chars |
+| Lyrics limit | 3,000 chars | 5,000 chars (quality sweet spot ~3,000) | 5,000 chars (quality sweet spot ~3,000) |
 | Numeric BPM accuracy | ~70% | ~85% | ~90% |
 | Adherence to nuanced descriptors | low | medium | high |
 | Voices | — | — | ✓ |
@@ -68,6 +72,8 @@ For best clone quality: record 3 acapella clips across emotional range (gentle, 
 | My Taste | — | — | ✓ |
 | Tag syntax | basic | full | full |
 | Multilingual | limited | ~50 langs | ~50 langs |
+
+Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)) — no official Suno page states field limits. Other rows unverified community figures.
 
 **This skill targets v5.5 only.** Legacy v4 prompting (200-char era, fewer tags) is out of scope.
 
@@ -96,10 +102,14 @@ For best clone quality: record 3 acapella clips across emotional range (gentle, 
 | Voices | — | ✓ | ✓ |
 | Custom Models (up to 3) | — | ✓ | ✓ |
 | Replace Section | — | ✓ | ✓ |
-| Suno Studio 1.2 | partial | full | full |
+| Suno Studio | — | — | ✓ |
 
 (Verify against current Suno pricing page — tier feature lists drift.)
 
+- Studio row corrected 2026-07-18: **Premier-exclusive** per <https://suno.com/pricing> — Pro has no Studio access.
+- Audio-upload row conflicts with the 8-minute Pro/Premier figure stated elsewhere in this skill — unresolved; re-verify before relying on either.
+- Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).
+
 ## Sources
 
-Primary: `help.suno.com/articles/11362305` (v5.5 release), `help.suno.com/articles/11362369` (Voices), `help.suno.com/articles/11362497` (Custom Models), `suno.com/blog/v5-5`.
+Primary: `help.suno.com/en/articles/11362305` (v5.5 release), `help.suno.com/en/articles/11362369` (Voices), `help.suno.com/en/articles/11362497` (Custom Models), `suno.com/blog/v5-5`.

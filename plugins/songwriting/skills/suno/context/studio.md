@@ -1,6 +1,6 @@
 # Suno Studio (1.2) — full guide
 
-Suno Studio is a **Generative Audio Workstation (GAW)** — multitrack DAW in the browser, with AI generation built into the timeline. **Premier tier** (verify against current pricing — tiers drift).
+Suno Studio is a **Generative Audio Workstation (GAW)** — multitrack DAW in the browser, with AI generation built into the timeline. **Premier tier** — verified 2026-07-18 against <https://suno.com/pricing> (Pro has no Studio access; tiers drift, re-check before relying).
 
 Where to go AFTER initial generation when you want to: rearrange sections, comp across multiple takes, isolate/replace instruments, fix timing, strip reverb, export stems, or build a song from scratch using AI-generated parts on individual tracks.
 
@@ -91,7 +91,7 @@ Studio's export menu has **3 scopes**:
 - An external instrumental for vocals to be generated over
 - Reference material for timing comparison
 
-Upload limits (verify current — these drift):
+Upload limits (unverified — conflicts with the 120-second Pro/Premier figure in the tier matrix elsewhere in this skill; re-verify before relying on either):
 
 | Tier | Max upload |
 |------|-----------|
@@ -143,4 +143,4 @@ Upload limits (verify current — these drift):
 
 ## Sources
 
-`help.suno.com/articles/7940161` (Introduction to Studio), `help.suno.com/articles/10625089` (Studio 1.2 release notes), `help.suno.com/articles/8128193` (Exporting from Studio), `help.suno.com/articles/6141505` (Song Editor).
+`help.suno.com/en/articles/7940161` (Introduction to Studio), `help.suno.com/en/articles/10625089` (Studio 1.2 release notes), `help.suno.com/en/articles/8128193` (Exporting from Studio), `help.suno.com/en/articles/6141505` (Song Editor).
