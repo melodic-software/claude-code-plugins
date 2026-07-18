@@ -1,0 +1,87 @@
+{
+  "skill_name": "reanchor",
+  "evals": [
+    {
+      "id": 1,
+      "name": "resuming-old-plan-verify-premises",
+      "prompt": "I'm picking this plan back up after a few days. Before I act on it, is everything it assumes still true? It references a couple of open PRs and a branch that wasn't on main yet.",
+      "expected_output": "reanchor loads and verifies the plan's premises against live reality: for each referenced PR/issue/branch it checks the current state (still open vs merged/closed, same head/base, not renamed) and whether the working branch is now behind its base, then reports premise -> claimed state -> actual state plus the re-anchored picture. It does not resume the work itself.",
+      "files": [],
+      "expectations": [
+        "Routes to reanchor (verify premises), not straight into executing the plan",
+        "Checks each referenced PR/issue/branch's live state rather than trusting the plan's claim",
+        "Reports drift as claimed-vs-actual and hands back a corrected picture",
+        "Does not itself resume/continue the work"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "plugin-version-drift",
+      "prompt": "This handoff says to use a plugin skill a certain way, but that was written a while ago. Are the installed plugin versions still what the handoff assumes?",
+      "expected_output": "reanchor confirms the cited surfaces still exist under that name and, when their source manifest is locatable in the working tree, compares the installed version against it and flags any drift; when the source manifest is not locatable, it reports the version comparison as unverifiable rather than guessing internal cache paths.",
+      "files": [],
+      "expectations": [
+        "Confirms cited skills/plugins still exist under the named surface",
+        "Compares installed vs source-manifest version when the source is locatable in the working tree",
+        "Reports the comparison as unverifiable rather than guessing cache paths when the source is not locatable"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "stale-memory-and-current-base-divergence",
+      "prompt": "Re-anchor this session — the handoff and todo file are from before the weekend and I think some of it already landed, plus main has probably moved.",
+      "expected_output": "reanchor flags handoff/todo entries whose subjects have since merged or landed (so settled work is not redone), then fetches the base and reports the working branch's CURRENT behind-base divergence — without attributing pre-existing behind-commits to post-handoff drift, since the handoff records no base-tip baseline.",
+      "files": [],
+      "expectations": [
+        "Flags memory-tier entries whose subjects have since merged/landed",
+        "Fetches the base and reports current behind-base divergence",
+        "Does not claim the divergence all accrued since the inputs were written when no baseline SHA is recorded"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "negative-routing-resume-is-keep-going",
+      "prompt": "We got cut off — pick up where you left off and keep going with what was running.",
+      "expected_output": "/session-flow:keep-going handles this (recover off-thread work and continue); reanchor does not load — its job is verifying premises, not resuming the work.",
+      "files": [],
+      "expectations": [
+        "Routes to /session-flow:keep-going for recover-and-continue",
+        "reanchor is not invoked for resuming/continuing work"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "negative-routing-worktree-inventory",
+      "prompt": "Give me the staleness inventory across all my worktrees — which are stale by last-commit age and which have open PRs.",
+      "expected_output": "The cross-worktree inventory (path, branch, PR linkage, commit-age staleness) is source-control's worktree status when that plugin is installed, and reported as an unavailable capability otherwise; either way reanchor does not load — that inventory is distinct from reanchor's own base-drift check.",
+      "files": [],
+      "expectations": [
+        "reanchor is not invoked to enumerate worktrees",
+        "The worktree inventory routes to /source-control:worktree status when installed, or is reported unavailable otherwise"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "negative-routing-pr-feedback-triage",
+      "prompt": "Go through my open PRs, classify the bot and human review feedback, and handle the safe follow-ups.",
+      "expected_output": "Per-PR feedback triage is source-control's babysit-prs when that plugin is installed, and an unavailable capability otherwise; either way reanchor does not load — it only checks whether a referenced PR is still in its claimed state, never classifying feedback or running the loop.",
+      "files": [],
+      "expectations": [
+        "reanchor is not invoked to triage PR feedback or run the PR loop",
+        "PR-feedback triage routes to /source-control:babysit-prs when installed, or is reported unavailable otherwise"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "negative-routing-rule-discipline-is-re-anchor-plugin",
+      "prompt": "You've been drifting from the no-assumptions rule mid-task — re-anchor to that standing rule and audit the work in flight against it.",
+      "expected_output": "Re-anchoring a standing behavioral rule and auditing in-flight work against it is a separate discipline concern (the re-anchor plugin's, when installed); session-flow:reanchor does not load — it re-anchors factual session assumptions against live reality, not behavioral doctrine.",
+      "files": [],
+      "expectations": [
+        "session-flow:reanchor is not invoked for behavioral-rule re-anchoring",
+        "Standing-rule/discipline correction routes to the re-anchor plugin when installed, else is treated as outside reanchor's scope",
+        "Distinguishes factual-premise freshness (reanchor) from rule discipline"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Changed
+
+- **Runtime prerequisites declared and classified** (prerequisite-visibility
+  wave). README Requirements now name Bash + `jq` (Git Bash on native
+  Windows, where `jq` is a separate install) and classify `jq` as required
+  for correctness — stop with the install remediation, never improvise a
+  parse. The tracker-seam reference gains an explicit entry-point presence
+  check for the seam script with a remediation pointer
+  (`tools/work-item-tracker/CONTRACT.md`, `/work-items:setup`) instead of
+  failing on the first verb.
+
 ## [0.9.0]
 
 ### Changed

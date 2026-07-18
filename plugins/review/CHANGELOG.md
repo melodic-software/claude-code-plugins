@@ -3,6 +3,34 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **Runtime prerequisites declared and classified** (prerequisite-visibility
+  wave). README gains a Requirements section (git; authenticated `gh`; Bash
+  via Git Bash on native Windows). `ci-log-auditor` now checks `gh`
+  presence/auth up front and stops with a remediation message instead of
+  auditing from partial evidence when the CLI is missing.
+
+## [0.12.0]
+
+### Added
+
+- **Named design-smell baseline in `code-reviewer`** (Fowler, *Refactoring* 2nd ed., ch. 3): twelve
+  smells — Mysterious Name, Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession,
+  Repeated Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message Chains,
+  Middle Man, Refused Bequest — matched against the diff as advisory heuristics. Findings default
+  to SUGGESTION at medium/low confidence, carry an explicit confidence label the fanout
+  normalization pipeline passes straight through; escalation happens only through a documented
+  project rule (the rule carries the severity), and a project standard that endorses a flagged
+  pattern suppresses the smell. The prior duplicated-structural-boilerplate bullet is folded into
+  Duplicated Code. `fanout` and `quality-gate` inherit the baseline by dispatching the agent; the
+  external `pr-review-toolkit` orchestrator path and the self-mode general fallback do not reach it
+  (documented limitations). No config surface added — smell suppression rides the existing
+  `REVIEW.md` / project-rules seam. No live upstream; regeneration trigger is a Fowler edition
+  revision to ch. 3 or a change to `code-reviewer`'s design-smell taxonomy.
+
 ## [0.11.0]
 
 ### Changed

@@ -5,9 +5,10 @@
 # block (per the 2026-05-28 audit, AUDIT.md, findings R1+R5+R6 — one mechanism):
 #
 #   R1 finding decomposition  — every source finding must be individually
-#                               classified, not batch-glossed (babysit.md §5.0.4)
+#                               classified, not batch-glossed (review-discipline.md §2)
 #   R5 addressed/unaddressed  — findings present but unclassified = unaddressed
-#   R6 checklist completeness — the §5.5 iteration checklist has no unticked box
+#   R6 checklist completeness — the iteration checklist (babysit-prs loop.md
+#                               §5.5) has no unticked box
 #
 # Why a gate, not prose: the audit proved the advisory "MANDATORY subagent
 # dispatch for >=3 findings" rule produced ZERO of its mandated per-finding
@@ -18,7 +19,7 @@
 # DETECTION (aggregate, schema-grounded on fetch-all-pr-comments.sh output,
 # which carries {id,type,author,body,...} but NOT reply-thread links):
 #   findings   = OCCURRENCES of a severity marker (CRITICAL|IMPORTANT|SUGGESTION,
-#                or codex P1/P2/P3 per babysit.md §5.0.4) across all NON-self
+#                or codex P1/P2/P3 per review-discipline.md §2) across all NON-self
 #                comments — counted per match, not per line, so N findings on one
 #                line each count (else a multi-finding line under-counts and the
 #                gate false-passes)
@@ -36,8 +37,11 @@
 #   babysit-readiness-gate.sh <pr>
 #   babysit-readiness-gate.sh <pr> --comments-json <file>   # skip network (tests/reuse)
 #   babysit-readiness-gate.sh <pr> --checklist <file>       # also gate R6
-#   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors (else
-#                              BABYSIT_SELF_LOGINS csv env + `gh api user` login)
+#   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors, full override
+#                              (else `gh api user` login)
+#   babysit-readiness-gate.sh <pr> --extra-self 'bot1,bot2' # extra self authors added to the
+#                              `gh api user` login — the invoking skill wires the
+#                              babysit_self_logins userConfig option here
 #   babysit-readiness-gate.sh --help
 #
 # Stdout (machine-readable, always emitted on a check run):
@@ -58,9 +62,10 @@ PR_NUMBER=""
 COMMENTS_JSON=""
 CHECKLIST=""
 SELF_CSV=""
+EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,47p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -88,6 +93,11 @@ while (($# > 0)); do
   --self)
     require_value "$1" "${2:-}"
     SELF_CSV="$2"
+    shift 2
+    ;;
+  --extra-self)
+    require_value "$1" "${2:-}"
+    EXTRA_SELF_CSV="$2"
     shift 2
     ;;
   -*)
@@ -139,16 +149,18 @@ SELF_LOGINS=()
 if [[ -n "$SELF_CSV" ]]; then
   IFS=',' read -r -a SELF_LOGINS <<<"$SELF_CSV"
 else
-  # BABYSIT_SELF_LOGINS (csv) covers extra posting identities — e.g. a project
-  # bot account whose replies carry the classification tables.
-  if [[ -n "${BABYSIT_SELF_LOGINS:-}" ]]; then
-    IFS=',' read -r -a SELF_LOGINS <<<"$BABYSIT_SELF_LOGINS"
+  # --extra-self (csv) covers extra posting identities — e.g. a project bot
+  # account whose replies carry the classification tables — added on top of the
+  # personal login. The invoking skill wires the babysit_self_logins userConfig
+  # option here.
+  if [[ -n "$EXTRA_SELF_CSV" ]]; then
+    IFS=',' read -r -a SELF_LOGINS <<<"$EXTRA_SELF_CSV"
   fi
   personal_login="$(gh api user --jq .login 2>/dev/null | tr -d '\r')"
   [[ -n "$personal_login" ]] && SELF_LOGINS+=("$personal_login")
 fi
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
-  printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or set BABYSIT_SELF_LOGINS)\n' >&2
+  printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or --extra-self)\n' >&2
   exit 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
@@ -161,7 +173,7 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # (codex r3327816802). claude uses the words CRITICAL|IMPORTANT|SUGGESTION,
 # matched whole-word so "INVALID" is not a finding and the lowercase
 # priority:p0-critical .. p3-low labels some repos use do not false-count. codex
-# uses a P0|P1|P2|P3 shields.io badge (per babysit.md §5.0.4): keyed on the
+# uses a P0|P1|P2|P3 shields.io badge (per review-discipline.md §2): keyed on the
 # shield-URL segment `/badge/P{N}-`, which appears exactly once per finding (the
 # alt-text `![PN Badge]` carries the token a second time, so a bare `P[0-3]` would  # spellchecker:disable-line
 # double-count), is the rigid badge-template structure, and is unambiguous —
@@ -171,11 +183,13 @@ SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 # word char in `shields.io/badge/...`).
 SEVERITY_WORDS_RE='CRITICAL|IMPORTANT|SUGGESTION'
 SEVERITY_BADGE_RE='/badge/P[0-3]-'
-# Plain bracketed P-severity markers ([P1] .. [P3]) — a common reviewer format
+# Plain bracketed P-severity markers ([P0] .. [P3]) — a common reviewer format
 # with neither a severity word nor a shields badge. The badge alt text is
 # `![PN Badge]` (space before the closing bracket), so this pattern cannot  # spellchecker:disable-line
-# double-count a badge finding.
-SEVERITY_PLAIN_RE='\[P[0-9]\]'
+# double-count a badge finding. Bounded to P0-P3 (the documented reviewer
+# range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
+# the finding count into a false READINESS_BLOCKED.
+SEVERITY_PLAIN_RE='\[P[0-3]\]'
 CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
@@ -213,8 +227,9 @@ $self_source_bodies"
 # a token), one per line — NOT free occurrences. A prose reply repeating
 # "VALID" in its evidence sentence must not count twice, or the gate
 # false-passes while findings lack per-finding rows (codex r3564093178). The
-# per-finding classification TABLE is the mandated reply format (babysit.md
-# §5.0.4), so non-table prose classifications intentionally do not count.
+# per-finding classification TABLE is the mandated reply format
+# (review-discipline.md §2), so non-table prose classifications intentionally
+# do not count.
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
 sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)

@@ -148,7 +148,7 @@ Each metric must have a measurement window and a numeric or qualitative threshol
 
 ### Example shape — "Lyric search with fuzzy matching"
 
-Same structure as above, applied to a music-platform feature. Skip body — agent fills via depth-first Q&A. Key tier-2 differences from tier-1:
+Same structure as above, applied to a music-platform feature. Skip body — agent fills via frontier-rounds Q&A. Key tier-2 differences from tier-1:
 
 - Multiple user stories (1-2 minimum) covering distinct personas or distinct flows
 - Metrics table with baseline + target + window (not just threshold)
@@ -249,7 +249,7 @@ Same structure as above, applied to a B2B internal feature. Tier-3 differences f
 
 ## Tier selection cheat sheet
 
-If `/prd` is invoked without an explicit tier, use this to drive the `AskUserQuestion`:
+If `/prd` is invoked without an explicit tier, use this to drive the tier prompt (card only under the `use_ask_user_question` opt-in; numbered prose otherwise):
 
 | Question | Tier 1 (one-pager) | Tier 2 (consumer-feature) | Tier 3 (B2B-internal) |
 |----------|--------------------|---------------------------|------------------------|

@@ -139,6 +139,11 @@ a skill-invoked shell script) takes the value through non-sensitive `${user_conf
 in skill or agent content, an explicit argument, or a component field that substitutes it. The
 custom environment variable is retired when the migration lands.
 
+A hook kill switch is such a scalar: per-hook selectivity ships as a `userConfig` boolean with a
+`default` of `true`, read through the hook mirror. Per-project control stays whole-plugin via
+scope-level `enabledPlugins`; a genuinely project-scoped per-hook behavior graduates to the tracked
+consumer-project file on demonstrated need — never a custom env channel.
+
 `version` lives in `plugin.json` only, never in a marketplace entry. The platform resolves
 plugin.json first, but a marketplace-entry copy is dead metadata that silently becomes live if the
 manifest field is ever removed — one home, no shadow.

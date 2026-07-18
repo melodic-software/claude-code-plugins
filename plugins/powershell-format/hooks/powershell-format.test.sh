@@ -69,7 +69,7 @@ run_hook() {
   (
     cd "$UNRELATED" || return 1
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR HOOK_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 
@@ -135,7 +135,7 @@ new_repo "$REPO_ABSENT"
 printf "%s\n" "gci -Path '.'" >"$REPO_ABSENT/a.ps1"
 BEFORE_ABSENT="$(cat "$REPO_ABSENT/a.ps1")"
 if _pwsh_free_usable "$_filtered"; then
-  OUT=$(run_hook_env "$REPO_ABSENT/a.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=true PATH="$_filtered")
+  OUT=$(run_hook_env "$REPO_ABSENT/a.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true PATH="$_filtered")
   RC=$?
   if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "pwsh absent -> exit 0, silent (clean skip)"; else fail "pwsh absent not silent (rc=$RC out=$OUT)"; fi
   if [[ "$(cat "$REPO_ABSENT/a.ps1")" == "$BEFORE_ABSENT" ]]; then ok "pwsh absent -> file left untouched"; else fail "pwsh absent -> file was rewritten"; fi
@@ -166,14 +166,14 @@ BEFORE_STUB="$(cat "$REPO_STUB/s.ps1")"
 
 # exit 3 -> module absent -> clean silent skip
 make_stub_pwsh 'exit 3'
-OUT=$(run_hook_env "$REPO_STUB/s.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=true PATH="$STUB_BIN:$PATH")
+OUT=$(run_hook_env "$REPO_STUB/s.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true PATH="$STUB_BIN:$PATH")
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "module absent (pwsh exit 3) -> exit 0, silent (clean skip)"; else fail "module absent not silent (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_STUB/s.ps1")" == "$BEFORE_STUB" ]]; then ok "module absent -> file left untouched"; else fail "module absent -> file was rewritten"; fi
 
 # exit 4 (+ stderr) -> analyzer threw -> advisory tool-break context, exit 0
 make_stub_pwsh 'echo "boom: bad settings" >&2; exit 4'
-OUT=$(run_hook_env "$REPO_STUB/s.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=true PATH="$STUB_BIN:$PATH")
+OUT=$(run_hook_env "$REPO_STUB/s.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true PATH="$STUB_BIN:$PATH")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "tool break (pwsh exit 4) -> exit 0 (advisory)"; else fail "tool break exit $RC (must be advisory)"; fi
 if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
@@ -205,7 +205,7 @@ BEFORE_CEIL="$(cat "$REPO_CEIL/proj/sub/c.ps1")"
 OUT=$(
   cd "$UNRELATED" || exit 1
   printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CEIL/proj/sub/c.ps1" |
-    CLAUDE_PROJECT_DIR="$REPO_CEIL/proj" HOOK_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
+    CLAUDE_PROJECT_DIR="$REPO_CEIL/proj" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK"
 )
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "settings above CLAUDE_PROJECT_DIR ceiling -> not found, silent skip"; else fail "ceiling not respected (rc=$RC out=$OUT)"; fi
@@ -315,7 +315,7 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "non-matching ext -> exit 0 silent"; el
 # --- Case 7: kill switch bypasses hook ---------------------------------------
 printf "%s\n" "gci -Path '.'" >"$REPO/kill.ps1"
 BEFORE_K="$(cat "$REPO/kill.ps1")"
-OUT=$(run_hook_env "$REPO/kill.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.ps1")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -394,7 +394,7 @@ fi
 # ============================================================================
 
 # --- Sink unset -> empty stdout, exit 0 (parity) -----------------------------
-OUT_NS=$(run_hook_env "$REPO/clean.ps1" -u HOOK_TELEMETRY_SINK HOOK_POWERSHELL_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/clean.ps1" -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -408,7 +408,7 @@ fi
 printf '%s\n' '$global:tel = 1' >"$REPO/tel.ps1"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+run_hook_env "$REPO/tel.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -435,7 +435,7 @@ rm -f "$TEL"
 printf "%s\n" "gci -Path '.'" >"$REPO_NO/tel2.ps1"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO_NO/tel2.ps1" HOOK_POWERSHELL_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO_NO/tel2.ps1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
   if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/gate-off: status skipped"; else fail "telemetry/gate-off: status=$(jq -r '.status' "$TELS")"; fi

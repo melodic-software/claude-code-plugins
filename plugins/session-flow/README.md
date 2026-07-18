@@ -1,9 +1,9 @@
 # session-flow
 
-A Claude Code plugin bundling six skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling seven skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, what to learn from it, and how
-to arm it for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, whether its assumptions are
+still current, what to learn from it, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -13,6 +13,7 @@ to arm it for delegation-heavy tasks.
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
+| `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 
 ## What each skill does
 
@@ -111,6 +112,23 @@ paste-ready, tool-agnostic brief for a spawned worker or fresh session.
 /session-flow:orchestrate handoff compact # headline-only fresh-session brief
 ```
 
+### reanchor
+
+Verifies a session's working assumptions against live reality before it builds on them — the
+premise-freshness counterpart to `keep-going`'s recovery. For the PRs, issues, and branches a
+handoff or locked plan references, it confirms each is still in the claimed state; checks whether
+the working branch is now behind its base; confirms cited skills/plugins still exist under that
+name and that installed versions match the repo source; and flags memory-tier entries whose
+subjects have since landed. It reports the drift and hands back a re-anchored picture — it does not
+resume the work (that is `keep-going`), enumerate worktrees, or triage PR feedback. When
+`source-control` is installed it cites that plugin's `worktree` status for the cross-worktree
+inventory and leaves PR-feedback triage to `babysit-prs`; otherwise it does the reduced local
+checks and reports the fuller inventory as unavailable.
+
+```shell
+/session-flow:reanchor            # verify session premises → report drift → re-anchored picture
+```
+
 ## Consumer conventions
 
 The skills adapt to the consuming repo rather than imposing structure:
@@ -138,5 +156,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
 directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
 working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
-committed. Network: none — the bundled transcript parser is stdlib-only Python 3.10+ reading local
-`~/.claude/projects/` transcripts.
+committed. Network: `reanchor` queries live host state via `git`/`gh` to verify a session's
+referenced PRs/issues/branches and installed-vs-repo plugin versions, and degrades to reporting
+what it could not verify when that authenticated egress is unavailable; every other skill is
+network-free (the retro transcript parser is stdlib-only Python 3.10+ reading local
+`~/.claude/projects/` transcripts).

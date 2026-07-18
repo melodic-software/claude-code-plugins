@@ -33,12 +33,20 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-- **ShellCheck** on `PATH` for the lint pass.
-- **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo to
-  opt in).
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
+- **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
+  a visible once-per-session notice.
+- **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
+  to opt in). Absent while the repo opts in: the format pass skips with a
+  visible once-per-session notice. Without the `.editorconfig` opt-in the
+  format pass stays quiet — the repo chose not to format.
 
-Each pass is independent: when a tool is absent its pass is skipped and the other
-still runs. With neither present the hook is a silent no-op.
+Each pass is independent: when a tool is absent its pass is skipped (visibly)
+and the other still runs.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while linting and
@@ -53,17 +61,26 @@ formatting still run.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the `.shellcheckrc`
-and `.editorconfig` already in your repository, which it reads automatically. To
-change the rules, edit those files.
+The linting and formatting rules come from the `.shellcheckrc` and
+`.editorconfig` already in your repository, which the plugin reads automatically.
+To change the rules, edit those files.
 
-### Disable without uninstalling
+One `userConfig` option tunes the hook itself:
 
-Set the kill switch in your settings `env` block:
+| Option | Default | Effect |
+|--------|---------|--------|
+| `bash_format_enabled` | `true` | Toggle for the bash-format hook; set `false` for a clean no-op. |
 
-```json
-{ "env": { "HOOK_BASH_FORMAT_ENABLED": "false" } }
+Set it interactively with `/plugin configure bash-format`, or headless on the
+install command:
+
+```shell
+claude plugin install bash-format@melodic-software --config bash_format_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the project's).
+To turn the hook off for a single repository, disable the whole plugin in that
+project's `enabledPlugins` instead.
 
 ## License
 

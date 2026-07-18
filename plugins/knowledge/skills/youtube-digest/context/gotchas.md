@@ -4,11 +4,11 @@ Observed failure modes and their recovery behavior. Terse operational directives
 
 ## YouTube bot / sign-in check
 
-Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (platform order: Edge/Chrome on Windows). No env setup required when you are signed into YouTube in a local browser. Optional overrides: `YOUTUBE_YT_DLP_COOKIES_FROM_BROWSER` (force one browser) or `YOUTUBE_YT_DLP_COOKIES_FILE` (Netscape cookies.txt path). Never commit cookie files.
+Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (platform order: Edge/Chrome on Windows). No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
 
 ## HTTP 429 throttling
 
-Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via `YOUTUBE_MAX_CONCURRENT_ACQUIRES` (default 1, max 3) — raising it increases 429 risk.
+Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3) — raising it increases 429 risk.
 
 ## Temp-session expiry
 

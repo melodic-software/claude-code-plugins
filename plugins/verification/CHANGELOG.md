@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **Freshness rider on the bundled `/verify` + `/run` availability claim**
+  (fleet conformance wave). The ≥ 2.1.145 floor is re-verified against the
+  official bundled-skills docs and now carries a verified-date + link.
+
 ## [0.2.0]
 
 ### Changed

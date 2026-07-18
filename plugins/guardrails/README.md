@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling seven **safety guards** that catch risky agent
+A Claude Code plugin bundling eight **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -11,12 +11,13 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
 | **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and `LEFTHOOK=0` / `LEFTHOOK_*=false` env-var prefixes (including inside compound `cd … && …` commands). |
+| **block-dangerous-git** | PreToolUse · Bash | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms (never `--force-with-lease`; a push dry-run disarms), `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Direct `git commit` (missing the canonical `-F -` stdin form + `--trailer` Co-Authored-By line) or any `gh pr create`, bypassing this marketplace's own `/commit` / `/pull-request create` skills. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
 
-The four blocking guards feed their stderr message back to Claude as
+The five blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The three advisory guards surface their findings the same
 way but always allow the operation.
 
@@ -27,18 +28,23 @@ way but always allow the operation.
   disable env vars (husky, pre-commit, …) are **not** matched — but the
   manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
   bypasses regardless of which manager runs the hooks.
-- **Argv-grammar-faithful matching (and its residual).** `block-no-verify`
-  parses the command the way the shell builds argv — segmenting on unquoted
-  operators and tokenizing each segment honoring `'…'`, `"…"`, `$'…'` (ANSI-C),
-  and backslash escapes. It detects literal `git commit`/`git push`
-  `--no-verify` / `-n` / `core.hooksPath=` across quoting, escaping, wrappers
-  (`env -i git …`, `nice git …`, `sudo -u x git …`), and git global options
-  (`git -C <dir> commit …`). A `--no-verify` inside a quoted `-m` value stays a
-  message, not a flag. It does **not** evaluate shell variable / command
-  substitution (`$VAR`, `$(…)`, `$IFS`) — a determined author can construct an
-  expansion-based bypass. **This is a friction guard against accidental/casual
-  bypass, not a sandbox.** (A command longer than 16 KB is not parsed and is
-  blocked fail-closed.)
+- **Argv-grammar-faithful matching (and its residual).** `block-no-verify` and
+  `block-dangerous-git` share one parser (in the bundled hook-utils library)
+  that parses the command the way the shell builds argv — segmenting on
+  unquoted operators and tokenizing each segment honoring `'…'`, `"…"`, `$'…'`
+  (ANSI-C), and backslash escapes. Flags and pathspecs are matched on parsed
+  argv words across quoting, escaping, wrappers (`env -i git …`, `nice git …`,
+  `sudo -u x git …`), and git global options (`git -C <dir> commit …`) — so a
+  `--no-verify` inside a quoted `-m` value stays a message, quoted prose never
+  fires, and `checkout .github/x` never matches `checkout .`. The parser does
+  **not** evaluate shell variable / command substitution (`$VAR`, `$(…)`,
+  `$IFS`) — a determined author can construct an expansion-based bypass. An
+  inline env prefix (`HOOK_..._ENABLED=false git push -f`) does **not** disable
+  a hook — the prefix reaches only the spawned git process; disabling requires
+  settings-level env (the settings.json write is the residual trust boundary).
+  **These are friction guards against accidental/casual bypass, not a
+  sandbox.** (A command longer than 16 KB is not parsed and is blocked
+  fail-closed.)
 - **`block-hook-bypass` string-matching floor.** Detection strips quoted literal
   spans before matching the executable token, so quoted prose or a commit
   message merely mentioning `cat >` / `python3 -c open(...)` is not flagged. The
@@ -59,25 +65,31 @@ way but always allow the operation.
 
 ## Per-hook kill switches
 
-Each guard is toggled by its own env var (default **on**; set to `false` for a
-clean no-op). This per-hook control is the bundle's core contract — disable one
-guard without touching the others.
+Each guard is toggled by its own `userConfig` boolean (default **on**; set to
+`false` for a clean no-op). This per-hook control is the bundle's core
+contract — disable one guard without touching the others.
 
-| Guard | Kill switch |
-|-------|-------------|
-| secret-pattern-detection | `HOOK_SECRET_PATTERN_DETECTION_ENABLED` |
-| hardcoded-path-check | `HOOK_HARDCODED_PATH_CHECK_ENABLED` |
-| block-no-verify | `HOOK_BLOCK_NO_VERIFY_ENABLED` |
-| block-hook-bypass | `HOOK_BLOCK_HOOK_BYPASS_ENABLED` |
-| cli-flag-verify | `HOOK_CLI_FLAG_VERIFY_ENABLED` |
-| workflow-resilience-check | `HOOK_WORKFLOW_RESILIENCE_CHECK_ENABLED` |
-| flag-commit-pr-skill-bypass | `HOOK_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED` |
+| Guard | Option |
+|-------|--------|
+| secret-pattern-detection | `secret_pattern_detection_enabled` |
+| hardcoded-path-check | `hardcoded_path_check_enabled` |
+| block-no-verify | `block_no_verify_enabled` |
+| block-dangerous-git | `block_dangerous_git_enabled` |
+| block-hook-bypass | `block_hook_bypass_enabled` |
+| cli-flag-verify | `cli_flag_verify_enabled` |
+| workflow-resilience-check | `workflow_resilience_check_enabled` |
+| flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
-Set them in your settings `env` block:
+Set them interactively with `/plugin configure guardrails`, or headless on the
+install command:
 
-```json
-{ "env": { "HOOK_HARDCODED_PATH_CHECK_ENABLED": "false" } }
+```shell
+claude plugin install guardrails@melodic-software --config hardcoded_path_check_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn guards off for a single repository, disable the whole
+plugin in that project's `enabledPlugins` instead.
 
 ## Consumer seams
 
@@ -97,9 +109,9 @@ repo-specific policy of their own:
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,
   `CLAUDE.local.md`, and hook scripts.
 - **CLI-flag tuning.** `cli-flag-verify` checks a default binary set
-  (`claude gh dotnet docker npm kubectl terraform az aws`); override with
-  `HOOK_CLI_FLAG_VERIFY_BINS=bin1,bin2,…` and skip specific binaries with
-  `HOOK_CLI_FLAG_VERIFY_SKIP_BINS=bin1,bin2`.
+  (`claude gh dotnet docker npm kubectl terraform az aws`); override with the
+  `cli_flag_verify_bins` option (`bin1,bin2,…`) and skip specific binaries
+  with `cli_flag_verify_skip_bins`.
 - **Skill-availability gating.** `flag-commit-pr-skill-bypass` reads
   `enabledPlugins` from the consuming project's own `.claude/settings.json`
   (`.claude/settings.local.json` as an override, only for a key already present

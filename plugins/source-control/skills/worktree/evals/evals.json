@@ -89,12 +89,12 @@
       "id": 8,
       "name": "status-batched-gh-and-graceful-degrade",
       "prompt": "/worktree status",
-      "expected_output": "Parses `git worktree list --porcelain` (CR-stripped), cross-references open PRs via a single batched `gh pr list` call (not one call per worktree), computes staleness against the WORKTREE_STALE_DAYS threshold (default 14), classifies each worktree, and presents a per-worktree table — degrading gracefully (skipping PR info with a note, not aborting) if `gh` is unavailable or fails.",
+      "expected_output": "Parses `git worktree list --porcelain` (CR-stripped), cross-references open PRs via a single batched `gh pr list` call (not one call per worktree), computes staleness against the configured worktree_stale_days threshold (default 14), classifies each worktree, and presents a per-worktree table — degrading gracefully (skipping PR info with a note, not aborting) if `gh` is unavailable or fails.",
       "files": [],
       "expectations": [
         "Runs `git worktree list --porcelain` and strips carriage returns on Windows/Git Bash",
         "Runs `gh pr list` ONCE as a batch cross-reference, not once per worktree branch",
-        "Uses the WORKTREE_STALE_DAYS env var for the stale threshold, falling back to 14 when unset or invalid",
+        "Uses the worktree_stale_days userConfig value for the stale threshold, falling back to 14 when unset, invalid, or unexpanded",
         "Classifies each worktree (active / stale / in-review / merged / prunable / locked) in the presented table",
         "Degrades gracefully when `gh` fails — skips PR info with a note instead of aborting the whole status report"
       ]

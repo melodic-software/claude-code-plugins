@@ -204,7 +204,10 @@ Compare triggered workflows against the expected set from Phase 2.5. Flag mismat
 # Sometimes alone is enough to classify (lint failures, type errors)
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-annotations.sh" <pr-number> --failed
 
-# Tier 2 — Full failure ZIP via direct gh api (complete, untruncated)
+# Tier 2 — Full failure ZIP via direct gh api (complete, untruncated). When the
+# ${user_config.fetch_logs_max_bytes} option is a number other than the 52428800
+# default (not empty, not a literal unexpanded token), append
+# --max-bytes ${user_config.fetch_logs_max_bytes}
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-failed-logs.sh" <run-id>
 
 # Tier 3 — LAST RESORT interactive eyeball (TRUNCATES on large logs)
@@ -279,7 +282,7 @@ For each security finding:
 **Fetch all comments deterministically** via the bundled script — never select API surfaces by agent judgment:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-all-pr-comments.sh" <pr-number>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <pr-number>
 ```
 
 Output: a JSON array sorted by `created_at`. Each object carries `type` (`general` | `review` | `inline`), `author`, `body`, `path`, `line`, `id`. The script hits all 3 GitHub API surfaces (issue-level comments, review-level comments, inline review comments) — no surface can be accidentally skipped.
@@ -292,7 +295,7 @@ Process every comment before fixing any. Produces a complete picture of what nee
 
 For **every substantive comment from every participant** (bot accounts with the `[bot]` suffix, human reviewers, AND the PR author's own comments — skip only LGTM/empty/emoji-only):
 
-**Finding extraction for multi-finding comments:** AI review summaries often pack multiple findings into a single comment — markdown tables, numbered severity items, multi-paragraph analyses. Extract each finding as a separate work item. One comment with N findings = N individual evaluate cycles below. Reply with a per-finding classification table, not one blanket reply. See [babysit.md](babysit.md) §5.0.4 for extraction rules.
+**Finding extraction for multi-finding comments:** AI review summaries often pack multiple findings into a single comment — markdown tables, numbered severity items, multi-paragraph analyses. Extract each finding as a separate work item. One comment with N findings = N individual evaluate cycles below. Reply with a per-finding classification table, not one blanket reply. See [review-discipline.md](../../../reference/review-discipline.md) §2 for extraction rules (including the mandatory ≥3-finding subagent dispatch).
 
 1. **Explore** — read the referenced file/line, understand the surrounding code, check related files. Don't evaluate a comment about line 42 without understanding lines 1-100
 2. **Research** — verify the specific technical claim against official docs (via a research skill when available). No assumptions, no "this looks right." The sequence is: explore → research → classify. Never: read → classify
@@ -353,9 +356,9 @@ After the push:
 - **Codex signals via emoji reactions, not comments.** `chatgpt-codex-connector[bot]` uses emoji reactions on the PR: 👍 = no findings, approved; 👀 = still reviewing. A thumbs-up reaction with no posted comments means Codex reviewed and found nothing — treat as approval. Don't wait for a comment that won't arrive
 - **Codex may not auto-fire on PR creation.** If its commit status stays `PENDING` with no emoji reaction on the PR body after ~3 minutes, it likely didn't trigger. Post a PR comment with `@codex review` to trigger manually; check reactions on that trigger comment specifically
 - **NEVER select API surfaces by judgment — use the script.** `gh pr view --json comments,reviews` MISSES inline review comments. Always invoke the bundled `fetch-all-pr-comments.sh`, which deterministically hits all 3 surfaces. Observed failure mode: an agent chose `gh pr view --json comments,reviews`, missed 2 valid inline findings, and declared "no comments to address"
-- **Never mark a comment addressed without verifiable evidence on GitHub.** Model memory of "I replied" or "I pushed the fix" is not evidence — compaction can lose that state between iterations. Re-query GitHub to verify: reaction exists, reply exists, commit pushed, follow-up posted, bot-authored thread resolved (inline only; human/own excluded). "Done" = GitHub shows evidence. See [babysit.md](babysit.md) §5.1.3 verification gates
+- **Never mark a comment addressed without verifiable evidence on GitHub.** Model memory of "I replied" or "I pushed the fix" is not evidence — compaction can lose that state between iterations. Re-query GitHub to verify: reaction exists, reply exists, commit pushed, follow-up posted, bot-authored thread resolved (inline only; human/own excluded). "Done" = GitHub shows evidence. See [review-discipline.md](../../../reference/review-discipline.md) §3 verification gates
 - **Resolve BOT-authored inline threads after fix; never human or own.** After the D6 fix + D7 follow-up on an inline review comment opened by a bot reviewer, resolve that thread (D7.5, author-conditional). Leave HUMAN-authored threads for the human to close; never resolve your own. Detect bot at resolution time via GraphQL `author.__typename == "Bot"` (GraphQL login omits the `[bot]` suffix REST shows). Open bot-thread count is a visible signal to reviewers — leaving bot threads unresolved after fixing undermines the audit trail
-- **Filter your own prior replies during rescan.** Comments from your own posting identity matching the classification-table pattern (`| # | Finding | Classification |`) are NOT findings — they are prior replies. Skip them during finding extraction. See [babysit.md](babysit.md) §5.0.3 step 4
+- **Filter your own prior replies during rescan.** Comments from your own posting identity matching the classification-table pattern (`| # | Finding | Classification |`) are NOT findings — they are prior replies. Skip them during finding extraction. See [review-discipline.md](../../../reference/review-discipline.md) §1 step 1
 
 ## 3.4 Final monitoring report (readiness-gated)
 

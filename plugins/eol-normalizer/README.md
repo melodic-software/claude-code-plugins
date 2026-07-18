@@ -31,8 +31,14 @@ imposes no rules of its own.
 
 ## Requirements
 
+- **Bash** — the hook is a Bash script. On native Windows, install
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
+  Claude Code can run it under Git Bash.
+- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+  visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **git** on `PATH` — the attribute resolution (`git check-attr`) and repo-root
-  detection depend on it. Without a git repository the hook is a silent no-op.
+  detection depend on it. Without a git repository the hook is a quiet no-op
+  (nothing to normalize against — not a missing prerequisite).
 
 Rewriting uses `perl` when present, falling back to `tr`/`awk` otherwise, so no
 extra tooling is required.
@@ -50,17 +56,25 @@ still runs.
 
 ## Configuration
 
-This plugin has no `userConfig` — its only "configuration" is the
-`.gitattributes` already in your repository, which it reads automatically. To
-change which files normalize to which endings, edit your `.gitattributes`.
+The normalization policy itself is your repository's `.gitattributes`, which the
+hook reads automatically — to change which files normalize to which endings,
+edit your `.gitattributes`. One `userConfig` option tunes the hook's own
+behavior:
 
-### Disable without uninstalling
+| Option | Type | Default | Effect |
+|--------|------|---------|--------|
+| `eol_normalizer_enabled` | boolean | `true` | Toggle the eol-normalizer hook. Set to `false` for a clean no-op. |
 
-Set the kill switch in your settings `env` block:
+Set it interactively with `/plugin configure eol-normalizer`, or headless on
+the install command:
 
-```json
-{ "env": { "HOOK_EOL_NORMALIZER_ENABLED": "false" } }
+```shell
+claude plugin install eol-normalizer@melodic-software --config eol_normalizer_enabled=false
 ```
+
+These options are user-scoped (stored in your user settings, not the
+project's). To turn the plugin off for a single repository, disable it in that
+project's `enabledPlugins` instead.
 
 ## License
 
