@@ -187,12 +187,18 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    |---|---|
    | `tracker_class` | string, the detected tracker class |
    | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
-   | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule |
-   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing |
+   | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule; MAY be null (undiscoverable and not yet interviewed — never invented, same as `roles`) |
+   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
 
    A binding missing the `capture` section has not wired this slice (absent-section
-   tolerance, same as telemetry); a present section MUST carry all four keys — a partial
-   section is a configuration error, not a silent partial wire.
+   tolerance, same as telemetry). `tracker_class` and `record_surface` land once step 1
+   detects them; `automation_identity` and `routing` follow the SAME convention-resolution
+   ladder as every other binding value (config present → use it; absent → infer from a
+   discoverable signal such as recent close-event actors and persist; cannot infer →
+   interview when `apply` runs interactively, else record null/unbound) — NEVER invented,
+   and never a reason to block a non-interactive run or leave the section silently unwired:
+   an unbound `automation_identity` means step 2's trigger gate cannot fire yet, which is
+   reported, not hidden.
 
 ## What this skill does NOT do
 
