@@ -145,7 +145,8 @@ class DiscoverPrsTests(unittest.TestCase):
                 return by_author.get(author, [])
             return []
 
-        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json):
+        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
+                mock.patch.object(gh, "list_repos_for_owner", return_value=[]):
             found, errors = gh.discover_prs(
                 owners=["owner"], authors=["alice", "bob"], limit=100
             )
