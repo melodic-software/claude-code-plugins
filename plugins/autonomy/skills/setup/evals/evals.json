@@ -156,6 +156,19 @@
         "Read-side dedupe is attestation-preserving",
         "Standalone-path race acknowledged with the contract's dedupe rule, not denied"
       ]
+    },
+    {
+      "id": 13,
+      "name": "capture-native-fields-wire-path",
+      "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker supports custom org-managed item fields and we're entitled to write them.",
+      "expected_output": "Detects the tracker class and the entitled native-field surface, selects native-field writes over the structured-comment floor, records record_surface as native_fields (with tracker_class and automation_identity) in the binding's capture section, and maps attestation_source to a field of the same name on the native surface.",
+      "files": [],
+      "expectations": [
+        "Detects the entitled native-field surface and selects it over the comment floor",
+        "Binding capture section records record_surface as native_fields",
+        "attestation_source maps to a same-named native field, not a comment marker",
+        "Does not silently fall back to the comment floor when native fields are entitled"
+      ]
     }
   ]
 }

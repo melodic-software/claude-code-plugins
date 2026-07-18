@@ -17,7 +17,8 @@ from the binding at wire time; no org, fleet, or vendor value is baked in.
 ## Marker-keyed record comment (universal floor)
 
 Posted at close ONLY when no marker-matching bot-authored record exists (a re-fired close
-never overwrites or downgrades an existing record):
+never overwrites or downgrades an existing record). These two blocks together form the
+complete comment body — both appear in the same tracker comment:
 
 ```markdown
 <!-- autonomy:return-accounting:v1 -->

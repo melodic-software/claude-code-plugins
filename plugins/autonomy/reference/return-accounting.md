@@ -31,6 +31,10 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
 | `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment PRESERVED (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
 
+This record's `schema_version` uses major-only tokens (`"1"`, never `"1.0"`); the setup
+skill's own binding `schema_version` (`.claude/autonomy/binding.json`) uses semver strings —
+the two are separate version spaces with independent parsers.
+
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
 ABSENT — never null-imputed. An attested record carries all fields.
@@ -82,11 +86,10 @@ The record surface resolves per tracker class through the binding:
   marker `<!-- autonomy:return-accounting:v1 -->` plus one fenced JSON block holding the
   record. Upsert is marker-keyed: find the marker comment, edit it in place, else create it.
 
-Record integrity: a conforming record is authored by the deployment's
-bound automation identity; consumers MUST ignore marker-matching records from any other
-author. Attestor
-identity derives from the PLATFORM actor of the attestation action — on the comment floor the
-upsert itself is bot-authored, so `attested_by` MUST be copied from, and the record MUST
+Record integrity: a conforming record is authored by the deployment's bound automation
+identity; consumers MUST ignore marker-matching records from any other author. Attestor
+identity derives from the PLATFORM actor of the attestation action — on the comment floor
+the upsert itself is bot-authored, so `attested_by` MUST be copied from, and the record MUST
 cite, the attestation source event (the human's reply whose platform actor answered — the
 reply must carry both attested values; an actor-only signal such as a bare reaction cannot
 attest).

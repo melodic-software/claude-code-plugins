@@ -139,12 +139,17 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
    the marker-keyed structured comment otherwise (the universal floor). The trigger is
    GATED to autonomous-class work (the convention's capture scope): the snippet fires only
-   when the closing item carries the tracker binding's autonomous-eligible role label — THE
-   discriminator. Closure by the bound automation identity is not sufficient on its own (the
-   bot closes interactive items too) and is at most a corroborating signal; an unlabeled
-   item never enters capture (interactive work stays exempt). The guardrail matrix refines
-   this into per-class scope when it ships; the discriminator recorded here is the interim
-   boundary, not a parallel class vocabulary.
+   when BOTH hold — the closing item carries the tracker binding's autonomous-eligible role
+   label (the class-scope discriminator; the label marks pickup eligibility, not that the
+   work was actually executed autonomously), AND the close event's actor is the bound
+   automation identity (the execution-evidence discriminator; proves the closing action
+   itself was autonomous). Neither alone suffices: the label without automation-actor
+   closure would let a human who completes and closes an eligible item post a false
+   autonomous record; the automation actor without the label would let interactive items
+   the bot closes leak into capture. An unlabeled item, or one closed by any other actor,
+   never enters capture (interactive work, and human-closed eligible work, both stay
+   exempt). The guardrail matrix refines this into per-class scope when it ships; the
+   discriminator recorded here is the interim boundary, not a parallel class vocabulary.
 3. **Route comment writes through the bound tracker adapter's documented comment mechanics
    where a work-item-tracker binding is present** (comments are provider-specific mechanics
    there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
@@ -158,8 +163,19 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
 5. **Attestation routing** — the binding records the accountable-human routing per class,
    including the standing attestation owner (or attestation-exempt marking) for
    requester-less classes.
-6. **Record the binding** — tracker class + record surface choice land as the `capture`
-   section of the schema-versioned binding (additive, like the telemetry section).
+6. **Record the binding** — the `capture` section of the schema-versioned binding (additive,
+   like the telemetry section), with these serialized keys:
+
+   | Key | Value |
+   |---|---|
+   | `tracker_class` | string, the detected tracker class |
+   | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
+   | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule |
+   | `routing` | object keyed by requester-less class name (standing routines, scheduled sweeps); each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`; a class with a requester needs no entry — the requester IS the routing |
+
+   A binding missing the `capture` section has not wired this slice (absent-section
+   tolerance, same as telemetry); a present section MUST carry all four keys — a partial
+   section is a configuration error, not a silent partial wire.
 
 ## What this skill does NOT do
 
