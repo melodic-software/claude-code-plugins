@@ -767,6 +767,28 @@ function auditLocalPermissionFlow({
       target?.kind === "hosted-reusable" ||
       target?.kind === "hosted-local-reusable";
     if (hostedExecution && capability !== "read-only") {
+      // The direct audit of this same job classifies a declared packages-only
+      // write map (with no other privileged surface) as publication — with the
+      // structural container categories taking precedence over that downgrade;
+      // this flow pass must demand the same category or the two checks
+      // contradict each other on one exception key. Anything else — a broader
+      // declared map, an additional privileged surface, or an undeclared map
+      // that merely inherits the caller's write capability — stays privileged.
+      const declaredRequirement = privilegedHostedRequirement(
+        record.workflow,
+        job,
+        selector,
+        target,
+        policy,
+        undefined,
+        undefined,
+        undefined,
+      );
+      let requiredReason = "privileged-control-plane";
+      if (declaredRequirement?.reason === "publication") {
+        const structuralRequirement = structuralHostedRequirement(job);
+        requiredReason = structuralRequirement ? structuralRequirement.reason : "publication";
+      }
       const key = `${record.file}#${jobId}`;
       const exception = config.exceptions.get(key);
       if (!exception) {
@@ -775,18 +797,18 @@ function auditLocalPermissionFlow({
             "hosted-exception-required",
             record.file,
             jobId,
-            "a fixed-hosted called job inherits write-capable caller permissions and requires a privileged-control-plane exception",
+            `a fixed-hosted called job inherits write-capable caller permissions and requires a ${requiredReason} exception`,
           ),
         );
       } else {
         consumedExceptions.add(key);
-        if (exception.reason !== "privileged-control-plane") {
+        if (exception.reason !== requiredReason) {
           findings.push(
             finding(
               "hosted-exception-category",
               record.file,
               jobId,
-              `inherited write-capable caller permissions require exception reason privileged-control-plane, not ${exception.reason}`,
+              `inherited write-capable caller permissions require exception reason ${requiredReason}, not ${exception.reason}`,
             ),
           );
         }
@@ -2356,6 +2378,18 @@ function permissionHostedRequirement(workflow, job, { requireExplicitReadOnly = 
     }
     return undefined;
   }
+  // packages is registry-publication authority, not repository/organization
+  // state: a job whose only write scope is packages belongs to the durable
+  // publication category, so artifact provenance can stay on hosted
+  // infrastructure after the control-plane reasons retire. Any additional
+  // write scope keeps the job in the privileged category.
+  if (writable.length === 1 && writable[0] === "packages") {
+    return {
+      reason: "publication",
+      description: "write GITHUB_TOKEN permissions (packages)",
+      rule: "privileged-hosted-only",
+    };
+  }
   return {
     reason: "privileged-control-plane",
     description: `write GITHUB_TOKEN permissions (${writable.join(", ")})`,
@@ -2576,7 +2610,12 @@ function grantedSecretName(value, secretNames) {
   return match !== null && secretNames.has(match[1]) ? match[1] : undefined;
 }
 
-function localCredentialRequirement(workflow, job, grantAllowance) {
+function localCredentialRequirement(
+  workflow,
+  job,
+  grantAllowance,
+  { admitGitHubToken = false } = {},
+) {
   if (containsCredentialExpression(workflow.env)) {
     return "a credential expression in workflow-level env";
   }
@@ -2611,8 +2650,12 @@ function localCredentialRequirement(workflow, job, grantAllowance) {
         EXACT_GITHUB_TOKEN_EXPRESSIONS.has(value) &&
         // A grant pins the job's exact effective permission map, so the
         // GitHub-provided token those permissions describe is admitted even
-        // when the pinned map holds a write scope.
-        (readOnly || grantAllowance !== undefined)
+        // when the pinned map holds a write scope. admitGitHubToken extends
+        // the same reasoning to the publication category: the packages-only
+        // permission map the exception reviews is exactly the capability the
+        // GitHub-provided token carries, so referencing that token adds no
+        // credential surface beyond the already-categorized permissions.
+        (readOnly || grantAllowance !== undefined || admitGitHubToken)
       ) {
         continue;
       }
@@ -2712,6 +2755,14 @@ function privilegedHostedRequirement(
   // and a grant keyed to such a job surfaces as local-routing-grant-drift.
   const grantApplies =
     grant !== undefined && target?.kind === "selector-output" && typeof job.uses !== "string";
+  // The publication downgrade holds only while packages:write is the job's
+  // entire privileged surface: a deployment environment, credential
+  // expression, or credential-minting action found below still demands the
+  // privileged category, so the weaker requirement is held until every later
+  // check passes rather than returned at the permission check. The one
+  // admission is the exact GitHub-provided token expression, which carries
+  // only the already-categorized packages-only permission map.
+  let publicationRequirement;
   if (grantApplies) {
     const permissionError = exactCanonicalMap(
       effectivePermissions(workflow, job),
@@ -2734,7 +2785,9 @@ function privilegedHostedRequirement(
         : permissionHostedRequirement(workflow, job, {
             requireExplicitReadOnly: target?.kind === "selector-output",
           });
-    if (permissionRequirement) {
+    if (permissionRequirement?.reason === "publication") {
+      publicationRequirement = permissionRequirement;
+    } else if (permissionRequirement) {
       return permissionRequirement;
     }
   }
@@ -2742,9 +2795,33 @@ function privilegedHostedRequirement(
   // The selector's one exact observer secret is part of its reviewed hosted
   // reusable-workflow contract. Exact hosted-only reusable secret mappings are
   // likewise governed by approvedReusableWorkflowContracts rather than this
-  // local-workload boundary.
+  // local-workload boundary. A pending publication downgrade still scans the
+  // caller outside that reviewed secrets mapping first: a contract allowlists
+  // input names, not values, so a credential expression smuggled through a
+  // `with:` value would otherwise ride the weaker category.
   if (selector.isSelector || target?.kind === "hosted-reusable") {
-    return undefined;
+    if (publicationRequirement === undefined) {
+      return undefined;
+    }
+    const boundaryJob = Object.fromEntries(
+      Object.entries(job).filter(([name]) => name !== "secrets"),
+    );
+    const callerCredentialRequirement = localCredentialRequirement(
+      workflow,
+      boundaryJob,
+      undefined,
+      {
+        admitGitHubToken: true,
+      },
+    );
+    if (callerCredentialRequirement) {
+      return {
+        reason: "privileged-control-plane",
+        description: callerCredentialRequirement,
+        rule: "privileged-hosted-only",
+      };
+    }
+    return publicationRequirement;
   }
 
   if (
@@ -2778,7 +2855,14 @@ function privilegedHostedRequirement(
   const grantAllowance = grantApplies
     ? { secretNames: new Set(grant.secrets ?? []), usedSecretNames: new Set() }
     : undefined;
-  const credentialRequirement = localCredentialRequirement(workflow, credentialJob, grantAllowance);
+  const credentialRequirement = localCredentialRequirement(
+    workflow,
+    credentialJob,
+    grantAllowance,
+    {
+      admitGitHubToken: publicationRequirement !== undefined,
+    },
+  );
   if (credentialRequirement) {
     return {
       reason: "privileged-control-plane",
@@ -2824,7 +2908,7 @@ function privilegedHostedRequirement(
     ];
   }
 
-  return undefined;
+  return publicationRequirement;
 }
 
 function structuralHostedRequirement(job) {
@@ -3146,7 +3230,15 @@ export async function auditRepository({
             grantUsage,
           )
         : undefined;
-      const hostedRequirement = privilegedHosted ?? structuralHostedRequirement(job);
+      // A held publication downgrade must not mask the structural container
+      // categories: a containerized packages-only publisher stays in the
+      // job-container/service-container inventory. Privileged requirements
+      // keep their ordinary precedence over structural ones.
+      const structuralHosted = structuralHostedRequirement(job);
+      const hostedRequirement =
+        privilegedHosted?.reason === "publication"
+          ? (structuralHosted ?? privilegedHosted)
+          : (privilegedHosted ?? structuralHosted);
       if (
         grant &&
         routingEnabled &&
