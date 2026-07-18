@@ -201,6 +201,8 @@ as posture-setting anytime and as an audit once output exists.
 
 ```shell
 /re-anchor:mind-your-maxims        # re-anchor + audit + correct
+```
+
 ### script-the-deterministic-work
 
 Re-anchors the discipline of offloading deterministic sub-work to a script:
