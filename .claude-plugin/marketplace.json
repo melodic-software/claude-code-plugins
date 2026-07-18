@@ -240,7 +240,7 @@
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "workflow",
-      "tags": ["workflow", "handoff", "keep-going", "resume", "recover", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
+      "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
       "name": "tdd",
@@ -334,7 +334,7 @@
       "name": "re-anchor",
       "source": "./plugins/re-anchor",
       "category": "quality",
-      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "audit", "skill"]
+      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "audit", "skill"]
     },
     {
       "name": "education",

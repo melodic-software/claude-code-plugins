@@ -1,5 +1,35 @@
 # Changelog — session-flow plugin
 
+## 0.10.0 — 2026-07-18
+
+Added:
+
+- clean-stop: new skill. Gets a session to a durable, linked stopping point
+  before the machine may go away — inspect every repo/worktree touched, push
+  unpushed or coherently committable work durable (surfacing ambiguous WIP and
+  stashes rather than force-committing or dropping them), ensure every pushed
+  branch has a PR, file follow-ups as issues linked to that PR, and put the
+  resume context in PR/issue bodies (never only a local file) to a cold-agent
+  acceptance bar. Prunes only provably-safe branches and worktrees; gates
+  destructive cleanup on proven safety. Closes on a free-and-clear verdict or a
+  named dangling list. It is the go/stop mirror of keep-going (which recovers
+  after an interruption; this makes the interruption safe beforehand) and
+  supersedes a local handoff when the machine itself may go away. PR / issue /
+  worktree mechanics route to whatever capabilities are installed, falling back
+  to direct git / gh. The plugin now bundles seven skills.
+
+## 0.9.1 — 2026-07-18
+
+Fixed:
+
+- orchestrate: worker model tier is now an explicit spawn decision. SPEC EVERY SPAWN adds the
+  model tier to the per-worker spec, and CALIBRATE TO CONDITIONS adds per-worker tiering (cheap
+  tier for high-volume mechanical work, parent tier reserved for judgment-heavy
+  synthesis/verify; wider fan-out defaults cheaper). Closes the failure mode where a wide
+  fan-out silently inherited the parent session's premium model on every worker — an omitted
+  model defaults to `inherit` per the subagents doc (resolution order and cost-control quote
+  now cited in `context/sources.md`).
+
 ## 0.9.0 — 2026-07-18
 
 Added:
