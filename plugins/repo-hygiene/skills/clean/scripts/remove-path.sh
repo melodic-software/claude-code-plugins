@@ -11,17 +11,24 @@
 #
 # Guards (all evaluated before any mutation):
 #   - target must be an existing directory strictly inside the resolved root
-#     (ghq root by default; --root overrides), never the root itself
+#     (ghq root by default; --root overrides), never the root itself; both sides
+#     resolve symlinked components physically (pwd -P) so a symlinked ancestor
+#     under the root cannot slip an outside target past the containment check
 #   - symlink / reparse-point targets are refused (bash -L plus a Windows
 #     fsutil reparse query — deletion would traverse)
 #   - a linked-worktree target (.git file) is refused — `git worktree remove`
 #     owns that lifecycle
+#   - a plain-dir target still holding nested git repos is refused — each child
+#     clone/worktree owns its own removal and state inspection
 #   - a repo target (normal or bare) is refused while it has: uncommitted
 #     changes, stash entries, registered linked worktrees, or ignored files in
 #     the SECRETS preserve class (CLEAN_TREE_PRESERVE_SECRETS — override with
-#     --include-secrets)
-#   - unpushed work (branch ahead of or missing its upstream, unresolvable
-#     upstream, or a detached HEAD) blocks the apply unless --allow-unpushed
+#     --include-secrets); a plain-dir target is scanned for the same SECRETS
+#     class. Git state that cannot be inspected (corrupt index, unreadable
+#     object store) fails closed to a refusal rather than reading as clean
+#   - unpushed work (branch or local tag ahead of or missing its upstream,
+#     unresolvable upstream, or a detached HEAD) blocks the apply unless
+#     --allow-unpushed
 #
 # Exit: 0 success; 1 target does not exist; 2 usage/validation error;
 #       3 blocked (dirty / stash / worktrees / secrets); 4 unpushed work.
@@ -70,7 +77,10 @@ while [[ $# -gt 0 ]]; do
   --include-secrets) INCLUDE_SECRETS=1 ;;
   --root)
     shift
-    [[ $# -gt 0 ]] || { echo "remove-path.sh: --root needs a value" >&2; exit 2; }
+    [[ $# -gt 0 ]] || {
+      echo "remove-path.sh: --root needs a value" >&2
+      exit 2
+    }
     ROOT_OVERRIDE="$1"
     ;;
   -h | --help)
@@ -82,7 +92,10 @@ while [[ $# -gt 0 ]]; do
     exit 2
     ;;
   *)
-    [[ -z "$TARGET" ]] || { echo "remove-path.sh: multiple targets given" >&2; exit 2; }
+    [[ -z "$TARGET" ]] || {
+      echo "remove-path.sh: multiple targets given" >&2
+      exit 2
+    }
     TARGET="$1"
     ;;
   esac
@@ -107,7 +120,14 @@ if [[ -z "$ROOT" ]]; then
 fi
 
 # Normalize both sides to forward-slash absolute paths for containment checks.
-norm() { local p; p="$(cd "$1" 2>/dev/null && pwd)" || return 1; printf '%s' "${p//\\//}"; }
+# pwd -P resolves symlinked intermediate components physically on BOTH sides, so
+# a symlinked ancestor under the root (e.g. $root/link -> /outside) cannot slip a
+# target past containment while rm -rf would still traverse the link outside.
+norm() {
+  local p
+  p="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
+  printf '%s' "${p//\\//}"
+}
 
 if clean_path_is_reparse_point "$TARGET"; then
   echo "remove-path.sh: target is a symlink/reparse point — refusing" >&2
@@ -118,7 +138,10 @@ if [[ ! -d "$TARGET" ]]; then
   exit 1
 fi
 
-ROOT_ABS="$(norm "$ROOT")" || { echo "remove-path.sh: root does not exist: $ROOT" >&2; exit 2; }
+ROOT_ABS="$(norm "$ROOT")" || {
+  echo "remove-path.sh: root does not exist: $ROOT" >&2
+  exit 2
+}
 TARGET_ABS="$(norm "$TARGET")" || exit 1
 
 if [[ "$TARGET_ABS" == "$ROOT_ABS" ]]; then
@@ -151,10 +174,35 @@ elif [[ -d "$TARGET_ABS/.git" ]]; then
   KIND=repo
 fi
 
+# A plain-dir target is removed wholesale, but the repo guards below inspect only
+# the target itself — never its descendants. A leftover parent (a ghq owner dir,
+# any folder still holding child clones/submodules/linked worktrees) would take
+# their unpushed commits, stashes, and secrets down with it unseen. Refuse and
+# defer to per-child removal rather than guess each child's state. Matches a
+# child git dir (normal repo) or file (submodule / linked worktree).
+if [[ "$KIND" == dir ]] &&
+  [[ -n "$(find "$TARGET_ABS" -mindepth 2 -name .git -print -quit 2>/dev/null)" ]]; then
+  echo "remove-path.sh: target contains nested git repos — inspect and remove them individually first" >&2
+  exit 2
+fi
+
 if [[ "$KIND" != dir ]]; then
   if [[ "$KIND" == repo ]]; then
-    TRACKED_DIRTY="$(git -C "$TARGET_ABS" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-    STASH_COUNT="$(git -C "$TARGET_ABS" stash list 2>/dev/null | wc -l | tr -d ' ')"
+    # Fail closed: a working tree or stash that cannot be inspected (corrupt
+    # index, unreadable object store) must block, never read as clean. Capture
+    # first and check the exit status — a `| wc -l` pipeline would swallow the
+    # non-zero exit and return 0. printf '%s\n' re-adds the single trailing
+    # newline that command substitution stripped so the line count is exact.
+    if ! dirty_out="$(git -C "$TARGET_ABS" status --porcelain 2>/dev/null)"; then
+      echo "remove-path.sh: cannot inspect repo state — refusing" >&2
+      exit 2
+    fi
+    [[ -n "$dirty_out" ]] && TRACKED_DIRTY="$(printf '%s\n' "$dirty_out" | wc -l | tr -d ' ')"
+    if ! stash_out="$(git -C "$TARGET_ABS" stash list 2>/dev/null)"; then
+      echo "remove-path.sh: cannot inspect stash state — refusing" >&2
+      exit 2
+    fi
+    [[ -n "$stash_out" ]] && STASH_COUNT="$(printf '%s\n' "$stash_out" | wc -l | tr -d ' ')"
 
     while IFS= read -r ignored; do
       [[ -z "$ignored" ]] && continue
@@ -167,6 +215,10 @@ if [[ "$KIND" != dir ]]; then
   # Count beyond the main entry: any linked worktree must be removed first.
   WORKTREE_COUNT="$(git -C "$TARGET_ABS" worktree list --porcelain 2>/dev/null | grep -c '^worktree ' || true)"
 
+  # refs/tags is scanned alongside refs/heads: a local-only tag (never pushed)
+  # has no upstream, so the [[ -z "$upstream" ]] branch below counts it. Offline
+  # local state cannot prove a tag was pushed, so any local tag fails closed as
+  # unpushed — --allow-unpushed is the escape hatch.
   while IFS=' ' read -r ref upstream; do
     [[ -z "$ref" ]] && continue
     if [[ -z "$upstream" ]]; then
@@ -180,13 +232,27 @@ if [[ "$KIND" != dir ]]; then
       continue
     fi
     [[ "$ahead" -gt 0 ]] && UNPUSHED_REFS=$((UNPUSHED_REFS + 1))
-  done < <(git -C "$TARGET_ABS" for-each-ref refs/heads --format='%(refname:short) %(upstream:short)' 2>/dev/null | tr -d '\r')
+  done < <({
+    git -C "$TARGET_ABS" for-each-ref refs/heads --format='%(refname:short) %(upstream:short)' 2>/dev/null
+    git -C "$TARGET_ABS" for-each-ref refs/tags --format='%(refname:short) %(upstream:short)' 2>/dev/null
+  } | tr -d '\r')
 
   if [[ "$KIND" == repo ]] &&
     [[ -z "$(git -C "$TARGET_ABS" branch --show-current 2>/dev/null | tr -d '\r')" ]] &&
     git -C "$TARGET_ABS" rev-parse -q --verify HEAD >/dev/null 2>&1; then
     UNPUSHED_REFS=$((UNPUSHED_REFS + 1)) # detached HEAD — commits may be unreachable elsewhere
   fi
+else
+  # Plain leftover directory: none of the repo guards above run, but the PR
+  # supports deleting such dirs, so a leftover secret-class file would otherwise
+  # be discarded silently. Walk descendants and gate on the same SECRETS class,
+  # passing target-relative paths so the dir-prefix patterns (.aws/, .vscode/…)
+  # match as well as the basename globs.
+  while IFS= read -r -d '' f; do
+    if clean_path_matches_secret_class "${f#"$TARGET_ABS"/}"; then
+      SECRETS_COUNT=$((SECRETS_COUNT + 1))
+    fi
+  done < <(find "$TARGET_ABS" -mindepth 1 -print0 2>/dev/null)
 fi
 
 printf 'Target: %s\n' "$TARGET_ABS"

@@ -182,7 +182,77 @@ HOME="$FAKE_HOME" git config --global ghq.root "$ROOT"
 out="$(HOME="$FAKE_HOME" bash "$REMOVE" "$ROOT/default-root-dir")"
 rc=$?
 assert_exit "default ghq.root resolution exits 0" 0 "$rc"
-assert_contains "default root resolved from git config" "$out" "Root: $ROOT"
+# The script resolves paths physically (pwd -P), so the reported Root is the
+# physical form of $ROOT — mirror that here so the assertion holds wherever the
+# tmpdir sits under a symlink (macOS /var -> /private/var, etc.).
+ROOT_PHYS="$(cd "$ROOT" && pwd -P)"
+ROOT_PHYS="${ROOT_PHYS//\\//}"
+assert_contains "default root resolved from git config" "$out" "Root: $ROOT_PHYS"
+
+# Nested git repos inside a plain-dir target are refused (exit 2) so a leftover
+# owner dir cannot take child clones' state down with it.
+mkdir -p "$ROOT/owner-dir"
+make_repo "$ROOT/owner-dir/child-clone"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/owner-dir" --root "$ROOT")" || rc=$?
+assert_exit "plain dir with nested git repo refused exits 2" 2 "$rc"
+assert_file_exists "nested child repo left intact by refusal" "$ROOT/owner-dir/child-clone/file.txt"
+
+# Plain leftover directory holding a secret-class file blocks like a repo does,
+# and --include-secrets clears it.
+mkdir -p "$ROOT/leftover-dir"
+printf 'TOKEN=x\n' >"$ROOT/leftover-dir/.env"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/leftover-dir" --root "$ROOT")" || rc=$?
+assert_exit "plain dir with .env blocked exits 3" 3 "$rc"
+assert_contains "plain dir secret block reason" "$out" "Blocked: secrets"
+out="$(bash "$REMOVE" "$ROOT/leftover-dir" --root "$ROOT" --include-secrets)"
+rc=$?
+assert_exit "--include-secrets clears plain dir secret block" 0 "$rc"
+
+# A local-only (never-pushed) tag counts as unpushed work: the branch is pushed
+# but the annotated tag has no upstream.
+make_pushed_repo "$ROOT/tag-repo" "$TEST_TMPDIR/tag-remote.git"
+git_quiet -C "$ROOT/tag-repo" tag -a v1.0.0-rc1 -m rc
+rc=0
+out="$(bash "$REMOVE" "$ROOT/tag-repo" --root "$ROOT")" || rc=$?
+assert_exit "local-only tag blocks exits 4" 4 "$rc"
+assert_contains "local tag unpushed reason" "$out" "Blocked: unpushed"
+
+# Stash guard: a clean-tree repo with a stash entry blocks.
+make_pushed_repo "$ROOT/stash-repo" "$TEST_TMPDIR/stash-remote.git"
+printf 'z\n' >>"$ROOT/stash-repo/file.txt"
+git_quiet -C "$ROOT/stash-repo" stash push -m wip
+rc=0
+out="$(bash "$REMOVE" "$ROOT/stash-repo" --root "$ROOT")" || rc=$?
+assert_exit "stash entry blocks exits 3" 3 "$rc"
+assert_contains "stash block reason" "$out" "Blocked: stash"
+
+# Pruned upstream fails closed as unpushed: the branch keeps its upstream config
+# but the remote-tracking ref is gone (as after fetch --prune on an orphan clone).
+make_pushed_repo "$ROOT/pruned-repo" "$TEST_TMPDIR/pruned-remote.git"
+pruned_branch="$(git -C "$ROOT/pruned-repo" branch --show-current | tr -d '\r')"
+git_quiet -C "$ROOT/pruned-repo" update-ref -d "refs/remotes/origin/$pruned_branch"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/pruned-repo" --root "$ROOT")" || rc=$?
+assert_exit "pruned upstream ref blocks exits 4" 4 "$rc"
+assert_contains "pruned upstream unpushed reason" "$out" "Blocked: unpushed"
+
+# Symlinked intermediate component must not bypass physical containment: pwd -P
+# resolves it to the physical path outside the root, so the target is refused and
+# rm -rf never traverses the link. POSIX symlink only (Windows-junction pwd -P
+# resolution is platform-uncertain); skip where symlinks cannot be created.
+OUTSIDE="$TEST_TMPDIR/outside-root"
+mkdir -p "$OUTSIDE/victim"
+printf 'keep\n' >"$OUTSIDE/victim/.keep"
+if ln -s "$OUTSIDE" "$ROOT/escape-link" 2>/dev/null && [[ -L "$ROOT/escape-link" ]]; then
+  rc=0
+  bash "$REMOVE" "$ROOT/escape-link/victim" --root "$ROOT" --apply >/dev/null 2>&1 || rc=$?
+  assert_exit "symlinked-intermediate target refused (physical containment) exits 2" 2 "$rc"
+  assert_file_exists "outside victim survives (rm -rf never traversed the link)" "$OUTSIDE/victim/.keep"
+else
+  skip_case "no POSIX symlink available for physical-containment test"
+fi
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

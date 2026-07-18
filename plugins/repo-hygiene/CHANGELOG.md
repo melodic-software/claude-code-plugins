@@ -11,10 +11,14 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   removes a whole orphaned clone or leftover directory under the ghq root (`--root`
   overrides) — the whole-directory deletion the selective tiers never perform (e.g. a local
   clone whose upstream repository was deleted). Defaults to `--dry-run`; it is not composed
-  into any tier and runs only on explicit request. Guards refuse the containment root,
-  symlink/reparse-point targets, and linked worktrees, and block any repo with uncommitted
-  changes, stash entries, registered worktrees, ignored secret-class files
-  (`--include-secrets` to override), or unpushed work (`--allow-unpushed` to override).
+  into any tier and runs only on explicit request. Guards resolve both sides physically
+  before a strict-containment check (a symlinked/junction ancestor cannot slip a target
+  outside the root), and refuse the containment root itself, symlink/reparse-point targets,
+  linked worktrees, and any plain directory still holding nested git repos. A repo (or bare
+  repo) is blocked on uncommitted changes, stash entries, registered worktrees, ignored
+  secret-class files (`--include-secrets` to override), or unpushed work — unpushed branches
+  or local-only tags (`--allow-unpushed` to override); a plain directory is scanned for the
+  same secret class, and any git state that cannot be inspected fails closed.
 
 ## [0.2.1]
 
