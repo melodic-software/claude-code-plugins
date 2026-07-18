@@ -792,16 +792,23 @@ hook::bash_parse_segments() {
         word=""
         have=0
       fi
-      while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done
-      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
-        ((i++))
-        if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then
-          while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; do ((i++)); done
+      if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '(' ]]; then
+        # Process substitution <(list)/>(list): the list is a real command
+        # substituted as a filename — it satisfies any pending target and
+        # the '(' separator splits it into a segment that gets scanned.
+        skipnext=0
+      else
+        while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do ((i++)); done
+        if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
+          ((i++))
+          if ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; then
+            while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [0-9-] ]]; do ((i++)); done
+          else
+            skipnext=1
+          fi
         else
           skipnext=1
         fi
-      else
-        skipnext=1
       fi
       ;;
     ';' | '&' | '|' | '(' | ')' | '`' | $'\n')

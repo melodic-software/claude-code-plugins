@@ -186,6 +186,13 @@ run "git reset --hard 2>&1 (fd-dup redirection, blocked)" "git reset --hard 2>&1
 run "git checkout . >log (redirect after dot, blocked)" "git checkout . >log" 2
 run "git clean -f > -n (redirect target not a dry-run flag, blocked)" "git clean -f > -n" 2
 run "git push origin main >push.log (redirect target dropped, allowed)" "git push origin main >push.log" 0
+run "cat <(git reset --hard) (process substitution, blocked)" "cat <(git reset --hard)" 2
+run "diff <(git status) <(git reset --hard) (second substitution, blocked)" "diff <(git status) <(git reset --hard)" 2
+run "cat <(git status) (safe substitution, allowed)" "cat <(git status)" 0
+run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alias.rh='reset --hard' rh" 2
+run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
+run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
+run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "git -c alias.rh='reset --hard' status" 0
 run "git restore --staged --worktree --no-worktree . (index-only, allowed)" "git restore --staged --worktree --no-worktree ." 0
 run "git restore --staged --no-w . (abbrev no-worktree, allowed)" "git restore --staged --no-w ." 0
 run "git restore --no-worktree --worktree . (worktree re-armed, blocked)" "git restore --no-worktree --worktree ." 2

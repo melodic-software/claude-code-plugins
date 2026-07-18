@@ -190,6 +190,31 @@ check_segment() {
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
 
+  # An inline alias runs its expansion (`git -c alias.rh='reset --hard' rh`
+  # discards — verified), so re-check the expanded command: a shell alias
+  # (leading !) re-parses as a full shell command; a git alias splices its
+  # words in place of the alias name. One level only — git does not expand
+  # the first word of an expansion as another alias — enforced through
+  # HOOK_NO_ALIAS, which dynamic scoping carries into the recursive call.
+  if ((${HOOK_NO_ALIAS:-0} == 0)); then
+    local cv exp
+    local -a cfgv=() expw=()
+    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
+      [[ "$cv" == "alias.${sub}="* ]] || continue
+      exp="${cv#*=}"
+      if [[ "$exp" == '!'* ]]; then
+        hook::bash_parse_segments "${exp#!}" check_segment
+      else
+        read -ra expw <<<"$exp"
+        HOOK_NO_ALIAS=1
+        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+        HOOK_NO_ALIAS=0
+      fi
+      break
+    done
+  fi
+
   case "$sub" in
   push)
     # --force blocks; --force-with-lease / --force-if-includes do not (safe
