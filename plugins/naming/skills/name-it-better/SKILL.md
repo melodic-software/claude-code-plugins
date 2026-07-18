@@ -60,7 +60,10 @@ every modality, and is what the generators and judges optimise. The
 **syntactic layer** — casing, length budgets, separator and affix
 conventions — is modality- and vendor-specific; apply it as a final
 shaping pass over the semantic winners, never as a scoring axis that
-overrides meaning.
+overrides meaning. Shaping can change the string, so RE-RUN the collision
+and reject-list checks on the shaped form: a normalization
+(`SessionStore` → `session_store`) can recreate an existing sibling or a
+rejected incumbent that the pre-scoring check could not match.
 
 - **Route documented conflicts out; do not pick a side.** Where authorities
   genuinely disagree — abbreviation policy, acronym casing, camelCase vs
@@ -87,8 +90,12 @@ overrides meaning.
      duplicate.
    - **Word-level blocklist** — individual words ruled out, each WITH its
      reason (overloaded, misleading, collides, already rejected).
-   - **Rejected incumbents** — whole names already turned down, each WITH
-     the reason it failed.
+
+   Rejected incumbent NAMES deliberately stay out of the brief — the main
+   thread holds them as its reject list and disqualifies matches at merge
+   time (anti-anchoring: a generator shown a rejected name re-derives it).
+   Only the abstracted REASON a name failed enters the brief, as a
+   blocklist entry or scope-boundary correction.
 
    The brief mirrors the replicated concept → word → structure naming model
    (grounded in [`context/sources.md`](context/sources.md)): the named
@@ -125,7 +132,10 @@ and fold it into the next round's brief before regenerating:
 - a "wrong scope / wrong thing" objection becomes a **scope-boundary**
   correction;
 - a "these all miss what matters" objection **reweights the criteria** for
-  the next round.
+  the next round — but only within the space the consuming project's
+  declared conventions leave open. Declared conventions still win: a
+  rejection that contradicts them routes upstream as a proposed convention
+  change, never a silent local reweighting.
 
 Rejected names and rejected words never re-enter — the reject list and the
 word-level blocklist only grow across rounds. Each new round is a fresh
