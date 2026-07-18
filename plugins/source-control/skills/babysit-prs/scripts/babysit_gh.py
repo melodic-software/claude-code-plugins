@@ -492,7 +492,7 @@ def fetch_review_threads(
     of trusting `comments` to be complete.
 
     Each thread record carries: `id`, `isResolved`, `isOutdated`, `comments`
-    (each with author{__typename login}, body, path, url, createdAt,
+    (each with author{__typename login}, body, path, url, createdAt, updatedAt,
     databaseId), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
     record to the caller's shape inside the loop.
@@ -507,7 +507,7 @@ def fetch_review_threads(
         "nodes{id isResolved isOutdated "
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
-        "nodes{author{__typename login} body path url createdAt databaseId}}}}}}}"
+        "nodes{author{__typename login} body path url createdAt updatedAt databaseId}}}}}}}"
     )
     threads: list[Any] = []
     cursor: str | None = None
@@ -586,7 +586,7 @@ def fetch_review_threads(
                     )
                 if any(
                     key not in comment
-                    for key in ("body", "path", "url", "createdAt", "databaseId")
+                    for key in ("body", "path", "url", "createdAt", "updatedAt", "databaseId")
                 ):
                     raise RuntimeError(
                         f"Incomplete comment in review thread {thread['id']}"
