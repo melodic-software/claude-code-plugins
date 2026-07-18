@@ -150,6 +150,15 @@
       },
       "fixedRunsOn": ["ubuntu-24.04"]
     },
+    "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@ec91c3433a8c3c0a7ebbdd239286e5a6a25eeec5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@99ac2f8c5b09dbb785d4eaf18465cbd96c30290c": {
       "routing": "hosted-only",
       "allowedInputs": ["paths"],
