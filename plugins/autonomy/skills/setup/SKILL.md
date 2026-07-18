@@ -61,13 +61,26 @@ ask and offer to persist; otherwise → safe free-tier default).
 
 ## Written binding
 
-`apply` writes `.claude/autonomy/binding.json`, carrying `schema_version` (from `"1.0"`),
-the role→instance map (a role MAY be null — unborn, or no org instance; never invented),
-the `org_policy_home` pointer (or `null`) with its resolved document path when discovered,
-`budget_posture`, and declared substrate. The file is tracked (team-shared); personal overrides go in
-`.claude/autonomy/binding.local.json`. Recommend the consumer `.gitignore` line:
-`.claude/autonomy/**/*.local.*`. Layers resolve per the binding-seam ladder —
-user-global → org binding (when pointed) → project → local overlay — additively.
+`apply` writes `.claude/autonomy/binding.json` with these serialized keys:
+
+- `schema_version` (string, from `"1.0"`);
+- `roles` — an object keyed by the kebab-case role names of the role-topology contract
+  (`capability-distribution-home`, `ci-orchestration-home`, `settings-as-code-home`,
+  `org-policy-home`, `runner-execution-home`); a value MAY be null (unborn role, or no org
+  instance — never invented);
+- `org_policy_home` — the pointer (or `null`), with its resolved document path when
+  discovered;
+- `budget_posture` — `free` | `paid-opt-in`;
+- `substrate` — an object with kebab-case surface keys (`local-machine`, `ci-runners`,
+  `self-run-infrastructure`), boolean values.
+
+Capability slices add their own sections under their slice name. The same file name is the
+shape at EVERY layer: the user-global layer is `~/.claude/autonomy/binding.json`, the project
+layer `.claude/autonomy/binding.json`, and each layer's personal overlay
+`binding.local.json` beside it. The project file is tracked (team-shared); recommend the
+consumer `.gitignore` line: `.claude/autonomy/**/*.local.*`. Layers resolve per the
+binding-seam ladder — user-global → org binding (when pointed) → project → local overlay —
+additively.
 
 ## What this skill does NOT do
 
