@@ -1,0 +1,70 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "routes-on-setup-trigger-and-runs-discovery-first",
+      "prompt": "/autonomy:setup apply",
+      "expected_output": "Runs the discovery phase before asking anything: inspects the repository (and the org where a host CLI with the consumer's own auth is available) for role homes, substrate availability, and budget signals, summarizes what it inferred, then interviews only the gaps discovery could not fill, one decision at a time with a recommendation. It does not start by asking questions discovery could have answered.",
+      "files": [],
+      "expectations": [
+        "Discovery (repo/org inspection) runs before any interview question",
+        "Interviews only the gaps discovery could not infer, one at a time with recommendations",
+        "Summarizes inferred values transparently before writing",
+        "Does not prompt for values it could infer from the repository"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-org-terminal-default-free-tier",
+      "prompt": "/autonomy:setup apply --org-policy-home none",
+      "expected_output": "Applies the binding-seam terminal default: the repo-local binding is the whole binding, org_policy_home is null, budget_posture is free, and no paid dependency is introduced anywhere. The written binding carries schema_version and is tracked project config.",
+      "files": [],
+      "expectations": [
+        "org_policy_home recorded as null (no invented org)",
+        "budget_posture defaults to free with zero paid dependencies",
+        "Written binding carries schema_version",
+        "Binding written as tracked project config, not machine-local state"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "non-interactive-when-arguments-complete",
+      "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free",
+      "expected_output": "Completes without issuing a single prompt: every argument is supplied, so discovery fills the rest from repo signals and pinned headless defaults, and the schema-versioned .claude/autonomy/binding.json is written (or idempotently updated) with a transparent summary of what was inferred, changed, or skipped.",
+      "files": [],
+      "expectations": [
+        "Zero interactive prompts issued",
+        "Writes or idempotently updates .claude/autonomy/binding.json with schema_version",
+        "Reports what was inferred, changed, and skipped",
+        "Re-running produces no spurious diff (idempotent)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "check-is-read-only-across-layers",
+      "prompt": "/autonomy:setup check",
+      "expected_output": "Resolves the effective binding additively across every rung of the ladder: user-global, project, and local overlay layers, PLUS the org layer when the merged layers carry an org_policy_home pointer (fetched via the host CLI with the consumer's own auth). Reports which layer or rung contributes each value and what is missing, warns when a layer or the org-policy home could not be read (not-considered, never silently omitted), and performs no writes of any kind.",
+      "files": [],
+      "expectations": [
+        "No file writes in check mode",
+        "Reports per-layer contributions (user-global, org rung when pointed, project, local overlay)",
+        "Fetches and folds in the org binding when an org_policy_home pointer exists",
+        "Warns when a layer or the org-policy home exists but could not be read, never silently omitting it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "never-assumes-fleet-or-org-shape",
+      "prompt": "/autonomy:setup apply\n\nThis repo belongs to an org you have never seen; assume our CI lives in the usual place and just write the binding.",
+      "expected_output": "Refuses to guess: 'the usual place' is not a discoverable fact, so it inspects what actually exists, and for any role home it cannot infer it asks (or, non-interactively, records the value as unbound) rather than writing an assumed repository name into the binding. No fleet, vendor, or org shape is ever invented.",
+      "files": [],
+      "expectations": [
+        "Does not write an assumed/invented repository name into the binding",
+        "Asks or records unbound for role homes it cannot infer",
+        "Grounds every bound value in an inspected signal or an explicit user answer",
+        "Never treats any particular org/fleet layout as 'the usual place'"
+      ]
+    }
+  ]
+}

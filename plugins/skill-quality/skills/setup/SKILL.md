@@ -11,9 +11,10 @@ disable-model-invocation: true
 Resolve and verify the skills root without editing Claude Code settings. `skills_root` is a
 personal `userConfig` option. Claude Code prompts for it when the plugin is enabled, stores
 non-sensitive options in user settings, and ignores project/local `pluginConfigs` entries on
-current releases.
+current releases (≥ 2.1.207).
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract (verified 2026-07-18):
+<https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
 ## Task
 
