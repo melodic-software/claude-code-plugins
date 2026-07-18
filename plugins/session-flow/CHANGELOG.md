@@ -18,6 +18,18 @@ Added:
   worktree mechanics route to whatever capabilities are installed, falling back
   to direct git / gh. The plugin now bundles seven skills.
 
+## 0.9.1 — 2026-07-18
+
+Fixed:
+
+- orchestrate: worker model tier is now an explicit spawn decision. SPEC EVERY SPAWN adds the
+  model tier to the per-worker spec, and CALIBRATE TO CONDITIONS adds per-worker tiering (cheap
+  tier for high-volume mechanical work, parent tier reserved for judgment-heavy
+  synthesis/verify; wider fan-out defaults cheaper). Closes the failure mode where a wide
+  fan-out silently inherited the parent session's premium model on every worker — an omitted
+  model defaults to `inherit` per the subagents doc (resolution order and cost-control quote
+  now cited in `context/sources.md`).
+
 ## 0.9.0 — 2026-07-18
 
 Added:
