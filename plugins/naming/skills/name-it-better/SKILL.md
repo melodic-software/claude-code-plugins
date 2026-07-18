@@ -60,10 +60,11 @@ every modality, and is what the generators and judges optimise. The
 **syntactic layer** — casing, length budgets, separator and affix
 conventions — is modality- and vendor-specific; apply it as a final
 shaping pass over the semantic winners, never as a scoring axis that
-overrides meaning. Shaping can change the string, so RE-RUN the collision
-and reject-list checks on the shaped form: a normalization
+overrides meaning. Shaping can change the string, so RE-RUN the collision,
+reject-list, and word-blocklist checks on the shaped form: a normalization
 (`SessionStore` → `session_store`) can recreate an existing sibling or a
-rejected incumbent that the pre-scoring check could not match.
+rejected incumbent, and a required affix can introduce a blocked word
+(`Order` → `OrderManager`) that the pre-scoring filters could not match.
 
 - **Route documented conflicts out; do not pick a side.** Where authorities
   genuinely disagree — abbreviation policy, acronym casing, camelCase vs
