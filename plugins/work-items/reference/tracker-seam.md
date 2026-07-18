@@ -17,7 +17,11 @@ Every tracker operation goes through the work-item-tracker seam — the skill ca
 (contract: `tools/work-item-tracker/CONTRACT.md`). Resolve the seam path from the project root so
 invocations work from any subdirectory —
 `"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" <verb>`;
-the executable snippets in each action use that rooted form. The repo's active provider is bound in
+the executable snippets in each action use that rooted form. The seam is required for correctness:
+before the first verb of an invocation, check the script exists at that path — absent, stop and
+surface the remediation (the repo has not provisioned the seam; point at
+`tools/work-item-tracker/CONTRACT.md` and `/work-items:setup`) instead of improvising provider
+commands. The repo's active provider is bound in
 `.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim,
 dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly.
 Operations without a core verb (listing with arbitrary filters, search, aggregation, close,

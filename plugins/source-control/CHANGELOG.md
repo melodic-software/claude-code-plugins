@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- README now declares the full runtime (prerequisite-visibility wave): `jq`
+  and Bash (Git Bash on native Windows) alongside `git`/`gh`, plus the
+  `unzip` requirement of the CI-log fetch path with its documented
+  stop-with-remediation behavior. Script behavior is unchanged — the gates
+  already existed at point of use.
+
 ## [0.8.0]
 
 ### Added

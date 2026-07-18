@@ -30,16 +30,28 @@ mkdir -p ~/Downloads && cd ~/Downloads
 curl -L -o KindleForPC-installer-2.8.70980.exe \
   "https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe"
 
-# Resolve the latest Satsuoni pre-release tag dynamically
-LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name')
+# Resolve the latest Satsuoni pre-release tag dynamically. Requires the
+# authenticated `gh` CLI (declared in the plugin README). When gh is absent or
+# the query returns nothing, fall back to the pinned tag in
+# references/versions.md instead of composing a malformed URL.
+LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || true)
+if [[ -z "${LATEST_TAG}" ]]; then
+  echo "gh unavailable or query failed — using the pinned DeDRM tag from references/versions.md"
+  LATEST_TAG="<pinned tag from references/versions.md>"
+fi
 curl -L -o "DeDRM_tools-${LATEST_TAG}.zip" \
   "https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip"
 
-# Resolve the current Kindle_Key_Finder zip URL from the tutorial article body
+# Resolve the current Kindle_Key_Finder zip URL from the tutorial article body.
+# Same guard: an empty match must stop, not feed basename/curl a malformed URL.
 ZIP_URL=$(curl -s https://techy-notes.com/remove-drm-from-kindle-ebooks/ \
   | grep -oE 'https://techy-notes\.com/content/files/[0-9]+/[0-9]+/Kindle_Key_Finder_[0-9.]+\.JH\.zip' \
   | head -1)
-curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
+if [[ -z "${ZIP_URL}" ]]; then
+  echo "Key_Finder URL not found in the article — check references/sources.md for the mirror procedure" >&2
+else
+  curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
+fi
 
 sha256sum KindleForPC-installer-2.8.70980.exe DeDRM_tools-*.zip Kindle_Key_Finder_*.JH.zip
 ```

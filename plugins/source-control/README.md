@@ -110,9 +110,12 @@ user decision to abandon the integration.
 
 ## Works in any repo
 
-- **Self-contained.** Everything runs on `git`, `gh`, and scripts bundled
-  under `${CLAUDE_PLUGIN_ROOT}`; transient CI-log scratch goes to
-  `${CLAUDE_PLUGIN_DATA}` (or `mktemp`).
+- **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
+  and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
+  Windows); `unzip` is additionally required by the CI-log fetch path
+  (`fetch-failed-logs`), which exits with a remediation message when it is
+  absent. Transient CI-log scratch goes to `${CLAUDE_PLUGIN_DATA}` (or
+  `mktemp`).
 - **Graceful degrade.** Adjacent capabilities — review agents, a simplifier,
   a verify skill, a research skill, a work-item tracker, a CI-log-audit
   agent, a GitHub-events push channel — are used when your environment
