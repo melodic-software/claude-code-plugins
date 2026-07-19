@@ -395,11 +395,14 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
    reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
-   pre-push-outdated bot threads with `--autonomous --resolve` when they block the gate and the
-   agent has confirmed they are not security/P1. In autopilot, after addressing the findings,
-   additionally resolve AI-review and human threads with `--resolve --include-human`, then run
-   the same pinned merge gate — the gate is never bypassed. After any `--resolve` run, parse
-   its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
+   pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
+   security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
+   --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the
+   same snapshot that vetted it. `--autonomous --resolve` refuses a bulk (no `--thread-id`) call,
+   so a worker cannot clear a thread its own push merely displaced. In autopilot, after addressing
+   the findings, additionally resolve AI-review and human threads with `--resolve --include-human`,
+   then run the same pinned merge gate — the gate is never bypassed. After any `--resolve` run,
+   parse its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
 
 8. After each PR is integrated, prune only that PR's clean worktree with `--pr`,
    `--lease-token`, and `--prune-open-clean`, delete its local feature branch on merge, then
