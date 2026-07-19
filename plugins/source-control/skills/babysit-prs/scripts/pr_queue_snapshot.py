@@ -106,6 +106,20 @@ def resolve_scope_repos(
     return repos
 
 
+def substantive_errors(errors: list[str]) -> list[str]:
+    """Errors that mark the sweep incomplete -- everything but advisory ones.
+
+    An advisory head-ref alias failure leaves every per-PR classification and
+    the persisted state intact, so it neither forces the tight cadence nor
+    holds back full-sweep advancement; only substantive errors (per-PR
+    hydration or discovery failures) do. The single source of truth for the
+    advisory predicate is ``babysit_delta.is_head_ref_alias_error``.
+    """
+    return [
+        message for message in errors if not delta.is_head_ref_alias_error(message)
+    ]
+
+
 def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     generated_at = datetime.now(UTC).isoformat()
     config = build_config(args)
@@ -230,6 +244,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         message
         for message in errors
         if message.split(":", 1)[0] not in quarantined
+        and not delta.is_head_ref_alias_error(message)
     ]
     cadence = (
         "active"
@@ -239,7 +254,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     snapshot = {
         "generated_at": generated_at,
         "mode": "single" if args.pr else "queue",
-        "complete": not errors,
+        "complete": not substantive_errors(errors),
         "recommended_cadence": cadence,
         "state_path": str(state_path),
         "pr_count": len(prs),
@@ -330,7 +345,7 @@ def exit_code_for(snapshot: dict[str, Any]) -> int:
     split.
     """
     errors = snapshot["errors"]
-    if any(not delta.is_head_ref_alias_error(message) for message in errors):
+    if substantive_errors(errors):
         return 1
     if errors:
         return 3

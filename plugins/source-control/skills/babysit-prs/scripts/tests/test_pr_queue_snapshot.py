@@ -52,6 +52,36 @@ class ExitCodeTaxonomy(unittest.TestCase):
         self.assertFalse(delta.is_head_ref_alias_error(_substantive_error()))
 
 
+class SubstantiveErrors(unittest.TestCase):
+    """The split that keeps advisory failures out of completeness and cadence.
+
+    `complete`, `exit_code_for`, and `cadence_blocking_errors` all derive from
+    this predicate, so an advisory-only sweep is a complete sweep and never
+    forces the tight cadence.
+    """
+
+    def test_advisory_only_has_no_substantive_errors(self):
+        self.assertEqual(snapshot_cli.substantive_errors([_advisory_error()]), [])
+
+    def test_substantive_error_is_retained(self):
+        substantive = _substantive_error()
+        self.assertEqual(
+            snapshot_cli.substantive_errors([substantive]), [substantive]
+        )
+
+    def test_mixed_keeps_only_substantive(self):
+        substantive = _substantive_error()
+        self.assertEqual(
+            snapshot_cli.substantive_errors([_advisory_error(), substantive]),
+            [substantive],
+        )
+
+    def test_advisory_only_reports_complete_via_helper(self):
+        # `complete` is `not substantive_errors(errors)`; an advisory-only run
+        # is still a complete sweep even though `errors` is non-empty.
+        self.assertFalse(bool(snapshot_cli.substantive_errors([_advisory_error()])))
+
+
 class FatalRunReturnsTwo(unittest.TestCase):
     def test_main_returns_two_when_build_snapshot_raises(self):
         with tempfile.TemporaryDirectory() as td:

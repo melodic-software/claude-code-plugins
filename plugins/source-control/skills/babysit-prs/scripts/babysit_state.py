@@ -432,7 +432,15 @@ def save_state(
             if merged_entry:
                 ledger[key] = merged_entry
 
-        complete_queue = mode == "queue" and not snapshot["errors"]
+        # A complete sweep visited and classified every PR. The snapshot's own
+        # `complete` flag already excludes advisory-only errors (a degraded
+        # head-ref alias cross-check leaves per-PR state intact), so an
+        # advisory-only run still advances the full sweep; deriving it from raw
+        # `errors` here would wrongly hold the sweep back. The fallback keeps
+        # callers that omit `complete` on the pre-split "no errors" meaning.
+        complete_queue = mode == "queue" and snapshot.get(
+            "complete", not snapshot["errors"]
+        )
         if complete_queue and scope is None:
             prs: dict[str, Any] = {}
         elif complete_queue:

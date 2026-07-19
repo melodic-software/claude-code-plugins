@@ -168,6 +168,60 @@ class SweepCounterTests(unittest.TestCase):
                              "2026-07-10T00:00:00Z")
 
 
+class AdvisoryOnlySweepTests(unittest.TestCase):
+    """An advisory-only sweep advances the full sweep and never forces `active`.
+
+    `save_state` reads the snapshot's own `complete` and `cadence_blocking_errors`
+    signals rather than re-deriving from raw `errors`, so a degraded head-ref
+    alias cross-check (advisory) neither holds the full sweep back nor pins the
+    tight cadence, while a substantive error still does both.
+    """
+
+    def _advisory_snapshot(self, prs: list[dict[str, object]], *,
+                           generated_at: str) -> dict[str, object]:
+        snapshot = make_snapshot(
+            prs,
+            errors=["owner/a#1 head-ref alias check: query timed out"],
+            generated_at=generated_at,
+        )
+        snapshot["complete"] = True
+        snapshot["cadence_blocking_errors"] = []
+        return snapshot
+
+    def test_advisory_only_run_advances_full_sweep(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            path = state.state_path_for(state_dir)
+            save(path, self._advisory_snapshot(
+                [snapshot_pr("owner/a", 1)], generated_at="2026-07-10T00:00:00Z"))
+            persisted = state.load_state(path)
+            self.assertEqual(persisted["cycles_since_full_sweep"], 0)
+            self.assertEqual(persisted["last_full_sweep_generated_at"],
+                             "2026-07-10T00:00:00Z")
+
+    def test_advisory_only_run_does_not_force_active_cadence(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            path = state.state_path_for(state_dir)
+            pr = snapshot_pr("owner/a", 1)
+            save(path, self._advisory_snapshot(
+                [pr], generated_at="2026-07-10T00:00:00Z"))
+            persisted = state.load_state(path)
+            expected = delta.recommend_cadence(
+                [str(pr.get("classification") or "quiet")])
+            self.assertEqual(persisted["recommended_cadence"], expected)
+
+    def test_substantive_error_still_blocks_sweep_and_forces_active(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            path = state.state_path_for(state_dir)
+            # No `complete` / `cadence_blocking_errors` keys: save_state falls
+            # back to raw errors, so a substantive error blocks the sweep.
+            save(path, make_snapshot(
+                [snapshot_pr("owner/a", 1)],
+                errors=["owner/a#1: HTTP 500 fetching PR"]))
+            persisted = state.load_state(path)
+            self.assertEqual(persisted["cycles_since_full_sweep"], 1)
+            self.assertEqual(persisted["recommended_cadence"], "active")
+
+
 class ErrorQuarantineTests(unittest.TestCase):
     def test_streak_below_threshold_is_not_quarantined(self) -> None:
         records, quarantined = state.update_error_quarantine(

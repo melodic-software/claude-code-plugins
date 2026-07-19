@@ -13,7 +13,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   failure) and `2` (fatal, no state written). The split is documented in the module docstring and
   covered by unit tests for every code; an advisory-only run no longer looks like a per-PR
   failure. No caller keyed on the previous `1`-means-any-error behavior (all consumers parse the
-  JSON snapshot).
+  JSON snapshot). The same advisory/substantive split also governs sweep completeness and cadence:
+  an advisory-only sweep persists as complete (its full-sweep counter still advances) and does not
+  force the tight `active` cadence, since the degraded cross-check leaves every per-PR
+  classification and the persisted state intact.
 - **`babysit-prs` formalizes the worker→main cross-PR dependency channel.** `orchestration.md`
   documents a worker signalling a discovered cross-PR coupling back to the main agent (which owns
   cross-PR ordering) over the same messaging mechanism used for main→worker, rather than reaching
