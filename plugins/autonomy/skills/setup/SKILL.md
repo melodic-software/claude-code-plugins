@@ -333,8 +333,9 @@ slice and its templates — the contract stays surface-class vocabulary only.
 ## Guardrail binding resolution
 
 How guardrail policy resolves across the TWO governance surfaces the guardrail contract
-splits policy into. This section owns resolution; the guardrail slice (detect → bind →
-live-validate) lands with its own work package and extends this skill.
+splits policy into. This section owns resolution; the [guardrail slice below](#guardrail-slice)
+(detect → bind → live-validate → fail-closed) is the action that produces the security binding
+this order resolves.
 
 **Two-surface split.** Security-sensitive guardrail axes — isolation bindings with their
 runtime markers, merge policy, verification blocking knobs, promotion state, escalation
@@ -375,10 +376,81 @@ or the executor's deployment config).
 every signal enqueues human-gated. Documented defaults exist only for non-security axes;
 no security axis ever resolves from a documented default or a repo-local surface.
 
+## Guardrail slice
+
+Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md):
+detect → bind → live-validate → fail-closed, always detect-diff-reconciling against the org's
+EXISTING guardrail surfaces. The [resolution section above](#guardrail-binding-resolution) owns
+how bound policy resolves across the two governance surfaces; this slice is the action that
+produces the security binding it resolves. Everything lands as reviewable changes; paid scanner
+SKUs are advisory + explicit opt-in with cost surfaced.
+
+**This slice PREPARES, never writes the security surface directly.** The security binding lives
+in the settings-as-code home, outside the blast radius of the agents it governs — a surface the
+running agent cannot write (that is the whole point of the split). So the slice produces the
+binding document and its locator-registry entry as REVIEWABLE CHANGES a human lands on the
+governance surface (a proposed change on the settings-as-code home, a registry entry on the
+org-policy home) — it never mutates the agent-unwritable surface in place. Nothing autonomous
+depends on the binding until that human-landed change exists.
+
+1. **Detect substrates per level per machine surface** — for each execution surface the
+   trigger/dispatch slice recorded (the same surface ids the security binding's
+   `isolation_bindings` key on), inspect what isolation substrates are available at each ladder
+   level per the [isolation-ladder leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/isolation-ladder.md):
+   an `L2` whole-process OS-sandbox wrap or default-deny-egress container, an `L3` kernel-separated
+   VM/microVM or hosted ephemeral executor. Detection is PER SURFACE — a substrate present on one
+   surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
+   different dispatch surface.
+2. **Detect-diff-reconcile against existing guardrail surfaces** — never greenfield-assume, never
+   silently overwrite. Before proposing any binding value, read the org's EXISTING guardrail
+   surfaces — sandbox/runner configurations, branch protections, review workflows and scanner
+   configuration — and DIFF the detected state against them. Where an existing surface already
+   encodes a policy (a branch protection rule, a configured scanner, an isolation setting), the
+   slice reconciles: it surfaces the diff and proposes the binding that matches or tightens the
+   existing surface, and it never overwrites an existing surface as a side effect of binding. A
+   pre-existing surface is authoritative input to reconcile against, not a blank field to fill.
+3. **Live-validate BEFORE recording** — the empirical probe per substrate class (recipe in
+   [`templates/isolation-probe.md`](templates/isolation-probe.md)). A candidate `L2`/`L3`
+   substrate is validated by running, INSIDE the boundary, two probes that MUST both fail:
+   - a **denied-egress smoke test** — a network fetch to a well-known external host MUST fail
+     (a boundary that lets egress through is not an `L2` boundary);
+   - a **host-credential-path read attempt** — a read of a host credential path MUST be absent or
+     denied (a boundary that leaks host secrets is not an `L2` boundary).
+
+   Only when the probe transcript proves BOTH failures does the binding for that level on that
+   surface land; the transcript's reference is recorded in the level binding's `probe_evidence`
+   field (schema-required — a binding without probe evidence is invalid per
+   [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs)). A binding never
+   lands ahead of the probe that proves its boundary.
+4. **Bind level → substrate per surface** — record each validated substrate under its surface in
+   `isolation_bindings` (surface id → level token → substrate instance + `probe_evidence` +
+   the non-forgeable `runtime_markers` the dispatch seam attests against), plus the merge policy,
+   verification-blocking knobs, escalation routes, and admission rules and caps — all on the
+   prepared security-binding change, validated by
+   [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) against
+   [`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)
+   before it is proposed.
+5. **Security-review wiring folds in here (no separate capability)** — the security-review policy
+   is one part of this single guardrail slice, never a near-duplicate setup capability. Wire the
+   [security-review leaf's](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/security-review.md) two
+   layers (deterministic scanners + AI security review) into the binding's `verification_blocking`
+   knobs, detect-diff-reconciling against the org's existing scanners, review workflows, and branch
+   protections. Free-path scanner classes satisfy every blocking obligation on the DEFAULT path —
+   zero paid dependencies. Entitlement-gated paid code-scanning SKUs stay advisory + explicit
+   opt-in with cost surfaced at opt-in time; an entitlement gap routes the tool to the advisory
+   path, never silently passing a blocking layer.
+6. **Fail-closed verify** — when NO substrate on a surface reaches the `L2` floor, autonomous
+   dispatch is BLOCKED for that surface and the slice names the compliant paths (provision an
+   `L2`-capable substrate on the surface, or route the surface's work to a surface that has one,
+   or keep the surface human-gated). Silent degrade to a lower level is never conforming. Under
+   `dispatch_posture: human-gated-only` a surface with no `L2` binding is the org's DECLARED
+   posture, not a defect — the verify reports blocked autonomous dispatch as declared, and the
+   binding still validates.
+
 ## What this skill does NOT do
 
-- Wire capability slices that have not shipped yet (guardrail matrix, routines) — each lands
-  with its own work package and extends this skill.
+- Wire capability slices that have not shipped yet (routines) — each lands with its own work
+  package and extends this skill.
 - Estimate, impute, or backfill the two human-attested return fields — ever.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or

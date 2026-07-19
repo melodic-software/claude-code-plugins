@@ -138,7 +138,7 @@ clause).
 - Schema `additionalProperties: false` present (`grep -c '"additionalProperties": false' …schema.json` ≥ 1)
 - `claude plugin validate --strict` exit 0
 
-### Phase 3: Guided-setup guardrail slice [TODO]
+### Phase 3: Guided-setup guardrail slice [DONE]
 
 Extends the `setup` skill: detect → bind → live-validate → fail-closed (D4), always
 detect-diff-reconcile against existing org guardrail surfaces (D5 — sandbox configs, branch
