@@ -104,10 +104,16 @@ const CREDENTIAL_SEGMENT_PAIRS = [
 ];
 // A recognized credential segment counts only when ANCHORED under a home
 // base or a system credential prefix — a recognized name under an ephemeral
-// base like /tmp is planted evidence, not the host's credential store.
+// base like /tmp is planted evidence, not the host's credential store. An
+// env-token anchor must be a concrete OS home variable: an arbitrary env var
+// may resolve anywhere (or nowhere) — only the OS home variables name the
+// host credential store's base; org-specific roots belong in the future
+// configured allow-list.
 const HOME_BASE_SEGMENTS = new Set(["home", "root", "users", "host-home"]);
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
+const isHomeEnvToken = (segment) =>
+  isEnvToken(segment) && ["home", "userprofile"].includes(segment.replace(/^[$%]/, "").replace(/%$/, ""));
 // A route prefix matches on a SEGMENT boundary only: the pathname equals the
 // prefix or continues with "/" immediately after it — a plain startsWith
 // would accept e.g. "/metadata-not-a-credential" via "/metadata".
@@ -165,7 +171,7 @@ function isRecognizedCredentialEntry(entry) {
   );
   if (credIndex === -1) return false;
   return (
-    segments.slice(0, credIndex).some((segment) => HOME_BASE_SEGMENTS.has(segment) || isEnvToken(segment)) ||
+    segments.slice(0, credIndex).some((segment) => HOME_BASE_SEGMENTS.has(segment) || isHomeEnvToken(segment)) ||
     (segments[0] === "run" && segments[1] === "secrets") ||
     segments[0] === "etc"
   );
@@ -816,7 +822,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, ANCHORED under a home base (home, root, users, host-home, or a $VAR/%VAR% env token) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, ANCHORED under a home base (home, root, users, host-home, or a home env token like $HOME / %USERPROFILE%) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
