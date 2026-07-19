@@ -103,6 +103,8 @@ Only after verification (or for enhancements, where the open question is scope, 
 
 ### 5. Apply outcome
 
+Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker**: remove `status:needs-triage` (and the item leaves the unlabeled raw state) in the same edit that applies the labels below. The label sets in the table are the item's **resulting** state, not deltas stacked over `status:needs-triage` — normalization replaces the raw marker, it never adds to it.
+
 | Outcome | Action |
 |---------|--------|
 | Briefed, delegable | Write the brief per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) — durability over precision: behavioral contracts and named interfaces, **no file paths or line numbers** — apply labels + the autonomous-eligible role label (default `agent-ready`) |
@@ -116,6 +118,11 @@ Only after verification (or for enhancements, where the open question is scope, 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
 
 Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare. Item creation, when triage spawns follow-up work, goes through the seam `create-item` verb (`/work-items:track add` is the canonical path).
+
+**Closing invariant — no outcome leaves a re-selectable raw item.** The attention view lists *open* items and re-selects anything still carrying the raw marker, so every outcome must leave the item unre-selectable:
+
+- Outcomes that keep the item **open** (briefed/ready, a role label, or `status:needs-info`) **clear `status:needs-triage`**. A raw marker alongside `status:ready`, the autonomous-eligible role label, or the human-gated role label is a contradiction — the attention view reads it as still-raw and re-triages it every cycle. If an item shows both, the briefed state is the truth; clear the stale raw marker.
+- **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot — a closed item never re-triages.
 
 ## Needs-info template
 

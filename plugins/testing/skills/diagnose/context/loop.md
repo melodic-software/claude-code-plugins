@@ -54,7 +54,7 @@ The failing test from step 1 must now pass. If it still fails:
 
 ### Step 5: Regression
 
-Run the full test suite for the affected project(s). Not just the test you wrote — ALL tests that could be impacted.
+Run the full test suite for the affected project(s). Not just the test you wrote — ALL tests that could be impacted. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
 
 ```bash
 # Single project
@@ -108,6 +108,8 @@ When the loop is invoked standalone (outside `/implementation:implement`):
 - After exit, suggests `/verification:confirm` for comprehensive validation
 
 ## Marketplace plugin skills (invoke only when installed)
+
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
 
 - **`dotnet-test:mtp-hot-reload`** — enable MTP hot reload for rapid test iteration without rebuilding. Requires `Microsoft.Testing.Extensions.HotReload` package + `TESTINGPLATFORM_HOTRELOAD_ENABLED=1`. Use `dotnet run --project` (not `dotnet test`) for hot reload mode
 - **`dotnet-diag:analyzing-dotnet-performance`** — scan for async deadlocks, timing races, and GC pressure when intermittent failures suggest performance-related root causes

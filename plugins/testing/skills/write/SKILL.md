@@ -38,7 +38,7 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 
 - **Test behavior, not implementation** — assert on what the user sees or what the API returns, not internal state (Kent C. Dodds: "The more your tests resemble the way your software is used, the more confidence they can give you")
 - **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability — every test scores well on all four
-- **Naming** — follow the project's documented patterns; sensible defaults by test type: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
+- **Naming** — use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). The forms below are illustrative (.NET/xUnit) — adapt casing/separators to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
 - When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative Beck/Khorikov guidance
 
 ## Handoff

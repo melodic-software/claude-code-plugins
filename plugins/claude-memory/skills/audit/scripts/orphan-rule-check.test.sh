@@ -28,14 +28,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -96,6 +96,57 @@ assert_eq "--count == 0 after referencing" "0" "$OUT"
 
 OUT=$(cd "$REPO" && bash "$SCRIPT")
 assert_contains "clean repo reports no orphans" "$OUT" "No orphan"
+
+# --- Case 6: topic-docs `memory_dir` override moves the excluded tier ---------------
+# A consumer that overrides memory_dir must have THAT tier excluded (refs there don't
+# count) AND `.work/` must stop being excluded (refs there now count) — the additive
+# bug (exclude both) fails the .work assertion below.
+
+OVR="$TEST_TMPDIR/override"
+make_repo "$OVR"
+mkdir -p "$OVR/.claude/rules" "$OVR/.scratch" "$OVR/.work"
+printf 'memory_dir: .scratch\n' >"$OVR/.claude/topic-docs.yaml"
+# rule A referenced ONLY from the overridden memory tier (.scratch/) => still ORPHAN
+printf '# Rule A\n\nbody\n' >"$OVR/.claude/rules/a.md"
+printf 'see a.md\n' >"$OVR/.scratch/refA.md"
+# rule B referenced ONLY from .work/ => NOT orphan (.work no longer excluded)
+printf '# Rule B\n\nbody\n' >"$OVR/.claude/rules/b.md"
+printf 'see b.md\n' >"$OVR/.work/refB.md"
+(cd "$OVR" && git add -A && git commit -q -m "override fixture")
+
+OUT=$(cd "$OVR" && bash "$SCRIPT")
+assert_contains "override: ref in resolved memory_dir (.scratch) is excluded => a.md orphan" "$OUT" "a.md"
+assert_not_contains "override: .work ref counts (no longer excluded) => b.md not orphan" "$OUT" "b.md"
+
+# --- Case 7: no topic-docs.yaml => `.work/` fallback still holds ---------------------
+
+FB="$TEST_TMPDIR/fallback"
+make_repo "$FB"
+mkdir -p "$FB/.claude/rules" "$FB/.work"
+# rule C referenced ONLY from .work/ => ORPHAN (default excludes .work)
+printf '# Rule C\n\nbody\n' >"$FB/.claude/rules/c.md"
+printf 'see c.md\n' >"$FB/.work/refC.md"
+(cd "$FB" && git add -A && git commit -q -m "fallback fixture")
+
+OUT=$(cd "$FB" && bash "$SCRIPT")
+assert_contains "fallback: .work ref excluded by default => c.md orphan" "$OUT" "c.md"
+
+# --- Case 8: interior whitespace in a quoted memory_dir is preserved -----------------
+# A collapsing strip (${seam//[[:space:]]/}) turns `.scratch dir` into `.scratchdir`, so
+# the real tier is NOT excluded and its ref counts — masking the orphan. Trailing-trim
+# preserves the interior space: the tier IS excluded and the rule stays an orphan.
+
+WS="$TEST_TMPDIR/whitespace"
+make_repo "$WS"
+mkdir -p "$WS/.claude/rules" "$WS/.scratch dir"
+printf 'memory_dir: ".scratch dir"\n' >"$WS/.claude/topic-docs.yaml"
+# rule D referenced ONLY from the space-containing memory tier => still ORPHAN
+printf '# Rule D\n\nbody\n' >"$WS/.claude/rules/d.md"
+printf 'see d.md\n' >"$WS/.scratch dir/refD.md"
+(cd "$WS" && git add -A && git commit -q -m "whitespace fixture")
+
+OUT=$(cd "$WS" && bash "$SCRIPT")
+assert_contains "whitespace: ref in quoted '.scratch dir' tier is excluded => d.md orphan" "$OUT" "d.md"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

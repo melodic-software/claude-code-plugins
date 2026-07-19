@@ -3,6 +3,25 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **Default branch resolved by detection, not assumption.** The clean-working-tree branch-diff
+  fallback in `/toolchain:check` and `/toolchain:lint` carried a bare `<default-branch>` placeholder
+  with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
+  assumption the convention-resolution discipline forbids. Both call sites now resolve the tracked
+  remote (`branch.<name>.remote`, falling back to `origin` — never a hardcoded remote name, so a repo
+  cloned with a different remote name still resolves), then the default branch via
+  `git symbolic-ref --short refs/remotes/$REMOTE/HEAD` (with the `$REMOTE/` prefix stripped), falling
+  back to a `git ls-remote --symref "$REMOTE" HEAD` query of that remote's own default branch, matching
+  the infer-don't-guess discipline applied elsewhere. The resolution is now an explicit
+  assignment that runs before `git merge-base` consumes it (previously it was descriptive prose,
+  leaving `$DEFAULT_BRANCH` unset so the documented command expanded to `git merge-base "" HEAD`);
+  `merge-base` runs against the remote-tracking ref `$REMOTE/$DEFAULT_BRANCH`, which resolves in a
+  clean checkout without a local branch of that name. When no default branch resolves, the
+  branch-diff path is skipped rather than guessed.
+
 ## [0.4.0]
 
 ### Changed

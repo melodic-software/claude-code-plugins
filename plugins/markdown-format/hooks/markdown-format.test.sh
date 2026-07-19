@@ -4,7 +4,7 @@
 # Proves WIRING, not baseline parity: that the hook fires on *.md/*.mdc, skips
 # otherwise, runs markdownlint-cli2 --fix from the linted file's repo root
 # (config discovery is CWD-anchored), preserves --fix bytes, and surfaces
-# residual findings via additionalContext with no medley-policy prose.
+# residual findings via additionalContext with no repo-specific policy prose.
 #
 # Self-contained: builds a throwaway git repo with its own markdownlint config
 # and runtime-generated fixtures (CRLF preserved via printf, never committed —
@@ -201,11 +201,11 @@ if printf '%s' "$CTX_B" | grep -q 'MD024'; then
 else
   fail "fixtureB ctx missing MD024: $CTX_B"
 fi
-# Genericized wrapper: medley-policy tail must be gone.
+# Genericized wrapper: the repo-specific policy tail must be gone.
 if printf '%s' "$CTX_B" | grep -qi 'commit/CI will block'; then
-  fail "fixtureB ctx still has medley policy tail"
+  fail "fixtureB ctx still has repo-specific policy tail"
 else
-  ok "fixtureB ctx dropped medley policy tail"
+  ok "fixtureB ctx dropped repo-specific policy tail"
 fi
 
 # --- Fire gate: non-.md extension skips -------------------------------------

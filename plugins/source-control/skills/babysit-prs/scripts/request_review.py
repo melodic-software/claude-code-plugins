@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import babysit_lease as leases
-from babysit_delta import head_repository_scope
+from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop
 from babysit_gh import (
     flatten_paginated_items,
@@ -25,6 +25,7 @@ from babysit_review_trigger import (
     fetch_reaction_signals,
     fetch_review_evidence,
     has_current_head_review,
+    resolve_associated_reactions,
     trigger_regex,
 )
 from babysit_state import (
@@ -81,6 +82,7 @@ def validate_current_candidate(
     expected_head_sha: str,
     config: ReviewTriggerConfig,
     allowed_owners: frozenset[str],
+    review_trigger: dict[str, Any],
 ) -> dict[str, Any]:
     current = view_pr(repo, number)
     if str(current.get("state") or "").upper() != "OPEN":
@@ -93,8 +95,15 @@ def validate_current_candidate(
         raise RuntimeError("PR head changed after the snapshot")
     merge_state = str(current.get("mergeStateStatus") or "").upper()
     mergeable = str(current.get("mergeable") or "").upper()
+    # BLOCKED can mask BEHIND: a head behind its base still reports BLOCKED, not
+    # BEHIND. Reuse the compare-confirmed freshness signal (`view_pr` already
+    # enriched `_blocked_base_compare`) so a stale-behind head is rejected here
+    # and the branch-refresh flow runs first, instead of spending the one-shot
+    # review request on a SHA that is about to be rebuilt.
+    behind = compute_branch_freshness(current)["state"] == "behind"
     if (
         current.get("isDraft")
+        or behind
         or merge_state
         in {
             "",
@@ -105,12 +114,25 @@ def validate_current_candidate(
         }
         or mergeable == "CONFLICTING"
     ):
-        reason = "CONFLICTING" if mergeable == "CONFLICTING" else merge_state
+        if mergeable == "CONFLICTING":
+            reason = "CONFLICTING"
+        elif behind:
+            reason = "BEHIND"
+        else:
+            reason = merge_state
         raise RuntimeError(
             f"PR is not a stable fresh review candidate: {reason or 'UNKNOWN'}"
         )
     review_evidence = fetch_review_evidence(repo, number, config=config)
     reaction_signals = fetch_reaction_signals(repo, number, current, config)
+    # Reactions carry no commit SHA, so a reaction left on an earlier head
+    # persists across pushes. Scope through the same current-head-association
+    # rule as the state machine's candidate predicate (`classify_review_
+    # request`) -- gating on the raw `reaction_signals` here would re-block
+    # every head this guard is meant to unblock.
+    associated_reactions = resolve_associated_reactions(
+        reaction_signals, expected_head_sha, review_trigger
+    )
     human_stop = fetch_current_human_stop(repo, number, current)
     if human_stop["required"]:
         raise RuntimeError(
@@ -122,7 +144,7 @@ def validate_current_candidate(
         raise RuntimeError(
             "a current-head review already exists; refusing to post another review trigger"
         )
-    if reaction_signals:
+    if associated_reactions:
         raise RuntimeError(
             "reviewer reaction signal is present but cannot prove current-head "
             "completion; refusing to post another review trigger"
@@ -354,7 +376,9 @@ def run_locked(
     ):
         raise RuntimeError("current head has a branch-refresh attempt")
 
-    validate_current_candidate(repo, number, expected_head_sha, config, allowed_owners)
+    validate_current_candidate(
+        repo, number, expected_head_sha, config, allowed_owners, review_trigger
+    )
 
     history = json_object(review_trigger.get("request_history"))
     attempts = json_object(review_trigger.get("request_attempt_history"))
@@ -409,7 +433,7 @@ def run_locked(
     try:
         require_worker_lease(args, state_dir, repo, number)
         validate_current_candidate(
-            repo, number, expected_head_sha, config, allowed_owners
+            repo, number, expected_head_sha, config, allowed_owners, review_trigger
         )
         late_trigger = existing_trigger(repo, number, recognizer, known_comment_ids)
     except Exception as exc:
@@ -519,9 +543,15 @@ def run_locked(
             created_comment=comment,
         )
         raise RuntimeError(error) from exc
+    # Scope to this head before flagging "unexpected" -- otherwise a stale
+    # earlier-head reaction still sitting on the PR (or on an older,
+    # already-attributed trigger comment) would abort an otherwise-clean
+    # post every time, the same staleness bug as the pre-POST guard above.
     unexpected_reactions = [
         signal
-        for signal in post_reactions
+        for signal in resolve_associated_reactions(
+            post_reactions, expected_head_sha, review_trigger
+        )
         if not (
             signal.get("scope") == "trigger_comment"
             and str(signal.get("comment_id") or "") == str(comment["id"])
