@@ -150,11 +150,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    discovery/provisioning is future work; the universal comment floor stays conforming
    regardless. The trigger is
    GATED to autonomous-class work (the convention's capture scope): the snippet fires only
-   when BOTH hold — the closing item carries the tracker binding's autonomous-eligible role
-   label (the class-scope discriminator; the label marks pickup eligibility, not that the
-   work was actually executed autonomously), AND the close event's actor is the bound
+   when ALL THREE hold — the closing item carries the tracker binding's autonomous-eligible
+   role label (the class-scope discriminator; the label marks pickup eligibility, not that
+   the work was actually executed autonomously), AND the close event's actor is the bound
    automation identity (the execution-evidence discriminator; proves the closing action
-   itself was autonomous). Neither alone suffices: the label without automation-actor
+   itself was autonomous), AND the closure outcome is COMPLETED/delivered — a not-planned,
+   cancelled, or duplicate closure never captures, even when the automation performs it
+   (nothing was delivered, so a record would assert autonomous completion of undone work). Neither alone suffices: the label without automation-actor
    closure would let a human who completes and closes an eligible item post a false
    autonomous record; the automation actor without the label would let interactive items
    the bot closes leak into capture. An unlabeled item, or one closed by any other actor,
