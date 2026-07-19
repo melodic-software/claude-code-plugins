@@ -90,9 +90,10 @@ latest wins only among equals).
 
 Wire the capture at the task boundary the org actually has: a close-triggered workflow
 (`<work-item closed>` / `<change merged>` event) invoking the record post + attestation
-request. Route the comment write through the work-items comment seam where present;
-otherwise the standalone snippet posts directly (create-only-when-absent per the contract's
-race rule).
+request. Where a work-item-tracker binding is present, the comment write uses the bound
+adapter's documented comment operations (comments are provider-specific mechanics there —
+the tracker seam exposes no comment verb); otherwise the standalone snippet posts directly
+(create-only-when-absent per the contract's race rule).
 
 ## Attestation-reply trigger shape
 
