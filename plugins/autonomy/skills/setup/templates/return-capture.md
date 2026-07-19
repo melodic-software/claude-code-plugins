@@ -81,8 +81,11 @@ race rule).
 
 Wire a companion reply-triggered handler at the surface the org's tracker actually offers (a
 comment-created event, or the native-field equivalent where fields support change-triggered
-automation): on each new reply to the marker-tagged item, resolve the actor against the
-accountable-human routing and, on a parseable reply carrying both values, perform the SAME
-upsert above — not a second contract, the one attestation upsert wired from its own trigger.
-Where no reply-triggered surface is machine-editable, this is advisory: surface that
+automation): on each new reply, resolve the actor against the accountable-human routing and,
+on a parseable reply carrying both values, upsert the SAME attested record — not a second
+contract, the one attestation upsert wired from its own trigger. On the comment floor this
+means finding the marker-tagged comment and editing it in place; on native fields there is
+no marker to find — the fields already belong 1:1 to the closing item, so the handler
+writes them directly on that item, no lookup step at all. Where no reply-triggered surface
+is machine-editable, this is advisory: surface that
 attestation would require a manual upsert rather than silently wiring only the close half.

@@ -157,13 +157,16 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    boundary, not a parallel class vocabulary.
 3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
    comment-created (or native-field change) event handler, wired the same reviewable way as
-   the close trigger: on a new reply to the marker-tagged item, check the reply's actor
-   against the accountable-human routing, and on a parseable reply carrying both values,
-   perform the SAME marker-keyed upsert described above (not a second contract — this is the
-   one attestation upsert, wired from its own trigger surface). Where the tracker offers no
-   reply-triggered surface (no comment webhook, a plan/tier limit), this step routes through
-   the ADVISE step below instead of silently wiring only the close half and calling capture
-   complete.
+   the close trigger: on a new reply, check the reply's actor against the accountable-human
+   routing, and on a parseable reply carrying both values, upsert the SAME attested record
+   (not a second contract — this is the one attestation upsert, wired from its own trigger
+   surface) — branched by `record_surface`: on the comment floor, find the marker-tagged
+   comment and edit it in place (the marker lookup exists to disambiguate among a comment
+   thread); on native fields there is no marker and no lookup at all — the fields are
+   already scoped 1:1 to the closing item, so the handler writes them directly on that same
+   item. Where the tracker offers no reply-triggered surface (no comment webhook, a
+   plan/tier limit), this step routes through the ADVISE step below instead of silently
+   wiring only the close half and calling capture complete.
 4. **Route comment writes through the bound tracker adapter's documented comment mechanics
    where a work-item-tracker binding is present** (comments are provider-specific mechanics
    there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
