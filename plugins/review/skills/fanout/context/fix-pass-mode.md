@@ -1,6 +1,6 @@
 # Fix-pass mode — apply persisted findings
 
-The skill's `fix` action: consume the newest persisted findings file for the CURRENT branch, split findings by class, and apply — cleanup-class via the bundled `/simplify` skill, correctness-class via sequential scope-fenced fixes. The review modes are findings-only; this action is the only one that mutates the working tree.
+The skill's `fix` action: consume the newest persisted findings file for the CURRENT branch, split findings by class, and apply — cleanup-class via the optional in-session `/simplify` skill, correctness-class via sequential scope-fenced fixes. The review modes are findings-only; this action is the only one that mutates the working tree.
 
 ## Step 1: Locate the findings file (current branch ONLY)
 
@@ -14,7 +14,7 @@ Read the file. Parse the `## Findings` table (per `default-mode.md` "Findings-fi
 
 | Class | What it is | Route |
 |---|---|---|
-| **cleanup** | Quality improvement that does NOT change behavior: reuse/dedup, simplification, naming, readability, dead-code removal, semantics-preserving efficiency | bundled `/simplify` |
+| **cleanup** | Quality improvement that does NOT change behavior: reuse/dedup, simplification, naming, readability, dead-code removal, semantics-preserving efficiency | optional in-session `/simplify` |
 | **correctness** | Behavioral defect: bug, security vulnerability, logic error, race condition, data-loss risk, missing error handling at a boundary, broken contract | sequential scope-fenced fix OR surface to the user |
 
 Classification rules:
@@ -49,9 +49,9 @@ Apply one finding at a time — concurrent fixes risk silent overwrite (last wri
 - **Surface instead of auto-applying** when a fix is low-confidence, needs architectural judgment, or has high blast radius. Auto-apply only clear, contained, high-confidence fixes.
 - After each fix, re-read the touched region to confirm the edit landed as intended.
 
-### Cleanup-class → bundled `/simplify`
+### Cleanup-class → optional in-session `/simplify`
 
-Invoke the bundled `/simplify` skill (when available in the session; otherwise apply the cleanup findings directly, one file at a time).
+Invoke the `/simplify` skill when available in the session; otherwise apply the cleanup findings directly, one file at a time.
 
 - `/simplify` rediscovers cleanups from the working-tree diff — it does NOT read the findings file. Sound when the findings are fresh vs the working tree; note it when the findings timestamp lags far behind the latest commits.
 - Zero cleanup-class findings → skip entirely; do not invoke it to "tidy anyway".

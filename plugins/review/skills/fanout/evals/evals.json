@@ -214,7 +214,7 @@
       "files": [],
       "expectations": [
         "Locates the newest findings file for the CURRENT branch only",
-        "Classifies the cleanup-class finding and routes it to the bundled /simplify skill",
+        "Classifies the cleanup-class finding and routes it to the optional in-session /simplify skill",
         "Classifies the correctness-class finding and applies it via a sequential scope-fenced fix, not via /simplify",
         "Emits the classification plan and confirms before mutating the working tree in an interactive session"
       ]
