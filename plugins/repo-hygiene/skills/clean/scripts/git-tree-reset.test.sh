@@ -146,7 +146,9 @@ rc=0
 out="$(PATH="$SHIM:$PATH" bash -c "cd '$R2' && bash '$RESET' --apply" 2>&1)" || rc=$?
 assert_exit "reset failure exits 5" 5 "$rc"
 assert_contains "reset failure reports failure" "$out" "FAILED: git reset --hard"
+assert_contains "reset failure emits AppliedReset: failed" "$out" "AppliedReset: failed"
 assert_not_contains "reset failure emits no clean success line" "$out" "AppliedClean: git clean"
+assert_contains "reset failure emits AppliedClean: none" "$out" "AppliedClean: none"
 assert_file_exists "reset failure skips clean (untracked survives)" "$R2/scratch.txt"
 
 if [[ $FAILED -ne 0 ]]; then
