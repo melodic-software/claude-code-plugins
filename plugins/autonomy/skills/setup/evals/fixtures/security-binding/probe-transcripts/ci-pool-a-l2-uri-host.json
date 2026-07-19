@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "surface": "ci-pool-a",
+  "level": "L2",
+  "substrate": "egress-denied-container-pool",
+  "substrate_class": "container",
+  "probed_at": "2026-07-01T16:00:00Z",
+  "assertions": {
+    "egress_denied": { "host": "http://127.0.0.1", "exit_code": "7", "outcome": "denied" },
+    "credentials_absent": { "path": "/host-home/.credentials", "exit_code": "1", "outcome": "absent-or-denied" }
+  },
+  "outer_context_networked": true
+}

@@ -72,9 +72,10 @@ const SPECIAL_USE_TLDS = [
   ".home.arpa",
   ".onion",
 ];
-// Recognized host-credential-location tokens (lowercase, forward slashes).
-// Same no-config-source rationale as the egress-host check: the checker
-// cannot know the org's probed credential paths, so any entry not
+// Recognized host-credential-location FORMS, matched per path COMPONENT —
+// substring matching would accept e.g. "/definitely-not-a-host-token" via
+// "token". Same no-config-source rationale as the egress-host check: the
+// checker cannot know the org's probed credential paths, so any entry not
 // recognizably a credential location is rejected rather than trusted — a
 // failing read of an arbitrary path proves nothing about credential absence.
 // The isolation-probe template names "a cloud metadata endpoint" as a marked
@@ -82,20 +83,44 @@ const SPECIAL_USE_TLDS = [
 // DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
 // (link-local proves no external egress): metadata IS the cloud credential
 // source, and the two checks serve opposite goals.
-const CREDENTIAL_LOCATION_TOKENS = [
+const CREDENTIAL_SEGMENTS = new Set([
   ".ssh",
   ".netrc",
-  ".docker/config.json",
   ".aws",
   ".gnupg",
-  ".kube/config",
-  ".config/gh",
   "id_rsa",
   "credentials",
+  ".credentials",
   "token",
   "metadata",
   "169.254.169.254",
+]);
+const CREDENTIAL_SEGMENT_PAIRS = [
+  [".kube", "config"],
+  [".docker", "config.json"],
+  [".config", "gh"],
 ];
+
+function isRecognizedCredentialEntry(entry) {
+  const normalized = entry.toLowerCase().replaceAll("\\", "/");
+  if (normalized.includes("://")) {
+    let url;
+    try {
+      url = new URL(normalized);
+    } catch {
+      return false;
+    }
+    if (url.hostname === "169.254.169.254") return true;
+    if (url.hostname.split(".").includes("metadata")) return true;
+    return url.pathname.split("/").some((segment) => segment === "metadata");
+  }
+  const segments = normalized.split("/").filter((segment) => segment.length > 0);
+  return segments.some((segment, index) => {
+    if (CREDENTIAL_SEGMENTS.has(segment)) return true;
+    if (segment.endsWith("_token") || segment.endsWith(".token")) return true;
+    return CREDENTIAL_SEGMENT_PAIRS.some(([first, second]) => segment === first && segments[index + 1] === second);
+  });
+}
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
 // ANY autonomous dispatch; C5 requires L3), and the only auto-merge-eligible
@@ -580,6 +605,20 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (typeof egressHost !== "string" || egressHost.length === 0 || /\s/.test(egressHost)) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a proven egress-denial requires the probed external host (non-empty, no whitespace)`;
   }
+  // The transcript must record the BARE probed hostname or IP: URI and
+  // host:port forms would route a loopback down the wrong classification
+  // branch (e.g. "http://127.0.0.1"), so they are rejected outright rather
+  // than parsed — one classification path, no parser disagreements. A single
+  // colon can only be a port separator (hostnames and IPv4 have none, IPv6
+  // literals have at least two); a "]" not at the end is a bracketed
+  // authority with a port suffix.
+  if (
+    egressHost.includes("/") ||
+    (egressHost.match(/:/g) ?? []).length === 1 ||
+    (egressHost.includes("]") && !egressHost.endsWith("]"))
+  ) {
+    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — record the BARE probed hostname or IP; URI, path, and host:port forms are rejected rather than parsed`;
+  }
   if (isNonExternalEgressHost(egressHost)) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
   }
@@ -603,11 +642,10 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   // The path value is a comma-separated list of probed locations; every
   // entry must be recognizably a host-credential location (case-insensitive,
-  // path-separator-agnostic).
+  // path-separator-agnostic, matched per component).
   for (const entry of transcript.assertions.credentials_absent.path.split(",")) {
-    const normalized = entry.trim().toLowerCase().replaceAll("\\", "/");
-    if (!CREDENTIAL_LOCATION_TOKENS.some((token) => normalized.includes(token))) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (${CREDENTIAL_LOCATION_TOKENS.join(", ")})`;
+    if (!isRecognizedCredentialEntry(entry.trim())) {
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, or a cloud metadata endpoint URL)`;
     }
   }
   if (transcript.outer_context_networked !== true) {
