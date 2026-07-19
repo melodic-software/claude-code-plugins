@@ -96,7 +96,11 @@ identity derives from the PLATFORM actor of the attestation action — on the co
 the upsert itself is bot-authored, so `attested_by` MUST be copied from, and the record MUST
 cite, the attestation source event (the human's reply whose platform actor answered — the
 reply must carry both attested values; an actor-only signal such as a bare reaction cannot
-attest).
+attest). `attestor_role` is likewise DERIVED, never free-chosen: `requester` when the
+attesting actor was admitted through the binding's requester-identity source, else the role
+the matched standing-owner routing entry declares (default `other`) — the handler writes the
+derived value; the requester-attested versus independently-attested aggregation split
+depends on this derivation.
 
 Duplicate tolerance: the standalone capture path's find-then-create has an inherent
 create-create race. Dedupe on read is ATTESTATION-PRESERVING: an attested bot-authored record

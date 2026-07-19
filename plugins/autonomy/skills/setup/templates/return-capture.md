@@ -38,7 +38,10 @@ Attestation requires a REPLY whose platform actor IS the item's accountable huma
 requester, resolved through the binding's requester-identity source for the tracker class
 (never guessed from the tracker class alone), or the binding's standing attestation owner for
 requester-less classes; a reply from any other participant is never upserted (the actor
-check is the trust anchor here; `attestor_role` stays descriptive). The reply must carry
+check is the trust anchor here; `attestor_role` stays descriptive and is DERIVED from the
+admitting match, never free-chosen: `requester` when the actor matched through the binding's
+requester-identity source, else the matched routing entry's declared role, defaulting to
+`other` — the handler writes the derived value). The reply must carry
 BOTH values (`counterfactual` and `effort_band`); a bare reaction cannot carry them and never triggers
 the upsert — the automation leaves the record unattested (optionally re-requesting with the
 expected reply shape). On a parseable reply, the bound automation identity edits the SAME
