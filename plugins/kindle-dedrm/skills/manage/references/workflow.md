@@ -53,8 +53,18 @@ curl -L -o "DeDRM_tools-${LATEST_TAG}.zip" \
 # The former article-body discovery is dead — the tutorial is subscriber-gated
 # as of 2026-07 (see references/sources.md), so a new build's URL can only be
 # obtained by a subscriber reading the current article and re-pinning by hand.
+# This block runs from ~/Downloads, so no relative path can reach the plugin's
+# references directory. Before running, substitute the absolute path of the
+# versions.md that sits next to this workflow file (the same file the DeDRM
+# fallback above reads) for VERSIONS_MD_ABS_PATH. The guard refuses to continue
+# with the placeholder still in place.
+VERSIONS_MD="VERSIONS_MD_ABS_PATH"
+if [[ "${VERSIONS_MD}" == "VERSIONS_MD_ABS_PATH" || ! -f "${VERSIONS_MD}" ]]; then
+  echo "versions.md path not substituted or not found — set VERSIONS_MD to the absolute path of references/versions.md, then rerun." >&2
+  exit 1
+fi
 ZIP_URL=$(awk '/^## Kindle_Key_Finder/{s=1} s&&/^\| Captured URL \|/{if(match($0,/`[^`]+`/)){print substr($0,RSTART+1,RLENGTH-2);exit}}' \
-  ../references/versions.md)
+  "${VERSIONS_MD}")
 if [[ -z "${ZIP_URL}" ]]; then
   echo "Key_Finder URL not found in references/versions.md — repair the pin, then rerun from this step." >&2
   exit 1
