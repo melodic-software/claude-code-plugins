@@ -174,7 +174,7 @@ binding means no classification rules, so the item carries no `signal.work_class
 - No second dispatch path exercised anywhere in the demo; no paid service touched
 - Demo transcript attached to the PR body
 
-### Phase 4: Gates [TODO]
+### Phase 4: Gates [DONE]
 
 Full in-repo gate run (WP2 Phase 4 roster): `scripts/validate-plugins.sh`,
 `scripts/run-plugin-tests.sh`, `node scripts/validate-plugin-contracts.mjs`, markdown/typos/
