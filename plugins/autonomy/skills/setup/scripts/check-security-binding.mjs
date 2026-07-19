@@ -398,26 +398,77 @@ function jointlySatisfiable(markersA, markersB) {
   return true;
 }
 
-// A connection failure to a loopback, private, or link-local target proves
-// nothing about EXTERNAL egress. Deny-list based: the checker has no config
-// source for the org's configured external probe target today, so a positive
-// allow-check against it is not possible here.
-function isLocalOrPrivateHost(host) {
+// The egress-probe target must be a genuinely EXTERNAL host — loopback,
+// private, link-local, and single-label targets prove nothing about external
+// egress, and alternate ENCODINGS of local addresses must not slip past a
+// textual deny list: trailing-dot hostnames, bracketed literals, v4-mapped
+// IPv6 (::ffff:127.0.0.1, hex ::ffff:7f00:1), and inet_aton numeric forms
+// (2130706433 = 0x7f000001 = 127.1 = 127.0.0.1) all normalize before
+// classification. Deny-list + shape rule: the checker has no config source
+// for the org's configured probe target, so a positive allow-check is not
+// possible — the acceptance shape is a multi-label DNS name or a public
+// literal IP.
+const INET_PART = /^(?:0[xX][0-9a-fA-F]+|0[0-7]*|[1-9]\d*)$/;
+
+// inet_aton semantics: 1-4 dot-separated parts (decimal, 0x-hex, or
+// 0-octal); the last part fills the remaining bytes. Returns the folded
+// 32-bit address, or null where the token is not an address.
+function foldInetAton(token) {
+  const parts = token.split(".");
+  if (parts.length > 4 || parts.some((part) => part === "" || !INET_PART.test(part))) return null;
+  const values = parts.map((part) =>
+    /^0[xX]/.test(part) ? Number.parseInt(part, 16) : /^0./.test(part) ? Number.parseInt(part, 8) : Number(part),
+  );
+  const last = values[values.length - 1];
+  if (values.slice(0, -1).some((value) => value > 255) || last > 2 ** (8 * (5 - values.length)) - 1) return null;
+  let addr = 0;
+  for (let i = 0; i < values.length - 1; i += 1) addr = addr * 256 + values[i];
+  return addr * 256 ** (5 - values.length) + last;
+}
+
+function isDeniedV4(addr) {
+  const a = Math.floor(addr / 16777216) % 256;
+  const b = Math.floor(addr / 65536) % 256;
+  return (
+    a === 0 ||
+    a === 127 ||
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254)
+  );
+}
+
+function isNonExternalEgressHost(host) {
   const h = host.toLowerCase().replace(/^\[|\]$/g, "");
   if (h.includes(":")) {
-    // IPv6 literal: loopback/unspecified, fc00::/7 unique-local, fe80::/10 link-local.
-    return h === "::1" || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
+    if (h === "::1" || h === "::") return true;
+    const mapped = /^::ffff:(.+)$/.exec(h);
+    if (mapped !== null) {
+      let embedded = null;
+      if (mapped[1].includes(".")) {
+        embedded = foldInetAton(mapped[1]);
+      } else {
+        const groups = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(mapped[1]);
+        if (groups !== null) {
+          embedded = Number.parseInt(groups[1], 16) * 65536 + Number.parseInt(groups[2], 16);
+        }
+      }
+      return embedded === null || isDeniedV4(embedded);
+    }
+    // fc00::/7 unique-local, fe80::/10 link-local.
+    return /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
   }
-  return (
-    h === "localhost" ||
-    h.endsWith(".localhost") ||
-    h === "0.0.0.0" ||
-    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
-    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
-    /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h) ||
-    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
-    /^169\.254\.\d{1,3}\.\d{1,3}$/.test(h)
-  );
+  const name = h.endsWith(".") ? h.slice(0, -1) : h;
+  if (name === "localhost" || name.endsWith(".localhost")) return true;
+  const folded = foldInetAton(name);
+  if (folded !== null) return isDeniedV4(folded);
+  // A numeric-shaped token that folds to no valid address is not a DNS name
+  // either — reject rather than guess.
+  if (name.split(".").every((label) => INET_PART.test(label))) return true;
+  // A single-label name resolves through search domains or mDNS — never
+  // provably external.
+  return !name.includes(".");
 }
 
 // A probe transcript proves an L2/L3 boundary only when it records both
@@ -482,8 +533,8 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   if (typeof egressHost !== "string" || egressHost.length === 0 || /\s/.test(egressHost)) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a proven egress-denial requires the probed external host (non-empty, no whitespace)`;
   }
-  if (isLocalOrPrivateHost(egressHost)) {
-    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local target cannot prove EXTERNAL egress denial; probe a genuine external host`;
+  if (isNonExternalEgressHost(egressHost)) {
+    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
   }
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
