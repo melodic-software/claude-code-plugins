@@ -53,6 +53,8 @@ const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
+// The isolation-probe template's substrate-class tokens.
+const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm"]);
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
 // ANY autonomous dispatch; C5 requires L3), and the only auto-merge-eligible
@@ -395,6 +397,16 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   }
   if (transcript.substrate !== substrate) {
     return `transcript ${path} records substrate ${JSON.stringify(transcript.substrate)}, not this binding entry's substrate ${JSON.stringify(substrate)}`;
+  }
+  // The claimed level must be reachable by the substrate CLASS that ran the
+  // probe: L3 is the ladder's kernel-separated floor, which container and
+  // os-sandbox boundaries never provide — a genuine L2 transcript relabeled
+  // L3 must not unlock C5.
+  if (!SUBSTRATE_CLASSES.has(transcript.substrate_class)) {
+    return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} — required, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`;
+  }
+  if (level === "L3" && transcript.substrate_class !== "vm-microvm") {
+    return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} for an L3 entry — L3 requires kernel separation, which only substrate_class "vm-microvm" provides`;
   }
   if (transcript.assertions?.egress_denied?.outcome !== "denied") {
     return `transcript ${path} does not record the egress-denial assertion with outcome "denied"`;
