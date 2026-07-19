@@ -64,7 +64,8 @@ if [[ -z "$REMOTE" || "$REMOTE" == "." ]]; then
   REMOTE=origin
   git remote | grep -qx origin || REMOTE=$(git remote | head -n1)
 fi
-DEFAULT_BRANCH=$(git symbolic-ref --short "refs/remotes/$REMOTE/HEAD" 2>/dev/null | sed "s#^$REMOTE/##")
+DEFAULT_BRANCH=$(git symbolic-ref --short "refs/remotes/$REMOTE/HEAD" 2>/dev/null)
+DEFAULT_BRANCH=${DEFAULT_BRANCH#"$REMOTE/"}
 DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git ls-remote --symref "$REMOTE" HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')}
 if [[ -n "$DEFAULT_BRANCH" ]] && git rev-parse --verify --quiet "$REMOTE/$DEFAULT_BRANCH" >/dev/null; then
   git diff --name-only "$(git merge-base "$REMOTE/$DEFAULT_BRANCH" HEAD)..HEAD"

@@ -18,6 +18,11 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   is present and otherwise pick the first present remote, so the branch diff resolves against a remote
   that actually exists. Detection still degrades gracefully (skips the branch-diff path) when no remote
   is present. A cross-plugin shared default-branch helper remains the broader fix tracked by #436/#442.
+- **Remote-prefix strip no longer breaks on `#` in a remote name.** The default-branch resolution
+  stripped the `$REMOTE/` prefix with `sed "s#^$REMOTE/##"`, whose `#` delimiter collides with a
+  `#` in the remote name (a Git-legal character), corrupting `DEFAULT_BRANCH` and silently skipping
+  the branch diff. Both call sites now strip the prefix with the `${DEFAULT_BRANCH#"$REMOTE/"}`
+  parameter expansion, which treats the remote name literally regardless of its characters.
 
 ## [0.4.1]
 
