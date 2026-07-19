@@ -71,9 +71,9 @@ say why.
   that plugin is installed (its semantic-diff safety net is the guardrail for
   large prose cuts); otherwise run that same semantic-diff discipline as an
   explicit in-thread pass rather than hand-rolling a rubric here.
-- **Batch code reduction → the simplify capability** over a change set when
-  that plugin is installed; otherwise reduce in-thread against the
-  simpler-code convention, spending no clarity, test, error handling,
+- **Batch code reduction → the code-tidying batch-simplify capability** over a
+  change set when that plugin is installed; otherwise reduce in-thread against
+  the simpler-code convention, spending no clarity, test, error handling,
   convention, or observability to do it.
 - **Proactive code-side enforcement is NOT here.** It lives in review and
   design gates that cite the simpler-code convention; this corrector
