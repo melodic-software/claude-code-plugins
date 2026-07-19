@@ -57,6 +57,9 @@ at preview. Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
+Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
+`/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+
 ## Usage
 
 ```text

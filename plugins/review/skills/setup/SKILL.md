@@ -1,7 +1,7 @@
 ---
 name: setup
-description: "Configure the review plugin for this repository: bootstrap the consumer's standards index per the standards convention — the index review criteria resolve through — persisting docs/standards/ and, on relocation, .claude/standards.yaml. Use when: 'set up review', 'configure the review plugin', 'review setup', 'set up standards', 'bootstrap the standards index', or a review skill reports a missing or version-skewed standards index. Re-runnable — safe to invoke again to reconfigure or migrate."
-argument-hint: "(no arguments — interactive interview)"
+description: "Configure the review plugin for this repository: bootstrap the consumer's standards index per the standards convention — the index review criteria resolve through — persisting docs/standards/ and, on relocation, .claude/standards.yaml. Use when: 'set up review', 'configure the review plugin', 'review setup', 'set up standards', 'bootstrap the standards index', or a review skill reports a missing or version-skewed standards index. Actions: check (read-only verification, default) | apply (bootstrap, reconfigure, or migrate). Re-runnable."
+argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -20,7 +20,16 @@ implement it by reference, do not restate it.
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind;
 a re-run against a conforming, current-version index proposes no changes.
 
-## Task
+Action routing per the uniform contract: no argument or `check` runs the binding's state-reading
+procedure read-only and reports — index presence and resolved standards root, per-row path
+validation, and the DIRECTIONAL version delta — as a PASS/FAIL/INFO table with one remediation
+line per FAIL, writing nothing. `apply` runs `check` first, then the binding's bootstrap /
+reconfigure / migration flow below; after any write it re-runs the relevant probe and reports the
+actual result. Non-interactive when the state admits exactly one conforming action (the
+conforming-index short-circuit); the binding's explicit-confirmation gates (hand-authored README
+conversion, bootstrap writes) remain explicit user decisions, never silent.
+
+## `apply` task
 
 Plugin-side notes on top of the binding's procedure:
 

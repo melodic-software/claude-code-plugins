@@ -146,6 +146,10 @@ as before.
 /plugin install guardrails@melodic-software
 ```
 
+Then verify the runtime prerequisites and live guard surface with
+`/guardrails:setup check`; `/guardrails:setup apply` resolves anything the
+check reports with guidance.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
