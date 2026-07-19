@@ -55,6 +55,46 @@ run "echo append > file still blocked" "echo line >> real.txt" 2
 run "echo > file with 2>/dev/null still blocked" \
   "echo data > real.txt 2>/dev/null" 2
 
+# --- Producer-scoped redirect (issue #546 false-fire regression) -------------
+# The guard must flag ONLY when the echo/printf is itself the producer whose
+# stdout is redirected into a file — not any compound command that merely
+# CO-MENTIONS an `echo` token and a `>` token. The three cases below are the
+# false positives observed while PR-babysitting #526 (a script's stdout captured
+# to a scratchpad data file, with an unrelated `echo` status line in the same
+# call), which must now be ALLOWED.
+# 1. Script stdout captured to a JSON sink + a trailing echo status line.
+run "script stdout capture + echo status (allowed)" \
+  'bash fetch-all-pr-comments.sh 526 > pr526.json && echo "EXIT: $?"' 0
+run "script stdout capture; echo status semicolon (allowed)" \
+  'bash fetch.sh 526 > pr526.json; echo "EXIT: $?"' 0
+# 2. Same capture inside a bounded poll loop whose body also echoes a summary.
+# shellcheck disable=SC2016  # literal loop is the command under test, not for expansion
+run "poll-loop redirect + echo summary (allowed)" \
+  'for i in 1 2 3; do bash fetch.sh 526 > poll.json; echo "poll $i"; done' 0
+# 3. echo/`>` tokens appearing ONLY inside a quoted --body argument (the
+#    `gh issue create` for the bug report itself). Single-line and multi-line
+#    quoted payloads both stay inert — the multi-line body is the exact form that
+#    forced the reporter to fall back to `--body-file`.
+run "gh issue create --body mentioning echo > file, single line (allowed)" \
+  'gh issue create --title t --body "echo > file write bypasses"' 0
+GH_MULTILINE_BODY=$(printf 'gh issue create --title t --body "The guard blocks:\necho > file write bypasses\nremove the echo statements"')
+run "gh issue create --body mentioning echo > file, multi-line (allowed)" \
+  "$GH_MULTILINE_BODY" 0
+
+# True positives must still block: the echo/printf IS the redirected producer,
+# including inside compound-command bodies (loops, conditionals, brace groups)
+# where the issue's false positives all lived.
+run "echo content > file still blocked" 'echo "some content" > file.txt' 2
+run "printf content > file (blocked)" 'printf "%s" "content" > file.txt' 2
+run "echo > file after an unrelated command (blocked)" \
+  'ls foo 2>/dev/null; echo "x" > real.txt' 2
+# shellcheck disable=SC2016  # literal loop is the command under test, not for expansion
+run "echo > file in for-loop body (blocked)" \
+  'for f in a b; do echo "$f" > out.txt; done' 2
+run "echo > file in if-then body (blocked)" \
+  'if true; then echo x > real.txt; fi' 2
+run "echo > file in brace group (blocked)" '{ echo x > real.txt; }' 2
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays

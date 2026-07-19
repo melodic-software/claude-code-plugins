@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Fixed
+
+- **`block-hook-bypass` no longer false-fires when an `echo`/`printf` token and a
+  `>` redirect merely co-occur in one Bash command.** The `echo > file` heuristic
+  matched any command string containing both tokens, so capturing a subprocess's
+  stdout to a scratchpad data file (`bash fetch.sh 526 > pr526.json && echo
+  "EXIT: $?"`), a bounded poll loop with a status `echo`, or a `gh issue create
+  --body "…"` whose text merely mentions the tokens were all blocked. The check is
+  now producer-scoped: it splits the literal-stripped command into simple-command
+  segments and flags only a segment whose command word is `echo`/`printf` AND that
+  redirects stdout into a real file — so the redirect's producer must be the
+  echo/printf, not a co-located but unrelated one. It correctly fires inside loop,
+  conditional, and brace-group bodies (`for …; do echo x > f; done`). The
+  literal-strip now also carries an open quote across physical lines, so a
+  multi-line quoted argument (a `--body "…"` payload spanning newlines) stays
+  inert instead of leaking its tokens from the second line on. `printf … > file`
+  content-authoring is now caught alongside `echo … > file`.
+
 ## [0.8.0]
 
 ### Changed
