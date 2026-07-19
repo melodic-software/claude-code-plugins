@@ -150,7 +150,7 @@ mandate (repo CLAUDE.md): re-fetch the official docs for any vendor surface the 
 - `node plugins/autonomy/skills/setup/scripts/check-signal-envelope.mjs` (no args) exits 2 with usage
 - Fleet-name sweep (`validate-plugin-contracts.mjs`) exit 0
 
-### Phase 3: Conforming-path demonstration [TODO]
+### Phase 3: Conforming-path demonstration [DONE]
 
 Acceptance probe on a scratch consumer repo (NOT this repo, WP2 Phase 3 precedent — the ban
 there is on FLEET bindings/plugins, not on composing a sibling CAPABILITY: the scratch repo
