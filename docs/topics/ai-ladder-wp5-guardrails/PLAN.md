@@ -158,7 +158,7 @@ protections, review workflows), never greenfield-assume, never silently overwrit
 - `grep -ci 'detect-diff-reconcile' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
 - Fleet-name sweep exit 0
 
-### Phase 4: Live-validation demonstration + gates [TODO]
+### Phase 4: Live-validation demonstration + gates [DONE]
 
 Acceptance probe, BOTH paths mandatory: (positive) run the Phase 3 probe recipe against a
 REAL, PROVISIONED egress-denied boundary — the CI job on this public repo (free minutes)
