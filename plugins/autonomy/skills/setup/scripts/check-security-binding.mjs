@@ -393,6 +393,17 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   if (transcript.assertions?.credentials_absent?.outcome !== "absent-or-denied") {
     return `transcript ${path} does not record the credential-absence assertion with outcome "absent-or-denied"`;
   }
+  // The probe contract is expected-FAILURE: both checks assert a NON-zero
+  // exit inside the boundary, so a recorded exit_code of "0" contradicts the
+  // outcome it sits next to — the transcript is internally inconsistent and
+  // proves nothing.
+  const nonzeroExit = (value) => typeof value === "string" && /^[1-9][0-9]*$/.test(value);
+  if (!nonzeroExit(transcript.assertions.egress_denied.exit_code)) {
+    return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(transcript.assertions.egress_denied.exit_code)} — a proven egress-denial requires a non-zero integer exit code string`;
+  }
+  if (!nonzeroExit(transcript.assertions.credentials_absent.exit_code)) {
+    return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(transcript.assertions.credentials_absent.exit_code)} — a proven credential-absence requires a non-zero integer exit code string`;
+  }
   if (transcript.outer_context_networked !== true) {
     return `transcript ${path} does not record outer_context_networked true — an offline outer context would deny egress on its own`;
   }
