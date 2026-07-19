@@ -102,6 +102,12 @@ const CREDENTIAL_SEGMENT_PAIRS = [
   [".docker", "config.json"],
   [".config", "gh"],
 ];
+// A recognized credential segment counts only when ANCHORED under a home
+// base or a system credential prefix — a recognized name under an ephemeral
+// base like /tmp is planted evidence, not the host's credential store.
+const HOME_BASE_SEGMENTS = new Set(["home", "root", "users", "host-home"]);
+const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
+const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
 
 function isRecognizedCredentialEntry(entry) {
   const normalized = entry.toLowerCase().replaceAll("\\", "/");
@@ -112,18 +118,43 @@ function isRecognizedCredentialEntry(entry) {
     } catch {
       return false;
     }
-    // KNOWN cloud metadata endpoints only — a "metadata" label or path
-    // segment on an arbitrary host proves nothing, and the bare single-label
-    // alias is search-domain-dependent, not a fixed endpoint; org-specific
-    // endpoints belong in a future configured allow-list.
-    return url.hostname === "169.254.169.254" || url.hostname === "metadata.google.internal";
+    // KNOWN cloud metadata endpoints only, and only their known credential
+    // ROUTES — an arbitrary path on the metadata host proves nothing, a
+    // "metadata" label or path segment on an arbitrary host proves nothing,
+    // and the bare single-label alias is search-domain-dependent; org-specific
+    // endpoints belong in a future configured allow-list. (The whole entry is
+    // lowercased before parsing, so the prefixes compare lowercase.)
+    if (url.hostname === "169.254.169.254") {
+      return (
+        url.pathname.startsWith("/metadata") ||
+        url.pathname.startsWith("/latest") ||
+        url.pathname.startsWith("/computemetadata")
+      );
+    }
+    return url.hostname === "metadata.google.internal" && url.pathname.startsWith("/computemetadata");
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
-  return segments.some((segment, index) => {
-    if (CREDENTIAL_SEGMENTS.has(segment)) return true;
-    if (segment.endsWith("_token") || segment.endsWith(".token")) return true;
-    return CREDENTIAL_SEGMENT_PAIRS.some(([first, second]) => segment === first && segments[index + 1] === second);
-  });
+  // A whole-entry env-style token naming a credential variable qualifies on
+  // its own (e.g. $GITHUB_TOKEN — an injected token env var per the
+  // template's marked examples).
+  if (segments.length === 1 && isEnvToken(segments[0])) {
+    const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
+    return bare === "token" || bare.endsWith("_token");
+  }
+  if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
+  const credIndex = segments.findIndex(
+    (segment, index) =>
+      CREDENTIAL_SEGMENTS.has(segment) ||
+      segment.endsWith("_token") ||
+      segment.endsWith(".token") ||
+      CREDENTIAL_SEGMENT_PAIRS.some(([first, second]) => segment === first && segments[index + 1] === second),
+  );
+  if (credIndex === -1) return false;
+  return (
+    segments.slice(0, credIndex).some((segment) => HOME_BASE_SEGMENTS.has(segment) || isEnvToken(segment)) ||
+    (segments[0] === "run" && segments[1] === "secrets") ||
+    segments[0] === "etc"
+  );
 }
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
@@ -736,7 +767,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   // path-separator-agnostic, matched per component).
   for (const entry of transcript.assertions.credentials_absent.path.split(",")) {
     if (!isRecognizedCredentialEntry(entry.trim())) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, or a known cloud metadata endpoint URL)`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, ANCHORED under a home base (home, root, users, host-home, or a $VAR/%VAR% env token) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
   }
   if (transcript.outer_context_networked !== true) {
