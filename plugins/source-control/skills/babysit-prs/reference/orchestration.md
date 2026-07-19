@@ -304,8 +304,8 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py
 
 A worker is scoped 1:1 to its own PR and never reaches across PRs. When it discovers, mid-fix,
 that its PR is coupled to another open PR — one must merge first, two share a migration, or a
-change lands correctly only alongside the other (for example the medley#1567 ↔ #1597
-or #224 ↔ #356 couplings) — that discovery travels back to the main agent, which owns cross-PR ordering
+change lands correctly only alongside the other (for example `owner/repo#123 ↔ #456`) — that
+discovery travels back to the main agent, which owns cross-PR ordering
 because only it holds the queue-wide view and the leases. This worker→main direction is the
 reverse of the main→worker messaging in the Concurrency Guard above and uses the same mechanism
 (in Claude Code, the `SendMessage` tool, here targeting the main agent's id). Signal live when the

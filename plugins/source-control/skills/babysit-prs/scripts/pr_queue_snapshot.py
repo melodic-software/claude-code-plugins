@@ -16,9 +16,10 @@ Exit-code taxonomy (a caller contract):
   state was written and no snapshot is emitted.
 * ``3`` -- a valid snapshot whose only errors are *advisory*: the global
   head-ref alias cross-check degraded but every per-PR classification and the
-  persisted state are intact. Split out from ``1`` so an advisory-only run is
-  distinguishable from a substantive per-PR failure. Advisory errors are
-  identified structurally via ``babysit_delta.is_head_ref_alias_error``.
+  persisted state are intact; state is still written when requested. Split out
+  from ``1`` so an advisory-only run is distinguishable from a substantive
+  per-PR failure. Advisory errors are identified structurally via
+  ``babysit_delta.is_head_ref_alias_error``.
 """
 
 from __future__ import annotations
