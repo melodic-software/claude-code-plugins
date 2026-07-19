@@ -54,7 +54,7 @@ The failing test from step 1 must now pass. If it still fails:
 
 ### Step 5: Regression
 
-Run the full test suite for the affected project(s). Not just the test you wrote — ALL tests that could be impacted.
+Run the full test suite for the affected project(s). Not just the test you wrote — ALL tests that could be impacted. `/toolchain:check` is SSOT for the exact per-ecosystem command; the block below is illustrative (.NET):
 
 ```bash
 # Single project

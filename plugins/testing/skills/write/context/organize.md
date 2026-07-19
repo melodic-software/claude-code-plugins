@@ -50,7 +50,7 @@ Where a process-global singleton, expensive lifecycle, or framework-side limitat
 
 ## Naming
 
-- Test class: `{ClassUnderTest}Tests`
+- Test class: the project's documented test-class naming; when undocumented, mirror the ecosystem's idiom (`{ClassUnderTest}Tests` illustrates the .NET convention)
 - Test project: the project's unit-test naming convention (e.g. `{Project}.Tests` for .NET co-located)
 - Test file mirrors the structure of the code it tests
 
