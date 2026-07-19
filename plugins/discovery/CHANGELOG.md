@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## 0.7.3 — 2026-07-19
+
+### Fixed
+
+- **`/discovery:explore` and `/discovery:explore-deep` keep the absolute project root out of the
+  persisted `EXPLORE.md`.** The pre-computed `Project root:` value (a live `git rev-parse
+  --show-toplevel`) is now marked session-orientation only, and the explore outcome gate adds a
+  binary criterion requiring machine-agnostic artifact paths — relative to the repo root, or to the
+  current working directory when no repo root exists. The live root stays available for resolving
+  files while working; it is never echoed into the handoff, so `EXPLORE.md` stays machine-agnostic.
+
 ## 0.7.2 — 2026-07-19
 
 ### Changed
