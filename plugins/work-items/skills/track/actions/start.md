@@ -23,6 +23,8 @@ Claim a work item through the seam (assignee + lease record).
 
    If the item is still assigned to another user after reclaim, its lease is live — warn: "Item `<id>` held by {assignee} (live lease). Proceed anyway? (yes / pick different)". Without the reclaim, `claim` would back off (exit 7) on the stale assignee before evaluating lease expiry.
 
+   Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`, whose `claim` already race-checks the lease pre-write — CONTRACT.md "Adapter contract") — not an error; skip the stale-lease check and proceed straight to Claim.
+
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash

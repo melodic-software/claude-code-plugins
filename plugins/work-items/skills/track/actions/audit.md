@@ -27,6 +27,8 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 
 Present each item the verb reports `reclaimed: true` (released — the `reason` field says why); `reclaimed: false` means still-held or lease-renewed, left in place. Legacy label-based holds from before the seam are migrated by the label-reconciliation pass, not here.
 
+Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`) — not an error; report zero stale claims for this pass instead of failing the audit.
+
 ### 2. Orphaned recurring entries
 
 Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned — the automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:
