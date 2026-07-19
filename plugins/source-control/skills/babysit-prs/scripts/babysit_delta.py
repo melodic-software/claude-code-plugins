@@ -349,6 +349,27 @@ def classify_pr(
     human_feedback_ids = [
         item["id"] for item in (*feedback["human_blocking"], *feedback["human"])
     ]
+    # Parity with the bot delta arms' *structural* self-filter: bot feedback can
+    # never contain this engine's own posts, because the engine comments under
+    # the operator's human login and `collect_feedback` only routes bot-authored
+    # items to `feedback["blocking"]`/`["material"]`. The human arms have no such
+    # structural guard, so without this an operator whose login is the configured
+    # self-login sees every prior-round worker reply (classification tables,
+    # "Fixed in <sha>" follow-ups) counted as new human-authored feedback --
+    # manufacturing a self-inflicted, unsuppressible `new_human_blocking_feedback`
+    # dispatch that re-fires forever with zero real work. This brings the
+    # deterministic delta to the same rule `reference/review-discipline.md` §1
+    # already mandates for the worker's own classification replies.
+    #
+    # Deliberately scoped to the new-feedback deltas only, NOT to
+    # `collect_feedback`'s classification: a self-authored item still lands in
+    # `feedback["human_blocking"]` above, so a genuine "don't merge, I found a
+    # problem" comment the maintainer posts under their own login keeps
+    # `human_stop`/the triage blocker intact and continues to halt the merge
+    # gate. Filtering it there instead would silently strip the solo maintainer's
+    # ability to human-stop their own PR. Here it only stops re-dispatching a
+    # worker onto the engine's own prior output.
+    self_logins = {login.casefold() for login in config.self_logins if login}
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
@@ -391,6 +412,7 @@ def classify_pr(
         item
         for item in (*feedback["human_blocking"], *feedback["human"])
         if item["id"] not in prev_human_ids
+        and str(item.get("author") or "").casefold() not in self_logins
     ]
     changed = bool(prev) and (
         prev.get("head_sha") != head_sha or prev.get("updated_at") != updated_at
@@ -650,6 +672,7 @@ def classify_pr(
         item
         for item in feedback["human_blocking"]
         if item["id"] not in prev_human_blocking_ids
+        and str(item.get("author") or "").casefold() not in self_logins
     ]
     # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
     # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the

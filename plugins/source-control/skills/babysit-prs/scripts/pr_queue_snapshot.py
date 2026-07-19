@@ -49,15 +49,21 @@ def _csv(value: str | None) -> frozenset[str]:
 
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     owners = _csv(getattr(args, "owners", None))
-    resolved_authors = getattr(args, "resolved_authors", None)
-    if resolved_authors is None:
-        # Hand-built Namespaces (tests, callers) may skip resolution; derive
-        # the self set from the raw --author, dropping the unresolvable '@me'.
-        self_logins = frozenset(
-            login for login in _csv(getattr(args, "author", None)) if login != "@me"
-        )
+    resolved_self_logins = getattr(args, "resolved_self_logins", None)
+    if resolved_self_logins is not None:
+        self_logins = frozenset(resolved_self_logins)
     else:
-        self_logins = frozenset(resolved_authors)
+        resolved_authors = getattr(args, "resolved_authors", None)
+        if resolved_authors is None:
+            # Hand-built Namespaces (tests, callers) may skip resolution; derive
+            # the self set from the raw --author, dropping the unresolvable '@me'.
+            self_logins = frozenset(
+                login
+                for login in _csv(getattr(args, "author", None))
+                if login != "@me"
+            )
+        else:
+            self_logins = frozenset(resolved_authors)
     return delta.ClassifyConfig(
         allowed_owners=owners,
         self_logins=self_logins,
@@ -82,6 +88,24 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
             getattr(args, "fix_round_cap", None) or delta.ADVISORY_FIX_ROUND_CAP
         ),
     )
+
+
+def resolve_self_logins(authors: list[str]) -> list[str]:
+    """Self-identity suppression must not ride on the discovery author filter.
+
+    Autopilot (and explicit widening) deliberately drops `--author`, so `authors`
+    is empty and `ClassifyConfig.self_logins` derived from it would be empty too —
+    leaving the worker's own comments free to re-fire `new_human_blocking_feedback`
+    every cycle. Resolve the authenticated posting identity independently and union
+    it with any discovery authors, so suppression holds regardless of scope.
+    """
+    self_login = gh.resolve_author("@me")
+    resolved = list(authors)
+    if self_login and self_login.casefold() not in {
+        login.casefold() for login in resolved
+    }:
+        resolved.append(self_login)
+    return resolved
 
 
 def resolve_scope_repos(
@@ -140,6 +164,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         # rather than require them.
         authors = gh.resolve_authors(getattr(args, "author", None))
         args.resolved_authors = authors
+        args.resolved_self_logins = resolve_self_logins(authors)
         config = build_config(args)
         scope_repos = resolve_scope_repos(args, config.allowed_owners)
         if scope_repos:

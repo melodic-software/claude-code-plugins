@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.1]
+## [0.9.3]
 
 ### Added
 
@@ -35,6 +35,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   that the guarded-wrapper JSON must be parsed in a separate step — never piped into an
   interpreter — because an interpreter-in-pipeline trips the auto-mode safety classifier and
   blocks the call.
+
+## [0.9.2]
+
+### Fixed
+
+- **babysit-prs no longer re-dispatches a worker onto its own prior-round replies.** For a solo
+  maintainer whose `gh` login is the configured self-login (`gh api user` login plus any
+  `babysit_self_logins` extras), the delta engine counted the worker's own classification replies
+  and `Fixed in <sha>` follow-ups as new human-authored feedback, manufacturing a self-inflicted,
+  unsuppressible `new_human_blocking_feedback` dispatch that re-fired every cycle with zero real
+  work. The `new_human_blocking_feedback` and `new_human_feedback` deltas now exclude items
+  authored by the configured self-login(s) — the same self-reply exclusion `review-discipline.md`
+  §1 already mandates for the worker, and parity with the bot delta arms (self-filtered
+  structurally because the engine never comments as a bot). Scoped to the dispatch deltas only: a
+  self-authored item still classifies as human feedback, so a genuine "do not merge" comment the
+  maintainer posts under their own login keeps the human stop and triage blocker intact and still
+  halts the merge gate.
+
+## [0.9.1]
 
 ### Fixed
 

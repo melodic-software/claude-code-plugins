@@ -1,19 +1,28 @@
-"""Exit-code taxonomy for the snapshot CLI.
+"""Snapshot CLI: exit-code taxonomy and config assembly.
 
-Covers every exit code the module documents (0/1/2/3), including the split that
-distinguishes an advisory-only head-ref alias failure (valid snapshot) from a
-substantive per-PR hydration failure.
+Exit-code taxonomy covers every code the module documents (0/1/2/3), including
+the split that distinguishes an advisory-only head-ref alias failure (valid
+snapshot) from a substantive per-PR hydration failure.
+
+Config assembly covers the decoupling of the self-identity suppression set from
+the discovery `--author` filter. `@me` resolution is stubbed by monkeypatching
+the `babysit_gh` seam; no real gh process is spawned.
 """
 
+from __future__ import annotations
+
+import argparse
 import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_delta as delta  # noqa: E402
-import pr_queue_snapshot as snapshot_cli  # noqa: E402
+import babysit_gh as gh  # noqa: E402
+import pr_queue_snapshot as snapshot  # noqa: E402
 
 
 def _advisory_error(key="owner/repo#1"):
@@ -26,22 +35,22 @@ def _substantive_error(key="owner/repo#2"):
 
 class ExitCodeTaxonomy(unittest.TestCase):
     def test_clean_snapshot_returns_zero(self):
-        self.assertEqual(snapshot_cli.exit_code_for({"errors": []}), 0)
+        self.assertEqual(snapshot.exit_code_for({"errors": []}), 0)
 
     def test_substantive_error_returns_one(self):
         self.assertEqual(
-            snapshot_cli.exit_code_for({"errors": [_substantive_error()]}), 1
+            snapshot.exit_code_for({"errors": [_substantive_error()]}), 1
         )
 
     def test_advisory_only_error_returns_three(self):
         self.assertEqual(
-            snapshot_cli.exit_code_for({"errors": [_advisory_error()]}), 3
+            snapshot.exit_code_for({"errors": [_advisory_error()]}), 3
         )
 
     def test_substantive_precedence_over_advisory(self):
         # A run carrying both must never be masked by the advisory split.
         self.assertEqual(
-            snapshot_cli.exit_code_for(
+            snapshot.exit_code_for(
                 {"errors": [_advisory_error(), _substantive_error()]}
             ),
             1,
@@ -61,25 +70,25 @@ class SubstantiveErrors(unittest.TestCase):
     """
 
     def test_advisory_only_has_no_substantive_errors(self):
-        self.assertEqual(snapshot_cli.substantive_errors([_advisory_error()]), [])
+        self.assertEqual(snapshot.substantive_errors([_advisory_error()]), [])
 
     def test_substantive_error_is_retained(self):
         substantive = _substantive_error()
         self.assertEqual(
-            snapshot_cli.substantive_errors([substantive]), [substantive]
+            snapshot.substantive_errors([substantive]), [substantive]
         )
 
     def test_mixed_keeps_only_substantive(self):
         substantive = _substantive_error()
         self.assertEqual(
-            snapshot_cli.substantive_errors([_advisory_error(), substantive]),
+            snapshot.substantive_errors([_advisory_error(), substantive]),
             [substantive],
         )
 
     def test_advisory_only_reports_complete_via_helper(self):
         # `complete` is `not substantive_errors(errors)`; an advisory-only run
         # is still a complete sweep even though `errors` is non-empty.
-        self.assertFalse(bool(snapshot_cli.substantive_errors([_advisory_error()])))
+        self.assertFalse(bool(snapshot.substantive_errors([_advisory_error()])))
 
 
 class FatalRunReturnsTwo(unittest.TestCase):
@@ -94,18 +103,75 @@ class FatalRunReturnsTwo(unittest.TestCase):
                 td,
             ]
             original_argv = sys.argv
-            original_build = snapshot_cli.build_snapshot
+            original_build = snapshot.build_snapshot
 
             def _raise(_args):
                 raise RuntimeError("discovery exploded before any snapshot existed")
 
             sys.argv = argv
-            snapshot_cli.build_snapshot = _raise
+            snapshot.build_snapshot = _raise
             try:
-                self.assertEqual(snapshot_cli.main(), 2)
+                self.assertEqual(snapshot.main(), 2)
             finally:
                 sys.argv = original_argv
-                snapshot_cli.build_snapshot = original_build
+                snapshot.build_snapshot = original_build
+
+
+class ResolveSelfLoginsTests(unittest.TestCase):
+    def test_autopilot_empty_authors_still_yields_authenticated_login(self) -> None:
+        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
+            self.assertEqual(snapshot.resolve_self_logins([]), ["kyle-sexton"])
+
+    def test_discovery_authors_are_unioned_with_the_self_login(self) -> None:
+        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
+            self.assertEqual(
+                snapshot.resolve_self_logins(["alice", "bob"]),
+                ["alice", "bob", "kyle-sexton"],
+            )
+
+    def test_self_login_already_present_is_not_duplicated(self) -> None:
+        with mock.patch.object(gh, "resolve_author", return_value="Kyle-Sexton"):
+            self.assertEqual(
+                snapshot.resolve_self_logins(["alice", "kyle-sexton"]),
+                ["alice", "kyle-sexton"],
+            )
+
+    def test_input_author_list_is_not_mutated(self) -> None:
+        authors = ["alice"]
+        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
+            snapshot.resolve_self_logins(authors)
+        self.assertEqual(authors, ["alice"])
+
+    def test_unresolvable_self_login_leaves_discovery_authors_intact(self) -> None:
+        with mock.patch.object(gh, "resolve_author", return_value=None):
+            self.assertEqual(snapshot.resolve_self_logins(["alice"]), ["alice"])
+
+
+class BuildConfigSelfLoginsTests(unittest.TestCase):
+    def test_resolved_self_logins_populate_config_self_logins(self) -> None:
+        args = argparse.Namespace(
+            owners="melodic-software",
+            resolved_self_logins=["kyle-sexton"],
+        )
+        config = snapshot.build_config(args)
+        self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
+
+    def test_resolved_self_logins_take_precedence_over_resolved_authors(self) -> None:
+        args = argparse.Namespace(
+            owners="melodic-software",
+            resolved_authors=["alice"],
+            resolved_self_logins=["kyle-sexton"],
+        )
+        config = snapshot.build_config(args)
+        self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
+
+    def test_raw_author_fallback_drops_me_when_unresolved(self) -> None:
+        args = argparse.Namespace(
+            owners="melodic-software",
+            author="@me,alice",
+        )
+        config = snapshot.build_config(args)
+        self.assertEqual(config.self_logins, frozenset({"alice"}))
 
 
 if __name__ == "__main__":

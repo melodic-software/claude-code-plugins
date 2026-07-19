@@ -14,6 +14,8 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
+These values orient this fork only. The project root is an absolute machine path — use it to resolve files while working, but never echo it into `EXPLORE.md`; the `/explore` outcome gate you run in Step 3 requires relative, machine-agnostic paths.
+
 ## Purpose
 
 You are a forked **general-purpose** subagent running the canonical explore workflow (the sibling `/explore` skill) on behalf of the main session. Your investigation runs in an isolated context — you do NOT see the parent conversation, and the main session does NOT see your file reads, Glob results, or Grep output; only your final summary returns.
