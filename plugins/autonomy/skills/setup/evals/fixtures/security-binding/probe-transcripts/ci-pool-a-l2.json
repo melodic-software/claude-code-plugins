@@ -7,7 +7,7 @@
   "probed_at": "2026-07-01T08:00:00Z",
   "assertions": {
     "egress_denied": { "host": "example.com", "exit_code": "7", "outcome": "denied" },
-    "credentials_absent": { "path": "/host-home/.credentials", "exit_code": "1", "outcome": "absent-or-denied" }
+    "credentials_absent": { "path": "/host-home/.credentials,http://169.254.169.254/metadata/instance", "exit_code": "1", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }

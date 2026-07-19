@@ -77,6 +77,11 @@ const SPECIAL_USE_TLDS = [
 // cannot know the org's probed credential paths, so any entry not
 // recognizably a credential location is rejected rather than trusted — a
 // failing read of an arbitrary path proves nothing about credential absence.
+// The isolation-probe template names "a cloud metadata endpoint" as a marked
+// example, hence "metadata" and the link-local metadata IP. That IP is a
+// DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
+// (link-local proves no external egress): metadata IS the cloud credential
+// source, and the two checks serve opposite goals.
 const CREDENTIAL_LOCATION_TOKENS = [
   ".ssh",
   ".netrc",
@@ -88,6 +93,8 @@ const CREDENTIAL_LOCATION_TOKENS = [
   "id_rsa",
   "credentials",
   "token",
+  "metadata",
+  "169.254.169.254",
 ];
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
