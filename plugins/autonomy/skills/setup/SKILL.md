@@ -243,8 +243,11 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    configured/interviewed value binds it. Unbound values are never a reason to block a
    non-interactive run or leave the section silently unwired: an unbound
    `automation_identity` means step 2's trigger gate cannot fire yet, and an unbound
-   `requester_source` means step 3's ordinary-item actor check cannot be wired yet — each
-   is reported, not hidden.
+   `requester_source` means ordinary-item capture stays ADVISORY on BOTH halves — the close
+   trigger too, not just the reply handler, since a close-time record requires the resolved
+   `attestation_owner` snapshot and an addressed request (an unowned record could never be
+   attested); requester-less surfaces with resolved routing entries may still wire — each
+   unbound value is reported, not hidden.
 
 ## What this skill does NOT do
 
