@@ -24,7 +24,7 @@
         "Detects that the current branch is the default branch (main/master) in a feature-branch workflow",
         "Creates or directs creation of a feature branch before the first code edit, rather than editing on the default branch",
         "Does NOT proceed to write code on the default branch and leave branch creation for later",
-        "Does NOT mandate a specific branch-name grammar — treats `<type>/<description>` as one acceptable form, not the only correct one"
+        "Does NOT mandate a specific branch-name grammar — defers to the consuming project's declared branch-naming convention, treating `<type>/<description>` only as the fallback default when no convention is declared"
       ]
     },
     {
