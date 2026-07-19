@@ -102,9 +102,15 @@ function extractEnvelope(body, where) {
     findings.push(`${where}: no ${MARKER} marker record found`);
     return null;
   }
-  const fence = body.slice(markerIndex).match(/```json\s*\n([\s\S]*?)\n```/);
+  // The contract is ONE marker plus ONE fenced record bound to it — a second
+  // marker is a conflict to surface for repair, never something to certify.
+  if (body.indexOf(MARKER, markerIndex + MARKER.length) !== -1) {
+    findings.push(`${where}: multiple ${MARKER} markers found — exactly one marker record is allowed`);
+    return null;
+  }
+  const fence = body.slice(markerIndex + MARKER.length).match(/^\s*```json\s*\n([\s\S]*?)\n```/);
   if (!fence) {
-    findings.push(`${where}: marker present but no fenced JSON record follows it`);
+    findings.push(`${where}: marker is not immediately followed by its fenced JSON record`);
     return null;
   }
   try {
@@ -116,21 +122,25 @@ function extractEnvelope(body, where) {
 }
 
 // Merge every `surfaces` map any top-level binding section records (triggers
-// today, routines when that section lands) — first recording of an id wins.
+// today, routines when that section lands). An id recorded by more than one
+// section is AMBIGUOUS — resolution refuses it rather than silently picking a
+// winner whose scheduler class may differ.
 function collectSurfaces(binding) {
   const surfaces = new Map();
+  const duplicates = new Set();
   for (const section of Object.values(binding ?? {})) {
     if (typeof section !== "object" || section === null) continue;
     const map = section.surfaces;
     if (typeof map !== "object" || map === null) continue;
     for (const [id, entry] of Object.entries(map)) {
-      if (!surfaces.has(id)) surfaces.set(id, entry);
+      if (surfaces.has(id)) duplicates.add(id);
+      else surfaces.set(id, entry);
     }
   }
-  return surfaces;
+  return { surfaces, duplicates };
 }
 
-function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
+function checkEnvelope(envelope, where, { surfaces, duplicates }, bindingSupplied) {
   const version = envelope.schema_version;
   if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
     findings.push(
@@ -185,6 +195,10 @@ function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
       findings.push(`${where}: signal.source_surface missing (required for temporal signals)`);
     } else if (!bindingSupplied) {
       findings.push(`${where}: temporal signal requires --binding to resolve signal.source_surface`);
+    } else if (duplicates.has(sourceSurface)) {
+      findings.push(
+        `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is recorded by more than one binding section — ambiguous, fix the binding`,
+      );
     } else if (!surfaces.has(sourceSurface)) {
       findings.push(`${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not recorded in any binding surfaces map`);
     } else {
@@ -237,10 +251,10 @@ if (targets.length === 0) {
   process.exit(2);
 }
 
-let surfaces = new Map();
+let resolver = { surfaces: new Map(), duplicates: new Set() };
 if (bindingPath !== null) {
   try {
-    surfaces = collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8")));
+    resolver = collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8")));
   } catch (error) {
     console.error(`cannot read binding ${bindingPath}: ${error.message}`);
     process.exit(2);
@@ -253,7 +267,7 @@ try {
     const envelope = extractEnvelope(readFileSync(target, "utf8"), target);
     if (envelope === null) continue;
     envelopesChecked += 1;
-    checkEnvelope(envelope, target, surfaces, bindingPath !== null);
+    checkEnvelope(envelope, target, resolver, bindingPath !== null);
   }
 } catch (error) {
   // A missing or unreadable target is an environment error (exit 2), never a
