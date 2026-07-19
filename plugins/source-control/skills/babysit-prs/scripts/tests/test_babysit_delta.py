@@ -272,6 +272,71 @@ class UnsuppressibleDeltaArmTests(unittest.TestCase):
         self.assertTrue(result["needs_worker"])
 
 
+class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
+    """The engine must not dispatch a worker onto its own prior-round replies.
+
+    A solo maintainer whose login is the configured self-login posts every
+    worker classification reply and `Fixed in <sha>` follow-up under that login.
+    Counting those as new human feedback manufactures a self-inflicted,
+    unsuppressible `new_human_blocking_feedback` dispatch that re-fires forever
+    (issue #473). The bot arms are self-filtered structurally; the human arm
+    needs an explicit self-login filter -- but only over the *new-feedback
+    deltas*, never the classification itself.
+    """
+
+    SELF = frozenset({"solo"})
+    CONFIG = delta.ClassifyConfig(allowed_owners=frozenset({"owner"}),
+                                  self_logins=SELF)
+    SELF_BLOCKING = {"author": {"login": "solo", "__typename": "User"},
+                     "body": "must fix this blocking issue"}
+    # GitHub logins are case-insensitive: a differently-cased self login must
+    # still be recognized, matching the casefold the engine applies.
+    SELF_BLOCKING_MIXED_CASE = {"author": {"login": "SoLo", "__typename": "User"},
+                                "body": "must fix this blocking issue"}
+    OTHER_BLOCKING = {"author": {"login": "reviewer", "__typename": "User"},
+                      "body": "must fix this blocking issue"}
+
+    def test_self_login_reply_does_not_manufacture_dispatch(self) -> None:
+        # A recent worker check-in suppresses the bounded `quiet_recheck_due`
+        # fallback, so the only signal that could still dispatch is the
+        # (unsuppressible) new_human_blocking_feedback delta. Filtered out for a
+        # self-authored comment, it must leave the PR needing no worker.
+        result = classify(make_pr(comments=[self.SELF_BLOCKING]),
+                          make_prev(last_worker_checkin_at=OBS), self.CONFIG)
+        self.assertNotIn("new_human_blocking_feedback",
+                         result["needs_worker_reasons"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_self_login_match_is_case_insensitive(self) -> None:
+        result = classify(make_pr(comments=[self.SELF_BLOCKING_MIXED_CASE]),
+                          make_prev(last_worker_checkin_at=OBS), self.CONFIG)
+        self.assertNotIn("new_human_blocking_feedback",
+                         result["needs_worker_reasons"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_self_login_item_is_still_classified_human_blocking(self) -> None:
+        # Deliberate scope: the comment is excluded only from the dispatch
+        # delta, not from classification -- so a genuine "do not merge" comment
+        # the maintainer posts under their own login still halts the merge gate.
+        result = classify(make_pr(comments=[self.SELF_BLOCKING]),
+                          make_prev(last_worker_checkin_at=OBS), self.CONFIG)
+        authors = [item["author"]
+                   for item in result["feedback"]["human_blocking"]]
+        self.assertEqual(authors, ["solo"])
+        self.assertTrue(result["human_stop"]["required"])
+        self.assertFalse(result["pr_clean_ready_for_direct_gate"])
+
+    def test_other_login_still_fires_under_same_config(self) -> None:
+        # The filter is login-specific, not a blanket human-feedback mute:
+        # genuine feedback from any other login must still dispatch a worker,
+        # even with a recent check-in that suppresses the quiet-recheck fallback.
+        result = classify(make_pr(comments=[self.OTHER_BLOCKING]),
+                          make_prev(last_worker_checkin_at=OBS), self.CONFIG)
+        self.assertIn("new_human_blocking_feedback",
+                      result["needs_worker_reasons"])
+        self.assertTrue(result["needs_worker"])
+
+
 class DispatchPendingUnconfirmedTests(unittest.TestCase):
     def test_pending_dispatch_survives_direct_gate_readiness(self) -> None:
         prev = make_prev(pending_worker_dispatch_head_sha=HEAD,
