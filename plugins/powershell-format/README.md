@@ -71,6 +71,8 @@ linting still run.
 /plugin install powershell-format@melodic-software
 ```
 
+Then verify prerequisites with `/powershell-format:setup check`.
+
 ## Configuration
 
 The formatting and linting rules come from the

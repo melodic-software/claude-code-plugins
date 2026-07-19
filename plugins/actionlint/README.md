@@ -45,6 +45,8 @@ your `PATH`.
 /plugin install actionlint@melodic-software
 ```
 
+Then verify prerequisites with `/actionlint:setup check`.
+
 ## Configuration
 
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your

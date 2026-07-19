@@ -25,6 +25,11 @@ truth for what it requires and how it resolves things. **Read it first** — pro
 actually does, don't recite this file. Then run each probe via Bash and report a
 PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
+When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
+INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report the probes informationally and note that re-enabling
+restores the FAIL semantics.
+
 1. **Bash version** — check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
 2. **`jq`** — `command -v jq`. FAIL if absent: the hook then skips with a visible
@@ -71,7 +76,8 @@ install command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure markdown-format` or
+- toggle off: direct to `/plugin configure markdown-format` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall markdown-format` then
   `claude plugin install markdown-format@<marketplace> --config markdown_format_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 - no markdownlint config: offer to create a minimal `.markdownlint-cli2.jsonc` in the

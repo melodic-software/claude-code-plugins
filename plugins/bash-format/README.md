@@ -59,6 +59,8 @@ formatting still run.
 /plugin install bash-format@melodic-software
 ```
 
+Then verify prerequisites with `/bash-format:setup check`.
+
 ## Configuration
 
 The linting and formatting rules come from the `.shellcheckrc` and
