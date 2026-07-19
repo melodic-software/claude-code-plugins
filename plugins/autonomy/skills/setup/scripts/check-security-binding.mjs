@@ -80,8 +80,9 @@ const SPECIAL_USE_TLDS = [
 // trusted — a failing read of an arbitrary path proves nothing about
 // credential absence. Generic single-word components are deliberately NOT
 // listed: a bare "token" segment (e.g. "/tmp/token") is not host-credential
-// evidence — only a *_token/*.token suffix form, a specific known filename,
-// or a recognized pair qualifies.
+// evidence, and suffix forms are inherently inventable (an invented *_token
+// name proves nothing) — only a specific known filename or a recognized
+// pair qualifies.
 // The isolation-probe template's "cloud metadata endpoint" example qualifies
 // ONLY through the URL branch's known endpoints — a filesystem path segment
 // named "metadata" is not credential evidence. The metadata IP there is a
@@ -102,6 +103,9 @@ const CREDENTIAL_SEGMENT_PAIRS = [
   [".docker", "config.json"],
   [".config", "gh"],
 ];
+// Well-known credential variable names for the whole-entry env-token form
+// (compared against the lowercased entry).
+const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
 // A recognized credential segment counts only when ANCHORED under a home
 // base or a system credential prefix — a recognized name under an ephemeral
 // base like /tmp is planted evidence, not the host's credential store. An
@@ -153,13 +157,12 @@ function isRecognizedCredentialEntry(entry) {
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   // A whole-entry env-style token naming a credential variable qualifies on
   // its own (e.g. $GITHUB_TOKEN — an injected token env var per the
-  // template's marked examples). Only a *_token form with a non-empty prefix
-  // qualifies: a generic $TOKEN (or bare $_token) may be unset or unrelated —
-  // it names no host credential source, same rationale as the bare "token"
-  // filesystem segment.
+  // template's marked examples), but only WELL-KNOWN credential variable
+  // names are recognizable statically: an invented *_token name proves
+  // nothing; org-specific names belong to the future configured allow-list.
   if (segments.length === 1 && isEnvToken(segments[0])) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
-    return bare.endsWith("_token") && bare.length > "_token".length;
+    return CREDENTIAL_ENV_VARS.has(bare);
   }
   // A relative path resolves against an arbitrary cwd and says nothing about
   // the host credential store — only a rooted form names a host location:
@@ -172,8 +175,6 @@ function isRecognizedCredentialEntry(entry) {
   const credIndex = segments.findIndex(
     (segment, index) =>
       CREDENTIAL_SEGMENTS.has(segment) ||
-      segment.endsWith("_token") ||
-      segment.endsWith(".token") ||
       CREDENTIAL_SEGMENT_PAIRS.some(([first, second]) => segment === first && segments[index + 1] === second),
   );
   if (credIndex === -1) return false;
@@ -573,11 +574,13 @@ function isDeniedV4(addr) {
     // Non-global space that can never demonstrate public egress (IANA IPv4
     // special-purpose registry, "not globally reachable"): IETF protocol
     // assignments (192.0.0/24), TEST-NET-1/2/3, benchmarking (198.18/15),
-    // CGNAT (100.64/10), multicast (224/4), reserved (240/4). Registry
-    // entries flagged globally reachable (AS112 192.175.48/24 and
-    // 192.31.196/24, AMT 192.52.193/24) stay allowed.
+    // CGNAT (100.64/10), multicast (224/4), reserved (240/4), and 6to4 relay
+    // anycast (192.88.99/24, deprecated per RFC 7526 and not reliably
+    // globally routed). Registry entries flagged globally reachable (AS112
+    // 192.175.48/24 and 192.31.196/24, AMT 192.52.193/24) stay allowed.
     (a === 192 && b === 0 && c === 0) ||
     (a === 192 && b === 0 && c === 2) ||
+    (a === 192 && b === 88 && c === 99) ||
     (a === 198 && b === 51 && c === 100) ||
     (a === 203 && b === 0 && c === 113) ||
     (a === 198 && (b === 18 || b === 19)) ||
@@ -831,7 +834,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted (absolute or home-env-token-based) and ANCHORED under a home base (home, root, users, host-home, or a home env token like $HOME / %USERPROFILE%) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted (absolute or home-env-token-based) and ANCHORED under a home base (home, root, users, host-home, or a home env token like $HOME / %USERPROFILE%) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
