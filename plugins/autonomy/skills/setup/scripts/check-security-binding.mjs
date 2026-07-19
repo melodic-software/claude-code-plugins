@@ -112,12 +112,13 @@ function isRecognizedCredentialEntry(entry) {
     }
     // KNOWN cloud metadata endpoints only — a "metadata" label or path
     // segment on an arbitrary host proves nothing; org-specific endpoints
-    // belong in a future configured allow-list.
-    return (
-      url.hostname === "169.254.169.254" ||
-      url.hostname === "metadata.google.internal" ||
-      url.hostname === "metadata"
-    );
+    // belong in a future configured allow-list. The bare single-label
+    // "metadata" hostname is deliberately NOT accepted here, mirroring the
+    // egress check's single-label distrust (isNonExternalEgressHost): it
+    // resolves through search domains, so a failed lookup proves nothing
+    // about real host-credential exposure and could pass while e.g.
+    // ~/.aws/credentials remains fully readable.
+    return url.hostname === "169.254.169.254" || url.hostname === "metadata.google.internal";
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   return segments.some((segment, index) => {
@@ -509,8 +510,10 @@ function isDeniedV4(addr) {
     (a === 192 && b === 168) ||
     (a === 169 && b === 254) ||
     // Non-global space that can never demonstrate public egress:
-    // TEST-NET-1/2/3, benchmarking (198.18/15), CGNAT (100.64/10),
-    // multicast (224/4), reserved (240/4).
+    // IETF protocol assignments (192.0.0/24, RFC 6890), TEST-NET-1/2/3,
+    // benchmarking (198.18/15), CGNAT (100.64/10), multicast (224/4),
+    // reserved (240/4).
+    (a === 192 && b === 0 && c === 0) ||
     (a === 192 && b === 0 && c === 2) ||
     (a === 198 && b === 51 && c === 100) ||
     (a === 203 && b === 0 && c === 113) ||
