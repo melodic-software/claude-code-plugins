@@ -8,9 +8,10 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 ### Changed
 
 - Artifact-naming example in the tracing/video reference drops the tracker-shaped
-  `issue-123` token for an agnostic `<descriptive-name>` placeholder, so the
-  destination comes from the consumer's own project conventions rather than
-  presuming GitHub-integer issue numbering and a mandated `docs/evidence/` layout.
+  `issue-123` filename token and the hardcoded `docs/evidence/` directory for
+  agnostic `<artifact-dir>/<descriptive-name>` placeholders, so the destination
+  comes from the consumer's own project conventions rather than presuming
+  GitHub-integer issue numbering and a mandated evidence-directory layout.
 
 ## [0.3.0]
 
