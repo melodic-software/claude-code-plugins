@@ -1,7 +1,7 @@
 ---
 name: audit
-description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, auto-fixes or presents for review. Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--review-only` (present findings, no auto-fix), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
-argument-hint: "[scope] [--review-only] [--docs-only|--code-only|--config-only|--arch-only]"
+description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; `--fix` applies the auto-fixes. Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (apply auto-fixes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
+argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-only]"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -21,7 +21,10 @@ Arguments: `$ARGUMENTS`
 Parse `$ARGUMENTS` for:
 
 - **Scope** (optional): directory or file path to limit the audit (default: entire repo)
-- **`--review-only`**: present findings for user approval before fixing; do NOT auto-fix
+- **`--fix`**: apply the auto-fixes after reporting. Per the naming doctrine's verb
+  contract, bare `audit` is READ-ONLY — it reports and stops; every mutation sits behind
+  this explicit override. (`--review-only` is accepted as a legacy alias for the bare
+  read-only default.)
 - **Dimension filters** (optional, mutually exclusive):
   - `--docs-only`: only documentation checks
   - `--code-only`: only code-quality checks
@@ -32,11 +35,12 @@ If no filter is specified, audit every active dimension — the Phase 1 per-file
 dimension order irrelevant (each file gets its own subagent). Enumerate `primary-sources` across all
 active dimensions and dispatch per file.
 
-## Model auto-invoke default
+## Read-only default
 
-When the model invokes this skill without explicit user authorization to auto-fix, treat the run as
-**`--review-only`**. Phases 4–6 (auto-fix) and Phase 7 (retrospective) run only when the user
-explicitly requests fixes or omits `--review-only` with clear fix intent.
+Bare invocation — by the user or the model — reports and stops. Phases 4–6 (auto-fix) and
+Phase 7 (retrospective) run only under an explicit `--fix` from the user (or an equally
+explicit "fix what you find" instruction in their prose); model auto-invocation never
+supplies `--fix` on its own.
 
 ---
 
@@ -93,7 +97,7 @@ Never hardcode a repo layout; read a declared value, infer-and-record, or ask.
 For any audit run (Phases 0-7), copy
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/templates/checklist.md` into wherever the consuming
 repo keeps working task notes (or keep it in-response). Tick each phase as completed. Phases 4-7 may
-SKIP per `--review-only` mode.
+SKIP unless `--fix` was given.
 
 ---
 
@@ -214,13 +218,14 @@ If the audit finds no discrepancies, report a clean bill of health:
 - State explicitly: "No findings. All claims verified as correct."
 - Do NOT invent findings to justify the audit. A clean codebase is the goal, not a guaranteed list
   of issues.
-- Skip Phases 4-6 (nothing to fix). If not `--review-only`, proceed to Phase 7 (Retrospective) with
+- Skip Phases 4-6 (nothing to fix). With `--fix`, proceed to Phase 7 (Retrospective) with
   scope/coverage observations.
 
-### Review-only gate
+### Fix gate
 
-**If `--review-only`**: present the full report and **STOP**.
-**If autonomous**: present the summary count and continue to Phase 4.
+**Without `--fix`** (the default, including every model auto-invocation): present the full
+report and **STOP**.
+**With `--fix`**: present the summary count and continue to Phase 4.
 
 ---
 

@@ -3,6 +3,16 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **BREAKING: `audit` is read-only on bare invocation** (fleet conformance
+  wave: the naming doctrine's `audit` verb contract). It reports and stops;
+  auto-fix phases now require the explicit `--fix` flag. `--review-only` is
+  accepted as a legacy alias for the new default and no longer needs to be
+  passed.
+
 ## [0.5.0]
 
 ### Changed

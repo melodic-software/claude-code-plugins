@@ -57,16 +57,16 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 
 ## Ecosystem verification commands (Phase 7)
 
-Prefer the consuming project's own canonical commands (its `CLAUDE.md` / CI config usually names them — e.g. warnings-as-errors flags, custom test runners). Generic fallbacks when none are declared:
+Resolve each group's verification command through the registered ecosystem-command owner —
+do not maintain a command table here. In order:
 
-| Group ecosystem | Fallback verification |
-|----------------|-----------------------|
-| .NET | `dotnet build` + `dotnet test` from the project dir |
-| TypeScript/JavaScript | `npx biome check .` (or the project's lint script) + `npm test` from the project dir |
-| Python | `ruff check .` + `pytest` from the project dir |
-| Bash | `shellcheck <files>` + `shfmt -d <files>` |
-| PowerShell | `pwsh -NoProfile -NonInteractive -Command "Invoke-ScriptAnalyzer -Path <files>"` |
-| Markdown (docs flag) | `npx markdownlint-cli2 <files>` (with the project's config when present) |
-| Mixed/config | the dominant ecosystem's build + `jq . < file` for JSON validity |
+1. When the `toolchain` plugin is installed, `/toolchain:build` (scoped to the group's
+   files) IS the verification step — it resolves the consuming project's tracked
+   per-ecosystem command config and its own portable defaults.
+2. Otherwise, the consuming project's own canonical commands (its `CLAUDE.md` / CI config
+   usually names them — e.g. warnings-as-errors flags, custom test runners).
+3. Otherwise, the ecosystem's ordinary build/lint/test entry points, inferred from the
+   group's manifests (never a memorized command list — read the project's scripts,
+   `Makefile`, or manifest to pick them).
 
 Include the group's verification step in each simplifier agent's prompt so the agent self-verifies before returning; Phase 7 re-runs it as the safety net.

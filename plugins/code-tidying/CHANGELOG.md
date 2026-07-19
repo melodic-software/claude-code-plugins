@@ -3,6 +3,16 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- **batch-simplify resolves verification commands through the registered
+  ecosystem-command owner** (fleet conformance wave, registry single-home).
+  The baked per-ecosystem command table is gone: `/toolchain:build` when
+  installed, else the project's own canonical commands, else manifest-derived
+  entry points — never a memorized list.
+
 ## [0.5.0]
 
 ### Changed
