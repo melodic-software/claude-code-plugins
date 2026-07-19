@@ -58,7 +58,14 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   `new_blocking_feedback`) — a human `CHANGES_REQUESTED`/blocking/unresolved-inline-thread item
   with a new id. An *ordinary*, non-blocking new human comment does **not** set this — it is
   handled per `feedback.md`'s Human Feedback section, surfaced directly by the main agent from the
-  snapshot without spending a worker on it.
+  snapshot without spending a worker on it. Excludes items authored by the configured
+  self-login(s): the worker posts its own prior-round classification replies and `Fixed in <sha>`
+  follow-ups under the operator's own login, so counting them would manufacture a self-inflicted
+  dispatch that re-fires every cycle. The bot arms get this self-filter structurally (the engine
+  never comments as a bot); the human arm needs it explicitly, matching the self-reply exclusion
+  `review-discipline.md` §1 already mandates for the worker. A self-authored item still sets the
+  human stop and triage blocker — only the worker-dispatch delta is suppressed, so a genuine
+  "do not merge" comment the maintainer posts under their own login still halts the merge gate.
 - **`resolved_human_blocking`** (suppressible) — the PR previously required a human stop
   (`CHANGES_REQUESTED` or a blocking/unresolved human item), and now requires none, with no other
   delta. Symmetric to `resolved_blocking_feedback` below: without this arm a PR that just cleared
