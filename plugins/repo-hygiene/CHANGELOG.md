@@ -3,6 +3,19 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+
+- **`git-tree-reset.sh` — `clean` now gated on a successful `reset --hard`.** The
+  `--apply` path runs under `set -uo pipefail` (no `-e`) and never checked the
+  `git reset --hard` exit status before running `git clean -fdx`, so a failed reset
+  fell through to the destructive clean — leaving the tree cleaned but not reset (a
+  partial destructive op). A non-zero reset now aborts the apply before `clean` and
+  the reparse-point restore guard ever run, prints an explicit failure line, emits
+  honest `AppliedReset: failed` / `AppliedClean: none` (never a success line for a
+  command that failed), and exits 5.
+
 ## [0.3.0]
 
 ### Added
