@@ -4,9 +4,9 @@
   "level": "L2",
   "substrate": "egress-denied-container-pool",
   "substrate_class": "container",
-  "probed_at": "2026-07-01T18:00:00Z",
+  "probed_at": "2026-07-04T09:00:00Z",
   "assertions": {
-    "egress_denied": { "host": "0:0:0:0:0:0:0:1", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
+    "egress_denied": { "host": "definitely-no-such-probe-target-983475.example.net", "exit_code": "6", "outer_exit_code": "6", "outcome": "denied" },
     "credentials_absent": { "path": "$HOME/.credentials", "host_expanded": "/home/runner/.credentials", "exit_code": "1", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true

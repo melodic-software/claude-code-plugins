@@ -6,8 +6,8 @@
   "substrate_class": "container",
   "probed_at": "2026-07-03T20:00:00Z",
   "assertions": {
-    "egress_denied": { "host": "example.com", "exit_code": "7", "outcome": "denied" },
-    "credentials_absent": { "path": "//etc/credentials", "exit_code": "1", "outcome": "absent-or-denied" }
+    "egress_denied": { "host": "example.com", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
+    "credentials_absent": { "path": "//etc/credentials", "host_expanded": "//etc/credentials", "exit_code": "1", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }

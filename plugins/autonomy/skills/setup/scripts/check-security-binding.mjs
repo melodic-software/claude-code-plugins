@@ -118,7 +118,10 @@ const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
 // allow-list. The anchor must be the FIRST segment: an env token behind an
 // arbitrary prefix ("/mnt/<mount>/$HOME/...") inherits the prefix's
 // inventability. A recognized name under an ephemeral base like /tmp is
-// planted evidence, not the host's credential store.
+// planted evidence, not the host's credential store. A literal
+// "/home/<user>" IS accepted as a credentials_absent.host_expanded value —
+// there the capture shape's recorded outer expansion step corroborates it;
+// the inventability objection applies to UNCORROBORATED bare entries.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
 const isHomeEnvToken = (segment) =>
@@ -196,6 +199,49 @@ function isRecognizedCredentialEntry(entry) {
     segments[0] === "etc" ||
     (segments[0] === "run" && segments[1] === "secrets")
   );
+}
+
+// Per-entry validation of the recorded host-side expansion. The credential
+// probe runs INSIDE the boundary with no host environment, so an in-shell
+// home token expands to the boundary's OWN home (e.g. /root in a container)
+// and its failing read tests nothing about the host store — the recipe
+// expands the token OUTSIDE the boundary, passes the concrete path in as a
+// literal, and records that expansion. A concrete entry (fixed system path,
+// metadata URL, or whole-entry credential env token) needs no expansion, so
+// host_expanded must repeat it verbatim — anything else means the capture
+// step rewrote a path it had no reason to touch. A home-env-token entry's
+// expansion must itself plausibly be the host home path: rooted
+// (POSIX-absolute or drive-letter-absolute), not a UNC form, free of
+// ephemeral segments, and TAIL-CONSISTENT with the entry — everything after
+// the token must be the expansion's trailing suffix ($HOME/.ssh pairs with
+// /home/runner/.ssh, never /home/runner/.gnupg). Normalization matches the
+// entry handling (lowercase, backslashes to slashes). Returns null when
+// valid, else the reason.
+function credentialExpansionProblem(entry, expanded) {
+  const normalizedEntry = entry.toLowerCase().replaceAll("\\", "/");
+  const normalizedExpanded = expanded.toLowerCase().replaceAll("\\", "/");
+  const segments = normalizedEntry.split("/").filter((segment) => segment.length > 0);
+  const homeAnchored =
+    !normalizedEntry.includes("://") && segments.length > 1 && isHomeEnvToken(segments[0]);
+  if (!homeAnchored) {
+    return normalizedExpanded === normalizedEntry
+      ? null
+      : "a concrete entry needs no host-side expansion, so host_expanded must repeat the entry verbatim";
+  }
+  if (normalizedExpanded.startsWith("//")) {
+    return "the host-side expansion is a UNC form, which invents its server rather than naming the host home";
+  }
+  if (!(normalizedExpanded.startsWith("/") || /^[a-z]:\//.test(normalizedExpanded))) {
+    return "the host-side expansion must be rooted (POSIX-absolute or drive-letter-absolute)";
+  }
+  if (normalizedExpanded.split("/").some((segment) => EPHEMERAL_SEGMENTS.has(segment))) {
+    return "the host-side expansion sits under an ephemeral base (tmp, temp, shm) — planted evidence, not the host credential store";
+  }
+  const tail = normalizedEntry.slice(segments[0].length);
+  if (!normalizedExpanded.endsWith(tail)) {
+    return `the host-side expansion is not tail-consistent with the entry — everything after the home token (${JSON.stringify(tail)}) must be the expansion's trailing suffix`;
+  }
+  return null;
 }
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
@@ -871,6 +917,26 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
       return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — the special-use/reserved TLD ${JSON.stringify(specialTld)} can never demonstrate public egress; probe a resolvable public host, or pass the org's configured target via --egress-hosts`;
     }
   }
+  // A non-zero inner exit alone cannot tell a denied boundary from a target
+  // that fails everywhere: an unregistered name NXDOMAINs with OPEN egress
+  // too, so its failing fetch proves nothing. The probe therefore runs the
+  // SAME fetch from the networked outer context and records its exit —
+  // outer_exit_code, comma-separated and positionally paired with the probed
+  // host(s) like the per-target credential codes — and only outer success
+  // ("0") makes the inner failure evidence of the boundary. Required with or
+  // without --egress-hosts: reachability evidence is orthogonal to which
+  // targets are trusted.
+  const egressHosts = egressHost.split(",").map((host) => host.trim());
+  const rawOuterCodes = transcript.assertions.egress_denied.outer_exit_code;
+  const outerCodes = typeof rawOuterCodes === "string" ? rawOuterCodes.split(",").map((code) => code.trim()) : [];
+  if (outerCodes.length !== egressHosts.length) {
+    return `transcript ${path} records assertions.egress_denied.outer_exit_code ${JSON.stringify(rawOuterCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed host is required, comma-separated and positionally paired with host: a failed inner probe proves an egress boundary only when the outer context proves the target was reachable`;
+  }
+  for (const [index, code] of outerCodes.entries()) {
+    if (code !== "0") {
+      return `transcript ${path} records assertions.egress_denied.outer_exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — the outer-context fetch of the same target must succeed (exit "0"): a failed inner probe proves an egress boundary only when the outer context proves the target was reachable`;
+    }
+  }
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
   }
@@ -888,12 +954,26 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (credentialCodes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(rawCredentialCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded exit code per probed credential path is required, comma-separated and positionally paired with path: a single code cannot prove absence on every listed location`;
   }
+  // host_expanded carries the recipe's outside-the-boundary expansion of each
+  // probed path (validated per entry below): an in-shell home token expands
+  // to the boundary's OWN home, so only a recorded host-side expansion names
+  // the host credential location.
+  const rawHostExpanded = transcript.assertions.credentials_absent.host_expanded;
+  const hostExpanded =
+    typeof rawHostExpanded === "string" ? rawHostExpanded.split(",").map((entry) => entry.trim()) : [];
+  if (hostExpanded.length !== credentialPaths.length) {
+    return `transcript ${path} records assertions.credentials_absent.host_expanded ${JSON.stringify(rawHostExpanded)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded host-side expansion per probed credential path is required, comma-separated and positionally paired with path: an in-shell home token expands to the boundary's own home, so only a recorded host-side expansion names the host credential location`;
+  }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
       return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets) and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
+    }
+    const expansionProblem = credentialExpansionProblem(entry, hostExpanded[index]);
+    if (expansionProblem !== null) {
+      return `transcript ${path} records assertions.credentials_absent.host_expanded entry ${JSON.stringify(hostExpanded[index])} for path ${JSON.stringify(entry)} — ${expansionProblem}`;
     }
   }
   if (transcript.outer_context_networked !== true) {
