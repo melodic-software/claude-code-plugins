@@ -12,10 +12,12 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
   assumption the convention-resolution discipline forbids. Both call sites now resolve the default
   branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (with the `origin/` prefix stripped),
-  falling back to the current upstream/tracking branch, matching the infer-don't-guess discipline
-  applied elsewhere. The resolution is now an explicit assignment that runs before `git merge-base`
-  consumes it (previously it was descriptive prose, leaving `$DEFAULT_BRANCH` unset so the documented
-  command expanded to `git merge-base "" HEAD`); when neither detection path resolves a branch, the
+  falling back to a `git ls-remote --symref origin HEAD` query of the remote's own default branch,
+  matching the infer-don't-guess discipline applied elsewhere. The resolution is now an explicit
+  assignment that runs before `git merge-base` consumes it (previously it was descriptive prose,
+  leaving `$DEFAULT_BRANCH` unset so the documented command expanded to `git merge-base "" HEAD`);
+  `merge-base` runs against the remote-tracking ref `origin/$DEFAULT_BRANCH`, which resolves in a
+  clean checkout without a local branch of that name. When no default branch resolves, the
   branch-diff path is skipped rather than guessed.
 
 ## [0.4.0]

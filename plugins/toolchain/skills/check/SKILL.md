@@ -58,15 +58,15 @@ If the working tree is clean, fall back to the branch diff so checkpoint-committ
 
 ```bash
 DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
-DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)}
-if [[ -n "$DEFAULT_BRANCH" ]]; then
-  git diff --name-only "$(git merge-base "$DEFAULT_BRANCH" HEAD)..HEAD"
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git ls-remote --symref origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')}
+if [[ -n "$DEFAULT_BRANCH" ]] && git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH" >/dev/null; then
+  git diff --name-only "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)..HEAD"
 else
   echo "branch diff unavailable (could not detect default branch)"
 fi
 ```
 
-If detection yields no default branch (no `origin/HEAD`, no upstream), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths.
+The fallback queries the remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff). `merge-base` is taken against the remote-tracking ref `origin/$DEFAULT_BRANCH`, which resolves without a local branch of that name. If detection yields no default branch (no `origin/HEAD`, and the remote query fails or its ref is absent locally), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths.
 
 If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo, or `/toolchain:check <ecosystem>` for a specific ecosystem." and exit.
 
