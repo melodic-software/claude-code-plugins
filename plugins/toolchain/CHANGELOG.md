@@ -21,8 +21,12 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   but leaves no local ref for `git merge-base`) in favor of a later remote that has one, rather than
   committing to the alphabetically first remote and bailing. The common tracking-remote case still
   short-circuits on the first candidate with no extra network calls, and detection still degrades
-  gracefully (skips the branch-diff path) when no candidate yields a local default branch. A cross-plugin
-  shared default-branch helper remains the broader fix tracked by #436/#442.
+  gracefully (skips the branch-diff path) when no candidate yields a local default branch. Candidate
+  remote names are option-parse-safe: the tracking-ref checks use the fully-qualified
+  `refs/remotes/<remote>/<branch>` form and the `git ls-remote` probe passes `--end-of-options`, so a
+  Git-legal remote whose name begins with a dash (`git clone --origin=-x`) is not misparsed as a command
+  option and skipped. A cross-plugin shared default-branch helper remains the broader fix tracked by
+  #436/#442.
 - **Remote-prefix strip no longer breaks on `#` in a remote name.** The default-branch resolution
   stripped the `$REMOTE/` prefix with `sed "s#^$REMOTE/##"`, whose `#` delimiter collides with a
   `#` in the remote name (a Git-legal character), corrupting `DEFAULT_BRANCH` and silently skipping
