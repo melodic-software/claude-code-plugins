@@ -87,7 +87,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 
 ### Dependency direction
 
-When implementing across layers, respect the project's dependency direction. Implement inner layers first (Core/Domain), then outer layers (Application/Infrastructure) — ensures each layer compiles independently.
+When implementing across components, respect the project's own dependency direction — implement the depended-upon components before the ones that depend on them, so each compiles against something that already exists. In a layered .NET/Clean-Architecture app, for example, that means inner Core/Domain types before outer Application/Infrastructure; a project with a different structure applies the same principle to its own layout.
 
 ## Step 3: Divergence Detection
 
