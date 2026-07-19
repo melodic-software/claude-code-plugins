@@ -31,6 +31,7 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
 | `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment PRESERVED (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
 | `attestation_request` | machine-written at close: absolute https URL of the posted attestation-request event — the identity an admissible reply must respond to; present on the unattested record whenever a request was posted (absent only for attestation-exempt classes, which post no request) |
+| `attestation_owner` | machine-written at close: the resolved accountable human's platform identity the request was addressed to (via the requester-identity source, or the standing-owner routing), with the role the resolution derived. Reply actors are validated against THIS snapshot — never a re-resolution: a post-close change of the underlying source (field edit, reassignment) does not move ownership; deliberate rerouting is a new automation-posted request that updates the snapshot |
 
 This record's `schema_version` uses major-only tokens (`"1"`, never `"1.0"`); the setup
 skill's own binding `schema_version` uses semver strings — the two are separate version
@@ -39,7 +40,7 @@ spaces with independent parsers.
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
 ABSENT — never null-imputed. An attested record carries all fields. `attestation_request`
-is machine-layer (never human-attested) and rides both states.
+and `attestation_owner` are machine-layer (never human-attested) and ride both states.
 
 Reply correlation: actor + parseable payload alone never attest — an accountable human can
 type a parseable string in an unrelated discussion on the same item. An admissible
@@ -117,11 +118,12 @@ identity derives from the PLATFORM actor of the attestation action — on the co
 the upsert itself is bot-authored, so `attested_by` MUST be copied from, and the record MUST
 cite, the attestation source event (the human's reply whose platform actor answered — the
 reply must carry both attested values; an actor-only signal such as a bare reaction cannot
-attest). `attestor_role` is likewise DERIVED, never free-chosen: `requester` when the
-attesting actor was admitted through the binding's requester-identity source, else the role
-the matched standing-owner routing entry declares (default `other`) — the handler writes the
-derived value; the requester-attested versus independently-attested aggregation split
-depends on this derivation.
+attest). `attestor_role` is likewise DERIVED, never free-chosen: the derivation runs at
+CLOSE TIME, when the accountable owner is resolved into the `attestation_owner` snapshot —
+`requester` when resolution went through the binding's requester-identity source, else the
+role the matched standing-owner routing entry declares (default `other`) — and the handler
+writes the snapshot's role; the requester-attested versus independently-attested
+aggregation split depends on this derivation.
 
 Duplicate tolerance: the standalone capture path's find-then-create has an inherent
 create-create race. Dedupe on read is ATTESTATION-PRESERVING: an attested bot-authored record

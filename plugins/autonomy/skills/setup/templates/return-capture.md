@@ -34,7 +34,8 @@ would record without ever requesting attestation. The two machine blocks:
   "schema_version": "1",
   "work_item_url": "<canonical-item-url>",
   "attested": false,
-  "attestation_request": "<request-event-url>"
+  "attestation_request": "<request-event-url>",
+  "attestation_owner": { "identity": "<platform-identity>", "role": "<derived-role>" }
 }
 ```
 
@@ -46,14 +47,16 @@ request comment.
 
 ## Attestation upsert
 
-Attestation requires a REPLY whose platform actor IS the item's accountable human — the
-requester, resolved through the binding's requester-identity source for the tracker class
-(never guessed from the tracker class alone), or the binding's standing attestation owner for
-requester-less classes; a reply from any other participant is never upserted (the actor
-check is the trust anchor here; `attestor_role` stays descriptive and is DERIVED from the
-admitting match, never free-chosen: `requester` when the actor matched through the binding's
-requester-identity source, else the matched routing entry's declared role, defaulting to
-`other` — the handler writes the derived value). The reply must carry
+Attestation requires a REPLY whose platform actor IS the record's `attestation_owner`
+snapshot — resolved ONCE at close (through the binding's requester-identity source for the
+tracker class, or the standing attestation owner for requester-less classes) and persisted
+on the record; the handler validates against the snapshot, never a re-resolution, so a
+post-close edit of the underlying source cannot move ownership. A reply from any other
+participant is never upserted (the actor
+check is the trust anchor here; `attestor_role` stays descriptive and is DERIVED at close
+into the `attestation_owner` snapshot, never free-chosen: `requester` when close-time
+resolution went through the binding's requester-identity source, else the matched routing
+entry's declared role, defaulting to `other` — the handler writes the snapshot's role). The reply must carry
 BOTH values (`counterfactual` and `effort_band`); a bare reaction cannot carry them and never triggers
 the upsert — the automation leaves the record unattested (optionally re-requesting with the
 expected reply shape). Actor + parseable payload alone are not enough: per the contract's
@@ -79,6 +82,7 @@ Attested record shape (the same fenced JSON record, upserted):
   "work_item_url": "<canonical-item-url>",
   "attested": true,
   "attestation_request": "<request-event-url>",
+  "attestation_owner": { "identity": "<platform-identity>", "role": "<derived-role>" },
   "counterfactual": "partial",
   "effort_band": "1-4h",
   "attested_at": "<iso-8601>",

@@ -173,8 +173,9 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    until an equivalent label/marker convention is bound, which is future work.
 3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
    comment-created (or native-field change) event handler, wired the same reviewable way as
-   the close trigger: on a new reply, check the reply's actor against the accountable-human
-   routing, require the contract's reply-correlation rule (the event responds to the
+   the close trigger: on a new reply, check the reply's actor against the record's
+   `attestation_owner` snapshot (resolved once at close; never re-resolved from a mutable
+   source, per the contract), require the contract's reply-correlation rule (the event responds to the
    recorded `attestation_request`, or carries the flat-tracker `attest:` token — an
    incidental parseable comment never attests), and on a parseable reply carrying both
    values, upsert the SAME attested record
