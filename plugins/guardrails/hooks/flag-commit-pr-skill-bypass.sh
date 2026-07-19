@@ -52,8 +52,10 @@ hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
 start=${EPOCHREALTIME:-}
 
 # jq is required both to parse the tool payload and to read enabledPlugins.
-# Fail OPEN (silent, advisory-only guard) when it is absent.
+# Fail OPEN when it is absent, but make the degraded state visible rather than
+# silently disabling the advisory (this hook never blocks either way).
 if ! command -v jq >/dev/null 2>&1; then
+  echo "guardrails/flag-commit-pr-skill-bypass: jq not found on PATH — advisory disabled (install jq to enable)." >&2
   exit 0
 fi
 

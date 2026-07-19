@@ -231,6 +231,19 @@ jobs:
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
 
+  silent-skip-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check hook entry scripts for silent prerequisite skips
+        run: scripts/check-silent-skips.sh
+      - name: Run silent-skip-gate tests
+        run: bash scripts/check-silent-skips.test.sh
+
   plugin-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -350,6 +363,7 @@ jobs:
       - hook-utils-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - silent-skip-gate
       - plugin-gate
       - miro-plugin
       - runner-policy

@@ -152,6 +152,8 @@ done
 # Resolve pwsh from PATH — never downloaded. Absent -> clean skip (a pwsh-less
 # contributor box, or a Linux cloud session without PowerShell). CI's PowerShell
 # job is the authoritative PSScriptAnalyzer gate, so nothing is lost locally.
+# silent-skip-ok: not-applicable classification — absent pwsh is a by-design
+# quiet skip on hosts without PowerShell; telemetry still records the skip.
 command -v pwsh >/dev/null 2>&1 || emit_skipped
 
 # PowerShell on Windows does not understand MSYS mount paths (/d/...). Convert
