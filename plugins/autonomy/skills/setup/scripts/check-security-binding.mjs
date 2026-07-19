@@ -55,6 +55,23 @@ const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
 // The isolation-probe template's substrate-class tokens.
 const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm"]);
+// Recognized host-credential-location tokens (lowercase, forward slashes).
+// Same no-config-source rationale as the egress-host check: the checker
+// cannot know the org's probed credential paths, so any entry not
+// recognizably a credential location is rejected rather than trusted — a
+// failing read of an arbitrary path proves nothing about credential absence.
+const CREDENTIAL_LOCATION_TOKENS = [
+  ".ssh",
+  ".netrc",
+  ".docker/config.json",
+  ".aws",
+  ".gnupg",
+  ".kube/config",
+  ".config/gh",
+  "id_rsa",
+  "credentials",
+  "token",
+];
 
 // Guardrail-matrix floors: min-isolation level per class (L2 is the floor for
 // ANY autonomous dispatch; C5 requires L3), and the only auto-merge-eligible
@@ -538,6 +555,15 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   }
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
+  }
+  // The path value is a comma-separated list of probed locations; every
+  // entry must be recognizably a host-credential location (case-insensitive,
+  // path-separator-agnostic).
+  for (const entry of transcript.assertions.credentials_absent.path.split(",")) {
+    const normalized = entry.trim().toLowerCase().replaceAll("\\", "/");
+    if (!CREDENTIAL_LOCATION_TOKENS.some((token) => normalized.includes(token))) {
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (${CREDENTIAL_LOCATION_TOKENS.join(", ")})`;
+    }
   }
   if (transcript.outer_context_networked !== true) {
     return `transcript ${path} does not record outer_context_networked true — an offline outer context would deny egress on its own`;
