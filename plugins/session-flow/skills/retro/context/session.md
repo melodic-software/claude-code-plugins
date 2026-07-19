@@ -50,7 +50,7 @@ done
 MEMORY_DIR=.work
 if [[ -f .claude/topic-docs.yaml ]]; then
   VAL=$(sed -n 's/^memory_dir:[[:space:]]*//p' .claude/topic-docs.yaml | head -1)
-  VAL="${VAL%%#*}"; VAL="${VAL//[[:space:]]/}"; VAL="${VAL%/}"
+  VAL="${VAL%%#*}"; VAL="${VAL%"${VAL##*[![:space:]]}"}"; VAL="${VAL%/}"
   VAL="${VAL#\"}"; VAL="${VAL%\"}"; VAL="${VAL#\'}"; VAL="${VAL%\'}"
   [[ -n "$VAL" ]] && MEMORY_DIR="$VAL"
 fi
