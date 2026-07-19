@@ -15,7 +15,8 @@ All notable changes to the `verification` plugin are documented here. Format fol
   otherwise falling back to the project's own tooling — the generic complexity/coverage or
   benchmark/profiling harness where that fits, with a tailored per-bullet fallback where the
   evidence type differs (query logging / database profiling / ORM diagnostics for EF-query
-  analysis, web-vitals tooling for Core Web Vitals). This removes the bare unguarded cross-plugin
+  analysis, a test-quality analyzer or test-smell review checklist for test-quality analysis,
+  web-vitals tooling for Core Web Vitals). This removes the bare unguarded cross-plugin
   reference `docs/PLUGIN-PHILOSOPHY.md` names as a defect; no hard dependencies added, every
   reference stays optional.
 
