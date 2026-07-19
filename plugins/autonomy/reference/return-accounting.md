@@ -101,6 +101,14 @@ write rule has the same property: the close trigger creates the unattested recor
 no marker-matching bot-authored record exists — a re-fired or retried close NEVER overwrites
 or downgrades an existing record's attestation fields.
 
+Attestation has the complementary property: it UPDATES an existing close-time unattested
+record and never creates one. The eligibility gate lives at close time; attestation cannot
+re-run it, so a parseable reply on an item carrying no close-time bot-authored record admits
+nothing. On the comment floor the marker lookup enforces this structurally (no marker
+comment, nothing to edit); a native-field handler has no lookup and MUST verify the
+close-time unattested record is present on the item's fields before writing the attested
+fields.
+
 ## The join — query-side only
 
 The return record and the cost telemetry both carry the work-item join value; the join

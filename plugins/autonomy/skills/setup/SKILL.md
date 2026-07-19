@@ -173,9 +173,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    (not a second contract — this is the one attestation upsert, wired from its own trigger
    surface) — branched by `record_surface`: on the comment floor, find the marker-tagged
    comment and edit it in place (the marker lookup exists to disambiguate among a comment
-   thread); on native fields there is no marker and no lookup at all — the fields are
-   already scoped 1:1 to the closing item, so the handler writes them directly on that same
-   item. Where the tracker offers no reply-triggered surface (no comment webhook, a
+   thread, and its absence enforces the contract's attestation-never-creates rule
+   structurally: no close-time record, nothing to edit); on native fields there is no
+   marker, but the same rule binds — the handler MUST first verify the close-time
+   UNATTESTED v1 record is already present on the item's fields (written by the close
+   trigger, which owns the eligibility gate) and treat its absence as inadmissible, only
+   then writing the attested fields directly on that same item (the fields are scoped 1:1
+   to the closing item, so no lookup beyond that verification is needed). Where the tracker offers no reply-triggered surface (no comment webhook, a
    plan/tier limit), this step routes through the ADVISE step below instead of silently
    wiring only the close half and calling capture complete.
 4. **Route comment writes through the bound tracker adapter's documented comment mechanics

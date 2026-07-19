@@ -84,8 +84,11 @@ comment-created event, or the native-field equivalent where fields support chang
 automation): on each new reply, resolve the actor against the accountable-human routing and,
 on a parseable reply carrying both values, upsert the SAME attested record — not a second
 contract, the one attestation upsert wired from its own trigger. On the comment floor this
-means finding the marker-tagged comment and editing it in place; on native fields there is
-no marker to find — the fields already belong 1:1 to the closing item, so the handler
-writes them directly on that item, no lookup step at all. Where no reply-triggered surface
-is machine-editable, this is advisory: surface that
+means finding the marker-tagged comment and editing it in place (a missing marker comment
+means no close-time record — the reply admits nothing, per the contract's
+attestation-never-creates rule); on native fields there is no marker to find, but the same
+rule binds: the handler first verifies the close-time unattested record is present on the
+item's fields and treats its absence as inadmissible, only then writing the attested fields
+directly on that item (the fields already belong 1:1 to the closing item). Where no
+reply-triggered surface is machine-editable, this is advisory: surface that
 attestation would require a manual upsert rather than silently wiring only the close half.
