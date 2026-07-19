@@ -96,9 +96,20 @@ Sources monitored:
 
 Output: drift report listing each source's status (`current` / `stale` / `unreachable`) and recommended action (`re-download` / `update version pin` / `manual review`). User decides what to act on; update action itself does not apply changes.
 
-When the user accepts a drift recommendation:
+When the user accepts a drift recommendation, the re-pin edit is **maintainer work, gated
+on a working-tree checkout**: applying it requires `${CLAUDE_PLUGIN_ROOT}` to be inside a
+git working tree (`git -C "${CLAUDE_PLUGIN_ROOT}" rev-parse --is-inside-work-tree`
+succeeds — a marketplace clone or a `--plugin-dir` load). In installed form
+`${CLAUDE_PLUGIN_ROOT}` is the read-only plugin cache: **stop** after the drift report and
+direct the change to the plugin's source repository (file an issue or PR there); never
+edit bundled files in the cache. Consumers then receive the re-pin through
+`/plugin marketplace update`.
 
-1. Apply the change to the relevant `references/*.md` file (update pin, refresh page summary).
+In a checkout, when the user accepts a drift recommendation:
+
+1. Apply the change to `references/versions.md` (update pin, refresh page summary) — the
+   single source of truth; `check-drift.sh` parses its pins from that file, so no second
+   copy needs editing.
 2. Run the affected portion of `setup` (e.g., re-download DeDRM_tools if a new pre-release is selected).
 3. Verify the workflow still works end-to-end on at least one book (run `sync` mode against a single test book).
 

@@ -3,6 +3,22 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **`update` re-pins are checkout-gated** (fleet conformance wave, dim 15 —
+  cache isolation). Applying an accepted drift recommendation now requires
+  `${CLAUDE_PLUGIN_ROOT}` to be a git working tree; in installed form the
+  skill stops after the drift report and routes the change to the plugin's
+  source repository — bundled reference files are never edited in the
+  read-only plugin cache.
+- **Pins single-sourced**: `check-drift.sh` now parses every pin from
+  `references/versions.md` (fail-hard on a pin it cannot read) instead of
+  carrying a duplicate hardcoded copy that went stale after re-pins; the
+  local-download verify also derives the installer filename from the pinned
+  URL.
+
 ## [0.4.0]
 
 ### Added
