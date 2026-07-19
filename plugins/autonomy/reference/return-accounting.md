@@ -91,7 +91,13 @@ The record surface resolves per tracker class through the binding:
   record. Upsert is marker-keyed: find the marker comment, edit it in place, else create it.
 
 Record integrity: a conforming record is authored by the deployment's bound automation
-identity; consumers MUST ignore marker-matching records from any other author. Attestor
+identity; consumers MUST ignore marker-matching records from any other author. The comment
+floor carries authorship structurally (every comment is platform-attributed); native field
+VALUES carry no author, so native fields are a conforming record surface ONLY where writes
+to the record fields are restricted to the automation identity by platform ACL, or a
+queryable field-audit trail attributes every write to its actor — absent both, a manually
+edited field set would be indistinguishable from an authentic attestation, and the comment
+floor applies. Attestor
 identity derives from the PLATFORM actor of the attestation action — on the comment floor
 the upsert itself is bot-authored, so `attested_by` MUST be copied from, and the record MUST
 cite, the attestation source event (the human's reply whose platform actor answered — the

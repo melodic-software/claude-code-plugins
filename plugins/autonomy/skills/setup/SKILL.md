@@ -136,8 +136,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
 2. **WIRE where machine-editable + reviewable** — a close-triggered snippet
    ([`templates/return-capture.md`](templates/return-capture.md)) posting the UNATTESTED
    record + the attestation request addressed to the accountable human; the close flow never
-   blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
-   the marker-keyed structured comment otherwise (the universal floor). Entitlement is
+   blocks. Native-field write where entitled AND provenance-verifiable per the contract's
+   record-integrity rule — setup verifies, before selecting `native_fields`, that record-field
+   writes are ACL-restricted to the bound automation identity or that the tracker exposes a
+   queryable field-audit trail attributing writes; entitlement alone never selects the
+   surface, because unverifiable field authorship would let a manual edit pass as an
+   authentic attestation — the marker-keyed structured comment otherwise (the universal
+   floor, which carries authorship structurally). Entitlement is
    detected at the org's plan level and does NOT confirm the complete v1 record field set is
    provisioned and attached on the item surface — a disclosed v1 limitation this slice does
    not detect: a tracker entitled for custom fields yet missing one or more of the v1 record
