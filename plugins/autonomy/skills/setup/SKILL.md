@@ -322,7 +322,7 @@ slice and its templates — the contract stays surface-class vocabulary only.
 
    | Key | Value |
    |---|---|
-   | `surfaces` | object keyed by surface id — each entry `{"class": "<surface-class token>", "transport": "push"\|"push-lifecycle"\|"poll", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded execution-surface id>"}`; `scheduler_class` applies to temporal surfaces only and is the discriminator `signal.raw_link` form validation branches on. Any later additive section that records scheduling surfaces (routines) uses the same `surfaces` map shape, so envelope validation resolves `signal.source_surface` against every section uniformly |
+   | `surfaces` | object keyed by surface id — each entry `{"class": "<surface-class token>", "transport": "push"\|"push-lifecycle"\|"poll", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded execution-surface id>"}`; `scheduler_class` applies to temporal surfaces only and is the discriminator `signal.raw_link` form validation branches on; a `local-scheduler` surface using an org artifact store additionally declares `artifact_schemes` (array of URI schemes) — undeclared non-`file:`/non-`https:` schemes never conform. Any later additive section that records scheduling surfaces (routines) uses the same `surfaces` map shape, so envelope validation resolves `signal.source_surface` against every section uniformly |
    | `drain` | `{"cadence": "<schedule expression or token, default hourly>", "execution_surface": "<recorded execution-surface id>"}` |
 
 8. **Conformance** — run

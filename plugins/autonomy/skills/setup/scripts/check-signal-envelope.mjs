@@ -33,8 +33,10 @@ const REQUIRED_KEYS = [
   "signal.raw_link",
   "signal.traceparent",
 ];
-// W3C Trace Context traceparent: version "00", all-zero trace-id/parent-id invalid.
-const TRACEPARENT = /^[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
+// W3C Trace Context traceparent: this contract supports version "00" only
+// (and "ff" is forbidden by the spec outright); all-zero trace-id/parent-id
+// invalid.
+const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
 
 const findings = [];
 
@@ -55,12 +57,16 @@ function isAbsoluteHttpsUrl(value) {
   return url !== null && url.protocol === "https:" && url.hostname.length > 0;
 }
 
-// Durable local/artifact URI for local-scheduler-origin temporal signals: any
-// absolute URI that is not plain-http (file:, artifact-store schemes, https all
-// qualify). Relative references fail WHATWG parsing and so fail here.
-function isDurableLocalUri(value) {
+// Durable local/artifact URI for local-scheduler-origin temporal signals:
+// file: and https: qualify by contract; an org artifact-store scheme qualifies
+// only when the binding's surface entry DECLARES it (artifact_schemes) — an
+// undeclared scheme (data:, javascript:, anything ephemeral) never conforms.
+function isDurableLocalUri(value, surfaceEntry) {
   const url = parseUrl(value);
-  return url !== null && url.protocol !== "http:";
+  if (url === null) return false;
+  if (url.protocol === "file:" || url.protocol === "https:") return true;
+  const declared = Array.isArray(surfaceEntry?.artifact_schemes) ? surfaceEntry.artifact_schemes : [];
+  return declared.some((scheme) => url.protocol === `${scheme}:`);
 }
 
 // The normalized canonical item URL per the telemetry contract's strip rule:
@@ -161,6 +167,7 @@ function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
   const rawLink = envelope["signal.raw_link"];
   const sourceSurface = envelope["signal.source_surface"];
   let localScheduler = false;
+  let surfaceEntry = null;
   if (signalClass === "temporal") {
     if (typeof sourceSurface !== "string" || sourceSurface.length === 0) {
       findings.push(`${where}: signal.source_surface missing (required for temporal signals)`);
@@ -169,13 +176,14 @@ function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
     } else if (!surfaces.has(sourceSurface)) {
       findings.push(`${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not recorded in any binding surfaces map`);
     } else {
-      localScheduler = surfaces.get(sourceSurface)?.scheduler_class === "local-scheduler";
+      surfaceEntry = surfaces.get(sourceSurface);
+      localScheduler = surfaceEntry?.scheduler_class === "local-scheduler";
     }
   }
   if (typeof rawLink === "string" && rawLink.length > 0) {
-    if (localScheduler ? !isDurableLocalUri(rawLink) : !isAbsoluteHttpsUrl(rawLink)) {
+    if (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink)) {
       findings.push(
-        `${where}: signal.raw_link ${JSON.stringify(rawLink)} is not a durable absolute reference (${localScheduler ? "local-scheduler origin allows an absolute file:/artifact URI or https URL" : "this origin requires an absolute https URL"})`,
+        `${where}: signal.raw_link ${JSON.stringify(rawLink)} is not a durable absolute reference (${localScheduler ? "local-scheduler origin allows file:, https:, or a binding-declared artifact scheme" : "this origin requires an absolute https URL"})`,
       );
     }
   }
@@ -222,6 +230,10 @@ for (const target of targets.flatMap(filesUnder)) {
   if (envelope === null) continue;
   envelopesChecked += 1;
   checkEnvelope(envelope, target, surfaces, bindingPath !== null);
+}
+
+if (envelopesChecked === 0) {
+  findings.push("no signal envelopes found under the given targets — nothing was verified");
 }
 
 if (findings.length > 0) {
