@@ -54,8 +54,9 @@ package commits, implies, or starts a build before the trigger earns it.
   set, launch backend derivation, topology seam map.
 - Zero build artifacts; runner-execution home unborn; T4 build triggers restated verbatim;
   no build commitment anywhere in the text.
-- WP5 D6's escalation-UX deferral is resolved by this package (the last cross-package
-  deferral).
+- WP5 D6's escalation-UX deferral — the last WP5-inherited cross-package deferral — is
+  resolved by this package (mid-run interrupt stays deferred with its own evidence trigger;
+  this pack resolves the inherited deferral, it does not claim nothing remains deferred).
 - Research gaps carried visibly, not laundered: CI-action-class failure-reporting UNVERIFIED;
   cross-vendor agent-needs-human signaling (agent-protocol / agent-instruction-file guidance)
   UNVERIFIED; managed-agent event names drift between stream and webhook surfaces — bind
@@ -136,9 +137,9 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/autonomy/reference/runner/lifecycle.md` | Create | Full state model per D4: `leased → executing → verifying → disposing → (escalated | complete)`, every transition emitting telemetry per the telemetry contract (trace-linked); launch disposition thin (per-item PR through the platform's native flow); batched gated-merge serialization named as a growth stage with its evidence trigger (observed concurrent auto-merge collisions) binding to a platform-native merge-queue facility — never reimplemented. |
-| `plugins/autonomy/reference/runner/escalation.md` | Create | D5 resolved: terminal-handoff at launch — every stop terminal (`success`/`gate-failed`/`needs-human`/`cap-exceeded`); the runner files a human-gated work item with the evidence bundle (failure summary, run-transcript link, cost, trace link, `resume_handle`; human takeover = resume the persisted session); two-family stop-criteria taxonomy verbatim (runner-owned: turn/budget/wall-clock caps, execution error after retries, refusal, verification-gate failure, isolation violation; agent-signaled via `stop_reason`: ambiguity, design decision, security/data-integrity event, unresolvable blocker, no-progress); transient-recoverable retries with backoff, never escalates; severity axis (`notice`/`attention`/`urgent`) → org-bound fan-out with personal-push as an org-bindable route; acknowledgment-on-item + stale-unacked re-escalation (default 72h window, one severity-bump re-escalation, both org-bindable); mid-run interrupt deferred with its evidence trigger; escalation telemetry rides the telemetry contract's `autonomy.*` namespace (candidate upstream contribution noted). Research gaps carried verbatim (CI-action-class failure-reporting UNVERIFIED; cross-vendor needs-human signaling UNVERIFIED; managed-agent event-name drift — bind at build; deprecated approval-SDK never cited as living precedent). |
-| `plugins/autonomy/reference/runner/topology.md` | Create | D6: ownership seam map — design pack in the capability-distribution home; at trigger fire the runner-execution home is born owning implementation + build/release toolchain, consuming contracts never duplicating; security-sensitive runner bindings in the settings-as-code home (runner reads its governance, never writes it); non-security operational config deployment-owned; launch backend set per D3 (one free self-run L2 container-class backend; L3 deferred with the first-C5 trigger, fail-closed until bound; paid/cloud advisory + opt-in); birth-time decisions listed with arbiter USER-RESERVED (repo count/name/language, spine re-verification, exact managed-event names). |
+| `plugins/autonomy/reference/runner/lifecycle.md` | Create | Full state model per D4: `leased → executing → verifying → disposing → (escalated | complete)`, every transition emitting telemetry per the telemetry contract (trace-linked); launch disposition thin (per-item PR through the platform's native flow, merge disposition governed by the WP5 matrix row — including the vendor-hosted human-gate cap whenever the executing backend is vendor-hosted, restated here rather than inherited silently); batched gated-merge serialization named as a growth stage with its evidence trigger (observed concurrent auto-merge collisions) binding to a platform-native merge-queue facility — never reimplemented. |
+| `plugins/autonomy/reference/runner/escalation.md` | Create | D5 resolved: terminal-handoff at launch — every stop terminal (`success`/`gate-failed`/`needs-human`/`cap-exceeded`); the runner files a human-gated work item with the evidence bundle (failure summary, run-transcript link, cost, trace link, `resume_handle`; human takeover = resume the persisted session); two-family stop-criteria taxonomy verbatim (runner-owned: turn/budget/wall-clock caps, execution error after retries, refusal, verification-gate failure, isolation violation; agent-signaled via `stop_reason`: ambiguity, design decision, security/data-integrity event, unresolvable blocker, no-progress); transient-recoverable retries with backoff, never escalates; severity axis (`notice`/`attention`/`urgent`) → org-bound fan-out with personal-push as an org-bindable route; acknowledgment-on-item + stale-unacked re-escalation (default 72h window, one severity-bump re-escalation, both org-bindable); mid-run interrupt deferred with its evidence trigger; escalation telemetry rides the telemetry contract's custom-namespace mechanism — the exact namespace token is read from the shipped telemetry contract at implementation, not pinned here (candidate upstream contribution noted). Research gaps carried verbatim (CI-action-class failure-reporting UNVERIFIED; cross-vendor needs-human signaling UNVERIFIED; managed-agent event-name drift — bind at build; deprecated approval-SDK never cited as living precedent). |
+| `plugins/autonomy/reference/runner/topology.md` | Create | D6: ownership seam map — design pack in the capability-distribution home; at trigger fire the runner-execution home is born owning implementation + build/release toolchain, consuming contracts never duplicating; security-sensitive runner bindings in the settings-as-code home (runner reads its governance, never writes it); non-security operational config deployment-owned; launch backend set per D3 (one free self-run L2 container-class backend; L3 deferred with the first-C5 trigger, fail-closed until bound — the C5→L3 floor CITED from the WP5 work-classes matrix cell, never asserted independently here, per stress-test F5; paid/cloud advisory + opt-in, and any cloud backend IS a vendor-hosted executor: it forces the security binding's `executor_class: vendor-hosted`, capping every merge row at human-gated, per F6); birth-time decisions listed with arbiter USER-RESERVED (repo count/name/language, spine re-verification, exact managed-event names). |
 
 **Sanity Check:**
 
@@ -152,14 +153,18 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 
 | File | Action | What changes |
 |---|---|---|
-| `plugins/autonomy/skills/setup/SKILL.md` | Modify | A short runner note only: the design pack is bindable-when-born; setup records NOTHING runner-specific until the trigger fires except escalation notification routes (the guardrail slice's `escalation_routes` gains the severity axis + personal-push tier as route options — a schema-additive refinement, no major bump). No probe, no wiring, no binding section for the unborn home. |
+| `plugins/autonomy/skills/setup/SKILL.md` | Modify | A short runner note only: the design pack is bindable-when-born; setup records NOTHING runner-specific until the trigger fires except escalation notification routes (severity axis + personal-push tier as route options). No probe, no wiring, no binding section for the unborn home. |
+| `plugins/autonomy/skills/setup/schemas/guardrails-security-binding.schema.json` | Modify | The severity refinement is GENUINELY additive (stress-test F2 — the schema is `additionalProperties: false`, so an undeclared shape would fail every severity-tiered binding): `escalation_routes` keeps its existing event-class→route entries unchanged; two new OPTIONAL top-level keys land beside it — `escalation_severity_routes` (severity token → route, `notice`/`attention`/`urgent`, personal-push a legal route value at any tier) and `escalation_ack` (`staleness_window`, default 72h; `reescalation_cap`, default 1). Old bindings validate unchanged — no major bump; that resolution is now in-plan, not asserted. |
+| `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` | Modify | Semantic checks for the new keys: severity tokens ∈ the three-level set; `escalation_ack` values positive; a severity route referencing an event class absent from `escalation_routes` flagged. |
+| `plugins/autonomy/skills/setup/evals/evals.json` | Modify | Escalation-route slice case (severity + personal-push binding recorded; unborn-home refusal restated) — stress-test F7: every other WP adds eval coverage for its SKILL.md change; no exemption here. |
 | `plugins/autonomy/README.md` + `plugins/autonomy/.claude-plugin/plugin.json` | Modify | Capability list gains the runner design pack; the roadmap row stays trigger-gated (build), now pointing at the pack; minor version bump. |
 
 **Sanity Check:**
 
 - `grep -ci 'unborn' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
 - README roadmap still carries the build trigger row (`grep -c 'build trigger' plugins/autonomy/README.md` ≥ 1)
-- `/skill-quality:check` passes; `claude plugin validate --strict` exit 0
+- Schema additivity: `grep -c 'escalation_severity_routes' …schema.json` ≥ 1 and a pre-WP7 fixture binding still passes `check-security-binding.mjs` unchanged (no major bump proven, not asserted)
+- `/skill-quality:check` + `validate-evals` pass; `claude plugin validate --strict` exit 0
 
 ### Phase 4: Zero-build audit + gates [TODO]
 
@@ -185,7 +190,21 @@ Fully git-revertible; zero runtime surface by design.
 
 ## Stress-test summary
 
-(filled after the fresh-context plan review — see round record below)
+Fresh-context plan review (WP6+WP7 batch): 10 findings, verdict FIX-THEN-SHIP, WP7's share
+folded — F2 (HIGH): the escalation-route severity refinement touched the WP5 security-binding
+schema (`additionalProperties: false`) but Phase 3 listed neither the schema nor the
+validator, leaving the flagship severity/ack knob set unbindable, and "additive, no major
+bump" was asserted over what read as a value-shape change → both files added to Phase 3 and
+the refinement modeled as genuinely additive optional keys (`escalation_severity_routes`,
+`escalation_ack`), with a pre-WP7 fixture-passes gate proving no major bump. F5 (MED): the
+C5→L3 fail-closed gate now CITES the WP5 work-classes matrix cell (which imports T3's C5/L3
+row) instead of asserting the value. F6 (LOW-MED): the vendor-hosted human-gate merge cap is
+restated on the cloud-backend and disposition paths instead of silently inherited. F7 (LOW):
+the Phase 3 SKILL.md change gains eval coverage like every other WP. F9 (LOW): the
+"last cross-package deferral" claim scoped to the WP5-inherited deferral. F10 (LOW): the
+escalation-telemetry namespace token is read from the shipped telemetry contract at
+implementation, not pinned in the plan. Scope discipline (zero build artifacts, unborn
+runner-execution home, USER-RESERVED birth decisions) audited clean.
 
 ## Execution shape
 
@@ -214,7 +233,7 @@ after WP4+WP5+WP6 implementation PRs.
 | Severity set `notice/attention/urgent`; 72h staleness, one re-escalation | Phase 2 leaf | D5 requires a severity axis + ack/re-escalation knobs with suggested defaults; three tiers is the smallest set covering tracker-only / channel / push fan-out |
 | Envelope fields `stop_reason/outcome/evidence/resume_handle` | Phases 1–2 | D5's evidence-bundle + resume requirements; smallest field set carrying them |
 | Hub-and-leaves under `reference/runner/` | Phase 1–2 paths | Same layout as WP5/WP6 hubs |
-| Escalation-route severity refinement lands in the WP5 security-binding schema additively | Phase 3 | WP5 D6 routes live there; additive-section rule (WP1 precedent) avoids a major bump |
+| Escalation-route severity refinement = new OPTIONAL schema keys (`escalation_severity_routes`, `escalation_ack`) beside an untouched `escalation_routes`; schema + validator edits in Phase 3 | Phase 3 | WP5 D6 routes live there; stress-test F2 — only genuinely additive keys avoid a major bump under `additionalProperties: false`, proven by the pre-WP7 fixture gate |
 
 ## Handoff to implementation
 
