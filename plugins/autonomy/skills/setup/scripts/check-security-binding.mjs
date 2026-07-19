@@ -78,8 +78,9 @@ const SPECIAL_USE_TLDS = [
 // checker cannot know the org's probed credential paths, so any entry not
 // recognizably a credential location is rejected rather than trusted — a
 // failing read of an arbitrary path proves nothing about credential absence.
-// The isolation-probe template names "a cloud metadata endpoint" as a marked
-// example, hence "metadata" and the link-local metadata IP. That IP is a
+// The isolation-probe template's "cloud metadata endpoint" example qualifies
+// ONLY through the URL branch's known endpoints — a filesystem path segment
+// named "metadata" is not credential evidence. The metadata IP there is a
 // DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
 // (link-local proves no external egress): metadata IS the cloud credential
 // source, and the two checks serve opposite goals.
@@ -92,8 +93,6 @@ const CREDENTIAL_SEGMENTS = new Set([
   "credentials",
   ".credentials",
   "token",
-  "metadata",
-  "169.254.169.254",
 ]);
 const CREDENTIAL_SEGMENT_PAIRS = [
   [".kube", "config"],
@@ -111,13 +110,10 @@ function isRecognizedCredentialEntry(entry) {
       return false;
     }
     // KNOWN cloud metadata endpoints only — a "metadata" label or path
-    // segment on an arbitrary host proves nothing; org-specific endpoints
-    // belong in a future configured allow-list.
-    return (
-      url.hostname === "169.254.169.254" ||
-      url.hostname === "metadata.google.internal" ||
-      url.hostname === "metadata"
-    );
+    // segment on an arbitrary host proves nothing, and the bare single-label
+    // alias is search-domain-dependent, not a fixed endpoint; org-specific
+    // endpoints belong in a future configured allow-list.
+    return url.hostname === "169.254.169.254" || url.hostname === "metadata.google.internal";
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   return segments.some((segment, index) => {
@@ -508,9 +504,13 @@ function isDeniedV4(addr) {
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
     (a === 169 && b === 254) ||
-    // Non-global space that can never demonstrate public egress:
-    // TEST-NET-1/2/3, benchmarking (198.18/15), CGNAT (100.64/10),
-    // multicast (224/4), reserved (240/4).
+    // Non-global space that can never demonstrate public egress (IANA IPv4
+    // special-purpose registry, "not globally reachable"): IETF protocol
+    // assignments (192.0.0/24), TEST-NET-1/2/3, benchmarking (198.18/15),
+    // CGNAT (100.64/10), multicast (224/4), reserved (240/4). Registry
+    // entries flagged globally reachable (AS112 192.175.48/24 and
+    // 192.31.196/24, AMT 192.52.193/24) stay allowed.
+    (a === 192 && b === 0 && c === 0) ||
     (a === 192 && b === 0 && c === 2) ||
     (a === 198 && b === 51 && c === 100) ||
     (a === 203 && b === 0 && c === 113) ||
@@ -704,7 +704,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   // path-separator-agnostic, matched per component).
   for (const entry of transcript.assertions.credentials_absent.path.split(",")) {
     if (!isRecognizedCredentialEntry(entry.trim())) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, or a cloud metadata endpoint URL)`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations (a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, or a known cloud metadata endpoint URL)`;
     }
   }
   if (transcript.outer_context_networked !== true) {
