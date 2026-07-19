@@ -3,6 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- Cross-plugin marketplace-skill references brought under the presence-gated guard and reframed as
+  stack-specific. The unguarded inline `dotnet-test:*` parenthetical in `write` (per-cycle checklist)
+  is removed; its detection-layer skills moved under `write`'s now-guarded
+  `## Marketplace plugin skills (invoke only when installed)` list. The all-.NET enrichment lists in
+  `write`, `organize`, `plan`, `run-e2e`, and `diagnose` now state the `dotnet-*` skills apply only
+  when your stack is .NET, so a non-.NET consumer is not handed a dead list as the universal path.
+  No hard dependencies; every reference stays optional and installed-gated.
+
 ## [0.2.0]
 
 ### Changed

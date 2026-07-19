@@ -75,7 +75,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test uses public interface only
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test — one behavioral concept, not one `Assert` statement
-- [ ] No tautological assertions — expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing (detection layer: `dotnet-test:test-anti-patterns` + `dotnet-test:assertion-quality` plugins)
+- [ ] No tautological assertions — expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 
@@ -135,8 +135,10 @@ No tests needed for:
 - **Fix + green test committed together** — the fix and its proof are atomic
 - **Commit before refactoring** — separate structural from behavioral commits
 
-## Marketplace plugin skills
+## Marketplace plugin skills (invoke only when installed)
 
-When writing tests, consider loading these marketplace plugin skills for guidance:
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
 
 - **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive test generation (researcher → planner → implementer → builder → tester → fixer → linter). Invoke for complex test scenarios requiring gap analysis and structured implementation
+- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state) as a detection layer for the per-cycle checklist above
+- **`dotnet-test:assertion-quality`** — flag tautological and weak assertions where expected values are recomputed the same way the code under test computes them
