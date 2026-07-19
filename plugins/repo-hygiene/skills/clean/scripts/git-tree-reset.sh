@@ -117,7 +117,8 @@ fi
 if ! git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
   UNRESOLVED_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
   UNRESOLVED_MERGE="$(git config "branch.${CURRENT_BRANCH}.merge" 2>/dev/null | tr -d '\r' || true)"
-  printf 'Blocked: upstream-unresolved (%s/%s)\n' "${UNRESOLVED_REMOTE:-?}" "${UNRESOLVED_MERGE#refs/heads/}"
+  UNRESOLVED_MERGE_LABEL="${UNRESOLVED_MERGE#refs/heads/}"
+  printf 'Blocked: upstream-unresolved (%s/%s)\n' "${UNRESOLVED_REMOTE:-?}" "${UNRESOLVED_MERGE_LABEL:-?}"
   printf 'PlannedReset: none\n'
   printf 'PlannedClean: none\n'
   exit 6
