@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Fixed
+
+- **babysit-prs review-trigger head-staleness hardening** (dormant-by-default module; no effect
+  until `babysit_review_trigger_phrase` + `babysit_review_bot_logins` + `babysit_review_gate_context`
+  are configured).
+  - **F7** — `request_review.py`'s pre-POST freshness guard rejected only the literal `BEHIND`
+    merge state. A head that is behind its base but reports `BLOCKED` (GitHub masks `BEHIND` behind
+    `BLOCKED`) slipped through and spent the one-shot review request on a stale SHA. The guard now
+    reuses the compare-confirmed freshness signal (`compute_branch_freshness`, off the
+    `_blocked_base_compare` enrichment `view_pr` already computes), so a compare-behind head is
+    rejected and the branch-refresh flow runs first.
+  - **F8** — the candidate predicate in `babysit_review_trigger.py` blocked candidacy whenever *any*
+    reviewer reaction existed. Reactions carry no commit SHA, so a reaction left on an earlier head
+    persisted onto later heads and permanently suppressed the new head's observation window. The
+    check is now scoped to reactions associated with, or newly observed for, the current head.
+  - **F8 follow-on** — the F8 scoping stopped at the candidate predicate: `request_review.py`'s
+    posting guard (`validate_current_candidate`, both its pre-POST check and its post-POST
+    concurrency check) still gated on the raw, unscoped reaction list. A PR made eligible by the F8
+    fix because its only reaction was stale (an earlier head) would still have every request attempt
+    rejected at posting time, recorded as `"ambiguous"`, and blocked from retrying. The scoping rule
+    is extracted into a shared `resolve_associated_reactions` helper in `babysit_review_trigger.py`
+    and applied at both the candidate predicate and every posting-guard reaction check.
+
 ## [0.9.0]
 
 ### Changed
