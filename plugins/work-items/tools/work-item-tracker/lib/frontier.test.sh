@@ -25,7 +25,22 @@ assert_eq "schema_version passthrough" "1.0" "$(jq -r '.schema_version' <<<"$OUT
 
 OUT="$(wit_filter_frontier true <<<"$FIXTURE")"
 IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
-assert_eq "autonomous frontier drops needs-human" "github:o/r#1" "$IDS"
+assert_eq "autonomous frontier drops needs-human (default label)" "github:o/r#1" "$IDS"
+
+# A repo that remaps config.role_labels["human-gated"] away from the default
+# must have its remapped label honored, not the literal string "needs-human".
+REMAPPED='{
+  "schema_version": "1.0",
+  "items": [
+    {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},
+    {"id":"github:o/r#5","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},
+    {"id":"github:o/r#6","state":"open","assignees":[],"labels":["do-not-auto-pick"],"blocked_by_count":0}
+  ]
+}'
+OUT="$(wit_filter_frontier true "do-not-auto-pick" <<<"$REMAPPED")"
+IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+assert_eq "autonomous frontier drops the configured remap, not the stale default" \
+  "github:o/r#1,github:o/r#5" "$IDS"
 
 EMPTY='{"schema_version":"1.0","items":[]}'
 OUT="$(wit_filter_frontier false <<<"$EMPTY")"

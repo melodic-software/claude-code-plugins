@@ -83,4 +83,31 @@ else
   fail "local-markdown with storage_dir accepted" "success" "failure"
 fi
 
+# --- validation: provider name is restricted to a bare directory segment ---
+
+assert_rejected "provider with path traversal rejected" '{"schema_version":"1.0","provider":"../../injected","config":{"lease_ttl_hours":24}}'
+assert_rejected "provider with slash rejected" '{"schema_version":"1.0","provider":"github/extra","config":{"lease_ttl_hours":24}}'
+
+# --- storage_dir: a relative value roots against the binding file's directory,
+# not the caller's CWD (a verb invoked from a subdirectory must resolve the
+# same store as one invoked from the repo root) ---
+
+STORAGE_ROOT="$TEST_TMPDIR/storage-repo"
+mkdir -p "$STORAGE_ROOT/deep/nested"
+write_binding "$STORAGE_ROOT/.work-item-tracker.json" \
+  '{"schema_version":"1.0","provider":"local-markdown","config":{"lease_ttl_hours":24,"storage_dir":".work-items"}}'
+OUT="$(cd "$STORAGE_ROOT/deep/nested" && wit_read_binding "$STORAGE_ROOT/.work-item-tracker.json" && printf '%s\n' "$WIT_STORAGE_DIR")"
+assert_eq "relative storage_dir roots against binding dir, not CWD" \
+  "$STORAGE_ROOT/.work-items" "$OUT"
+
+# --- role_labels: config.role_labels["human-gated"] remap and default fallback ---
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
+wit_read_binding "$BINDING"
+assert_eq "human-gated label defaults to needs-human when unset" "needs-human" "$WIT_HUMAN_GATED_LABEL"
+
+write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"role_labels":{"human-gated":"do-not-auto-pick"}}}'
+wit_read_binding "$BINDING"
+assert_eq "human-gated label honors configured remap" "do-not-auto-pick" "$WIT_HUMAN_GATED_LABEL"
+
 [[ $FAILED -eq 0 ]] || exit 1

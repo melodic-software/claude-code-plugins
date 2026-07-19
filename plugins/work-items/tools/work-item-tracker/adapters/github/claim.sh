@@ -14,17 +14,17 @@ id="${1:-}"
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --ttl-hours)
-      [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-      ttl="$2"
-      shift 2
-      ;;
-    --session-id)
-      [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-      session_id="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --ttl-hours)
+    [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
+    ttl="$2"
+    shift 2
+    ;;
+  --session-id)
+    [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
+    session_id="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
@@ -37,6 +37,18 @@ login="$WIT_GH_OUT"
 
 # 1. Assign the session identity.
 wit_run_gh read issue edit "$number" -R "$owner/$repo" --add-assignee "@me"
+
+# Guard the partial-claim window: any failure between this successful
+# assignment and a successful lease-comment write (step 3) would otherwise
+# strand the issue assigned with no lease record (list-frontier excludes
+# assigned items; reclaim ignores items with no lease). wit_run_gh's failure
+# path calls `exit` directly rather than returning, and an explicit `exit`
+# inside a function does not run the caller's ERR trap (only its EXIT trap) —
+# verified empirically — so this must be an EXIT trap, not ERR.
+_wit_claim_rollback() {
+  gh issue edit "$number" -R "$owner/$repo" --remove-assignee "@me" >/dev/null 2>&1 || true
+}
+trap _wit_claim_rollback EXIT
 
 # 2. Sole-assignee check — a different login present means an established claim.
 wit_run_gh read issue view "$number" -R "$owner/$repo" --json assignees --jq '[.assignees[].login]'
@@ -58,6 +70,7 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
+trap - EXIT # lease comment created — partial-claim window closed
 
 # 4. Re-read all lease comments; the EARLIEST live lease wins.
 now_epoch="$(date -u +%s)"

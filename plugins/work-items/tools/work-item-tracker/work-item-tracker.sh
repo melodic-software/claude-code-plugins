@@ -68,14 +68,14 @@ fail_config() {
 }
 
 check_gh_version() {
-  command -v gh >/dev/null 2>&1 \
-    || fail_config "prerequisite missing: gh (GitHub CLI) >= 2.94 — see CONTRACT.md Prerequisites"
+  command -v gh >/dev/null 2>&1 ||
+    fail_config "prerequisite missing: gh (GitHub CLI) >= 2.94 — see CONTRACT.md Prerequisites"
   local raw major minor
   raw="$(gh --version 2>/dev/null | head -n1 | sed -E 's/^gh version ([0-9]+\.[0-9]+).*/\1/')"
   major="${raw%%.*}"
   minor="${raw#*.}"
-  if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] \
-    || ((major < 2 || (major == 2 && minor < 94))); then
+  if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] ||
+    ((major < 2 || (major == 2 && minor < 94))); then
     fail_config "gh >= 2.94 required for native sub-issue/dependency flags (found: ${raw:-unknown})"
   fi
 }
@@ -92,35 +92,35 @@ main() {
   fi
   shift
 
-  command -v jq >/dev/null 2>&1 \
-    || fail_config "prerequisite missing: jq — see CONTRACT.md Prerequisites"
+  command -v jq >/dev/null 2>&1 ||
+    fail_config "prerequisite missing: jq — see CONTRACT.md Prerequisites"
 
   local binding_path
-  binding_path="$(wit_find_binding)" \
-    || fail_config "no binding found (.work-item-tracker.json) — see CONTRACT.md Setup"
-  wit_read_binding "$binding_path" \
-    || fail_config "invalid binding at $binding_path — see CONTRACT.md Setup"
+  binding_path="$(wit_find_binding)" ||
+    fail_config "no binding found (.work-item-tracker.json) — see CONTRACT.md Setup"
+  wit_read_binding "$binding_path" ||
+    fail_config "invalid binding at $binding_path — see CONTRACT.md Setup"
 
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
-  [[ -d "$adapter_dir" ]] \
-    || fail_config "no adapter for provider '$WIT_PROVIDER' (searched consumer-local then plugin-bundled) — last tried $adapter_dir"
+  [[ -d "$adapter_dir" ]] ||
+    fail_config "no adapter for provider '$WIT_PROVIDER' (searched consumer-local then plugin-bundled) — last tried $adapter_dir"
   manifest="$adapter_dir/capabilities.json"
-  [[ -f "$manifest" ]] \
-    || fail_config "adapter '$WIT_PROVIDER' has no capabilities.json manifest"
+  [[ -f "$manifest" ]] ||
+    fail_config "adapter '$WIT_PROVIDER' has no capabilities.json manifest"
 
   [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
 
   local adapter_verb="$verb"
   case "$verb" in
-    create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | capabilities) ;;
-    list-frontier)
-      adapter_verb="list-items"
-      ;;
-    *)
-      usage
-      exit "$EX_USAGE"
-      ;;
+  create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | capabilities) ;;
+  list-frontier)
+    adapter_verb="list-items"
+    ;;
+  *)
+    usage
+    exit "$EX_USAGE"
+    ;;
   esac
 
   if [[ "$(jq -r --arg v "$adapter_verb" '.verbs[$v] // false' "$manifest")" != "true" ]]; then
@@ -134,22 +134,22 @@ main() {
     local autonomous="false" list_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --autonomous)
-          autonomous="true"
-          shift
-          ;;
-        --repo)
-          [[ $# -ge 2 ]] || {
-            usage
-            exit "$EX_USAGE"
-          }
-          list_args+=(--repo "$2")
-          shift 2
-          ;;
-        *)
+      --autonomous)
+        autonomous="true"
+        shift
+        ;;
+      --repo)
+        [[ $# -ge 2 ]] || {
           usage
           exit "$EX_USAGE"
-          ;;
+        }
+        list_args+=(--repo "$2")
+        shift 2
+        ;;
+      *)
+        usage
+        exit "$EX_USAGE"
+        ;;
       esac
     done
     out="$(bash "$adapter_dir/list-items.sh" --state open "${list_args[@]+"${list_args[@]}"}")"
@@ -157,7 +157,7 @@ main() {
     if ((rc != 0)); then
       exit "$rc"
     fi
-    printf '%s\n' "$out" | wit_strip_cr | wit_filter_frontier "$autonomous"
+    printf '%s\n' "$out" | wit_strip_cr | wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}"
     exit 0
   fi
 
