@@ -195,8 +195,11 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    trigger, which owns the eligibility gate) and treat its absence as inadmissible; where
    the surface was selected on the audit-trail alternative (fields not ACL-restricted),
    presence is not enough — the handler confirms through the trail that the bound
-   automation identity created the record, since any field-writer could forge a conforming
-   unattested set — only then writing the attested fields directly on that same item (the
+   automation identity created the record AND authored every subsequent revision of the
+   record fields (any field-writer could forge a conforming unattested set, or alter an
+   existing one — `attestation_owner`, `counterfactual` — after creation; a record with any
+   non-automation revision is non-conforming and rejected before the owner snapshot is
+   trusted) — only then writing the attested fields directly on that same item (the
    fields are scoped 1:1 to the closing item, so no lookup beyond that verification is
    needed). Where the tracker offers no reply-triggered surface (no comment webhook, a
    plan/tier limit), this step routes through the ADVISE step below instead of silently
