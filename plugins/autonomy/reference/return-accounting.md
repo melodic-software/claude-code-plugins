@@ -121,7 +121,12 @@ re-run it, so a parseable reply on an item carrying no close-time bot-authored r
 nothing. On the comment floor the marker lookup enforces this structurally (no marker
 comment, nothing to edit); a native-field handler has no lookup and MUST verify the
 close-time unattested record is present on the item's fields before writing the attested
-fields.
+fields — and where the surface was admitted on the audit-trail alternative rather than
+automation-only ACLs, presence alone proves nothing (any field-writer can forge a
+conforming unattested set): the handler MUST confirm through the audit trail that the bound
+automation identity CREATED the close-time record, and native-field consumers apply the
+same authorship check on read. Under automation-only ACLs the restriction itself is the
+authorship proof.
 
 ## The join — query-side only
 

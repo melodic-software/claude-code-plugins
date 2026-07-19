@@ -92,7 +92,10 @@ means finding the marker-tagged comment and editing it in place (a missing marke
 means no close-time record — the reply admits nothing, per the contract's
 attestation-never-creates rule); on native fields there is no marker to find, but the same
 rule binds: the handler first verifies the close-time unattested record is present on the
-item's fields and treats its absence as inadmissible, only then writing the attested fields
-directly on that item (the fields already belong 1:1 to the closing item). Where no
+item's fields and treats its absence as inadmissible — and on an audit-trail-selected
+surface additionally confirms the trail attributes the record's creation to the bound
+automation identity (presence alone is forgeable where fields are not ACL-restricted) —
+only then writing the attested fields directly on that item (the fields already belong 1:1
+to the closing item). Where no
 reply-triggered surface is machine-editable, this is advisory: surface that
 attestation would require a manual upsert rather than silently wiring only the close half.
