@@ -3,6 +3,16 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Fixed
+
+- **`orphan-rule-check` now resolves the excluded memory tier from the topic-docs seam**
+  instead of hardcoding `.work/`. The reference search reads `memory_dir` from
+  `.claude/topic-docs.yaml` (falling back to `.work/` when unset) and excludes that path,
+  so a consumer that overrides `memory_dir` no longer has its real memory tier scanned —
+  ephemeral files there can no longer register false references that mask an orphan rule.
+
 ## [0.2.0]
 
 ### Changed
