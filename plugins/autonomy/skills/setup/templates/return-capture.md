@@ -18,8 +18,12 @@ from the binding at wire time; no org, fleet, or vendor value is baked in.
 ## Marker-keyed record comment (universal floor)
 
 Posted at close ONLY when no marker-matching bot-authored record exists (a re-fired close
-never overwrites or downgrades an existing record). These two blocks together form the
-complete comment body — both appear in the same tracker comment:
+never overwrites or downgrades an existing record). The complete comment body is THREE
+parts in the one tracker comment: the marker block, the fenced JSON record, and the
+canonical two-question prompt above, addressed (platform @-mention) to the accountable
+human — the requester resolved via the binding's requester-identity source, or the standing
+attestation owner for requester-less classes. Without the addressed prompt the close flow
+would record without ever requesting attestation. The two machine blocks:
 
 ```markdown
 <!-- autonomy:return-accounting:v1 -->
