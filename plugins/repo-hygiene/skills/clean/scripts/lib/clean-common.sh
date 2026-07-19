@@ -109,6 +109,65 @@ clean_restore_tracked_deletions() {
   printf '%s' "$count"
 }
 
+# Return 0 when a repo-relative path matches the SECRETS preserve class
+# (CLEAN_TREE_PRESERVE_SECRETS — gitignore-style: basename globs, dir/ prefixes,
+# and slash-anchored file paths). SSOT check for guards that gate on secret-class
+# files outside `git clean -e` (which consumes the array directly).
+clean_path_matches_secret_class() {
+  local rel="$1" pat base
+  rel="${rel//\\//}"
+  base="${rel##*/}"
+  for pat in "${CLEAN_TREE_PRESERVE_SECRETS[@]}"; do
+    if [[ "$pat" == */ ]]; then
+      pat="${pat%/}"
+      [[ "$rel" == "$pat"/* || "$rel" == *"/$pat/"* ]] && return 0
+    elif [[ "$pat" == */* ]]; then
+      [[ "$rel" == "$pat" || "$rel" == *"/$pat" ]] && return 0
+    else
+      # shellcheck disable=SC2254
+      case "$base" in
+      $pat) return 0 ;;
+      *) ;;
+      esac
+    fi
+  done
+  return 1
+}
+
+# Return 0 when a repo-relative path lies inside a skill-owned data/ directory
+# (CLEAN_TREE_PRESERVE_SKILLDATA) — irreplaceable user synthesis the clean skill
+# always preserves with no removal flag. Kept separate from the secret matcher
+# because the pattern carries a mid-path wildcard (.claude/skills/*/data/): a
+# quoted `[[ == ]]` would treat the `*` literally, so match as an unquoted glob.
+clean_path_matches_skilldata() {
+  local rel="$1" pat
+  rel="${rel//\\//}"
+  rel="${rel%/}"
+  for pat in "${CLEAN_TREE_PRESERVE_SKILLDATA[@]}"; do
+    pat="${pat%/}"
+    # Match the data dir itself and anything under it, at the repo root or nested
+    # (git ls-files may report the ignored dir as a bare path, find reports both).
+    # shellcheck disable=SC2254
+    case "$rel" in
+    $pat | $pat/* | */$pat | */$pat/*) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
+# Return 0 when a path is a filesystem reparse point (POSIX symlink, Windows
+# junction, or native Windows symlink). bash -L covers what MSYS maps to
+# symlinks; fsutil (readable without elevation) catches anything -L misses.
+clean_path_is_reparse_point() {
+  local path="$1"
+  [[ -L "$path" ]] && return 0
+  if command -v fsutil >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+    fsutil reparsepoint query "$(cygpath -w "$path")" >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
 clean_branch_matches_protected_pattern() {
   local branch="$1"
   local pat exact
