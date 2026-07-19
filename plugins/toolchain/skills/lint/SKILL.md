@@ -59,16 +59,18 @@ Parse `$ARGUMENTS` for:
 If an ecosystem filter was provided, use it. If `all`, run every applicable ecosystem from the config. Otherwise, classify changed files from `git status --porcelain` against each ecosystem's `globs` list; when the working tree is clean, fall back to the branch diff so checkpoint-committed work still gets classified. Resolve the default branch by **detection, not assumption** — never a hardcoded `main`/`master` — and assign it before use:
 
 ```bash
-DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
-DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git ls-remote --symref origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')}
-if [[ -n "$DEFAULT_BRANCH" ]] && git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH" >/dev/null; then
-  git diff --name-only "$(git merge-base "origin/$DEFAULT_BRANCH" HEAD)..HEAD"
+REMOTE=$(git config "branch.$(git branch --show-current | tr -d '\r').remote" 2>/dev/null | tr -d '\r')
+[[ -z "$REMOTE" || "$REMOTE" == "." ]] && REMOTE=origin
+DEFAULT_BRANCH=$(git symbolic-ref --short "refs/remotes/$REMOTE/HEAD" 2>/dev/null | sed "s#^$REMOTE/##")
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git ls-remote --symref "$REMOTE" HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')}
+if [[ -n "$DEFAULT_BRANCH" ]] && git rev-parse --verify --quiet "$REMOTE/$DEFAULT_BRANCH" >/dev/null; then
+  git diff --name-only "$(git merge-base "$REMOTE/$DEFAULT_BRANCH" HEAD)..HEAD"
 else
   echo "branch diff unavailable (could not detect default branch)"
 fi
 ```
 
-The fallback queries the remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff). `merge-base` is taken against the remote-tracking ref `origin/$DEFAULT_BRANCH`, which resolves without a local branch of that name. If detection yields no default branch (no `origin/HEAD`, and the remote query fails or its ref is absent locally), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
+`$REMOTE` is the remote the current branch tracks (`branch.<name>.remote`), falling back to `origin` — never a hardcoded remote name, so a repo cloned with a different remote name (e.g. `git clone -o vendor`) still resolves. The fallback queries that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff). `merge-base` is taken against the remote-tracking ref `$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name. If detection yields no default branch (no `$REMOTE/HEAD`, and the remote query fails or its ref is absent locally), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
 
 Auto-detection algorithm:
 
