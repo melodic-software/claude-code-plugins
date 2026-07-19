@@ -5,6 +5,21 @@ Thin orchestrator over the engine modules: discovery, hydration,
 classification, the head-ref guard, error quarantine, and state persistence.
 All configuration arrives as explicit CLI flags -- there are no environment
 seams and no baked-in identities.
+
+Exit-code taxonomy (a caller contract):
+
+* ``0`` -- a valid snapshot with no errors; state written when requested.
+* ``1`` -- a valid snapshot carrying at least one *substantive* error (a per-PR
+  hydration failure or a discovery failure); state still written. A substantive
+  error means one or more PRs could not be classified this cycle.
+* ``2`` -- a fatal run: an exception escaped before a snapshot existed, so no
+  state was written and no snapshot is emitted.
+* ``3`` -- a valid snapshot whose only errors are *advisory*: the global
+  head-ref alias cross-check degraded but every per-PR classification and the
+  persisted state are intact; state is still written when requested. Split out
+  from ``1`` so an advisory-only run is distinguishable from a substantive
+  per-PR failure. Advisory errors are identified structurally via
+  ``babysit_delta.is_head_ref_alias_error``.
 """
 
 from __future__ import annotations
@@ -115,6 +130,20 @@ def resolve_scope_repos(
     return repos
 
 
+def substantive_errors(errors: list[str]) -> list[str]:
+    """Errors that mark the sweep incomplete -- everything but advisory ones.
+
+    An advisory head-ref alias failure leaves every per-PR classification and
+    the persisted state intact, so it neither forces the tight cadence nor
+    holds back full-sweep advancement; only substantive errors (per-PR
+    hydration or discovery failures) do. The single source of truth for the
+    advisory predicate is ``babysit_delta.is_head_ref_alias_error``.
+    """
+    return [
+        message for message in errors if not delta.is_head_ref_alias_error(message)
+    ]
+
+
 def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     generated_at = datetime.now(UTC).isoformat()
     config = build_config(args)
@@ -215,7 +244,9 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                 prev_unique=delta.prev_head_ref_unique(prs[0], previous_prs),
             )
         except Exception as exc:
-            errors.append(f"{prs[0]['key']} head-ref alias check: {exc}")
+            errors.append(
+                f"{prs[0]['key']} {delta.HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
+            )
             delta.apply_head_ref_guard(
                 prs[0],
                 checked=False,
@@ -238,6 +269,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         message
         for message in errors
         if message.split(":", 1)[0] not in quarantined
+        and not delta.is_head_ref_alias_error(message)
     ]
     cadence = (
         "active"
@@ -247,7 +279,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     snapshot = {
         "generated_at": generated_at,
         "mode": "single" if args.pr else "queue",
-        "complete": not errors,
+        "complete": not substantive_errors(errors),
         "recommended_cadence": cadence,
         "state_path": str(state_path),
         "pr_count": len(prs),
@@ -328,6 +360,21 @@ def print_text(snapshot: dict[str, Any]) -> None:
             print(f"  new material feedback: {item['author']} {item['preview']}")
         for item in pr["new_feedback"]["human"]:
             print(f"  new human feedback: {item['author']} {item['preview']}")
+
+
+def exit_code_for(snapshot: dict[str, Any]) -> int:
+    """Map a valid snapshot to its exit code (see the module docstring).
+
+    Substantive errors take precedence over advisory ones: a run carrying both
+    reports ``1`` so the substantive failure is never masked by the advisory
+    split.
+    """
+    errors = snapshot["errors"]
+    if substantive_errors(errors):
+        return 1
+    if errors:
+        return 3
+    return 0
 
 
 def main() -> int:
@@ -490,7 +537,7 @@ def main() -> int:
         print(json.dumps(snapshot, indent=2, sort_keys=True))
     else:
         print_text(snapshot)
-    return 1 if snapshot["errors"] else 0
+    return exit_code_for(snapshot)
 
 
 if __name__ == "__main__":

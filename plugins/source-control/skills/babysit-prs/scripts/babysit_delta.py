@@ -46,6 +46,14 @@ from babysit_util import (
 # GitHub recomputes mergeStateStatus asynchronously and flaps e.g.
 # UNKNOWN<->CLEAN without any real change to react to.
 ACTIONABLE_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+# Marker embedded in the message of a head-ref alias cross-check failure. That
+# check is purely advisory: it proves global branch uniqueness across the fleet
+# and its failure leaves every per-PR classification and the persisted state
+# intact, so callers must be able to tell it apart from a substantive per-PR
+# hydration or discovery error. Both construction sites (the queue path here and
+# the single-PR path in pr_queue_snapshot.py) build the message through this
+# constant so the two cannot drift.
+HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
 # Fan-out safety net: force a worker check-in on an otherwise-unchanged PR at
 # least this often, so "nothing changed" can never mean "never checked again"
 # (a classifier blind spot or a forgotten stuck PR). Snapshot-level detection
@@ -1184,6 +1192,11 @@ def prev_head_ref_unique(
     return bool(prev_uniqueness.get("unique"))
 
 
+def is_head_ref_alias_error(message: str) -> bool:
+    """True for an advisory head-ref alias cross-check failure (valid snapshot)."""
+    return HEAD_REF_ALIAS_ERROR_MARKER in message
+
+
 def annotate_queue_head_refs(
     prs: list[dict[str, Any]],
     complete: bool,
@@ -1214,7 +1227,9 @@ def annotate_queue_head_refs(
             if not checked:
                 raise RuntimeError("association query did not return every watched PR")
         except Exception as exc:
-            message = f"{representative['key']} head-ref alias check: {exc}"
+            message = (
+                f"{representative['key']} {HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
+            )
             if errors is not None:
                 errors.append(message)
             for pr in group_prs:
