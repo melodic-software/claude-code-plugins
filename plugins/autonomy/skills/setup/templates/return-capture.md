@@ -48,7 +48,11 @@ any later automation pass (a re-fired close, the reply handler) that finds the m
 with `attestation_request` missing fills it from the marker comment's own identity without
 touching any other field (the create-only rule protects the record's attestation fields, not
 this machine backfill), so a failed self-edit or a fast reply never orphans attestation. On
-native fields it is the URL of the posted request comment.
+native fields it is the URL of the posted request comment, with the SAME recovery property:
+if the request posted but persisting the field failed, any later automation pass locates its
+own request comment on the item (bot-authored, carrying the canonical prompt) and fills the
+missing field — or re-posts the request when none exists — without touching any attestation
+field.
 
 ## Attestation upsert
 
@@ -130,9 +134,11 @@ means no close-time record — the reply admits nothing, per the contract's
 attestation-never-creates rule); on native fields there is no marker to find, but the same
 rule binds: the handler first verifies the close-time unattested record is present on the
 item's fields and treats its absence as inadmissible — and on an audit-trail-selected
-surface additionally confirms the trail attributes the record's creation to the bound
-automation identity (presence alone is forgeable where fields are not ACL-restricted) —
-only then writing the attested fields directly on that item (the fields already belong 1:1
-to the closing item). Where no
+surface additionally confirms the trail attributes the record's CREATION and EVERY
+SUBSEQUENT REVISION of the record fields to the bound automation identity (presence alone
+is forgeable where fields are not ACL-restricted, and a later non-automation edit — notably
+an altered `attestation_owner` — makes the record non-conforming and rejected before the
+owner snapshot is trusted or any attested field written) — only then writing the attested
+fields directly on that item (the fields already belong 1:1 to the closing item). Where no
 reply-triggered surface is machine-editable, this is advisory: surface that
 attestation would require a manual upsert rather than silently wiring only the close half.
