@@ -104,5 +104,7 @@ Present the test plan to the user. Then suggest:
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These enrichment skills are ecosystem-specific — the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
+
 - **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
 - **`document-skills:webapp-testing`** — Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage
