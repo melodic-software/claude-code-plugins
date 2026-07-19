@@ -80,37 +80,46 @@ const SPECIAL_USE_TLDS = [
   ".home.arpa",
   ".onion",
 ];
-// Recognized host-credential-location FORMS, matched per path COMPONENT —
-// substring matching would accept e.g. "/definitely-not-a-host-credential"
-// via "credentials". Same no-config-source rationale as the egress-host
-// check: the checker cannot know the org's probed credential paths, so any
-// entry not recognizably a credential location is rejected rather than
-// trusted — a failing read of an arbitrary path proves nothing about
-// credential absence. Generic single-word components are deliberately NOT
+// Recognized host-credential locations are TERMINAL forms: the path must
+// END at a well-known concrete secret FILE, matched on exact trailing
+// components — substring matching would accept e.g.
+// "/definitely-not-a-host-credential" via "credentials". A failed read must
+// be attributable to a SECRET being absent or denied: a non-secret sibling
+// under a credential directory ($HOME/.ssh/known_hosts) passes the outer
+// existence check and fails the inner read while the actual private key
+// stays exposed, and a directory marker as the terminal segment
+// ($HOME/.ssh) has ambiguous read-tool semantics and fails everywhere —
+// neither proves anything. Same no-config-source rationale as the
+// egress-host check: the checker cannot know the org's probed credential
+// paths, so any entry not ending at a recognizable secret file is rejected
+// rather than trusted. Generic single-word components are deliberately NOT
 // listed: a bare "token" segment (e.g. "/tmp/token") is not host-credential
-// evidence, and suffix forms are inherently inventable (an invented *_token
-// name proves nothing) — only a specific known filename or a recognized
-// pair qualifies.
+// evidence, and suffix forms are inherently inventable. GnuPG has no static
+// concrete secret file — its private keys live under private-keys-v1.d/
+// with arbitrary key-grip names — so it defers to the future configured
+// allow-list, like org-named injected secrets (/run/secrets/<org-name> is
+// an inventable name; /run/secrets/credentials remains the recognized
+// concrete form).
 // The isolation-probe template's "cloud metadata endpoint" example qualifies
 // ONLY through the URL branch's known endpoints — a filesystem path segment
 // named "metadata" is not credential evidence. The metadata IP there is a
 // DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
 // (link-local proves no external egress): metadata IS the cloud credential
 // source, and the two checks serve opposite goals.
-const CREDENTIAL_SEGMENTS = new Set([
-  ".ssh",
-  ".netrc",
-  ".aws",
-  ".gnupg",
+const TERMINAL_SECRET_FILES = new Set([
   "id_rsa",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  ".netrc",
   "credentials",
   ".credentials",
 ]);
-const CREDENTIAL_SEGMENT_PAIRS = [
+const TERMINAL_SECRET_PAIRS = [
   [".kube", "config"],
   [".docker", "config.json"],
-  [".config", "gh"],
 ];
+const TERMINAL_SECRET_TRIPLES = [[".config", "gh", "hosts.yml"]];
 // Well-known credential variable names for the whole-entry env-token form
 // (compared against the lowercased entry).
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
@@ -201,12 +210,15 @@ function isRecognizedCredentialEntry(entry) {
     return false;
   }
   if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
-  const credIndex = segments.findIndex(
-    (segment, index) =>
-      CREDENTIAL_SEGMENTS.has(segment) ||
-      CREDENTIAL_SEGMENT_PAIRS.some(([first, second]) => segment === first && segments[index + 1] === second),
-  );
-  if (credIndex === -1) return false;
+  const last = segments.length - 1;
+  const terminalSecret =
+    TERMINAL_SECRET_FILES.has(segments[last]) ||
+    TERMINAL_SECRET_PAIRS.some(([parent, file]) => segments[last - 1] === parent && segments[last] === file) ||
+    TERMINAL_SECRET_TRIPLES.some(
+      ([grandparent, parent, file]) =>
+        segments[last - 2] === grandparent && segments[last - 1] === parent && segments[last] === file,
+    );
+  if (!terminalSecret) return false;
   return (
     isHomeEnvToken(segments[0]) ||
     segments[0] === "root" ||
@@ -1042,7 +1054,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path ENDING at a well-known concrete secret file — ${[...TERMINAL_SECRET_FILES].join(", ")}, or ${[...TERMINAL_SECRET_PAIRS, ...TERMINAL_SECRET_TRIPLES].map((form) => form.join("/")).join(", ")} — never a directory marker or an arbitrary file beneath one, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
