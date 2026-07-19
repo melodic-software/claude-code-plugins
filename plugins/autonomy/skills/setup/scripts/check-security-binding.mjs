@@ -127,7 +127,14 @@ function isRecognizedCredentialEntry(entry) {
     // "metadata" label or path segment on an arbitrary host proves nothing,
     // and the bare single-label alias is search-domain-dependent; org-specific
     // endpoints belong in a future configured allow-list. (The whole entry is
-    // lowercased before parsing, so the prefixes compare lowercase.)
+    // lowercased before parsing, so the prefixes and protocol compare
+    // lowercase.) The transport must be the service's own: metadata credential
+    // services speak plain HTTP on the default port, so a file:// read or an
+    // odd-port probe can fail for non-boundary reasons (unsupported local
+    // scheme, closed port) while the real service stays reachable — such an
+    // entry proves nothing. The WHATWG parser normalizes an explicit default
+    // ":80" away, so an empty port means the default.
+    if (url.protocol !== "http:" || url.port !== "") return false;
     if (url.hostname === "169.254.169.254") {
       return (
         hasRoutePrefix(url.pathname, "/metadata") ||
@@ -140,10 +147,13 @@ function isRecognizedCredentialEntry(entry) {
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   // A whole-entry env-style token naming a credential variable qualifies on
   // its own (e.g. $GITHUB_TOKEN — an injected token env var per the
-  // template's marked examples).
+  // template's marked examples). Only a *_token form with a non-empty prefix
+  // qualifies: a generic $TOKEN (or bare $_token) may be unset or unrelated —
+  // it names no host credential source, same rationale as the bare "token"
+  // filesystem segment.
   if (segments.length === 1 && isEnvToken(segments[0])) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
-    return bare === "token" || bare.endsWith("_token");
+    return bare.endsWith("_token") && bare.length > "_token".length;
   }
   if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
   const credIndex = segments.findIndex(
