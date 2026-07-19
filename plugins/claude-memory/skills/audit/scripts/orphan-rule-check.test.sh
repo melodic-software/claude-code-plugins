@@ -28,14 +28,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -130,6 +130,23 @@ printf 'see c.md\n' >"$FB/.work/refC.md"
 
 OUT=$(cd "$FB" && bash "$SCRIPT")
 assert_contains "fallback: .work ref excluded by default => c.md orphan" "$OUT" "c.md"
+
+# --- Case 8: interior whitespace in a quoted memory_dir is preserved -----------------
+# A collapsing strip (${seam//[[:space:]]/}) turns `.scratch dir` into `.scratchdir`, so
+# the real tier is NOT excluded and its ref counts — masking the orphan. Trailing-trim
+# preserves the interior space: the tier IS excluded and the rule stays an orphan.
+
+WS="$TEST_TMPDIR/whitespace"
+make_repo "$WS"
+mkdir -p "$WS/.claude/rules" "$WS/.scratch dir"
+printf 'memory_dir: ".scratch dir"\n' >"$WS/.claude/topic-docs.yaml"
+# rule D referenced ONLY from the space-containing memory tier => still ORPHAN
+printf '# Rule D\n\nbody\n' >"$WS/.claude/rules/d.md"
+printf 'see d.md\n' >"$WS/.scratch dir/refD.md"
+(cd "$WS" && git add -A && git commit -q -m "whitespace fixture")
+
+OUT=$(cd "$WS" && bash "$SCRIPT")
+assert_contains "whitespace: ref in quoted '.scratch dir' tier is excluded => d.md orphan" "$OUT" "d.md"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

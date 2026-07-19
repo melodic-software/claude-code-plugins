@@ -63,7 +63,7 @@ memory_dir=".work"
 topic_docs="${repo_root}/.claude/topic-docs.yaml"
 if [[ -f "$topic_docs" ]]; then
   seam=$(sed -n 's/^memory_dir:[[:space:]]*//p' "$topic_docs" | head -1)
-  seam="${seam%%#*}"; seam="${seam//[[:space:]]/}"; seam="${seam%/}"
+  seam="${seam%%#*}"; seam="${seam%"${seam##*[![:space:]]}"}"; seam="${seam%/}"
   seam="${seam#\"}"; seam="${seam%\"}"; seam="${seam#\'}"; seam="${seam%\'}"
   [[ -n "$seam" ]] && memory_dir="$seam"
 fi
