@@ -344,6 +344,28 @@
       "allowedInputs": ["runner", "prerequisite-result"],
       "allowedSecrets": {}
     },
+    "melodic-software/ci-workflows/.github/workflows/pulumi-version-drift-check.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pester.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
+      "routing": "hosted-only",
+      "allowedInputs": [
+        "run",
+        "pester-version",
+        "working-directory",
+        "sparse-checkout",
+        "sparse-checkout-cone-mode"
+      ],
+      "allowedSecrets": {},
+      "fixedRunsOn": ["windows-2025"]
+    },
     "melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
       "runnerInput": "runner",
