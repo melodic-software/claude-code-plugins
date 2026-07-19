@@ -404,6 +404,16 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   if (!nonzeroExit(transcript.assertions.credentials_absent.exit_code)) {
     return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(transcript.assertions.credentials_absent.exit_code)} — a proven credential-absence requires a non-zero integer exit code string`;
   }
+  // An assertion without its recorded target proves nothing about the
+  // boundary: a failing run against no named host/path could be any failing
+  // command, not the probe.
+  const egressHost = transcript.assertions.egress_denied.host;
+  if (typeof egressHost !== "string" || egressHost.length === 0 || /\s/.test(egressHost)) {
+    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a proven egress-denial requires the probed external host (non-empty, no whitespace)`;
+  }
+  if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
+    return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
+  }
   if (transcript.outer_context_networked !== true) {
     return `transcript ${path} does not record outer_context_networked true — an offline outer context would deny egress on its own`;
   }
