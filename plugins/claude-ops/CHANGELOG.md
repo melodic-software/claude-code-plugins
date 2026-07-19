@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **BREAKING: `known-issues scan` is read-only on bare invocation** (fleet
+  conformance wave: the naming doctrine's `scan` verb contract). It reports
+  untracked references and prints the registering invocation; the registry
+  write now requires the explicit `scan --add` override.
+
 ## [0.12.0]
 
 ### Changed

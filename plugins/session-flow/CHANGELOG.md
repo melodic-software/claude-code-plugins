@@ -1,5 +1,15 @@
 # Changelog — session-flow plugin
 
+## 0.10.1 — 2026-07-19
+
+Changed:
+
+- Topic-docs binding points instead of restating (fleet conformance wave,
+  registry single-home): the binding doc no longer restates the contract's
+  five-rung resolution order and runtime guards — it applies the contract's
+  own sections and keeps only the plugin-specific no-project-root fallback
+  detail.
+
 ## 0.10.0 — 2026-07-18
 
 Added:

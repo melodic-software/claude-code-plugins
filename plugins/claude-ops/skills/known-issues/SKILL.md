@@ -43,7 +43,7 @@ instead keep the registry inside their repository — git-tracked and team-share
 
 | File | Purpose | Who edits |
 | --- | --- | --- |
-| `<registry-dir>/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/scan/check-all), via `scripts/registry_manager.py` — see the registry-location rule above |
+| `<registry-dir>/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/`scan --add`/check-all), via `scripts/registry_manager.py` — see the registry-location rule above |
 
 Read `context/registry-schema.md` for the full `registry.json` schema and field enums.
 
@@ -56,7 +56,7 @@ Parse `$ARGUMENTS` to extract action (first token) and remaining arguments.
 | `status` | Quick health summary — registry stats + quality snapshot (DEFAULT when no args) |
 | `search` | Search GitHub Issues for bugs on a specific feature (default when args look like a feature name) |
 | `check-all` | Check ALL tracked registry issues — find newly resolved ones, create follow-up TODOs |
-| `scan` | Grep the current repo for GitHub issue references and add missing ones to registry |
+| `scan` | Grep the current repo for GitHub issue references and report untracked ones (read-only); `scan --add` also registers them |
 | `list` | Show all tracked issues grouped by status and category |
 | `quality` | Full quality check — benchmarks + status page + recent GitHub degradation reports |
 | `create` | Draft and file GitHub issue on anthropics/claude-code using their template format |

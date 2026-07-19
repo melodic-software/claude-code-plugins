@@ -27,25 +27,12 @@ in one worktree is invisible to a session resuming in another. The workflow chec
 ledger the contract's `.worktreeinclude` template carries into new worktrees where the consuming
 repo materializes it; handoffs are session-scoped and deliberately not carried.
 
-## Resolution (the contract's five-rung order, earlier wins)
+## Resolution and runtime guards
 
-1. `.claude/topic-docs.yaml` present → use its `memory_dir`.
-2. A save-point / work-journal convention declared in the consumer's `CLAUDE.md` /
-   `.claude/rules` → use it, and offer to persist it into the concern file.
-3. An existing conforming layout inferred from the repo (a self-ignoring memory root holding
-   save-points) → confirm with the user, persist to the concern file.
-4. Ask once — one question, recommended option first; persist the answer to the concern file.
-5. The documented default memory root: `.work` (save-points in `.work/handoffs/`, the workflow
-   checklist in `.work/<slug>/`).
-
-**No project root** (no git toplevel or project marker): interactive → ask (current directory or an
-explicit path); non-interactive → `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` with the absolute
-path announced prominently and nothing persisted.
-
-## Runtime guards
-
-- **Self-ignore guard:** the session's first memory-tier write verifies the **resolved memory
-  root** (whatever `memory_dir` names — never a hardcoded `.work`) contains a `.gitignore` with
-  `*`, creating it (announced) when absent — fresh clones heal on first write. Once per session,
-  per the contract.
-- No session-flow skill ever edits the consumer's root `.gitignore`.
+The contract owns both, identically for every implementer — apply its "Resolution order"
+and "Runtime guards" sections as written (the five-rung order with its no-project-root
+branch, the once-per-session self-ignore guard on the resolved memory root, the
+never-edit-the-consumer's-root-`.gitignore` rule). This binding adds only the
+plugin-specific application detail: session-flow's no-project-root non-interactive
+fallback lands handoffs under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` with the
+absolute path announced prominently and nothing persisted.
