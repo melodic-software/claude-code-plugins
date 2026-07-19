@@ -992,6 +992,21 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (transportOutcomes.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.transport_outcome ${JSON.stringify(rawTransportOutcomes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed credential path is required ("connect-failed" for a metadata URL, "read-denied" for a filesystem or env-token entry), comma-separated and positionally paired with path: without it a reachable metadata service's HTTP error is indistinguishable from a denied connection`;
   }
+  // The exact symmetry of the egress outer_exit_code: a failing inner read
+  // proves a boundary only when the target demonstrably EXISTS on the host —
+  // inside a container or sandbox a fixed path like /root/.ssh names the
+  // BOUNDARY's own (empty) root, and an empty inner path, an invented
+  // target, or an absent service "fails" inside with no boundary at all. The
+  // recipe captures the outer side per entry kind (path present/readable,
+  // env var set and non-empty, metadata service reachable) and records its
+  // exit as outer_exit_code, comma-separated and positionally paired with
+  // path; every entry must be "0".
+  const rawCredentialOuterCodes = transcript.assertions.credentials_absent.outer_exit_code;
+  const credentialOuterCodes =
+    typeof rawCredentialOuterCodes === "string" ? rawCredentialOuterCodes.split(",").map((code) => code.trim()) : [];
+  if (credentialOuterCodes.length !== credentialPaths.length) {
+    return `transcript ${path} records assertions.credentials_absent.outer_exit_code ${JSON.stringify(rawCredentialOuterCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed credential path is required, comma-separated and positionally paired with path: a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
+  }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
       return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets) and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
@@ -1009,6 +1024,9 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
     }
     if (!urlEntry && transportOutcomes[index] !== "read-denied") {
       return `transcript ${path} records assertions.credentials_absent.transport_outcome entry ${JSON.stringify(transportOutcomes[index])} for path ${JSON.stringify(entry)} — a filesystem or env-token read has no connection to fail; its probe outcome is recorded as "read-denied"`;
+    }
+    if (credentialOuterCodes[index] !== "0") {
+      return `transcript ${path} records assertions.credentials_absent.outer_exit_code entry ${JSON.stringify(credentialOuterCodes[index])} for path ${JSON.stringify(entry)} — the outer-context existence check of the same target must succeed (exit "0"): a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
     }
   }
   if (transcript.outer_context_networked !== true) {

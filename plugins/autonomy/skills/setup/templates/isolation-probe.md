@@ -52,9 +52,17 @@ assert the credential is absent or unreadable:
 ```sh
 # expand on the host side; the boundary receives only the literal expanded path
 <host-expanded-path>=<outer-shell expansion of <host-credential-path>>
+# probe (outer context): the target must exist on the host — record this exit as outer_exit_code
+<outer-existence-check> <host-expanded-path> ; test $? -eq 0 || fail "no such credential target on the host — an absent target cannot evidence a boundary"
 # probe: host credential path must be absent or denied inside the boundary
 <read-command> <host-expanded-path> ; test $? -ne 0 || fail "read <host-expanded-path> — host credentials leaked into the boundary"
 ```
+
+`<outer-existence-check>` is the deliberate credential-side parallel of the egress probe's outer
+reachability step: without it, a fixed path like `/root/.ssh` names the boundary's OWN (empty)
+root and its failing inner read proves nothing. Per entry kind it is a readability test on the
+expanded path (readability only, never content), an is-set-and-non-empty test for a whole-entry
+env token, or a service-reachability check for a metadata endpoint.
 
 For a metadata endpoint the assertion is connection-level: the probe must fail to CONNECT
 (refused, timeout, no route — use a short connect timeout), not merely receive an HTTP error,
@@ -98,18 +106,20 @@ confirm both assertions failed inside a boundary the run itself created:
   "probed_at": "<iso-8601>",
   "assertions": {
     "egress_denied": { "host": "<well-known-external-host>", "exit_code": "<non-zero>", "outer_exit_code": "0", "outcome": "denied" },
-    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" }
+    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }
 ```
 
 When one run probes several `<host-credential-path>` locations, `credentials_absent.path` lists
-them comma-separated and `host_expanded`, `exit_code`, and `transport_outcome` list one entry
-per location, comma-separated in the same order — a single code cannot vouch for every listed
-location. The
+them comma-separated and `host_expanded`, `exit_code`, `outer_exit_code`, and
+`transport_outcome` list one entry per location, comma-separated in the same order — a single
+code cannot vouch for every listed location. The
 `egress_denied.outer_exit_code` pairs with the probed host the same way and must be `"0"`: the
 outer context reached the very target the inner probe failed against.
+`credentials_absent.outer_exit_code` is its credential-side mirror, also all-`"0"`: the outer
+context proved the very target the inner read failed against exists on the host.
 
 The captured transcript is referenced from the level binding's `probe_evidence` field; the
 security-binding check treats a level binding without it as invalid. A transcript whose
