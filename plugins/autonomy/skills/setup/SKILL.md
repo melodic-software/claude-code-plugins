@@ -174,7 +174,10 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
 3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
    comment-created (or native-field change) event handler, wired the same reviewable way as
    the close trigger: on a new reply, check the reply's actor against the accountable-human
-   routing, and on a parseable reply carrying both values, upsert the SAME attested record
+   routing, require the contract's reply-correlation rule (the event responds to the
+   recorded `attestation_request`, or carries the flat-tracker `attest:` token — an
+   incidental parseable comment never attests), and on a parseable reply carrying both
+   values, upsert the SAME attested record
    (not a second contract — this is the one attestation upsert, wired from its own trigger
    surface) — branched by `record_surface`: on the comment floor, find the marker-tagged
    comment and edit it in place (the marker lookup exists to disambiguate among a comment
@@ -218,7 +221,7 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
    | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule; MAY be null (undiscoverable and not yet interviewed — never invented, same as `roles`) |
    | `requester_source` | how the accountable requester's platform identity resolves from an ordinary (requester-carrying) item in this tracker class — a tracker-specific identity source such as the item-author field or a named custom field; step 3's reply handler addresses the attestation request to it and validates the attesting actor against it; MAY be null (same ladder) — unbound means the actor check for ordinary items cannot be wired, so their attestation stays unwired and reported, never guessed |
-   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>", "role": "reviewer" \| "maintainer" \| "other"}` (`role` optional, default `other` — the value the reply handler derives `attestor_role` from on a standing-owner match, per the contract's derivation rule) or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing, resolved through `requester_source`; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
+   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists. The key must be resolvable FROM THE CLOSING ITEM per the contract's routing rule: setup verifies the surface's filing template stamps the identifier on each item it files (item-body marker, label, or field — the stamp mechanism recorded alongside the entry), wires the stamp in as a reviewable change where the template lacks it, and leaves the entry unwired-and-reported where the surface cannot stamp (never title-match correlation); each entry is `{"standing_owner": "<platform-identity>", "role": "reviewer" \| "maintainer" \| "other"}` (`role` optional, default `other` — the value the reply handler derives `attestor_role` from on a standing-owner match, per the contract's derivation rule) or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing, resolved through `requester_source`; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
 
    A binding missing the `capture` section has not wired this slice (absent-section
    tolerance, same as telemetry). `tracker_class` and `record_surface` land once step 1

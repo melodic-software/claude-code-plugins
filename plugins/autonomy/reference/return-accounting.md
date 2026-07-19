@@ -30,6 +30,7 @@ contract owns. No standalone estimation or reporting capability; no new cost.
 | `attested_by` | the attesting human's platform identity, captured from the attestation action |
 | `attestor_role` | `requester` \| `reviewer` \| `maintainer` \| `other` (descriptive — never the trust anchor) |
 | `attestation_source` | absolute https URL of the attestation source event (the human's reply) as the platform serves it — query and fragment PRESERVED (they often identify the comment event); the telemetry contract's strip rule applies only to the work-item join key. The auditable identity citation |
+| `attestation_request` | machine-written at close: absolute https URL of the posted attestation-request event — the identity an admissible reply must respond to; present on the unattested record whenever a request was posted (absent only for attestation-exempt classes, which post no request) |
 
 This record's `schema_version` uses major-only tokens (`"1"`, never `"1.0"`); the setup
 skill's own binding `schema_version` uses semver strings — the two are separate version
@@ -37,7 +38,16 @@ spaces with independent parsers.
 
 Presence rules: an unattested record carries `attested: false` with `counterfactual`,
 `effort_band`, `attested_at`, `attested_by`, `attestor_role`, and `attestation_source`
-ABSENT — never null-imputed. An attested record carries all fields.
+ABSENT — never null-imputed. An attested record carries all fields. `attestation_request`
+is machine-layer (never human-attested) and rides both states.
+
+Reply correlation: actor + parseable payload alone never attest — an accountable human can
+type a parseable string in an unrelated discussion on the same item. An admissible
+attestation reply must RESPOND to the recorded `attestation_request` event: the platform's
+reply/thread relationship to that event where the tracker has one; on flat-comment trackers
+(no threaded replies), an explicit response token opening the comment (`attest:` followed by
+the two values) on the request's item. An incidental parseable comment matching neither is
+ignored.
 
 Composition rule: `effort_band` answers the manual-cost question for the WHOLE delivered item
 regardless of the `counterfactual` value; `partial` qualifies the counterfactual only.
@@ -64,7 +74,12 @@ default. For ordinary (requester-carrying) items the requester IS the routing, b
 requester is per tracker class (item author, a named custom field, another tracker-specific
 identity) is not derivable from the tracker class token alone — the binding names the
 requester-identity source the attestation request is addressed to and the attesting actor is
-validated against; it is never guessed.
+validated against; it is never guessed. A requester-less routing entry's per-surface key
+must be RECOVERABLE FROM THE ITEM at close time: the filing surface stamps its identifier
+on every item it files (an item-body marker, label, or field the binding records), and the
+close/reply handlers resolve routing by reading that stamp — never by title matching or
+other ad-hoc correlation. A surface that cannot stamp its identifier leaves its routing
+entry unwired and reported.
 
 Capture scope: autonomous-class work only, per the guardrail contract's class vocabulary;
 interactive work is exempt (prompting friction kills compliance; divergence lives where no

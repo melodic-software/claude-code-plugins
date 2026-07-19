@@ -11,8 +11,9 @@ from the binding at wire time; no org, fleet, or vendor value is baked in.
 > 2. **What would it have cost in manual eng-hours?** — `<1h` / `1-4h` / `4h-1d` / `1d-1w` /
 >    `1w-1mo` / `>1mo`
 >
-> Reply to this comment with your answers (e.g. `partial, 1-4h`) — or skip; a skip leaves the
-> record unattested.
+> Reply to this comment with your answers (e.g. `partial, 1-4h`) — on trackers without
+> threaded replies, start a new comment on this item with `attest:` (e.g. `attest: partial,
+> 1-4h`) — or skip; a skip leaves the record unattested.
 
 ## Marker-keyed record comment (universal floor)
 
@@ -28,9 +29,16 @@ complete comment body — both appear in the same tracker comment:
 {
   "schema_version": "1",
   "work_item_url": "<canonical-item-url>",
-  "attested": false
+  "attested": false,
+  "attestation_request": "<request-event-url>"
 }
 ```
+
+`attestation_request` anchors the contract's reply-correlation rule. On the comment floor
+the request and record share the marker comment, so the value is that comment's own event
+URL — the close trigger backfills it with a self-edit immediately after posting (the record
+fields themselves keep create-only semantics). On native fields it is the URL of the posted
+request comment.
 
 ## Attestation upsert
 
@@ -44,7 +52,11 @@ requester-identity source, else the matched routing entry's declared role, defau
 `other` — the handler writes the derived value). The reply must carry
 BOTH values (`counterfactual` and `effort_band`); a bare reaction cannot carry them and never triggers
 the upsert — the automation leaves the record unattested (optionally re-requesting with the
-expected reply shape). On a parseable reply, the bound automation identity edits the SAME
+expected reply shape). Actor + parseable payload alone are not enough: per the contract's
+reply-correlation rule the event must RESPOND to the recorded `attestation_request` — a
+platform reply/thread relationship to that event, or on flat-comment trackers an
+`attest:`-prefixed comment on the request's item; an incidental parseable comment elsewhere
+on the item never attests. On an admissible reply, the bound automation identity edits the SAME
 marker comment, adding the attested fields — `attested: true`, `counterfactual`,
 `effort_band`, `attested_at`, `attested_by` (copied from the reply's platform actor),
 `attestor_role`, and `attestation_source` (the reply event's canonical URL as the platform
@@ -62,6 +74,7 @@ Attested record shape (the same fenced JSON record, upserted):
   "schema_version": "1",
   "work_item_url": "<canonical-item-url>",
   "attested": true,
+  "attestation_request": "<request-event-url>",
   "counterfactual": "partial",
   "effort_band": "1-4h",
   "attested_at": "<iso-8601>",
@@ -85,7 +98,9 @@ race rule).
 
 Wire a companion reply-triggered handler at the surface the org's tracker actually offers (a
 comment-created event, or the native-field equivalent where fields support change-triggered
-automation): on each new reply, resolve the actor against the accountable-human routing and,
+automation): on each new reply, resolve the actor against the accountable-human routing,
+require the reply-correlation rule (a response to the recorded `attestation_request`, or the
+flat-tracker `attest:` token) and,
 on a parseable reply carrying both values, upsert the SAME attested record — not a second
 contract, the one attestation upsert wired from its own trigger. On the comment floor this
 means finding the marker-tagged comment and editing it in place (a missing marker comment
