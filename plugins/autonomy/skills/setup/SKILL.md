@@ -215,7 +215,12 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    the requester-identity source for ordinary (requester-carrying) items — which
    tracker-class-specific identity IS the requester (item author, a named custom field);
    never guessed from `tracker_class` alone — and the standing attestation owner (or
-   attestation-exempt marking) for requester-less classes. An attestation-exempt class's close trigger posts NEITHER the
+   attestation-exempt marking) for requester-less classes. Setup VALIDATES that every
+   declared `standing_owner` is a human platform account distinct from
+   `automation_identity`, and the close trigger applies the contract's human-owner rule to
+   each resolution: a bot/app or automation-matching identity produces no owned record —
+   route to the class's standing owner, else that item's capture stays advisory
+   (self-attestation would bypass the never-estimate rule). An attestation-exempt class's close trigger posts NEITHER the
    unattested record NOR the attestation request — `return-accounting.md` forbids a
    perpetually-unattested default, so an exempt class's cost is reported separately,
    outside this record schema entirely.
