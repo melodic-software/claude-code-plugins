@@ -65,8 +65,10 @@ Quality is partly subjective, but some aspects ARE measurable:
 - **More abstractions isn't always better** — a `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
 - **Don't confuse motion with progress** — renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.
 
-## Marketplace plugin skills (evidence sources when the collector lands)
+## Marketplace plugin skills (invoke only when installed)
+
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise draw the same evidence from the project's own complexity/coverage tooling:
 
 - **CRAP scores** — `dotnet-test:crap-score` combines cyclomatic complexity + coverage into one risk metric ("safer to change" evidence).
-- **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements.
-- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence.
+- **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements; if absent, use the project's own test-quality analyzer or an explicit test-smell review checklist — the complexity/coverage fallback above won't surface over-mocking, flakiness, or tautological tests.
+- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence; if absent, use the project's own query logging, database profiling, or ORM diagnostics — the complexity/coverage fallback above won't reveal N+1 or query plans.

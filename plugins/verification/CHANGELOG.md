@@ -3,6 +3,23 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4]
+
+### Changed
+
+- Presence-gated the `dotnet-*`/`cloudflare` marketplace-skill evidence pointers in the `measure`
+  contexts, superseding 0.2.3's "unchanged" note. `metrics` and `performance` now carry the
+  `## Marketplace plugin skills (invoke only when installed)` guard heading (matching the `testing`
+  plugin's gated lists) plus a lead-in that frames the `dotnet-*` skills as .NET-only and
+  `cloudflare:web-perf` as web-frontend-only, each invoked only when its plugin is installed and
+  otherwise falling back to the project's own tooling — the generic complexity/coverage or
+  benchmark/profiling harness where that fits, with a tailored per-bullet fallback where the
+  evidence type differs (query logging / database profiling / ORM diagnostics for EF-query
+  analysis, a test-quality analyzer or test-smell review checklist for test-quality analysis,
+  web-vitals tooling for Core Web Vitals). This removes the bare unguarded cross-plugin
+  reference `docs/PLUGIN-PHILOSOPHY.md` names as a defect; no hard dependencies added, every
+  reference stays optional.
+
 ## [0.2.3]
 
 ### Changed

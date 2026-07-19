@@ -58,9 +58,11 @@ When a plan claims a perf improvement:
 - **Micro-optimization without macro impact** — saving 1ms in a function inside a 200ms request is noise, not signal.
 - **Forgetting warm-up** — first-run JIT + cold cache inflate initial measurements. Discard the first run or include warm-up.
 
-## Marketplace plugin skills (evidence sources when the harness lands)
+## Marketplace plugin skills (invoke only when installed)
+
+These enrichment skills are stack-specific — the `dotnet-*` skills apply when your stack is .NET, `cloudflare:web-perf` when you ship a web frontend; invoke each only when its plugin is installed, otherwise draw the same evidence from the project's own benchmark/profiling harness:
 
 - **Code-level perf** — `dotnet-diag:analyzing-dotnet-performance` scans ~50 anti-patterns (async deadlocks, GC pressure, string allocation).
 - **Microbenchmarks** — `dotnet-diag:microbenchmarking` for BenchmarkDotNet setup + methodology.
 - **Build perf** — `dotnet-msbuild:build-perf-baseline` / `build-perf-diagnostics`.
-- **Web perf** — `cloudflare:web-perf` for Core Web Vitals via Chrome DevTools.
+- **Web perf** — `cloudflare:web-perf` for Core Web Vitals via Chrome DevTools; if absent, use the project's own web vitals tooling (Lighthouse, PageSpeed Insights, or your CI web perf runner) — the benchmark/profiling fallback above targets code perf, not web vitals.
