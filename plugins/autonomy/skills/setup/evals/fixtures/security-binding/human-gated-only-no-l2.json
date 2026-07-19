@@ -6,6 +6,7 @@
     "ci-pool-a": {
       "L1": {
         "substrate": "per-command-sandbox",
+        "substrate_class": "os-sandbox",
         "probe_evidence": "probe-transcripts/ci-pool-a-l1-2026-07-01.txt"
       }
     }

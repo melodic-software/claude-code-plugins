@@ -6,6 +6,7 @@
     "ci-pool-a": {
       "L3": {
         "substrate": "hosted-ephemeral-pool",
+        "substrate_class": "hosted-ephemeral-executor",
         "probe_evidence": "probe-transcripts/ci-pool-a-l3-hosted.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",

@@ -6,6 +6,7 @@
     "ci-pool-a": {
       "L2": {
         "substrate": "egress-denied-container-pool",
+        "substrate_class": "container",
         "probe_evidence": "probe-transcripts/ci-pool-a-l2-nat64-local.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",

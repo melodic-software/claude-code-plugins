@@ -423,8 +423,9 @@ depends on the binding until that human-landed change exists.
    [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs)). A binding never
    lands ahead of the probe that proves its boundary.
 4. **Bind level → substrate per surface** — record each validated substrate under its surface in
-   `isolation_bindings` (surface id → level token → substrate instance + `probe_evidence` +
-   the non-forgeable `runtime_markers` the dispatch seam attests against), plus the merge policy,
+   `isolation_bindings` (surface id → level token → substrate instance + the human-ratified
+   `substrate_class` + `probe_evidence` + the non-forgeable `runtime_markers` the dispatch seam
+   attests against), plus the merge policy,
    verification-blocking knobs, escalation routes, and admission rules and caps — all on the
    prepared security-binding change, validated by
    [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) against

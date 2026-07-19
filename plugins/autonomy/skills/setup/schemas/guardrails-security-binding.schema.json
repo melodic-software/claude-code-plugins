@@ -123,12 +123,16 @@
     "LevelBinding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["substrate", "probe_evidence"],
+      "required": ["substrate", "substrate_class", "probe_evidence"],
       "properties": {
         "substrate": {
           "description": "Bound substrate instance id (org-supplied; the ladder names substrate classes only).",
           "type": "string",
           "minLength": 1
+        },
+        "substrate_class": {
+          "description": "The HUMAN-RATIFIED substrate-class assertion the eligibility decision keys off, living here on the agent-unwritable surface — never resolved from the probe transcript, whose recorded class is capture evidence the executing agent could doctor and must EQUAL this value to verify. An L3 entry ratifying a class outside the kernel-separated pair (vm-microvm, hosted-ephemeral-executor) is an invalid binding, fail-closed.",
+          "enum": ["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]
         },
         "probe_evidence": {
           "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with both assertions and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed.",

@@ -437,9 +437,31 @@ function validateStructure(binding) {
             findings.push(`${where}: must be an object`);
             continue;
           }
-          checkAllowedKeys(entry, ["substrate", "probe_evidence", "runtime_markers"], where);
+          checkAllowedKeys(entry, ["substrate", "substrate_class", "probe_evidence", "runtime_markers"], where);
           if (!isNonEmptyString(entry.substrate)) {
             findings.push(`${where}.substrate: missing or empty — the bound substrate instance id is required`);
+          }
+          // The substrate CLASS is the HUMAN-RATIFIED binding-side assertion
+          // the eligibility decision keys off, living on the agent-unwritable
+          // surface — never the transcript's recorded class, which is capture
+          // evidence an executing agent could doctor. The transcript-side
+          // class checks in verifyProbeTranscript stay as capture-shape
+          // validation; this is the governance-surface assertion the capture
+          // is matched against.
+          if (!SUBSTRATE_CLASSES.has(entry.substrate_class)) {
+            findings.push(
+              `${where}.substrate_class: ${JSON.stringify(entry.substrate_class)} — the human-ratified substrate-class assertion is required on every level binding, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`,
+            );
+          } else if (level === "L3" && !L3_SUBSTRATE_CLASSES.has(entry.substrate_class)) {
+            // Level/class coherence is judged on the RATIFIED class, not the
+            // transcript's: an L3 entry whose ratified class is not
+            // kernel-separated is an INVALID BINDING — the ratified assertion
+            // itself is wrong, not merely the evidence unproven — because
+            // container and os-sandbox boundaries never reach the ladder's
+            // kernel-separated L3 floor, whatever any capture claims.
+            findings.push(
+              `${where}.substrate_class: ${JSON.stringify(entry.substrate_class)} ratified for an L3 entry — L3 requires kernel separation, which only the kernel-separated substrate classes (${[...L3_SUBSTRATE_CLASSES].map((token) => JSON.stringify(token)).join(", ")}) provide; ratify a kernel-separated class, or bind this substrate at the level its class can reach`,
+            );
           }
           if (!isNonEmptyString(entry.probe_evidence)) {
             findings.push(
@@ -815,11 +837,12 @@ function isNonExternalEgressHost(host) {
 // failed-inside assertions AND a networked outer context (a fully-offline
 // outer context would deny egress on its own) — the capture shape of
 // templates/isolation-probe.md; keep the two in sync. The transcript's own
-// surface/level/substrate identity must match the binding entry it is cited
-// from: a genuine transcript reused under a different surface, level, or
-// substrate proves a DIFFERENT boundary, not this one. Returns null when
-// verified, else the reason the entry is unproven.
-function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egressAllowList) {
+// surface/level/substrate/substrate-class identity must match the binding
+// entry it is cited from: a genuine transcript reused under a different
+// surface, level, substrate, or substrate class proves a DIFFERENT boundary,
+// not this one. Returns null when verified, else the reason the entry is
+// unproven.
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList) {
   // Evidence verifies ONLY against the configured protected root: without
   // --probe-evidence-root a ref resolves as written — including to an
   // agent-writable file swapped after the human ratified the binding — so no
@@ -889,9 +912,23 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (transcript.substrate !== substrate) {
     return `transcript ${path} records substrate ${JSON.stringify(transcript.substrate)}, not this binding entry's substrate ${JSON.stringify(substrate)}`;
   }
-  // The claimed level must be reachable by the substrate CLASS that ran the
-  // probe: L3 is the ladder's kernel-separated floor, which container and
-  // os-sandbox boundaries never provide — a genuine L2 transcript relabeled
+  // The transcript's substrate_class is CAPTURE EVIDENCE; the binding entry's
+  // is the human-ratified assertion the eligibility decision keys off. A
+  // mismatch means the capture proves a DIFFERENT substrate: relabeling a
+  // container capture with a kernel-separated class fails closed right here,
+  // and upgrading the ratified class itself takes a human change on the
+  // agent-unwritable surface — exactly the trust boundary. The dispatch seam
+  // attests the RUNNER identity via runtime_markers against platform-attested
+  // context; the substrate class rides the ratified binding, never the
+  // capture.
+  if (transcript.substrate_class !== substrateClass) {
+    return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)}, not this binding entry's ratified substrate_class ${JSON.stringify(substrateClass)} — the capture proves a different substrate than the human-ratified assertion`;
+  }
+  // Capture-shape validation of the transcript's own recorded class (the
+  // ratified-class coherence is enforced binding-side in validateStructure):
+  // the claimed level must be reachable by the substrate CLASS that ran the
+  // probe — L3 is the ladder's kernel-separated floor, which container and
+  // os-sandbox boundaries never provide, so a genuine L2 transcript relabeled
   // L3 must not unlock C5.
   if (!SUBSTRATE_CLASSES.has(transcript.substrate_class)) {
     return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} — required, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`;
@@ -1176,7 +1213,7 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, egressAllowList)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);

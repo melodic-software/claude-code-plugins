@@ -124,7 +124,11 @@ very target the inner probe failed against.
 context proved the very target the inner read failed against exists on the host.
 
 The captured transcript is referenced from the level binding's `probe_evidence` field; the
-security-binding check treats a level binding without it as invalid. A transcript whose
+security-binding check treats a level binding without it as invalid. The level binding also
+records its own `substrate_class` — the HUMAN-RATIFIED class assertion the eligibility decision
+keys off, living on the agent-unwritable surface — and the transcript's recorded
+`substrate_class` must EQUAL it: the transcript's value is capture evidence, so a mismatch means
+the capture proves a different substrate than the one ratified. A transcript whose
 `outer_context_networked` is false does not prove the boundary — a fully-offline outer context
 would deny egress on its own — so the recipe keeps the outer context networked and only the inner
 boundary sealed.

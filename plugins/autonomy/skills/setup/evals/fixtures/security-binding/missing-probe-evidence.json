@@ -6,6 +6,7 @@
     "ci-pool-a": {
       "L2": {
         "substrate": "egress-denied-container-pool",
+        "substrate_class": "container",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"

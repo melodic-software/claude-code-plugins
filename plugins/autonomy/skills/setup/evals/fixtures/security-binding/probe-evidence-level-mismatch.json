@@ -6,6 +6,7 @@
     "ci-pool-a": {
       "L3": {
         "substrate": "egress-denied-container-pool",
+        "substrate_class": "vm-microvm",
         "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",

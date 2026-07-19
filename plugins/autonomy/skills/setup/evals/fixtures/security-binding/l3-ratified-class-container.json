@@ -1,17 +1,13 @@
 {
   "schema_version": "1.0",
   "executor_class": "self-operated",
-  "dispatch_posture": "autonomous-enabled",
+  "dispatch_posture": "human-gated-only",
   "isolation_bindings": {
     "ci-pool-a": {
-      "L2": {
+      "L3": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
-        "runtime_markers": {
-          "runner-pool": "ci-pool-a",
-          "region": "us-east"
-        }
+        "probe_evidence": "probe-transcripts/ci-pool-a-l3-container.json"
       }
     }
   },
@@ -57,46 +53,13 @@
       }
     },
     "rules": [
-      {
-        "signal_class": "*",
-        "provenance": "*",
-        "work_class": "C1",
-        "disposition": "autonomous-eligible"
-      },
-      {
-        "signal_class": "*",
-        "provenance": "*",
-        "work_class": "C2",
-        "disposition": "autonomous-eligible"
-      },
-      {
-        "signal_class": "*",
-        "provenance": "*",
-        "work_class": "C3",
-        "disposition": "human-gated"
-      },
-      {
-        "signal_class": "*",
-        "provenance": "*",
-        "work_class": "C4",
-        "disposition": "human-gated"
-      },
-      {
-        "signal_class": "*",
-        "provenance": "*",
-        "work_class": "C5",
-        "disposition": "human-gated"
-      }
+      { "signal_class": "*", "provenance": "*", "work_class": "C1", "disposition": "autonomous-eligible" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C2", "disposition": "autonomous-eligible" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C3", "disposition": "human-gated" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C4", "disposition": "human-gated" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C5", "disposition": "human-gated" }
     ],
     "autonomous_concurrency": 1,
     "items_per_run": 3
-  },
-  "promotion_state": {
-    "C4-merge": {
-      "state": "promoted",
-      "ratified_by_change": "change/2026-07-02-c4-merge",
-      "evidence_window": "2026-06-01..2026-07-01",
-      "ratified_at": "2026-07-02T00:00:00Z"
-    }
   }
 }
