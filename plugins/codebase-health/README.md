@@ -18,14 +18,14 @@ claims about itself are true.
 
 Eight phases (0–7): prime the repo's conventions, discover via per-file fan-out, independently
 validate each finding (a separate agent re-verifies — never self-review), categorize and present in a
-severity-rated table with a verified-non-issues proof-of-thoroughness list, then — unless
-`--review-only` — fix in priority order, verify against the repo's own gates, self-review, and
-retrospect.
+severity-rated table with a verified-non-issues proof-of-thoroughness list. Bare invocation is
+read-only — it reports and stops; with the explicit `--fix` flag it continues: fix in priority
+order, verify against the repo's own gates, self-review, and retrospect.
 
 ```shell
-/codebase-health:audit                      # audit every configured dimension (scope-gated)
-/codebase-health:audit docs/ --docs-only    # one dimension, scoped to a subtree
-/codebase-health:audit README.md --review-only   # scoped, present findings, no fixes
+/codebase-health:audit                      # report-only audit of every configured dimension (scope-gated)
+/codebase-health:audit docs/ --docs-only    # one dimension, scoped to a subtree, report-only
+/codebase-health:audit README.md --fix      # scoped, then apply the auto-fixes
 ```
 
 Dimension filters (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`) are mutually
