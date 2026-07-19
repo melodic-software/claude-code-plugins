@@ -569,9 +569,13 @@ function isNonExternalEgressHost(host) {
       // v4-mapped: classify the embedded IPv4.
       return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
     }
-    if (hextets.slice(0, 7).every((hextet) => hextet === "0000")) {
-      // Unspecified (::), loopback (::1), and the rest of the deprecated
-      // near-zero space — none is a meaningful external target.
+    if (hextets.slice(0, 6).every((hextet) => hextet === "0000")) {
+      // ::/96 — unspecified (::), loopback (::1), and the whole deprecated
+      // IPv4-compatible space (::0.0.0.0 through ::255.255.255.255, RFC 4291
+      // §2.5.5.1): the embedded-dotted-quad form (e.g. "::127.0.0.1") writes
+      // its address into hextets[6]/[7], so gating on those would let a
+      // deprecated-space literal masquerade as external. None of ::/96 is a
+      // meaningful external target.
       return true;
     }
     const first = Number.parseInt(hextets[0], 16);
