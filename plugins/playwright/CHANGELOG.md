@@ -3,6 +3,26 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. The vendored Apache-2.0 upstream license reference (shipped
+  in-plugin) is unchanged. No behavior change.
+
+## [0.3.1]
+
+### Changed
+
+- Artifact-naming example in the tracing/video reference drops the tracker-shaped
+  `issue-123` filename token and the hardcoded `docs/evidence/` directory for
+  agnostic `<artifact-dir>/<descriptive-name>` placeholders, so the destination
+  comes from the consumer's own project conventions rather than presuming
+  GitHub-integer issue numbering and a mandated evidence-directory layout.
+
 ## [0.3.0]
 
 ### Added

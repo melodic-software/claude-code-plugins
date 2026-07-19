@@ -3,6 +3,36 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Fixed
+
+- `follow-our-standards` now states that its upstream shared-policy route
+  **names and drafts** the standards change and routes it to the human,
+  OFFERING to open the standards PR — it does not open that PR (or any
+  outward artifact) without the user's explicit opt-in, mirroring the OFFER
+  gate the sibling `recheck-against-upstream-deep` applies to its work-items
+  routing. Closes the ambiguity in "named and routed" that, combined with
+  the correct-forward mandate, an aggressive reading could take as licence
+  to file a standards PR unprompted.
+- The shared method's `correct forward now` step gains an outward-artifact
+  carve-out, and a new Non-negotiable states the plugin-wide invariant that
+  no corrector files an outward artifact (PR, issue, published review
+  comment) without explicit opt-in — a documented guarantee for consume-only
+  consumers. In-tree correction stays ungated.
+- `reason-dont-recite` notes that the standards-disagreement route it hands
+  to `follow-our-standards` drafts and proposes rather than files, for
+  consistency with the gate above.
+
+## [0.3.2]
+
+### Fixed
+
+- `tighten-your-output` now presence-gates its `compress` and `simplify`
+  routes with a documented prose/in-thread fallback, per the seam-phrasing
+  convention — closing the lone unguarded cross-plugin reference that the
+  sibling correctors already guard.
+
 ## [0.3.1]
 
 ### Changed

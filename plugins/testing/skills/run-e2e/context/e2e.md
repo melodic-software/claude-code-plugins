@@ -133,5 +133,7 @@ When a test element can't be found:
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These enrichment skills are tool-specific — invoke each only when it matches your stack and tooling:
+
 - **`cloudflare:web-perf`** — measure Core Web Vitals (FCP, LCP, TBT, CLS, Speed Index) via Chrome DevTools MCP. Use for performance verification baselines during E2E testing
 - **`document-skills:webapp-testing`** — Playwright-based test automation patterns including semantic locators, accessibility-first selectors, and multi-step workflow scripting

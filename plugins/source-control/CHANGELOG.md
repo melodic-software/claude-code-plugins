@@ -3,6 +3,81 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3]
+
+### Added
+
+- **`babysit-prs` snapshot exit-code taxonomy splits advisory from substantive errors.**
+  `pr_queue_snapshot.py` now returns `3` for a valid snapshot whose only failure is the advisory
+  head-ref alias cross-check, distinct from `1` (substantive per-PR hydration or discovery
+  failure) and `2` (fatal, no state written). The split is documented in the module docstring and
+  covered by unit tests for every code; an advisory-only run no longer looks like a per-PR
+  failure. No caller keyed on the previous `1`-means-any-error behavior (all consumers parse the
+  JSON snapshot). The same advisory/substantive split also governs sweep completeness and cadence:
+  an advisory-only sweep persists as complete (its full-sweep counter still advances) and does not
+  force the tight `active` cadence, since the degraded cross-check leaves every per-PR
+  classification and the persisted state intact.
+- **`babysit-prs` formalizes the worker→main cross-PR dependency channel.** `orchestration.md`
+  documents a worker signalling a discovered cross-PR coupling back to the main agent (which owns
+  cross-PR ordering) over the same messaging mechanism used for main→worker, rather than reaching
+  across PRs itself.
+- **`babysit-prs` records the self-blocking-CI-check bootstrap gotcha.** A newly required check
+  whose own fix PR carries that same check cannot be gate-merged and needs a one-time human
+  admin-merge bootstrap; captured in the `SKILL.md` Gotchas list.
+
+### Changed
+
+- **`babysit-prs` adds a no-background-monitor STOP at the merge / gate-completion step.** Once
+  the merge gate proves a PR ready, or its merge is deferred to a human, the agent reports and
+  stops instead of arming a CI watch; added to `SKILL.md` and `reference/safety.md`, pointing at
+  the existing no-background-monitor clause rather than restating it.
+- **`babysit-prs` clarifies the bare-wrapper invocation rule.** `reference/safety.md` now states
+  that the guarded-wrapper JSON must be parsed in a separate step — never piped into an
+  interpreter — because an interpreter-in-pipeline trips the auto-mode safety classifier and
+  blocks the call.
+
+## [0.9.2]
+
+### Fixed
+
+- **babysit-prs no longer re-dispatches a worker onto its own prior-round replies.** For a solo
+  maintainer whose `gh` login is the configured self-login (`gh api user` login plus any
+  `babysit_self_logins` extras), the delta engine counted the worker's own classification replies
+  and `Fixed in <sha>` follow-ups as new human-authored feedback, manufacturing a self-inflicted,
+  unsuppressible `new_human_blocking_feedback` dispatch that re-fired every cycle with zero real
+  work. The `new_human_blocking_feedback` and `new_human_feedback` deltas now exclude items
+  authored by the configured self-login(s) — the same self-reply exclusion `review-discipline.md`
+  §1 already mandates for the worker, and parity with the bot delta arms (self-filtered
+  structurally because the engine never comments as a bot). Scoped to the dispatch deltas only: a
+  self-authored item still classifies as human feedback, so a genuine "do not merge" comment the
+  maintainer posts under their own login keeps the human stop and triage blocker intact and still
+  halts the merge gate.
+
+## [0.9.1]
+
+### Fixed
+
+- **babysit-prs review-trigger head-staleness hardening** (dormant-by-default module; no effect
+  until `babysit_review_trigger_phrase` + `babysit_review_bot_logins` + `babysit_review_gate_context`
+  are configured).
+  - **F7** — `request_review.py`'s pre-POST freshness guard rejected only the literal `BEHIND`
+    merge state. A head that is behind its base but reports `BLOCKED` (GitHub masks `BEHIND` behind
+    `BLOCKED`) slipped through and spent the one-shot review request on a stale SHA. The guard now
+    reuses the compare-confirmed freshness signal (`compute_branch_freshness`, off the
+    `_blocked_base_compare` enrichment `view_pr` already computes), so a compare-behind head is
+    rejected and the branch-refresh flow runs first.
+  - **F8** — the candidate predicate in `babysit_review_trigger.py` blocked candidacy whenever *any*
+    reviewer reaction existed. Reactions carry no commit SHA, so a reaction left on an earlier head
+    persisted onto later heads and permanently suppressed the new head's observation window. The
+    check is now scoped to reactions associated with, or newly observed for, the current head.
+  - **F8 follow-on** — the F8 scoping stopped at the candidate predicate: `request_review.py`'s
+    posting guard (`validate_current_candidate`, both its pre-POST check and its post-POST
+    concurrency check) still gated on the raw, unscoped reaction list. A PR made eligible by the F8
+    fix because its only reaction was stale (an earlier head) would still have every request attempt
+    rejected at posting time, recorded as `"ambiguous"`, and blocked from retrying. The scoping rule
+    is extracted into a shared `resolve_associated_reactions` helper in `babysit_review_trigger.py`
+    and applied at both the candidate predicate and every posting-guard reaction check.
+
 ## [0.9.0]
 
 ### Changed

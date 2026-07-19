@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## 0.10.2 — 2026-07-19
+## 0.10.3 — 2026-07-19
 
 Changed:
 
@@ -11,6 +11,16 @@ Changed:
   against, all flowing through the consumer conventions the skills already
   name, never by editing the plugin. Documents the existing boundary per the
   extensibility contract; no behavior change.
+
+## 0.10.2 — 2026-07-19
+
+Fixed:
+
+- retro: the Phase 1.1 multi-session snippet now derives `HANDOFF_DIR` from the
+  resolved `memory_dir` (reads the `.claude/topic-docs.yaml` concern file, falls
+  back to `.work`) instead of hard-coding the bare default `.work/handoffs`. A
+  copy-as-is run of the snippet previously bypassed the memory_dir seam, missing
+  the handoff chain in any repo that relocates its memory tier.
 
 ## 0.10.1 — 2026-07-19
 

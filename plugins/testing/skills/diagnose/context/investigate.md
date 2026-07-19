@@ -54,5 +54,7 @@ Most test runners parallelize across test classes / assemblies / modules. Proces
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
+
 - **`dotnet-diag:analyzing-dotnet-performance`** — scan for ~50 performance anti-patterns (async deadlocks, memory pressure, GC stalls) when tests timeout or run intermittently slow
 - **`dotnet-msbuild:binlog-failure-analysis`** — replay MSBuild binary logs to diagnose build infrastructure failures masquerading as test failures (missing references, wrong TFM, analyzer conflicts)

@@ -33,9 +33,10 @@ Skill data (`.claude/skills/*/data/`) is preserved unconditionally — no flag r
 
 ### Gates (script-enforced)
 
-- Upstream tracking branch required (`@{u}`).
+- Upstream tracking branch required (`@{u}`); a configured-but-unresolvable upstream — remote-tracking ref absent (e.g. a squash-merged branch whose remote was deleted and pruned), where `@{u}` degrades to the literal token — is a first-class gate: skip the repo with `Blocked: upstream-unresolved (<remote>/<branch>)` before any destructive op, so a literal `@{u}` can never reach `reset --hard` (exit 6).
 - Blocks on default branch (`main`/`master`/resolved default) unless `--force-default-branch` (exit 3).
 - Aborts when HEAD is ahead of upstream unless `--allow-unpushed` (exit 4) — prevents silent loss of unpushed commits.
+- Aborts the apply if `reset --hard` fails (exit 5) — `clean` and the restore guard never run, so a failed reset can never leave the tree cleaned but not reset.
 - Post-clean restore guard: any tracked file deleted via reparse-point traversal is restored from the index (`RestoredTracked:` count; safe because `reset --hard` ran first).
 - Locked / in-use files git could not delete are reported (`Unremovable:`), not silently left.
 

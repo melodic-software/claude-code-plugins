@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "session-flow",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "Session-lifecycle toolkit of seven skills: workflow (navigate a staged dev workflow and suggest the next stage), handoff (write a save-point and resume prompt for /clear, with optional --bg background-agent launch), keep-going (recover and continue after any interruption — inventory off-thread work, inspect its real state, resume or restart it, then continue the main task), clean-stop (get to a durable, linked stopping point before the machine may go away — sweep every repo/worktree for uncommitted, unpushed, or PR-less work, push it durable, put breadcrumbs in PR/issue bodies, then give a free-and-clear verdict), retro (structured session retrospective with transcript metrics and learning codification), orchestrate (arm a session or worker with proactive-orchestration imperatives), and reanchor (verify a session's working assumptions are still true against live reality — referenced PRs/issues/branches, base-branch drift, renamed/version-drifted surfaces, stale memory-tier files — before building on them).",
   "author": {
     "name": "Melodic Software",

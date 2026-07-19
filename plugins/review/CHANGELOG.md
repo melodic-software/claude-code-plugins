@@ -3,6 +3,34 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2]
+
+### Fixed
+
+- **`fanout` fix-pass docs describe `/simplify` as an optional in-session skill,
+  not "bundled"** (doc-accuracy fix). No `simplify` skill ships under
+  `plugins/review/`; the plugin bundles the `fanout`, `quality-gate`, and `setup`
+  skills, while `/simplify` is an external/built-in skill resolved from the
+  session. `context/fix-pass-mode.md` and the `fanout` eval expectation now call
+  the cleanup-class route the "optional in-session `/simplify`" skill. Behavior is
+  unchanged — the existing fallback ("when available in the session; otherwise
+  apply the cleanup findings directly, one file at a time") already degrades
+  gracefully; only the inaccurate "bundled" descriptor is dropped.
+
+## [0.14.1]
+
+### Fixed
+
+- **`quality-gate` pr mode gates the PR-comment-posting orchestrator behind
+  explicit opt-in** (un-sanctioned side-effect fix). The `code-review`
+  orchestrator's PR mode posts findings as a PR comment, which violates the
+  review modes' report-only contract; `context/pr.md` previously presented it
+  as the ungated "Primary path." It now carries the same **PR-mutation gate**
+  the sibling `fanout` skill already applies to the identical call: when the
+  branch has an open PR, the posting mode is dispatched only on explicit user
+  opt-in ("post the review comment"), otherwise it is skipped (the skip is
+  named in the review report) and review falls to the read-only manual path.
+
 ## [0.14.0]
 
 ### Changed

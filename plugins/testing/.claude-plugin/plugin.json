@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "testing",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Test-stage discipline across all ecosystems: coverage-gap analysis and test planning (`/testing:plan`), TDD test authoring and placement (`/testing:write`), live E2E plus non-UI smoke verification (`/testing:run-e2e`), and failing-test root-cause diagnosis with the reproduce → isolate → fix → retest loop (`/testing:diagnose`).",
   "author": {
     "name": "Melodic Software",

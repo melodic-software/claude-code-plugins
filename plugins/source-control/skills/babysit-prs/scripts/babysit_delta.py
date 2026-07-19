@@ -46,6 +46,14 @@ from babysit_util import (
 # GitHub recomputes mergeStateStatus asynchronously and flaps e.g.
 # UNKNOWN<->CLEAN without any real change to react to.
 ACTIONABLE_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+# Marker embedded in the message of a head-ref alias cross-check failure. That
+# check is purely advisory: it proves global branch uniqueness across the fleet
+# and its failure leaves every per-PR classification and the persisted state
+# intact, so callers must be able to tell it apart from a substantive per-PR
+# hydration or discovery error. Both construction sites (the queue path here and
+# the single-PR path in pr_queue_snapshot.py) build the message through this
+# constant so the two cannot drift.
+HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
 # Fan-out safety net: force a worker check-in on an otherwise-unchanged PR at
 # least this often, so "nothing changed" can never mean "never checked again"
 # (a classifier blind spot or a forgotten stuck PR). Snapshot-level detection
@@ -341,6 +349,27 @@ def classify_pr(
     human_feedback_ids = [
         item["id"] for item in (*feedback["human_blocking"], *feedback["human"])
     ]
+    # Parity with the bot delta arms' *structural* self-filter: bot feedback can
+    # never contain this engine's own posts, because the engine comments under
+    # the operator's human login and `collect_feedback` only routes bot-authored
+    # items to `feedback["blocking"]`/`["material"]`. The human arms have no such
+    # structural guard, so without this an operator whose login is the configured
+    # self-login sees every prior-round worker reply (classification tables,
+    # "Fixed in <sha>" follow-ups) counted as new human-authored feedback --
+    # manufacturing a self-inflicted, unsuppressible `new_human_blocking_feedback`
+    # dispatch that re-fires forever with zero real work. This brings the
+    # deterministic delta to the same rule `reference/review-discipline.md` §1
+    # already mandates for the worker's own classification replies.
+    #
+    # Deliberately scoped to the new-feedback deltas only, NOT to
+    # `collect_feedback`'s classification: a self-authored item still lands in
+    # `feedback["human_blocking"]` above, so a genuine "don't merge, I found a
+    # problem" comment the maintainer posts under their own login keeps
+    # `human_stop`/the triage blocker intact and continues to halt the merge
+    # gate. Filtering it there instead would silently strip the solo maintainer's
+    # ability to human-stop their own PR. Here it only stops re-dispatching a
+    # worker onto the engine's own prior output.
+    self_logins = {login.casefold() for login in config.self_logins if login}
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
@@ -383,6 +412,7 @@ def classify_pr(
         item
         for item in (*feedback["human_blocking"], *feedback["human"])
         if item["id"] not in prev_human_ids
+        and str(item.get("author") or "").casefold() not in self_logins
     ]
     changed = bool(prev) and (
         prev.get("head_sha") != head_sha or prev.get("updated_at") != updated_at
@@ -642,6 +672,7 @@ def classify_pr(
         item
         for item in feedback["human_blocking"]
         if item["id"] not in prev_human_blocking_ids
+        and str(item.get("author") or "").casefold() not in self_logins
     ]
     # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
     # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the
@@ -1161,6 +1192,11 @@ def prev_head_ref_unique(
     return bool(prev_uniqueness.get("unique"))
 
 
+def is_head_ref_alias_error(message: str) -> bool:
+    """True for an advisory head-ref alias cross-check failure (valid snapshot)."""
+    return HEAD_REF_ALIAS_ERROR_MARKER in message
+
+
 def annotate_queue_head_refs(
     prs: list[dict[str, Any]],
     complete: bool,
@@ -1191,7 +1227,9 @@ def annotate_queue_head_refs(
             if not checked:
                 raise RuntimeError("association query did not return every watched PR")
         except Exception as exc:
-            message = f"{representative['key']} head-ref alias check: {exc}"
+            message = (
+                f"{representative['key']} {HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
+            )
             if errors is not None:
                 errors.append(message)
             for pr in group_prs:

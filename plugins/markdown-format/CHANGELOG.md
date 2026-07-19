@@ -3,6 +3,24 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.5.3]
+
+### Changed
+
+- Documentation-only prose hygiene: reworded changelog entries and hook comments
+  to describe past changes in consumer-meaningful terms, dropping
+  maintainer-internal vocabulary and a cross-plugin reference. No behavior
+  change to the hook or its output.
+
 ## [0.5.2]
 
 ### Changed
@@ -18,15 +36,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - Setup `check` downgrades every prerequisite absence from FAIL to INFO while
   the plugin's toggle is disabled (the hook exits through its enabled-gate
-  before probing, so a deliberately disabled plugin is not broken) — the same
-  class fix applied across the fleet's other hook-plugin setups.
+  before probing, so a deliberately disabled plugin is not broken).
 
 ## [0.5.0]
 
 ### Added
 
-- **`setup` skill on the uniform contract** (fleet conformance wave, dim 8 —
-  the fleet's first conforming exemplar). `check` verifies the hook's runtime
+- **`setup` skill on the uniform contract.** `check` verifies the hook's runtime
   prerequisites read-only (Bash, `jq`, `markdownlint-cli2` resolution,
   discovered markdownlint config + trust boundary, effective toggle);
   `apply` re-checks and resolves — guidance for system tools and the native
@@ -40,15 +56,15 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
-- Refresh of the bundled shared hook-utils library, which gains the git argv-grammar parser used by
-  the guardrails plugin's git guards. No behavioral change to this plugin's hooks.
+- Refresh of the bundled shared hook-utils library, which gains a git argv-grammar parser used by
+  git-guard hooks. No behavioral change to this plugin's hooks.
 
 ## [0.4.0]
 
 ### Changed
 
-- **Missing-prerequisite notices now reach the user too, once per session**
-  (prerequisite-visibility wave). The jq and markdownlint-cli2 absence
+- **Missing-prerequisite notices now reach the user too, once per session.**
+  The jq and markdownlint-cli2 absence
   warnings — previously an `additionalContext`-only message repeated on every
   edit — now use the shared visible-skip mechanism: one notice per session on
   both channels (`additionalContext` for Claude, `systemMessage` for the

@@ -3,6 +3,29 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Changed
+
+- Layer-vocabulary agnosticism: the `implement` skill's cross-layer guidance
+  (`skills/implement/SKILL.md` "Dependency direction" and
+  `skills/implement/context/feature.md` step 3) no longer bakes the .NET/Clean-Architecture
+  layer names (Core/Domain/Application/Infrastructure) as a universal execution order. The
+  principle is restated as dependency direction — implement depended-upon components before
+  their dependents, respecting the project's own dependency direction — and the layer names
+  are demoted to a clearly-marked ".NET, for example" illustration, per the
+  `docs/PLUGIN-PHILOSOPHY.md` design boundary.
+
+## [0.7.1]
+
+### Fixed
+
+- Branch-naming grammar in `/implementation:implement` Step 1 and its gotchas no longer presents
+  `<type>/<description>` as the mandated form; it now defers to the consuming project's branch-naming
+  convention (its `CLAUDE.md` / `AGENTS.md` / rules) and frames `<type>/<description>` as a common default, mirroring
+  the commit-message convention deferral. The branch-check eval is reframed to accept any convention-
+  compliant branch name rather than a single hardcoded grammar.
+
 ## [0.7.0]
 
 ### Changed

@@ -3,6 +3,55 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **Remote selected from those present, not assumed `origin`.** The clean-working-tree branch-diff
+  fallback in `/toolchain:check` and `/toolchain:lint` resolved the remote from the current branch's
+  `branch.<name>.remote`, but when that was unset (an unpushed feature branch) it forced `REMOTE=origin`
+  unconditionally. In a clone made with a differently named remote (`git clone -o vendor`) that has no
+  `origin` and no pushed upstream, `origin` does not exist, so `git symbolic-ref refs/remotes/origin/HEAD`
+  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") — the
+  `origin` fallback the 0.4.1 note claimed "still resolves" a `git clone -o vendor` did not hold for the
+  not-yet-pushed case. Both call sites now probe candidate remotes in priority order — the branch's
+  tracking remote, then `origin` if present, then the rest — and select the first whose default branch
+  resolves to a locally available `refs/remotes/<remote>/<branch>` tracking ref. This also skips a remote
+  that was added but never fetched (whose `git ls-remote` default-branch query succeeds over the network
+  but leaves no local ref for `git merge-base`) in favor of a later remote that has one, rather than
+  committing to the alphabetically first remote and bailing. The common tracking-remote case still
+  short-circuits on the first candidate with no extra network calls, and detection still degrades
+  gracefully (skips the branch-diff path) when no candidate yields a local default branch. Candidate
+  remote names are option-parse-safe: the tracking-ref checks use the fully-qualified
+  `refs/remotes/<remote>/<branch>` form and the `git ls-remote` probe passes `--end-of-options`, so a
+  Git-legal remote whose name begins with a dash (`git clone --origin=-x`) is not misparsed as a command
+  option and skipped. A cross-plugin shared default-branch helper remains the broader fix tracked by
+  #436/#442.
+- **Remote-prefix strip no longer breaks on `#` in a remote name.** The default-branch resolution
+  stripped the `$REMOTE/` prefix with `sed "s#^$REMOTE/##"`, whose `#` delimiter collides with a
+  `#` in the remote name (a Git-legal character), corrupting `DEFAULT_BRANCH` and silently skipping
+  the branch diff. Both call sites now strip the prefix with the `${DEFAULT_BRANCH#"$REMOTE/"}`
+  parameter expansion, which treats the remote name literally regardless of its characters.
+
+## [0.4.1]
+
+### Fixed
+
+- **Default branch resolved by detection, not assumption.** The clean-working-tree branch-diff
+  fallback in `/toolchain:check` and `/toolchain:lint` carried a bare `<default-branch>` placeholder
+  with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
+  assumption the convention-resolution discipline forbids. Both call sites now resolve the tracked
+  remote (`branch.<name>.remote`, falling back to `origin` — never a hardcoded remote name, so a repo
+  cloned with a different remote name still resolves), then the default branch via
+  `git symbolic-ref --short refs/remotes/$REMOTE/HEAD` (with the `$REMOTE/` prefix stripped), falling
+  back to a `git ls-remote --symref "$REMOTE" HEAD` query of that remote's own default branch, matching
+  the infer-don't-guess discipline applied elsewhere. The resolution is now an explicit
+  assignment that runs before `git merge-base` consumes it (previously it was descriptive prose,
+  leaving `$DEFAULT_BRANCH` unset so the documented command expanded to `git merge-base "" HEAD`);
+  `merge-base` runs against the remote-tracking ref `$REMOTE/$DEFAULT_BRANCH`, which resolves in a
+  clean checkout without a local branch of that name. When no default branch resolves, the
+  branch-diff path is skipped rather than guessed.
+
 ## [0.4.0]
 
 ### Changed

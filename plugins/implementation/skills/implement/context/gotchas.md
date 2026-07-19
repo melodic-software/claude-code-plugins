@@ -26,7 +26,7 @@ Build this file iteratively from real failure patterns encountered during implem
 
 **Why it's bad**: Not catastrophic, but it wastes the work-on-main commit cycle. You either rebase the work onto a new branch or rewrite history.
 
-**How to avoid**: Step 1 of `/implementation:implement` checks the branch. `git checkout -b <type>/<description>` takes 2 seconds.
+**How to avoid**: Step 1 of `/implementation:implement` checks the branch. Creating one — `git checkout -b <branch>`, following the project's branch-naming convention (`<type>/<description>` is a common default) — takes 2 seconds.
 
 ### Mixing concerns in commits
 

@@ -3,6 +3,36 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Fixed
+
+- **`git-tree-reset.sh` — unresolvable upstream now gated before any destructive op.**
+  When a branch's upstream is configured (`branch.<name>.remote` + `.merge`) but its
+  remote-tracking ref is absent — e.g. a feature branch whose squash-merged PR left the
+  remote branch deleted and pruned — `git rev-parse --abbrev-ref '@{u}'` prints the literal
+  token `@{u}` rather than a ref name, and the trailing pipe masked git's non-zero exit, so
+  the non-empty guard passed and `UPSTREAM=@{u}`. On `--apply` this reached `git reset --hard
+  @{u}` → `fatal: ambiguous argument '@{u}'`, and (before the reset-success gate) `git clean
+  -fdx` still ran — a partial destructive op (tree cleaned but not reset). The script now
+  verifies `@{u}` resolves to a real ref (a local-only upstream, `branch.remote="."`, still
+  resolves and passes) and otherwise skips the repo with `Blocked: upstream-unresolved
+  (<remote>/<branch>)` and `PlannedReset`/`PlannedClean: none` before any `reset`/`clean`,
+  exiting 6. A literal `@{u}` can never reach `reset --hard`.
+
+## [0.3.1]
+
+### Fixed
+
+- **`git-tree-reset.sh` — `clean` now gated on a successful `reset --hard`.** The
+  `--apply` path runs under `set -uo pipefail` (no `-e`) and never checked the
+  `git reset --hard` exit status before running `git clean -fdx`, so a failed reset
+  fell through to the destructive clean — leaving the tree cleaned but not reset (a
+  partial destructive op). A non-zero reset now aborts the apply before `clean` and
+  the reparse-point restore guard ever run, prints an explicit failure line, emits
+  honest `AppliedReset: failed` / `AppliedClean: none` (never a success line for a
+  command that failed), and exits 5.
+
 ## [0.3.0]
 
 ### Added

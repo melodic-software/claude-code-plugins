@@ -20,7 +20,9 @@
 # the apply unless --allow-unpushed.
 #
 # Exit: 0 success; 1 not a git repo; 2 usage/validation error;
-#       3 blocked on default branch; 4 blocked on unpushed commits.
+#       3 blocked on default branch; 4 blocked on unpushed commits;
+#       5 reset --hard failed (apply aborted before clean);
+#       6 blocked on unresolvable upstream (configured but remote-tracking ref absent).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,7 +61,9 @@ Output labels:
   RestoredTracked: <count> (apply only — reparse-point casualties restored)
   Unremovable: <count> (apply only — files git clean could not delete, e.g. locked)
 
-Exit: 0; 1 not a git repo; 2 usage error; 3 blocked default branch; 4 unpushed commits.
+Exit: 0; 1 not a git repo; 2 usage error; 3 blocked default branch; 4 unpushed commits;
+      5 reset --hard failed (apply aborted before clean);
+      6 blocked on unresolvable upstream (configured but remote-tracking ref absent).
 EOF
 }
 
@@ -96,6 +100,28 @@ UPSTREAM="$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$UPSTREAM" ]]; then
   echo "git-tree-reset.sh: no upstream tracking branch (set with git push -u)" >&2
   exit 2
+fi
+
+# Gate an unresolvable upstream before any destructive op. When the upstream is
+# configured (branch.<name>.remote + .merge) but its remote-tracking ref is
+# absent — e.g. a feature branch whose squash-merged PR left the remote branch
+# deleted and pruned — git rev-parse --abbrev-ref '@{u}' prints the LITERAL token
+# @{u} instead of a ref name, and the pipe above masks git's non-zero exit, so
+# the empty-guard passes and UPSTREAM=@{u}. Left unchecked, git reset --hard @{u}
+# fails with "fatal: ambiguous argument '@{u}'" AFTER the guards, and (pre-#460)
+# git clean -fdx would still run — a partial destructive op. Verify @{u} names a
+# real, resolvable ref (a local-only upstream, branch.remote=".", still resolves
+# to its local branch and passes); if not, skip the repo with a clear reason
+# before any label output whose values (e.g. AheadCount) @{u} would silently
+# corrupt. Never let a literal @{u} reach reset --hard.
+if ! git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
+  UNRESOLVED_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
+  UNRESOLVED_MERGE="$(git config "branch.${CURRENT_BRANCH}.merge" 2>/dev/null | tr -d '\r' || true)"
+  UNRESOLVED_MERGE_LABEL="${UNRESOLVED_MERGE#refs/heads/}"
+  printf 'Blocked: upstream-unresolved (%s/%s)\n' "${UNRESOLVED_REMOTE:-?}" "${UNRESOLVED_MERGE_LABEL:-?}"
+  printf 'PlannedReset: none\n'
+  printf 'PlannedClean: none\n'
+  exit 6
 fi
 
 # Fetch the remote the current branch actually tracks, not a hardcoded origin —
@@ -181,7 +207,16 @@ if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   printf 'AppliedClean: none\n'
   exit 4
 fi
-git reset --hard "$UPSTREAM"
+# Gate the destructive clean on a successful reset. Without -e, a failed
+# reset --hard would otherwise fall through to git clean -fdx, leaving the tree
+# cleaned but not reset (a partial destructive op). On failure: abort before
+# clean and the restore guard, report honestly, exit non-zero.
+if ! git reset --hard "$UPSTREAM"; then
+  printf 'FAILED: git reset --hard %s exited non-zero — aborting apply; git clean skipped. Note: reset --hard is not atomic and may have partially modified tracked files.\n' "$UPSTREAM" >&2
+  printf 'AppliedReset: failed\n'
+  printf 'AppliedClean: none\n'
+  exit 5
+fi
 
 # Capture clean stderr to surface files git could not remove (locked / in use).
 CLEAN_STDERR="$(git clean -fdx "${PRESERVE_ARGS[@]}" 2>&1 >/dev/null)"

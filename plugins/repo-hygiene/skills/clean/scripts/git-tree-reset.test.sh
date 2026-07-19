@@ -112,6 +112,89 @@ out="$(run_reset 2>&1)" || rc=$?
 assert_exit "blocks default branch" 3 "$rc"
 assert_contains "blocked reason" "$out" "default-branch"
 
+# --- 9. reset --hard failure aborts before clean (no partial destructive op) ---
+# Force git reset --hard to fail via a PATH shim that intercepts only `reset`
+# and delegates every other subcommand to the real git. A failed reset must not
+# fall through to git clean -fdx, so an untracked file clean would have removed
+# must survive, and no AppliedClean success line may be emitted.
+REAL_GIT="$(command -v git)"
+R2="$TEST_TMPDIR/repo-reset-fail"
+git init "$R2" >/dev/null 2>&1
+git -C "$R2" config user.email "t@example.com"
+git -C "$R2" config user.name "Test"
+echo tracked >"$R2/tracked.txt"
+git -C "$R2" add -A
+git -C "$R2" commit -m "init" >/dev/null
+git -C "$R2" branch -M main
+git -C "$R2" checkout -b feat/reset-fail >/dev/null 2>&1
+git -C "$R2" branch -u main >/dev/null 2>&1
+echo untracked >"$R2/scratch.txt"
+
+SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$SHIM"
+cat >"$SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "reset" ]]; then
+  echo "fatal: simulated reset --hard failure" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$SHIM/git"
+
+rc=0
+out="$(PATH="$SHIM:$PATH" bash -c "cd '$R2' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "reset failure exits 5" 5 "$rc"
+assert_contains "reset failure reports failure" "$out" "FAILED: git reset --hard"
+assert_contains "reset failure emits AppliedReset: failed" "$out" "AppliedReset: failed"
+assert_not_contains "reset failure emits no clean success line" "$out" "AppliedClean: git clean"
+assert_contains "reset failure emits AppliedClean: none" "$out" "AppliedClean: none"
+assert_file_exists "reset failure skips clean (untracked survives)" "$R2/scratch.txt"
+
+# --- 10. unresolvable upstream gated before any destructive op (exit 6) ---
+# Upstream configured (branch.<name>.remote + .merge) but its remote-tracking ref
+# absent — a feature branch whose remote branch was deleted and pruned (squash-
+# merge aftermath). git rev-parse --abbrev-ref '@{u}' degrades to the literal
+# token @{u}; without the resolution gate that literal reaches git reset --hard.
+# Needs a real remote so the config points at an existing remote whose ref was
+# pruned (a config pointing at a non-existent remote gives empty output → exit 2).
+REMOTE="$TEST_TMPDIR/remote.git"
+git init --bare "$REMOTE" >/dev/null 2>&1
+R3="$TEST_TMPDIR/repo-upstream-gone"
+git init "$R3" >/dev/null 2>&1
+git -C "$R3" config user.email "t@example.com"
+git -C "$R3" config user.name "Test"
+echo tracked >"$R3/tracked.txt"
+git -C "$R3" add -A
+git -C "$R3" commit -m "init" >/dev/null
+git -C "$R3" branch -M main
+git -C "$R3" remote add origin "$REMOTE"
+git -C "$R3" push -u origin main >/dev/null 2>&1
+git -C "$R3" checkout -b feat/gone >/dev/null 2>&1
+git -C "$R3" push -u origin feat/gone >/dev/null 2>&1
+git -C "$R3" push origin --delete feat/gone >/dev/null 2>&1
+git -C "$R3" fetch --prune origin >/dev/null 2>&1
+echo untracked >"$R3/scratch.txt"
+
+# Dry-run gates too (before it would print a misleading PlannedReset to @{u}).
+rc=0
+out="$(bash -c "cd '$R3' && bash '$RESET' --dry-run" 2>&1)" || rc=$?
+assert_exit "unresolvable upstream dry-run exits 6" 6 "$rc"
+assert_contains "unresolvable upstream dry-run reports block" "$out" "Blocked: upstream-unresolved (origin/feat/gone)"
+assert_not_contains "unresolvable upstream dry-run plans no reset to literal @{u}" "$out" "reset --hard @{u}"
+
+# Apply path runs NO destructive command: exit 6, block message, planned none,
+# no AppliedReset/AppliedClean lines, and the untracked file survives.
+rc=0
+out="$(bash -c "cd '$R3' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "unresolvable upstream apply exits 6" 6 "$rc"
+assert_contains "unresolvable upstream apply reports block" "$out" "Blocked: upstream-unresolved (origin/feat/gone)"
+assert_contains "unresolvable upstream apply plans no reset" "$out" "PlannedReset: none"
+assert_contains "unresolvable upstream apply plans no clean" "$out" "PlannedClean: none"
+assert_not_contains "unresolvable upstream runs no reset --hard" "$out" "reset --hard"
+assert_not_contains "unresolvable upstream runs no clean" "$out" "AppliedClean"
+assert_file_exists "unresolvable upstream skips clean (untracked survives)" "$R3/scratch.txt"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
