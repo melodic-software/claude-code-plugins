@@ -1,7 +1,9 @@
 # Fix Workflow
 
 Apply fixes for audit findings. Requires a prior audit — reads findings from
-`${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`.
+`${CLAUDE_PLUGIN_DATA}/audit/last-audit.md` (checking the pre-rename
+`${CLAUDE_PLUGIN_DATA}/health/` location first when the new path is absent, per the
+migration note in SKILL.md "Report mode").
 
 ## Prerequisites
 

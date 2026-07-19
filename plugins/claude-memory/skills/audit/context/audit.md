@@ -70,7 +70,10 @@ After per-file checks, cross-reference:
 
 Use the output format from criteria.md. Save to `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`
 (create the directory if absent — audit output stays contributor-local because it covers personal
-auto-memory; see SKILL.md "Report mode").
+auto-memory; see SKILL.md "Report mode"). Pre-rename state migration: if
+`${CLAUDE_PLUGIN_DATA}/health/` exists and `${CLAUDE_PLUGIN_DATA}/audit/` does not, move the old
+directory to the new name first (the skill was previously named `health` and wrote there) so
+prior reports survive the upgrade.
 
 Present the report to the user with:
 

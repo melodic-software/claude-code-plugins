@@ -66,7 +66,10 @@ Load [context/fix.md](context/fix.md) for the fix-with-approval workflow.
 ## Report mode
 
 Read the most recent audit report from `${CLAUDE_PLUGIN_DATA}/audit/last-audit.md`. If
-missing, inform the user no audit has been run yet and suggest running the audit.
+missing, first check the pre-rename location `${CLAUDE_PLUGIN_DATA}/health/last-audit.md`
+(this skill was previously named `health`) and move that directory to the new name when
+found; only when neither exists, inform the user no audit has been run yet and suggest
+running the audit.
 
 **Audit output is contributor-local by design.** Reports audit a contributor's personal auto-memory
 (`~/.claude/projects/<project>/memory/`), which varies per team member — so they persist in the
