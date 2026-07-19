@@ -112,6 +112,45 @@ out="$(run_reset 2>&1)" || rc=$?
 assert_exit "blocks default branch" 3 "$rc"
 assert_contains "blocked reason" "$out" "default-branch"
 
+# --- 9. reset --hard failure aborts before clean (no partial destructive op) ---
+# Force git reset --hard to fail via a PATH shim that intercepts only `reset`
+# and delegates every other subcommand to the real git. A failed reset must not
+# fall through to git clean -fdx, so an untracked file clean would have removed
+# must survive, and no AppliedClean success line may be emitted.
+REAL_GIT="$(command -v git)"
+R2="$TEST_TMPDIR/repo-reset-fail"
+git init "$R2" >/dev/null 2>&1
+git -C "$R2" config user.email "t@example.com"
+git -C "$R2" config user.name "Test"
+echo tracked >"$R2/tracked.txt"
+git -C "$R2" add -A
+git -C "$R2" commit -m "init" >/dev/null
+git -C "$R2" branch -M main
+git -C "$R2" checkout -b feat/reset-fail >/dev/null 2>&1
+git -C "$R2" branch -u main >/dev/null 2>&1
+echo untracked >"$R2/scratch.txt"
+
+SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$SHIM"
+cat >"$SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "reset" ]]; then
+  echo "fatal: simulated reset --hard failure" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$SHIM/git"
+
+rc=0
+out="$(PATH="$SHIM:$PATH" bash -c "cd '$R2' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "reset failure exits 5" 5 "$rc"
+assert_contains "reset failure reports failure" "$out" "FAILED: git reset --hard"
+assert_contains "reset failure emits AppliedReset: failed" "$out" "AppliedReset: failed"
+assert_not_contains "reset failure emits no clean success line" "$out" "AppliedClean: git clean"
+assert_contains "reset failure emits AppliedClean: none" "$out" "AppliedClean: none"
+assert_file_exists "reset failure skips clean (untracked survives)" "$R2/scratch.txt"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

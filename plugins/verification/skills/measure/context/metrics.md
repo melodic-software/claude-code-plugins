@@ -11,17 +11,17 @@ Quality is partly subjective, but some aspects ARE measurable:
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
 | Complexity | Cyclomatic complexity, nesting depth | Count conditionals, measure max nesting |
-| Size | Lines of code, file count, method length | `wc -l`, `git diff --stat` |
-| Coupling | Dependency count, import count | Count `using`/`import`, `ProjectReference` count |
+| Size | Lines of code, file count, method length | Line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
+| Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
 | Duplication | Repeated code blocks | Grep for similar patterns |
-| Test coverage | Test count, assertion count | `dotnet test` output, test inventory |
+| Test coverage | Test count, assertion count | Your test runner's output, test inventory |
 | API surface | Public member count | Count `public` declarations |
 
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy** — "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies (`git show <base>:<file> | wc -l`, complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies (line count from `git show <base>:<file>` piped to a line counter — `wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model" — machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
@@ -65,8 +65,10 @@ Quality is partly subjective, but some aspects ARE measurable:
 - **More abstractions isn't always better** — a `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
 - **Don't confuse motion with progress** — renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.
 
-## Marketplace plugin skills (evidence sources when the collector lands)
+## Marketplace plugin skills (invoke only when installed)
+
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise draw the same evidence from the project's own complexity/coverage tooling:
 
 - **CRAP scores** — `dotnet-test:crap-score` combines cyclomatic complexity + coverage into one risk metric ("safer to change" evidence).
-- **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements.
-- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence.
+- **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements; if absent, use the project's own test-quality analyzer or an explicit test-smell review checklist — the complexity/coverage fallback above won't surface over-mocking, flakiness, or tautological tests.
+- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence; if absent, use the project's own query logging, database profiling, or ORM diagnostics — the complexity/coverage fallback above won't reveal N+1 or query plans.

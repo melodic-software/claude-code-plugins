@@ -48,7 +48,7 @@ esac
 
 # jq is required to parse Claude Code's hook payload and to emit structured
 # PostToolUse context. Absent → visible once-per-session skip notice on both
-# the agent and user channels (dim-9 doctrine), exit 0.
+# the agent and user channels, exit 0.
 hook::require_jq PostToolUse markdown-format "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
@@ -151,7 +151,7 @@ elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
 else
   # Never invoke a package runner here: hooks must not download or execute an
   # unpinned package as a side effect of editing a file. Degrade visibly on
-  # both channels, once per session (dim-9 doctrine).
+  # both channels, once per session.
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
       "markdown-format: markdownlint-cli2 is neither on PATH nor available as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this session. Install it explicitly; this hook does not invoke npx or download tools."
