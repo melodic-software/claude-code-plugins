@@ -70,9 +70,12 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
-trap - EXIT # lease comment created — partial-claim window closed
 
-# 4. Re-read all lease comments; the EARLIEST live lease wins.
+# 4. Re-read all lease comments; the EARLIEST live lease wins. The rollback
+# guard STAYS armed through arbitration: a read failure here (exit "$?" below)
+# would otherwise leave @me assigned with a live lease comment whose id was
+# never returned to the caller — stranded exactly like the pre-lease window,
+# just one step later.
 now_epoch="$(date -u +%s)"
 # $() swallows wit_run_gh's exit-on-error; propagate so a read failure here does
 # not silently arbitrate the claim against an empty lease set.
@@ -100,15 +103,20 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   # Keep the @me assignment only on a SAME-login race (the winner shares our
   # login, so the assignee still matches the holder). If the winning lease
   # belongs to a different holder, our @me would leave the item assigned to the
-  # loser while the holder no longer matches — drop it.
+  # loser while the holder no longer matches — drop it (the rollback trap
+  # would also catch this on exit; the explicit call keeps the disarm/removal
+  # decision made in this block, not left implicit to the trap).
   if [[ "$winner_holder" != "$login" ]]; then
     gh issue edit "$number" -R "$owner/$repo" --remove-assignee "@me" >/dev/null 2>&1 || true
+  else
+    trap - EXIT # same-login race — @me legitimately stays assigned
   fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "${winner_holder:-unknown}" >&2
   exit "$EX_CONFLICT"
 fi
 
+trap - EXIT # arbitration confirms our lease is the winner — claim complete
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$login" \
   --arg now "$now" --arg ttl "$ttl" --arg cid "$our_comment_id" --arg sid "$session_id" \
   '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
