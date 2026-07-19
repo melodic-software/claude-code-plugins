@@ -78,7 +78,8 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   shell section (`[*]`, `[*.sh]`, `[*.bash]`, or `[*.{sh,bash}]`) to an `.editorconfig` opts
   the repo in — but this skill does not write it. `.editorconfig` is cross-cutting (it governs
   every editor and tool in the repo), so the choice and the edit belong to the consumer.
-- toggle off: direct to `/plugin configure bash-format` or
+- toggle off: direct to `/plugin configure bash-format` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall bash-format` then
   `claude plugin install bash-format@<marketplace> --config bash_format_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 

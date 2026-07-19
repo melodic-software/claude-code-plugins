@@ -96,7 +96,8 @@ only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure ruff-format` or
+- toggle off: direct to `/plugin configure ruff-format` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall ruff-format` then
   `claude plugin install ruff-format@<marketplace> --config ruff_format_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when

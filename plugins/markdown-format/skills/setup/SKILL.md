@@ -76,7 +76,8 @@ install command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure markdown-format` or
+- toggle off: direct to `/plugin configure markdown-format` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall markdown-format` then
   `claude plugin install markdown-format@<marketplace> --config markdown_format_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 - no markdownlint config: offer to create a minimal `.markdownlint-cli2.jsonc` in the

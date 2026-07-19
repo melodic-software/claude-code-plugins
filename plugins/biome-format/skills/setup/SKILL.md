@@ -76,7 +76,8 @@ command's exit code alone. For everything else `apply` only points:
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure biome-format` or
+- toggle off: direct to `/plugin configure biome-format` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall biome-format` then
   `claude plugin install biome-format@<marketplace> --config biome_format_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 - no Biome config: offer to create a minimal `biome.json` in the repository root only when

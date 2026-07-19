@@ -54,7 +54,8 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
 - missing `actionlint`: platform install guidance from the README Requirements section
   (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
 - missing `jq` / Bash: platform install instructions from the README Requirements section.
-- toggle off: direct to `/plugin configure actionlint` or
+- toggle off: direct to `/plugin configure actionlint` (interactive, any
+  time). Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via `claude plugin uninstall actionlint` then
   `claude plugin install actionlint@<marketplace> --config actionlint_enabled=true`;
   this skill never writes user settings or `pluginConfigs`.
 
