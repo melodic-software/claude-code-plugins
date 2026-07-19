@@ -108,6 +108,10 @@ const CREDENTIAL_SEGMENT_PAIRS = [
 const HOME_BASE_SEGMENTS = new Set(["home", "root", "users", "host-home"]);
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
+// A route prefix matches on a SEGMENT boundary only: the pathname equals the
+// prefix or continues with "/" immediately after it — a plain startsWith
+// would accept e.g. "/metadata-not-a-credential" via "/metadata".
+const hasRoutePrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(prefix + "/");
 
 function isRecognizedCredentialEntry(entry) {
   const normalized = entry.toLowerCase().replaceAll("\\", "/");
@@ -126,12 +130,12 @@ function isRecognizedCredentialEntry(entry) {
     // lowercased before parsing, so the prefixes compare lowercase.)
     if (url.hostname === "169.254.169.254") {
       return (
-        url.pathname.startsWith("/metadata") ||
-        url.pathname.startsWith("/latest") ||
-        url.pathname.startsWith("/computemetadata")
+        hasRoutePrefix(url.pathname, "/metadata") ||
+        hasRoutePrefix(url.pathname, "/latest") ||
+        hasRoutePrefix(url.pathname, "/computemetadata")
       );
     }
-    return url.hostname === "metadata.google.internal" && url.pathname.startsWith("/computemetadata");
+    return url.hostname === "metadata.google.internal" && hasRoutePrefix(url.pathname, "/computemetadata");
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   // A whole-entry env-style token naming a credential variable qualifies on
@@ -735,16 +739,14 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (transcript.assertions?.credentials_absent?.outcome !== "absent-or-denied") {
     return `transcript ${path} does not record the credential-absence assertion with outcome "absent-or-denied"`;
   }
-  // The probe contract is expected-FAILURE: both checks assert a NON-zero
+  // The probe contract is expected-FAILURE: every check asserts a NON-zero
   // exit inside the boundary, so a recorded exit_code of "0" contradicts the
   // outcome it sits next to — the transcript is internally inconsistent and
-  // proves nothing.
+  // proves nothing. The credentials_absent codes are per-target and checked
+  // alongside the path entries below.
   const nonzeroExit = (value) => typeof value === "string" && /^[1-9][0-9]*$/.test(value);
   if (!nonzeroExit(transcript.assertions.egress_denied.exit_code)) {
     return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(transcript.assertions.egress_denied.exit_code)} — a proven egress-denial requires a non-zero integer exit code string`;
-  }
-  if (!nonzeroExit(transcript.assertions.credentials_absent.exit_code)) {
-    return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(transcript.assertions.credentials_absent.exit_code)} — a proven credential-absence requires a non-zero integer exit code string`;
   }
   // An assertion without its recorded target proves nothing about the
   // boundary: a failing run against no named host/path could be any failing
@@ -788,12 +790,26 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
   }
-  // The path value is a comma-separated list of probed locations; every
-  // entry must be recognizably a host-credential location (case-insensitive,
-  // path-separator-agnostic, matched per component).
-  for (const entry of transcript.assertions.credentials_absent.path.split(",")) {
-    if (!isRecognizedCredentialEntry(entry.trim())) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry.trim())} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, ANCHORED under a home base (home, root, users, host-home, or a $VAR/%VAR% env token) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+  // The path value is a comma-separated list of probed locations, and
+  // exit_code is the comma-separated list of their recorded exit codes,
+  // positionally paired — one non-zero code per probed path: a single code
+  // could come from a failing read of one listed path while another
+  // (readable) path leaks. Every path entry must be recognizably a
+  // host-credential location (case-insensitive, path-separator-agnostic,
+  // matched per component).
+  const credentialPaths = transcript.assertions.credentials_absent.path.split(",").map((entry) => entry.trim());
+  const rawCredentialCodes = transcript.assertions.credentials_absent.exit_code;
+  const credentialCodes =
+    typeof rawCredentialCodes === "string" ? rawCredentialCodes.split(",").map((code) => code.trim()) : [];
+  if (credentialCodes.length !== credentialPaths.length) {
+    return `transcript ${path} records assertions.credentials_absent.exit_code ${JSON.stringify(rawCredentialCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded exit code per probed credential path is required, comma-separated and positionally paired with path: a single code cannot prove absence on every listed location`;
+  }
+  for (const [index, entry] of credentialPaths.entries()) {
+    if (!isRecognizedCredentialEntry(entry)) {
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")}, a *_token/*.token form, or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, ANCHORED under a home base (home, root, users, host-home, or a $VAR/%VAR% env token) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+    }
+    if (!nonzeroExit(credentialCodes[index])) {
+      return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
     }
   }
   if (transcript.outer_context_networked !== true) {

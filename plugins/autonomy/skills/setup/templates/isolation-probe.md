@@ -82,6 +82,10 @@ confirm both assertions failed inside a boundary the run itself created:
 }
 ```
 
+When one run probes several `<host-credential-path>` locations, `credentials_absent.path` lists
+them comma-separated and `exit_code` lists one non-zero code per location, comma-separated in the
+same order — a single code cannot vouch for every listed location.
+
 The captured transcript is referenced from the level binding's `probe_evidence` field; the
 security-binding check treats a level binding without it as invalid. A transcript whose
 `outer_context_networked` is false does not prove the boundary — a fully-offline outer context
