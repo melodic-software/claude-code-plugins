@@ -3,6 +3,18 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **Default branch resolved by detection, not assumption.** The clean-working-tree branch-diff
+  fallback in `/toolchain:check` and `/toolchain:lint` carried a bare `<default-branch>` placeholder
+  with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
+  assumption the convention-resolution discipline forbids. Both call sites now resolve the default
+  branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (with the `origin/` prefix stripped),
+  falling back to the current upstream/tracking branch, matching the infer-don't-guess discipline
+  applied elsewhere.
+
 ## [0.4.0]
 
 ### Changed
