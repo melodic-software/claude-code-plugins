@@ -137,7 +137,13 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    ([`templates/return-capture.md`](templates/return-capture.md)) posting the UNATTESTED
    record + the attestation request addressed to the accountable human; the close flow never
    blocks. Native-field write where entitled (the stronger surface — platform ACLs govern);
-   the marker-keyed structured comment otherwise (the universal floor). The trigger is
+   the marker-keyed structured comment otherwise (the universal floor). Entitlement is
+   detected at the org's plan level and does NOT confirm the complete v1 record field set is
+   provisioned and attached on the item surface — a disclosed v1 limitation this slice does
+   not detect: a tracker entitled for custom fields yet missing one or more of the v1 record
+   fields cannot hold a conforming record on native fields, so full-field-set
+   discovery/provisioning is future work; the universal comment floor stays conforming
+   regardless. The trigger is
    GATED to autonomous-class work (the convention's capture scope): the snippet fires only
    when BOTH hold — the closing item carries the tracker binding's autonomous-eligible role
    label (the class-scope discriminator; the label marks pickup eligibility, not that the
@@ -154,7 +160,12 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    work by this gate alone. A first-class dispatch/execution-provenance signal is future
    work the guardrail matrix owns — this interim gate is deliberately the cheapest signal
    available today, not a claim of proof, and the discriminator recorded here is the interim
-   boundary, not a parallel class vocabulary.
+   boundary, not a parallel class vocabulary. The class-scope label gate resolves the
+   autonomous-eligible label from the work-items tracker binding; the standalone path (no
+   such binding) has no source for that label and the `capture` binding carries no
+   label-mapping key — a disclosed v1 limitation: on that path setup neither assumes a
+   default label nor silently omits the gate, so standalone gated capture stays advisory
+   until an equivalent label/marker convention is bound, which is future work.
 3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
    comment-created (or native-field change) event handler, wired the same reviewable way as
    the close trigger: on a new reply, check the reply's actor against the accountable-human
