@@ -1,5 +1,15 @@
 # Changelog — discovery plugin
 
+## 0.7.2 — 2026-07-19
+
+### Changed
+
+- **`/discovery:setup` no longer cites the marketplace-repo ADR by bare path.** Both
+  `vault_backend: gitbook` deferral notes in `skills/setup/SKILL.md` inlined the rationale
+  directly — git remains the storage layer because GitBook offers no concurrency-safe, lossless
+  write path — replacing the dead `docs/adr/…` reference that resolves to nothing in the
+  cache-isolated installed plugin. Behavior is unchanged; gitbook stays deferred and non-writable.
+
 ## 0.7.0 — 2026-07-18
 
 ### Changed

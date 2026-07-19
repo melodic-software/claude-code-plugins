@@ -71,7 +71,7 @@ When capturing for a PR or bug report:
 3. **Start capture** (`tracing-start` or `video-start <name>.webm`)
 4. **Perform the flow** using refs from snapshot
 5. **Stop capture** (`tracing-stop` or `video-stop`)
-6. **Move output to a meaningful location** — don't leave artifacts named `page-<timestamp>.png` in `.playwright-cli/`; use `--filename=` or `mv` to something like `docs/evidence/issue-123.webm`
+6. **Move output to a meaningful location** — don't leave artifacts named `page-<timestamp>.png` in `.playwright-cli/`; use `--filename=` or `mv` to something like `<artifact-dir>/<descriptive-name>.webm`
 
 ## Known costs
 

@@ -3,6 +3,35 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Changed
+
+- Fallback naming defaults, the sole worked code sample, and the sole regression command are reframed
+  as ecosystem-relative rather than .NET-only. The PascalCase `{Method}_Should{Behavior}_When{Condition}`
+  naming forms (in `write`, `write/context/write.md`, `write/context/organize.md`, `plan`) are demoted
+  from "the universal default" to one labeled illustrative (.NET/xUnit) example, routed first through the
+  convention-resolution ladder (use the project's documented pattern; when undocumented, mirror the
+  consuming ecosystem's own idiom). The lone worked `[Fact]` code sample in `write/context/write.md` and
+  the lone `dotnet test` regression block in `diagnose/context/loop.md` now carry an "illustrative (.NET)"
+  label, with the regression block routed through `/toolchain:check` as SSOT for the exact per-ecosystem
+  command (falling back to the project's own test command when the `toolchain` plugin is absent, matching
+  `write`'s handoff). Framing and labeling only — TDD cadence, Four Pillars, verify-through-the-interface, the
+  reproduce→fix→retest→regression loop, and all routing/handoff are unchanged; no code, template, or
+  command string was altered.
+
+## [0.2.1]
+
+### Changed
+
+- Cross-plugin marketplace-skill references brought under the presence-gated guard and reframed as
+  stack-specific. The unguarded inline `dotnet-test:*` parenthetical in `write` (per-cycle checklist)
+  is removed; its detection-layer skills moved under `write`'s now-guarded
+  `## Marketplace plugin skills (invoke only when installed)` list. The all-.NET enrichment lists in
+  `write`, `organize`, `plan`, `run-e2e`, and `diagnose` now state the `dotnet-*` skills apply only
+  when your stack is .NET, so a non-.NET consumer is not handed a dead list as the universal path.
+  No hard dependencies; every reference stays optional and installed-gated.
+
 ## [0.2.0]
 
 ### Changed

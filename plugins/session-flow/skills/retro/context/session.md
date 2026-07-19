@@ -43,11 +43,18 @@ done
 # Single-session form:
 "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 
-# Multi-session form (handoff chain exists). Set HANDOFF_DIR to the resolved
-# <memory_dir>/handoffs — the concern file's memory_dir first, else the consuming
-# repo's documented save-point location (see the handoff skill's "Where handoffs
-# live"); the plugin default is .work/handoffs/.
-HANDOFF_DIR=.work/handoffs
+# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the resolved
+# memory_dir — the concern file's memory_dir key, else the plugin default .work.
+# For the full resolution order (documented save-point locations, no-project-root
+# fallback) see the handoff skill's "Where handoffs live".
+MEMORY_DIR=.work
+if [[ -f .claude/topic-docs.yaml ]]; then
+  VAL=$(sed -n 's/^memory_dir:[[:space:]]*//p' .claude/topic-docs.yaml | head -1)
+  VAL="${VAL%%#*}"; VAL="${VAL%"${VAL##*[![:space:]]}"}"; VAL="${VAL%/}"
+  VAL="${VAL#\"}"; VAL="${VAL%\"}"; VAL="${VAL#\'}"; VAL="${VAL%\'}"
+  [[ -n "$VAL" ]] && MEMORY_DIR="$VAL"
+fi
+HANDOFF_DIR="$MEMORY_DIR/handoffs"
 NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
 "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 ```

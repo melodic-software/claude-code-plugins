@@ -10,10 +10,12 @@
 # Path-scoped rules (`paths:` frontmatter) are EXEMPT — they load only on matching-file
 # Read, so being unreferenced costs nothing per session.
 #
-# Reference search is tracked-files-only (git grep), excluding `.work/` (a common
-# ephemeral task-artifact dir) and the rule's own file. Gitignored files (e.g.
-# CLAUDE.local.md) are excluded automatically — a per-user override file is not a
-# shared reference.
+# Reference search is tracked-files-only (git grep), excluding the in-repo memory tier
+# (the topic-docs seam `memory_dir`, default `.work/`) and the rule's own file. Reading
+# the seam rather than hardcoding the default keeps a consumer's overridden memory tier —
+# ephemeral task artifacts — out of the search so it cannot register false references.
+# Gitignored files (e.g. CLAUDE.local.md) are excluded automatically — a per-user
+# override file is not a shared reference.
 #
 # WARN-tier / advisory: prints findings, ALWAYS exits 0. Consumed by the audit
 # skill (check RD1).
@@ -36,8 +38,8 @@ Usage: orphan-rule-check.sh [--count|--help]
   --help     this message
 
 Always-loaded = no `paths:` frontmatter. Path-scoped rules are exempt. Reference
-search is git-grep over tracked files, excluding `.work/` and the rule's own file.
-Advisory — always exits 0.
+search is git-grep over tracked files, excluding the in-repo memory tier (topic-docs
+`memory_dir`, default `.work/`) and the rule's own file. Advisory — always exits 0.
 EOF
   exit 0
 fi
@@ -51,6 +53,20 @@ if [[ -z "$repo_root" ]]; then
   exit 1
 fi
 cd "$repo_root" || exit 1
+
+# Resolve the in-repo memory tier from the topic-docs seam (`.claude/topic-docs.yaml`
+# `memory_dir`) — the same sed-extract shape as docs-hygiene's noise-shapes.sh — and
+# exclude THAT path from the reference search, falling back to the convention default
+# `.work` only when the seam is unset. NOTE: this is the tracked in-repo tier, distinct
+# from the auto-memory dir the sibling resolve-memory-dir.sh derives.
+memory_dir=".work"
+topic_docs="${repo_root}/.claude/topic-docs.yaml"
+if [[ -f "$topic_docs" ]]; then
+  seam=$(sed -n 's/^memory_dir:[[:space:]]*//p' "$topic_docs" | head -1)
+  seam="${seam%%#*}"; seam="${seam%"${seam##*[![:space:]]}"}"; seam="${seam%/}"
+  seam="${seam#\"}"; seam="${seam%\"}"; seam="${seam#\'}"; seam="${seam%\'}"
+  [[ -n "$seam" ]] && memory_dir="$seam"
+fi
 
 # A rule is always-loaded unless its frontmatter declares `paths:`. Frontmatter is the
 # leading `---` ... `---` block.
@@ -70,9 +86,9 @@ shopt -s nullglob
 for file in .claude/rules/*.md; do
   is_always_loaded "$file" || continue
   base=$(basename "$file")
-  # Any tracked file (outside .work/, excluding the rule itself) referencing the
-  # basename. -xF: fixed-string whole-line match, so path dots stay literal.
-  local_refs=$(git grep -l -F -- "$base" -- ':(exclude).work/' 2>/dev/null | grep -vcxF -- "$file" || true)
+  # Any tracked file (outside the memory tier, excluding the rule itself) referencing
+  # the basename. -xF: fixed-string whole-line match, so path dots stay literal.
+  local_refs=$(git grep -l -F -- "$base" -- ":(exclude)${memory_dir}/" 2>/dev/null | grep -vcxF -- "$file" || true)
   [[ "$local_refs" -eq 0 ]] && orphans+=("$base")
 done
 shopt -u nullglob

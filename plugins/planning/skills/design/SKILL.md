@@ -16,7 +16,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
+Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions — the wrong types, wrong boundaries, wrong package topology: the shape **underspecification** takes once the task contract is set but the design is not. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
 
 This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough — no chosen approach to design — diverge first via `/brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
 

@@ -45,8 +45,9 @@ standards convention** to re-anchor: when the consuming project's standards
 source declares one, route through it; when it does not, treat that as a
 flagged gap (a candidate upstream standards addition), not license to invent
 a rubric in this skill. The operative safety net for prose reduction is a
-compress capability's semantic-diff discipline — route batch prose work
-there rather than hand-rolling criteria here.
+compress capability's semantic-diff discipline — route batch prose work there
+when that capability is installed, and otherwise run that same discipline
+in-thread rather than hand-rolling criteria here.
 
 ## Audit — what to look for
 
@@ -66,9 +67,14 @@ say why.
 
 ## Routing — where batch and proactive work live
 
-- **Batch prose remediation → the docs-hygiene compress capability** (its
-  semantic-diff safety net is the guardrail for large prose cuts).
-- **Batch code reduction → the simplify capability** over a change set.
+- **Batch prose remediation → the docs-hygiene compress capability** when
+  that plugin is installed (its semantic-diff safety net is the guardrail for
+  large prose cuts); otherwise run that same semantic-diff discipline as an
+  explicit in-thread pass rather than hand-rolling a rubric here.
+- **Batch code reduction → the code-tidying batch-simplify capability** over a
+  change set when that plugin is installed; otherwise reduce in-thread against
+  the simpler-code convention, spending no clarity, test, error handling,
+  convention, or observability to do it.
 - **Proactive code-side enforcement is NOT here.** It lives in review and
   design gates that cite the simpler-code convention; this corrector
   re-anchors the discipline and corrects the work in flight, it does not
