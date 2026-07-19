@@ -109,13 +109,13 @@
       "id": 9,
       "name": "capture-comment-floor-wire-path",
       "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker has no custom fields on our plan.",
-      "expected_output": "Detects the tracker class, selects the structured-comment universal floor (no entitled native fields), wires the close-triggered snippet posting the unattested marker-keyed record plus the attestation request as reviewable changes, wires a companion reply-triggered handler performing the same marker-keyed upsert, routes comment writes through the work-items seam when present, records tracker class and record surface in the binding's capture section, and surfaces the private-repo CI-minutes caveat.",
+      "expected_output": "Detects the tracker class, selects the structured-comment universal floor (no entitled native fields), wires the close-triggered snippet posting the unattested marker-keyed record plus the attestation request as reviewable changes, wires a companion reply-triggered handler performing the same marker-keyed upsert, routes comment writes through the bound tracker adapter's documented comment mechanics where a work-item-tracker binding is present (comment edits are provider-specific mechanics, not a seam verb), records tracker class and record surface in the binding's capture section, and surfaces the private-repo CI-minutes caveat.",
       "files": [],
       "expectations": [
         "Selects the structured-comment floor when native fields are not entitled",
         "Close-triggered snippet posts an unattested record plus attestation request, non-blocking",
         "Wires a reply-triggered handler performing the same upsert, not a second contract",
-        "Comment writes route through the work-items seam when that plugin is present",
+        "Comment writes use the bound adapter's documented comment mechanics when a tracker binding is present, never an invented seam verb",
         "Binding capture section records tracker class and record surface; minutes caveat surfaced"
       ]
     },
@@ -161,14 +161,14 @@
     {
       "id": 13,
       "name": "capture-native-fields-wire-path",
-      "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker supports custom org-managed item fields and we're entitled to write them.",
-      "expected_output": "Detects the tracker class and the entitled native-field surface, selects native-field writes over the structured-comment floor, records record_surface as native_fields (with tracker_class and automation_identity) in the binding's capture section, and maps attestation_source to a field of the same name on the native surface.",
+      "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker supports custom org-managed item fields, we're entitled to write them, and field writes can be ACL-restricted to our automation identity.",
+      "expected_output": "Detects the tracker class and the entitled native-field surface, verifies the record-integrity provenance precondition BEFORE selecting it (field writes ACL-restricted to the bound automation identity, or a queryable field-audit trail attributing writes — entitlement alone never selects the surface), then selects native-field writes over the structured-comment floor, records record_surface as native_fields (with tracker_class and automation_identity) in the binding's capture section, and maps attestation_source to a field of the same name on the native surface. Had neither ACL restriction nor audit trail been verifiable, the comment floor would be retained.",
       "files": [],
       "expectations": [
-        "Detects the entitled native-field surface and selects it over the comment floor",
+        "Verifies automation-only write ACLs or a queryable field-audit trail before selecting native_fields; entitlement alone is insufficient",
         "Binding capture section records record_surface as native_fields",
         "attestation_source maps to a same-named native field, not a comment marker",
-        "Does not silently fall back to the comment floor when native fields are entitled"
+        "States that absent a verifiable provenance signal the comment floor is retained, per the record-integrity rule"
       ]
     }
   ]
