@@ -14,7 +14,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   into any tier and runs only on explicit request. Guards resolve both sides physically
   before a strict-containment check (a symlinked/junction ancestor cannot slip a target
   outside the root) and require the target to share the root's filesystem device (an
-  ancestor bind mount to another filesystem cannot escape it either), and refuse the
+  ancestor bind mount to another filesystem cannot escape it either; a same-device bind
+  mount is the documented residual of this path-based containment model), and refuse the
   containment root itself, symlink/reparse-point targets, linked worktrees, and any plain
   directory still holding nested git repos — a normal clone, a submodule/linked worktree, or
   a bare mirror. A repo (or bare repo) is blocked on uncommitted changes, stash entries,

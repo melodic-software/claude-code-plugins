@@ -126,6 +126,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 **Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` / `SkillData` in the confirmation. Autonomous sessions: abort.
 
+**Documented boundaries.** Containment is path- and device-based (physical resolution plus a same-device check). A *same-device* `mount --bind` under the root shares the root's filesystem device, so no path-based check can detect it; closing that would require a Linux-only mount-table (`/proc/self/mountinfo`) model that would also refuse legitimate under-root mounts, so it stays out of scope for this local, dry-run-default, explicit-`--apply` tool. The unpushed-ref guard covers `refs/heads` and `refs/tags`; other locally-created namespaces (e.g. `refs/notes`) are not scanned, and auto-generated ones (`refs/prefetch/*` from git-maintenance, `refs/replace/*`) are intentionally not treated as unpushed — `--allow-unpushed` is the escape hatch for any local ref. The secret scan gates only ignored (unrecoverable) files; tracked files are git's domain (recoverable via reset/remote, and separately blocked when dirty or unpushed).
+
 ## Integration
 
 | Surface | Relationship |
