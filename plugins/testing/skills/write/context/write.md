@@ -50,7 +50,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | HTTP endpoints, middleware, DI wiring | Integration | project's integration-test location + framework |
    | Service orchestration, runtime composition | Integration (orchestrator) | project's orchestrator (Aspire, docker-compose, tilt) + framework |
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
-   | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:e2e`) |
+   | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
 
 3. **Write the failing test first** (Red) — the test name IS the specification:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`

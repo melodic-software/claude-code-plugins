@@ -105,7 +105,7 @@ Derive types from capabilities:
 - Contracts: interfaces with method signatures
 - Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions) — read its rules before naming
 - Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:ubiquitous-language` (if that plugin is installed) the moment a
+- Invoke `/domain-driven-design:curate-language` (if that plugin is installed) the moment a
   domain term resolves so the active glossary owner applies the consumer's existing format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
   the design artifacts directly
@@ -146,7 +146,7 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
 3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:ubiquitous-language` (if installed) to sync resolved terms and
+5. Invoke `/domain-driven-design:curate-language` (if installed) to sync resolved terms and
    rejected synonyms into the consuming project's active glossary; the terminology table above is
    the standalone fallback
 
@@ -192,7 +192,7 @@ The in-session shortcut to the design→plan gate. Delegate to `/planning:design
 | Skill | Relationship |
 |-------|-------------|
 | `/interview` | **Before.** `/interview` locks the brief (scope + constraints). `/design` explores the solution space within those constraints |
-| `/domain-driven-design:ubiquitous-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
+| `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
 | `/discovery:explore` (if installed) | **Before.** Exploration maps existing code. `/design` creates what SHOULD exist |
 | `/discovery:research` (if installed) | **Before + parallel.** Research gathers external facts. `/design` synthesizes them. Deferred research items can run in parallel |
 | `/design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |

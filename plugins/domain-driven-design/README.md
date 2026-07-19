@@ -5,13 +5,13 @@ domain-driven design, independent of any one planning or workshop workflow.
 
 | Skill | What it does |
 |---|---|
-| `/domain-driven-design:ubiquitous-language` | Actively maintains the consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, and routes entries to already-known bounded contexts — never discovering boundaries itself. |
+| `/domain-driven-design:curate-language` | Actively maintains the consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, and routes entries to already-known bounded contexts — never discovering boundaries itself. |
 
 Deferred: `context-mapping` and `aggregate-design` join this plugin when those
 practices materialize as skills.
 
 Bounded-context **discovery** is out of scope here — workshop-driven discovery lives in
-the standalone `event-storming` plugin, which `ubiquitous-language` soft-routes to when
+the standalone `event-storming` plugin, which `curate-language` soft-routes to when
 boundaries are missing.
 
 ## Works in any repo

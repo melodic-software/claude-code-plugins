@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- Cross-plugin invocation tokens updated for the fleet naming-grammar wave
+  (`/prototype:pressure-test`); behavior unchanged.
+
 ## [0.12.0]
 
 Bundle the work-item-tracker seam into the plugin so installing it delivers the engine and the

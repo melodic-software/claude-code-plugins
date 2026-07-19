@@ -3,6 +3,14 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- **BREAKING — the `health` skill renamed to `audit`** (fleet conformance wave, naming grammar):
+  `/claude-memory:health` → `/claude-memory:audit`. The old invocation stops resolving; update any
+  saved references. Actions (`audit` / `fix` / `update` / `report`) are unchanged.
+
 ## [0.1.0]
 
 ### Added

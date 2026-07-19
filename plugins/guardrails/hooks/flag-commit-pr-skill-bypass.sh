@@ -52,15 +52,16 @@ hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
 start=${EPOCHREALTIME:-}
 
 # jq is required both to parse the tool payload and to read enabledPlugins.
-# Fail OPEN (silent, advisory-only guard) when it is absent.
+# Fail OPEN when it is absent, but make the degraded state visible rather than
+# silently disabling the advisory (this hook never blocks either way).
 if ! command -v jq >/dev/null 2>&1; then
+  echo "guardrails/flag-commit-pr-skill-bypass: jq not found on PATH — advisory disabled (install jq to enable)." >&2
   exit 0
 fi
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op).
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
+# or timed-out stdin skips this advisory hook.
+INPUT=$(hook::buffer_stdin) || exit 0
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 

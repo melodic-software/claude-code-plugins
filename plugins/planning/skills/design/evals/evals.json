@@ -65,10 +65,10 @@
       "id": 6,
       "name": "resolved-terms-delegate-to-ubiquitous-language",
       "prompt": "/planning:design terminology — the user just confirmed that Shipment is canonical and Parcel is a rejected synonym. Sync the terminology and continue the design pass.",
-      "expected_output": "Records the terminology decision in the type inventory and invokes /domain-driven-design:ubiquitous-language to maintain the consumer glossary, then continues the design workflow. It does not reimplement or prescribe glossary format/location itself.",
+      "expected_output": "Records the terminology decision in the type inventory and invokes /domain-driven-design:curate-language to maintain the consumer glossary, then continues the design workflow. It does not reimplement or prescribe glossary format/location itself.",
       "files": [],
       "expectations": [
-        "Invokes /domain-driven-design:ubiquitous-language for the resolved Shipment vocabulary",
+        "Invokes /domain-driven-design:curate-language for the resolved Shipment vocabulary",
         "Does not prescribe a glossary filename, path, or duplicate entry format inside the design workflow",
         "Records the terminology decision in the design artifact as well as routing the glossary update",
         "Continues the design workflow after ubiquitous-language returns"

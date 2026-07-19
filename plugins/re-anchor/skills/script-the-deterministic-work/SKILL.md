@@ -102,7 +102,7 @@ it un-scripted and say why.
 The enforceability-tiers convention's own routing sends a **recurring**
 deterministic finding to a **standing** mechanism — a linter, analyzer, or
 commit hook that fires on every change. That is the territory of an
-automation-gaps capability (`/claude-config:automation-gaps` when that
+automation-gaps capability (`/claude-config:audit-automation-gaps` when that
 plugin is installed; prose guidance otherwise): institutionalize the check
 so it never reaches review again.
 

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I changed several files in the API app. What needs testing?",
-      "expected_output": "Analyzes git diff to classify changed files by test type needed. Generates a test plan with unit/integration/architecture/E2E sections. Identifies coverage gaps. Suggests /testing:write for gaps and /testing:e2e if UI/API changes exist.",
+      "expected_output": "Analyzes git diff to classify changed files by test type needed. Generates a test plan with unit/integration/architecture/E2E sections. Identifies coverage gaps. Suggests /testing:write for gaps and /testing:run-e2e if UI/API changes exist.",
       "files": []
     }
   ]

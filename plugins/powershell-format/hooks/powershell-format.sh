@@ -45,7 +45,7 @@ emit_tel() {
   hook::emit_telemetry "$@"
 }
 
-INPUT=$(cat)
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice for an edit this
 # hook would not process anyway (the Write|Edit matcher is broader than the
@@ -152,6 +152,8 @@ done
 # Resolve pwsh from PATH — never downloaded. Absent -> clean skip (a pwsh-less
 # contributor box, or a Linux cloud session without PowerShell). CI's PowerShell
 # job is the authoritative PSScriptAnalyzer gate, so nothing is lost locally.
+# silent-skip-ok: not-applicable classification — absent pwsh is a by-design
+# quiet skip on hosts without PowerShell; telemetry still records the skip.
 command -v pwsh >/dev/null 2>&1 || emit_skipped
 
 # PowerShell on Windows does not understand MSYS mount paths (/d/...). Convert

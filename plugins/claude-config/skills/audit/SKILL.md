@@ -25,7 +25,7 @@ Project-specific conventions (required permission patterns beyond the baseline, 
 disabled servers, launcher-script wrappers) come from the consuming repo's own `CLAUDE.md` and
 `.claude/rules/` — read them when present; this skill does not assume them.
 
-Two adjacent skills cover neighboring questions: the sibling `automation-gaps` skill asks whether the
+Two adjacent skills cover neighboring questions: the sibling `audit-automation-gaps` skill asks whether the
 configured automation SET is the right set (landscape gaps); the `health` skill in the `claude-memory`
 plugin audits the instruction layer (CLAUDE.md / rules / auto-memory). This skill asks whether the
 configuration FILES are correct against upstream truth.

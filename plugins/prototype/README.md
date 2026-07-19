@@ -8,8 +8,8 @@ It ships **two skills**, split by the shape of the question you're answering:
 
 | Skill | Invoke | Answers |
 |---|---|---|
-| `logic` | `/prototype:logic <scope>` | "Does this state machine / data model / API surface feel right?" — an interactive terminal app driving a portable, liftable logic module by hand. |
-| `ui` | `/prototype:ui <scope>` | "What should this look like?" — several radically different visual variations on one route, switchable from a floating control bar (real stack, or a self-contained HTML mockup). |
+| `pressure-test` | `/prototype:pressure-test <scope>` | "Does this state machine / data model / API surface feel right?" — an interactive terminal app driving a portable, liftable logic module by hand. |
+| `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?" — several radically different visual variations on one route, switchable from a floating control bar (real stack, or a self-contained HTML mockup). |
 
 Both skills share one throwaway discipline (no persistence, skip polish, surface the state, delete
 or absorb when done) and both capture the validated answer in a durable note before the code is
@@ -25,7 +25,7 @@ thrown away.
   into the real page.
 
 Each skill auto-invokes on its own trigger phrases, or you can call it directly. If you're not sure
-which fits, a backend/logic question routes to `logic` and a page/component question routes to `ui`.
+which fits, a backend/logic question routes to `pressure-test` and a page/component question routes to `explore-directions`.
 
 ## Install
 

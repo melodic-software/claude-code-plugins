@@ -39,11 +39,10 @@ hook::check_enabled "DESKTOP_NOTIFICATION"
 # advisory exit 0. Empty start => telemetry is skipped, the hook still notifies.
 start=${EPOCHREALTIME:-}
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op). stdin is read ONCE here and both fields are
-# parsed from the buffered value; reading fd0 twice would drain the pipe.
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. stdin is
+# read ONCE here and both fields are parsed from the buffered value; reading fd0
+# twice would drain the pipe.
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq is load-bearing for parsing and for the terminalSequence emission; absent →
 # visible once-per-session notice instead of silently dropping every

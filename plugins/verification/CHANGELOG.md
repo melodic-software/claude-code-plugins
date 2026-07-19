@@ -3,6 +3,13 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Changed
+
+- Cross-plugin invocation tokens updated for the fleet naming-grammar wave
+  (`/testing:run-e2e`); behavior unchanged.
+
 ## [0.2.1]
 
 ### Changed
@@ -39,5 +46,5 @@ All notable changes to the `verification` plugin are documented here. Format fol
   across participating lifecycle plugins.
 - Cross-plugin delegation degrades gracefully: the Stage-1 mechanical pass delegates to
   `/toolchain:build` and `/toolchain:lint` when the `toolchain` plugin is installed (else the project's
-  ecosystem-native commands), and live-app verification prefers `/testing:e2e` when the `testing` plugin
+  ecosystem-native commands), and live-app verification prefers `/testing:run-e2e` when the `testing` plugin
   is installed (else bundled `/verify` + `/run` or a manual orchestrator launch) — no hard dependencies.

@@ -3,6 +3,24 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Changed
+
+- Hook stdin is read via the shared `hook::buffer_stdin` helper (bounded `read -t`,
+  default 2s) instead of a bare `cat`, so a Windows Win32-pipe late-EOF stall can no
+  longer hang the hook indefinitely. Empty or timed-out stdin exits as a skip, matching
+  the existing empty-payload behavior.
+
+## [0.4.1]
+
+### Changed
+
+- **Quiet pwsh-absent skip documented at the site** with a `silent-skip-ok`
+  annotation (the marketplace's new silent-skip CI gate). No behavior change:
+  absent `pwsh` remains a by-design not-applicable quiet skip, still recorded
+  via opt-in telemetry.
+
 ## [0.4.0]
 
 ### Added

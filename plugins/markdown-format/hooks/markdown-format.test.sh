@@ -710,9 +710,11 @@ chmod +x "$SHIM_DIR/cygpath" "$SHIM_DIR/jq"
 
 count_lm() { grep -c -- '-lm' "$CYG_LOG" 2>/dev/null || true; }
 
-# Unwired (sink unset), clean fixture: the only legitimate jq spawn is
-# hook::read_file_path's file_path parse — TOOL, FILE_REL and data_json are
-# all telemetry-only and must not be built.
+# Unwired (sink unset), clean fixture: the legitimate jq spawns are
+# hook::buffer_stdin's payload-completeness probe (`jq -e .` — a piped read
+# always ends read -d '' with a non-zero status at EOF, so the probe runs on
+# every invocation) and hook::read_file_path's file_path parse — TOOL, FILE_REL
+# and data_json are all telemetry-only and must not be built.
 : >"$CYG_LOG"
 : >"$JQ_LOG"
 printf '# Gate Doc\n\nClean text.\n' >"$REPO/fixtureGate.md"
@@ -731,10 +733,10 @@ else
   fail "telemetry-gate/unwired: $CYG_LM_UNWIRED cygpath -lm spawns: $(cat "$CYG_LOG")"
 fi
 JQ_UNWIRED="$(wc -l <"$JQ_LOG")"
-if [[ "$JQ_UNWIRED" -eq 1 ]]; then
-  ok "telemetry-gate/unwired: exactly 1 jq spawn (file_path parse only)"
+if [[ "$JQ_UNWIRED" -eq 2 ]]; then
+  ok "telemetry-gate/unwired: exactly 2 jq spawns (stdin probe + file_path parse)"
 else
-  fail "telemetry-gate/unwired: expected 1 jq spawn, got $JQ_UNWIRED: $(cat "$JQ_LOG")"
+  fail "telemetry-gate/unwired: expected 2 jq spawns, got $JQ_UNWIRED: $(cat "$JQ_LOG")"
 fi
 
 # Wired (stub sink), same fixture shape: the payload construction must still

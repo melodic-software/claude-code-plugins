@@ -33,8 +33,8 @@ at `context/<author>/` without changing this skill.
 | scansion, meter, prosody, phrasing, stability, lyric-melody fit | `/songwriting:meter-prosody` |
 | form, song forms, hook, repetition, verse, bridge, box model | `/songwriting:song-form` |
 | co-write protocol, Title Game, titles, high-volume line/section dumps | `/songwriting:co-write` |
-| diagnose a draft, demo review, pre-lock audit, variations, rewrite | `/songwriting:diagnosis` |
-| daily practice curriculum, numbered exercises | `/songwriting:daily-practice` |
+| diagnose a draft, demo review, pre-lock audit, variations, rewrite | `/songwriting:diagnose` |
+| daily practice curriculum, numbered exercises | `/songwriting:practice` |
 | Suno v5.5 prompt formatting (separate capability) | `/songwriting:suno` |
 
 ## Action Router
@@ -86,7 +86,7 @@ dive. Every scenario routes through
   re-explain here.
 - If the user wants step-by-step guidance, run `coach`: ask ONE question, wait, apply Pat's tool,
   surface the next choice point. Never list-and-leave; never monologue 14 steps.
-- If the user gives a draft, that is diagnosis — route to `/songwriting:diagnosis` (`demo` for any
+- If the user gives a draft, that is diagnosis — route to `/songwriting:diagnose` (`demo` for any
   stage, `diagnose` for near-complete).
 - If the user pastes an incomplete fragment / idea / half-song, route to `fragment` or `idea` here.
 

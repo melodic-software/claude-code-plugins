@@ -56,4 +56,4 @@ first — a project-level override wins over the bundled default.
 
 - Section identification, form-fit, hook placement → `/songwriting:song-form`
 - Rhyme position and stability → `/songwriting:rhyme strategy`
-- Whole-draft diagnosis → `/songwriting:diagnosis`
+- Whole-draft diagnosis → `/songwriting:diagnose`

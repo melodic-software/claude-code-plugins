@@ -3,6 +3,44 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- **DeDRM_tools pin re-pinned `v10.0.20` → `v10.0.28`** (maintainer re-pin;
+  upstream drift confirmed live 2026-07-19). New asset SHA256
+  `520cce70…c362947` (1,944,296 bytes, asset date 2026-07-14), fetched and
+  hash-verified; the prior pin is recorded for rollback. A full single-book
+  extraction was NOT re-run (manual, machine-bound) — the only consumed file,
+  `DeDRM_plugin.zip`, is present; the v10.0.28 additions (Frida/MSIX decrypt
+  tools) target the newer MSIX Kindle app and are not used by this skill.
+- **Tutorial URL repointed + drift probe reworked.** The primary tutorial moved
+  from `remove-drm-from-kindle-ebooks/` (now HTTP 404) to
+  `drm-removal-from-kindle-ebook-purchases-old-method/` and is now
+  subscriber-gated, so the `update` action can no longer walk its body for the
+  current Key_Finder zip URL. `check-drift.sh` now HEAD-probes the pinned direct
+  Key_Finder zip URL as the authoritative signal (still serving the
+  byte-identical zip, SHA-verified 2026-07-19); roll-forward auto-discovery is a
+  documented capability loss until a subscriber re-confirms new builds by hand.
+
+### Deferred
+
+- **Obsolescence watch:** upstream relabeled the entire Kindle-for-PC + KFX
+  approach the "OLD Method" and is pushing an MSIX-app successor
+  (`msix-amazon-kindle-reading-app-dedrm/`). Trigger to migrate: the pinned
+  Kindle-for-PC 2.8.0 installer URL or the Key_Finder zip going non-200. Sources
+  retained in `references/sources.md`.
+
+## [0.6.0]
+
+### Changed
+
+- **BREAKING: router skill `kindle-dedrm` renamed to `manage`** (fleet conformance wave —
+  naming grammar, verb-first skill names). The router now invokes as `/kindle-dedrm:manage` (was
+  `/kindle-dedrm:kindle-dedrm`); the `setup` skill is unchanged. Update any saved
+  invocations. Skill behavior, actions, scripts, and evals are unchanged; only the leaf
+  name, its namespace token, and the internal skill path changed.
+
 ## [0.5.0]
 
 ### Changed

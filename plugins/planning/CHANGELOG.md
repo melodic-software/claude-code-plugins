@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Changed
+
+- Cross-plugin invocation tokens updated for the fleet naming-grammar wave
+  (`/domain-driven-design:curate-language`, `/prototype:pressure-test`,
+  `/prototype:explore-directions`); behavior unchanged.
+
 ## [0.21.0]
 
 ### Changed
@@ -11,7 +19,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   collaboration** (fleet conformance wave: native `dependencies` are reserved
   for plugins genuinely broken without their collaborator, and every planning
   skill works standalone). The manifest entry is removed — the plugin no
-  longer auto-installs; every `/domain-driven-design:ubiquitous-language`
+  longer auto-installs; every `/domain-driven-design:curate-language`
   invocation site now carries the installed-ness gate and a stated fallback
   (terms recorded in the design artifacts / Brief glossary notes).
 
@@ -104,7 +112,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Changed
 
 - **BREAKING: `/planning:domain-modeling` moved out of this plugin** — it now lives in the new
-  `domain-driven-design` plugin as `/domain-driven-design:ubiquitous-language`. The skill maintains
+  `domain-driven-design` plugin as `/domain-driven-design:curate-language`. The skill maintains
   vocabulary only and explicitly refuses bounded-context discovery, so "domain-modeling"
   over-promised; the concern is DDD language stewardship, not planning-stage task shaping. Invokers
   of `/planning:domain-modeling` must switch to the new command.

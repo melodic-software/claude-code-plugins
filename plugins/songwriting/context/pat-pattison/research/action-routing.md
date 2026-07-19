@@ -17,8 +17,8 @@ content under `context/pat-pattison/`.
 | `/songwriting:meter-prosody` | scansion/meter, prosody, phrasing, stability, lyric-melody fit |
 | `/songwriting:song-form` | form, song forms, hook, repetition, verse, bridge, box model |
 | `/songwriting:co-write` | co-write protocol, Title Game, titles, high-volume line/section dumps |
-| `/songwriting:diagnosis` | demo review, full-draft diagnosis, pre-lock audit, variations, rewrite |
-| `/songwriting:daily-practice` | daily curriculum, numbered exercises |
+| `/songwriting:diagnose` | demo review, full-draft diagnosis, pre-lock audit, variations, rewrite |
+| `/songwriting:practice` | daily curriculum, numbered exercises |
 | `/songwriting:suno` | Suno v5.5 prompt formatting (separate capability) |
 
 ## Quick Decision Guide
@@ -29,18 +29,18 @@ content under `context/pat-pattison/`.
 | "I have nothing — just want to write something." | `/songwriting:workflow brainstorm` (Scenario 8) |
 | "I have an image / phrase / feeling — no title." | `/songwriting:workflow idea` (Scenario 9) |
 | "This line / verse / fragment is stuck." | `/songwriting:workflow fragment` (Scenario 10) |
-| "This demo is partway done — what's missing?" | `/songwriting:diagnosis demo` (Scenario 11) |
-| "Review my full draft." | `/songwriting:diagnosis diagnose` (or `/songwriting:workflow` Scenario 2 / 6) |
+| "This demo is partway done — what's missing?" | `/songwriting:diagnose demo` (Scenario 11) |
+| "Review my full draft." | `/songwriting:diagnose diagnose` (or `/songwriting:workflow` Scenario 2 / 6) |
 | "I have a title — what next?" | `/songwriting:workflow` Scenario 3, then `/songwriting:co-write title` + `/songwriting:rhyme worksheet` |
 | "I have a melody for these lyrics." | `/songwriting:meter-prosody align-melody` (Scenario 4) |
 | "Co-write tonight." | `/songwriting:co-write` + `/songwriting:co-write title-game` (Scenario 5) |
-| "Daily practice plan." | `/songwriting:daily-practice` (Scenario 7) |
+| "Daily practice plan." | `/songwriting:practice` (Scenario 7) |
 | "Is this verse stable or unstable?" | `/songwriting:meter-prosody stability` |
 | "Find rhymes for X that aren't cliche." | `/songwriting:rhyme` (internal first), supplement with `/songwriting:rhyme datamuse` if needed |
 | "Syllable count of this line." | `/songwriting:rhyme datamuse` |
 | "Why does this rhyme feel weak?" | `/songwriting:rhyme` |
-| "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:diagnosis rewrite` |
-| "Give me a 90-second writing prompt." | `/songwriting:object-writing` or `/songwriting:daily-practice` |
+| "Make this verse less abstract." | `/songwriting:object-writing` + `/songwriting:diagnose rewrite` |
+| "Give me a 90-second writing prompt." | `/songwriting:object-writing` or `/songwriting:practice` |
 | "I need a metaphor for trust." | `/songwriting:object-writing metaphor` or `metaphor-recipe` |
 | "Generate eight metaphor options for X." | `/songwriting:object-writing metaphor-recipe` |
 | "Should this be like or is?" | `/songwriting:object-writing metaphor` |
@@ -54,13 +54,13 @@ content under `context/pat-pattison/`.
 | "Title Game / vowel cascade." | `/songwriting:co-write title-game` |
 | "Write me a bridge." | `/songwriting:song-form bridge` |
 | "What goes in verse 2 / 3?" | `/songwriting:song-form box-model` |
-| "Audit this line before I lock it." | `/songwriting:diagnosis audit` |
-| "Give me 5 versions of line 3." | `/songwriting:diagnosis variations` |
+| "Audit this line before I lock it." | `/songwriting:diagnose audit` |
+| "Give me 5 versions of line 3." | `/songwriting:diagnose variations` |
 | "This line sounds cliched." | `/songwriting:object-writing cliche` |
 | "Who is speaking in this lyric?" | `/songwriting:object-writing pov` |
 | "My lyric and melody don't fit." | `/songwriting:meter-prosody align-melody` |
 | "There's a greedy spot in line 2." | `/songwriting:meter-prosody align-melody` + `prosody` |
-| "Run me a numbered exercise." | `/songwriting:daily-practice exercise` |
+| "Run me a numbered exercise." | `/songwriting:practice exercise` |
 | "How do I structure a co-writing session?" | `/songwriting:co-write` |
 | "Coursera / Berklee / Pat's columns / podcasts." | `/songwriting:workflow beyond-books` |
 | "Rhyme this proper noun / brand / place." | `/songwriting:rhyme mosaic` |
@@ -100,10 +100,10 @@ content under `context/pat-pattison/`.
 /songwriting:co-write title-game
 /songwriting:co-write line-brainstorm "<paste line>"
 /songwriting:co-write section-brainstorm chorus
-/songwriting:diagnosis diagnose "<paste verse>"
-/songwriting:diagnosis demo "<paste any-stage lyric>"
-/songwriting:diagnosis audit "<paste line or section>"
-/songwriting:diagnosis variations "<paste line>"
-/songwriting:daily-practice
-/songwriting:daily-practice exercise 4.6
+/songwriting:diagnose diagnose "<paste verse>"
+/songwriting:diagnose demo "<paste any-stage lyric>"
+/songwriting:diagnose audit "<paste line or section>"
+/songwriting:diagnose variations "<paste line>"
+/songwriting:practice
+/songwriting:practice exercise 4.6
 ```

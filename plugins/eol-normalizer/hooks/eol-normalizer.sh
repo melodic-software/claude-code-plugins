@@ -44,7 +44,7 @@ emit_tel() {
 # shellcheck source=normalize-eol.sh
 source "$(dirname "${BASH_SOURCE[0]}")/normalize-eol.sh"
 
-INPUT=$(cat)
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq is load-bearing for input parsing; absent → visible once-per-session skip
 # notice instead of silently disabling the whole hook (dim-9 doctrine).

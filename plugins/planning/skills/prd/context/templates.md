@@ -2,7 +2,7 @@
 
 All three tiers cover the same seven required sections. Tier governs verbosity, not section presence. Loaded on demand by `/prd` once tier is chosen.
 
-**Prototype snippet exception:** if a logic prototype (e.g. `/prototype:logic`, if installed) produced a snippet that encodes a design decision more precisely than prose (state machine, reducer, schema, type shape), inline the decision-rich parts in the Open questions section and note it came from a prototype. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level — they belong here.
+**Prototype snippet exception:** if a logic prototype (e.g. `/prototype:pressure-test`, if installed) produced a snippet that encodes a design decision more precisely than prose (state machine, reducer, schema, type shape), inline the decision-rich parts in the Open questions section and note it came from a prototype. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level — they belong here.
 
 ---
 

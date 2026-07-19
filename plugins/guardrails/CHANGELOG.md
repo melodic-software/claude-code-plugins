@@ -3,6 +3,31 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Changed
+
+- All seven hook entry scripts read stdin via the shared `hook::buffer_stdin` helper
+  (bounded `read -t`, default 2s) instead of a bare `cat`, so a Windows Win32-pipe
+  late-EOF stall can no longer hang a hook — and with it every tool call — indefinitely.
+- **Blocking guards now fail closed on a stdin read timeout.** When `hook::buffer_stdin`
+  returns 2 (the read timed out before a complete JSON payload arrived), the five
+  blocking guards (`block-dangerous-git`, `block-hook-bypass`, `block-no-verify`,
+  `secret-pattern-detection`, `hardcoded-path-check`) exit 2 with the BLOCKED reason on
+  stderr instead of skipping: a guard that could not evaluate the tool call must not
+  wave it through. Empty stdin still skips, matching the previous empty-payload
+  behavior. The two advisory hooks (`flag-commit-pr-skill-bypass`,
+  `workflow-resilience-check`) skip on any read failure, as before.
+
+## [0.7.1]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` jq-absent skip is now visible** (prerequisite-visibility
+  doctrine). The hook previously no-op'd silently when `jq` was missing; it now writes the
+  same one-line stderr notice its sibling guardrails hooks emit ("advisory disabled —
+  install jq to enable") before exiting 0.
+
 ## [0.7.0]
 
 ### Added

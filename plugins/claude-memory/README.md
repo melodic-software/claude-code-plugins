@@ -4,14 +4,14 @@ A Claude Code plugin that keeps a repo's instruction/memory layer healthy. It sh
 
 | Skill | Question it answers |
 |---|---|
-| `/claude-memory:health` | Is the instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
+| `/claude-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
 
 The configuration FILES, automation SET, and permission GRANTS are audited by the sibling skills in the
 separate `claude-config` plugin (`audit`, `automation-gaps`, `permission-hygiene`).
 
 ## What the skill does
 
-### health
+### audit
 
 Audits the files you write that shape Claude's behavior against a codified checklist derived from
 official Claude Code documentation (line budgets, deletion test, content placement, consistency,
@@ -21,10 +21,10 @@ checks apply fixed criteria with model reading. Reports persist to the plugin's 
 audit contributor-personal auto-memory, so they never land in the repo.
 
 ```shell
-/claude-memory:health          # audit (default)
-/claude-memory:health fix      # apply findings with per-item approval
-/claude-memory:health update   # refresh criteria from current official docs
-/claude-memory:health report   # show the last audit without re-running
+/claude-memory:audit          # audit (default)
+/claude-memory:audit fix      # apply findings with per-item approval
+/claude-memory:audit update   # refresh criteria from current official docs
+/claude-memory:audit report   # show the last audit without re-running
 ```
 
 ## Consumer conventions
