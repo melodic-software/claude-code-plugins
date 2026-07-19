@@ -72,18 +72,26 @@ the audit runs against.
   the source declares no such seam, this note does not apply.
 - **Route shared-policy fixes upstream — never silent deviation, never
   silent conformance.** A change that belongs in the shared standards, not
-  this repo, is named and routed there through the proper change path (a
-  standards PR), rather than patched into the downstream copy. When the work
-  disagrees with a standard, that disagreement goes upstream too — do not
-  quietly ignore the standard, and do not quietly comply with one you have
-  reason to think is wrong. (This is the upstream-routing path that
-  `/re-anchor:reason-dont-recite` hands a standards disagreement to.)
+  this repo, is **named and drafted** for that repo's proper change path and
+  routed to the human, rather than patched into the downstream copy.
+  "Routed" means proposed and OFFERED: name the change, draft it, and offer
+  to open the standards PR — do not open that PR yourself without the user's
+  explicit opt-in (the plugin-wide outward-artifact gate in the method doc).
+  When the work disagrees with a standard, that disagreement goes upstream
+  too — do not quietly ignore the standard, and do not quietly comply with
+  one you have reason to think is wrong. (This is the upstream-routing path
+  that `/re-anchor:reason-dont-recite` hands a standards disagreement to.)
 
 ## What this skill does NOT do
 
 - **Does not design the sync pipeline.** Upstream/downstream sync and
   dedup design are out of scope; this skill only respects an existing
   managed / locally-owned seam when one is declared.
+- **Does not open the standards PR itself.** It names and drafts the
+  shared-standards change and routes it to the human; opening the PR — or
+  any outward artifact — waits on the user's explicit opt-in, mirroring the
+  OFFER gate the sibling `/re-anchor:recheck-against-upstream-deep` applies
+  to its work-items routing.
 - **Does not fabricate a citation or a violation.** Cite the doc that
   actually resolved; report "conforms" honestly when it does.
 
