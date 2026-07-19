@@ -3,6 +3,15 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- **Quiet pwsh-absent skip documented at the site** with a `silent-skip-ok`
+  annotation (the marketplace's new silent-skip CI gate). No behavior change:
+  absent `pwsh` remains a by-design not-applicable quiet skip, still recorded
+  via opt-in telemetry.
+
 ## [0.4.0]
 
 ### Added

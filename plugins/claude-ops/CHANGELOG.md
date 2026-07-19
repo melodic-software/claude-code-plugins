@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1]
+
+### Changed
+
+- **`hook-telemetry-sink` quiet jq skip documented at the site** with a
+  `silent-skip-ok` annotation (the marketplace's new silent-skip CI gate). No
+  behavior change: the sink is fire-and-forget — its producer discards
+  stdout+stderr, so prerequisite visibility is owned by the producer side.
+
 ## [0.13.0]
 
 ### Changed

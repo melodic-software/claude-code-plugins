@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` jq-absent skip is now visible** (prerequisite-visibility
+  doctrine). The hook previously no-op'd silently when `jq` was missing; it now writes the
+  same one-line stderr notice its sibling guardrails hooks emit ("advisory disabled —
+  install jq to enable") before exiting 0.
+
 ## [0.7.0]
 
 ### Added
