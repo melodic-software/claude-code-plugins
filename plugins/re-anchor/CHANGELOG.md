@@ -3,6 +3,15 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Fixed
+
+- `tighten-your-output` now presence-gates its `compress` and `simplify`
+  routes with a documented prose/in-thread fallback, per the seam-phrasing
+  convention — closing the lone unguarded cross-plugin reference that the
+  sibling correctors already guard.
+
 ## [0.3.1]
 
 ### Changed
