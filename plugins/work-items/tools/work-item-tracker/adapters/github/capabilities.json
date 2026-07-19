@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "provider": "github",
+  "verbs": {
+    "create-item": true,
+    "get-item": true,
+    "claim": true,
+    "renew-lease": true,
+    "reclaim": true,
+    "link-blocks": true,
+    "add-sub-item": true,
+    "list-items": true,
+    "capabilities": true
+  },
+  "features": {
+    "cross_repo_edges": true,
+    "sub_items": true,
+    "leases": true,
+    "labels": true
+  },
+  "limits": {
+    "sub_items_per_parent": 100,
+    "sub_item_depth": 8,
+    "dependencies_per_type": 50,
+    "list_items_max": 1000
+  }
+}

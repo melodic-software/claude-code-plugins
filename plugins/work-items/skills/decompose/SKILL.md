@@ -63,7 +63,7 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 
 Prefer AFK. Mark HITL only when the slice genuinely needs judgment (architectural decision, UX review, external-system access, manual QA). Both are canonical roles — resolve each repo-actual label string from the binding's `config.role_labels`, defaulting to the strings shown ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles").
 
-The human-gated label (default `needs-human`) is what keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT: the frontier filter keys on the human-gated label, not on the absence of the other, so an unlabeled HITL slice would still be claimable by `/work-items:work`. The autonomous-eligible label (default `agent-ready`) is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants the human-gated label set AND the autonomous-eligible one omitted.
+The human-gated label (default `needs-human`) is what keeps a slice out of autonomous pickup — `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT: the frontier filter keys on the human-gated label, not on the absence of the other, so an unlabeled HITL slice would still be claimable by `/work-items:work`. The autonomous-eligible label (default `agent-ready`) is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL slice wants the human-gated label set AND the autonomous-eligible one omitted.
 
 **Investigation tickets — decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside — or ahead of — build slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
@@ -106,7 +106,7 @@ Iterate one question at a time until the user approves — never publish an unap
 
 ### 4. Publish items
 
-For each approved slice, create a work item via the seam (`tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). **Publish in dependency order** — blockers first — so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved slice, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). **Publish in dependency order** — blockers first — so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # AFK slices get the autonomous-eligible role label; HITL + investigation slices get the
@@ -119,7 +119,9 @@ BODY_FILE=$(mktemp)
 # not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
 # interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
 # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
-"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" create-item --title "<slice title>" --body "$(cat "$BODY_FILE")" \
   --type "<Bug|Feature|Task>" \
   --labels "area: <a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"

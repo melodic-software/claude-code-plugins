@@ -78,7 +78,9 @@ BODY_FILE=$(mktemp)
 # Write the composed body to "$BODY_FILE" with the Write tool NOW — before create-item —
 # not via shell interpolation. "$(cat "$BODY_FILE")" then passes the file content as one
 # literal argument the shell never re-parses.
-"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" create-item \
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" create-item \
   --title "[Maintenance] {title}" \
   --body "$(cat "$BODY_FILE")" \
   --type "{type}" \
