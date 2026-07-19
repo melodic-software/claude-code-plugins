@@ -505,25 +505,63 @@ function isDeniedV4(addr) {
   );
 }
 
+// Expand an IPv6 literal to its 8 zero-padded hextets, resolving "::"
+// compression and an embedded dotted-quad tail; null where the literal is
+// invalid. Classification must run on the EXPANDED form — prefix tests on
+// the compressed text miss e.g. "0:0:0:0:0:0:0:1".
+function expandIpv6(value) {
+  let v = value;
+  let groupsNeeded = 8;
+  let v4Hextets = null;
+  if (v.includes(".")) {
+    const lastColon = v.lastIndexOf(":");
+    if (lastColon === -1) return null;
+    const parts = v.slice(lastColon + 1).split(".");
+    if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part) || Number(part) > 255)) return null;
+    const [a, b, c, d] = parts.map(Number);
+    v4Hextets = [(a * 256 + b).toString(16), (c * 256 + d).toString(16)];
+    v = v.slice(0, lastColon + 1);
+    if (!v.endsWith("::")) v = v.slice(0, -1);
+    groupsNeeded = 6;
+  }
+  const compressed = v.split("::");
+  if (compressed.length > 2) return null;
+  const parseGroups = (s) => (s === "" ? [] : s.split(":"));
+  const head = parseGroups(compressed[0]);
+  const tail = compressed.length === 2 ? parseGroups(compressed[1]) : null;
+  const validGroup = (group) => /^[0-9a-f]{1,4}$/.test(group);
+  if (!head.every(validGroup) || (tail !== null && !tail.every(validGroup))) return null;
+  let groups;
+  if (tail === null) {
+    if (head.length !== groupsNeeded) return null;
+    groups = head;
+  } else {
+    const fill = groupsNeeded - head.length - tail.length;
+    if (fill < 1) return null;
+    groups = [...head, ...Array(fill).fill("0"), ...tail];
+  }
+  if (v4Hextets !== null) groups = [...groups, ...v4Hextets];
+  return groups.map((group) => group.padStart(4, "0"));
+}
+
 function isNonExternalEgressHost(host) {
   const h = host.toLowerCase().replace(/^\[|\]$/g, "");
   if (h.includes(":")) {
-    if (h === "::1" || h === "::") return true;
-    const mapped = /^::ffff:(.+)$/.exec(h);
-    if (mapped !== null) {
-      let embedded = null;
-      if (mapped[1].includes(".")) {
-        embedded = foldInetAton(mapped[1]);
-      } else {
-        const groups = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(mapped[1]);
-        if (groups !== null) {
-          embedded = Number.parseInt(groups[1], 16) * 65536 + Number.parseInt(groups[2], 16);
-        }
-      }
-      return embedded === null || isDeniedV4(embedded);
+    const hextets = expandIpv6(h);
+    // An invalid literal is not a valid probe target — reject outright.
+    if (hextets === null) return true;
+    if (hextets.slice(0, 5).every((hextet) => hextet === "0000") && hextets[5] === "ffff") {
+      // v4-mapped: classify the embedded IPv4.
+      return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
     }
+    if (hextets.slice(0, 7).every((hextet) => hextet === "0000")) {
+      // Unspecified (::) or loopback (::1); any other single-hextet value in
+      // ::/96 is not a meaningful external target either.
+      return hextets[7] === "0000" || hextets[7] === "0001";
+    }
+    const first = Number.parseInt(hextets[0], 16);
     // fc00::/7 unique-local, fe80::/10 link-local.
-    return /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
+    return (first >= 0xfc00 && first <= 0xfdff) || (first >= 0xfe80 && first <= 0xfebf);
   }
   const name = h.endsWith(".") ? h.slice(0, -1) : h;
   if (name === "localhost" || name.endsWith(".localhost")) return true;
