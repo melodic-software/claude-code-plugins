@@ -105,9 +105,10 @@ the tracker seam exposes no comment verb); otherwise the standalone snippet post
 
 ## Attestation-reply trigger shape
 
-Wire a companion reply-triggered handler at the surface the org's tracker actually offers (a
-comment-created event, or the native-field equivalent where fields support change-triggered
-automation): on each new reply, resolve the actor against the accountable-human routing,
+Wire a companion reply-triggered handler on the tracker's comment-created event surface (a
+native-field-change trigger is not a substitute — no v1 field-edit protocol carries the two
+attested values, so a tracker without a comment-created surface routes to the advisory path
+even when field-change automation exists): on each new reply, resolve the actor against the accountable-human routing,
 require the reply-correlation rule (a response to the recorded `attestation_request`, or the
 flat-tracker `attest:` token) and,
 on a parseable reply carrying both values, upsert the SAME attested record — not a second

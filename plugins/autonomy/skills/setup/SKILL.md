@@ -172,8 +172,12 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    default label nor silently omits the gate, so standalone gated capture stays advisory
    until an equivalent label/marker convention is bound, which is future work.
 3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
-   comment-created (or native-field change) event handler, wired the same reviewable way as
-   the close trigger: on a new reply, check the reply's actor against the record's
+   comment-created event handler, wired the same reviewable way as the close trigger (a
+   native-field-change trigger surface is NOT a substitute: the only defined human input is
+   the reply — `partial, 1-4h` or the `attest:` form — and v1 defines no native field-edit
+   submission protocol carrying the two values, so a tracker with field-change automation
+   but no comment-created surface routes to the ADVISE step like any other
+   reply-triggerless tracker): on a new reply, check the reply's actor against the record's
    `attestation_owner` snapshot (resolved once at close; never re-resolved from a mutable
    source, per the contract), require the contract's reply-correlation rule (the event responds to the
    recorded `attestation_request`, or carries the flat-tracker `attest:` token — an
@@ -228,13 +232,19 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    tolerance, same as telemetry). `tracker_class` and `record_surface` land once step 1
    detects them; `automation_identity`, `requester_source`, and `routing` follow the SAME
    convention-resolution ladder as every other binding value (config present → use it;
-   absent → infer from a discoverable signal such as recent close-event actors, or for
-   `requester_source` the tracker's documented item-author semantics, and persist; cannot
-   infer → interview when `apply` runs interactively, else record null/unbound) — NEVER
-   invented, and never a reason to block a non-interactive run or leave the section
-   silently unwired: an unbound `automation_identity` means step 2's trigger gate cannot
-   fire yet, and an unbound `requester_source` means step 3's ordinary-item actor check
-   cannot be wired yet — each is reported, not hidden.
+   absent → infer, but ONLY from a signal that verifies the value's defining property;
+   cannot infer → interview when `apply` runs interactively, else record null/unbound) —
+   NEVER invented. For `requester_source` the tracker's documented item-author semantics
+   qualify as such a signal. For `automation_identity` — a TRUST ANCHOR — usage history
+   never qualifies: a recent close-event actor may be a human maintainer or an unrelated
+   integration, and persisting it would make the close-actor gate pass for human-closed
+   items, asserting autonomous completion falsely; only provider-verifiable identity
+   metadata (the platform marks the account as an app/bot identity) or an explicit
+   configured/interviewed value binds it. Unbound values are never a reason to block a
+   non-interactive run or leave the section silently unwired: an unbound
+   `automation_identity` means step 2's trigger gate cannot fire yet, and an unbound
+   `requester_source` means step 3's ordinary-item actor check cannot be wired yet — each
+   is reported, not hidden.
 
 ## What this skill does NOT do
 
