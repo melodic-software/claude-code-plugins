@@ -188,7 +188,7 @@ fi
 # cleaned but not reset (a partial destructive op). On failure: abort before
 # clean and the restore guard, report honestly, exit non-zero.
 if ! git reset --hard "$UPSTREAM"; then
-  printf 'FAILED: git reset --hard %s exited non-zero — aborting apply before clean; no files removed.\n' "$UPSTREAM" >&2
+  printf 'FAILED: git reset --hard %s exited non-zero — aborting apply; git clean skipped. Note: reset --hard is not atomic and may have partially modified tracked files.\n' "$UPSTREAM" >&2
   printf 'AppliedReset: failed\n'
   printf 'AppliedClean: none\n'
   exit 5
