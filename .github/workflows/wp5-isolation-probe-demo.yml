@@ -77,4 +77,5 @@ jobs:
             > live-evidence/demo-binding.json
           node plugins/autonomy/skills/setup/scripts/check-security-binding.mjs \
             live-evidence/demo-binding.json \
-            --probe-evidence-root live-evidence
+            --probe-evidence-root live-evidence \
+            --egress-hosts example.com

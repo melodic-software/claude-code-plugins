@@ -8,8 +8,14 @@
 // joint-satisfiability, per-surface class-aware isolation verdicts, promotion
 // discipline, and admission floors/precedence.
 //
-// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>]
+// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
+//
+// --egress-hosts is the configured/trusted probe-target seam: when supplied,
+// a transcript's egress host must be one of the listed hosts. Without it the
+// checker falls back to shape rules plus deny lists (local/private/encoded
+// targets, special-use TLDs) — a static checker cannot resolve DNS, so orgs
+// close the residual by passing their configured target here.
 //
 // Probe verification: an L2/L3 isolation level counts toward eligibility only
 // when its probe_evidence ref resolves (relative to --probe-evidence-root
@@ -55,6 +61,17 @@ const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
 // The isolation-probe template's substrate-class tokens.
 const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm"]);
+// RFC 2606/6761/6762/7686 special-use and reserved TLDs.
+const SPECIAL_USE_TLDS = [
+  ".invalid",
+  ".test",
+  ".example",
+  ".localhost",
+  ".local",
+  ".internal",
+  ".home.arpa",
+  ".onion",
+];
 // Recognized host-credential-location tokens (lowercase, forward slashes).
 // Same no-config-source rationale as the egress-host check: the checker
 // cannot know the org's probed credential paths, so any entry not
@@ -496,7 +513,7 @@ function isNonExternalEgressHost(host) {
 // from: a genuine transcript reused under a different surface, level, or
 // substrate proves a DIFFERENT boundary, not this one. Returns null when
 // verified, else the reason the entry is unproven.
-function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egressAllowList) {
   const path = probeRoot !== null && !isAbsolute(ref) ? join(probeRoot, ref) : ref;
   let transcript;
   try {
@@ -506,6 +523,12 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   }
   if (!isPlainObject(transcript)) {
     return `transcript ${path} is not a capture-shape object`;
+  }
+  if (transcript.schema_version !== "1") {
+    return `transcript ${path} records schema_version ${JSON.stringify(transcript.schema_version)} — the capture shape requires "1"`;
+  }
+  if (Number.isNaN(parseIsoStrict(transcript.probed_at))) {
+    return `transcript ${path} records probed_at ${JSON.stringify(transcript.probed_at)} — a strict ISO 8601 date-time with explicit offset is required`;
   }
   if (transcript.surface !== surfaceId) {
     return `transcript ${path} records surface ${JSON.stringify(transcript.surface)}, not this binding entry's surface ${JSON.stringify(surfaceId)}`;
@@ -553,6 +576,21 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   if (isNonExternalEgressHost(egressHost)) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
   }
+  if (egressAllowList !== null) {
+    if (!egressAllowList.includes(egressHost.toLowerCase().replace(/\.$/, ""))) {
+      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — not in the configured egress-probe allow-list (--egress-hosts ${egressAllowList.join(",")})`;
+    }
+  } else {
+    // RFC 2606/6761/6762/7686 special-use/reserved names never demonstrate
+    // public egress (a DNS failure with open egress also "denies"). A static
+    // checker cannot resolve DNS; the --egress-hosts allow-list seam plus
+    // the live probe recipe close the residual.
+    const bare = egressHost.toLowerCase().replace(/\.$/, "");
+    const specialTld = SPECIAL_USE_TLDS.find((tld) => bare === tld.slice(1) || bare.endsWith(tld));
+    if (specialTld !== undefined) {
+      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — the special-use/reserved TLD ${JSON.stringify(specialTld)} can never demonstrate public egress; probe a resolvable public host, or pass the org's configured target via --egress-hosts`;
+    }
+  }
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
   }
@@ -571,7 +609,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   return null;
 }
 
-function checkSemantics(binding, probeRoot) {
+function checkSemantics(binding, probeRoot, egressAllowList) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
@@ -667,7 +705,7 @@ function checkSemantics(binding, probeRoot) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, egressAllowList)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);
@@ -904,12 +942,16 @@ const args = process.argv.slice(2);
 let bindingPath = null;
 let evidencePath = null;
 let probeRoot = null;
+let egressHostsArg = null;
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === "--evidence") {
     evidencePath = args[i + 1];
     i += 1;
   } else if (args[i] === "--probe-evidence-root") {
     probeRoot = args[i + 1];
+    i += 1;
+  } else if (args[i] === "--egress-hosts") {
+    egressHostsArg = args[i + 1];
     i += 1;
   } else if (bindingPath === null) {
     bindingPath = args[i];
@@ -921,11 +963,18 @@ for (let i = 0; i < args.length; i += 1) {
 if (
   !isNonEmptyString(bindingPath) ||
   (evidencePath !== null && !isNonEmptyString(evidencePath)) ||
-  (probeRoot !== null && !isNonEmptyString(probeRoot))
+  (probeRoot !== null && !isNonEmptyString(probeRoot)) ||
+  (egressHostsArg !== null && !isNonEmptyString(egressHostsArg))
 ) {
-  console.error("usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>]");
+  console.error(
+    "usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>]",
+  );
   process.exit(2);
 }
+const egressAllowList =
+  egressHostsArg === null
+    ? null
+    : egressHostsArg.split(",").map((host) => host.trim().toLowerCase().replace(/\.$/, "")).filter((host) => host.length > 0);
 
 let raw;
 try {
@@ -947,7 +996,7 @@ try {
 let verdicts = [];
 if (binding !== null) {
   validateStructure(binding);
-  if (isPlainObject(binding)) verdicts = checkSemantics(binding, probeRoot);
+  if (isPlainObject(binding)) verdicts = checkSemantics(binding, probeRoot, egressAllowList);
 }
 
 if (findings.length > 0) {
