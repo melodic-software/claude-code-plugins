@@ -110,9 +110,14 @@ function isRecognizedCredentialEntry(entry) {
     } catch {
       return false;
     }
-    if (url.hostname === "169.254.169.254") return true;
-    if (url.hostname.split(".").includes("metadata")) return true;
-    return url.pathname.split("/").some((segment) => segment === "metadata");
+    // KNOWN cloud metadata endpoints only — a "metadata" label or path
+    // segment on an arbitrary host proves nothing; org-specific endpoints
+    // belong in a future configured allow-list.
+    return (
+      url.hostname === "169.254.169.254" ||
+      url.hostname === "metadata.google.internal" ||
+      url.hostname === "metadata"
+    );
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   return segments.some((segment, index) => {
@@ -495,13 +500,23 @@ function foldInetAton(token) {
 function isDeniedV4(addr) {
   const a = Math.floor(addr / 16777216) % 256;
   const b = Math.floor(addr / 65536) % 256;
+  const c = Math.floor(addr / 256) % 256;
   return (
     a === 0 ||
     a === 127 ||
     a === 10 ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
-    (a === 169 && b === 254)
+    (a === 169 && b === 254) ||
+    // Non-global space that can never demonstrate public egress:
+    // TEST-NET-1/2/3, benchmarking (198.18/15), CGNAT (100.64/10),
+    // multicast (224/4), reserved (240/4).
+    (a === 192 && b === 0 && c === 2) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a >= 224
   );
 }
 
@@ -555,13 +570,19 @@ function isNonExternalEgressHost(host) {
       return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
     }
     if (hextets.slice(0, 7).every((hextet) => hextet === "0000")) {
-      // Unspecified (::) or loopback (::1); any other single-hextet value in
-      // ::/96 is not a meaningful external target either.
-      return hextets[7] === "0000" || hextets[7] === "0001";
+      // Unspecified (::), loopback (::1), and the rest of the deprecated
+      // near-zero space — none is a meaningful external target.
+      return true;
     }
     const first = Number.parseInt(hextets[0], 16);
-    // fc00::/7 unique-local, fe80::/10 link-local.
-    return (first >= 0xfc00 && first <= 0xfdff) || (first >= 0xfe80 && first <= 0xfebf);
+    // fc00::/7 unique-local, fe80::/10 link-local, ff00::/8 multicast,
+    // 2001:db8::/32 documentation space.
+    return (
+      (first >= 0xfc00 && first <= 0xfdff) ||
+      (first >= 0xfe80 && first <= 0xfebf) ||
+      first >= 0xff00 ||
+      (hextets[0] === "2001" && hextets[1] === "0db8")
+    );
   }
   const name = h.endsWith(".") ? h.slice(0, -1) : h;
   if (name === "localhost" || name.endsWith(".localhost")) return true;
