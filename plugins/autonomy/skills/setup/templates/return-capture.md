@@ -35,7 +35,8 @@ complete comment body — both appear in the same tracker comment:
 ## Attestation upsert
 
 Attestation requires a REPLY whose platform actor IS the item's accountable human — the
-requester the request was addressed to, or the binding's standing attestation owner for
+requester, resolved through the binding's requester-identity source for the tracker class
+(never guessed from the tracker class alone), or the binding's standing attestation owner for
 requester-less classes; a reply from any other participant is never upserted (the actor
 check is the trust anchor here; `attestor_role` stays descriptive). The reply must carry
 BOTH values (`counterfactual` and `effort_band`); a bare reaction cannot carry them and never triggers

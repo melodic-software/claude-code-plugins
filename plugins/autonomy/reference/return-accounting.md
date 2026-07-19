@@ -60,7 +60,11 @@ Autonomous-class work has no human at the close boundary by construction, so:
 Attestation routing for requester-less classes (standing routines, scheduled sweeps): the
 binding declares a standing attestation owner per class, or marks the class
 attestation-exempt with its cost reported separately — never a perpetually-unattested
-default.
+default. For ordinary (requester-carrying) items the requester IS the routing, but WHO the
+requester is per tracker class (item author, a named custom field, another tracker-specific
+identity) is not derivable from the tracker class token alone — the binding names the
+requester-identity source the attestation request is addressed to and the attesting actor is
+validated against; it is never guessed.
 
 Capture scope: autonomous-class work only, per the guardrail contract's class vocabulary;
 interactive work is exempt (prompting friction kills compliance; divergence lives where no

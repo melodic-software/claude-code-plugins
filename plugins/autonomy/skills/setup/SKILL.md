@@ -192,9 +192,11 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
 5. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
    automation: steps + cost surfaced, explicit opt-in. Private-repo close- and
    reply-triggered runs draw metered CI minutes — surfaced on the wire path.
-6. **Attestation routing** — the binding records the accountable-human routing per class,
-   including the standing attestation owner (or attestation-exempt marking) for
-   requester-less classes. An attestation-exempt class's close trigger posts NEITHER the
+6. **Attestation routing** — the binding records the accountable-human routing per class:
+   the requester-identity source for ordinary (requester-carrying) items — which
+   tracker-class-specific identity IS the requester (item author, a named custom field);
+   never guessed from `tracker_class` alone — and the standing attestation owner (or
+   attestation-exempt marking) for requester-less classes. An attestation-exempt class's close trigger posts NEITHER the
    unattested record NOR the attestation request — `return-accounting.md` forbids a
    perpetually-unattested default, so an exempt class's cost is reported separately,
    outside this record schema entirely.
@@ -206,17 +208,20 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    | `tracker_class` | string, the detected tracker class |
    | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
    | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule; MAY be null (undiscoverable and not yet interviewed — never invented, same as `roles`) |
-   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
+   | `requester_source` | how the accountable requester's platform identity resolves from an ordinary (requester-carrying) item in this tracker class — a tracker-specific identity source such as the item-author field or a named custom field; step 3's reply handler addresses the attestation request to it and validates the attesting actor against it; MAY be null (same ladder) — unbound means the actor check for ordinary items cannot be wired, so their attestation stays unwired and reported, never guessed |
+   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists; each entry is `{"standing_owner": "<platform-identity>"}` or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing, resolved through `requester_source`; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
 
    A binding missing the `capture` section has not wired this slice (absent-section
    tolerance, same as telemetry). `tracker_class` and `record_surface` land once step 1
-   detects them; `automation_identity` and `routing` follow the SAME convention-resolution
-   ladder as every other binding value (config present → use it; absent → infer from a
-   discoverable signal such as recent close-event actors and persist; cannot infer →
-   interview when `apply` runs interactively, else record null/unbound) — NEVER invented,
-   and never a reason to block a non-interactive run or leave the section silently unwired:
-   an unbound `automation_identity` means step 2's trigger gate cannot fire yet, which is
-   reported, not hidden.
+   detects them; `automation_identity`, `requester_source`, and `routing` follow the SAME
+   convention-resolution ladder as every other binding value (config present → use it;
+   absent → infer from a discoverable signal such as recent close-event actors, or for
+   `requester_source` the tracker's documented item-author semantics, and persist; cannot
+   infer → interview when `apply` runs interactively, else record null/unbound) — NEVER
+   invented, and never a reason to block a non-interactive run or leave the section
+   silently unwired: an unbound `automation_identity` means step 2's trigger gate cannot
+   fire yet, and an unbound `requester_source` means step 3's ordinary-item actor check
+   cannot be wired yet — each is reported, not hidden.
 
 ## What this skill does NOT do
 
