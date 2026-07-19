@@ -99,7 +99,7 @@ reopened). No external effort-band standard exists to cite; bands stay contract-
 Prerequisites: WP1 implementation merged; the WP2 package PR merged (this convention doc cites
 the telemetry contract — dead-link avoidance). Fresh branch after both.
 
-### Phase 1: Return-accounting convention doc [TODO]
+### Phase 1: Return-accounting convention doc [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -114,7 +114,7 @@ the telemetry contract — dead-link avoidance). Fresh branch after both.
 - `grep -ci 'estimate' plugins/autonomy/reference/return-accounting.md` ≥ 1 (never-estimate rule stated)
 - Vendor+fleet deny-list grep empty over the file; `node scripts/validate-plugin-contracts.mjs` exit 0; lychee passes
 
-### Phase 2: Guided-setup capture slice [TODO]
+### Phase 2: Guided-setup capture slice [DONE]
 
 First work item — fresh-docs mandate (repo CLAUDE.md): re-fetch official skills/hooks docs
 before editing SKILL.md; re-verify tracker API surfaces cited in templates at implementation.
@@ -135,7 +135,7 @@ before editing SKILL.md; re-verify tracker API surfaces cited in templates at im
 - `grep -c 'attested: false' plugins/autonomy/reference/return-accounting.md` ≥ 1 (async/unattested lifecycle stated)
 - Fleet-name sweep exit 0
 
-### Phase 3: Conforming-path demonstration [TODO]
+### Phase 3: Conforming-path demonstration [DONE]
 
 Acceptance-criterion probe, scratch consumer repo: close a demo work item → the
 close-triggered capture posts the unattested marker-keyed record (comment floor) + attestation
@@ -154,7 +154,7 @@ demo copy only, never the committed fixture). Zero paid dependencies.
 - DuckDB join query returns ≥ 1 row pairing the record's `work_item_url` with an agent-session COST metric whose resource attribute `autonomy.work_item.url` is string-identical
 - Demo transcript + query output in the PR body
 
-### Phase 4: Gates [TODO]
+### Phase 4: Gates [DONE]
 
 Same in-repo gate roster as the WP2 package: validate-plugins, run-plugin-tests,
 validate-plugin-contracts, markdown/typos/lychee, `claude plugin validate --strict`, catalog

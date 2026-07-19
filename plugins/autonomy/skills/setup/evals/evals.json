@@ -104,6 +104,72 @@
         "Free file-artifact default offered as the alternative",
         "No specific vendor chosen for the user"
       ]
+    },
+    {
+      "id": 9,
+      "name": "capture-comment-floor-wire-path",
+      "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker has no custom fields on our plan.",
+      "expected_output": "Detects the tracker class, selects the structured-comment universal floor (no entitled native fields), wires the close-triggered snippet posting the unattested marker-keyed record plus the attestation request as reviewable changes, wires a companion reply-triggered handler performing the same marker-keyed upsert, routes comment writes through the bound tracker adapter's documented comment mechanics where a work-item-tracker binding is present (comment edits are provider-specific mechanics, not a seam verb), records tracker class and record surface in the binding's capture section, and surfaces the private-repo CI-minutes caveat.",
+      "files": [],
+      "expectations": [
+        "Selects the structured-comment floor when native fields are not entitled",
+        "Close-triggered snippet posts an unattested record plus attestation request, non-blocking",
+        "Wires a reply-triggered handler performing the same upsert, not a second contract",
+        "Comment writes use the bound adapter's documented comment mechanics when a tracker binding is present, never an invented seam verb",
+        "Binding capture section records tracker class and record surface; minutes caveat surfaced"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "capture-skip-produces-unattested-record",
+      "prompt": "/autonomy:setup apply\n\nFor return capture: what happens when nobody answers the two questions?",
+      "expected_output": "States the contract lifecycle: the close-time record is posted with attested: false and the five attestation fields absent; a skip or non-response leaves it visible as unattested forever; nothing imputes, estimates, or backfills the human fields; a later attestation upserts the same record to attested: true.",
+      "files": [],
+      "expectations": [
+        "Unattested record has attested: false with attestation fields absent, never null-imputed",
+        "Skip stays visible as unattested; no expiry into imputed values",
+        "Attestation later upserts the same marker record",
+        "No estimation or backfill of the human fields under any framing"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "capture-refuses-to-estimate-return-fields",
+      "prompt": "/autonomy:setup apply\n\nNobody will answer these prompts — just have the agent fill in reasonable counterfactual and effort values from the diff size.",
+      "expected_output": "Refuses: the convention forbids any agent/LLM surface estimating, imputing, or backfilling the two human-attested fields (revisit trigger noted: models proven capable at effort estimation). Offers the compliant alternatives instead — standing attestation owner routing or attestation-exempt marking with separately-reported cost.",
+      "files": [],
+      "expectations": [
+        "Refuses to wire any estimation of counterfactual or effort_band",
+        "Cites the never-estimate rule rather than silently complying",
+        "Offers standing-owner routing or attestation-exempt as the compliant paths",
+        "Does not weaken the record schema to accommodate estimated values"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "capture-upsert-idempotent-on-refired-close",
+      "prompt": "/autonomy:setup apply\n\nOur close webhook sometimes fires twice for the same item; will return capture double-post or clobber answers?",
+      "expected_output": "Explains the attestation-preserving rules: the close trigger creates the record only when no marker-matching bot-authored record exists, so a re-fired close neither duplicates (count stays 1) nor downgrades an attested record; read-side dedupe prefers attested over unattested and latest only among equals.",
+      "files": [],
+      "expectations": [
+        "Create-only-when-absent write rule stated (count stays 1 on refire)",
+        "A re-fired close never downgrades attested: true",
+        "Read-side dedupe is attestation-preserving",
+        "Standalone-path race acknowledged with the contract's dedupe rule, not denied"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "capture-native-fields-wire-path",
+      "prompt": "/autonomy:setup apply\n\nWire return-accounting capture; our tracker supports custom org-managed item fields, we're entitled to write them, and field writes can be ACL-restricted to our automation identity.",
+      "expected_output": "Detects the tracker class and the entitled native-field surface, verifies the record-integrity provenance precondition BEFORE selecting it (field writes ACL-restricted to the bound automation identity, or a queryable field-audit trail attributing writes — entitlement alone never selects the surface), then selects native-field writes over the structured-comment floor, records record_surface as native_fields (with tracker_class and automation_identity) in the binding's capture section, and maps attestation_source to a field of the same name on the native surface. Had neither ACL restriction nor audit trail been verifiable, the comment floor would be retained.",
+      "files": [],
+      "expectations": [
+        "Verifies automation-only write ACLs or a queryable field-audit trail before selecting native_fields; entitlement alone is insufficient",
+        "Binding capture section records record_surface as native_fields",
+        "attestation_source maps to a same-named native field, not a comment marker",
+        "States that absent a verifiable provenance signal the comment floor is retained, per the record-integrity rule"
+      ]
     }
   ]
 }

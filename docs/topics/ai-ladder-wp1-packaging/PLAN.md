@@ -156,7 +156,7 @@ reviewed-and-accepted (first-party, MIT).
 - Scratch consumer repo contains `.claude/autonomy/` with a `schema_version` field after the non-interactive run, with zero prompts issued
 - Security-review record present in the PR body
 
-### Phase 6: Fleet binding dogfood — standards PR [TODO]
+### Phase 6: Fleet binding dogfood — standards PR [DONE]
 
 Runs AFTER the plugin PR merges (dead-cross-repo-link avoidance). First work item —
 pre-flight: read `standards`' own conventions/docs layout and pick the target path per ITS
