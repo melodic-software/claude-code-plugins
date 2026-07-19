@@ -11,7 +11,7 @@
       "outcome": "denied"
     },
     "credentials_absent": {
-      "path": "/host-home/.credentials",
+      "path": "$HOME/.credentials",
       "exit_code": "1",
       "outcome": "absent-or-denied"
     }

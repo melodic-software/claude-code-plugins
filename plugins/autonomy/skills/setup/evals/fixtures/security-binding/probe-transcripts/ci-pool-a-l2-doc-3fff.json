@@ -4,9 +4,9 @@
   "level": "L2",
   "substrate": "egress-denied-container-pool",
   "substrate_class": "container",
-  "probed_at": "2026-07-01T20:00:00Z",
+  "probed_at": "2026-07-03T17:00:00Z",
   "assertions": {
-    "egress_denied": { "host": "::127.0.0.1", "exit_code": "7", "outcome": "denied" },
+    "egress_denied": { "host": "3fff::1", "exit_code": "7", "outcome": "denied" },
     "credentials_absent": { "path": "$HOME/.credentials", "exit_code": "1", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true

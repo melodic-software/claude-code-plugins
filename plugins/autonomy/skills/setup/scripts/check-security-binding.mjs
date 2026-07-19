@@ -106,14 +106,19 @@ const CREDENTIAL_SEGMENT_PAIRS = [
 // Well-known credential variable names for the whole-entry env-token form
 // (compared against the lowercased entry).
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
-// A recognized credential segment counts only when ANCHORED under a home
-// base or a system credential prefix — a recognized name under an ephemeral
-// base like /tmp is planted evidence, not the host's credential store. An
-// env-token anchor must be a concrete OS home variable: an arbitrary env var
-// may resolve anywhere (or nowhere) — only the OS home variables name the
-// host credential store's base; org-specific roots belong in the future
-// configured allow-list.
-const HOME_BASE_SEGMENTS = new Set(["home", "root", "users", "host-home"]);
+// A recognized credential segment counts only when the path is REAL BY
+// CONSTRUCTION — its ROOT names a location every probing host actually has:
+// a leading OS home env token ($HOME / %USERPROFILE%, expanded in-shell on
+// the probing host to the real home), the fixed /root home, /etc, or
+// /run/secrets. A literal multi-user or mount base ("/home/<user>",
+// "/users/<user>", "/host-home") is free-form inventable — the named user or
+// mount need not exist on any host, and a failing read of a path that need
+// not exist proves nothing while real host credentials stay readable — so it
+// never anchors; org-specific mounts belong in the future configured
+// allow-list. The anchor must be the FIRST segment: an env token behind an
+// arbitrary prefix ("/mnt/<mount>/$HOME/...") inherits the prefix's
+// inventability. A recognized name under an ephemeral base like /tmp is
+// planted evidence, not the host's credential store.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
 const isHomeEnvToken = (segment) =>
@@ -164,11 +169,18 @@ function isRecognizedCredentialEntry(entry) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
     return CREDENTIAL_ENV_VARS.has(bare);
   }
+  // A UNC form ("//server/..." — a leading "\\" normalizes to it above)
+  // invents its server: "//etc/credentials" names a share on a server called
+  // "etc", not the host's /etc, so no UNC path names a by-construction-real
+  // host location; org file-share credential roots belong to the future
+  // configured allow-list.
+  if (normalized.startsWith("//")) return false;
   // A relative path resolves against an arbitrary cwd and says nothing about
   // the host credential store — only a rooted form names a host location:
-  // POSIX-absolute (a leading "/" also covers UNC "//"), a drive-letter root,
-  // or a leading home env token.
-  if (!(normalized.startsWith("/") || /^[a-z]:\//.test(normalized) || isHomeEnvToken(segments[0]))) {
+  // POSIX-absolute or a leading home env token. A drive-letter root is
+  // deliberately not rooted enough: the only by-construction Windows home
+  // form is %USERPROFILE%, and a literal "c:/users/<user>" invents its user.
+  if (!(normalized.startsWith("/") || isHomeEnvToken(segments[0]))) {
     return false;
   }
   if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
@@ -179,9 +191,10 @@ function isRecognizedCredentialEntry(entry) {
   );
   if (credIndex === -1) return false;
   return (
-    segments.slice(0, credIndex).some((segment) => HOME_BASE_SEGMENTS.has(segment) || isHomeEnvToken(segment)) ||
-    (segments[0] === "run" && segments[1] === "secrets") ||
-    segments[0] === "etc"
+    isHomeEnvToken(segments[0]) ||
+    segments[0] === "root" ||
+    segments[0] === "etc" ||
+    (segments[0] === "run" && segments[1] === "secrets")
   );
 }
 
@@ -647,16 +660,59 @@ function isNonExternalEgressHost(host) {
       // meaningful external target.
       return true;
     }
+    // 64:ff9b::/96 — well-known NAT64 prefix (RFC 6052): the IANA registry
+    // flags it globally reachable, but RFC 6052 forbids embedding non-global
+    // IPv4, so classify the embedded address like the v4-mapped branch above.
+    if (hextets[0] === "0064" && hextets[1] === "ff9b" && hextets.slice(2, 6).every((hextet) => hextet === "0000")) {
+      return isDeniedV4(Number.parseInt(hextets[6], 16) * 65536 + Number.parseInt(hextets[7], 16));
+    }
     const first = Number.parseInt(hextets[0], 16);
+    const second = Number.parseInt(hextets[1], 16);
+    // 2001::/23 — IETF Protocol Assignments (IANA IPv6 special-purpose
+    // registry, "not globally reachable"), EXCEPT the registry's
+    // more-specific rows flagged globally reachable, which stay allowed:
+    // PCP/TURN/DNS-SD-SRP anycast (2001:1::1 / ::2 / ::3), AMT
+    // (2001:3::/32), AS112-v6 (2001:4:112::/48), ORCHIDv2 (2001:20::/28),
+    // and DETs (2001:30::/28). Teredo (2001::/32) and deprecated ORCHID
+    // (2001:10::/28) are registry "N/A" — tunneled/deprecated, not reliably
+    // routed — and stay denied, the same posture as the IPv4 6to4 relay
+    // anycast. (2001:db8::/32 documentation space sits OUTSIDE this /23 and
+    // keeps its own test below.)
+    if (hextets[0] === "2001" && second <= 0x01ff) {
+      const reachableAnycast =
+        second === 0x0001 &&
+        hextets.slice(2, 7).every((hextet) => hextet === "0000") &&
+        ["0001", "0002", "0003"].includes(hextets[7]);
+      return !(
+        reachableAnycast ||
+        second === 0x0003 ||
+        (second === 0x0004 && hextets[2] === "0112") ||
+        (second >= 0x0020 && second <= 0x003f)
+      );
+    }
+    // Remaining non-global space that can never demonstrate public egress
+    // (IANA IPv6 special-purpose registry, "not globally reachable"):
     // fc00::/7 unique-local, fe80::/10 link-local, fec0::/10 site-local
     // (deprecated per RFC 3879, still non-global), ff00::/8 multicast,
-    // 2001:db8::/32 documentation space.
+    // discard-only (100::/64, RFC 6666), the dummy prefix (100:0:0:1::/64,
+    // RFC 9780), local-use IPv4-IPv6 translation (64:ff9b:1::/48, RFC 8215),
+    // 6to4 (2002::/16, deprecated per RFC 7526 — mirrors the IPv4
+    // 192.88.99/24 posture), documentation (2001:db8::/32 and 3fff::/20,
+    // RFC 9637), and SRv6 SIDs (5f00::/16, RFC 9602).
     return (
       (first >= 0xfc00 && first <= 0xfdff) ||
       (first >= 0xfe80 && first <= 0xfebf) ||
       (first >= 0xfec0 && first <= 0xfeff) ||
       first >= 0xff00 ||
-      (hextets[0] === "2001" && hextets[1] === "0db8")
+      (hextets[0] === "0100" &&
+        hextets[1] === "0000" &&
+        hextets[2] === "0000" &&
+        (hextets[3] === "0000" || hextets[3] === "0001")) ||
+      (hextets[0] === "0064" && hextets[1] === "ff9b" && hextets[2] === "0001") ||
+      hextets[0] === "2002" ||
+      (hextets[0] === "2001" && hextets[1] === "0db8") ||
+      (hextets[0] === "3fff" && second <= 0x0fff) ||
+      hextets[0] === "5f00"
     );
   }
   const name = h.endsWith(".") ? h.slice(0, -1) : h;
@@ -834,7 +890,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted (absolute or home-env-token-based) and ANCHORED under a home base (home, root, users, host-home, or a home env token like $HOME / %USERPROFILE%) or under run/secrets or etc and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets) and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
