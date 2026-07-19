@@ -20,6 +20,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
     reviewer reaction existed. Reactions carry no commit SHA, so a reaction left on an earlier head
     persisted onto later heads and permanently suppressed the new head's observation window. The
     check is now scoped to reactions associated with, or newly observed for, the current head.
+  - **F8 follow-on** — the F8 scoping stopped at the candidate predicate: `request_review.py`'s
+    posting guard (`validate_current_candidate`, both its pre-POST check and its post-POST
+    concurrency check) still gated on the raw, unscoped reaction list. A PR made eligible by the F8
+    fix because its only reaction was stale (an earlier head) would still have every request attempt
+    rejected at posting time, recorded as `"ambiguous"`, and blocked from retrying. The scoping rule
+    is extracted into a shared `resolve_associated_reactions` helper in `babysit_review_trigger.py`
+    and applied at both the candidate predicate and every posting-guard reaction check.
 
 ## [0.9.0]
 

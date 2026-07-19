@@ -299,6 +299,58 @@ def review_gate_state(
     }
 
 
+def resolve_associated_reactions(
+    reactions: list[dict[str, str]],
+    head_sha: str,
+    prior: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Scope raw reaction signals to `head_sha` using prior recorded state.
+
+    Reactions carry no commit SHA, so a reaction left on an earlier head
+    persists across pushes. A reaction is associated with `head_sha` only if
+    it was already recorded as current-head-associated for this exact head,
+    it is new since the last snapshot recorded for this head, or it sits on a
+    trigger comment attributed to this head's request/attempt history.
+    `prior` is a previously computed review-trigger state dict (this
+    module's own return value, or a durable snapshot of it) -- every caller
+    that gates on reaction signals (the state-machine candidate predicate and
+    the posting guard alike) must scope through this helper, never the raw
+    `reactions` list, or a stale earlier-head reaction can suppress the
+    current head's window forever.
+    """
+    same_head = prior.get("reaction_head_sha") == head_sha
+    reaction_ids = {str(signal.get("id") or "") for signal in reactions}
+    prior_reaction_ids: set[str] = (
+        {str(value) for value in json_array(prior.get("reaction_signal_ids"))}
+        if same_head
+        else set()
+    )
+    associated_reaction_ids: set[str] = (
+        {str(value) for value in json_array(prior.get("current_head_reaction_ids"))}
+        if same_head
+        else set()
+    )
+    known_trigger_comment_ids: set[str] = set()
+    for history_key in ("request_history", "request_attempt_history"):
+        entry = json_object(prior.get(history_key)).get(head_sha)
+        if is_json_object(entry) and entry.get("comment_id") is not None:
+            known_trigger_comment_ids.add(str(entry["comment_id"]))
+    associated_reaction_ids.update(
+        str(signal.get("id") or "")
+        for signal in reactions
+        if signal.get("scope") == "trigger_comment"
+        and str(signal.get("comment_id") or "") in known_trigger_comment_ids
+    )
+    if same_head:
+        associated_reaction_ids.update(reaction_ids - prior_reaction_ids)
+    associated_reaction_ids.intersection_update(reaction_ids)
+    return [
+        signal
+        for signal in reactions
+        if str(signal.get("id") or "") in associated_reaction_ids
+    ]
+
+
 def classify_review_request(
     pr: dict[str, Any],
     gate: dict[str, Any],
@@ -336,35 +388,10 @@ def classify_review_request(
     requested_before = head_sha in request_history
     attempted_before = head_sha in attempt_history
     reaction_ids = {str(signal.get("id") or "") for signal in reactions}
-    prior_reaction_ids: set[str] = (
-        {str(value) for value in json_array(prior.get("reaction_signal_ids"))}
-        if prior.get("reaction_head_sha") == head_sha
-        else set()
-    )
-    associated_reaction_ids: set[str] = (
-        {str(value) for value in json_array(prior.get("current_head_reaction_ids"))}
-        if prior.get("reaction_head_sha") == head_sha
-        else set()
-    )
-    known_trigger_comment_ids: set[str] = set()
-    for history in (request_history, attempt_history):
-        entry = history.get(head_sha)
-        if is_json_object(entry) and entry.get("comment_id") is not None:
-            known_trigger_comment_ids.add(str(entry["comment_id"]))
-    associated_reaction_ids.update(
-        str(signal.get("id") or "")
-        for signal in reactions
-        if signal.get("scope") == "trigger_comment"
-        and str(signal.get("comment_id") or "") in known_trigger_comment_ids
-    )
-    if prior.get("reaction_head_sha") == head_sha:
-        associated_reaction_ids.update(reaction_ids - prior_reaction_ids)
-    associated_reaction_ids.intersection_update(reaction_ids)
-    associated_reactions = [
-        signal
-        for signal in reactions
-        if str(signal.get("id") or "") in associated_reaction_ids
-    ]
+    associated_reactions = resolve_associated_reactions(reactions, head_sha, prior)
+    associated_reaction_ids = {
+        str(signal.get("id") or "") for signal in associated_reactions
+    }
     latest_associated_reaction = max(
         associated_reactions,
         key=lambda signal: (

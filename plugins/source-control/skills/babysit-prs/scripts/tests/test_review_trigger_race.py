@@ -238,7 +238,7 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
-                    frozenset({"owner"}))
+                    frozenset({"owner"}), {})
         self.assertIn("not a stable fresh review candidate", str(ctx.exception))
         self.assertIn("BEHIND", str(ctx.exception))
 
@@ -253,9 +253,91 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
             self.assertEqual(
                 request_review.validate_current_candidate(
                     "owner/repo", 1, HEAD, configured(),
-                    frozenset({"owner"})),
+                    frozenset({"owner"}), {}),
                 pr,
             )
+
+
+class ValidateCurrentCandidateReactionScopingTests(unittest.TestCase):
+    """F8 follow-on (Codex P2): the posting guard must apply the same
+    current-head reaction scoping as the state-machine candidate predicate,
+    not gate on the raw `fetch_reaction_signals` result."""
+
+    def _pr(self) -> dict[str, object]:
+        return {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
+                "mergeStateStatus": "CLEAN", "mergeable": "MERGEABLE"}
+
+    def _patches(self, pr: dict[str, object], reactions: list[dict[str, str]]):
+        return (
+            mock.patch.object(request_review, "view_pr", return_value=pr),
+            mock.patch.object(request_review, "head_repository_scope",
+                              return_value={"review_trigger_allowed": True}),
+            mock.patch.object(request_review, "fetch_review_evidence",
+                              return_value=[]),
+            mock.patch.object(request_review, "fetch_reaction_signals",
+                              return_value=reactions),
+            mock.patch.object(request_review, "fetch_current_human_stop",
+                              return_value={"required": False}),
+            mock.patch.object(request_review, "has_current_head_review",
+                              return_value=False),
+        )
+
+    def test_stale_earlier_head_reaction_does_not_block_posting(self) -> None:
+        # The reaction has no `reaction_head_sha` recorded for HEAD in the
+        # snapshot, so it is an earlier-head reaction and must not suppress
+        # the posting guard the way the raw `reaction_signals` list would.
+        stale = [_reaction("1")]
+        patches = self._patches(self._pr(), stale)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                patches[5]:
+            result = request_review.validate_current_candidate(
+                "owner/repo", 1, HEAD, configured(),
+                frozenset({"owner"}), {})
+        self.assertEqual(result, self._pr())
+
+    def test_current_head_reaction_still_blocks_posting(self) -> None:
+        reaction = [_reaction("9")]
+        review_trigger_state = {"reaction_head_sha": HEAD, "reaction_signal_ids": []}
+        patches = self._patches(self._pr(), reaction)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                patches[5]:
+            with self.assertRaises(RuntimeError) as ctx:
+                request_review.validate_current_candidate(
+                    "owner/repo", 1, HEAD, configured(),
+                    frozenset({"owner"}), review_trigger_state)
+        self.assertIn("reviewer reaction signal", str(ctx.exception))
+
+
+class ResolveAssociatedReactionsTests(unittest.TestCase):
+    def test_stale_reaction_from_a_different_recorded_head_is_not_associated(self) -> None:
+        stale = [_reaction("1")]
+        result = review_trigger.resolve_associated_reactions(stale, HEAD, {})
+        self.assertEqual(result, [])
+
+    def test_reaction_new_since_the_last_snapshot_for_this_head_is_associated(self) -> None:
+        reaction = [_reaction("9")]
+        prior = {"reaction_head_sha": HEAD, "reaction_signal_ids": []}
+        result = review_trigger.resolve_associated_reactions(reaction, HEAD, prior)
+        self.assertEqual(result, reaction)
+
+    def test_reaction_already_seen_for_this_head_stays_associated(self) -> None:
+        reaction = [_reaction("9")]
+        prior = {
+            "reaction_head_sha": HEAD,
+            "reaction_signal_ids": ["pull_request:9"],
+            "current_head_reaction_ids": ["pull_request:9"],
+        }
+        result = review_trigger.resolve_associated_reactions(reaction, HEAD, prior)
+        self.assertEqual(result, reaction)
+
+    def test_reaction_on_a_known_trigger_comment_for_this_head_is_associated(self) -> None:
+        reaction = [_reaction("5", scope="trigger_comment", comment_id="42")]
+        prior = {
+            "reaction_head_sha": "",
+            "request_history": {HEAD: {"comment_id": "42"}},
+        }
+        result = review_trigger.resolve_associated_reactions(reaction, HEAD, prior)
+        self.assertEqual(result, reaction)
 
 
 if __name__ == "__main__":
