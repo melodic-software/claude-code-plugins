@@ -210,7 +210,7 @@
       "id": 18,
       "name": "fix-pass-splits-mixed-class-findings",
       "prompt": "[Scenario: a current-branch findings file with both a cleanup-class (extract-helper) finding and a correctness-class (CRITICAL security) finding.] /review:fanout fix",
-      "expected_output": "Fix-pass classifies findings by class and routes cleanup-class findings to /simplify while applying correctness-class findings via sequential scope-fenced fixes.",
+      "expected_output": "Fix-pass classifies findings by class and routes cleanup-class findings to the optional in-session /simplify skill while applying correctness-class findings via sequential scope-fenced fixes.",
       "files": [],
       "expectations": [
         "Locates the newest findings file for the CURRENT branch only",
