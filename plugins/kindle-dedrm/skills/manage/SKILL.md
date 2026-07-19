@@ -89,8 +89,8 @@ Sources monitored:
 |---|---|---|
 | `kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe` | HEAD request returns non-200 | URL pinned in `references/versions.md`; alternate mirror needed if revoked |
 | `github.com/Satsuoni/DeDRM_tools` releases | Newest pre-release tag differs from baseline | Last-known-good tag in `references/versions.md` |
-| `techy-notes.com/remove-drm-from-kindle-ebooks/` article body | Page hash differs (URL re-fetch + diff) | Last-fetched body summary in `references/sources.md` |
-| `techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` | Date in URL rolled forward | Last-known URL pattern in `references/versions.md` |
+| `techy-notes.com/drm-removal-from-kindle-ebook-purchases-old-method/` article (subscriber-gated) | HEAD non-200 (article moved again) | Slug + status in `references/sources.md` |
+| `techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` | HEAD non-200 on the pinned direct URL (revoked / rolled) | Pinned direct URL in `references/versions.md` |
 | `epubor.com` companion article | Page hash differs | Secondary reference; lower priority |
 | KFXKeyExtractor / KFXArchiver supported Kindle versions (in Key_Finder source) | New entry in `code/modules/utils.py` `KFXARCHIVER_TOOL_MAP` | Captured in `references/versions.md` |
 

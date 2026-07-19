@@ -6,13 +6,13 @@ Every URL this skill depends on, with purpose, drift signal, and last-fetched fi
 
 | Field | Value |
 |---|---|
-| URL | `https://techy-notes.com/remove-drm-from-kindle-ebooks/` |
+| URL | `https://techy-notes.com/drm-removal-from-kindle-ebook-purchases-old-method/` |
 | Purpose | Procedural source of truth — exact step ordering, plugin names, current Key_Finder zip URL |
 | Drift signal | Page body diff |
-| Last-fetched | 2026-05-10 |
+| Last-fetched | 2026-05-10 (at the prior URL) |
 | Last-fetched key claims | (a) Kindle for PC 2.8.0(70980) is the only working version; (b) DeDRM_tools v10.0.14+ pre-release required; (c) Kindle_Key_Finder 2026.04.28.JH zip is current; (d) KFX Input plugin from Calibre's "Get new plugins" catalog |
 
-The `update` action re-fetches this URL via WebFetch and compares against "Last-fetched key claims" above. If version pin or zip URL changes, propagate to `references/versions.md`.
+Upstream moved 2026-07 (re-probed 2026-07-19): the prior URL `remove-drm-from-kindle-ebooks/` now returns HTTP 404. Its successor is inferred to be `drm-removal-from-kindle-ebook-purchases-old-method/` (the site relabeled the Kindle-for-PC + KFXKeyExtractor approach the "OLD Method" and returns HTTP 200 for that slug) — NOT read-confirmed as the same procedure, because the article is now subscriber-gated. The `update` action can therefore no longer walk the public body for the current Key_Finder zip URL; it HEAD-probes the pinned direct zip URL in `references/versions.md` instead. Propagate any new pin there. See the epubor secondary below and the MSIX-successor note when the OLD Method finally breaks.
 
 ## Secondary tutorial (cross-check)
 
@@ -57,12 +57,12 @@ If Amazon revokes the URL, this skill is significantly compromised — alternate
 | Field | Value |
 |---|---|
 | URL pattern | `https://techy-notes.com/content/files/<YYYY>/<MM>/Kindle_Key_Finder_<YYYY.MM.DD>.JH.zip` |
-| Discovered via | Tutorial article body (techy-notes.com primary) |
+| Discovered via | Pinned direct URL (article-body discovery lost to paywall — see below) |
 | Purpose | Phase orchestrator that bundles tools + Python phases |
-| Drift signal | Article body links a different filename / date |
-| Last-fetched URL | `https://techy-notes.com/content/files/2026/04/Kindle_Key_Finder_2026.04.28.JH.zip` |
+| Drift signal | HEAD-probe of the pinned direct zip URL (non-200 = revoked/rolled) |
+| Last-fetched URL | `https://techy-notes.com/content/files/2026/04/Kindle_Key_Finder_2026.04.28.JH.zip` (still serving byte-identical zip, SHA-verified 2026-07-19) |
 
-Date in URL rolls forward when author publishes a new build. `update` action approach: WebFetch tutorial article, regex for `Kindle_Key_Finder_\d{4}\.\d{2}\.\d{2}\.JH\.zip`, compare against pinned filename in `references/versions.md`.
+Date in URL rolls forward when the author publishes a new build. The original `update` approach — WebFetch the tutorial article, regex `Kindle_Key_Finder_\d{4}\.\d{2}\.\d{2}\.JH\.zip`, compare against the pinned filename — no longer works: the article is subscriber-gated as of 2026-07 (see Primary tutorial), so its public body carries no zip link. The drift check now HEAD-probes the pinned direct URL instead; roll-forward to a NEW build requires a subscriber to read the current article and update the pin by hand.
 
 ## Calibre
 
@@ -91,7 +91,7 @@ Avoid Microsoft Store version (sandboxed, blocks file access). `Run_keyfinder.ba
 ```text
 [OK]      Kindle for PC installer URL          (HEAD 200, 285 MB unchanged)
 [OK]      DeDRM_tools latest pre-release       (v10.0.20 == pinned)
-[STALE]   Kindle_Key_Finder zip URL            (article body: Kindle_Key_Finder_2026.06.15.JH.zip; pinned: 2026.04.28.JH)
+[OK]      Kindle_Key_Finder zip URL            (HEAD 200 on pinned direct URL; roll-forward discovery paywalled)
 [OK]      Tutorial article body                (page hash unchanged)
 [STALE]   Tool support matrix                  (utils.py adds 2.9.2 — KFXARCHIVER_TOOL_MAP grew)
 ```
