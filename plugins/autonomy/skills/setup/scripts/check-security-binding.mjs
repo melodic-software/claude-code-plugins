@@ -150,19 +150,19 @@ function validateStructure(binding) {
     "escalation_routes",
     "admission",
   ]) {
-    if (!(key in binding)) findings.push(`binding: required key ${key} missing`);
+    if (!Object.hasOwn(binding, key)) findings.push(`binding: required key ${key} missing`);
   }
-  if ("schema_version" in binding && binding.schema_version !== "1.0") {
+  if (Object.hasOwn(binding, "schema_version") && binding.schema_version !== "1.0") {
     findings.push(`schema_version: ${JSON.stringify(binding.schema_version)} is not the supported "1.0"`);
   }
-  if ("executor_class" in binding) {
+  if (Object.hasOwn(binding, "executor_class")) {
     checkEnum(binding.executor_class, ["self-operated", "vendor-hosted"], "executor_class");
   }
-  if ("dispatch_posture" in binding) {
+  if (Object.hasOwn(binding, "dispatch_posture")) {
     checkEnum(binding.dispatch_posture, ["autonomous-enabled", "human-gated-only"], "dispatch_posture");
   }
 
-  if ("isolation_bindings" in binding) {
+  if (Object.hasOwn(binding, "isolation_bindings")) {
     if (!isPlainObject(binding.isolation_bindings)) {
       findings.push("isolation_bindings: must be an object keyed by execution-surface id");
     } else {
@@ -191,7 +191,7 @@ function validateStructure(binding) {
               `${where}.probe_evidence: missing or empty — every bound isolation level carries the probe transcript reference that proved the boundary`,
             );
           }
-          if ("runtime_markers" in entry) {
+          if (Object.hasOwn(entry, "runtime_markers")) {
             if (!isPlainObject(entry.runtime_markers)) {
               findings.push(`${where}.runtime_markers: must be an object of string key/value markers`);
             } else {
@@ -207,13 +207,13 @@ function validateStructure(binding) {
     }
   }
 
-  if ("merge_policy" in binding) {
+  if (Object.hasOwn(binding, "merge_policy")) {
     if (!isPlainObject(binding.merge_policy)) {
       findings.push("merge_policy: must be an object keyed by work class");
     } else {
       checkAllowedKeys(binding.merge_policy, WORK_CLASSES, "merge_policy");
       for (const workClass of WORK_CLASSES) {
-        if (!(workClass in binding.merge_policy)) {
+        if (!Object.hasOwn(binding.merge_policy, workClass)) {
           findings.push(`merge_policy.${workClass}: required key missing`);
         } else {
           checkEnum(binding.merge_policy[workClass], MERGE_TOKENS, `merge_policy.${workClass}`);
@@ -222,7 +222,7 @@ function validateStructure(binding) {
     }
   }
 
-  if ("verification_blocking" in binding) {
+  if (Object.hasOwn(binding, "verification_blocking")) {
     if (!isPlainObject(binding.verification_blocking)) {
       findings.push("verification_blocking: must be an object keyed by layer");
     } else {
@@ -236,7 +236,7 @@ function validateStructure(binding) {
         }
         checkAllowedKeys(perClass, WORK_CLASSES, where);
         for (const workClass of WORK_CLASSES) {
-          if (!(workClass in perClass)) {
+          if (!Object.hasOwn(perClass, workClass)) {
             findings.push(`${where}.${workClass}: required key missing`);
           } else {
             checkEnum(perClass[workClass], VERIFICATION_TOKENS, `${where}.${workClass}`);
@@ -246,7 +246,7 @@ function validateStructure(binding) {
     }
   }
 
-  if ("promotion_state" in binding) {
+  if (Object.hasOwn(binding, "promotion_state")) {
     if (!isPlainObject(binding.promotion_state)) {
       findings.push("promotion_state: must be an object keyed by promotable cell id");
     } else {
@@ -257,7 +257,7 @@ function validateStructure(binding) {
           continue;
         }
         checkAllowedKeys(entry, ["state", "ratified_by_change", "evidence_window", "ratified_at"], where);
-        if (!("state" in entry) || !checkEnum(entry.state, ["promoted", "unpromoted"], `${where}.state`)) continue;
+        if (!Object.hasOwn(entry, "state") || !checkEnum(entry.state, ["promoted", "unpromoted"], `${where}.state`)) continue;
         if (!isNonEmptyString(entry.ratified_by_change)) {
           findings.push(`${where}.ratified_by_change: missing or empty — the flip is a reviewable change on the governance surface`);
         }
@@ -273,7 +273,7 @@ function validateStructure(binding) {
     }
   }
 
-  if ("escalation_routes" in binding) {
+  if (Object.hasOwn(binding, "escalation_routes")) {
     if (!isPlainObject(binding.escalation_routes)) {
       findings.push("escalation_routes: must be an object keyed by escalation event class");
     } else {
@@ -286,7 +286,7 @@ function validateStructure(binding) {
     }
   }
 
-  if ("admission" in binding) validateAdmissionStructure(binding.admission);
+  if (Object.hasOwn(binding, "admission")) validateAdmissionStructure(binding.admission);
 }
 
 function validateAdmissionStructure(admission) {
@@ -296,10 +296,10 @@ function validateAdmissionStructure(admission) {
   }
   checkAllowedKeys(admission, ["classification", "rules", "autonomous_concurrency", "items_per_run"], "admission");
   for (const key of ["classification", "rules", "autonomous_concurrency", "items_per_run"]) {
-    if (!(key in admission)) findings.push(`admission.${key}: required key missing`);
+    if (!Object.hasOwn(admission, key)) findings.push(`admission.${key}: required key missing`);
   }
 
-  if ("classification" in admission) {
+  if (Object.hasOwn(admission, "classification")) {
     if (!isPlainObject(admission.classification)) {
       findings.push("admission.classification: must be an object keyed by signal-surface class");
     } else {
@@ -317,7 +317,7 @@ function validateAdmissionStructure(admission) {
     }
   }
 
-  if ("rules" in admission) {
+  if (Object.hasOwn(admission, "rules")) {
     if (!Array.isArray(admission.rules)) {
       findings.push("admission.rules: must be an array of decision-table rules");
     } else {
@@ -336,7 +336,7 @@ function validateAdmissionStructure(admission) {
         checkEnum(rule.provenance, [...PROVENANCES, "*"], `${where}.provenance`);
         checkEnum(rule.work_class, [...WORK_CLASSES, "*"], `${where}.work_class`);
         checkEnum(rule.disposition, DISPOSITIONS, `${where}.disposition`);
-        if ("override_justification" in rule && !isNonEmptyString(rule.override_justification)) {
+        if (Object.hasOwn(rule, "override_justification") && !isNonEmptyString(rule.override_justification)) {
           findings.push(`${where}.override_justification: must be a non-empty string when present`);
         }
       });
@@ -344,7 +344,7 @@ function validateAdmissionStructure(admission) {
   }
 
   for (const cap of ["autonomous_concurrency", "items_per_run"]) {
-    if (cap in admission && (!Number.isInteger(admission[cap]) || admission[cap] < 1)) {
+    if (Object.hasOwn(admission, cap) && (!Number.isInteger(admission[cap]) || admission[cap] < 1)) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
     }
   }
@@ -363,7 +363,7 @@ function levelNumber(token) {
 // us} vs {pool: blue, os: linux}.
 function jointlySatisfiable(markersA, markersB) {
   for (const [key, value] of Object.entries(markersA)) {
-    if (key in markersB && markersB[key] !== value) return false;
+    if (Object.hasOwn(markersB, key) && markersB[key] !== value) return false;
   }
   return true;
 }
