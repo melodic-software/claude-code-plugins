@@ -3,6 +3,15 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Hook stdin is read via the shared `hook::buffer_stdin` helper (bounded `read -t`,
+  default 2s) instead of a bare `cat`, so a Windows Win32-pipe late-EOF stall can no
+  longer hang the hook indefinitely. Empty or timed-out stdin exits as a skip, matching
+  the existing empty-payload behavior.
+
 ## [0.5.0]
 
 ### Added
