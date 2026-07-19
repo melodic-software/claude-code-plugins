@@ -34,6 +34,10 @@ shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam
 - **Adapter operations reference and CONTRACT are provider-neutral.** The GitHub adapter reference and
   the contract no longer cite a specific consuming repo's convention docs or bot-auth wrapper; writes
   optionally route through a bot wrapper when the consuming repo provides one, otherwise bare `gh`.
+- **Adapters hard-fail on a missing shared seam lib.** `github` and `local-markdown` `common.sh`
+  verify each required `lib/` helper exists before sourcing and exit 3 with a diagnostic if absent, so
+  a consumer-local adapter shadow that cannot resolve the bundled `lib/` fails loudly instead of
+  silently emitting a malformed (empty-id) record.
 
 ## [0.11.0]
 

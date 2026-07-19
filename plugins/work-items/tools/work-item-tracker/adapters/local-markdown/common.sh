@@ -16,10 +16,27 @@ readonly _WIT_LOCAL_COMMON_LOADED=1
 
 WIT_LOCAL_ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WIT_LOCAL_ADAPTER_DIR
+
+# A consumer may shadow this adapter with a local copy (CONTRACT.md "Adapter
+# resolution") while still running the bundled dispatcher; the shared seam libs
+# below then resolve relative to that copy and can be absent. A missing required
+# lib must hard-fail with a clear diagnostic (exit 3 — setup/config error), never
+# let sourcing fail silently and leave a verb emitting a malformed (e.g. empty-id)
+# record. Runs before the EX_* constants below exist, so it uses the literal.
+wit_local_require_seam_lib() {
+  [[ -f "$1" ]] && return 0
+  printf 'work-item-tracker local-markdown adapter: required seam library not found: %s\n' "$1" >&2
+  printf '  a shadowed consumer-local adapter must still resolve the bundled seam lib/ directory\n' >&2
+  exit 3
+}
+
+wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/id.sh"
 # shellcheck source=../../lib/id.sh
 source "$WIT_LOCAL_ADAPTER_DIR/../../lib/id.sh"
+wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/json.sh"
 # shellcheck source=../../lib/json.sh
 source "$WIT_LOCAL_ADAPTER_DIR/../../lib/json.sh"
+wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_LOCAL_ADAPTER_DIR/../../lib/lease.sh"
 
@@ -62,8 +79,8 @@ wit_require_local_id() {
 # after arg parsing so --help / usage errors stay offline. Exits 3 (config) when
 # the binding did not supply config.storage_dir.
 wit_need_storage() {
-  [[ -n "${WIT_STORAGE_DIR:-}" ]] \
-    || {
+  [[ -n "${WIT_STORAGE_DIR:-}" ]] ||
+    {
       printf '%s: config.storage_dir is required for provider local-markdown — see CONTRACT.md Setup\n' \
         "$(basename "${BASH_SOURCE[1]}")" >&2
       exit "$EX_CONFIG"

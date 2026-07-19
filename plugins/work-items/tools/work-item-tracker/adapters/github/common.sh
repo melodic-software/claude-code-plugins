@@ -10,10 +10,27 @@ readonly _WIT_GH_COMMON_LOADED=1
 
 WIT_GH_ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WIT_GH_ADAPTER_DIR
+
+# A consumer may shadow this adapter with a local copy (CONTRACT.md "Adapter
+# resolution") while still running the bundled dispatcher; the shared seam libs
+# below then resolve relative to that copy and can be absent. A missing required
+# lib must hard-fail with a clear diagnostic (exit 3 — setup/config error), never
+# let sourcing fail silently and leave a verb emitting a malformed (e.g. empty-id)
+# record. Runs before the EX_* constants below exist, so it uses the literal.
+wit_gh_require_seam_lib() {
+  [[ -f "$1" ]] && return 0
+  printf 'work-item-tracker github adapter: required seam library not found: %s\n' "$1" >&2
+  printf '  a shadowed consumer-local adapter must still resolve the bundled seam lib/ directory\n' >&2
+  exit 3
+}
+
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/id.sh"
 # shellcheck source=../../lib/id.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/id.sh"
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/json.sh"
 # shellcheck source=../../lib/json.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/json.sh"
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 
@@ -69,11 +86,11 @@ gh_write() {
 wit_map_gh_error() {
   local err="$1"
   case "$err" in
-    *"Could not resolve"* | *"Not Found"* | *"HTTP 404"*) echo "$EX_NOT_FOUND" ;;
-    *"HTTP 401"* | *"HTTP 403"* | *"not logged in"* | *authentication*) echo "$EX_AUTH" ;;
-    *"rate limit"* | *"no such host"* | *"connection refused"* | *timeout* | *"network"*) echo "$EX_UNAVAILABLE" ;;
-    *maximum* | *"limit of"*) echo "$EX_CONFLICT" ;;
-    *) echo "$EX_INTERNAL" ;;
+  *"Could not resolve"* | *"Not Found"* | *"HTTP 404"*) echo "$EX_NOT_FOUND" ;;
+  *"HTTP 401"* | *"HTTP 403"* | *"not logged in"* | *authentication*) echo "$EX_AUTH" ;;
+  *"rate limit"* | *"no such host"* | *"connection refused"* | *timeout* | *"network"*) echo "$EX_UNAVAILABLE" ;;
+  *maximum* | *"limit of"*) echo "$EX_CONFLICT" ;;
+  *) echo "$EX_INTERNAL" ;;
   esac
 }
 
