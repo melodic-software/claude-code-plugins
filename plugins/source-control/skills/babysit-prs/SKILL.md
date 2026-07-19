@@ -288,7 +288,7 @@ tier authority.
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
-| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | clean approvals ignored structurally; named logins surface theirs as material |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |

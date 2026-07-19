@@ -158,7 +158,7 @@ repo's owner.
 | `babysit_review_gate_context` | string | review gate treated as absent |
 | `babysit_ci_gateway_context` | string | gateway check unused |
 | `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
-| `babysit_approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_approval_downgrade_logins` | string (multiple) | clean approvals ignored structurally; named logins surface theirs as material |
 | `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | number | 14400 |
 | `babysit_advisory_fix_round_cap` | number | 100 |

@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4]
+
+### Fixed
+
+- **`babysit-prs` snapshot no longer classifies an Approve-with-nits bot review as blocking bot
+  feedback.** A `claude[bot]` PR review posted as an issue-level comment with an explicit
+  **Approve** verdict and only 🟡-nit findings (no `CRITICAL`/`IMPORTANT` or other severity
+  marker) was surfaced as a blocking, genuinely-fresh finding because the body's prose contained
+  the word "blocking" ("blocking criteria", "blocking checks", "No blocking issues"), which the
+  text heuristic matched. The classifier now parses the verdict and severity markers: an explicit
+  approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
+  configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
+  reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
+  unweakened — a `CRITICAL`/`IMPORTANT` finding or a Request-changes verdict still classifies as
+  blocking, and `CRITICAL`/`IMPORTANT` are now recognized as blocking-severity markers in their
+  own right. A login named in `babysit_approval_downgrade_logins` opts that bot's clean approvals
+  into the more-conservative `material` bucket (surfaced but non-blocking) instead of being fully
+  ignored.
+
 ## [0.9.3]
 
 ### Added
