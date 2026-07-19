@@ -186,10 +186,12 @@ entitlement-gated surfaces get advisory steps with cost surfaced.
    incidental parseable comment never attests), and on a parseable reply carrying both
    values, upsert the SAME attested record
    (not a second contract — this is the one attestation upsert, wired from its own trigger
-   surface) — branched by `record_surface`: on the comment floor, find the marker-tagged
-   comment and edit it in place (the marker lookup exists to disambiguate among a comment
-   thread, and its absence enforces the contract's attestation-never-creates rule
-   structurally: no close-time record, nothing to edit); on native fields there is no
+   surface) — branched by `record_surface`: on the comment floor, find the marker comment
+   AUTHORED BY THE BOUND AUTOMATION IDENTITY and edit it in place (the lookup filters by
+   author per the record-integrity rule — a foreign-posted marker is ignored, never
+   selected or allowed to shadow the real record — and the bot-authored marker's absence
+   enforces the contract's attestation-never-creates rule structurally: no close-time
+   record, nothing to edit); on native fields there is no
    marker, but the same rule binds — the handler MUST first verify the close-time
    UNATTESTED v1 record is already present on the item's fields (written by the close
    trigger, which owns the eligibility gate) and treat its absence as inadmissible; where

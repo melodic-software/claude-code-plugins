@@ -129,9 +129,12 @@ require the reply-correlation rule (a response to the recorded `attestation_requ
 flat-tracker `attest:` token) and,
 on a parseable reply carrying both values, upsert the SAME attested record — not a second
 contract, the one attestation upsert wired from its own trigger. On the comment floor this
-means finding the marker-tagged comment and editing it in place (a missing marker comment
-means no close-time record — the reply admits nothing, per the contract's
-attestation-never-creates rule); on native fields there is no marker to find, but the same
+means finding the marker comment AUTHORED BY THE BOUND AUTOMATION IDENTITY and editing it
+in place — a foreign-authored marker (any participant can post the public marker text) is
+ignored by the lookup exactly as consumers ignore it, so it can neither be selected for
+editing nor block a valid attestation of the real bot record; a missing bot-authored marker
+comment means no close-time record — the reply admits nothing, per the contract's
+attestation-never-creates rule; on native fields there is no marker to find, but the same
 rule binds: the handler first verifies the close-time unattested record is present on the
 item's fields and treats its absence as inadmissible — and on an audit-trail-selected
 surface additionally confirms the trail attributes the record's CREATION and EVERY
