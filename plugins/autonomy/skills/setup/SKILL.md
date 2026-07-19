@@ -330,6 +330,51 @@ slice and its templates — the contract stays surface-class vocabulary only.
    item's body (with `--binding` pointing at the resolved binding) to verify the envelope
    marker record before declaring the wired state reached.
 
+## Guardrail binding resolution
+
+How guardrail policy resolves across the TWO governance surfaces the guardrail contract
+splits policy into. This section owns resolution; the guardrail slice (detect → bind →
+live-validate) lands with its own work package and extends this skill.
+
+**Two-surface split.** Security-sensitive guardrail axes — isolation bindings with their
+runtime markers, merge policy, verification blocking knobs, promotion state, escalation
+routes, admission rules and caps — bind ONLY in the security binding document in the
+settings-as-code home, outside the blast radius of the agents it governs. Its schema is
+contract-owned and ships at
+[`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json);
+[`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) validates a
+document (schema shape + the semantic rules the schema cannot express) and, with
+`--evidence`, resolves each promotion cell's EFFECTIVE state against a promotion-evidence
+source — the bound state is a ceiling contrary evidence lowers without writing the
+binding. Non-security axes remap in the additive `guardrails` section of the repo-local
+binding: class→label strings (which local label means which work class) and
+cost-tier→model names — vocabulary remaps only, never policy content.
+
+**Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
+security binding → repo-local non-security remaps. Later layers refine earlier ones for
+NON-SECURITY axes only; no repo-local (agent-writable) value ever supplies or overrides a
+security axis.
+
+**Security-binding locator registry.** When settings-as-code is a separate repository,
+the org-policy home carries the repo→security-binding-document registry the dispatch seam
+resolves each repository's security binding through — one registry, resolvable per repo,
+on the org governance surface.
+
+**Agent-unwritable bootstrap for security resolution.** The repo-local `org_policy_home`
+pointer is tolerable for non-security defaults only — a repo-writable pointer would let
+an agent redirect the whole chain to a forged policy repository carrying a forged
+registry, binding, and matching runtime markers. For SECURITY resolution the seam pins
+the org-policy-home identity from an agent-unwritable bootstrap: org-level platform
+configuration outside repo blast radius (an org-level setting or variable repo agents
+cannot write) or the executor's trusted deployment config. Any security resolution that
+would depend on a repo-writable pointer — or an unresolvable locator — fail-closes
+autonomous dispatch, naming the compliant path (pin the home in org-level configuration
+or the executor's deployment config).
+
+**Fail-closed.** An absent or invalid security binding blocks autonomous dispatch —
+every signal enqueues human-gated. Documented defaults exist only for non-security axes;
+no security axis ever resolves from a documented default or a repo-local surface.
+
 ## What this skill does NOT do
 
 - Wire capability slices that have not shipped yet (guardrail matrix, routines) — each lands

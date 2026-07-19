@@ -122,7 +122,7 @@ clause).
 - Promotion defaults present: `grep -c '20 autonomous C2 completions' plugins/autonomy/reference/guardrails/work-classes.md` ≥ 1 and `grep -c '14 days' plugins/autonomy/reference/guardrails/work-classes.md` ≥ 1
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: Binding schema (two governance surfaces) [TODO]
+### Phase 2: Binding schema (two governance surfaces) [DONE]
 
 | File | Action | What changes |
 |---|---|---|
