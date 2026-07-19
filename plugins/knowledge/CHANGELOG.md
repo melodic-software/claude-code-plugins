@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## 0.8.0
+
+### Changed
+
+- **Setup adopts the uniform `check` / `apply` contract and covers the extraction
+  prerequisites.** The read-only `check` (default) verifies `library_dir` against the
+  repository's artifact convention and probes the shared node dependencies, Playwright
+  Chromium, and the OS-level media tools (`yt-dlp`, `ffmpeg`, ImageMagick 7) as
+  PASS/FAIL/INFO. `apply` routes `library_dir` changes through Claude Code's plugin
+  configuration prompt (never hand-editing `pluginConfigs`); `apply install-deps` runs the
+  youtube-digest and course-digest `setup-deps.mjs` provisioners — the same idempotent
+  scripts the ingest skills already run — pulling the prerequisite/provisioning surface onto
+  the setup contract. The personal env-channel scalars are unchanged.
+
 ## 0.7.1
 
 ### Changed

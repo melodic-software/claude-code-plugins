@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`/guardrails:setup` skill on the uniform contract** (fleet conformance
+  wave, dim 8). `check` reads the guard scripts and `hooks.json` as the
+  source of truth and probes Bash 5.0+, `jq` (absence = every guard fails
+  open — surfaced as the FAIL it is), each guard's effective toggle, the
+  `cli-flag-verify` scan surface, and the `block-dangerous-git` allowlist.
+  `apply` is guidance-only with no write path; reconfiguration guidance
+  states `--config`'s fresh-install-only semantics. All-toggles-disabled
+  downgrades prerequisite FAILs to INFO.
+
 ## [0.6.2]
 
 ### Changed

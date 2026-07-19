@@ -3,6 +3,18 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **`setup` split onto the uniform check/apply contract.** `check` inspects the effective merged
+  `.claude/codebase-health.md` config read-only across its user-global → team → local overlay layers
+  (presence — absent is INFO, since the audit re-infers targets each run — dimension source-list
+  validity, tracked-not-ignored, and overlay divergence) and reports a PASS/FAIL/INFO table; `apply`
+  runs the interview-infer-write flow, then re-runs `check` to verify the written file. The inference,
+  example-claims, and layer-merge logic are unchanged; the read-only inspection path and the
+  `check | apply` argument-hint are new.
+
 ## [0.4.0]
 
 ### Changed

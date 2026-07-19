@@ -15,12 +15,12 @@
     },
     {
       "id": 2,
-      "name": "non-default-location-requires-confirmation",
-      "prompt": "Our skills live under packages/agent/skills. Configure skill-quality to find them.",
-      "expected_output": "Confirms and verifies the non-default root, directs persistent changes through Claude Code's plugin configuration prompt, optionally explains the one-run CHECK_SKILL_SKILLS_ROOT override, and never persists either mechanism itself.",
+      "name": "non-default-location-routes-through-claude",
+      "prompt": "Our skills live under packages/agent/skills. /skill-quality:setup apply",
+      "expected_output": "Verifies the non-default root non-interactively, routes the persistent skills_root change through Claude Code's plugin configuration prompt (with the fresh-install-only --config headless path), optionally explains the one-run CHECK_SKILL_SKILLS_ROOT override, and never persists either mechanism itself.",
       "files": [],
       "expectations": [
-        "Requires confirmation for a non-default root",
+        "Verifies the named non-default root without an interactive confirmation gate",
         "Routes persistent configuration through Claude Code",
         "Does not edit settings or persist the environment override"
       ]

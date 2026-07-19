@@ -3,6 +3,26 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/biome-format:setup` skill** (fleet conformance wave, dim 8). A uniform check-centric
+  setup contract: `check` (default, read-only) reads the hook as the single source of truth
+  and reports a PASS/FAIL/INFO table for Bash, `jq`, the Biome binary (resolved exactly as
+  the hook resolves it), the governing Biome config opt-in, and the `biome_format_enabled`
+  toggle. `apply` is idempotent and guidance-first: it re-runs `check`, points at system-tool
+  remediations, and the one write path — `apply install-biome` — adds `@biomejs/biome` as a
+  dev dependency using the repository's own package manager, re-verifying the binary probe
+  after the install rather than trusting its exit code.
+
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

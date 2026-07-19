@@ -3,6 +3,26 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/eol-normalizer:setup` skill** (fleet conformance wave, dim 8). A uniform check-centric
+  setup contract: `check` (default, read-only) reads both the hook and its sourced
+  `normalize-eol.sh` library as the single source of truth and reports a PASS/FAIL/INFO table
+  for Bash, `jq`, `git` (FAIL when absent — the hook silently no-ops without it, so the check
+  is the only visibility), the governing `.gitattributes` `eol=` policy, and the
+  `eol_normalizer_enabled` toggle. `apply` is idempotent and pure guidance — every
+  prerequisite is a system tool, so it installs nothing and writes nothing (never
+  `.gitattributes`).
+
+## [0.3.1]
+
+### Changed
+
+- Shared `hook-utils.sh` resynced from the repository library (no behavior
+  change in this plugin's hook).
+
 ## [0.3.0]
 
 ### Changed

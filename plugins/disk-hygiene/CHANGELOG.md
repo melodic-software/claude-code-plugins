@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`/disk-hygiene:setup` skill on the uniform contract** (fleet conformance
+  wave, dim 8). `check` reads the clean skill's bundled scripts as the source
+  of truth and probes Python 3.11+, conditional Git, the current OS family's
+  documented lane (Linux `lsof` and macOS audit-only reported as INFO), and
+  the effective `disk_hygiene_enabled` toggle. `apply` is guidance-only with
+  no write path; toggle guidance states `--config`'s fresh-install-only
+  semantics. A disabled toggle downgrades prerequisite FAILs to INFO.
+
 ## [0.3.0]
 
 Fixes driven by a live Windows user-profile audit where the engine was unusable through its

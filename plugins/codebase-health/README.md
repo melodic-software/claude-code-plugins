@@ -12,7 +12,7 @@ claims about itself are true.
 | Skill | What it does |
 |---|---|
 | `/codebase-health:audit` | Runs the audit — prime conventions, fan out claim-extraction per file, independently validate, severity-rate, then fix or report. |
-| `/codebase-health:setup` | Configures the audit for this repo — interviews the user, infers targets from the layout, and writes the tracked `.claude/codebase-health.md` config. |
+| `/codebase-health:setup` | `check` inspects the tracked `.claude/codebase-health.md` config read-only across its merge layers; `apply` interviews the user, infers targets from the layout, and writes the config. |
 
 ## The audit
 
@@ -49,11 +49,12 @@ are `documentation`, `configuration`, `code-quality`, and `architecture`; the co
 globs, remove a dimension, or add custom ones.
 
 When no config is present, the audit infers targets from the repo layout, uses them, and offers to
-persist the inference via `/codebase-health:setup` — so the next run is deterministic. It never
+persist the inference via `/codebase-health:setup apply` — so the next run is deterministic. It never
 hardcodes a repo's layout.
 
 ```shell
-/codebase-health:setup   # interview + write .claude/codebase-health.md (re-runnable)
+/codebase-health:setup check   # inspect the effective config read-only (default)
+/codebase-health:setup apply   # interview + write .claude/codebase-health.md (re-runnable)
 ```
 
 Add `.claude/*.local.*` to your `.gitignore` so personal overlays stay out of version control while
@@ -75,7 +76,7 @@ verified non-issue. Nothing project-specific is baked into the plugin.
 ## Configuration
 
 No `userConfig` — audit targets flow through the tracked `.claude/codebase-health.md` config seam
-above (written by `/codebase-health:setup`). No hooks, no MCP servers, no bundled scripts, no network
+above (written by `/codebase-health:setup apply`). No hooks, no MCP servers, no bundled scripts, no network
 calls of its own (Phase 2 may use whatever documentation-research tools your setup provides). State:
 the audit reads and writes only the consumer's own files under the scope you give it.
 

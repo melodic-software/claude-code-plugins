@@ -3,6 +3,15 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Setup `check` downgrades every prerequisite absence from FAIL to INFO while
+  the plugin's toggle is disabled (the hook exits through its enabled-gate
+  before probing, so a deliberately disabled plugin is not broken) — the same
+  class fix applied across the fleet's other hook-plugin setups.
+
 ## [0.5.0]
 
 ### Added

@@ -39,7 +39,7 @@ install after a Playwright update. `--only-shell` is appropriate because this pi
 launches Chromium headlessly without a browser channel. Node 20+ is required (ESM imports +
 top-level await). On Windows / Git Bash, use `pwsh` for npx if `npx.cmd` resolution flakes.
 
-**Plugin form.** The plugin cache is read-only and the scripts are Node ESM (which ignores `NODE_PATH`), so `/ai-briefing:setup --with-build-deps` **stages a runnable copy** of the build tree under `${CLAUDE_PLUGIN_DATA}/runtime/build/` with `node_modules` installed as a sibling. The skill resolves the rendered `${user_config.active_profile}` value (or a per-invocation override) and passes it explicitly when launching the build: `AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/`. Setup re-stages the optional build tree on a plugin-version bump when `--with-build-deps` is present.
+**Plugin form.** The plugin cache is read-only and the scripts are Node ESM (which ignores `NODE_PATH`), so `/ai-briefing:setup apply install-build-deps` **stages a runnable copy** of the build tree under `${CLAUDE_PLUGIN_DATA}/runtime/build/` with `node_modules` installed as a sibling. The skill resolves the rendered `${user_config.active_profile}` value (or a per-invocation override) and passes it explicitly when launching the build: `AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"`. Emitted `slides-data.js`, decks, and screenshots land under `${CLAUDE_PLUGIN_DATA}/<profile>/output/`. Setup re-stages the optional build tree on a plugin-version bump when `apply install-build-deps` is invoked.
 
 ## Per-meeting build sequence
 

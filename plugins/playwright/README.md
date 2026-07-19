@@ -65,6 +65,8 @@ loaded via `--plugin-dir`) — consumers receive updates through
 /plugin install playwright@melodic-software
 ```
 
+Then verify prerequisites with `/playwright:setup check`.
+
 ## Configuration
 
 This plugin has no `userConfig`. Behavior tuning happens through

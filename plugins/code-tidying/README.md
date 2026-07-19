@@ -17,10 +17,12 @@ Three skills, one capability:
   dependency-ordered simplification waves, with per-group verification and a
   never-drop deferred-items contract. Use it when you forgot to run
   `/simplify` after each task.
-- **`/code-tidying:setup`** — interviews the repo and scaffolds tracked
-  `.claude/tidy-lanes/<lane>.md` project lane files from the bundled templates,
-  so `tidy` resolves project-specific scope globs deterministically instead of
-  falling back to the generic bundled lanes. Re-runnable to add or retune lanes.
+- **`/code-tidying:setup`** — `check` inspects the tracked
+  `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
+  sections, leftover placeholders, tracked-not-ignored); `apply` interviews the
+  repo and scaffolds those lane files from the bundled templates, so `tidy`
+  resolves project-specific scope globs deterministically instead of falling back
+  to the generic bundled lanes. Re-runnable to add or retune lanes.
 
 Neither `tidy` nor `batch-simplify` is `/simplify` itself: `/simplify` refines the diff you just
 wrote; `batch-simplify` catches up on a window of them; `tidy` hunts drift no
@@ -79,9 +81,9 @@ exclusions, and verification commands.
 No `userConfig`. Project-specific behavior routes through
 `.claude/tidy-lanes/` lane files and your project's own `CLAUDE.md` /
 `.claude/rules` (protected paths, verification commands). Run
-**`/code-tidying:setup`** to interview your repo and scaffold those lane files
-from the bundled templates — it is idempotent and safe to re-run to add or
-retune lanes.
+**`/code-tidying:setup apply`** to interview your repo and scaffold those lane files
+from the bundled templates (or `check` to inspect existing lanes read-only) — it is
+idempotent and safe to re-run to add or retune lanes.
 
 ## License
 

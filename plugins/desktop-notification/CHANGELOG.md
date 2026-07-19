@@ -3,6 +3,18 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **Uniform-contract `setup` skill** (fleet conformance wave). `/desktop-notification:setup
+  check` reads the hook scripts as the single source of truth and probes Bash version, `jq`,
+  and — for the current OS only — the `os_toast` channel dependency (Linux `notify-send`;
+  macOS built-in `osascript`; Windows terminal-only), then reports the four channel toggles'
+  effective values. `apply` is guidance-and-verify with no write path: it points at the
+  README install steps and `/plugin configure` for a muted toggle, installs nothing, and
+  re-runs the probe after any system-tool remediation.
+
 ## [0.3.2]
 
 ### Changed

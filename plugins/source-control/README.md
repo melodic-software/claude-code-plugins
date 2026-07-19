@@ -89,12 +89,14 @@ destructive branch deletion for the user), `audit` (configuration health).
 
 ### `/source-control:setup`
 
-Interviews the repo and writes the tracked `.claude/source-control.md`
-commit-subject / PR-title convention config — inferring first from the repo's
-own `CLAUDE.md`/rules, commit-msg hook, or git log history before asking.
-Offers Conventional Commits (11-type vocabulary) as the recommended default,
-or a custom pattern (e.g. a ticket-prefix regex) for orgs that don't use
-Conventional Commits. Re-runnable to reconfigure.
+`check` (read-only, default) reports the effective commit-subject / PR-title
+convention (from the tracked `.claude/source-control.md`) and the babysit-prs
+`userConfig` surface. `apply` interviews the repo and writes the convention
+config — inferring first from the repo's own `CLAUDE.md`/rules, commit-msg
+hook, or git log history before asking, and offering Conventional Commits
+(11-type vocabulary) as the recommended default or a custom pattern (e.g. a
+ticket-prefix regex) for orgs that don't use Conventional Commits. Supply
+`subject_pattern=` to write it non-interactively. Re-runnable to reconfigure.
 
 ### `/source-control:resolve-conflicts`
 

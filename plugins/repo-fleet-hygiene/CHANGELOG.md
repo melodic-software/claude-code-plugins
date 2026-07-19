@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- **`setup` split onto the uniform check/apply contract.** `check` inspects the optional
+  `.claude/repo-fleet-hygiene.conf` read-only (presence — absent is INFO, since the audit defaults to
+  the current project — parse validity, entry-path resolution, `maxDepth` range, and canonical-key
+  normalization) and reports a PASS/FAIL/INFO table; `apply` creates or updates the file
+  non-interactively from its argument grammar, then re-runs `check` to verify. Config-writing behavior
+  and the argument grammar are unchanged; the read-only inspection path and the argument-hint gain the
+  `check | apply` prefix.
+
 ## [0.1.0]
 
 ### Added

@@ -1,6 +1,6 @@
 # Full setup workflow
 
-Long-form version of the `setup` action. Each step lists the exact command, rationale, and how to verify success. Walk through this with the user, pausing at every checkpoint.
+Long-form version of `/kindle-dedrm:setup apply`. Each step lists the exact command, rationale, and how to verify success. Walk through this with the user, pausing at every checkpoint.
 
 Captured 2026-05-10 against Kindle for PC 2.8.0.70980, DeDRM_tools v10.0.20, Kindle_Key_Finder 2026.04.28.JH.
 

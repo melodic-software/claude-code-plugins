@@ -1,49 +1,71 @@
 ---
 name: setup
-description: "Validate claude-ops personal path configuration and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'."
-argument-hint: "(no arguments — interactive validation)"
+description: "Verify claude-ops's personal path configuration for this repository — where the known-issues registry and the skill-usage log resolve — and explain how to change them through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'. Actions: check (read-only verification, default) | apply (route a reconfiguration once you've chosen a destination). Re-runnable and safe."
+argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Confirm the known-issues registry and skill-usage-log locations without editing Claude Code
-settings. `registry_dir` and `skill_usage_dir` are personal `userConfig` options. Claude Code
-prompts for them when the plugin is enabled, stores non-sensitive options in user settings, and
-ignores `pluginConfigs` entries in project and local settings on current releases (≥ 2.1.207).
+Thin check-centric setup per the uniform contract: `check` inspects and reports the effective personal
+path options, `apply` resolves what it found. `registry_dir` and `skill_usage_dir` are personal
+`userConfig` scalars owned by Claude Code's native configuration surface — Claude Code prompts for them
+when the plugin is enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs`
+entries in project and local settings on current releases (≥ 2.1.207). This skill never writes them;
+`apply` verifies and routes.
 
 Official contract (verified 2026-07-18):
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
-## Task
+Action routing: no argument or `check` runs the check; `apply` runs the check first, then the
+reconfiguration guidance below. Both are non-interactive — never prompt when the action is given.
 
-1. Read the rendered `${user_config.registry_dir}` and `${user_config.skill_usage_dir}` values from
-   this skill. Do not inspect or edit settings files or `pluginConfigs` directly.
-2. Explain the effective behavior:
-   - empty or unexpanded value: the registry uses `${CLAUDE_PLUGIN_DATA}`;
-   - empty or unexpanded `skill_usage_dir`: the log uses `.claude/observability`;
-   - configured values: each destination resolves from the project root.
-3. Validate each configured value before recommending or using it. It must be a contained,
-   project-relative path: reject POSIX/rooted paths, Windows drive-qualified or drive-relative
-   paths, UNC paths, any `..` segment with either separator, and any existing symlink path that
-   resolves outside the project. Do not normalize an invalid value into acceptance.
-4. Ask whether the registry should be per-machine or repository-resident and where the skill-usage
-   log should live. For repository destinations, inspect the consumer's declared artifact
-   conventions and recommend portable contained paths. Make clear that user-scoped options are
-   personal, not tracked team policy.
-5. If the desired personal value differs, direct the user to Claude Code's plugin configuration
-   prompt for `claude-ops`. Do not hand-edit any `pluginConfigs` key.
-6. Rerun setup after reconfiguration and report both observed effective destinations. If either
-   value is invalid, report it visibly and do not run operations that would use it.
+## `check` (read-only)
 
-## Output
+Read the rendered `${user_config.registry_dir}` and `${user_config.skill_usage_dir}` values from this
+skill — never inspect or edit settings files or `pluginConfigs` directly. Report a PASS/FAIL/INFO
+table, one remediation line per FAIL. Do not modify anything.
 
-Report both effective locations, their personal-vs-project implications, containment status, and
-any configuration action the user must take in Claude Code. Never claim an unobserved change.
+1. **`registry_dir`** — report the effective known-issues-registry destination:
+   - empty or unexpanded: INFO — the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
+   - a configured value: validate containment (below). PASS when contained — it resolves from the
+     project root. FAIL when uncontained.
+2. **`skill_usage_dir`** — report the effective skill-usage-log destination:
+   - empty or unexpanded: INFO — the log uses `.claude/observability` (the zero-config default).
+   - a configured value: validate containment. PASS when contained; FAIL when uncontained.
+3. **Containment** — a configured value must be a contained, project-relative path. FAIL any
+   POSIX/rooted path, Windows drive-qualified or drive-relative path, UNC path, any `..` segment with
+   either separator, and any existing symlink path that resolves outside the project. Do not normalize
+   an invalid value into acceptance, and do not run any operation that would use an invalid destination.
+4. **Personal-vs-project** — INFO: both options are personal, user-scoped preferences, not tracked team
+   policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose in `apply`.
 
-## Boundaries
+## `apply` (idempotent)
 
-- Do not run known-issues or registry operations.
-- Do not configure observability stores; those have separate documented controls.
-- Do not write Claude Code settings or invent organization-specific configuration.
+Run `check`, then resolve what it found. This skill has no legitimate write of its own — the two
+options live in Claude Code's native config surface, which setup must not hand-edit — so `apply` is
+verify-and-route:
+
+- **Uncontained value (FAIL):** the destination is invalid; do not use it. Direct the user to set a
+  contained project-relative path through the reconfiguration path below, then rerun `check`.
+- **Choosing a destination:** if the reader wants the registry per-machine, leave `registry_dir` unset
+  (default `${CLAUDE_PLUGIN_DATA}`); if repository-resident, recommend a portable contained path,
+  inspecting the consumer's declared artifact conventions. Same for `skill_usage_dir` (default
+  `.claude/observability`). State the tradeoff and let the reader pick — do not prompt.
+- **Reconfiguring a personal option:** `/plugin configure claude-ops` (interactive, any time).
+  Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
+  `claude plugin uninstall claude-ops` then
+  `claude plugin install claude-ops@<marketplace> --config registry_dir=<path>`; this skill never
+  writes user settings or `pluginConfigs`.
+
+After any reconfiguration, rerun `check` and report both observed effective destinations — never claim
+an unobserved change. Re-running `apply` when both destinations are contained (or defaulted) changes
+nothing and reports "already configured".
+
+## What this skill does NOT do
+
+- Run known-issues, registry, or observability operations — those are the other claude-ops skills and
+  have their own documented controls.
+- Write Claude Code user settings, `pluginConfigs`, or the plugin cache.
+- Invent organization-specific configuration.

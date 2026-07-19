@@ -40,6 +40,6 @@ exclude = [
   # drop an entry when its repo goes public. The optional \.git arm covers
   # HTTPS clone URLs: the dot after the repo name would otherwise miss the
   # [/#?] boundary.
-  '^https?://github\.com/melodic-software/(claude-code-plugins|dotfiles|github-iac|medley|provisioning|standards)(\.git)?([/#?]|$)',
-  '^https?://raw\.githubusercontent\.com/melodic-software/(claude-code-plugins|dotfiles|github-iac|medley|provisioning|standards)/',
+  '^https?://github\.com/melodic-software/(dotfiles|github-iac|medley|provisioning)(\.git)?([/#?]|$)',
+  '^https?://raw\.githubusercontent\.com/melodic-software/(dotfiles|github-iac|medley|provisioning)/',
 ]

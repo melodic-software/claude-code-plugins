@@ -3,6 +3,18 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **Setup adopts the uniform `check` / `apply` contract.** The single interactive
+  flow is split into a read-only `check` (default) that reports the `ctx7` CLI,
+  `CONTEXT7_API_KEY` presence, and MCP-server state as PASS/FAIL/INFO, and an
+  `apply` that resolves what `check` found. The global CLI install is gated behind
+  an explicit `apply install-cli` subaction. Auth is reported by presence only and
+  its value is never printed; an env-var change defers verification to a fresh
+  session. README setup bullet updated to the action shape.
+
 ## [0.3.1]
 
 ### Changed

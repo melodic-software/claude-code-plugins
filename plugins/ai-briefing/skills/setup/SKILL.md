@@ -1,7 +1,7 @@
 ---
 name: setup
-description: "Scaffold or reconfigure an ai-briefing profile and optionally install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', or 'ai-briefing setup'. Idempotent — safe to re-run."
-argument-hint: "[--profile <name>] [--with-build-deps]"
+description: "Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', 'is ai-briefing working', or 'ai-briefing setup'. Actions: check (read-only verification, default) | apply (scaffold the profile) | apply install-build-deps (also install the build toolchain). Idempotent — safe to re-run."
+argument-hint: "check | apply [install-build-deps] [--profile <name>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -13,10 +13,21 @@ Configured active profile: `${user_config.active_profile}`
 
 ## Purpose
 
-Scaffold a repository-owned briefing profile and, only when explicitly requested, install
-the optional deterministic presentation build toolchain. The plugin is repository- and
-organization-agnostic; consumers supply their own authorized sources, audience lens, and
-branding.
+Bring a repository-owned briefing profile to a working state and, only when explicitly
+requested, install the optional deterministic presentation build toolchain. The plugin is
+repository- and organization-agnostic; consumers supply their own authorized sources,
+audience lens, and branding.
+
+Check-centric per the uniform contract: `check` inspects and reports, `apply` scaffolds the
+profile, and the build-toolchain install is a distinct opt-in subaction rather than fused
+behind a flag. Tracked profile configuration belongs in the consuming repository — never in
+`${CLAUDE_PLUGIN_DATA}`, which is reserved for machine-local state and generated artifacts.
+
+Action routing: no argument or `check` runs the check; `apply` runs the check first, then
+scaffolds; `apply install-build-deps` additionally authorizes the build-toolchain install
+below. `--profile <name>` selects the profile for either action and wins over the configured
+active profile. All actions are non-interactive when the profile is unambiguous — never
+prompt when the action and profile are given.
 
 ## Profile contents
 
@@ -29,36 +40,54 @@ Files at `.claude/ai-briefing/` form the default profile. Each
 | `brand.json` (optional) | Declarative organization name, tagline, local logo assets, and theme tokens. |
 | `audience.md` (optional) | Stack/audience lens used for impact annotations. |
 
-Tracked profile configuration belongs in the consuming repository. Never write it into
-`${CLAUDE_PLUGIN_DATA}`, which is reserved for machine-local state and generated artifacts.
+## `check` (read-only)
 
-## Task
+Resolve the profile, then probe its state and the build toolchain and report a
+PASS/FAIL/INFO table with one remediation line per FAIL. Do not create, modify, or install
+anything.
 
 1. **Resolve the profile.** Parse `--profile <name>` from `$ARGUMENTS`; otherwise use the
-   rendered `${user_config.active_profile}` value when non-empty, then ask only if profile
-   selection remains ambiguous, defaulting to the root `default` profile. A per-run
-   `--profile` argument wins. Do not ask the consumer to export an environment variable.
-   Require a 1-63 character lowercase-kebab slug and reject reserved Windows device names.
+   rendered `${user_config.active_profile}` value when non-empty, else the root `default`
+   profile. A per-run `--profile` wins. Require a 1-63 character lowercase-kebab slug and
+   reject reserved Windows device names. Report the resolved profile path.
+2. **`sources.md`** — FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`
+   has no authorized sources to collect from. Remediation: `apply`.
+3. **Optional overlays** — INFO: report whether `audience.md` and declarative `brand.json`
+   exist; their absence is expected and never a FAIL.
+4. **Build toolchain** — INFO unless the consumer intends `--format html`/`--format slides`.
+   Report whether the locked runtime at `${CLAUDE_PLUGIN_DATA}/runtime/build` exists and its
+   `.version` matches the plugin's `plugin.json` version (a mismatch means a rebuild is due).
+   Read-only: never launch a browser here. Missing or stale is INFO with remediation
+   `apply install-build-deps`, because the toolchain is opt-in — markdown output needs none
+   of it.
+5. **Build preflight** — INFO: report `node --version`, `npm --version`, and the OS family
+   against Playwright's current supported environment matrix. The README's matrix is a dated
+   snapshot (verified against
+   [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements));
+   the linked page is authoritative — re-check it before installing.
 
-2. **Scaffold authorized sources.** Create the profile directory when absent. If
-   `sources.md` does not exist, create it with short sections for official vendor feeds,
-   GitHub repositories/releases, reputable secondary sources, and user-supplied URLs. Leave
-   an existing file unchanged. Do not seed X handles, navigate X, scrape following graphs,
-   or install an X API provider. Note the current X access restriction and link the
+## `apply` (idempotent)
+
+Run `check`, then scaffold the resolved profile. Re-running after everything passes changes
+nothing and reports "already configured".
+
+1. **Scaffold authorized sources.** Create the profile directory when absent. If `sources.md`
+   does not exist, create it with short sections for official vendor feeds, GitHub
+   repositories/releases, reputable secondary sources, and user-supplied URLs. Leave an
+   existing file unchanged. Do not seed X handles, navigate X, scrape following graphs, or
+   install an X API provider. Note the current X access restriction and link the
    authoritative terms: <https://x.com/en/tos>.
-
-3. **Offer optional overlays.** Offer `audience.md` and declarative `brand.json`, creating only
-   the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend a project
-   ignore convention such as `.claude/ai-briefing/**/*.local.*` for personal overlays while
-   keeping shared profile files tracked.
-
-4. **Install the optional build toolchain only with `--with-build-deps`.** Parse the flag
-   before invoking a shell and never interpolate raw arguments into a command. When absent,
-   skip this step without changing an existing runtime. When present, build and validate a
-   temporary locked runtime first, then replace the current runtime with same-filesystem
-   renames. A dependency, browser-install, or launch failure must leave the working runtime
-   untouched. The plugin cache is read-only, and Node ESM does not use `NODE_PATH` for
-   bare-package resolution.
+2. **Offer optional overlays.** Offer `audience.md` and declarative `brand.json`, creating only
+   the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend a
+   project ignore convention such as `.claude/ai-briefing/**/*.local.*` for personal overlays
+   while keeping shared profile files tracked.
+3. **`apply install-build-deps` — install the optional build toolchain.** Parse the subaction
+   before invoking a shell and never interpolate raw arguments into a command. Without it,
+   skip this step and change no existing runtime. With it, build and validate a temporary
+   locked runtime first, then replace the current runtime with same-filesystem renames. A
+   dependency, browser-install, or launch failure must leave the working runtime untouched.
+   The plugin cache is read-only, and Node ESM does not use `NODE_PATH` for bare-package
+   resolution.
 
    ```bash
    command -v node >/dev/null 2>&1 || {
@@ -132,8 +161,11 @@ Tracked profile configuration belongs in the consuming repository. Never write i
    currently list (the README's matrix is a dated snapshot of that page — the link is
    authoritative). The launch probe runs before the runtime swap.
 
-5. **Confirm.** Report the profile path, whether `sources.md` was created or preserved,
-   which optional overlays were created, and whether build dependencies were installed or
+   After the install, re-run the `check` build-toolchain probe and report its actual result —
+   never claim the toolchain is ready on the swap's exit code alone.
+
+4. **Confirm.** Report the profile path, whether `sources.md` was created or preserved, which
+   optional overlays were created, and whether build dependencies were installed or
    intentionally skipped. Point the consumer to `/ai-briefing:generate`.
 
 ## This skill does not
@@ -141,4 +173,5 @@ Tracked profile configuration belongs in the consuming repository. Never write i
 - Run a briefing.
 - Write curated configuration into `${CLAUDE_PLUGIN_DATA}`.
 - Automate X/Twitter access or configure an X API provider.
-- Install the optional build tree unless `--with-build-deps` is present.
+- Install the optional build tree unless `apply install-build-deps` is invoked.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

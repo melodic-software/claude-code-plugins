@@ -13,7 +13,7 @@ pretending coverage.
 | Skill | What it does |
 |---|---|
 | `/machine-health:audit` | Runs the audit — load catalog + machine overlay, dispatch checks under per-check timeouts, apply trend-aware severity, run approved remediations (non-dry runs), render the dated report, append history. |
-| `/machine-health:setup` | Configures this machine — walks pending proposals, tunes the check catalog via a machine-local overlay, registers custom checks, and seeds remediation approvals. |
+| `/machine-health:setup` | Configures this machine. `check` (read-only, default) reports the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog; `apply` writes the machine-local overlay (disable/deprecate/demote checks, register custom ones) and seeds remediation approvals — interactively, or non-interactively with `disable=`/`deprecate=`/`demote=`/`approve=` arguments. |
 
 ## The audit
 

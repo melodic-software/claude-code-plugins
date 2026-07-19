@@ -177,7 +177,11 @@ must be:
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
-configuration surface.
+configuration surface. Where that native surface is a plugin's entire configuration — nothing but
+`userConfig`, no tracked project config, no external prerequisite setup can resolve — a check-only
+setup is conforming: `check` verifies and reports, reconfiguration routes through the native flow,
+and no `apply` is offered, because the only thing it could write is the `pluginConfigs` this
+contract forbids.
 
 Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and
@@ -222,9 +226,10 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
+| Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
-| Seam phrasing (presence-gated fallbacks) | Unowned — already used by multiple plugins without an owner doc: a tracked non-conformance and an audit dimension. No further adoption until an owner doc lands |
+| Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 
 ## Cross-platform contract
 

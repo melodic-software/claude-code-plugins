@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.19.0",
+  "version": "0.21.0",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
@@ -31,8 +31,5 @@
     "stress-test",
     "implementation-plan",
     "skill"
-  ],
-  "dependencies": [
-    "domain-driven-design"
   ]
 }

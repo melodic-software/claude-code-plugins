@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.0]
+## [0.12.0]
 
 Bundle the work-item-tracker seam into the plugin so installing it delivers the engine and the
 shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam distribution decision.
@@ -19,9 +19,12 @@ shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam
   add a provider the plugin does not ship, or shadow a bundled adapter with a local copy it owns, at
   `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` — without forking the plugin
   (CONTRACT.md "Adapter resolution").
-- **Provider binding in setup.** `/work-items:setup` now seeds `.work-item-tracker.json` (provider +
-  non-secret config) as the once-per-repo binding step, alongside the recurring-schedule and
-  role-label passes. The seam still hard-errors (exit 3) at call time when no binding is present.
+- **Provider binding in setup.** `/work-items:setup apply` now seeds `.work-item-tracker.json`
+  (provider + non-secret config) as the once-per-repo binding step, run first — ahead of the
+  recurring-schedule and role-label passes; `/work-items:setup check` verifies the binding's presence
+  and validity read-only. The binding step extends the uniform check/apply contract [0.11.0]
+  established rather than adding a second setup surface. The seam still hard-errors (exit 3) at call
+  time when no binding is present.
 
 ### Changed
 
@@ -31,6 +34,19 @@ shipped adapters — no per-repo vendoring. Executes shape A of the tracker-seam
 - **Adapter operations reference and CONTRACT are provider-neutral.** The GitHub adapter reference and
   the contract no longer cite a specific consuming repo's convention docs or bot-auth wrapper; writes
   optionally route through a bot wrapper when the consuming repo provides one, otherwise bare `gh`.
+
+## [0.11.0]
+
+### Changed
+
+- **`setup` split onto the uniform check/apply contract.** `check` inspects read-only the tracked
+  `.github/recurring-schedule.json` (presence — absent is INFO, since `due` / `recheck` / `work` degrade
+  gracefully — JSON validity, and the unique `id`/`title` reconciliation keys), the `jq` and
+  tracker-seam entry gates (probed via `reference/tracker-seam.md`, not restated), and the
+  recurring-maintenance role label, reporting a PASS/FAIL/INFO table; `apply` runs the
+  interview-seed-reconcile flow and the optional role→label remap, then re-runs `check` to verify. The
+  schedule shape, reconciliation logic, and role-label invariants are unchanged; the read-only
+  inspection path and the `check | apply` argument-hint are new.
 
 ## [0.10.0]
 

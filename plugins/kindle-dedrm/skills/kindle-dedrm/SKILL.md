@@ -1,6 +1,6 @@
 ---
 name: kindle-dedrm
-description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router: setup (first-time install — download, firewall block, ICACLS lock, Calibre plugins, keyfinder), sync (new purchases — disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check — upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission — per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: \"set up Kindle DRM removal\", \"remove DRM from Kindle books\", \"extract keys from my Kindle library\", \"sync new Kindle books I bought\", \"check if DeDRM setup is current\", \"clean up Kindle DRM tools\", \"undo DeDRM setup\", \"convert Kindle books to EPUB\", Calibre + Kindle mentioned together, or making Kindle library readable on a non-Kindle device."
+description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router: setup (first-time provisioning — download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases — disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check — upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission — per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: \"set up Kindle DRM removal\", \"remove DRM from Kindle books\", \"extract keys from my Kindle library\", \"sync new Kindle books I bought\", \"check if DeDRM setup is current\", \"clean up Kindle DRM tools\", \"undo DeDRM setup\", \"convert Kindle books to EPUB\", Calibre + Kindle mentioned together, or making Kindle library readable on a non-Kindle device."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true
 disable-model-invocation: false
@@ -26,8 +26,8 @@ Output reports: Kindle for PC version, firewall rule presence, ICACLS deny prese
 
 | Action | When | What it does |
 |---|---|---|
-| (empty) | Default — auto-detect from status | If pristine → recommend `setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
-| `setup` | First-time install | Full provisioning: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
+| (empty) | Default — auto-detect from status | If pristine → recommend `/kindle-dedrm:setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
+| `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough — download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
 | `sync` | New books purchased after initial setup | Disable firewall, prompt user to sync in Kindle, delete cached installer, re-enable firewall, re-run keyfinder |
 | `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `references/sources.md`, emit drift report. No mutations |
 | `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
@@ -47,28 +47,12 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 
 ## Action: setup
 
-First-time installation walkthrough. Reads `references/workflow.md` for full step-by-step.
-
-High-level sequence:
-
-1. **Verify prerequisites:** Calibre installed (any recent version), Python 3.6+ on PATH (not WindowsApps stub), pwsh available, admin rights available.
-2. **Download three artifacts** to `~/Downloads/` and verify SHA256 against `references/versions.md`:
-   - `KindleForPC-installer-2.8.70980.exe` from kindleforpc.s3.amazonaws.com (version-pinned URL)
-   - `DeDRM_tools.zip` (latest pre-release tag) from `gh release` on `Satsuoni/DeDRM_tools`
-   - `Kindle_Key_Finder_<rolling-date>.JH.zip` from techy-notes.com
-3. **Extract** DeDRM_tools to `~/Downloads/DeDRM_tools-<tag>/`, Kindle_Key_Finder to `~/Tools/Kindle_Key_Finder/`.
-4. **User runs Kindle for PC installer** interactively (UAC + EULA prompts; agent cannot drive these).
-5. **CHECKPOINT — sign-in race window.** Before opening Kindle for PC, advise user: refuse any update prompt, sign in, sync, double-click each book to download, quit Kindle entirely.
-6. **Verify books on disk** under `%USERPROFILE%\Documents\My Kindle Content\` (look for `_EBOK` directories with `.azw` + `.voucher`).
-7. **Apply firewall block** via `scripts/firewall.ps1 enable` (admin pwsh).
-8. **Delete cached installer + apply ICACLS deny** via `scripts/lock-updates.sh apply`.
-9. **Install Calibre plugins** — user-driven GUI work (Calibre Preferences → Plugins → Get new plugins → KFX Input; Load plugin from file → DeDRM_plugin.zip from extracted DeDRM_tools).
-10. **Run keyfinder** — user double-clicks `~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`. Tool walks first-run config wizard then runs all 4 phases (key extraction → DeDRM config → Calibre import → KFX→EPUB conversion).
-11. **Verify EPUBs** in `%USERPROFILE%\Calibre Library\<author>\<title>\*.epub`.
-
-Do NOT proceed past step 4 without user confirmation that installer completed without auto-update being clicked. Pause at step 5 and remind user of the sign-in race window before they open Kindle.
-
-Detailed commands, exact paths, and rationale: see `references/workflow.md`.
+First-time provisioning lives in the dedicated **`/kindle-dedrm:setup`** skill, which conforms to the
+uniform check/apply contract: `check` probes prerequisites and current state read-only, `apply` runs the
+full provisioning walkthrough (`references/workflow.md`) — the gated artifact download, install,
+firewall block, ICACLS lock, Calibre plugins, and keyfinder. When this router's smart auto-detect finds
+a pristine machine, recommend `/kindle-dedrm:setup` rather than provisioning inline; the sequence has a
+single owner (`/kindle-dedrm:setup` → `references/workflow.md`).
 
 ## Action: sync
 

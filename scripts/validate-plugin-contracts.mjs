@@ -39,6 +39,19 @@ for (const path of setupSkills) {
   if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
+  // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
+  // check is the default read-only action; apply exists unless the skill declares the
+  // userConfig-only check-only carve-out the doctrine sanctions.
+  if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
+    fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
+  }
+  const body = content.slice(content.indexOf("---", 3) + 3);
+  if (!/`check`/.test(body)) {
+    fail(path, "setup skills must document the read-only check action");
+  }
+  if (!/`apply`/.test(body) && !/check-only/i.test(body)) {
+    fail(path, "setup skills must document apply, or declare the check-only userConfig-only carve-out");
+  }
 }
 
 const setupContractFiles = pluginFiles.filter(

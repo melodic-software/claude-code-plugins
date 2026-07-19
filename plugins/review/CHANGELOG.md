@@ -3,6 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Changed
+
+- **Setup adopts the uniform check/apply contract** (fleet conformance wave,
+  dim 8 — caught by the new contract gate rather than the wave list). `check`
+  runs the standards-contract binding's state-reading procedure read-only
+  (index presence, row-path validation, version delta) and reports; `apply`
+  carries the existing bootstrap/reconfigure/migration flow with its
+  explicit-confirmation gates intact, re-verifying after every write. The
+  by-reference discipline is unchanged — the procedure still lives in the
+  contract binding, not restated here.
+
 ## [0.13.0]
 
 ### Changed
