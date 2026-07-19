@@ -56,7 +56,19 @@ Parse `$ARGUMENTS` for:
 
 ### 1. Detect ecosystems
 
-If an ecosystem filter was provided, use it. If `all`, run every applicable ecosystem from the config. Otherwise, classify changed files from `git status --porcelain` against each ecosystem's `globs` list; when the working tree is clean, fall back to the branch diff (`git diff --name-only $(git merge-base "$DEFAULT_BRANCH" HEAD)..HEAD`, where `$DEFAULT_BRANCH` is **detected, not assumed**: `git symbolic-ref --short refs/remotes/origin/HEAD` with the `origin/` prefix stripped, falling back to the current upstream/tracking branch — never a hardcoded `main`/`master`) so checkpoint-committed work still gets classified. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
+If an ecosystem filter was provided, use it. If `all`, run every applicable ecosystem from the config. Otherwise, classify changed files from `git status --porcelain` against each ecosystem's `globs` list; when the working tree is clean, fall back to the branch diff so checkpoint-committed work still gets classified. Resolve the default branch by **detection, not assumption** — never a hardcoded `main`/`master` — and assign it before use:
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)}
+if [[ -n "$DEFAULT_BRANCH" ]]; then
+  git diff --name-only "$(git merge-base "$DEFAULT_BRANCH" HEAD)..HEAD"
+else
+  echo "branch diff unavailable (could not detect default branch)"
+fi
+```
+
+If detection yields no default branch (no `origin/HEAD`, no upstream), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths. Cross-cutting runs alongside detected ecosystems when ANY text file changed AND the repo opts into its tools.
 
 Auto-detection algorithm:
 

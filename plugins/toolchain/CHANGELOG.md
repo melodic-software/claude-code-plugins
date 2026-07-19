@@ -13,7 +13,10 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   assumption the convention-resolution discipline forbids. Both call sites now resolve the default
   branch via `git symbolic-ref --short refs/remotes/origin/HEAD` (with the `origin/` prefix stripped),
   falling back to the current upstream/tracking branch, matching the infer-don't-guess discipline
-  applied elsewhere.
+  applied elsewhere. The resolution is now an explicit assignment that runs before `git merge-base`
+  consumes it (previously it was descriptive prose, leaving `$DEFAULT_BRANCH` unset so the documented
+  command expanded to `git merge-base "" HEAD`); when neither detection path resolves a branch, the
+  branch-diff path is skipped rather than guessed.
 
 ## [0.4.0]
 
