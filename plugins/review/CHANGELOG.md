@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1]
+
+### Fixed
+
+- **`quality-gate` pr mode gates the PR-comment-posting orchestrator behind
+  explicit opt-in** (un-sanctioned side-effect fix). The `code-review`
+  orchestrator's PR mode posts findings as a PR comment, which violates the
+  review modes' report-only contract; `context/pr.md` previously presented it
+  as the ungated "Primary path." It now carries the same **PR-mutation gate**
+  the sibling `fanout` skill already applies to the identical call: when the
+  branch has an open PR, the posting mode is dispatched only on explicit user
+  opt-in ("post the review comment"), otherwise it is skipped (the skip is
+  named in the review report) and review falls to the read-only manual path.
+
 ## [0.14.0]
 
 ### Changed
