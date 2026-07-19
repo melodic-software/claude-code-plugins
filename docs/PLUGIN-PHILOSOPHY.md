@@ -226,9 +226,10 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
+| Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
-| Seam phrasing (presence-gated fallbacks) | Unowned — already used by multiple plugins without an owner doc: a tracked non-conformance and an audit dimension. No further adoption until an owner doc lands |
+| Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 
 ## Cross-platform contract
 

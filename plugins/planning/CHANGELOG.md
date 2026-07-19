@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Changed
+
+- **`domain-driven-design` dependency downgraded to presence-gated
+  collaboration** (fleet conformance wave: native `dependencies` are reserved
+  for plugins genuinely broken without their collaborator, and every planning
+  skill works standalone). The manifest entry is removed — the plugin no
+  longer auto-installs; every `/domain-driven-design:ubiquitous-language`
+  invocation site now carries the installed-ness gate and a stated fallback
+  (terms recorded in the design artifacts / Brief glossary notes).
+
 ## [0.20.0]
 
 ### Changed

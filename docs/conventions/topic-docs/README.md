@@ -38,11 +38,15 @@ Locations are the documented defaults; the tracked concern file's
 `contract_dir` / `memory_dir` keys override the memory and contract
 roots everywhere this contract or a binding names them.
 
-`.claude/observability/` is the **sole** sanctioned generated surface
-under `.claude/`: hook scripts cannot read consumer `CLAUDE.md` (they see
-env and files only) and `${CLAUDE_PLUGIN_DATA}` is machine-global rather
-than per-project, so project-scoped telemetry has no other home. This is
-an exception, not a precedent.
+`.claude/observability/` is the sole generated surface under `.claude/`
+that **this contract** sanctions: hook scripts cannot read consumer
+`CLAUDE.md` (they see env and files only) and `${CLAUDE_PLUGIN_DATA}` is
+machine-global rather than per-project, so project-scoped telemetry has
+no other home. This is an exception, not a precedent — and it scopes to
+this contract only: the platform itself also generates under `.claude/`
+(native subagent `memory: project|local` roots at
+`.claude/agent-memory/` and `.claude/agent-memory-local/`), which is
+Claude Code's surface to govern, not this contract's.
 
 Two kinds are deliberately **absent**: `history.md` (append-only decision
 log — git log, PR threads, and tracker comments provide this natively for

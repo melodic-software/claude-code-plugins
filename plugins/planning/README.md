@@ -24,8 +24,9 @@ The pipeline composes end-to-end — `wayfind` charts the fog upstream when an e
 is too big to hold at once, then `brainstorm → prd → interview → design →
 design-handoff → plan` with `devils-advocate` attacking the plan before
 approval — while `/domain-driven-design:ubiquitous-language` is invoked whenever
-those workflows resolve vocabulary (this plugin declares a dependency on the
-`domain-driven-design` plugin, so it auto-installs). Every skill also works standalone.
+those workflows resolve vocabulary, when the `domain-driven-design` plugin is
+installed; without it, resolved terms are recorded in the design artifacts
+themselves. Every skill also works standalone.
 
 ## Works in any repo
 
