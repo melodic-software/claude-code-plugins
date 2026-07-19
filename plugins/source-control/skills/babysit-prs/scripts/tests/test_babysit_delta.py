@@ -342,10 +342,10 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
 
     def test_self_login_nonblocking_excluded_from_new_feedback_human(self) -> None:
         # The self-login filter over the new-human-feedback delta also covers the
-        # non-blocking `human` arm surfaced in new_feedback["human"] (issue #473
-        # follow-up): a self-authored non-blocking comment stays classified human
-        # -- so it never hollows out the maintainer's own signal -- but must not
-        # be re-surfaced to the orchestrator as new feedback every cycle.
+        # non-blocking `human` arm surfaced in new_feedback["human"]: a self-authored
+        # non-blocking comment stays classified human -- so it never hollows out the
+        # maintainer's own signal -- but must not be re-surfaced to the orchestrator
+        # as new feedback every cycle.
         result = classify(make_pr(comments=[self.SELF_NONBLOCKING]),
                           make_prev(last_worker_checkin_at=OBS), self.CONFIG)
         self.assertEqual([item["author"]
