@@ -57,6 +57,12 @@ A platform event workflow (marked example, GitHub Actions class: `on: issues` ty
    fail-closed floor); never dropped.
 6. Acknowledge: comment the item reference back on the source event per
    [`ack-reply.md`](ack-reply.md).
+7. Kick the drain: after enqueue + ack, invoke the SAME queue-drain entrypoint (the
+   work-item queue capability's autonomous drain mode via the invocation-adapter seam) so
+   push-originated work gets an event-fired dispatch attempt instead of waiting for the
+   scheduled catch-up — one entrypoint, concurrent kicks harmless via the seam lease;
+   admission still governs what the drain may execute (absent binding → the item stays
+   human-gated).
 
 ## temporal — scheduled drain + poll-detector
 
