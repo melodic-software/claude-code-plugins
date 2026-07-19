@@ -57,16 +57,22 @@ function isAbsoluteHttpsUrl(value) {
   return url !== null && url.protocol === "https:" && url.hostname.length > 0;
 }
 
+// Schemes that can never be durable artifact locators — rejected even when a
+// binding declares them (a declaration cannot make data:/javascript: durable).
+const NON_DURABLE_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
+
 // Durable local/artifact URI for local-scheduler-origin temporal signals:
 // file: and https: qualify by contract; an org artifact-store scheme qualifies
-// only when the binding's surface entry DECLARES it (artifact_schemes) — an
-// undeclared scheme (data:, javascript:, anything ephemeral) never conforms.
+// only when the binding's surface entry DECLARES it (artifact_schemes) AND the
+// scheme is not in the non-durable set — an undeclared scheme never conforms.
 function isDurableLocalUri(value, surfaceEntry) {
   const url = parseUrl(value);
   if (url === null) return false;
   if (url.protocol === "file:" || url.protocol === "https:") return true;
   const declared = Array.isArray(surfaceEntry?.artifact_schemes) ? surfaceEntry.artifact_schemes : [];
-  return declared.some((scheme) => url.protocol === `${scheme}:`);
+  return declared.some(
+    (scheme) => !NON_DURABLE_SCHEMES.has(scheme) && url.protocol === `${scheme}:`,
+  );
 }
 
 // The normalized canonical item URL per the telemetry contract's strip rule:
@@ -176,8 +182,19 @@ function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
     } else if (!surfaces.has(sourceSurface)) {
       findings.push(`${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not recorded in any binding surfaces map`);
     } else {
-      surfaceEntry = surfaces.get(sourceSurface);
-      localScheduler = surfaceEntry?.scheduler_class === "local-scheduler";
+      const entry = surfaces.get(sourceSurface);
+      if (entry?.class !== "temporal") {
+        findings.push(
+          `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} resolves to a ${JSON.stringify(entry?.class)} surface — a temporal signal's source must be a temporal scheduling surface`,
+        );
+      } else if (entry.scheduler_class !== undefined && entry.scheduler_class !== "ci-cron" && entry.scheduler_class !== "local-scheduler") {
+        findings.push(
+          `${where}: surface ${JSON.stringify(sourceSurface)} declares unknown scheduler_class ${JSON.stringify(entry.scheduler_class)}`,
+        );
+      } else {
+        surfaceEntry = entry;
+        localScheduler = entry.scheduler_class === "local-scheduler";
+      }
     }
   }
   if (typeof rawLink === "string" && rawLink.length > 0) {
