@@ -4,10 +4,10 @@
   "level": "L2",
   "substrate": "egress-denied-container-pool",
   "substrate_class": "container",
-  "probed_at": "2026-07-04T11:00:00Z",
+  "probed_at": "2026-07-05T08:00:00Z",
   "assertions": {
     "egress_denied": { "host": "example.com", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
-    "credentials_absent": { "path": "$HOME/.ssh", "host_expanded": "/home/runner/.gnupg", "exit_code": "1", "transport_outcome": "read-denied", "outcome": "absent-or-denied" }
+    "credentials_absent": { "path": "http://169.254.169.254/metadata/instance", "host_expanded": "http://169.254.169.254/metadata/instance", "exit_code": "1", "transport_outcome": "read-denied", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }

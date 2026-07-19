@@ -56,6 +56,12 @@ assert the credential is absent or unreadable:
 <read-command> <host-expanded-path> ; test $? -ne 0 || fail "read <host-expanded-path> — host credentials leaked into the boundary"
 ```
 
+For a metadata endpoint the assertion is connection-level: the probe must fail to CONNECT
+(refused, timeout, no route — use a short connect timeout), not merely receive an HTTP error,
+which a fully reachable service returns for an incomplete request (a missing required header, a
+wrong api-version). Record HOW each probe failed as `transport_outcome`: `connect-failed` for a
+metadata endpoint, `read-denied` for a file or env-token read.
+
 ## Per-substrate-class wrapping
 
 The two assertions are constant; only the wrapper that launches them inside the boundary changes
@@ -69,9 +75,13 @@ inner boundary — not a broken outer environment — denied egress.
 - **OS-sandbox wrap** (`L2`; marked example: a whole-process OS sandbox profile): launch the
   assertions under the sandbox profile that denies egress and blocks host credential paths —
   `<sandbox-wrapper> <profile> <probe-script>`.
-- **VM / microVM** (`L3`; marked example: a microVM or hosted ephemeral executor): boot the
-  ephemeral guest with no egress route and no injected host credentials, then run the assertions
-  in the guest — `<vm-launcher> <ephemeral-guest> <probe-script>`.
+- **VM / microVM** (`L3`; marked example: a microVM): boot the ephemeral guest with no egress
+  route and no injected host credentials, then run the assertions in the guest —
+  `<vm-launcher> <ephemeral-guest> <probe-script>`.
+- **Hosted ephemeral executor** (`L3`; marked example: a hosted ephemeral executor surface per
+  the isolation-ladder leaf): the platform boots a fresh kernel-separated guest per run; launch
+  the run with no egress route and no injected host credentials, then run the assertions in it —
+  `<hosted-run-launcher> <probe-script>`.
 
 ## Transcript capture shape
 
@@ -84,19 +94,20 @@ confirm both assertions failed inside a boundary the run itself created:
   "surface": "<execution-surface-id>",
   "level": "<L2|L3>",
   "substrate": "<substrate-instance-id>",
-  "substrate_class": "<container|os-sandbox|vm-microvm>",
+  "substrate_class": "<container|os-sandbox|vm-microvm|hosted-ephemeral-executor>",
   "probed_at": "<iso-8601>",
   "assertions": {
     "egress_denied": { "host": "<well-known-external-host>", "exit_code": "<non-zero>", "outer_exit_code": "0", "outcome": "denied" },
-    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outcome": "absent-or-denied" }
+    "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }
 ```
 
 When one run probes several `<host-credential-path>` locations, `credentials_absent.path` lists
-them comma-separated and `host_expanded` and `exit_code` list one entry per location,
-comma-separated in the same order — a single code cannot vouch for every listed location. The
+them comma-separated and `host_expanded`, `exit_code`, and `transport_outcome` list one entry
+per location, comma-separated in the same order — a single code cannot vouch for every listed
+location. The
 `egress_denied.outer_exit_code` pairs with the probed host the same way and must be `"0"`: the
 outer context reached the very target the inner probe failed against.
 

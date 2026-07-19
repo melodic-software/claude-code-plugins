@@ -7,7 +7,7 @@
   "probed_at": "2026-07-01T19:00:00Z",
   "assertions": {
     "egress_denied": { "host": "example.com", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
-    "credentials_absent": { "path": "http://metadata.invalid/not-a-credential", "host_expanded": "http://metadata.invalid/not-a-credential", "exit_code": "1", "outcome": "absent-or-denied" }
+    "credentials_absent": { "path": "http://metadata.invalid/not-a-credential", "host_expanded": "http://metadata.invalid/not-a-credential", "exit_code": "1", "transport_outcome": "connect-failed", "outcome": "absent-or-denied" }
   },
   "outer_context_networked": true
 }

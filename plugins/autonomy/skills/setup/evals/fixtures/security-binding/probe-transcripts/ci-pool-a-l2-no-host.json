@@ -15,6 +15,7 @@
       "path": "$HOME/.credentials",
       "host_expanded": "/home/runner/.credentials",
       "exit_code": "1",
+      "transport_outcome": "read-denied",
       "outcome": "absent-or-denied"
     }
   },

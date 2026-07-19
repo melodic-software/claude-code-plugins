@@ -18,13 +18,18 @@
 // close the residual by passing their configured target here.
 //
 // Probe verification: an L2/L3 isolation level counts toward eligibility only
-// when its probe_evidence ref resolves (relative to --probe-evidence-root
-// when given, else as written) to a transcript proving the boundary per the
-// isolation-probe template's capture shape — an arbitrary string must never
-// enable autonomous dispatch. Under autonomous-enabled an unverifiable entry
-// is UNPROVEN: a finding, and the level is excluded from eligibility
-// (fail-closed). Under human-gated-only there is no autonomous dispatch to
-// protect, so unproven evidence is reported in the verdicts, not a finding.
+// when its probe_evidence ref resolves — relative to --probe-evidence-root,
+// which is REQUIRED for verification: the root is the protected evidence
+// surface outside the agent's write reach, and without it a ref would
+// resolve as written, letting an agent-writable transcript swapped after
+// ratification supply the claimed proof, so every L2/L3 entry is unproven
+// (deliberately not a usage error — schema-only validation still runs) — to
+// a transcript proving the boundary per the isolation-probe template's
+// capture shape: an arbitrary string must never enable autonomous dispatch.
+// Under autonomous-enabled an unverifiable entry is UNPROVEN: a finding, and
+// the level is excluded from eligibility (fail-closed). Under
+// human-gated-only there is no autonomous dispatch to protect, so unproven
+// evidence is reported in the verdicts, not a finding.
 //
 // Evaluation mode (--evidence): resolves each promotion_state cell's EFFECTIVE
 // state. The bound state is a CEILING — contrary evidence (gate-failure,
@@ -59,8 +64,11 @@ const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
-// The isolation-probe template's substrate-class tokens.
-const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm"]);
+// The isolation-probe template's substrate-class tokens. The kernel-separated
+// pair mirrors the isolation-ladder leaf's L3 substrate classes: a VM or
+// microVM, and a hosted ephemeral executor surface.
+const SUBSTRATE_CLASSES = new Set(["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]);
+const L3_SUBSTRATE_CLASSES = new Set(["vm-microvm", "hosted-ephemeral-executor"]);
 // RFC 2606/6761/6762/7686 special-use and reserved TLDs.
 const SPECIAL_USE_TLDS = [
   ".invalid",
@@ -788,46 +796,50 @@ function isNonExternalEgressHost(host) {
 // substrate proves a DIFFERENT boundary, not this one. Returns null when
 // verified, else the reason the entry is unproven.
 function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egressAllowList) {
+  // Evidence verifies ONLY against the configured protected root: without
+  // --probe-evidence-root a ref resolves as written — including to an
+  // agent-writable file swapped after the human ratified the binding — so no
+  // root means no proof. Deliberately NOT a usage error (exit 2):
+  // schema-only validation of a binding must keep working without it.
+  if (probeRoot === null) {
+    return `no --probe-evidence-root configured — probe evidence verifies only against a protected evidence root outside the agent's write reach; pass --probe-evidence-root <dir> naming the protected evidence surface the capture lives on`;
+  }
+  // Confine evidence to the configured root: --probe-evidence-root exists to
+  // keep accepted captures on a protected evidence surface, so an absolute
+  // ref or a "../" escape — which would let an agent-writable file outside
+  // the root supply the claimed L2/L3 proof — is rejected before the read.
+  // The lexical check gives the clean error message; the REAL-path check
+  // below closes the symlink hole (a link inside the root pointing outside
+  // defeats a purely lexical comparison). No committed fixture exercises
+  // the symlink case — symlinks in git are unreliable on Windows — so it
+  // is covered by a runtime test instead.
+  if (isAbsolute(ref)) {
+    return `probe_evidence ${JSON.stringify(ref)} is an absolute path but --probe-evidence-root ${JSON.stringify(probeRoot)} is configured — reference the transcript relative to the root, never by absolute path`;
+  }
+  const resolvedRoot = resolve(probeRoot);
+  const resolved = resolve(resolvedRoot, ref);
+  const rel = relative(resolvedRoot, resolved);
+  if (rel === ".." || rel.startsWith(`..${sep}`)) {
+    return `probe_evidence ${JSON.stringify(ref)} escapes --probe-evidence-root ${JSON.stringify(probeRoot)} via ".." traversal — reference a transcript inside the configured root`;
+  }
+  let realResolved = null;
+  try {
+    realResolved = realpathSync(resolved);
+  } catch {
+    // Nonexistent path: fall through so readFileSync below reports the
+    // standard unreadable-transcript finding.
+  }
   let path;
-  if (probeRoot !== null) {
-    // Confine evidence to the configured root: --probe-evidence-root exists to
-    // keep accepted captures on a protected evidence surface, so an absolute
-    // ref or a "../" escape — which would let an agent-writable file outside
-    // the root supply the claimed L2/L3 proof — is rejected before the read.
-    // The lexical check gives the clean error message; the REAL-path check
-    // below closes the symlink hole (a link inside the root pointing outside
-    // defeats a purely lexical comparison). No committed fixture exercises
-    // the symlink case — symlinks in git are unreliable on Windows — so it
-    // is covered by a runtime test instead.
-    if (isAbsolute(ref)) {
-      return `probe_evidence ${JSON.stringify(ref)} is an absolute path but --probe-evidence-root ${JSON.stringify(probeRoot)} is configured — reference the transcript relative to the root, never by absolute path`;
+  if (realResolved !== null) {
+    const realRoot = realpathSync(resolvedRoot);
+    // win32 paths compare case-insensitively.
+    const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
+    if (!fold(realResolved).startsWith(fold(realRoot + sep))) {
+      return `probe_evidence ${JSON.stringify(ref)} resolves through a link to a real path outside --probe-evidence-root ${JSON.stringify(probeRoot)} — evidence must physically live inside the configured root`;
     }
-    const resolvedRoot = resolve(probeRoot);
-    const resolved = resolve(resolvedRoot, ref);
-    const rel = relative(resolvedRoot, resolved);
-    if (rel === ".." || rel.startsWith(`..${sep}`)) {
-      return `probe_evidence ${JSON.stringify(ref)} escapes --probe-evidence-root ${JSON.stringify(probeRoot)} via ".." traversal — reference a transcript inside the configured root`;
-    }
-    let realResolved = null;
-    try {
-      realResolved = realpathSync(resolved);
-    } catch {
-      // Nonexistent path: fall through so readFileSync below reports the
-      // standard unreadable-transcript finding.
-    }
-    if (realResolved !== null) {
-      const realRoot = realpathSync(resolvedRoot);
-      // win32 paths compare case-insensitively.
-      const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
-      if (!fold(realResolved).startsWith(fold(realRoot + sep))) {
-        return `probe_evidence ${JSON.stringify(ref)} resolves through a link to a real path outside --probe-evidence-root ${JSON.stringify(probeRoot)} — evidence must physically live inside the configured root`;
-      }
-      path = realResolved;
-    } else {
-      path = resolved;
-    }
+    path = realResolved;
   } else {
-    path = ref;
+    path = resolved;
   }
   let transcript;
   try {
@@ -860,8 +872,8 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (!SUBSTRATE_CLASSES.has(transcript.substrate_class)) {
     return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} — required, one of ${[...SUBSTRATE_CLASSES].join(" | ")}`;
   }
-  if (level === "L3" && transcript.substrate_class !== "vm-microvm") {
-    return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} for an L3 entry — L3 requires kernel separation, which only substrate_class "vm-microvm" provides`;
+  if (level === "L3" && !L3_SUBSTRATE_CLASSES.has(transcript.substrate_class)) {
+    return `transcript ${path} records substrate_class ${JSON.stringify(transcript.substrate_class)} for an L3 entry — L3 requires kernel separation, which only the kernel-separated substrate classes (${[...L3_SUBSTRATE_CLASSES].map((token) => JSON.stringify(token)).join(", ")}) provide`;
   }
   if (transcript.assertions?.egress_denied?.outcome !== "denied") {
     return `transcript ${path} does not record the egress-denial assertion with outcome "denied"`;
@@ -964,6 +976,22 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   if (hostExpanded.length !== credentialPaths.length) {
     return `transcript ${path} records assertions.credentials_absent.host_expanded ${JSON.stringify(rawHostExpanded)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded host-side expansion per probed credential path is required, comma-separated and positionally paired with path: an in-shell home token expands to the boundary's own home, so only a recorded host-side expansion names the host credential location`;
   }
+  // For a metadata-URL entry the boundary claim is that the service is
+  // UNREACHABLE from inside the boundary, and an HTTP-level error (missing
+  // required header, wrong api-version) means the connection SUCCEEDED — a
+  // reachable metadata service, no boundary. The transcript therefore
+  // records HOW each probe failed: transport_outcome, comma-separated and
+  // positionally paired with path — "connect-failed" (refused, timeout, no
+  // route) required for URL entries, which also moots request protocol
+  // completeness since no request semantics matter when the connection
+  // itself must fail; "read-denied" for filesystem and env-token entries,
+  // where no connection exists to fail.
+  const rawTransportOutcomes = transcript.assertions.credentials_absent.transport_outcome;
+  const transportOutcomes =
+    typeof rawTransportOutcomes === "string" ? rawTransportOutcomes.split(",").map((outcome) => outcome.trim()) : [];
+  if (transportOutcomes.length !== credentialPaths.length) {
+    return `transcript ${path} records assertions.credentials_absent.transport_outcome ${JSON.stringify(rawTransportOutcomes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded transport outcome per probed credential path is required ("connect-failed" for a metadata URL, "read-denied" for a filesystem or env-token entry), comma-separated and positionally paired with path: without it a reachable metadata service's HTTP error is indistinguishable from a denied connection`;
+  }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
       return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets) and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
@@ -974,6 +1002,13 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
     const expansionProblem = credentialExpansionProblem(entry, hostExpanded[index]);
     if (expansionProblem !== null) {
       return `transcript ${path} records assertions.credentials_absent.host_expanded entry ${JSON.stringify(hostExpanded[index])} for path ${JSON.stringify(entry)} — ${expansionProblem}`;
+    }
+    const urlEntry = entry.toLowerCase().replaceAll("\\", "/").includes("://");
+    if (urlEntry && transportOutcomes[index] !== "connect-failed") {
+      return `transcript ${path} records assertions.credentials_absent.transport_outcome entry ${JSON.stringify(transportOutcomes[index])} for metadata-URL path ${JSON.stringify(entry)} — an HTTP-level service error proves the connection SUCCEEDED (the metadata service is reachable; no boundary); only connection-level failure (refused, timeout, no route), recorded as "connect-failed", demonstrates the service is unreachable from inside the boundary`;
+    }
+    if (!urlEntry && transportOutcomes[index] !== "read-denied") {
+      return `transcript ${path} records assertions.credentials_absent.transport_outcome entry ${JSON.stringify(transportOutcomes[index])} for path ${JSON.stringify(entry)} — a filesystem or env-token read has no connection to fail; its probe outcome is recorded as "read-denied"`;
     }
   }
   if (transcript.outer_context_networked !== true) {
