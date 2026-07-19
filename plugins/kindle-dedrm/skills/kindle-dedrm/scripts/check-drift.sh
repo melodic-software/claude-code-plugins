@@ -7,18 +7,45 @@
 
 set -uo pipefail
 
-# Captured pins (KEEP IN SYNC with references/versions.md)
-PINNED_KFC_URL="https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe"
-PINNED_KFC_SHA="2ed64ee0fb5ad94032d6d9824d4efbeeea435255c963e9393d949259b87ebfa4"
+# Captured pins — parsed from references/versions.md (single source of truth;
+# a re-pin edits that file once and this script follows). Parsing is fail-hard:
+# a pin this script cannot read is a pin it must not silently skip verifying.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSIONS_MD="${SCRIPT_DIR}/../references/versions.md"
+SOURCES_MD="${SCRIPT_DIR}/../references/sources.md"
 
-PINNED_DEDRM_TAG="v10.0.20"
-PINNED_DEDRM_SHA="c908be142934a7a030d890ba023ba32becc4f8ef4637bd42d8efdcef90b3f2d2"
+# pin <file> <section-heading> <row-label> — value of `| label | `value` |`
+# within the named "## section", first match wins.
+pin() {
+  local file="$1" section="$2" label="$3" value
+  value=$(awk -v sec="## ${section}" -v lab="${label}" '
+    $0 == sec { insec = 1; next }
+    insec && /^## / { exit }
+    insec && $0 ~ "^\\| " lab " \\|" {
+      if (match($0, /`[^`]+`/)) { print substr($0, RSTART + 1, RLENGTH - 2); exit }
+    }' "${file}" | tr -d '\r')
+  if [[ -z "${value}" ]]; then
+    echo "check-drift: cannot parse pin '${label}' (section '${section}') from ${file}" >&2
+    exit 2
+  fi
+  printf '%s' "${value}"
+}
 
-PINNED_KKF_FILENAME="Kindle_Key_Finder_2026.04.28.JH.zip"
-PINNED_KKF_URL="https://techy-notes.com/content/files/2026/04/${PINNED_KKF_FILENAME}"
-PINNED_KKF_SHA="0a55b58ad3953eed6b6a2e81bf6a4c053b7d08c420a5d622ab3c14f8a208d46d"
+PINNED_KFC_URL="$(pin "${VERSIONS_MD}" "Kindle for PC" "Installer URL")"
+PINNED_KFC_SHA="$(pin "${VERSIONS_MD}" "Kindle for PC" "SHA256")"
 
-PINNED_TUTORIAL_URL="https://techy-notes.com/remove-drm-from-kindle-ebooks/"
+PINNED_DEDRM_TAG="$(pin "${VERSIONS_MD}" "DeDRM_tools (Satsuoni fork)" "Pinned tag")"
+PINNED_DEDRM_SHA="$(pin "${VERSIONS_MD}" "DeDRM_tools (Satsuoni fork)" "SHA256")"
+
+PINNED_KKF_FILENAME="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)" "Pinned filename")"
+PINNED_KKF_URL="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)" "Captured URL")"
+PINNED_KKF_SHA="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)" "SHA256")"
+
+PINNED_TUTORIAL_URL="$(grep -oE 'https://techy-notes\.com/remove-drm-from-kindle-ebooks/' "${SOURCES_MD}" | head -1)"
+if [[ -z "${PINNED_TUTORIAL_URL}" ]]; then
+  echo "check-drift: cannot parse tutorial URL from ${SOURCES_MD}" >&2
+  exit 2
+fi
 
 ok() { echo "  [OK]      $*"; }
 stale() { echo "  [STALE]   $*"; }
@@ -34,13 +61,13 @@ echo
 echo "Kindle for PC installer:"
 HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KFC_URL}" 2>/dev/null || echo "000")
 case "${HTTP}" in
-  200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
-  403 | 404)
-    unreachable "${PINNED_KFC_URL} → HTTP ${HTTP} (Amazon may have revoked)"
-    note "Find alternate mirror — see references/sources.md 'How to add a new source'"
-    ;;
-  000) unreachable "${PINNED_KFC_URL} → no response (network or DNS issue)" ;;
-  *) stale "${PINNED_KFC_URL} → HTTP ${HTTP} (unexpected)" ;;
+200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
+403 | 404)
+  unreachable "${PINNED_KFC_URL} → HTTP ${HTTP} (Amazon may have revoked)"
+  note "Find alternate mirror — see references/sources.md 'How to add a new source'"
+  ;;
+000) unreachable "${PINNED_KFC_URL} → no response (network or DNS issue)" ;;
+*) stale "${PINNED_KFC_URL} → HTTP ${HTTP} (unexpected)" ;;
 esac
 echo
 
@@ -63,9 +90,9 @@ ARTICLE_BODY=$(curl -s "${PINNED_TUTORIAL_URL}" 2>/dev/null || echo "")
 if [[ -z "${ARTICLE_BODY}" ]]; then
   unreachable "${PINNED_TUTORIAL_URL} → no response"
 else
-  CURRENT_KKF=$(echo "${ARTICLE_BODY}" \
-    | grep -oE 'https://techy-notes\.com/content/files/[0-9]+/[0-9]+/Kindle_Key_Finder_[0-9.]+\.JH\.zip' \
-    | head -1)
+  CURRENT_KKF=$(echo "${ARTICLE_BODY}" |
+    grep -oE 'https://techy-notes\.com/content/files/[0-9]+/[0-9]+/Kindle_Key_Finder_[0-9.]+\.JH\.zip' |
+    head -1)
   if [[ -z "${CURRENT_KKF}" ]]; then
     stale "Could not extract Kindle_Key_Finder URL from article body"
     note "Article structure may have changed — re-WebFetch and inspect"
@@ -109,7 +136,7 @@ verify_sha() {
     note "  ${label}: not present at ${path}"
   fi
 }
-verify_sha "${DL_DIR}/KindleForPC-installer-2.8.70980.exe" "${PINNED_KFC_SHA}" "KindleForPC installer"
+verify_sha "${DL_DIR}/$(basename "${PINNED_KFC_URL}")" "${PINNED_KFC_SHA}" "KindleForPC installer"
 KKF_MATCHES=("${DL_DIR}"/Kindle_Key_Finder_*.JH.zip)
 KKF_LOCAL="${KKF_MATCHES[0]}"
 [[ -e "${KKF_LOCAL}" ]] && verify_sha "${KKF_LOCAL}" "${PINNED_KKF_SHA}" "Kindle_Key_Finder zip"
