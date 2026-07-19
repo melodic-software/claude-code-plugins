@@ -1,21 +1,24 @@
 ---
 name: setup
-description: "Configure the code-tidying plugin for this repository: interview the user, infer which lane patterns fit the repo layout, and scaffold tracked .claude/tidy-lanes/<lane>.md project lane files from the bundled templates. Use when: 'set up code-tidying', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', or the tidy skill reports no project lanes for this repo. Re-runnable — safe to invoke again to add or retune lanes."
-argument-hint: "(no arguments — interactive interview)"
+description: "Verify and configure the code-tidying plugin for this repository. check inspects the tracked .claude/tidy-lanes/<lane>.md project lanes read-only (presence, required sections, unreplaced placeholders, tracked-not-ignored); apply interviews the repo, infers which lane patterns fit, and scaffolds project lane files from the bundled templates. Use when: 'set up code-tidying', 'is code-tidying configured', 'configure tidy lanes', 'code-tidying setup', 'scaffold a tidy lane', or the tidy skill reports no project lanes. Re-runnable — safe to invoke again to add or retune lanes."
+argument-hint: "check | apply [<lane>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Scaffold (or update) the consuming repo's tracked lane definitions at `.claude/tidy-lanes/<lane>.md`
+Verify and scaffold the consuming repo's tracked lane definitions at `.claude/tidy-lanes/<lane>.md`
 so `/code-tidying:tidy` resolves project-specific scope globs and watch-for patterns deterministically
 instead of falling back to the generic bundled lanes every run. A project lane at
 `${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` takes precedence over the bundled lane of the
 same name — this is the plugin's seam-2 extension surface.
 
-Idempotent: re-running reads the existing lane files and proposes additions or edits against that
-baseline rather than overwriting a consumer lane blind.
+Project lanes are optional: with none, `/code-tidying:tidy` uses the bundled lanes, so their absence is
+a reported INFO, never a FAIL. `check` inspects read-only; `apply` scaffolds or retunes lanes, then
+re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then the scaffold
+flow. `apply <lane>` targets a single lane. Idempotent: re-running reads the existing lane files and
+proposes additions or edits against that baseline rather than overwriting a consumer lane blind.
 
 ## Lanes vs. templates — the distinction this skill turns on
 
@@ -30,14 +33,35 @@ baseline rather than overwriting a consumer lane blind.
 Never tell the user to "copy the bundled lanes." Scaffold from templates; override a bundled lane only
 when its defaults miss this repo's actual layout.
 
-## Task
+## `check` (read-only)
 
-Apply the convention-resolution ladder — config present → use it; absent → infer from the repo and
-persist; cannot infer → ask and offer to persist; else a safe default (skip that lane, no empty file).
+Inspect the consumer's tracked lanes and report a PASS/FAIL/INFO table with one remediation line per
+FAIL. Modify nothing, and do NOT run a tidy sweep — that is `/code-tidying:tidy`.
+
+1. **Project lanes present** — list `.claude/tidy-lanes/*.md`. None → INFO: tidy resolves the bundled
+   lanes; `apply` scaffolds project lanes when this repo's layout diverges from the bundled defaults.
+2. **Lane structure** — each present lane file carries the required sections (`## Scope`,
+   `## Watch-for patterns`, `## Lane-specific extra exclusions`, `## Verification commands`,
+   `## Conventional Commits type`, `## Preferred research sources`). A lane missing a section is FAIL.
+3. **No unreplaced placeholders** — a lane still containing a template `<placeholder>` resolves to a
+   broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
+4. **Tracked, not ignored** — run `git check-ignore -v <file>` per lane file. A non-empty result means a
+   `.gitignore` pattern excludes that lane; these lanes are team-shared and take effect only when
+   committed, so an ignored lane is FAIL with the matching pattern in the remediation line (a directory
+   can be tracked while a pattern excludes an individual `.md` inside it).
+5. **Bundled lanes and templates** — INFO: report the bundled lanes and templates available as scaffold
+   sources, so the reader knows what `apply` can generate.
+
+## `apply` (idempotent)
+
+Run `check`, then apply the convention-resolution ladder — config present → use it; absent → infer from
+the repo and persist; cannot infer → ask and offer to persist; else a safe default (skip that lane, no
+empty file). Proceed non-interactively for whatever the invocation and the repo make unambiguous; ask
+only where a lane's scope genuinely needs the user's call.
 
 1. **Read existing lanes first.** List `.claude/tidy-lanes/*.md`. If any exist, read each and present a
-   short summary (lane name, scope globs, watch-for count). The interview proposes changes against that
-   baseline; **never overwrite an existing consumer lane without explicit confirmation in this conversation.**
+   short summary (lane name, scope globs, watch-for count). Propose changes against that baseline;
+   **never overwrite an existing consumer lane without explicit confirmation in this conversation.**
 2. **Explore the repo to draft candidate lanes.** Before asking anything, map the four bundled template
    patterns against what actually exists, and check whether either bundled lane needs a project override:
    - **apps** (`${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/apps-lane.template.md`) — user-facing
@@ -51,7 +75,7 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    - **bundled-lane override** — inspect the repo's actual tooling dirs and doc dirs; a project override
      of `shell-tooling` or `docs-prose` is warranted only when they diverge from the bundled scope globs.
    Read the actual directory names and file extensions from the repo — do not assume a stack. Skip any
-   template pattern the repo has no surface for.
+   template pattern the repo has no surface for. When invoked as `apply <lane>`, scope this to that lane.
 3. **Interview, one lane at a time** (recommendation-first). Present each candidate lane with its inferred
    scope globs and the source template, marked with a recommendation; let the user accept, edit the globs,
    or drop the lane. Offer a custom lane last ("any other glob-scoped slice this repo should tidy on its
@@ -75,18 +99,19 @@ persist; cannot infer → ask and offer to persist; else a safe default (skip th
    own CLAUDE.md / rules / CI config (never invented), the Conventional Commits type, and preferred research
    sources. Leave no `<placeholder>` behind.
 5. **Write the lane files.** Materialize each accepted lane at `.claude/tidy-lanes/<lane>.md`. Write only
-   lanes the user confirmed; produce no empty scaffolds. Then verify **each written file** is actually
-   tracked, not ignored — run `git check-ignore -v <file>` per file (plain `git status` hides ignored
-   paths unless `--ignored` is passed). A non-empty `check-ignore` result means a `.gitignore` pattern
-   excludes that lane; surface the matching pattern and offer to fix `.gitignore` before reporting success,
-   since a directory can be tracked while a pattern still excludes an individual `.md` inside it — these
-   lanes are team-shared and must be committed to take effect.
-6. **Confirm the tracked-lane model.** `/code-tidying:tidy` resolves a lane only from
+   lanes the user confirmed; produce no empty scaffolds.
+6. **Verify after remediation.** Re-run the `check` probes on each written file — required sections
+   present, no leftover placeholder, and (per file) `git check-ignore -v <file>` confirms it is tracked,
+   not ignored. A non-empty `check-ignore` result means a `.gitignore` pattern excludes that lane; surface
+   the matching pattern and offer to fix `.gitignore` before reporting success, since these lanes are
+   team-shared and must be committed to take effect. `/code-tidying:tidy` resolves a lane only from
    `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), and its catalog lists
-   `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. So every scaffolded lane is a
+   `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. Every scaffolded lane is a
    tracked, team-shared file; do not point developers at a `*.local.*` variant the tidy skill would never
-   load. A developer who wants a private lane simply keeps a normal `.claude/tidy-lanes/<lane>.md` and
-   gitignores that one path, accepting it stays local-only.
+   load. A developer who wants a private lane keeps a normal `.claude/tidy-lanes/<lane>.md` and gitignores
+   that one path, accepting it stays local-only.
+
+Re-running `apply` after everything passes changes nothing and reports "already configured".
 
 ## Output
 
@@ -96,7 +121,7 @@ to add or retune lanes.
 
 ## What this skill does NOT do
 
-- Run a tidy sweep — that is `/code-tidying:tidy`.
+- Run a tidy sweep — that is `/code-tidying:tidy`. `check` only inspects config.
 - Ship its own template copies — lane files scaffold from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/`;
   duplicating those into this skill would drift from the source.
 - Write machine-local state — lane configuration lives in the consumer's tracked `.claude/tidy-lanes/`,

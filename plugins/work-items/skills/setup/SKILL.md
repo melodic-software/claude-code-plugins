@@ -1,30 +1,28 @@
 ---
 name: setup
-description: "Configure the work-items plugin for this repository: interview the consumer for their recurring work items (cadence, tiers, next_due), infer candidates from the repo layout, write the tracked .github/recurring-schedule.json, and optionally remap the canonical role labels (autonomous-eligible / human-gated / recurring-maintenance) in the tracker binding. Use when: 'set up work-items', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
-argument-hint: "(no arguments — interactive interview)"
+description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, and the recurring-maintenance role label; apply interviews the consumer for their recurring work items, infers candidates from the repo, writes the schedule, and optionally remaps the canonical role labels in the tracker binding. Use when: 'set up work-items', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured. Re-runnable — safe to invoke again to reconfigure."
+argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Write (or update) the consuming repo's tracked recurring-schedule config at
+Verify and manage the consuming repo's tracked recurring-schedule config at
 `.github/recurring-schedule.json` so the `due`, `recheck`, and `work` actions resolve a real schedule
 instead of degrading to "no recurring schedule configured". This is the bulk / initial-config path;
 the per-item `add --recurring` path (which appends a single row as a side effect of filing its work
-item) stays as-is. Idempotent: re-running reads the existing file and offers updates rather than
+item) stays as-is. Setup also owns the optional canonical-role → label remap in the tracker binding
+(see "Canonical role labels" below).
+
+The schedule is optional: with none, the recurring actions degrade gracefully, so its absence is a
+reported INFO, never a FAIL. `check` inspects read-only; `apply` seeds or reshapes the schedule, then
+re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then the
+interview-and-write flow. Idempotent: re-running reads the existing file and offers updates rather than
 overwriting blind. The schedule file is a plain tracked JSON file the skill reads and writes directly
 (Read / Write / `jq`) — it is not a tracker record, so it does not route through the work-item-tracker
 seam; only operations on the work items themselves (labels, item lookups, edits) go through the bound
-provider. Check `jq` is on PATH (`command -v jq`) before the first schedule operation — missing, stop
-with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on
-native Windows) rather than failing mid-write. Setup also owns the optional canonical-role → label remap in the tracker binding (see
-"Canonical role labels" below).
-
-The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
-[`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md) (step "If
-`--recurring`" and the Cadence Duration Table). This skill produces rows in that exact shape — read
-that file for the authoritative field list before writing.
+provider.
 
 ## Resolving the schedule path
 
@@ -38,11 +36,45 @@ SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurr
 The file is version-controlled and shared by the whole team — it belongs in the consumer's `.github/`,
 never in the plugin directory or any machine-local state.
 
-## Task
+## `check` (read-only)
 
-Apply the convention-resolution ladder — config present → use it and offer updates; absent → infer
-candidates from the repo and persist what the user accepts; cannot infer → ask; otherwise write the
-empty `{"items": []}` skeleton so the recurring actions stop degrading.
+Probe the schedule config and the seam's entry gates, and report a PASS/FAIL/INFO table with one
+remediation line per FAIL. Modify nothing, and do NOT file items or run a recurring check.
+
+1. **`jq` entry gate** — the authoritative check is
+   [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+   "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
+   reference's install remediation — the schedule snippets parse with `jq` unconditionally.
+2. **Schedule presence** — resolve `SCHEDULE` (above). Absent → INFO: `due` / `recheck` / `work`
+   degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
+3. **Schedule validity** — a present file parses as JSON with the root `{"items": [ ... ]}` shape
+   (FAIL otherwise), and **both reconciliation keys are unique across the whole `items` array — every
+   `id` AND every `title`**. A duplicate `id` (the key `recheck <id>` resolves against) or duplicate
+   `title` (the key `due` / `work` match `[Maintenance] {title}` against) silently breaks
+   reconciliation — FAIL, naming the collision.
+4. **Tracked, not ignored** — a present schedule must be committed to be team-shared:
+   `git check-ignore -v` on the resolved path; a non-empty result is FAIL with the matching pattern.
+5. **Tracker binding + recurring-maintenance role label** — role-label resolution is an action-entry
+   invariant per the tracker-seam reference; probe it. `.work-item-tracker.json` absent → INFO (the
+   tracker seam isn't bound; the role remap has nothing to configure). Present → resolve
+   `config.role_labels["recurring-maintenance"]` (default `recurring` when the entry is absent; a
+   malformed, empty, or non-string configured value is FAIL). When a schedule exists, verify the
+   resolved label is present via the adapter's label listing (GitHub adapter: `gh label list`): an
+   absent label means a seeded `[Maintenance]` item lands unlabeled and goes invisible to the next
+   `due` / `work` pass — FAIL, with the remediation being the repo's declared label provisioning
+   process (never `gh label create` ad hoc). Missing `cadence:{cadence}` labels are taxonomy niceties —
+   INFO.
+
+## `apply` (idempotent)
+
+Run `check`, then apply the convention-resolution ladder — config present → use it and offer updates;
+absent → infer candidates from the repo and persist what the user accepts; cannot infer → ask;
+otherwise write the empty `{"items": []}` skeleton so the recurring actions stop degrading. The row
+shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
+[`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)
+(step "If `--recurring`" and the Cadence Duration Table) — read that file for the authoritative field
+list before writing. Proceed non-interactively where the invocation and the repo make the values
+unambiguous; ask only where an item genuinely needs the user.
 
 1. **Read the current file first.** If `.github/recurring-schedule.json` exists, load it and present a
    short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
@@ -77,26 +109,23 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-4. **Resolve and check the recurring-maintenance role label — it is load-bearing, not optional.**
-   Before the first tracker read, resolve the role from `.work-item-tracker.json`
-   `config.role_labels["recurring-maintenance"]`, defaulting to `recurring` only when the file or entry
-   is absent. A malformed, empty, or non-string configured value is an error, not a fallback. The
-   checks in this step and every later setup query use the resolved string. `due` / `work` enumerate
-   open maintenance items with that resolved label, and the create path filters out labels the repo
-   lacks — so if you write a schedule while the resolved label is absent, the first `[Maintenance]`
-   item created (by the recurring automation
-   or the `work` due-recurring tier) lands without that label, is invisible to the next `due` / `work`
-   pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's label listing
-   (for the GitHub adapter, `gh label list`). **When the repository declares a label-as-code source
-   of truth, that system is the sole writer — never `gh label create` labels ad hoc.** When
-   `recurring` is missing, tell the user plainly that the schedule cannot be reconciled until the
-   label is added through the repository's declared provisioning process; do not silently treat it
-   as optional. The `cadence:{cadence}` labels are taxonomy niceties (not required for reconciliation) —
-   note their absence the same way if they are missing. This step files no items;
-   for a row now in the schedule, its `[Maintenance]` item is created — item only, no extra schedule
-   row — by the consuming repo's recurring automation or the `work` due-recurring tier when `next_due`
-   arrives. Do **not** point users at `add --recurring` to create it: that per-item path appends another
-   schedule row, duplicating an already-seeded item.
+4. **Confirm the recurring-maintenance role label is present — it is load-bearing, not optional.**
+   Resolve the role from `.work-item-tracker.json` `config.role_labels["recurring-maintenance"]`,
+   defaulting to `recurring` only when the file or entry is absent (a malformed, empty, or non-string
+   configured value is an error, not a fallback). `due` / `work` enumerate open maintenance items with
+   that resolved label, and the create path filters out labels the repo lacks — so if you write a
+   schedule while the resolved label is absent, the first `[Maintenance]` item created (by the recurring
+   automation or the `work` due-recurring tier) lands without that label, is invisible to the next
+   `due` / `work` pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's
+   label listing (for the GitHub adapter, `gh label list`). **When the repository declares a
+   label-as-code source of truth, that system is the sole writer — never `gh label create` labels ad
+   hoc.** When the resolved label is missing, tell the user plainly that the schedule cannot be
+   reconciled until the label is added through the repository's declared provisioning process; do not
+   silently treat it as optional. This step files no items; for a row now in the schedule, its
+   `[Maintenance]` item is created — item only, no extra schedule row — by the consuming repo's
+   recurring automation or the `work` due-recurring tier when `next_due` arrives. Do **not** point users
+   at `add --recurring` to create it: that per-item path appends another schedule row, duplicating an
+   already-seeded item.
 5. **Write the schedule.** Read the current file (if any) and merge the accepted items into the `items`
    array, keying each edited item on the **original `id` it had when read in step 1**, not its final
    `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
@@ -104,14 +133,9 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
    maintenance (which would create duplicate items). Preserve any existing rows the user did not
    touch. Before writing, **verify both reconciliation keys are unique across the whole `items` array —
-   every final `id` AND every final `title`.** `id` is the key `recheck <id>` resolves against; `title`
-   is the key `due` / `work` match items against (`[Maintenance] {title}`). A new row or a rename that
-   collides with a different preserved row on either key silently breaks reconciliation — a duplicate
-   `id` makes `recheck` ambiguous, and a duplicate `title` makes two rows share one open item (or the
-   second row gets skipped/claimed against the wrong maintenance). On any collision, stop and prompt the
-   user to merge the two rows, replace one, or pick a unique value; never write a schedule with a
-   duplicate `id` or `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is
-   tracked, not ignored.
+   every final `id` AND every final `title`.** On any collision, stop and prompt the user to merge the
+   two rows, replace one, or pick a unique value; never write a schedule with a duplicate `id` or
+   `title`. Then write it back with the `{"items": [ ... ]}` root.
 6. **Reconcile an existing row's open item when it is renamed OR dropped.** Both operations strand the
    row's live `[Maintenance] {old title}` recurring item (if still open): after write the schedule no
    longer carries that title, so `due` / `work` — which derive recurring candidates only from the
@@ -130,6 +154,9 @@ empty `{"items": []}` skeleton so the recurring actions stop degrading.
    - **Dropped row:** close that item (adapter: "Close item") with a comment noting the recurring item
      was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
    A rename or drop with no exact-match open item needs no reconciliation.
+7. **Verify after remediation.** Re-run the `check` probes on the written schedule — JSON validity,
+   unique `id`/`title`, tracked-not-ignored — and report the actual results, never success on the write
+   alone.
 
 ## Canonical role labels (optional remap)
 
@@ -159,6 +186,8 @@ binding shape live in the plugin's
    (`provider`, `config.lease_ttl_hours`, …) that must survive untouched. Omit entries that keep
    their default rather than snapshotting defaults into the file.
 
+Re-running `apply` after everything passes changes nothing and reports "already configured".
+
 ## Output
 
 A tracked `.github/recurring-schedule.json` in the consuming repo, plus a one-paragraph summary of the
@@ -168,7 +197,7 @@ to `.work-item-tracker.json`, and how to re-run this setup to reconfigure.
 ## What this skill does NOT do
 
 - File work items or run a recurring check — that is `/work-items:track` (`add`, `due`, `recheck`)
-  and `/work-items:work`. Setup only writes the schedule config.
+  and `/work-items:work`. `check` only inspects config; `apply` only writes the schedule config.
 - Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring item;
   setup is the bulk / initial-config path that seeds or reshapes the whole schedule.
 - Write machine-local state — the schedule lives in the consumer's tracked `.github/`, never in the

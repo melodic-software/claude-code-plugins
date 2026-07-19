@@ -1,5 +1,18 @@
 # Changelog — discovery plugin
 
+## 0.7.0 — 2026-07-18
+
+### Changed
+
+- **`/discovery:setup` adopts the uniform `check` / `apply` contract.** The single
+  interview-style flow is split into a read-only `check` (default) that reports the
+  effective topic-docs concern, the inferred convention, and the committed-tier ignore
+  guard as PASS/FAIL/INFO, and an `apply` that persists `.claude/topic-docs.yaml`.
+  `apply` gains a non-interactive path: complete `<key>=<value>` arguments
+  (`memory_dir=`, `contract_dir=`, `contract_tier=`, `vault_backend=`) skip the
+  interview, so headless and CI use are possible. The ignore guard, the gitbook-deferred
+  handling, and the never-edit-root-`.gitignore` rule are unchanged.
+
 ## 0.6.0 — 2026-07-17
 
 ### Changed

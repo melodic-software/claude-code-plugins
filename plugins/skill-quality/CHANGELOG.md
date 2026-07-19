@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **`setup` skill refactored onto the uniform check/apply contract** (fleet conformance wave).
+  `/skill-quality:setup` replaces the interactive-validation shape with `check` (default, read-only:
+  resolves `skills_root` through the ladder, verifies the directory exists and enumerates skills,
+  reports PASS/FAIL/INFO) and `apply` (non-interactive: routes a `skills_root` change through Claude
+  Code's native prompt with the fresh-install-only `--config` headless semantics). The resolution
+  ladder, the one-run `CHECK_SKILL_SKILLS_ROOT` override (still never persisted), the
+  `/skill-quality:check` verification pointer, and the dated `pluginConfigs` claim are unchanged.
+
 ## [0.4.1]
 
 ### Changed

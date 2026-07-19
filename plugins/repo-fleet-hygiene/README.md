@@ -19,7 +19,7 @@ stays with the existing per-repository capabilities:
 | Skill | Purpose |
 |---|---|
 | `/repo-fleet-hygiene:audit` | Scan one repository, explicit repositories, or repository-tree roots and render a fleet report |
-| `/repo-fleet-hygiene:setup` | Create or update the optional tracked fleet configuration without touching user settings |
+| `/repo-fleet-hygiene:setup` | `check` inspects the optional tracked fleet configuration read-only; `apply` creates or updates it without touching user settings |
 
 ## Quick start
 

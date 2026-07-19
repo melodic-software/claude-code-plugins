@@ -25,9 +25,11 @@ a question names a library); configure the environment with `/context7:setup`:
   latest npm release (`--fix` upgrades it) and diffs Upstash's upstream
   reference skills against the plugin's bundled `vendor/` baselines, reporting
   anything new for manual review. It never auto-rewrites the skill.
-- **`/context7:setup`** — first-time, idempotent configuration: `ctx7` CLI
-  install, `CONTEXT7_API_KEY` auth, optional Context7 MCP server wiring, and the
-  Windows Git Bash `MSYS_NO_PATHCONV=1` gotcha. Safe to rerun.
+- **`/context7:setup`** — idempotent verification and configuration. `check`
+  (default) reports the `ctx7` CLI, `CONTEXT7_API_KEY` auth, and Context7 MCP
+  server state read-only; `apply` resolves what it found (auth and MCP guidance);
+  `apply install-cli` installs/upgrades the `ctx7` CLI. Also covers the Windows
+  Git Bash `MSYS_NO_PATHCONV=1` gotcha. Safe to rerun.
 
 ## Requirements
 

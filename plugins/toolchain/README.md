@@ -9,7 +9,7 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 |---|---|
 | `/toolchain:check` | Build + test + lint for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status; resolves each ecosystem's commands through the shared four-rung ladder. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
 | `/toolchain:lint` | Lint + format checks only — faster than a build cycle, honors each tool's config-file opt-in, `--fix` mode where linters support it; also owns the `yaml` and `cross-cutting` lint surfaces. |
-| `/toolchain:setup` | Configure the plugin for a repo — interview + infer + write the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/toolchain:check` and `/toolchain:lint` resolve first, and offer the tracked `.claude/topic-docs.yaml` concern file. Re-runnable. |
+| `/toolchain:setup` | Configure the plugin for a repo. `check` (read-only, default) reports which ecosystems are configured, each one's resolved command surface, and the topic-docs concern file, validating the tracked files against the contract schema; `apply` interviews + infers + writes the tracked `.claude/ecosystems/<ecosystem>.yaml` files that `/toolchain:check` and `/toolchain:lint` resolve first, and offers the tracked `.claude/topic-docs.yaml` concern file. Re-runnable. |
 
 ## Works in any repo
 
@@ -18,7 +18,8 @@ defaults. Three skills, one concern: mechanical verification of changed code.
   four-rung ladder: your repo's tracked `.claude/ecosystems/<ecosystem>.yaml`
   (authoritative when present, additive over a `~/.claude/ecosystems/` user-global
   base and a `.local.yaml` overlay) → inference → ask → the plugin's bundled portable
-  defaults. Run `/toolchain:setup` to write those files once. The command surface
+  defaults. Run `/toolchain:setup apply` to write those files once (bare
+  `/toolchain:setup` reports what is configured without writing). The command surface
   conforms to the marketplace-wide contract at
   `docs/conventions/ecosystem-commands/README.md` (schema: `ecosystem.schema.json`);
   testing structure and commit conventions still come from your own `CLAUDE.md` and
@@ -42,8 +43,8 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 
 Ecosystem command surfaces live in tracked `.claude/ecosystems/*.yaml` files, and
 artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file;
-`/toolchain:setup` interviews for and persists both. This plugin declares no userConfig
-options.
+`/toolchain:setup apply` interviews for and persists both (`/toolchain:setup check`
+reports the effective configuration). This plugin declares no userConfig options.
 
 ## License
 

@@ -3,6 +3,22 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **`/machine-health:setup` adopts the uniform setup contract** (fleet conformance wave). The skill
+  now splits into a read-only `check` action (default) that reports the effective catalog overlay,
+  remediation approvals, and pending proposals against the shipped catalog — treating an absent
+  overlay or approvals file as INFO (the shipped zero-config default) and FAILing only a
+  configured-but-broken overlay/approvals (malformed, targeting an unknown check or remediation, or a
+  custom-check `script` that is missing) — and an `apply` action that writes the machine-local
+  overlay and approvals. The previous interactive interview (walk proposals, tune the catalog,
+  register custom checks, seed approvals) becomes `apply`'s interview path, run when no write
+  arguments are supplied in an interactive session; `apply disable=<id>` / `deprecate=<id>` /
+  `demote=<id>` / `approve=<id>` now apply those changes non-interactively. Custom-check registration
+  stays interactive (it authors a script). Remediation approvals remain an explicit user decision.
+
 ## [0.5.0]
 
 ### Changed

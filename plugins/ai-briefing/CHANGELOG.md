@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **Setup adopts the uniform `check` / `apply` contract.** The read-only `check`
+  action verifies the resolved profile, `sources.md`, optional overlays, and the
+  build-toolchain state (PASS/FAIL/INFO); `apply` scaffolds the profile. The
+  verify-plus-install fusion behind `--with-build-deps` is split into an explicit
+  `apply install-build-deps` subaction that runs the same locked build-toolchain
+  install flow unchanged. `--profile <name>` still selects the profile for either
+  action. README invocation references updated to the subaction.
+
 ## [0.5.2]
 
 ### Changed

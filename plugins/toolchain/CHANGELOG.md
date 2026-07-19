@@ -3,6 +3,23 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **`/toolchain:setup` adopts the uniform setup contract** (fleet conformance wave) — delivering the
+  `apply` action the 0.3.0 topic-docs note recorded as the contract's follow-on. The skill now splits
+  into a read-only `check` action (default) that reports which ecosystems are configured, each one's
+  resolved build/test/lint command surface, and the topic-docs concern file — validating the tracked
+  files against the contract's `ecosystem.schema.json`, treating an unconfigured ecosystem as INFO
+  (the bundled rung-4 default resolves) and FAILing only a configured-but-broken file (schema-invalid,
+  or excluded by `.gitignore`) — and an `apply` action that infers and writes the tracked config. The
+  previous interview (infer per-ecosystem commands, write `.claude/ecosystems/*.yaml`, offer
+  `.claude/topic-docs.yaml`) becomes `apply`'s interview path; `apply <ecosystem>` scopes the run to
+  one ecosystem and writes an unambiguous inference non-interactively. The per-ecosystem inference,
+  schema conformance, overlay convention, and topic-docs handling (including the deferred GitBook
+  backend) are preserved unchanged.
+
 ## [0.3.0]
 
 ### Changed

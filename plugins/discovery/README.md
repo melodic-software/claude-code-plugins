@@ -44,7 +44,9 @@ documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one sl
 committed — the memory root self-ignores. Skills resolve `<memory_dir>` in order: the tracked concern
 file `.claude/topic-docs.yaml` → a working-docs convention in your own `CLAUDE.md` or rules → an
 inferred conforming layout → one question → the `.work` default.
-`/discovery:setup` is an idempotent interview that persists the concern file.
+`/discovery:setup` is idempotent: `check` (default) reports the effective concern read-only, and
+`apply` persists it — non-interactively from `<key>=<value>` arguments, or via a one-question
+interview.
 
 ## License
 

@@ -1,0 +1,44 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only-with-tiered-status",
+      "prompt": "/kindle-dedrm:setup check",
+      "expected_output": "Runs the plugin's status.sh read-only, adds the pre-flight prerequisite probes, and reports a PASS/FAIL/INFO table without downloading, extracting, installing, or mutating anything. Hard prerequisites (Calibre, Python-not-WindowsApps-stub, pwsh, admin) and a wrong installed Kindle version are FAIL; not-yet-provisioned state (absent firewall rule, ICACLS deny, Key_Finder, downloads) is INFO, not FAIL. The extracted-key store dedrm.json is reported presence-only, never printed.",
+      "files": [],
+      "expectations": [
+        "Runs status.sh and probes prerequisites read-only, mutating nothing",
+        "Classifies hard prerequisites and a wrong Kindle version as FAIL",
+        "Classifies not-yet-provisioned state (firewall/ICACLS/Key_Finder/downloads absent) as INFO, not FAIL",
+        "Reports the key store dedrm.json presence-only and never prints key material"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-download-preserves-fallback-guards-by-reference",
+      "prompt": "/kindle-dedrm:setup apply download",
+      "expected_output": "Runs only the gated artifact-download subaction by following references/workflow.md Step 1: resolves the DeDRM_tools tag via the authenticated gh CLI and falls back to the pinned tag in references/versions.md when gh is unavailable or returns nothing (never composing a URL with the placeholder in place), resolves the Key_Finder zip URL from the tutorial article and stops with the mirror-procedure pointer on an empty match, and SHA256-verifies against references/versions.md, stopping to re-fetch on a mismatch. It does not restate the guard logic inline.",
+      "files": [],
+      "expectations": [
+        "Follows references/workflow.md rather than restating the download flow",
+        "Falls back to the pinned DeDRM_tools tag when gh is unavailable and refuses the placeholder URL",
+        "Stops on an empty Key_Finder URL match with the mirror-procedure pointer",
+        "SHA256-verifies the artifacts and stops to re-fetch on a mismatch"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-keeps-interactive-handoffs-and-verifies-after-mutations",
+      "prompt": "/kindle-dedrm:setup apply",
+      "expected_output": "Runs check first, then the provisioning walkthrough by reference to references/workflow.md, keeping the irreducible user-action hand-offs (installer UAC/EULA, sign-in race window, Calibre plugin GUI loads, keyfinder VBS) as CHECKPOINTS rather than interviewing for configuration. Automated mutations (firewall rule, ICACLS lock) are verified after the fact by re-running the relevant status.sh probe rather than trusting an exit code. It writes no Claude Code user settings, pluginConfigs, plugin cache, or plugin data, and never sends keys or extracted files off the machine.",
+      "files": [],
+      "expectations": [
+        "Runs check before provisioning and follows references/workflow.md",
+        "Keeps installer, sign-in, Calibre-plugin, and keyfinder steps as user-action CHECKPOINTS, not config interviews",
+        "Verifies firewall and ICACLS mutations by re-running the status probe, not by exit code",
+        "Writes no user settings, pluginConfigs, or plugin cache and never egresses keys or extracted files"
+      ]
+    }
+  ]
+}

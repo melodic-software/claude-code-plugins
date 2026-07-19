@@ -18,7 +18,7 @@ where artifacts land in the consuming repo.
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan` — a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED — then packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps — every finding evidence-backed, never generic warnings. |
 | `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context stress-test and a user approval gate, persisted to PLAN.md. |
-| `/planning:setup` | Configuration | Interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts (idempotent — re-run to reconfigure). |
+| `/planning:setup` | Configuration | `check` inspects the topic-docs seam and standards index read-only; `apply` interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts, and bootstraps the standards index (idempotent — re-run to reconfigure). |
 
 The pipeline composes end-to-end — `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
@@ -56,8 +56,9 @@ Where artifacts land is governed by the marketplace-wide **topic-docs convention
 (`docs/conventions/topic-docs/` in this repository): contract documents (`PRD.md`,
 `PLAN.md`, `design/`) go to `<contract_dir>/<topic-slug>/` (default `docs/topics/`) on
 the task branch; working memory (checklists, baselines, scratch) goes to the
-self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run `/planning:setup`
-to interview and persist the tracked
+self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run
+`/planning:setup check` to inspect the effective values read-only, or
+`/planning:setup apply` to interview and persist the tracked
 concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
 `contract_tier: branch | local`); absent keys mean those documented defaults.
 

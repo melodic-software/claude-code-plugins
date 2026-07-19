@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "infers-and-interviews-before-writing",
-      "prompt": "/codebase-health:setup",
+      "prompt": "/codebase-health:setup apply",
       "expected_output": "Explores the repo to draft candidate audit dimensions (doc dirs, build/lint/CI config, source and test roots), then interviews the user one dimension at a time with a recommendation before writing anything. It does not write the config until the user has confirmed the dimensions.",
       "files": [],
       "expectations": [
@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "idempotent-reads-existing-config",
-      "prompt": "/codebase-health:setup",
+      "prompt": "/codebase-health:setup apply",
       "expected_output": "When .claude/codebase-health.md already exists, reads it, summarizes the current dimensions, and proposes changes against that baseline rather than overwriting it blind. Nothing is dropped without the user confirming.",
       "files": [],
       "expectations": [
@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "writes-tracked-config-not-plugin-dir",
-      "prompt": "/codebase-health:setup\n\nJust write a sensible default config for this repo.",
+      "prompt": "/codebase-health:setup apply\n\nJust write a sensible default config for this repo.",
       "expected_output": "Materializes the config at the consumer's tracked .claude/codebase-health.md, confirms it is tracked (not gitignored), and offers the .claude/*.local.* overlay/gitignore convention. It never writes configuration into the plugin directory or a plugin data directory.",
       "files": [],
       "expectations": [
