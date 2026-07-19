@@ -39,7 +39,7 @@
 // promotion_state alone is non-conforming.
 
 import { readFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
@@ -612,7 +612,27 @@ function isNonExternalEgressHost(host) {
 // substrate proves a DIFFERENT boundary, not this one. Returns null when
 // verified, else the reason the entry is unproven.
 function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egressAllowList) {
-  const path = probeRoot !== null && !isAbsolute(ref) ? join(probeRoot, ref) : ref;
+  let path;
+  if (probeRoot !== null) {
+    // Confine evidence to the configured root: --probe-evidence-root exists to
+    // keep accepted captures on a protected evidence surface, so an absolute
+    // ref or a "../" escape — which would let an agent-writable file outside
+    // the root supply the claimed L2/L3 proof — is rejected before the read.
+    // Containment is lexical (a symlink inside the root that points outside is
+    // out of scope here); resolve canonically and compare against the root.
+    if (isAbsolute(ref)) {
+      return `probe_evidence ${JSON.stringify(ref)} is an absolute path but --probe-evidence-root ${JSON.stringify(probeRoot)} is configured — reference the transcript relative to the root, never by absolute path`;
+    }
+    const resolvedRoot = resolve(probeRoot);
+    const resolved = resolve(resolvedRoot, ref);
+    const rel = relative(resolvedRoot, resolved);
+    if (rel === ".." || rel.startsWith(`..${sep}`)) {
+      return `probe_evidence ${JSON.stringify(ref)} escapes --probe-evidence-root ${JSON.stringify(probeRoot)} via ".." traversal — reference a transcript inside the configured root`;
+    }
+    path = resolved;
+  } else {
+    path = ref;
+  }
   let transcript;
   try {
     transcript = JSON.parse(readFileSync(path, "utf8"));
