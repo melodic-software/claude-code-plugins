@@ -43,12 +43,19 @@ Run these in order. Skip a step only when its input is genuinely absent
    of the discipline it breaks. If there are none, say so plainly. Do not
    invent findings to look diligent.
 3. **Correct forward now.** For each finding, do the missing work THIS
-   turn rather than merely noting it. Where your own judgement is the
-   suspected source of the drift, re-derive it in a fresh-context subagent
-   (blind to the reasoning that produced the drift) instead of
-   self-checking in the context that produced it — a self-check in the
-   same context is weak by construction. Surface anything that cannot be
-   corrected here rather than papering over it.
+   turn rather than merely noting it — edit the file, fix the config,
+   re-derive the choice, in the working tree, now. Where your own
+   judgement is the suspected source of the drift, re-derive it in a
+   fresh-context subagent (blind to the reasoning that produced the drift)
+   instead of self-checking in the context that produced it — a self-check
+   in the same context is weak by construction. Surface anything that
+   cannot be corrected here rather than papering over it. **Outward
+   artifacts are the one carve-out:** correcting forward never *files* an
+   outward artifact — a pull request, an issue, a published review comment,
+   anything published outside this working session — on its own. Draft it
+   and route it to the user; opening or publishing it waits on the user's
+   explicit opt-in (see the Non-negotiable below). In-tree correction is
+   not an outward artifact and stays on the do-it-now side of this line.
 4. **Report.** One short list: what was corrected, what remains open, and
    an honest "clean" where the audit found nothing.
 
@@ -90,3 +97,9 @@ with rich standing rules and still useful in one with none.
   report "clean" when the work conforms.
 - **Prefer a fresh context over self-trust for anything load-bearing.**
   The context that produced the drift is the weakest place to catch it.
+- **No corrector files an outward artifact without explicit opt-in.** A
+  consume-only consumer can rely on this across every skill: a corrector
+  may draft an outward change and route it to the user, but opening or
+  publishing one — a PR, an issue, a published review comment — is the
+  user's call, gated on an explicit opt-in, never a side effect of
+  correcting forward.

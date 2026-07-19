@@ -66,8 +66,10 @@ inherited source says — reason about whether it should still hold.
 Interrogating a shared convention can end in disagreement. Do not silently
 deviate from it and do not silently conform to it — route the disagreement
 to `/re-anchor:follow-our-standards`, which owns taking a standards
-disagreement upstream through the proper change path. Degrade to that skill
-in prose when it is not installed.
+disagreement upstream through the proper change path — it drafts the change
+and routes it to the human, and does not open a standards PR (or any outward
+artifact) without explicit opt-in. Degrade to that skill in prose when it is
+not installed.
 
 ## What this skill does NOT do
 
