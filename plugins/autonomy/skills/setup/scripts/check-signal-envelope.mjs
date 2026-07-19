@@ -193,9 +193,9 @@ function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
         findings.push(
           `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} resolves to a ${JSON.stringify(entry?.class)} surface — a temporal signal's source must be a temporal scheduling surface`,
         );
-      } else if (entry.scheduler_class !== undefined && entry.scheduler_class !== "ci-cron" && entry.scheduler_class !== "local-scheduler") {
+      } else if (entry.scheduler_class !== "ci-cron" && entry.scheduler_class !== "local-scheduler") {
         findings.push(
-          `${where}: surface ${JSON.stringify(sourceSurface)} declares unknown scheduler_class ${JSON.stringify(entry.scheduler_class)}`,
+          `${where}: surface ${JSON.stringify(sourceSurface)} must declare scheduler_class "ci-cron" or "local-scheduler" (found ${JSON.stringify(entry.scheduler_class)}) — the required discriminator for temporal surfaces`,
         );
       } else {
         surfaceEntry = entry;
@@ -248,11 +248,18 @@ if (bindingPath !== null) {
 }
 
 let envelopesChecked = 0;
-for (const target of targets.flatMap(filesUnder)) {
-  const envelope = extractEnvelope(readFileSync(target, "utf8"), target);
-  if (envelope === null) continue;
-  envelopesChecked += 1;
-  checkEnvelope(envelope, target, surfaces, bindingPath !== null);
+try {
+  for (const target of targets.flatMap(filesUnder)) {
+    const envelope = extractEnvelope(readFileSync(target, "utf8"), target);
+    if (envelope === null) continue;
+    envelopesChecked += 1;
+    checkEnvelope(envelope, target, surfaces, bindingPath !== null);
+  }
+} catch (error) {
+  // A missing or unreadable target is an environment error (exit 2), never a
+  // conformance finding.
+  console.error(`cannot read target: ${error.message}`);
+  process.exit(2);
 }
 
 if (envelopesChecked === 0) {
