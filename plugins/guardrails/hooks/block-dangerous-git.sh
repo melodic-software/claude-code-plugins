@@ -49,10 +49,16 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op).
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
+# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed out
+# before a complete payload) FAILS CLOSED — the guard cannot evaluate the tool
+# call, and a silent skip would pass exactly the traffic this guard exists to
+# stop. buffer_stdin already printed the BLOCKED reason to stderr.
+INPUT=$(hook::buffer_stdin) || {
+  rc=$?
+  ((rc == 2)) && exit 2
+  exit 0
+}
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 
@@ -119,8 +125,8 @@ abbrev_match() {
 is_push_value_opt() {
   local x="$1"
   [[ "$x" == *=* ]] && return 1
-  abbrev_match "push-option" "$x" 2 || abbrev_match "repo" "$x" 3 \
-    || abbrev_match "receive-pack" "$x" 4 || abbrev_match "exec" "$x" 1
+  abbrev_match "push-option" "$x" 2 || abbrev_match "repo" "$x" 3 ||
+    abbrev_match "receive-pack" "$x" 4 || abbrev_match "exec" "$x" 1
 }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
@@ -281,8 +287,8 @@ check_segment() {
         fi
         ;;&
       *)
-        if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 2 \
-          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
+        if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 2 ||
+          [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
           dry=1
         fi
         ;;
@@ -417,8 +423,8 @@ check_segment() {
         [[ "$rest" == *n* ]] && dry=1
         continue
       fi
-      if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 \
-        || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
+      if [[ "$x" == "-n" ]] || abbrev_match "dry-run" "$x" 1 ||
+        [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
         dry=1
       fi
     done
@@ -521,13 +527,13 @@ check_segment() {
         # Value-taking options in accepted abbreviated form (--c for
         # --conflict, --or for --orphan — verified unique floors) consume
         # the next word, which must not count as an operand.
-        if [[ "$x" != *=* ]] \
-          && { abbrev_match "conflict" "$x" 1 || abbrev_match "orphan" "$x" 2; }; then
+        if [[ "$x" != *=* ]] &&
+          { abbrev_match "conflict" "$x" 1 || abbrev_match "orphan" "$x" 2; }; then
           ((k += 2))
           continue
         fi
-        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
-          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 ||
+          [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git checkout -f/--force throws away local modifications." \
             "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
@@ -576,9 +582,9 @@ check_segment() {
         continue
         ;;
       *)
-        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 \
-          || abbrev_match "discard-changes" "$x" 2 \
-          || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
+        if [[ "$x" == "-f" ]] || abbrev_match "force" "$x" 1 ||
+          abbrev_match "discard-changes" "$x" 2 ||
+          [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
             "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
@@ -668,8 +674,8 @@ check_segment() {
           # Value-taking options in accepted abbreviated form (--so for
           # --source, --c for --conflict — verified unique floors) consume
           # the next word, which must not count as a positive pathspec.
-          if [[ "$x" != *=* ]] \
-            && { abbrev_match "source" "$x" 2 || abbrev_match "conflict" "$x" 1; }; then
+          if [[ "$x" != *=* ]] &&
+            { abbrev_match "source" "$x" 2 || abbrev_match "conflict" "$x" 1; }; then
             ((k += 2))
             continue
           fi
