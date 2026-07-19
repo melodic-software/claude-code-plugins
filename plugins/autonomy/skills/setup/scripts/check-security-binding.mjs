@@ -94,6 +94,15 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
+// Strict ISO 8601 date-time with an EXPLICIT offset (Z or +/-hh:mm), gated
+// by regex BEFORE Date.parse: Date.parse alone accepts forms like
+// "06/30/2026" whose timezone-dependent interpretation could flip an event
+// across the promotion-epoch boundary.
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+function parseIsoStrict(value) {
+  return typeof value === "string" && ISO_DATE_TIME.test(value) ? Date.parse(value) : Number.NaN;
+}
+
 function checkAllowedKeys(object, allowed, where) {
   for (const key of Object.keys(object)) {
     if (!allowed.includes(key)) {
@@ -255,9 +264,9 @@ function validateStructure(binding) {
         if (!isNonEmptyString(entry.evidence_window)) {
           findings.push(`${where}.evidence_window: missing or empty — the telemetry window the evidence predicate was satisfied over`);
         }
-        if (!isNonEmptyString(entry.ratified_at) || Number.isNaN(Date.parse(entry.ratified_at))) {
+        if (Number.isNaN(parseIsoStrict(entry.ratified_at))) {
           findings.push(
-            `${where}.ratified_at: missing or not a parsable ISO 8601 date-time — the ratification instant anchors the promotion epoch contrary evidence is scoped to`,
+            `${where}.ratified_at: missing or not a strict ISO 8601 date-time with explicit offset (Z or +/-hh:mm) — the ratification instant anchors the promotion epoch contrary evidence is scoped to, so its interpretation must not depend on the evaluator's timezone`,
           );
         }
       }
@@ -462,22 +471,29 @@ function checkSemantics(binding, probeRoot) {
         }
       }
     }
-    // The dispatch seam requires EXACTLY ONE matching surface at runtime,
+    // The dispatch seam requires EXACTLY ONE matching entry at runtime,
     // failing closed on zero or multiple matches; rejecting jointly
     // satisfiable marker sets here keeps that rule from turning validly
-    // bound fleets into ambiguity outages.
+    // bound fleets into ambiguity outages. The requirement applies to level
+    // entries WITHIN a surface too: an L2 runner subset sharing a surface id
+    // with an L3 subset, without conflicting markers, could receive the work
+    // the surface's max level admits.
     const reportedPairs = new Set();
     for (let i = 0; i < markerEntries.length; i += 1) {
       for (let j = i + 1; j < markerEntries.length; j += 1) {
         const a = markerEntries[i];
         const b = markerEntries[j];
-        if (a.surfaceId === b.surfaceId) continue;
-        const pairKey = JSON.stringify([a.surfaceId, b.surfaceId]);
+        const sameSurface = a.surfaceId === b.surfaceId;
+        const pairKey = sameSurface
+          ? JSON.stringify([a.surfaceId, a.level, b.level])
+          : JSON.stringify([a.surfaceId, b.surfaceId]);
         if (reportedPairs.has(pairKey)) continue;
         if (jointlySatisfiable(a.markers, b.markers)) {
           reportedPairs.add(pairKey);
           findings.push(
-            `isolation_bindings: runtime_markers of surfaces ${JSON.stringify(a.surfaceId)} and ${JSON.stringify(b.surfaceId)} are jointly satisfiable — a runtime context carrying the union matches both; the sets must conflict on at least one shared key`,
+            sameSurface
+              ? `isolation_bindings.${a.surfaceId}: runtime_markers of level entries ${a.level} and ${b.level} are jointly satisfiable — runtime attestation could not pin which level boundary the workload runs in; give each level's runner subset conflicting markers on a shared key, or split the levels into distinct surfaces`
+              : `isolation_bindings: runtime_markers of surfaces ${JSON.stringify(a.surfaceId)} and ${JSON.stringify(b.surfaceId)} are jointly satisfiable — a runtime context carrying the union matches both; the sets must conflict on at least one shared key`,
           );
         }
       }
@@ -487,7 +503,10 @@ function checkSemantics(binding, probeRoot) {
   // Per-surface, class-aware isolation verdicts: a surface is eligible for a
   // class only when its bound level meets that class's min-isolation cell —
   // so an L2-only surface is never selected for a C5 item, and an unbound
-  // surface is blocked even when a sibling surface is bound.
+  // surface is blocked even when a sibling surface is bound. Aggregating to
+  // the max PROVEN level is sound only because same-surface level entries
+  // must carry mutually conflicting runtime_markers (checked above):
+  // dispatch attests the exact level entry, never just the surface id.
   const verdicts = [];
   let anyProvenL2 = false;
   let anyUnprovenL2Plus = false;
@@ -703,16 +722,16 @@ function resolveEffectivePromotion(binding, evidencePath) {
     // Contrary evidence is scoped to the promotion epoch: an event predating
     // the cell's ratified_at belongs to a previous epoch and was already
     // consumed by the re-earn that produced this ratification. An event
-    // whose `at` cannot be parsed cannot be assigned to an epoch and is
-    // treated as contrary (fail-closed) — dropping it silently would let
-    // malformed telemetry mask a real demotion signal.
-    const ratifiedAt = Date.parse(entry.ratified_at);
+    // whose `at` is not strict ISO (or missing) cannot be assigned to an
+    // epoch and is treated as contrary (fail-closed) — dropping it silently
+    // would let malformed telemetry mask a real demotion signal.
+    const ratifiedAt = parseIsoStrict(entry.ratified_at);
     const inEpoch = [];
     const preEpoch = [];
     for (const event of contrary) {
-      const at = typeof event.at === "string" ? Date.parse(event.at) : Number.NaN;
+      const at = parseIsoStrict(event.at);
       if (Number.isNaN(at)) {
-        inEpoch.push(`${event.event} with unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
         inEpoch.push(`${event.event} at ${event.at}`);
       } else {
