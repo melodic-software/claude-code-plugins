@@ -173,13 +173,18 @@ function isNonEmptyString(value) {
 // event across the promotion-epoch boundary. The epoch is derived from the
 // captured components, never from Date.parse, so no engine-specific parsing
 // behavior is load-bearing.
-const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 function parseIsoStrict(value) {
   const match = typeof value === "string" ? ISO_DATE_TIME.exec(value) : null;
   if (match === null) return Number.NaN;
   const [, year, month, day, hour, minute, second, fraction, offset] = match;
-  // Milliseconds truncate at three fraction digits — Date's own precision.
-  const ms = Number((fraction ?? "").padEnd(3, "0").slice(0, 3) || "0");
+  // Fractional seconds are bounded to millisecond precision (max 3 digits) by
+  // the grammar above, then zero-padded to exactly 3. The epoch comparison is
+  // integer-millisecond, so accepting finer precision would silently collapse
+  // distinct instants — ".5001Z" and ".5009Z" both become 500 ms — and could
+  // misorder a promotion epoch, demoting a legitimately re-earned promotion. A
+  // sub-millisecond fraction fails the regex and is rejected, never truncated.
+  const ms = Number((fraction ?? "").padEnd(3, "0"));
   const utc = new Date(Date.UTC(+year, +month - 1, +day, +hour, +minute, +second, ms));
   // Date.UTC silently normalizes out-of-range fields; requiring the round
   // trip back to the supplied components rejects calendar-invalid values
