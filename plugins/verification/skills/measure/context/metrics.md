@@ -65,7 +65,9 @@ Quality is partly subjective, but some aspects ARE measurable:
 - **More abstractions isn't always better** — a `UserServiceFactory` → `UserService` → `UserRepository` chain is worse than the repository directly unless each layer earns its place.
 - **Don't confuse motion with progress** — renaming files / reorganizing directories / reformatting is housekeeping, not quality improvement. Valid, but don't claim it improved quality.
 
-## Marketplace plugin skills (evidence sources when the collector lands)
+## Marketplace plugin skills (invoke only when installed)
+
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise draw the same evidence from the project's own complexity/coverage tooling:
 
 - **CRAP scores** — `dotnet-test:crap-score` combines cyclomatic complexity + coverage into one risk metric ("safer to change" evidence).
 - **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements.
