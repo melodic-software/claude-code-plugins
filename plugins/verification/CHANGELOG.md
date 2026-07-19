@@ -3,6 +3,21 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Changed
+
+- Neutralized the .NET/C#/PowerShell-flavored illustrative examples in the
+  stack-agnostic `confirm` and `measure` skills so a non-.NET consumer isn't
+  handed a stack-specific illustration as the universal path: the reproduction-test
+  example uses a generic descriptive name and failure, and the metric/perf
+  "how to check" cells count import/dependency declarations and point to "your
+  test runner"/"your benchmark harness" instead of `using`/`ProjectReference`/
+  `dotnet test`/BenchmarkDotNet. The Unix-shell `wc -l` line-count assumption is
+  now stated shell-neutrally (`wc -l` on POSIX/Git Bash, `Measure-Object -Line`
+  in PowerShell), honoring the cross-platform "never assume Bash" contract. The
+  named marketplace-plugin evidence pointers (`dotnet-*`) are unchanged.
+
 ## [0.2.2]
 
 ### Changed
