@@ -3,6 +3,22 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **Remote selected from those present, not assumed `origin`.** The clean-working-tree branch-diff
+  fallback in `/toolchain:check` and `/toolchain:lint` resolved the remote from the current branch's
+  `branch.<name>.remote`, but when that was unset (an unpushed feature branch) it forced `REMOTE=origin`
+  unconditionally. In a clone made with a differently named remote (`git clone -o vendor`) that has no
+  `origin` and no pushed upstream, `origin` does not exist, so `git symbolic-ref refs/remotes/origin/HEAD`
+  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") — the
+  `origin` fallback the 0.4.1 note claimed "still resolves" a `git clone -o vendor` did not hold for the
+  not-yet-pushed case. When the branch has no tracking remote, both call sites now keep `origin` when it
+  is present and otherwise pick the first present remote, so the branch diff resolves against a remote
+  that actually exists. Detection still degrades gracefully (skips the branch-diff path) when no remote
+  is present. A cross-plugin shared default-branch helper remains the broader fix tracked by #436/#442.
+
 ## [0.4.1]
 
 ### Fixed

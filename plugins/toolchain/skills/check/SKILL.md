@@ -58,7 +58,10 @@ If the working tree is clean, fall back to the branch diff so checkpoint-committ
 
 ```bash
 REMOTE=$(git config "branch.$(git branch --show-current | tr -d '\r').remote" 2>/dev/null | tr -d '\r')
-[[ -z "$REMOTE" || "$REMOTE" == "." ]] && REMOTE=origin
+if [[ -z "$REMOTE" || "$REMOTE" == "." ]]; then
+  REMOTE=origin
+  git remote | grep -qx origin || REMOTE=$(git remote | head -n1)
+fi
 DEFAULT_BRANCH=$(git symbolic-ref --short "refs/remotes/$REMOTE/HEAD" 2>/dev/null | sed "s#^$REMOTE/##")
 DEFAULT_BRANCH=${DEFAULT_BRANCH:-$(git ls-remote --symref "$REMOTE" HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')}
 if [[ -n "$DEFAULT_BRANCH" ]] && git rev-parse --verify --quiet "$REMOTE/$DEFAULT_BRANCH" >/dev/null; then
@@ -68,7 +71,7 @@ else
 fi
 ```
 
-`$REMOTE` is the remote the current branch tracks (`branch.<name>.remote`), falling back to `origin` — never a hardcoded remote name, so a repo cloned with a different remote name (e.g. `git clone -o vendor`) still resolves. The fallback queries that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff). `merge-base` is taken against the remote-tracking ref `$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name. If detection yields no default branch (no `$REMOTE/HEAD`, and the remote query fails or its ref is absent locally), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths.
+`$REMOTE` is the remote the current branch tracks (`branch.<name>.remote`); when the branch has no tracking remote (an unpushed feature branch), it falls back to `origin` if that remote is present, else the first present remote — never a hardcoded remote name, so a repo cloned with a different remote name (e.g. `git clone -o vendor`) still resolves even before the branch is pushed. The fallback queries that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff). `merge-base` is taken against the remote-tracking ref `$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name. If detection yields no default branch (no `$REMOTE/HEAD`, and the remote query fails or its ref is absent locally), skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths.
 
 If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo, or `/toolchain:check <ecosystem>` for a specific ecosystem." and exit.
 
