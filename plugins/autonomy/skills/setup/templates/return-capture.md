@@ -40,10 +40,15 @@ would record without ever requesting attestation. The two machine blocks:
 ```
 
 `attestation_request` anchors the contract's reply-correlation rule. On the comment floor
-the request and record share the marker comment, so the value is that comment's own event
-URL — the close trigger backfills it with a self-edit immediately after posting (the record
-fields themselves keep create-only semantics). On native fields it is the URL of the posted
-request comment.
+the request and record share the marker comment, so the request event IS the marker comment
+itself: correlation keys on the marker comment's identity (a reply to it, or the flat-tracker
+`attest:` form), and the stored URL is its serialized citation. The close trigger backfills
+the URL with a self-edit immediately after posting; the backfill is IDEMPOTENT-RECOVERABLE —
+any later automation pass (a re-fired close, the reply handler) that finds the marker record
+with `attestation_request` missing fills it from the marker comment's own identity without
+touching any other field (the create-only rule protects the record's attestation fields, not
+this machine backfill), so a failed self-edit or a fast reply never orphans attestation. On
+native fields it is the URL of the posted request comment.
 
 ## Attestation upsert
 

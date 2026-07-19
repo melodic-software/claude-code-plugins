@@ -141,9 +141,13 @@ close-time unattested record is present on the item's fields before writing the 
 fields — and where the surface was admitted on the audit-trail alternative rather than
 automation-only ACLs, presence alone proves nothing (any field-writer can forge a
 conforming unattested set): the handler MUST confirm through the audit trail that the bound
-automation identity CREATED the close-time record, and native-field consumers apply the
-same authorship check on read. Under automation-only ACLs the restriction itself is the
-authorship proof.
+automation identity CREATED the close-time record — and that EVERY subsequent revision of
+the record fields was likewise written by it: on this path field writes are not
+ACL-restricted, so a later non-automation edit of any record field (a hand-edited
+`counterfactual` or `effort_band`) makes the record non-conforming — the handler rejects it
+for attestation and consumers ignore it on read, exactly as they ignore a foreign-authored
+marker comment. Under automation-only ACLs the restriction itself is the authorship proof
+for creation and revisions alike.
 
 ## The join — query-side only
 
