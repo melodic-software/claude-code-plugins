@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "discovery",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Structured discovery before changes: explore the local codebase (inline or in an isolated forked subagent) and run disciplined multi-source external research with source tiers, falsification, and recency gates — persisting EXPLORE.md / RESEARCH.md handoff artifacts.",
   "author": {
     "name": "Melodic Software",

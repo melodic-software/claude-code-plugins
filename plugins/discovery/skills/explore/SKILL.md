@@ -12,6 +12,8 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
+These values orient this session only. The project root is an absolute machine path — use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records repo-relative paths (see the outcome gate).
+
 ## Routing — context preservation first (three ways to explore)
 
 Exploration reads many files; keeping that out of the main conversation is what subagents are for. Three ways to run it, by how much context it burns and whether you need this structured workflow:
@@ -149,6 +151,7 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 - **Every Output-format section populated with specifics** — each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap** — nothing the task plausibly depends on is silently unexplored.
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit** — anything a downstream decision rests on came from reading the file or code.
+- **Paths are repo-relative** — the artifact echoes no absolute machine path (notably the pre-computed project root); every path is written relative to the repo root so the handoff stays machine-agnostic.
 - **Open questions surfaced to the user**, each with a recommended default.
 
 ## Final step: persist artifact for handoff
