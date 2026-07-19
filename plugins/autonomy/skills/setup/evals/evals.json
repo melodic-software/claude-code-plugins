@@ -170,6 +170,71 @@
         "attestation_source maps to a same-named native field, not a comment marker",
         "States that absent a verifiable provenance signal the comment floor is retained, per the record-integrity rule"
       ]
+    },
+    {
+      "id": 14,
+      "name": "trigger-discovery-interviews-surfaces-per-class",
+      "prompt": "/autonomy:setup apply\n\nWire triggers and dispatch.",
+      "expected_output": "Runs surface discovery before wiring anything: inspects and interviews which of the four contract surface classes exist for this org, the transport each surface actually offers (push / push-lifecycle / poll), and entitlements — recording per-org absence as a binding outcome rather than treating it as a blocker, and routing entitlement-gapped surfaces to the advisory path. Vendor event specifics are re-verified against current official docs at wire time, not recalled.",
+      "files": [],
+      "expectations": [
+        "Discovers surfaces per surface class before any wiring",
+        "Records transport capability per surface, not one global assumption",
+        "Per-org class absence recorded as a binding outcome, never a contract deferral or a blocker",
+        "Re-verifies vendor event/schedule specifics against current docs at wire time"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "trigger-diy-floor-single-entrypoint",
+      "prompt": "/autonomy:setup apply\n\nWire the free trigger path: label events should enqueue work and something should drain the queue.",
+      "expected_output": "Wires the DIY floor as reviewable changes: a platform event kick running the tracker-vcs-event adapter shape (normalize + enqueue with the full signal envelope, dedup identity, raw link, traceparent, ack echo) and a scheduled drain defaulting to hourly — both funneling into the work-item queue capability's autonomous drain mode via the invocation-adapter seam. No second dispatch or claim path is created; every kick/drain wiring records its named execution surface id with the attestation caveat stated.",
+      "files": [],
+      "expectations": [
+        "Event kick and scheduled drain both funnel into the one queue-drain entrypoint",
+        "Adapter shape carries the envelope obligations (identity, raw link, traceparent, ack)",
+        "Drain cadence defaults to hourly with the org override recorded in the binding",
+        "Execution-surface id recorded on every wiring with the fail-closed attestation caveat stated"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "trigger-plan-gated-surface-advisory-not-default",
+      "prompt": "/autonomy:setup apply\n\nJust turn on the native chat-platform agent integration for channel triggers, whatever plan it needs.",
+      "expected_output": "Refuses to default to a plan-gated surface: surfaces that vendor-hosted channel integrations carry a plan/seat cost, presents the cost explicitly before any opt-in, offers the DIY floor (bot + events subscription or plain inbound webhook) as the zero-cost alternative, and notes the contract's carried research gaps on channel surfaces rather than asserting stale capabilities.",
+      "files": [],
+      "expectations": [
+        "Plan-gated channel integration treated as advisory + explicit opt-in, never default",
+        "Cost surfaced before any opt-in question",
+        "DIY floor (bot/webhook) offered as the zero-cost alternative",
+        "Channel-surface research gaps carried visibly, not asserted as settled"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "trigger-absent-admission-binding-fail-closed",
+      "prompt": "/autonomy:setup apply\n\nWe have no guardrail or admission policy yet — can triggered work still run autonomously?",
+      "expected_output": "States the fail-closed rule: with no admission binding present, every signal still enqueues but human-gated — nothing is dropped and nothing auto-dispatches; the admission seam is wired as the enforcement point while policy content stays owned by the guardrail matrix, and autonomous dispatch relaxes only when that policy lands.",
+      "files": [],
+      "expectations": [
+        "Absent admission binding fail-closes to human-gated enqueue, never silent drop",
+        "No autonomous dispatch without an admission binding",
+        "Admission enforcement wired at the seam; policy content never defined by setup",
+        "States that a later guardrail policy is what relaxes the gate"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "trigger-non-interactive-apply",
+      "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free\n\nWire the trigger slice non-interactively with the DIY floor defaults.",
+      "expected_output": "Completes without prompting: wires the DIY floor with headless defaults (event kick where the platform offers one, hourly scheduled drain), records the triggers section (surfaces map with class/transport/execution_surface, drain cadence) additively in the schema-versioned binding, names check-signal-envelope.mjs as the conformance step, and reports what was wired, advised, and skipped.",
+      "files": [],
+      "expectations": [
+        "Zero interactive prompts issued",
+        "Triggers section recorded additively with surfaces map and drain cadence",
+        "check-signal-envelope named as the conformance verification step",
+        "Reports wired vs advised vs skipped transparently"
+      ]
     }
   ]
 }

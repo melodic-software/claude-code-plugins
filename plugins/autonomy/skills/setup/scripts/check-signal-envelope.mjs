@@ -1,0 +1,232 @@
+#!/usr/bin/env node
+
+// Signal-envelope check for the trigger-dispatch contract: validates the
+// JSON-fenced `<!-- autonomy:signal:v1 -->` marker record on a queued item's
+// body. This is the contract's enforcement surface — adopters and the
+// conforming-path demo run it against created queue items.
+//
+// Usage: node check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>]
+// Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
+//
+// The binding input is the resolved schema-versioned autonomy binding: a
+// temporal signal's `signal.source_surface` must resolve to a surface recorded
+// there, and the surface's `scheduler_class` deterministically branches the
+// `signal.raw_link` form (local-scheduler surfaces have no web origin, so a
+// durable local/artifact URI is legal there and only there). Every additive
+// binding section that records scheduling surfaces (triggers, routines) uses
+// the same `surfaces` map shape; the resolver reads them all uniformly.
+
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import process from "node:process";
+
+const MARKER = "<!-- autonomy:signal:v1 -->";
+const SURFACE_CLASSES = new Set(["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"]);
+const TRANSPORTS = new Set(["push", "push-lifecycle", "poll"]);
+const PROVENANCES = new Set(["human", "agent", "system"]);
+const WORK_CLASSES = new Set(["C1", "C2", "C3", "C4", "C5"]);
+const REQUIRED_KEYS = [
+  "signal.class",
+  "signal.transport",
+  "signal.provenance",
+  "signal.identity",
+  "signal.raw_link",
+  "signal.traceparent",
+];
+// W3C Trace Context traceparent: version "00", all-zero trace-id/parent-id invalid.
+const TRACEPARENT = /^[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
+
+const findings = [];
+
+function parseUrl(value) {
+  if (typeof value !== "string" || /\s/.test(value) || value.length === 0) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+// Absolute https URL with a host; query and fragment PRESERVED (permalinks and
+// comment anchors need them — the telemetry strip rule is the join key's, not
+// the raw link's).
+function isAbsoluteHttpsUrl(value) {
+  const url = parseUrl(value);
+  return url !== null && url.protocol === "https:" && url.hostname.length > 0;
+}
+
+// Durable local/artifact URI for local-scheduler-origin temporal signals: any
+// absolute URI that is not plain-http (file:, artifact-store schemes, https all
+// qualify). Relative references fail WHATWG parsing and so fail here.
+function isDurableLocalUri(value) {
+  const url = parseUrl(value);
+  return url !== null && url.protocol !== "http:";
+}
+
+// The normalized canonical item URL per the telemetry contract's strip rule:
+// https, non-empty host, no query/fragment/trailing slash, parser round-trip.
+function isNormalizedCanonicalUrl(value) {
+  const url = parseUrl(value);
+  return (
+    url !== null &&
+    url.protocol === "https:" &&
+    url.hostname.length > 0 &&
+    url.search === "" &&
+    url.hash === "" &&
+    url.href === value &&
+    !value.includes("?") &&
+    !value.includes("#") &&
+    !value.endsWith("/")
+  );
+}
+
+function extractEnvelope(body, where) {
+  const markerIndex = body.indexOf(MARKER);
+  if (markerIndex === -1) {
+    findings.push(`${where}: no ${MARKER} marker record found`);
+    return null;
+  }
+  const fence = body.slice(markerIndex).match(/```json\s*\n([\s\S]*?)\n```/);
+  if (!fence) {
+    findings.push(`${where}: marker present but no fenced JSON record follows it`);
+    return null;
+  }
+  try {
+    return JSON.parse(fence[1]);
+  } catch {
+    findings.push(`${where}: fenced record after the marker is not valid JSON`);
+    return null;
+  }
+}
+
+// Merge every `surfaces` map any top-level binding section records (triggers
+// today, routines when that section lands) — first recording of an id wins.
+function collectSurfaces(binding) {
+  const surfaces = new Map();
+  for (const section of Object.values(binding ?? {})) {
+    if (typeof section !== "object" || section === null) continue;
+    const map = section.surfaces;
+    if (typeof map !== "object" || map === null) continue;
+    for (const [id, entry] of Object.entries(map)) {
+      if (!surfaces.has(id)) surfaces.set(id, entry);
+    }
+  }
+  return surfaces;
+}
+
+function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
+  const version = envelope.schema_version;
+  if (typeof version !== "string" || !/^1\.\d+$/.test(version)) {
+    findings.push(`${where}: schema_version ${JSON.stringify(version)} is not a known 1.x version`);
+  }
+  for (const key of REQUIRED_KEYS) {
+    const value = envelope[key];
+    if (typeof value !== "string" || value.length === 0) {
+      findings.push(`${where}: required key ${key} missing or empty`);
+    }
+  }
+  const signalClass = envelope["signal.class"];
+  if (typeof signalClass === "string" && !SURFACE_CLASSES.has(signalClass)) {
+    findings.push(`${where}: signal.class ${JSON.stringify(signalClass)} is not a surface-class token`);
+  }
+  const transport = envelope["signal.transport"];
+  if (typeof transport === "string" && !TRANSPORTS.has(transport)) {
+    findings.push(`${where}: signal.transport ${JSON.stringify(transport)} is not a transport token`);
+  }
+  const provenance = envelope["signal.provenance"];
+  if (typeof provenance === "string" && !PROVENANCES.has(provenance)) {
+    findings.push(`${where}: signal.provenance ${JSON.stringify(provenance)} is not a provenance token`);
+  }
+  const workClass = envelope["signal.work_class"];
+  if (workClass !== undefined && !WORK_CLASSES.has(workClass)) {
+    findings.push(`${where}: signal.work_class ${JSON.stringify(workClass)} is not C1-C5 (omit the key when unclassified)`);
+  }
+  const traceparent = envelope["signal.traceparent"];
+  if (typeof traceparent === "string" && traceparent.length > 0 && !TRACEPARENT.test(traceparent)) {
+    findings.push(`${where}: signal.traceparent ${JSON.stringify(traceparent)} is not a valid W3C traceparent`);
+  }
+
+  // agent-internal: serialized provenance is REQUIRED — an unverifiable
+  // self-stamped class would bypass admission.
+  const parentItem = envelope["signal.parent_item"];
+  if (signalClass === "agent-internal") {
+    if (!isNormalizedCanonicalUrl(parentItem)) {
+      findings.push(
+        `${where}: signal.parent_item ${JSON.stringify(parentItem)} must be the emitting session's admitted source item as a normalized canonical https URL (required for agent-internal)`,
+      );
+    }
+  }
+
+  // raw_link form branches DETERMINISTICALLY on the serialized origin.
+  const rawLink = envelope["signal.raw_link"];
+  const sourceSurface = envelope["signal.source_surface"];
+  let localScheduler = false;
+  if (signalClass === "temporal") {
+    if (typeof sourceSurface !== "string" || sourceSurface.length === 0) {
+      findings.push(`${where}: signal.source_surface missing (required for temporal signals)`);
+    } else if (!bindingSupplied) {
+      findings.push(`${where}: temporal signal requires --binding to resolve signal.source_surface`);
+    } else if (!surfaces.has(sourceSurface)) {
+      findings.push(`${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not recorded in any binding surfaces map`);
+    } else {
+      localScheduler = surfaces.get(sourceSurface)?.scheduler_class === "local-scheduler";
+    }
+  }
+  if (typeof rawLink === "string" && rawLink.length > 0) {
+    if (localScheduler ? !isDurableLocalUri(rawLink) : !isAbsoluteHttpsUrl(rawLink)) {
+      findings.push(
+        `${where}: signal.raw_link ${JSON.stringify(rawLink)} is not a durable absolute reference (${localScheduler ? "local-scheduler origin allows an absolute file:/artifact URI or https URL" : "this origin requires an absolute https URL"})`,
+      );
+    }
+  }
+}
+
+function filesUnder(target) {
+  if (statSync(target).isDirectory()) {
+    return readdirSync(target)
+      .map((entry) => join(target, entry))
+      .flatMap(filesUnder);
+  }
+  return [target];
+}
+
+const args = process.argv.slice(2);
+const targets = [];
+let bindingPath = null;
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === "--binding") {
+    bindingPath = args[i + 1];
+    i += 1;
+  } else {
+    targets.push(args[i]);
+  }
+}
+if (targets.length === 0) {
+  console.error("usage: check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>]");
+  process.exit(2);
+}
+
+let surfaces = new Map();
+if (bindingPath !== null) {
+  try {
+    surfaces = collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8")));
+  } catch (error) {
+    console.error(`cannot read binding ${bindingPath}: ${error.message}`);
+    process.exit(2);
+  }
+}
+
+let envelopesChecked = 0;
+for (const target of targets.flatMap(filesUnder)) {
+  const envelope = extractEnvelope(readFileSync(target, "utf8"), target);
+  if (envelope === null) continue;
+  envelopesChecked += 1;
+  checkEnvelope(envelope, target, surfaces, bindingPath !== null);
+}
+
+if (findings.length > 0) {
+  console.error("Signal-envelope conformance FAILED:");
+  for (const finding of findings) console.error(`- ${finding}`);
+  process.exit(1);
+}
+console.log(`Signal-envelope conformance OK: ${envelopesChecked} envelope(s) checked.`);

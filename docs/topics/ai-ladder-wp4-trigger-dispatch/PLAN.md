@@ -126,7 +126,7 @@ runs ungoverned.
 - Vendor+fleet deny-list grep empty over the doc (`node scripts/validate-plugin-contracts.mjs` exit 0)
 - lychee lane passes
 
-### Phase 2: Guided-setup trigger/dispatch slice [TODO]
+### Phase 2: Guided-setup trigger/dispatch slice [DONE]
 
 Extends the `setup` skill (discovery-first per D7/WP1 D7). First work item — fresh-docs
 mandate (repo CLAUDE.md): re-fetch the official docs for any vendor surface the slice names

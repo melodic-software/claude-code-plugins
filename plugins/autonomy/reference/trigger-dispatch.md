@@ -100,8 +100,10 @@ Unclassified → fail-closed human-gated, always.
 ## Signal envelope
 
 Serialization is a JSON-fenced marker record on the queued item (the return-accounting
-convention's marker-record precedent), `schema_version` from `"1.0"` with additive
-evolution under the same reviewed-migration governance as every contract schema. Keys:
+convention's marker-record precedent): the marker `<!-- autonomy:signal:v1 -->` plus one
+fenced JSON block holding the record, written by the adapter at enqueue. `schema_version`
+starts at `"1.0"` with additive evolution under the same reviewed-migration governance as
+every contract schema. Keys:
 
 | Key | Value |
 |---|---|
