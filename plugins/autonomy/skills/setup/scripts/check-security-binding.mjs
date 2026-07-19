@@ -73,11 +73,15 @@ const SPECIAL_USE_TLDS = [
   ".onion",
 ];
 // Recognized host-credential-location FORMS, matched per path COMPONENT —
-// substring matching would accept e.g. "/definitely-not-a-host-token" via
-// "token". Same no-config-source rationale as the egress-host check: the
-// checker cannot know the org's probed credential paths, so any entry not
-// recognizably a credential location is rejected rather than trusted — a
-// failing read of an arbitrary path proves nothing about credential absence.
+// substring matching would accept e.g. "/definitely-not-a-host-credential"
+// via "credentials". Same no-config-source rationale as the egress-host
+// check: the checker cannot know the org's probed credential paths, so any
+// entry not recognizably a credential location is rejected rather than
+// trusted — a failing read of an arbitrary path proves nothing about
+// credential absence. Generic single-word components are deliberately NOT
+// listed: a bare "token" segment (e.g. "/tmp/token") is not host-credential
+// evidence — only a *_token/*.token suffix form, a specific known filename,
+// or a recognized pair qualifies.
 // The isolation-probe template's "cloud metadata endpoint" example qualifies
 // ONLY through the URL branch's known endpoints — a filesystem path segment
 // named "metadata" is not credential evidence. The metadata IP there is a
@@ -92,7 +96,6 @@ const CREDENTIAL_SEGMENTS = new Set([
   "id_rsa",
   "credentials",
   ".credentials",
-  "token",
 ]);
 const CREDENTIAL_SEGMENT_PAIRS = [
   [".kube", "config"],
