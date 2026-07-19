@@ -40,7 +40,7 @@ Classify each changed file:
 | Infrastructure (EF, external services, DB clients) | Integration tests with real infrastructure (Testcontainers / Docker Compose when available) |
 | Configuration / DI registration | Integration tests (verify resolution, no runtime errors) |
 | Project file / build infrastructure changes | Architecture tests (when the project has an architecture-test project) |
-| UI components (Blazor, HTML, JS frameworks) | E2E testing via browser automation (see `/testing:e2e`) |
+| UI components (Blazor, HTML, JS frameworks) | E2E testing via browser automation (see `/testing:run-e2e`) |
 | Analyzer / lint rules | Analyzer tests (verify diagnostic output) |
 
 ### 2. Generate the test plan
@@ -94,7 +94,7 @@ Not all gaps are equal. Prioritize by:
 Present the test plan to the user. Then suggest:
 
 - `/testing:write` for identified unit/integration gaps. **For HIGH/CRITICAL coverage gaps**, the `advisor`-tool checkpoint (when available in the session) applies after the new tests land
-- `/testing:e2e` for UI/API verification scenarios
+- `/testing:run-e2e` for UI/API verification scenarios
 - `/testing:write organize` if new test projects are needed
 
 ## What this skill does NOT do

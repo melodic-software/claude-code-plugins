@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **BREAKING — two skills renamed to the `audit-*` naming grammar** (fleet conformance wave, naming
+  grammar): `automation-gaps` → `audit-automation-gaps` (`/claude-config:automation-gaps` →
+  `/claude-config:audit-automation-gaps`) and `permission-hygiene` → `audit-permission-grants`
+  (`/claude-config:permission-hygiene` → `/claude-config:audit-permission-grants`). The old
+  invocations stop resolving; update any saved references. The `audit` skill is unchanged.
+
 ## [0.6.0]
 
 ### Added

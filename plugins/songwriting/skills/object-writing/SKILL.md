@@ -1,6 +1,6 @@
 ---
 name: object-writing
-description: "Generate raw sensory material and images with Pat Pattison's methods — object writing (sense-bound, 90-second timed dives, Rusty's-collar/Kami-kazi), metaphor (3 types, 8 recipes, collision drills, transitive/intransitive), cliche taxonomy + redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'I need a metaphor for X', 'generate metaphor options', 'this line sounds cliched', 'who is speaking in this lyric'. For rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:daily-practice."
+description: "Generate raw sensory material and images with Pat Pattison's methods — object writing (sense-bound, 90-second timed dives, Rusty's-collar/Kami-kazi), metaphor (3 types, 8 recipes, collision drills, transitive/intransitive), cliche taxonomy + redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'I need a metaphor for X', 'generate metaphor options', 'this line sounds cliched', 'who is speaking in this lyric'. For rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:practice."
 argument-hint: "[action] [args] (e.g., /songwriting:object-writing, /songwriting:object-writing metaphor-recipe trust) — full actions in body"
 user-invocable: true
 disable-model-invocation: false
@@ -41,7 +41,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
 
 - **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when producing lines) before output.
 - If the user asks for a prompt, generate one usable timed exercise immediately (default
-  90 seconds). Do not assign the full curriculum unless asked — that is `/songwriting:daily-practice`.
+  90 seconds). Do not assign the full curriculum unless asked — that is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not
   to produce finished lines.
 - For metaphor, name the type and recipe used; offer options, not a single winner.
@@ -57,5 +57,5 @@ first — a project-level override wins over the bundled default.
 ## Related skills
 
 - Rhyme choice and rhyme cliche → `/songwriting:rhyme`
-- Daily practice curriculum and numbered exercises → `/songwriting:daily-practice`
-- Whole-draft diagnosis (where images fail in context) → `/songwriting:diagnosis`
+- Daily practice curriculum and numbered exercises → `/songwriting:practice`
+- Whole-draft diagnosis (where images fail in context) → `/songwriting:diagnose`

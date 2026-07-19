@@ -3,6 +3,17 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed (breaking)
+
+- **`ubiquitous-language` skill renamed to `curate-language`** (fleet conformance wave: naming
+  grammar). Invocation changes from `/domain-driven-design:ubiquitous-language` to
+  `/domain-driven-design:curate-language`; behavior is unchanged. The new name follows the
+  verb-object skill-naming grammar. The domain term *ubiquitous language* the skill stewards keeps
+  its name — only the skill's invocation token changed. Consumers (including the `planning` plugin's
+  cross-plugin invocation) must update to the new token.
+
 ## [0.1.0]
 
 ### Added

@@ -24,8 +24,8 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `fix-plugin-drift.sh` — jq
-- `${CLAUDE_PLUGIN_ROOT}/skills/automation-gaps/scripts/inventory.sh` — jq
-- `${CLAUDE_PLUGIN_ROOT}/skills/permission-hygiene/scripts/permission-rule-check.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq
 
 1. **`jq`** — `command -v jq`. FAIL if absent: every audit script needs it (`inventory.sh` degrades to
    an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks all three
@@ -56,8 +56,8 @@ reports "already configured".
 
 ## What this skill does NOT do
 
-- Run an audit — that is `/claude-config:audit`, `/claude-config:automation-gaps`, and
-  `/claude-config:permission-hygiene`.
+- Run an audit — that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`, and
+  `/claude-config:audit-permission-grants`.
 - Install system packages, write Claude Code settings or `pluginConfigs`, or touch the plugin cache.
 - Download anything — `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

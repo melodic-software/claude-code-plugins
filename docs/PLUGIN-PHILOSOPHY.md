@@ -56,9 +56,15 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Two further documented exceptions: a single-skill vendor-CLI wrapper
-repeats its tool name (`firecrawl:firecrawl`), and a `-deep` suffix marks the heavier
-isolated-execution tier of a sibling skill (`explore`/`explore-deep`).
+(`worktree`, `pull-request`). Four further documented exceptions: a single-skill vendor-CLI wrapper
+repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
+isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
+its method's own literature term keeps that term when renaming would destroy recognized craft
+vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); and a
+playbook router named by its source keeps the source's own identifier, because provenance is the
+content's identity (`playbooks:boris`, `playbooks:fable-5` — one scheme, person or model alike).
+Every exception is an entry on this list, decided per name — a name class is never
+blanket-sanctioned.
 
 The frontmatter `name` always matches the skill directory name, in the character set the Agent
 Skills specification allows. Never degrade a name to dodge a built-in command: plugin skills are

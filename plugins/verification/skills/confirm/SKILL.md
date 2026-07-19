@@ -22,7 +22,7 @@ Two stages, in order:
 | Stage | Question | Mechanism |
 |-------|----------|-----------|
 | 1. Mechanical **prerequisite** | "does it build, pass tests, satisfy linters?" | delegate `/toolchain:check` + `/toolchain:lint` cross-cutting + architecture-test gate. **STOP the flow if it fails** — can't verify broken code |
-| 2. Outcome **verification** (the core) | "does the change match the plan/intent and function correctly?" | intent match + evidence + (runtime) `/testing:e2e` / live-app observe |
+| 2. Outcome **verification** (the core) | "does the change match the plan/intent and function correctly?" | intent match + evidence + (runtime) `/testing:run-e2e` / live-app observe |
 
 The mechanical pass is a *gate*, not the point. `/toolchain:check` owns build+test+lint; `/toolchain:lint` owns cross-cutting checks. This skill composes them, then does the verification they cannot: did the change accomplish its goal.
 
@@ -89,7 +89,7 @@ Stage 1 delegates to the `toolchain` plugin's `/toolchain:check` and `/toolchain
 
 Read the criterion context file for the dispatched mode, then run the flow below. The shared spine (intent → inventory → match → evidence → report) is in [context/outcome.md](context/outcome.md); `fix` / `refactor` adapt it.
 
-1. **Auto-trigger `/testing:e2e` (when runtime-affecting)** — inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:e2e` via the Skill tool when the `testing` plugin is installed — otherwise drive the live app directly (Claude Code's bundled `/verify` + `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
+1. **Auto-trigger `/testing:run-e2e` (when runtime-affecting)** — inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed — otherwise drive the live app directly (Claude Code's bundled `/verify` + `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
 2. **Intent retrieval** — scan the conversation for the original request, the approved plan, refinements, and acceptance criteria. If none is clear, ask the user what the goal was.
 3. **Implementation inventory** — changed files, new capabilities, behavior changes, config/infra changes.
 4. **Intent match** — every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements — error handling, edge cases, tests).
@@ -98,15 +98,15 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
 **Independence of the verdict.** This skill usually runs in the context that produced the changes — and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor reviewer **when one is installed** — e.g. the OpenAI Codex plugin's `/codex:review` (read-only) or `/codex:adversarial-review`, so the second opinion comes from a different model rather than a same-vendor echo. When no cross-vendor reviewer is available, the same-vendor fresh-context verifier above is the fallback — never route the verdict to a command that may not resolve.
 
-When `/testing:e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit — record `verified_at_sha`) to the topic's contract slice at `<contract_dir>/<slug>/verification/` (default `docs/topics/`; the memory slice under `contract_tier: local`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Under `contract_tier: branch` the manifest is committed on the task branch; under `local` it stays in the self-ignored memory slice (the PR-description paste is its publication surface). Either way it meets the contract's redaction bar: distilled assertions only — no raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
+When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit — record `verified_at_sha`) to the topic's contract slice at `<contract_dir>/<slug>/verification/` (default `docs/topics/`; the memory slice under `contract_tier: local`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Under `contract_tier: branch` the manifest is committed on the task branch; under `local` it stays in the self-ignored memory slice (the PR-description paste is its publication surface). Either way it meets the contract's redaction bar: distilled assertions only — no raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
 
 ## Delegation: live-app run + observe
 
-For "run the live app and watch it behave" — beyond automated `/testing:e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
+For "run the live app and watch it behave" — beyond automated `/testing:run-e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
 
-- **Primary: `/testing:e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI.
+- **Primary: `/testing:run-e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI.
 - **Supplementary: Claude Code's bundled `/verify` + `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145 — verified 2026-07-18 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)).
-- **Graceful fallback** — if the bundled skills cannot infer the project's launch (or the CC version lacks them), fall back to `/testing:e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
+- **Graceful fallback** — if the bundled skills cannot infer the project's launch (or the CC version lacks them), fall back to `/testing:run-e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
 
 ## Edge cases
 
@@ -121,7 +121,7 @@ For "run the live app and watch it behave" — beyond automated `/testing:e2e` �
 |-----------|--------|
 | Review gate passes (no blocking findings — e.g. `/review:quality-gate` when installed) | Suggest `/verification:confirm` |
 | Stage 1 fails | Fix build/test/lint/cross-cutting, then re-run `/verification:confirm` |
-| Runtime-affecting change | Stage 2 auto-triggers `/testing:e2e` (bundled `/verify` / `/run` supplementary) |
+| Runtime-affecting change | Stage 2 auto-triggers `/testing:run-e2e` (bundled `/verify` / `/run` supplementary) |
 | `/verification:confirm` finds CONFIRMED | Suggest a retro (`/session-flow:retro` when installed), then the project's PR flow (`/source-control:pull-request` when installed) |
 | `/verification:confirm` finds gaps | Fix, then re-run `/verification:confirm` |
 | Improvement claimed without data | Redirect to `/verification:measure` (`performance` or `metrics`; baseline captured at planning time) |
@@ -141,4 +141,4 @@ For "run the live app and watch it behave" — beyond automated `/testing:e2e` �
 - **Don't skip outcome confirmation for "obvious" changes.** Small changes drift from intent unnoticed; the intent check catches scope creep and missed requirements tests don't cover.
 - **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure` and its baseline discipline — never assert an improvement from this skill's evidence alone.
 - **Don't re-run Stage 1 if it already passed this conversation** and nothing changed since — reuse the results.
-- **Live-app fallback is fidelity-preserving.** If the bundled `/verify` / `/run` can't launch the app, fall back to `/testing:e2e` and SAY SO — never silently swap live observation for a static check.
+- **Live-app fallback is fidelity-preserving.** If the bundled `/verify` / `/run` can't launch the app, fall back to `/testing:run-e2e` and SAY SO — never silently swap live observation for a static check.

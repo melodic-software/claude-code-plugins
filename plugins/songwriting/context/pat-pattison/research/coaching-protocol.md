@@ -179,8 +179,8 @@ Coaching dialog routes to another action when:
 
 - Writer wants more options on a line → `/songwriting:co-write line-brainstorm`
 - Writer is stuck on a rhyme → `/songwriting:rhyme`
-- Writer wants to verify pre-lock → `/songwriting:diagnosis audit`
-- Writer wants alternates of a candidate → `/songwriting:diagnosis variations`
+- Writer wants to verify pre-lock → `/songwriting:diagnose audit`
+- Writer wants alternates of a candidate → `/songwriting:diagnose variations`
 - Writer wants form / song-shape options → `/songwriting:song-form song-forms`
 
 The AI names the route and asks if the writer wants to take it. The

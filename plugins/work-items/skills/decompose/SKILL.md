@@ -140,7 +140,7 @@ Refs #<parent-item> (if source was an existing item)
 
 ## What to build
 
-Concise description of this vertical slice. Describe end-to-end behavior, not layer-by-layer implementation. No file paths — they go stale. Exception: if `/prototype:logic` produced a snippet encoding a design decision more precisely than prose (state machine, reducer, schema, type shape), inline it and note it came from a prototype.
+Concise description of this vertical slice. Describe end-to-end behavior, not layer-by-layer implementation. No file paths — they go stale. Exception: if `/prototype:pressure-test` produced a snippet encoding a design decision more precisely than prose (state machine, reducer, schema, type shape), inline it and note it came from a prototype.
 
 ## Acceptance criteria
 

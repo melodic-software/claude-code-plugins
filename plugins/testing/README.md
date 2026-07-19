@@ -9,7 +9,7 @@ behavior with tests.
 |---|---|
 | `/testing:plan` | Coverage-gap analysis — classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/testing:write` | Test authoring discipline — vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
-| `/testing:e2e` | Live app verification — start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
+| `/testing:run-e2e` | Live app verification — start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 
 ## Works in any repo

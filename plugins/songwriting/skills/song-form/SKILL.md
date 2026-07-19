@@ -58,4 +58,4 @@ first — a project-level override wins over the bundled default.
 
 - Stability and scansion of the sections → `/songwriting:meter-prosody`
 - Rhyme within sections → `/songwriting:rhyme`
-- Whole-draft diagnosis → `/songwriting:diagnosis`
+- Whole-draft diagnosis → `/songwriting:diagnose`

@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Changed
+
+- **BREAKING: `/testing:e2e` renamed to `/testing:run-e2e`** (fleet conformance wave —
+  naming grammar, verb-first skill names). Update any saved invocations. Skill behavior,
+  triggers, and evals are unchanged; only the leaf name and namespace token changed.
+
 ## [0.1.2]
 
 ### Changed

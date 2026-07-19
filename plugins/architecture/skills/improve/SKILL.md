@@ -58,5 +58,5 @@ Graceful degradation — where a named step below is not available in the consum
 |------|------|-----|
 | A debugging pass finds an architectural root cause | Run this skill's deepening lens | Structured deepening review of the affected module |
 | A candidate shape is agreed | Hand off to a planning skill if the project has one; else summarize the agreed shape for planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
-| During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:ubiquitous-language` when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
+| During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |

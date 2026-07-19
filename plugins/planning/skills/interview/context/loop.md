@@ -57,7 +57,7 @@ Run rounds until the stop condition is met. Each round:
 4. **Ask the frontier as one numbered set** — each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius — the answer that would change the most downstream work goes first
 5. **Capture the answers** in the working draft of the Brief (in your head or a scratch buffer, NOT on disk yet). Partial replies are normal: resolve what was answered, keep the rest OPEN — never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5–Q7")
 6. **Recompute the tree** — what subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
-7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:ubiquitous-language` for the inline vocabulary update — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
+7. **Domain check** — when the task touches domain concepts, run the glossary challenge (probe terms used two ways or colliding with existing definitions) + scenario exploration (invented edge cases probing concept boundaries). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` for the inline vocabulary update — a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
 
 ### Decision dependencies
 
