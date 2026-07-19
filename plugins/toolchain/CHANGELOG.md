@@ -14,10 +14,15 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `origin` and no pushed upstream, `origin` does not exist, so `git symbolic-ref refs/remotes/origin/HEAD`
   and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") — the
   `origin` fallback the 0.4.1 note claimed "still resolves" a `git clone -o vendor` did not hold for the
-  not-yet-pushed case. When the branch has no tracking remote, both call sites now keep `origin` when it
-  is present and otherwise pick the first present remote, so the branch diff resolves against a remote
-  that actually exists. Detection still degrades gracefully (skips the branch-diff path) when no remote
-  is present. A cross-plugin shared default-branch helper remains the broader fix tracked by #436/#442.
+  not-yet-pushed case. Both call sites now probe candidate remotes in priority order — the branch's
+  tracking remote, then `origin` if present, then the rest — and select the first whose default branch
+  resolves to a locally available `refs/remotes/<remote>/<branch>` tracking ref. This also skips a remote
+  that was added but never fetched (whose `git ls-remote` default-branch query succeeds over the network
+  but leaves no local ref for `git merge-base`) in favor of a later remote that has one, rather than
+  committing to the alphabetically first remote and bailing. The common tracking-remote case still
+  short-circuits on the first candidate with no extra network calls, and detection still degrades
+  gracefully (skips the branch-diff path) when no candidate yields a local default branch. A cross-plugin
+  shared default-branch helper remains the broader fix tracked by #436/#442.
 - **Remote-prefix strip no longer breaks on `#` in a remote name.** The default-branch resolution
   stripped the `$REMOTE/` prefix with `sed "s#^$REMOTE/##"`, whose `#` delimiter collides with a
   `#` in the remote name (a Git-legal character), corrupting `DEFAULT_BRANCH` and silently skipping
