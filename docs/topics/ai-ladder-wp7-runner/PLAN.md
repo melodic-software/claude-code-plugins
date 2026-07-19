@@ -54,8 +54,9 @@ package commits, implies, or starts a build before the trigger earns it.
   set, launch backend derivation, topology seam map.
 - Zero build artifacts; runner-execution home unborn; T4 build triggers restated verbatim;
   no build commitment anywhere in the text.
-- WP5 D6's escalation-UX deferral is resolved by this package (the last cross-package
-  deferral).
+- WP5 D6's escalation-UX deferral — the last WP5-inherited cross-package deferral — is
+  resolved by this package (mid-run interrupt stays deferred with its own evidence trigger;
+  this pack resolves the inherited deferral, it does not claim nothing remains deferred).
 - Research gaps carried visibly, not laundered: CI-action-class failure-reporting UNVERIFIED;
   cross-vendor agent-needs-human signaling (agent-protocol / agent-instruction-file guidance)
   UNVERIFIED; managed-agent event names drift between stream and webhook surfaces — bind
@@ -104,4 +105,153 @@ package commits, implies, or starts a build before the trigger earns it.
 
 ## Plan
 
-(unfilled — /architect)
+Recommendation-locked this round under the user's standing pre-authorization. Token sets
+(D-deferred, resolved here): lifecycle state tokens `leased` / `executing` / `verifying` /
+`disposing` / `escalated` / `complete` (terminal: `escalated`, `complete`); terminal-outcome
+tokens `success` / `gate-failed` / `needs-human` / `cap-exceeded`; stop-criteria family
+tokens `runner-owned` (deterministic) and `agent-signaled` (judgment, via the
+structured-output envelope field `stop_reason`); severity levels `notice` / `attention` /
+`urgent` (three levels — mapped to org-bound notification fan-out; tracker item always,
+channel notification per org route, personal-push tier org-bindable at `urgent`); default
+staleness window 72h with one re-escalation (severity bump, cap 1) — org-bindable knobs.
+Design-pack docs live under `reference/runner/` (hub `reference/runner.md`).
+
+Prerequisites: WP4 + WP5 + WP6 implementation PRs merged (this pack imports their contracts
+by citation). Design only — zero build artifacts; the runner-execution home stays unborn.
+
+### Phase 1: Charter import + spine and seam specs [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/runner.md` | Create | Design-pack hub: T4 charter imported verbatim-in-substance (queue-contract split interactive-upstream / autonomous-downstream; BOTH build triggers restated verbatim; self-run-primary substrate stance with the hosted human-merge-gate cap; anti-goals) with an explicit no-build-commitment clause; the two-layer composition spine per D2 — normative spine SHAPE in seam vocabulary (minimal composable orchestration, pluggable sandbox-provider seam × pluggable agent-adapter seam, autonomous/interactive split) with the 8 seams as its interface set; adopt-first binding stance recorded (qualifying spine library re-verified at trigger time; reimplement-the-pattern the named fallback); glance rule routing depth to the leaves. |
+| `plugins/autonomy/reference/runner/seams.md` | Create | The 8 seam specifications in contract vocabulary (invocation adapter, structured-output envelope, queue+lease, isolation policy, outcome-verification gate, merge-policy toggle, observability+cost, session/resume+caps): each seam's obligation set, its already-shipped owning contract where one exists (queue+lease → trigger-dispatch; isolation policy → guardrails; observability+cost → telemetry; capture at task boundary → return accounting) cited never restated, and the runner-side interface tokens. Envelope field names resolved: `stop_reason`, `outcome`, `evidence` (bundle ref), `resume_handle`. |
+
+**Sanity Check:**
+
+- `grep -ci 'build trigger' plugins/autonomy/reference/runner.md` ≥ 2 (both triggers restated)
+- `grep -c 'no build' plugins/autonomy/reference/runner.md` ≥ 1 (commitment clause present)
+- Seam count: `grep -cE '^## ' plugins/autonomy/reference/runner/seams.md` = 8
+- Vendor+fleet deny-list sweep exit 0; lychee lane passes
+
+### Phase 2: Lifecycle + stop-criteria + escalation leaves [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/reference/runner/lifecycle.md` | Create | Full state model per D4: `leased → executing → verifying → disposing → (escalated \| complete)`, every transition emitting telemetry per the telemetry contract (trace-linked); launch disposition thin (per-item PR through the platform's native flow, merge disposition governed by the WP5 matrix row — including the vendor-hosted human-gate cap whenever the executing backend is vendor-hosted, restated here rather than inherited silently); batched gated-merge serialization named as a growth stage with its evidence trigger (observed concurrent auto-merge collisions) binding to a platform-native merge-queue facility — never reimplemented. |
+| `plugins/autonomy/reference/runner/escalation.md` | Create | D5 resolved: terminal-handoff at launch — every stop resolves to a terminal outcome (`success`/`gate-failed`/`needs-human`/`cap-exceeded`); the NON-SUCCESS outcomes file the human-gated work item with the evidence bundle (failure summary, run-transcript link, cost, trace link, `resume_handle`; human takeover = resume the persisted session), while `success` completes through the normal disposition + return-accounting path — no escalation item, no ack/re-escalation obligations, else every healthy run would generate false escalation work (PR-review finding); two-family stop-criteria taxonomy verbatim (runner-owned: turn/budget/wall-clock caps, execution error after retries, refusal, verification-gate failure, isolation violation; agent-signaled via `stop_reason`: ambiguity, design decision, security/data-integrity event, unresolvable blocker, no-progress); transient-recoverable retries with backoff, never escalates; severity axis (`notice`/`attention`/`urgent`) → org-bound fan-out with personal-push as an org-bindable route; an EXPLICIT two-step mapping so severity resolution is deterministic for every non-success stop (PR-review findings — the severity join keys on event class, which runner outcomes alone never named, and stop reasons in turn never named their outcome): STEP ONE, stop reason → terminal outcome — runner-owned: verification-gate failure → `gate-failed`; turn/budget/wall-clock cap → `cap-exceeded`; execution error after retries, refusal, and isolation violation → `needs-human`; agent-signaled (every `stop_reason` value: ambiguity, design decision, security/data-integrity event, unresolvable blocker, no-progress) → `needs-human`; STEP TWO, outcome → event class: `gate-failed` → the guardrail contract's gate-failure event class; `needs-human` and `cap-exceeded` → two runner escalation event classes with the tokens `runner-needs-human` and `runner-cap-exceeded`, registered ADDITIVELY alongside the guardrail contract's set — the Phase 3 schema edit extends the event-class registry (the enum `escalation_routes` and `escalation_severity` keys validate against) with these two tokens, and `check-security-binding.mjs` accepts route/severity bindings for them like any guardrail class (default severities `attention` and `notice`, org-bindable), and contract default severities for EVERY inherited guardrail event class so severity fan-out is defined with no `escalation_severity` binding at all (gate failure `attention`, verification divergence `attention`, admission rejection `notice`, demotion event `attention`, structural-class plan approval `attention`, untrusted-provenance `urgent` — all org-bindable overrides); an isolation violation or a `security/data-integrity` stop reason carries an `urgent` severity override regardless of its event class's default; the filed escalation item's envelope records the resolved event class AND the originating stop reason; acknowledgment-on-item + stale-unacked re-escalation (default 72h window, one severity-bump re-escalation, both org-bindable); mid-run interrupt deferred with its evidence trigger; escalation telemetry rides the telemetry contract's custom-namespace mechanism — the exact namespace token is read from the shipped telemetry contract at implementation, not pinned here (candidate upstream contribution noted). Research gaps carried verbatim (CI-action-class failure-reporting UNVERIFIED; cross-vendor needs-human signaling UNVERIFIED; managed-agent event-name drift — bind at build; deprecated approval-SDK never cited as living precedent). |
+| `plugins/autonomy/reference/runner/topology.md` | Create | D6: ownership seam map — design pack in the capability-distribution home; at trigger fire the runner-execution home is born owning implementation + build/release toolchain, consuming contracts never duplicating; security-sensitive runner bindings in the settings-as-code home (runner reads its governance, never writes it); non-security operational config deployment-owned; launch backend set per D3 (one free self-run L2 container-class backend; L3 deferred with the first-C5 trigger, fail-closed until bound — the C5→L3 floor CITED from the WP5 work-classes matrix cell, never asserted independently here, per stress-test F5; paid/cloud advisory + opt-in, and any cloud backend IS a vendor-hosted executor: it forces the security binding's `executor_class: vendor-hosted`, capping every merge row at human-gated, per F6); birth-time decisions listed with arbiter USER-RESERVED (repo count/name/language, spine re-verification, exact managed-event names). |
+
+**Sanity Check:**
+
+- State tokens present: `grep -c 'disposing' plugins/autonomy/reference/runner/lifecycle.md` ≥ 1
+- `grep -c 'cap-exceeded' plugins/autonomy/reference/runner/escalation.md` ≥ 1 and `grep -c 'stop_reason' …/escalation.md` ≥ 1
+- `grep -ci 'UNVERIFIED' plugins/autonomy/reference/runner/escalation.md` ≥ 2
+- `grep -c 'USER-RESERVED' plugins/autonomy/reference/runner/topology.md` ≥ 1
+- Vendor+fleet deny-list sweep exit 0
+
+### Phase 3: Setup note + WP5 escalation-route join [TODO]
+
+| File | Action | What changes |
+|---|---|---|
+| `plugins/autonomy/skills/setup/SKILL.md` | Modify | A short runner note only: the design pack is bindable-when-born; setup records NOTHING runner-specific until the trigger fires except escalation notification routes (severity axis + personal-push tier as route options). No probe, no wiring, no binding section for the unborn home. |
+| `plugins/autonomy/skills/setup/schemas/guardrails-security-binding.schema.json` | Modify | The severity refinement is GENUINELY additive (stress-test F2 — the schema is `additionalProperties: false`, so an undeclared shape would fail every severity-tiered binding): `escalation_routes` keeps its existing event-class→route entries unchanged; three new OPTIONAL top-level keys land beside it, modeling the event/severity join explicitly — `escalation_severity` (event class → severity token, the join: which severity each event class escalates at; contract defaults per event class, org-bindable), `escalation_severity_routes` (severity token → route, `notice`/`attention`/`urgent`, personal-push a legal route value at any tier; route resolution = event class → its severity → that severity's route, falling back to the event class's own `escalation_routes` entry when no severity route is bound), and `escalation_ack` (`staleness_window`, default 72h; `reescalation_cap`, default 1). Old bindings validate unchanged — no major bump; that resolution is now in-plan, not asserted. |
+| `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` | Modify | Semantic checks for the new keys: severity tokens ∈ the three-level set; `escalation_ack` values positive; routability per event class matches the resolution rule — an event class keyed in `escalation_severity` is routable when its severity has an `escalation_severity_routes` entry OR the event class has its own `escalation_routes` entry (severity-only fan-out is legal, matching severity-route-first resolution; a legacy per-event route is the fallback, never a requirement), and only an event class with NEITHER is flagged unroutable. |
+| `plugins/autonomy/skills/setup/evals/evals.json` | Modify | Escalation-route slice case (severity + personal-push binding recorded; unborn-home refusal restated) — stress-test F7: every other WP adds eval coverage for its SKILL.md change; no exemption here. |
+| `plugins/autonomy/README.md` + `plugins/autonomy/.claude-plugin/plugin.json` | Modify | Capability list gains the runner design pack; the roadmap row stays trigger-gated (build), now pointing at the pack; minor version bump. |
+
+**Sanity Check:**
+
+- `grep -ci 'unborn' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
+- README roadmap still carries the build trigger row (`grep -c 'build trigger' plugins/autonomy/README.md` ≥ 1)
+- Schema additivity: `grep -c 'escalation_severity_routes' …schema.json` ≥ 1 and a pre-WP7 fixture binding still passes `check-security-binding.mjs` unchanged (no major bump proven, not asserted)
+- `/skill-quality:check` + `validate-evals` pass; `claude plugin validate --strict` exit 0
+
+### Phase 4: Zero-build audit + gates [TODO]
+
+Acceptance probe (mechanical): the package introduces no executable/runtime artifact — the
+diff contains no new files outside `reference/`, `skills/setup/`, README, and plugin
+manifest; no new scripts; no repo-creation instruction anywhere. Then the full gate roster
+(`validate-plugins.sh`, `run-plugin-tests.sh`, `validate-plugin-contracts.mjs`,
+markdown/typos/lychee, `claude plugin validate --strict`, catalog regen). Near-duplicate
+audit statement: the pack cites the shipped contracts for every inherited obligation and
+defines only runner-new content.
+
+**Sanity Check:**
+
+- `git diff --name-only <base>` contains no path outside the four allowed surfaces; no `*.sh`/`*.mjs` additions
+- `grep -rci 'git init\|create the repo' plugins/autonomy/reference/runner*` = 0
+- All gate scripts exit 0; catalog in-sync; near-duplicate audit statement in the PR body
+
+## Blast radius
+
+MEDIUM — docs-only within one plugin, but the pack pre-commits topology and escalation
+contracts the eventual build must honor; WP5's last cross-package deferral resolves here.
+Fully git-revertible; zero runtime surface by design.
+
+## Stress-test summary
+
+Fresh-context plan review (WP6+WP7 batch): 10 findings, verdict FIX-THEN-SHIP, WP7's share
+folded — F2 (HIGH): the escalation-route severity refinement touched the WP5 security-binding
+schema (`additionalProperties: false`) but Phase 3 listed neither the schema nor the
+validator, leaving the flagship severity/ack knob set unbindable, and "additive, no major
+bump" was asserted over what read as a value-shape change → both files added to Phase 3 and
+the refinement modeled as genuinely additive optional keys (`escalation_severity_routes`,
+`escalation_ack`), with a pre-WP7 fixture-passes gate proving no major bump. F5 (MED): the
+C5→L3 fail-closed gate now CITES the WP5 work-classes matrix cell (which imports T3's C5/L3
+row) instead of asserting the value. F6 (LOW-MED): the vendor-hosted human-gate merge cap is
+restated on the cloud-backend and disposition paths instead of silently inherited. F7 (LOW):
+the Phase 3 SKILL.md change gains eval coverage like every other WP. F9 (LOW): the
+"last cross-package deferral" claim scoped to the WP5-inherited deferral. F10 (LOW): the
+escalation-telemetry namespace token is read from the shipped telemetry contract at
+implementation, not pinned in the plan. Scope discipline (zero build artifacts, unborn
+runner-execution home, USER-RESERVED birth decisions) audited clean.
+
+## Execution shape
+
+Fully sequential 1 → 2 → 3 → 4 — leaves depend on the hub's imported charter; the setup note
+cites Phase 2's escalation severity axis; Phase 4 audits the authored tree. Cross-package:
+after WP4+WP5+WP6 implementation PRs.
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | charter import fidelity + seam-spec judgment |
+| 2 | main-session | lifecycle/escalation normative authoring |
+| 3 | main-session | minimal setup-skill touch |
+| 4 | main-session | mechanical audit + gate runs |
+
+## Open questions
+
+- Birth-time decisions (repo count/name/language, spine re-verification, managed-event
+  names) — USER-RESERVED at trigger fire, restated in topology.md.
+
+## Decisions made (gate-passed)
+
+| Decision | What it changes in the plan | Basis (evidence) |
+|---|---|---|
+| Lifecycle tokens `leased/executing/verifying/disposing/escalated/complete` | Phase 2 leaf | D4's state model named each stage; kebab/lowercase matches shipped token sets |
+| Terminal outcomes `success/gate-failed/needs-human/cap-exceeded` | Phase 2 leaf | D5 names exactly these four |
+| Severity set `notice/attention/urgent`; 72h staleness, one re-escalation | Phase 2 leaf | D5 requires a severity axis + ack/re-escalation knobs with suggested defaults; three tiers is the smallest set covering tracker-only / channel / push fan-out |
+| Envelope fields `stop_reason/outcome/evidence/resume_handle` | Phases 1–2 | D5's evidence-bundle + resume requirements; smallest field set carrying them |
+| Hub-and-leaves under `reference/runner/` | Phase 1–2 paths | Same layout as WP5/WP6 hubs |
+| Escalation-route severity refinement = new OPTIONAL schema keys (`escalation_severity` as the explicit event→severity join, `escalation_severity_routes`, `escalation_ack`) beside an untouched `escalation_routes`; schema + validator edits in Phase 3 | Phase 3 | WP5 D6 routes live there; stress-test F2 — only genuinely additive keys avoid a major bump under `additionalProperties: false`, proven by the pre-WP7 fixture gate; the join key answers the PR-review finding that severity→route alone left route selection non-deterministic per event class |
+
+## Handoff to implementation
+
+### User-approval gates
+
+- Anything that reads as a build commitment or creates a runtime artifact → STOP (D1
+  user-locked; the zero-build audit is the backstop).
+- Birth-time decisions stay USER-RESERVED — never resolved by implementation.
+- Any scope expansion beyond the four phases re-enters `/architect review`.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+Sequential 1→4, all main-session (table above). PLAN.md phase tags advance in the same
+commit as each phase.
+
+### Mechanical work
+
+Commit per phase on the implementation branch (suggest `docs/autonomy-runner-design-pack` —
+docs-type: the package is normative text only); gates re-run in full at Phase 4; PR body
+carries the zero-build audit output + near-duplicate audit statement + this PLAN in a
+`<details>` block at close-out.
