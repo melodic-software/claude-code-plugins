@@ -8,10 +8,10 @@ This is NOT the same as:
 | Action | Volume | Output shape |
 |---|---|---|
 | `/songwriting:rhyme` / `rhyme-generation` | 8-15 rhyme candidates | rhyme-list per tier |
-| `/songwriting:diagnosis variations` | 5-7 labeled line alternates | menu of polished alternates |
+| `/songwriting:diagnose variations` | 5-7 labeled line alternates | menu of polished alternates |
 | `/songwriting:co-write line-brainstorm` | 30-50+ across 5 columns | RAW pre-revision dump |
-| `/songwriting:diagnosis demo` | diagnosis of the line in song context | dominant-problem named |
-| `/songwriting:diagnosis audit` | pre-lock checklist on a candidate line | go / no-go signal |
+| `/songwriting:diagnose demo` | diagnosis of the line in song context | dominant-problem named |
+| `/songwriting:diagnose audit` | pre-lock checklist on a candidate line | go / no-go signal |
 | `/songwriting:object-writing` | timed sense-bound write | raw-image generation |
 
 `line-brainstorm` is the *between* tool — the writer knows the line needs

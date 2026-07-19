@@ -1,0 +1,87 @@
+{
+  "skill_name": "curate-language",
+  "evals": [
+    {
+      "id": 1,
+      "name": "preserves-consumer-glossary-convention",
+      "prompt": "/domain-driven-design:curate-language We resolved that a Claimant is the person requesting coverage, never the insured organization. Treat evals/fixtures/custom-terms.md as the consumer project's existing glossary and update the term there.",
+      "expected_output": "Updates the existing custom-terms.md table in its established row/column shape, defining Claimant tightly and recording 'insured organization' in its Rejected names column. It does not create or prescribe a GLOSSARY.md file.",
+      "files": ["evals/fixtures/custom-terms.md"],
+      "expectations": [
+        "Updates the supplied custom-terms.md rather than creating or prescribing a different glossary file",
+        "Preserves the existing table convention, including its Rejected names column, instead of replacing it with the fallback prose shape",
+        "Defines Claimant as what the project concept IS and records 'insured organization' as a rejected name",
+        "Does not add implementation details, requirements, or general dictionary content"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unresolved-language-does-not-write",
+      "prompt": "/domain-driven-design:curate-language We keep alternating between Account, Customer, and Tenant, and nobody agrees whether these are one concept or three. Please add something to the glossary now so we can move on.",
+      "expected_output": "Declines to manufacture consensus or write a speculative entry. Exercises the terms against a domain scenario and asks one focused question that resolves their conceptual boundary before any glossary update.",
+      "files": [],
+      "expectations": [
+        "Does not create or update a glossary entry while the concepts and canonical term remain unresolved",
+        "Does not arbitrarily choose Account, Customer, or Tenant as canonical",
+        "Uses a domain scenario or boundary test to expose the ambiguity",
+        "Asks one focused resolution question rather than batching unrelated questions"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "routes-known-context-without-discovery",
+      "prompt": "/domain-driven-design:curate-language In the Support context, Ticket means a customer's request for help; Billing also uses ticket to mean a metered charge record. Use the supplied context map and glossaries, and record only the resolved Support meaning. Do not redesign our contexts.",
+      "expected_output": "Reads the supplied map, routes the new definition only to support-terms.md, and leaves billing-terms.md and the context boundaries unchanged. It does not duplicate the entry or run bounded-context discovery.",
+      "files": [
+        "evals/fixtures/context-map.md",
+        "evals/fixtures/support-terms.md",
+        "evals/fixtures/billing-terms.md"
+      ],
+      "expectations": [
+        "Uses the supplied context map and writes the Support definition only to support-terms.md",
+        "Does not overwrite or merge Billing's distinct Ticket meaning",
+        "Does not duplicate the Support definition into both glossaries as a hedge",
+        "Does not discover, rename, split, or merge bounded contexts"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-spec-or-generic-term-pollution",
+      "prompt": "/domain-driven-design:curate-language Add Retry to our domain glossary with the definition 'a Polly policy stored in Redis that retries the HTTP request three times with exponential backoff.'",
+      "expected_output": "Rejects the proposed entry because Retry is generic programming vocabulary and the proposed text is an implementation specification, not a project-specific what-it-IS domain definition. It asks for evidence of a distinct project-domain meaning before admitting it.",
+      "files": [],
+      "expectations": [
+        "Does not add the proposed implementation-heavy Retry entry to a glossary",
+        "Identifies Retry as generic programming vocabulary unless the project gives it a distinct domain meaning",
+        "Identifies Polly, Redis, HTTP count, and backoff as implementation/specification detail rather than glossary content",
+        "Asks for or explains the missing project-domain meaning needed for admission"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "no-empty-file-or-fixed-filename",
+      "prompt": "/domain-driven-design:curate-language Set up our domain glossary structure now. We have not resolved any domain terms, the repo has no vocabulary convention, and I will not be available to answer placement questions.",
+      "expected_output": "Does not create empty glossary or context-map scaffolding and does not choose a universal filename. It reports that creation is deferred until a real term resolves and a consumer convention can be inferred or confirmed.",
+      "files": [],
+      "expectations": [
+        "Does not create an empty glossary or context map",
+        "Does not prescribe GLOSSARY.md, CONTEXT.md, or another universal filename",
+        "Defers creation until a real term resolves",
+        "Reports the missing placement convention rather than silently inventing one"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "passive-lookup-does-not-mutate",
+      "prompt": "/domain-driven-design:curate-language Read evals/fixtures/custom-terms.md and tell me what Policyholder means. This is a lookup only; no terminology changed.",
+      "expected_output": "Answers from the existing entry without rewriting, normalizing, or relocating the glossary. It recognizes that passive reading is not an active model-language change.",
+      "files": ["evals/fixtures/custom-terms.md"],
+      "expectations": [
+        "Returns the existing Policyholder meaning from the supplied file",
+        "Does not edit, reformat, relocate, or replace custom-terms.md",
+        "Does not create another glossary file",
+        "Distinguishes passive lookup from the skill's active-maintenance workflow"
+      ]
+    }
+  ]
+}

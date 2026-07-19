@@ -54,10 +54,10 @@
       "id": 7,
       "name": "e2e-auto-trigger-on-runtime-change",
       "prompt": "verify the changes — I added a new endpoint to the API",
-      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /testing:e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha to the topic's contract slice.",
+      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /testing:run-e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha to the topic's contract slice.",
       "files": [],
       "expectations": [
-        "Auto-triggers /testing:e2e because the change matches an e2e-* category glob (runtime-affecting)",
+        "Auto-triggers /testing:run-e2e because the change matches an e2e-* category glob (runtime-affecting)",
         "Writes the assertion-only manifest with verified_at_sha to the topic's contract slice (docs/topics/<slug>/verification/, committed on the task branch)",
         "Meets the redaction bar: no machine-local capture paths in the manifest — raw captures stay in the memory tier (.work/<slug>/scratch/), never committed"
       ]
@@ -77,12 +77,12 @@
       "id": 9,
       "name": "live-app-delegates-to-bundled-with-fallback",
       "prompt": "/verification:confirm outcome — run the live app and show me the change working",
-      "expected_output": "For live-app run/observe, delegates to /testing:e2e (primary for orchestrated apps) or bundled /verify + bundled /run, with a fidelity-preserving graceful fallback: if bundled /verify or /run cannot infer the project's launch, falls back to /testing:e2e and surfaces the gap rather than silently downgrading to a static check.",
+      "expected_output": "For live-app run/observe, delegates to /testing:run-e2e (primary for orchestrated apps) or bundled /verify + bundled /run, with a fidelity-preserving graceful fallback: if bundled /verify or /run cannot infer the project's launch, falls back to /testing:run-e2e and surfaces the gap rather than silently downgrading to a static check.",
       "files": [],
       "expectations": [
         "Delegates live-app observation rather than reimplementing app launch",
-        "Treats /testing:e2e as primary for orchestrated apps; bundled /verify + /run as supplementary",
-        "On bundled-tool failure, falls back to /testing:e2e and SAYS SO — never silently swaps live observation for a static check"
+        "Treats /testing:run-e2e as primary for orchestrated apps; bundled /verify + /run as supplementary",
+        "On bundled-tool failure, falls back to /testing:run-e2e and SAYS SO — never silently swaps live observation for a static check"
       ]
     },
     {

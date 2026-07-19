@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "prototype",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Builds throwaway code to answer a design question before committing to architecture — a logic facet (an interactive terminal app over a portable state model) and a UI facet (radically different visual variants on one route).",
   "author": {
     "name": "Melodic Software",

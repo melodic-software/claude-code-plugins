@@ -8,7 +8,7 @@ lifecycle as discrete **reversible actions**, each state mutation paired with a
 documented compensating reversal, and tracks every upstream source that drifts
 independently.
 
-Invoke it with `/kindle-dedrm:kindle-dedrm` and an optional action.
+Invoke it with `/kindle-dedrm:manage` and an optional action.
 
 ## ⚠️ Personal-use DRM removal — read first
 

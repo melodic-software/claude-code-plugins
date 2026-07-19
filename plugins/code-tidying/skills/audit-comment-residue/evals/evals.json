@@ -1,0 +1,74 @@
+{
+  "skill_name": "audit-comment-residue",
+  "evals": [
+    {
+      "id": 1,
+      "name": "classify-residue-shapes-with-tiers",
+      "prompt": "Audit code comments for residue: read evals/fixtures/residue-snippet.py relative to the skill directory and classify what you find.",
+      "expected_output": "Emits a per-file tier table: the 'used to batch writes … now flushes' comment as history-narration (Tier 1), the 'as you asked' comment as conversational-antecedent (Tier 1), the 'Task 2 replaces the old …' comment as plan-reference (Tier 1), and the 'see PR #45' comment as ticket-pr-residue (Tier 2), each with delete/review treatment guidance. No edits are applied.",
+      "files": ["evals/fixtures/residue-snippet.py"],
+      "expectations": [
+        "Output classifies findings by the skill's shape vocabulary (history-narration, plan-reference, conversational-antecedent, ticket-pr-residue)",
+        "The 'used to … now flushes' comment is flagged as history-narration",
+        "The 'see PR #45' comment is flagged as ticket-pr-residue at Tier 2",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "read-only-even-when-asked-to-fix",
+      "prompt": "Run comment-residue on src/parser.py and just delete the residue comments you find — strip them for me.",
+      "expected_output": "Stays read-only despite the request to edit: surfaces the findings with treatment guidance and does NOT apply Edit/Write. It explains the author applies each deletion, or points to /code-tidying:tidy for the edit-capable pass.",
+      "files": [],
+      "expectations": [
+        "Output does NOT edit or write the file despite the explicit request to strip comments",
+        "Output surfaces findings with treatment guidance for the author to apply",
+        "The read-only contract is honored or explicitly stated"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "sanctioned-todo-not-flagged",
+      "prompt": "Audit a file whose only tracker reference is `# TODO(#123): switch to CRC32 once the format is frozen`. Classify it.",
+      "expected_output": "Recognizes TODO(#issue) as the sanctioned back-reference and does NOT flag it as ticket-pr-residue. Only bare provenance references (see PR #, from branch, JIRA-123) are ticket residue.",
+      "files": [],
+      "expectations": [
+        "The TODO(#123) line is NOT flagged as ticket-pr-residue",
+        "Output states that TODO(#issue) tracking real work is the sanctioned exception"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "code-word-not-in-comment-not-flagged",
+      "prompt": "Audit a file with the line `previously = load_cache()` — 'previously' is an identifier in code, not a comment. Classify it.",
+      "expected_output": "Does NOT flag the code identifier as history-narration: residue detection runs only on the comment portion of a line, so a residue-shaped word in an identifier or string literal is never flagged.",
+      "files": [],
+      "expectations": [
+        "The `previously` identifier in code is NOT flagged as history-narration",
+        "Output states that detection is scoped to the comment portion of a line"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "not-delete-all-comments",
+      "prompt": "Audit a file with `# Sums the payload bytes modulo 2**32.` above the code. Flag it.",
+      "expected_output": "Does NOT flag a legitimate present-tense why/what-it-can't-express comment. Only the four residue shapes are findings; a comment that carries non-obvious intent or a contract stays.",
+      "files": [],
+      "expectations": [
+        "The legitimate present-tense comment is NOT classified as any residue shape",
+        "Output distinguishes residue from comments worth keeping (non-obvious why / interface intent)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "markdown-is-audit-noise-not-comment-residue",
+      "prompt": "Run comment-residue on docs/notes.md — it contains 'used to do X, now does Y' narration. Flag it.",
+      "expected_output": "Does NOT audit the markdown file — code-comment residue is code-file-only; markdown noise is the sibling /audit-noise's territory. It reports no code targets and routes markdown to /audit-noise.",
+      "files": [],
+      "expectations": [
+        "The .md file is not audited (no findings emitted for it)",
+        "Output routes markdown noise to /audit-noise rather than handling it here"
+      ]
+    }
+  ]
+}

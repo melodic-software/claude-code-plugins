@@ -116,7 +116,7 @@ an interactive session — do not fabricate a map.
    | `wayfind: research` | autonomous-capable | `/discovery:research` (falls back to inline research if not installed) |
    | `wayfind: interview` | HITL | `/planning:interview` |
    | `wayfind: design` | HITL | `/planning:design` — or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `wayfind: prototype` | HITL | `/prototype:logic` (behaviour/feasibility) or `/prototype:ui` (design/UX) — the item body says which |
+   | `wayfind: prototype` | HITL | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX) — the item body says which |
    | `wayfind: task` | per-item | Direct decision-unblocking work — no feature code, no PR tie |
 
 5. **Graduate on every resolution.** When the decision resolves: post the resolution as a
@@ -144,7 +144,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | A single sharp contract to lock | `/planning:interview` | The map's `interview`-typed items route here; also the graduation target |
 | Product intent still fuzzy | `/planning:prd` | Graduation target when the destination is a PRD |
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
-| Feasibility / UX unknown | `/prototype:logic`, `/prototype:ui` | `prototype`-typed items route here |
+| Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here |
 | External-evidence item | `/discovery:research` | `research`-typed items route here (autonomous) |
 | The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 

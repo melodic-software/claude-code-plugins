@@ -136,14 +136,14 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
-          # The comment-residue skill IS a code-comment linter: its detector
+          # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
           # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
           # TODO(#issue) sanctioned-exemption. Exempt that skill's scripts + evals
           # (its SKILL.md is markdown, already outside the scan's extension set).
           exclude: >-
-            :(exclude)plugins/code-tidying/skills/comment-residue/scripts/**
-            :(exclude)plugins/code-tidying/skills/comment-residue/evals/**
+            :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
+            :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test

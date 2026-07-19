@@ -3,6 +3,13 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- Cross-plugin invocation tokens updated for the fleet naming-grammar wave
+  (`/claude-config:audit-automation-gaps`); behavior unchanged.
+
 ## [0.6.0]
 
 ### Changed

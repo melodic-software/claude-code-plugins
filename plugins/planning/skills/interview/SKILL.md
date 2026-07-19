@@ -60,7 +60,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
-   term, invoke `/domain-driven-design:ubiquitous-language` (if that plugin is installed — else
+   term, invoke `/domain-driven-design:curate-language` (if that plugin is installed — else
    record the term in the Brief's glossary notes) IMMEDIATELY between questions, not
    batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
@@ -117,7 +117,7 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 - **glossary challenge** — when the user uses a domain term two ways, or a term collides with an existing definition, probe it
 - **domain scenario exploration** — invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)* — when a term resolves, invoke
-  `/domain-driven-design:ubiquitous-language` immediately (if that plugin is installed; else
+  `/domain-driven-design:curate-language` immediately (if that plugin is installed; else
   record the term in the Brief's glossary notes). That skill owns discovery-first
   placement, the consumer's
   file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview

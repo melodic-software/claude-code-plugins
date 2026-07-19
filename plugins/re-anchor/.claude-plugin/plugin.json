@@ -1,12 +1,29 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "re-anchor",
-  "version": "0.3.0",
-  "description": "Discipline correctors that re-anchor a standing rule mid-session, then audit both the work in flight and the pre-existing state and choices it trusts, and correct what has drifted: do-your-research (research and no-assumptions discipline; sibling do-your-research-deep escalates to a subagent-fanned verification pass over every load-bearing claim), follow-our-standards (alignment to the consuming org's engineering conventions), point-dont-copy (pointer-over-copy discipline — no copied content, internal-name coupling, or closed capability lists), reason-dont-recite (interrogate inherited content — precedent is evidence of what is, never self-justifying authority), tighten-your-output (terseness discipline — fewer words or lines with no loss of meaning or correctness), recheck-against-upstream (existing state is not evidence of its own correctness — audit config, code, and infra against current official upstream docs; sibling recheck-against-upstream-deep fans subagents doc-by-doc over a whole subsystem), pick-for-the-problem (tool, library, framework, and approach selection fitted to the problem, not reached for out of habit, availability, incumbency, or preconception), mind-your-maxims (cooperative-communication discipline per Grice plus the AI-augmented transparency maxim), and script-the-deterministic-work (offload deterministic sub-work — counts, diffs, sorts, transforms, and scaffolds — to a script that runs, reserving model output for judgment over its real output). Firing one is a re-anchor, not an accusation; the audit may return clean.",
+  "version": "0.3.1",
+  "description": "Discipline correctors that re-anchor a standing rule mid-session, then audit both the work in flight and the pre-existing state and choices it trusts, and correct what has drifted: do-your-research (research and no-assumptions discipline; sibling do-your-research-deep escalates to a subagent-fanned verification pass over every load-bearing claim), follow-our-standards (alignment to the consuming org's engineering conventions), point-dont-copy (pointer-over-copy discipline \u2014 no copied content, internal-name coupling, or closed capability lists), reason-dont-recite (interrogate inherited content \u2014 precedent is evidence of what is, never self-justifying authority), tighten-your-output (terseness discipline \u2014 fewer words or lines with no loss of meaning or correctness), recheck-against-upstream (existing state is not evidence of its own correctness \u2014 audit config, code, and infra against current official upstream docs; sibling recheck-against-upstream-deep fans subagents doc-by-doc over a whole subsystem), pick-for-the-problem (tool, library, framework, and approach selection fitted to the problem, not reached for out of habit, availability, incumbency, or preconception), mind-your-maxims (cooperative-communication discipline per Grice plus the AI-augmented transparency maxim), and script-the-deterministic-work (offload deterministic sub-work \u2014 counts, diffs, sorts, transforms, and scaffolds \u2014 to a script that runs, reserving model output for judgment over its real output). Firing one is a re-anchor, not an accusation; the audit may return clean.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "dependencies", "communication", "determinism", "scripting", "skill"]
+  "keywords": [
+    "re-anchor",
+    "discipline",
+    "corrector",
+    "research",
+    "standards",
+    "duplication",
+    "incumbency",
+    "terseness",
+    "upstream",
+    "conformance",
+    "selection",
+    "dependencies",
+    "communication",
+    "determinism",
+    "scripting",
+    "skill"
+  ]
 }

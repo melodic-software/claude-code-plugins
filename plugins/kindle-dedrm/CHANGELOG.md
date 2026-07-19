@@ -3,6 +3,16 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **BREAKING: router skill `kindle-dedrm` renamed to `manage`** (fleet conformance wave —
+  naming grammar, verb-first skill names). The router now invokes as `/kindle-dedrm:manage` (was
+  `/kindle-dedrm:kindle-dedrm`); the `setup` skill is unchanged. Update any saved
+  invocations. Skill behavior, actions, scripts, and evals are unchanged; only the leaf
+  name, its namespace token, and the internal skill path changed.
+
 ## [0.5.0]
 
 ### Changed

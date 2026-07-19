@@ -3,6 +3,15 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **BREAKING — the `comment-residue` skill renamed to `audit-comment-residue`** (fleet conformance
+  wave, naming grammar): `/code-tidying:comment-residue` → `/code-tidying:audit-comment-residue`. The
+  old invocation stops resolving; update any saved references. The in-code `comment-residue-ignore`
+  opt-out marker is unchanged.
+
 ## [0.5.1]
 
 ### Changed

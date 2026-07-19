@@ -1,6 +1,6 @@
 # Prototype discipline (both facets)
 
-Shared by `/prototype:logic` and `/prototype:ui`. A prototype is **throwaway code that
+Shared by `/prototype:pressure-test` and `/prototype:explore-directions`. A prototype is **throwaway code that
 answers a question** — the question decides the shape. The `logic` facet is a behavioral /
 feasibility spike ("does this work / which approach?"); the `ui` facet is a design prototype
 ("what should this look like?").

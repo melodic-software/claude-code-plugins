@@ -3,6 +3,17 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed (breaking)
+
+- **`diagnosis` and `daily-practice` skills renamed** (fleet conformance wave: naming grammar).
+  `/songwriting:diagnosis` becomes `/songwriting:diagnose`, and `/songwriting:daily-practice` becomes
+  `/songwriting:practice`; both skills' behavior, actions, and shared reference corpus are unchanged.
+  The new names follow the verb skill-naming grammar. The craft term *diagnosis* and the *daily
+  practice* curriculum keep their names in prose — only the skill invocation tokens changed. Update
+  saved invocations and any cross-skill routing to the new tokens.
+
 ## [0.5.0]
 
 ### Changed

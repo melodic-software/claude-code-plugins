@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Changed
+
+- **BREAKING: both skills renamed** (fleet conformance wave — naming grammar, verb-first
+  skill names). `/prototype:logic` is now `/prototype:pressure-test`; `/prototype:ui` is
+  now `/prototype:explore-directions`. Update any saved invocations. Skill behavior,
+  triggers, and evals are unchanged; only the leaf names and namespace tokens changed.
+
 ## [0.2.4]
 
 ### Changed

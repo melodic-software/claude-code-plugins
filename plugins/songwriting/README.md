@@ -16,8 +16,8 @@ the craft term.
 | `meter-prosody` | `/songwriting:meter-prosody <action>` | Sound and motion — scansion/meter, prosody, phrasing, section stability, and lyric-melody alignment. |
 | `song-form` | `/songwriting:song-form <action>` | Structure — form and song forms, hook placement, repetition/repainting, verse development, the box model, and bridges. |
 | `co-write` | `/songwriting:co-write <action>` | Collaboration and volume — the No-Free-Zone co-write protocol, the Title Game, title generation, and high-volume line/section dumps. |
-| `diagnosis` | `/songwriting:diagnosis <action>` | Review and revise — demo review, full-draft diagnosis, the pre-lock audit checklist, variations, and rewrite. |
-| `daily-practice` | `/songwriting:daily-practice <action>` | Habit — the daily craft routine and numbered exercises across all four Pat Pattison books. |
+| `diagnose` | `/songwriting:diagnose <action>` | Review and revise — demo review, full-draft diagnosis, the pre-lock audit checklist, variations, and rewrite. |
+| `practice` | `/songwriting:practice <action>` | Habit — the daily craft routine and numbered exercises across all four Pat Pattison books. |
 | `suno` | `/songwriting:suno <action>` | Suno v5.5 prompt engineering — style prompts (6-layer formula), tagged lyrics with per-section overrides, 12 genre templates, genre research, troubleshooting, and feature guidance (Voices, Custom Models, Studio). |
 | `setup` | `/songwriting:setup` | `check` (default) inventories the project-level prompt-template overrides under `songwriting/templates/pat-pattison/` and reports the effective artifact layout; `apply scaffold <name>` copies a bundled default into an override, `apply remove <name>` clears one. Idempotent; scaffold only the templates you intend to customize. |
 

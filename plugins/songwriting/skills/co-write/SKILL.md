@@ -56,4 +56,4 @@ first — a project-level override wins over the bundled default.
 
 - Blank page, an idea/seed, or a stuck fragment → `/songwriting:workflow`
 - Rhyme partners for the swaps → `/songwriting:rhyme`
-- Pre-lock audit of the chosen line/section → `/songwriting:diagnosis audit`
+- Pre-lock audit of the chosen line/section → `/songwriting:diagnose audit`

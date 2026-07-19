@@ -33,7 +33,7 @@ Source images inspected:
 
 ## Core idea
 
-The daily-practice skill is a training sequence, not a drafting guarantee.
+The practice skill is a training sequence, not a drafting guarantee.
 It builds fast sensory access first, then metaphor-making through controlled
 collisions. The practice is short on purpose: the writer should finish with
 raw material to mine, not with a polished lyric to defend.

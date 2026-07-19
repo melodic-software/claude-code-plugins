@@ -3,11 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Changed
+
+- Cross-plugin invocation tokens updated for the fleet naming-grammar wave
+  (`/domain-driven-design:curate-language`); behavior unchanged.
+
 ## [0.3.2]
 
 ### Changed
 
-- Soft references to the moved vocabulary skill now invoke `/domain-driven-design:ubiquitous-language` (was `/planning:domain-modeling`). Version bumped so existing installs receive the retargeted references.
+- Soft references to the moved vocabulary skill now invoke `/domain-driven-design:curate-language` (was `/planning:domain-modeling`). Version bumped so existing installs receive the retargeted references.
 
 ## [0.3.1]
 

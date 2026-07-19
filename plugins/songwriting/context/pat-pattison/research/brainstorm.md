@@ -129,7 +129,7 @@ After a brainstorm session:
 
 The writer may want pure daily practice (`daily-practice.md`) with no song
 target. That's the 56-day curriculum, not a brainstorm session. Route to
-`/songwriting:daily-practice` instead.
+`/songwriting:practice` instead.
 
 Brainstorm = intent to develop a song, but no material yet.
 Daily practice = intent to train, no song target required.
