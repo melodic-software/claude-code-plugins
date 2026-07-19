@@ -234,7 +234,11 @@ if [[ "$KIND" != dir ]]; then
     # first and check the exit status — a `| wc -l` pipeline would swallow the
     # non-zero exit and return 0. printf '%s\n' re-adds the single trailing
     # newline that command substitution stripped so the line count is exact.
-    if ! dirty_out="$(git -C "$TARGET_ABS" status --porcelain 2>/dev/null)"; then
+    # --untracked-files=all forces untracked enumeration so a repo/global
+    # status.showUntrackedFiles=no cannot hide untracked local data and let a
+    # "clean" pushed clone be deleted (ignored files stay excluded — the secret
+    # and skill-data scans below own those).
+    if ! dirty_out="$(git -C "$TARGET_ABS" status --porcelain --untracked-files=all 2>/dev/null)"; then
       echo "remove-path.sh: cannot inspect repo state — refusing" >&2
       exit 2
     fi

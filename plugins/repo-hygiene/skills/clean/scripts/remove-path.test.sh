@@ -106,6 +106,17 @@ out="$(bash "$REMOVE" "$ROOT/unpushed-repo" --root "$ROOT")" || rc=$?
 assert_exit "unpushed repo blocked exits 4" 4 "$rc"
 assert_contains "unpushed repo blocked reason" "$out" "Blocked: unpushed"
 
+# A repo/global status.showUntrackedFiles=no must not hide untracked local data:
+# the dirty guard forces --untracked-files=all, so a fully pushed clone with an
+# untracked file still blocks (exit 3) instead of reading clean and being deleted.
+make_pushed_repo "$ROOT/hidden-untracked-repo" "$TEST_TMPDIR/hidden-untracked-remote.git"
+git_quiet -C "$ROOT/hidden-untracked-repo" config status.showUntrackedFiles no
+printf 'local\n' >"$ROOT/hidden-untracked-repo/untracked.txt"
+rc=0
+out="$(bash "$REMOVE" "$ROOT/hidden-untracked-repo" --root "$ROOT")" || rc=$?
+assert_exit "showUntrackedFiles=no hidden untracked still blocks exits 3" 3 "$rc"
+assert_contains "hidden untracked dirty block reason" "$out" "Blocked: dirty"
+
 out="$(bash "$REMOVE" "$ROOT/unpushed-repo" --root "$ROOT" --allow-unpushed)"
 rc=$?
 assert_exit "--allow-unpushed clears the block" 0 "$rc"
