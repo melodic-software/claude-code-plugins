@@ -38,7 +38,7 @@
 // telemetry) before every autonomous dispatch/merge decision — reading the raw
 // promotion_state alone is non-conforming.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
@@ -634,9 +634,15 @@ function isNonExternalEgressHost(host) {
   // A numeric-shaped token that folds to no valid address is not a DNS name
   // either — reject rather than guess.
   if (name.split(".").every((label) => INET_PART.test(label))) return true;
-  // A single-label name resolves through search domains or mDNS — never
-  // provably external.
-  return !name.includes(".");
+  // A syntactically valid DNS hostname is required: every label 1-63 chars
+  // of [a-z0-9-] with no hyphen at either edge, at most 253 chars total, and
+  // at least two labels. A single-label name resolves through search domains
+  // or mDNS, and a malformed name (empty labels from consecutive dots,
+  // invalid chars, hyphen edges) resolves nowhere — neither is provably
+  // external.
+  const labels = name.split(".");
+  const validLabel = (label) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(label);
+  return name.length > 253 || labels.length < 2 || !labels.every(validLabel);
 }
 
 // A probe transcript proves an L2/L3 boundary only when it records both
@@ -654,8 +660,11 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
     // keep accepted captures on a protected evidence surface, so an absolute
     // ref or a "../" escape — which would let an agent-writable file outside
     // the root supply the claimed L2/L3 proof — is rejected before the read.
-    // Containment is lexical (a symlink inside the root that points outside is
-    // out of scope here); resolve canonically and compare against the root.
+    // The lexical check gives the clean error message; the REAL-path check
+    // below closes the symlink hole (a link inside the root pointing outside
+    // defeats a purely lexical comparison). No committed fixture exercises
+    // the symlink case — symlinks in git are unreliable on Windows — so it
+    // is covered by a runtime test instead.
     if (isAbsolute(ref)) {
       return `probe_evidence ${JSON.stringify(ref)} is an absolute path but --probe-evidence-root ${JSON.stringify(probeRoot)} is configured — reference the transcript relative to the root, never by absolute path`;
     }
@@ -665,7 +674,24 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
     if (rel === ".." || rel.startsWith(`..${sep}`)) {
       return `probe_evidence ${JSON.stringify(ref)} escapes --probe-evidence-root ${JSON.stringify(probeRoot)} via ".." traversal — reference a transcript inside the configured root`;
     }
-    path = resolved;
+    let realResolved = null;
+    try {
+      realResolved = realpathSync(resolved);
+    } catch {
+      // Nonexistent path: fall through so readFileSync below reports the
+      // standard unreadable-transcript finding.
+    }
+    if (realResolved !== null) {
+      const realRoot = realpathSync(resolvedRoot);
+      // win32 paths compare case-insensitively.
+      const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
+      if (!fold(realResolved).startsWith(fold(realRoot + sep))) {
+        return `probe_evidence ${JSON.stringify(ref)} resolves through a link to a real path outside --probe-evidence-root ${JSON.stringify(probeRoot)} — evidence must physically live inside the configured root`;
+      }
+      path = realResolved;
+    } else {
+      path = resolved;
+    }
   } else {
     path = ref;
   }
