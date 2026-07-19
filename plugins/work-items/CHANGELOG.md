@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2]
+
+### Fixed
+
+- **Triage outcomes now clear the raw-intake marker.** The `triage` skill's "Apply outcome" step
+  listed the labels each outcome adds but never said to remove `status:needs-triage`, so applying an
+  outcome stacked `status:ready` and the role label on top of the raw marker. The attention view
+  re-selects any open item still carrying the marker, so triaged items re-triaged every cycle
+  (silent-loop-kill class). Step 5 now states that every outcome is a transition off raw that
+  replaces the marker rather than adding to it, and a closing invariant forbids a raw marker
+  alongside a briefed/ready or role label on an open item.
+
 ## [0.12.1]
 
 ### Changed
