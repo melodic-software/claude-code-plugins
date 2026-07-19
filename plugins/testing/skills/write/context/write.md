@@ -52,7 +52,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
    | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
 
-3. **Write the failing test first** (Red) — the test name IS the specification:
+3. **Write the failing test first** (Red) — the test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. The forms below are illustrative (.NET/xUnit) — adapt casing/separators to the target ecosystem:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`
    - Integration: `{Subject}_{Behavior}` or `{Subject}_{Behavior}_{Context}`
    - Architecture: `{Subject}_Should{Constraint}`
@@ -90,7 +90,7 @@ Every test should score well on all four:
 
 ## Verify through the interface, not around it
 
-Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use:
+Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use (illustrative — .NET/xUnit; the principle is ecosystem-agnostic):
 
 ```csharp
 // BAD: Bypasses interface — coupled to storage implementation

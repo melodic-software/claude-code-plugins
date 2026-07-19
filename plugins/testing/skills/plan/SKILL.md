@@ -45,7 +45,7 @@ Classify each changed file:
 
 ### 2. Generate the test plan
 
-For each change area, produce:
+For each change area, produce (test-name forms follow the project's documented pattern; when undocumented, mirror the ecosystem's idiom — the PascalCase placeholders below are illustrative (.NET/xUnit)):
 
 ```markdown
 ## Test Plan for [branch/PR description]
