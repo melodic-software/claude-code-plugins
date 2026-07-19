@@ -109,7 +109,7 @@ admission binding exists (absent policy → every dispatch human-gated), and WP5
 policy surface that relaxes it — no dead link in either direction, no dispatch window ever
 runs ungoverned.
 
-### Phase 1: Trigger-dispatch contract doc [TODO]
+### Phase 1: Trigger-dispatch contract doc [DONE]
 
 | File | Action | What changes |
 |---|---|---|

@@ -1,0 +1,159 @@
+# Trigger dispatch
+
+Normative contract for signal adapters and autonomous dispatch: adapters normalize signals
+from four surface classes into the governed work-item queue; one dispatch entrypoint drains
+it; the executor is swappable behind the invocation-adapter seam. The contract fixes
+vocabulary, obligations, and invariants; every concrete instance (which surfaces exist,
+which tracker holds the queue, where the executor runs) is an org-binding outcome.
+
+## Signal-surface classes
+
+Four classes, ALL contract-active. Per-org availability is a binding outcome — a surface the
+org lacks, or an entitlement gap on a surface it has, routes to the advisory path; it is
+never a contract deferral.
+
+| Class token | Surface |
+|---|---|
+| `tracker-vcs-event` | Tracker/VCS-host events: label applied, assignment, @-mention, PR event |
+| `temporal` | Schedules and poll-fallback detectors for push-less surfaces |
+| `agent-internal` | A session emits follow-up work while executing |
+| `channel-feed` | Chat mention and continuous channel/data-feed monitoring |
+
+Carried research gaps, stated in surface-class vocabulary (vendor specifics live in the
+setup skill, never here): whether a channel-monitor may ambiently INITIATE work versus only
+notify is UNVERIFIED; the channel-agent surfaces this class relies on are alpha/beta moving
+targets; one major chat platform has no first-party trigger (UNVERIFIED-absence — re-verify
+at wire time).
+
+## Recorded signal attributes
+
+Two attributes are recorded on every queued signal:
+
+- **Initiator provenance** — `human` | `agent` | `system`. Audit data and guardrail-matrix
+  input; recorded, never trusted as an isolation axis (provenance is claimable; isolation
+  decisions key on the work class and surface verdicts, not on who claims to have asked).
+- **Transport** — `push` | `push-lifecycle` | `poll`. Push preferred where the surface
+  offers it; poll is the universal fallback via the `temporal` class. `push-lifecycle`
+  carries subscription obligations: expiry tracking, renewal, and the platform's validation
+  handshake. Expiry semantics are normative: every `push-lifecycle` wiring is backed by a
+  `temporal` poll-detector backstop for the same surface, or the subscription-health lapse
+  fail-closes — it files a human-gated alert item — so a lapsed subscription can never
+  silently drop signals.
+
+## Adapter obligations
+
+Six class-generic obligations bind every adapter:
+
+1. **Normalize and enqueue only.** An adapter never executes work and never bypasses the
+   queue. No second path from signal to execution exists.
+2. **Idempotent dedup**, keyed on `signal.identity`. The identity is the surface-native
+   unique event id where the surface issues one. The FALLBACK identity is never a bare
+   content hash: it composes source scope (surface class + origin locator) + an
+   event-instance discriminator (delivery id or event timestamp) + the content hash, so two
+   legitimate repeated signals with identical payloads stay distinct instances. State-based
+   poll detectors that re-observe a continuing condition have no instance identity; their
+   dedup retention is BOUNDED to items still open — the same finding may re-enqueue once its
+   prior item closes (a re-detected regression is a new signal). Enforcement is not a bare
+   read-then-write: concurrent at-least-once deliveries can both pass a search before either
+   item exists, so the adapter uses an atomic identity-keyed create/upsert or queue-side
+   uniqueness guarantee where the tracker offers one; otherwise search-before-create is
+   backed by create-then-reconcile — after creating, re-search by `signal.identity` and, on
+   finding an older item with the same identity, close the newer one as an audited duplicate
+   (oldest wins, deterministically). A drain-side guard scoped to LIVE duplicates completes
+   the defense: the drain never claims an item whose `signal.identity` matches another
+   currently-open item, while completed items are excluded from the guard so re-detections
+   execute.
+3. **Provenance capture and a durable raw-signal link** (`signal.raw_link`) on the item.
+4. **Trace-context propagation.** The adapter injects `signal.traceparent` so the telemetry
+   contract's causal tree spans trigger → CI → agent session.
+5. **Admission enforcement at the seam.** Admission-policy CONTENT is owned by the guardrail
+   matrix and bound on the org's security governance surface; the adapter ENFORCES it,
+   never defines it. An unadmitted signal becomes a human-gated item or an audited
+   rejection — never a silent drop. An ABSENT admission binding fail-closes: everything
+   enqueues human-gated.
+6. **Closed-loop acknowledgment.** Bidirectional surfaces echo the queued item reference
+   back to the source (tracker comment, chat thread reply); reply-less surfaces satisfy the
+   obligation through `signal.raw_link` alone.
+
+## Work-class classification
+
+Admission and the whole guardrail matrix key on the risk class (`C1`–`C5`), so a queued item
+needs one. The adapter STAMPS `signal.work_class` from the classification rules on the org's
+SECURITY governance surface — the adapter stamps, never defines, and no repo-local
+(agent-writable) surface may supply the class used for admission:
+
+- `tracker-vcs-event` resolves through the security-bound label→class rules.
+- `temporal` signals carry the class their bound routine/detector definition derives.
+- `agent-internal` items must PROVE protected provenance: the envelope serializes the
+  emitting session's own admitted source item as `signal.parent_item`, and the admission
+  seam verifies the session-to-parent association against protected dispatch data — the
+  queue's own lease record of which item the emitting session was dispatched on. An
+  agent-supplied URL alone proves nothing (any session could cite an unrelated low-class
+  item to launder higher-risk follow-up work); an association the seam cannot verify is NO
+  provenance. Admission then resolves the verified parent's class from its own protected
+  classification rather than trusting the stamped value: the effective class is the HIGHER
+  of the inherited class and the class the security-surface rules derive for the target.
+- `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED.
+
+Unclassified → fail-closed human-gated, always.
+
+## Signal envelope
+
+Serialization is a JSON-fenced marker record on the queued item (the return-accounting
+convention's marker-record precedent), `schema_version` from `"1.0"` with additive
+evolution under the same reviewed-migration governance as every contract schema. Keys:
+
+| Key | Value |
+|---|---|
+| `signal.class` | surface-class token |
+| `signal.transport` | `push` \| `push-lifecycle` \| `poll` |
+| `signal.provenance` | `human` \| `agent` \| `system` |
+| `signal.identity` | dedup identity per obligation 2 |
+| `signal.raw_link` | durable absolute reference to the source event; form branched by origin — web-origin signals carry an absolute https URL with query and fragment PRESERVED (the telemetry contract's strip rule applies only to the work-item join key); a temporal signal from a local-scheduler surface may carry a durable local/artifact URI (absolute `file:` URI or org artifact-store locator); relative or ephemeral references conform on no branch |
+| `signal.traceparent` | W3C trace context from the trigger hop |
+| `signal.work_class` | optional; the stamped risk class per the classification rules — absent = unclassified = human-gated |
+| `signal.parent_item` | REQUIRED when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
+| `signal.source_surface` | REQUIRED when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding — the discriminator raw-link form validation branches on |
+
+## Dispatch
+
+Push kick where the platform offers it (an event-fired job on enqueue) plus a standing
+scheduled drain as the universal fallback and catch-up net for ENQUEUED items. The drain's
+default cadence is hourly (org-bindable); the drain never re-scans a source surface —
+missed enqueues are the poll-detector backstop's job.
+
+**One-entrypoint invariant.** Every kick funnels into the work-item queue capability's
+existing autonomous drain mode via the invocation-adapter seam. The seam's race-safe lease
+makes concurrent kicks harmless. No second claim or dispatch mechanism exists anywhere.
+
+**Execution-surface attestation.** Every kick/drain wiring records its named execution
+surface, but the recorded id is repo-local convenience only: the admission/executor seam
+derives the ACTUAL execution-surface identity from trusted dispatch/runner context —
+platform-attested runtime metadata matched against the per-surface identifying markers the
+security binding's isolation entries declare — and verifies it against the recorded id,
+consulting the ACTUAL surface's isolation verdict. A mismatch, an unattestable actual
+surface, or a surface without the required isolation binding each fail-close to
+human-gated; rewriting the recorded id cannot launder execution onto an unbound runner.
+
+Concurrency and per-run item caps are guardrail-policy knobs: this contract names them
+descriptively; their serialized tokens (`autonomous_concurrency`, `items_per_run`) are
+owned by the admission policy on the security surface.
+
+## Executor surface classes
+
+Two classes, imported unchanged from the runner charter: **self-operated** CLI/SDK
+executors — including SDK-embedded pull/drain daemons — and **vendor-hosted** executors,
+whose merge policy caps at human-gated. The executor-class determination that gates merge
+policy is SECURITY-surface data (the security binding's `executor_class`), never a
+repo-local value. Other executor hosting configuration is deployment-owned per the hosting
+stance: this contract fixes only the isolation floor (L2+ for unattended execution),
+credential scoping, and the queue contract.
+
+## Constraints
+
+- No queue bypass, no second dispatch mechanism, no second claim path.
+- The contract never invents an event bus and never raises domain events; the adopting
+  org's own systems own event definition and raising.
+- No new cost by default: paid surfaces are advisory with cost surfaced, explicit opt-in.
+- Vendor and fleet names never appear in this contract's normative text; mechanisms are
+  named as classes with vendor specifics in binding docs and the setup skill.
