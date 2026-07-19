@@ -11,10 +11,10 @@ When a plan claims a perf improvement:
 
    | Claim type | Metrics | How to measure |
    |-----------|---------|---------------|
-   | Faster execution | Wall time, CPU time | `dotnet test` timing, `Measure-Command`, `time` |
-   | Faster build | Build time | `dotnet build` timing, CI run durations |
-   | Less memory | Peak RSS, allocation count | `dotnet-counters`, `dotnet-trace`, profiler |
-   | Fewer allocations | Allocation rate, GC pressure | BenchmarkDotNet, `dotnet-counters` |
+   | Faster execution | Wall time, CPU time | Your test runner's timing output, a shell timer (`time` on POSIX/Git Bash, `Measure-Command` in PowerShell) |
+   | Faster build | Build time | Your build tool's timing output, CI run durations |
+   | Less memory | Peak RSS, allocation count | Your platform's profiler or memory-counter tooling |
+   | Fewer allocations | Allocation rate, GC pressure | Your benchmark harness, allocation profiler |
    | Better throughput | Requests/sec, items/sec | Load test, benchmark harness |
    | Reduced latency | P50, P95, P99 | Tracing dashboard, load tests |
 
