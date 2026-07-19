@@ -177,7 +177,11 @@ must be:
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
-configuration surface.
+configuration surface. Where that native surface is a plugin's entire configuration — nothing but
+`userConfig`, no tracked project config, no external prerequisite setup can resolve — a check-only
+setup is conforming: `check` verifies and reports, reconfiguration routes through the native flow,
+and no `apply` is offered, because the only thing it could write is the `pluginConfigs` this
+contract forbids.
 
 Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and

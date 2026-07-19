@@ -1,7 +1,7 @@
 ---
 name: setup
-description: "Configure and verify the Miro plugin without reading or exposing its API token. Use when: 'set up Miro', 'configure Miro', 'Miro setup', the Miro MCP server is unavailable, or a Miro tool reports an authentication error."
-argument-hint: "(no arguments — interactive configuration and verification)"
+description: "Verify the Miro plugin without reading or exposing its API token. Use when: 'set up Miro', 'configure Miro', 'Miro setup', the Miro MCP server is unavailable, or a Miro tool reports an authentication error. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write); check verify-api additionally authorizes one read-only API call."
+argument-hint: "check [verify-api]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -11,6 +11,13 @@ disable-model-invocation: true
 Guide the user through Claude Code's native configuration flow and verify that the bundled Miro MCP
 server is available without reading, printing, or writing the sensitive token. Claude Code prompts for
 the required `miro_api_token` when the plugin is enabled and owns its secure credential storage.
+
+Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's entire
+configuration surface is the native sensitive `userConfig` token, so `check` (default and only
+action) verifies and reports, and reconfiguration routes through Claude Code's native flow — an
+`apply` here would have nothing to write except the credential storage and `pluginConfigs` setup
+must never touch. Non-interactive: the optional API probe runs only when `verify-api` is passed,
+never from an in-flow question.
 
 Official contracts:
 
@@ -30,8 +37,9 @@ Official contracts:
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
 4. When the scoped Miro tools are present, report that the server started and the token was supplied;
    do not claim that the token has valid API access merely from tool discovery.
-5. Offer an optional credential check. Only after the user explicitly accepts, call the read-only
-   `miro_list_boards` tool with `limit: 1`. Never create, update, or delete a board during setup.
+5. Optional credential check — only when the invocation passed `verify-api` (the explicit opt-in;
+   never offer it as an in-flow question): call the read-only `miro_list_boards` tool with
+   `limit: 1`. Never create, update, or delete a board during setup.
    - Success verifies API access; report only the count returned, not board names, IDs, or URLs.
    - Authentication failure directs the user back to Claude Code's native configuration prompt.
    - Network, rate-limit, or service failure is reported as a distinct degraded state; do not tell the
