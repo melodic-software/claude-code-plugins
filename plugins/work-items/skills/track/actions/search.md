@@ -54,4 +54,4 @@ If no matches anywhere: "No items matching '{query}' in open, closed, or recurri
 
 ## Search syntax
 
-The provider's search qualifiers (label / exclude / assignee / sort / date / exact-phrase) are documented in the bound adapter's operations reference — GitHub: `tools/work-item-tracker/adapters/github/README.md` "Search items".
+The provider's search qualifiers (label / exclude / assignee / sort / date / exact-phrase) are documented in the bound adapter's operations reference — GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Search items".

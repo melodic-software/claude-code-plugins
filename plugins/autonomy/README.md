@@ -5,7 +5,7 @@ AI-adoption-ladder contract set: it ships the tool-agnostic contracts an adoptin
 its own repositories, tools, and policies, plus a guided-setup skill that discovers the org's
 state and records that binding.
 
-## Shipped capability (0.3.0)
+## Shipped capability (0.4.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
   the binding-seam shape that maps contract roles to an org's real instances, and the
@@ -19,6 +19,12 @@ state and records that binding.
   autonomous-class work, joinable to cost telemetry by the join attribute — plus the setup
   capture slice and its close-boundary templates. Agents prompt and aggregate; they never
   estimate the human fields.
+- **Trigger-dispatch contract** (`reference/trigger-dispatch.md`): four signal-surface
+  classes normalized by adapters into the governed work-item queue under six class-generic
+  obligations, a schema-versioned signal envelope, security-surface work-class stamping, and
+  one dispatch entrypoint (push kick + scheduled drain through the queue seam's race-safe
+  lease) — plus the setup trigger/dispatch slice, its adapter and acknowledgment templates,
+  and the signal-envelope conformance check.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state —
   role homes, substrate availability, budget posture — writing a schema-versioned binding under
   `.claude/autonomy/` as reviewable changes. Never assumes any particular org or repo shape.
@@ -30,7 +36,7 @@ locked (no step-skipping — trust before scale).
 
 | Capability | Trigger |
 |---|---|
-| Trigger/dispatch adapters | Trigger-layer work package build lands. |
+| Fleet adapter materializations (reusable workflows, labels, drain routine) | Work-item backlog, post trigger-package graduation. |
 | Guardrail matrix + sandbox-ladder binding | Guardrails work package build lands. |
 | Standing-routine catalog + v1 definitions | Routines work package build lands. |
 | Runner charter execution pack | The runner build trigger fires (charter's own conditions). |

@@ -109,7 +109,7 @@ admission binding exists (absent policy → every dispatch human-gated), and WP5
 policy surface that relaxes it — no dead link in either direction, no dispatch window ever
 runs ungoverned.
 
-### Phase 1: Trigger-dispatch contract doc [TODO]
+### Phase 1: Trigger-dispatch contract doc [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -126,7 +126,7 @@ runs ungoverned.
 - Vendor+fleet deny-list grep empty over the doc (`node scripts/validate-plugin-contracts.mjs` exit 0)
 - lychee lane passes
 
-### Phase 2: Guided-setup trigger/dispatch slice [TODO]
+### Phase 2: Guided-setup trigger/dispatch slice [DONE]
 
 Extends the `setup` skill (discovery-first per D7/WP1 D7). First work item — fresh-docs
 mandate (repo CLAUDE.md): re-fetch the official docs for any vendor surface the slice names
@@ -150,7 +150,7 @@ mandate (repo CLAUDE.md): re-fetch the official docs for any vendor surface the 
 - `node plugins/autonomy/skills/setup/scripts/check-signal-envelope.mjs` (no args) exits 2 with usage
 - Fleet-name sweep (`validate-plugin-contracts.mjs`) exit 0
 
-### Phase 3: Conforming-path demonstration [TODO]
+### Phase 3: Conforming-path demonstration [DONE]
 
 Acceptance probe on a scratch consumer repo (NOT this repo, WP2 Phase 3 precedent — the ban
 there is on FLEET bindings/plugins, not on composing a sibling CAPABILITY: the scratch repo
@@ -174,7 +174,7 @@ binding means no classification rules, so the item carries no `signal.work_class
 - No second dispatch path exercised anywhere in the demo; no paid service touched
 - Demo transcript attached to the PR body
 
-### Phase 4: Gates [TODO]
+### Phase 4: Gates [DONE]
 
 Full in-repo gate run (WP2 Phase 4 roster): `scripts/validate-plugins.sh`,
 `scripts/run-plugin-tests.sh`, `node scripts/validate-plugin-contracts.mjs`, markdown/typos/

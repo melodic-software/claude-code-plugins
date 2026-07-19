@@ -19,7 +19,7 @@ topic-docs binding that every work-items skill relies on live in
 actions below in particular:
 
 - **Provider-neutral over the seam.** Coordination goes through
-  `tools/work-item-tracker/work-item-tracker.sh <verb>`; provider mechanics (filtered listing,
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh <verb>`; provider mechanics (filtered listing,
   search, aggregation, close, label/comment edits) route through the bound adapter's operations
   reference. The core inlines no provider commands.
 - **Role-label resolution is an action-entry invariant.** `add`, `due`, `recheck`, and `audit`

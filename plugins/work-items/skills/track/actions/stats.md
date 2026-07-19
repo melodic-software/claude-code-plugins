@@ -4,7 +4,7 @@ Present a dashboard summarizing the current state of work items.
 
 ## Workflow
 
-1. **Fetch category counts** and **status/assignee counts** using the aggregation projections in the bound adapter's operations reference (GitHub: `tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads).
+1. **Fetch category counts** and **status/assignee counts** using the aggregation projections in the bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md` "Aggregate / count (dashboard + hygiene)" — bare reads).
 
 1. **Check recurring due items** (optional — degrade gracefully when the consuming repo has no recurring schedule):
 

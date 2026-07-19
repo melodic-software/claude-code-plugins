@@ -12,31 +12,41 @@ recurring audits, and housekeeping — through a centralized, concurrent-safe wo
 
 ## Provider-neutral over the seam
 
-Every tracker operation goes through the work-item-tracker seam — the skill calls
-`tools/work-item-tracker/work-item-tracker.sh <verb>` and the bound provider adapter executes it
-(contract: `tools/work-item-tracker/CONTRACT.md`). Resolve the seam path from the project root so
-invocations work from any subdirectory —
-`"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh" <verb>`;
-the executable snippets in each action use that rooted form. Two entry-point presence checks are
-required for correctness before an invocation's first verb, each stopping with its remediation
-rather than failing mid-action:
+Every tracker operation goes through the work-item-tracker seam — the skill calls the seam dispatcher
+(`work-item-tracker.sh <verb>`) and the bound provider adapter executes it (contract:
+`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`). The seam ships **with this plugin**.
+Resolve the dispatcher **plugin-dir canonical, project-root fallback** — a consuming repo runs the
+plugin's engine by default, and a repo that vendors its own copy still works — and so invocations run
+from any subdirectory:
+
+```bash
+TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+"$TRACKER" <verb>
+```
+
+The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. Two entry-point
+presence checks are required for correctness before an invocation's first verb, each stopping with its
+remediation rather than failing mid-action:
 
 - **`jq`** (`command -v jq`) — the actions' snippets parse with it unconditionally. Missing: stop
   and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
   Bash on native Windows) — never improvise a parse.
-- **The seam script** at the rooted path above. Missing: stop and surface that this repo has not
-  provisioned the consumer-provided seam; it must be copied in from a repository that carries it,
-  together with its `CONTRACT.md` and the bound adapter — `/work-items:setup` configures the
-  recurring schedule and label remaps but does NOT create the seam. Never improvise provider
-  commands.
+- **The seam script** — `"$TRACKER"` above. The plugin bundles it, so it resolves at the plugin-dir
+  path by default; if it resolves at **neither** the plugin path nor the project-root fallback, the
+  plugin install is incomplete — stop and surface that the plugin must be reinstalled or repaired,
+  rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
+  recurring schedule and label remaps but does NOT create the seam.
 
-The repo's active provider is bound in
-`.work-item-tracker.json`. Coordination — create, claim (assignee + lease), lease renew/reclaim,
-dependency links, sub-items, frontier selection, single-item fetch — uses seam verbs directly.
-Operations without a core verb (listing with arbitrary filters, search, aggregation, close,
-label/comment edits) are provider-specific; for the bound GitHub adapter their mechanics live in
-`tools/work-item-tracker/adapters/github/README.md`. The skill core stays provider-portable and
-inlines no provider commands.
+The repo's active provider is bound in `.work-item-tracker.json` at the project root — the setup skill
+seeds it. Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
+(`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Adapter resolution") — so a repo can add
+an unshipped provider or shadow a bundled one without forking the plugin. Coordination — create, claim
+(assignee + lease), lease renew/reclaim, dependency links, sub-items, frontier selection, single-item
+fetch — uses seam verbs directly. Operations without a core verb (listing with arbitrary filters,
+search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter
+their mechanics live in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`. The
+skill core stays provider-portable and inlines no provider commands.
 
 ## Operation routing
 
@@ -45,10 +55,10 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier selection, single-item fetch | Seam verbs: `tools/work-item-tracker/work-item-tracker.sh <verb>` — contract in `tools/work-item-tracker/CONTRACT.md` |
-| **Provider mechanics** — list with filters, search, aggregate/count, close, label/assignee edits, comments | The bound adapter's operations reference (GitHub: `tools/work-item-tracker/adapters/github/README.md`) |
+| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier selection, single-item fetch | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher — contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Provider mechanics** — list with filters, search, aggregate/count, close, label/assignee edits, comments | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
-Coordination claims are race-safe at the seam (assignee + lease comment; `tools/work-item-tracker/CONTRACT.md` "Lease protocol") — the retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
+Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol") — the retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
 
 ## Default = fix, not file
 
@@ -151,11 +161,11 @@ need attention.
 Skill-behavior failure patterns. Add to this section when new gotchas are discovered.
 Provider-mechanic gotchas (Windows `\r`, search-qualifier syntax, the `gh` 30-row default limit,
 `--add-label` vs `--label`, `--reason` values, rate limits, Issue-Forms auto-labeling) live in the
-bound adapter's operations reference — for GitHub, `tools/work-item-tracker/adapters/github/README.md`
+bound adapter's operations reference — for GitHub, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`
 "Gotchas".
 
 - **Claim concurrency is the seam's job.** Claiming is race-safe at the seam (assignee + lease
-  comment, same-identity aware) — `tools/work-item-tracker/CONTRACT.md` "Lease protocol". Reclaim
+  comment, same-identity aware) — `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol". Reclaim
   runs idempotently at session start (`work` / `track start`). Do not hand-roll a label-based hold
   protocol.
 - **Recurring schedule is in `.github/`, not the skill directory.** The schedule file is
@@ -174,4 +184,5 @@ bound adapter's operations reference — for GitHub, `tools/work-item-tracker/ad
 - Own the label taxonomy content — that is
   [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   (universal + repo-specific groups).
-- Bind the provider — the active provider lives in `.work-item-tracker.json`, not here.
+- Bind the provider — the active provider lives in `.work-item-tracker.json` at the project root,
+  seeded once by `/work-items:setup`; these skills read the binding but never write it.

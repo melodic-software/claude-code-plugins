@@ -118,7 +118,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Autonomy
 
-- [`autonomy`](plugins/autonomy) — Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, and return-accounting contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, and wires human-attested return capture at the task boundary.
+- [`autonomy`](plugins/autonomy) — Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, return-accounting, and trigger-dispatch contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, wires human-attested return capture at the task boundary, and wires signal adapters with one governed dispatch entrypoint.
 
 ### Security
 
@@ -130,7 +130,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Project Management
 
-- [`work-items`](plugins/work-items) — Manages development work items through a provider-neutral tracker seam (GitHub the bound adapter today): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states). Canonical role labels remap via the tracker binding; the recurring-schedule seam (.github/recurring-schedule.json) is seeded and reshaped by the re-runnable setup skill.
+- [`work-items`](plugins/work-items) — Manages development work items through a provider-neutral tracker seam that ships with the plugin (bundled dispatcher plus github and local-markdown adapters; seam plugin-dir canonical, adapters consumer-local-first): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, and raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states). The re-runnable setup skill binds the provider (.work-item-tracker.json), seeds the recurring-schedule seam (.github/recurring-schedule.json), and remaps canonical role labels.
 
 ### Operations
 
