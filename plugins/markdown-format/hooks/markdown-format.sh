@@ -35,7 +35,7 @@ emit_tel() {
   hook::emit_telemetry "markdown-format" "PostToolUse" "$1" "$start" "$(build_data_json "$2")" "$REPO_ROOT"
 }
 
-INPUT=$(cat)
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice for an edit this
 # hook would not process anyway (the Write|Edit matcher is broader than the

@@ -35,7 +35,7 @@ emit_tel() {
   hook::emit_telemetry "$@"
 }
 
-INPUT=$(cat)
+INPUT=$(hook::buffer_stdin) || exit 0
 
 # jq-free applicability pre-filter: never emit the jq notice for an edit this
 # hook would not lint anyway (the Write|Edit matcher is broader than the
