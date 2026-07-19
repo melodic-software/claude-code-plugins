@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Fixed
+
+- **babysit-prs review-trigger head-staleness hardening** (dormant-by-default module; no effect
+  until `babysit_review_trigger_phrase` + `babysit_review_bot_logins` + `babysit_review_gate_context`
+  are configured).
+  - **F7** — `request_review.py`'s pre-POST freshness guard rejected only the literal `BEHIND`
+    merge state. A head that is behind its base but reports `BLOCKED` (GitHub masks `BEHIND` behind
+    `BLOCKED`) slipped through and spent the one-shot review request on a stale SHA. The guard now
+    reuses the compare-confirmed freshness signal (`compute_branch_freshness`, off the
+    `_blocked_base_compare` enrichment `view_pr` already computes), so a compare-behind head is
+    rejected and the branch-refresh flow runs first.
+  - **F8** — the candidate predicate in `babysit_review_trigger.py` blocked candidacy whenever *any*
+    reviewer reaction existed. Reactions carry no commit SHA, so a reaction left on an earlier head
+    persisted onto later heads and permanently suppressed the new head's observation window. The
+    check is now scoped to reactions associated with, or newly observed for, the current head.
+
 ## [0.9.0]
 
 ### Changed

@@ -11,13 +11,29 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_checks as checks
 import babysit_review_trigger as review_trigger
+import request_review
 
 HEAD = "a" * 40
+
+
+def _reaction(reaction_id: str, *, scope: str = "pull_request",
+              content: str = "+1", created_at: str = "2026-07-09T00:00:00Z",
+              comment_id: str = "") -> dict[str, str]:
+    return {
+        "id": f"{scope}:{reaction_id}",
+        "reaction_id": reaction_id,
+        "author": "reviewbot",
+        "content": content,
+        "created_at": created_at,
+        "scope": scope,
+        "comment_id": comment_id,
+    }
 
 
 def configured() -> review_trigger.ReviewTriggerConfig:
@@ -167,6 +183,79 @@ class ClassifyReviewRequestTests(unittest.TestCase):
             review_trigger_allowed=True)
         self.assertFalse(result["request_eligible"])
         self.assertEqual(result["missing_head_sha"], "")
+
+    def test_stale_earlier_head_reaction_does_not_suppress_new_window(self) -> None:
+        # F8: a reviewer reaction left on an earlier head carries no commit SHA,
+        # so it persists onto the new head. With no prior reaction bound to this
+        # head it is not current-head-associated and must not block candidacy.
+        stale = [_reaction("1")]
+        result = review_trigger.classify_review_request(
+            self._pr(), self._gate(), {}, "2026-07-10T00:00:00Z",
+            reaction_signals=stale, review_trigger_allowed=True,
+            config=configured())
+        self.assertEqual(result["state"], "engagement_signal_unverified")
+        self.assertEqual(result["missing_head_sha"], HEAD)
+        self.assertEqual(result["missing_observations"], 1)
+
+    def test_current_head_reaction_still_suppresses_candidacy(self) -> None:
+        # Guard on the F8 fix: a reaction newly observed while on THIS head is
+        # current-head-associated and must still block the observation window.
+        reaction = [_reaction("9")]
+        prior = {"review_trigger": {"reaction_head_sha": HEAD,
+                                    "reaction_signal_ids": []}}
+        result = review_trigger.classify_review_request(
+            self._pr(), self._gate(), prior, "2026-07-10T00:00:00Z",
+            reaction_signals=reaction, review_trigger_allowed=True,
+            config=configured())
+        self.assertFalse(result["request_eligible"])
+        self.assertEqual(result["missing_head_sha"], "")
+
+
+class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
+    """F7: the pre-POST freshness guard must reject a BLOCKED-masked BEHIND head."""
+
+    def _patches(self, pr: dict[str, object]):
+        return (
+            mock.patch.object(request_review, "view_pr", return_value=pr),
+            mock.patch.object(request_review, "head_repository_scope",
+                              return_value={"review_trigger_allowed": True}),
+            mock.patch.object(request_review, "fetch_review_evidence",
+                              return_value=[]),
+            mock.patch.object(request_review, "fetch_reaction_signals",
+                              return_value=[]),
+            mock.patch.object(request_review, "fetch_current_human_stop",
+                              return_value={"required": False}),
+            mock.patch.object(request_review, "has_current_head_review",
+                              return_value=False),
+        )
+
+    def test_blocked_head_masking_behind_is_rejected(self) -> None:
+        pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
+              "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE",
+              "_blocked_base_compare": {"status": "behind", "behind_by": 2}}
+        patches = self._patches(pr)
+        with patches[0], patches[1]:
+            with self.assertRaises(RuntimeError) as ctx:
+                request_review.validate_current_candidate(
+                    "owner/repo", 1, HEAD, configured(),
+                    frozenset({"owner"}))
+        self.assertIn("not a stable fresh review candidate", str(ctx.exception))
+        self.assertIn("BEHIND", str(ctx.exception))
+
+    def test_blocked_but_fresh_head_passes_the_freshness_guard(self) -> None:
+        # A PR BLOCKED purely on pending review (no compare-behind signal) is the
+        # primary review-trigger target and must still pass this guard.
+        pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
+              "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE"}
+        patches = self._patches(pr)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                patches[5]:
+            self.assertEqual(
+                request_review.validate_current_candidate(
+                    "owner/repo", 1, HEAD, configured(),
+                    frozenset({"owner"})),
+                pr,
+            )
 
 
 if __name__ == "__main__":

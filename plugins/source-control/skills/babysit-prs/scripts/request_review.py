@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import babysit_lease as leases
-from babysit_delta import head_repository_scope
+from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop
 from babysit_gh import (
     flatten_paginated_items,
@@ -93,8 +93,15 @@ def validate_current_candidate(
         raise RuntimeError("PR head changed after the snapshot")
     merge_state = str(current.get("mergeStateStatus") or "").upper()
     mergeable = str(current.get("mergeable") or "").upper()
+    # BLOCKED can mask BEHIND: a head behind its base still reports BLOCKED, not
+    # BEHIND. Reuse the compare-confirmed freshness signal (`view_pr` already
+    # enriched `_blocked_base_compare`) so a stale-behind head is rejected here
+    # and the branch-refresh flow runs first, instead of spending the one-shot
+    # review request on a SHA that is about to be rebuilt.
+    behind = compute_branch_freshness(current)["state"] == "behind"
     if (
         current.get("isDraft")
+        or behind
         or merge_state
         in {
             "",
@@ -105,7 +112,12 @@ def validate_current_candidate(
         }
         or mergeable == "CONFLICTING"
     ):
-        reason = "CONFLICTING" if mergeable == "CONFLICTING" else merge_state
+        if mergeable == "CONFLICTING":
+            reason = "CONFLICTING"
+        elif behind:
+            reason = "BEHIND"
+        else:
+            reason = merge_state
         raise RuntimeError(
             f"PR is not a stable fresh review candidate: {reason or 'UNKNOWN'}"
         )

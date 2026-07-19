@@ -385,7 +385,11 @@ def classify_review_request(
         and merge_state not in {"", "BEHIND", "DIRTY", "DRAFT", "UNKNOWN"}
         and mergeable != "CONFLICTING"
         and not current_head_review
-        and not reactions
+        # Only reactions tied to THIS head gate candidacy. Reactions carry no
+        # commit SHA, so an earlier-head reaction persists across pushes; gating
+        # on the raw `reactions` would let it suppress the new head's window
+        # forever. `associated_reactions` is the current-head-scoped subset.
+        and not associated_reactions
         and not human_stop_required
         and check_state["gate_state"] == "pending"
         and check_state["request_signal_pending"]
