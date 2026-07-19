@@ -71,4 +71,4 @@ These are .NET-ecosystem plugin skills — invoke each only when your stack is .
 
 - **CRAP scores** — `dotnet-test:crap-score` combines cyclomatic complexity + coverage into one risk metric ("safer to change" evidence).
 - **Test quality** — `dotnet-test:test-anti-patterns` detects test smells before claiming suite improvements.
-- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence.
+- **EF Core queries** — `dotnet-data:optimizing-ef-core-queries` for N+1 detection / query-optimization evidence; if absent, use the project's own query logging, database profiling, or ORM diagnostics — the complexity/coverage fallback above won't reveal N+1 or query plans.

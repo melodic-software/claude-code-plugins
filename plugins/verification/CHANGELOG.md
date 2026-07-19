@@ -12,9 +12,12 @@ All notable changes to the `verification` plugin are documented here. Format fol
   `## Marketplace plugin skills (invoke only when installed)` guard heading (matching the `testing`
   plugin's gated lists) plus a lead-in that frames the `dotnet-*` skills as .NET-only and
   `cloudflare:web-perf` as web-frontend-only, each invoked only when its plugin is installed and
-  otherwise falling back to the project's own complexity/coverage or benchmark/profiling tooling.
-  This removes the bare unguarded cross-plugin reference `docs/PLUGIN-PHILOSOPHY.md` names as a
-  defect; no hard dependencies added, every reference stays optional.
+  otherwise falling back to the project's own tooling — the generic complexity/coverage or
+  benchmark/profiling harness where that fits, with a tailored per-bullet fallback where the
+  evidence type differs (query logging / database profiling / ORM diagnostics for EF-query
+  analysis, web-vitals tooling for Core Web Vitals). This removes the bare unguarded cross-plugin
+  reference `docs/PLUGIN-PHILOSOPHY.md` names as a defect; no hard dependencies added, every
+  reference stays optional.
 
 ## [0.2.3]
 

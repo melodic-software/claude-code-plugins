@@ -65,4 +65,4 @@ These enrichment skills are stack-specific — the `dotnet-*` skills apply when 
 - **Code-level perf** — `dotnet-diag:analyzing-dotnet-performance` scans ~50 anti-patterns (async deadlocks, GC pressure, string allocation).
 - **Microbenchmarks** — `dotnet-diag:microbenchmarking` for BenchmarkDotNet setup + methodology.
 - **Build perf** — `dotnet-msbuild:build-perf-baseline` / `build-perf-diagnostics`.
-- **Web perf** — `cloudflare:web-perf` for Core Web Vitals via Chrome DevTools.
+- **Web perf** — `cloudflare:web-perf` for Core Web Vitals via Chrome DevTools; if absent, use the project's own web vitals tooling (Lighthouse, PageSpeed Insights, or your CI web perf runner) — the benchmark/profiling fallback above targets code perf, not web vitals.
