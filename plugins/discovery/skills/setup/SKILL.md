@@ -44,7 +44,7 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    if a consumer ignore rule matches — an uncommittable "committed" tier — and surface the exact rule
    and source line. Resolving the rule is the consumer's edit.
 4. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
-   enabled — git remains the vault's storage layer because GitBook offers no concurrency-safe,
+   enabled — git remains the storage layer because GitBook offers no concurrency-safe,
    lossless write path — so it is deferred and non-writable; durable writes still target `docs` until
    a later reviewed decision enables it.
 
@@ -61,7 +61,7 @@ reports "already configured".
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
    existing file carries — a re-run never drops one; do not invent options beyond the schema. `gitbook`
    is reserved but not enabled as a `vault_backend` value — git remains the storage layer because
-   GitBook offers no concurrency-safe, lossless write path: when offering or preserving it, report
+   GitBook offers no concurrency-safe, lossless write path. When offering or preserving it, report
    that it is deferred and non-writable — durable writes still target `docs` — and never configure or
    test a GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user
    chooses that change.
