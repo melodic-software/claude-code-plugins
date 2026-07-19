@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Added
+
+- **`babysit-prs` snapshot exit-code taxonomy splits advisory from substantive errors.**
+  `pr_queue_snapshot.py` now returns `3` for a valid snapshot whose only failure is the advisory
+  head-ref alias cross-check, distinct from `1` (substantive per-PR hydration or discovery
+  failure) and `2` (fatal, no state written). The split is documented in the module docstring and
+  covered by unit tests for every code; an advisory-only run no longer looks like a per-PR
+  failure. No caller keyed on the previous `1`-means-any-error behavior (all consumers parse the
+  JSON snapshot).
+- **`babysit-prs` formalizes the worker→main cross-PR dependency channel.** `orchestration.md`
+  documents a worker signalling a discovered cross-PR coupling back to the main agent (which owns
+  cross-PR ordering) over the same messaging mechanism used for main→worker, rather than reaching
+  across PRs itself.
+- **`babysit-prs` records the self-blocking-CI-check bootstrap gotcha.** A newly required check
+  whose own fix PR carries that same check cannot be gate-merged and needs a one-time human
+  admin-merge bootstrap; captured in the `SKILL.md` Gotchas list.
+
+### Changed
+
+- **`babysit-prs` adds a no-background-monitor STOP at the merge / gate-completion step.** Once
+  the merge gate proves a PR ready, or its merge is deferred to a human, the agent reports and
+  stops instead of arming a CI watch; added to `SKILL.md` and `reference/safety.md`, pointing at
+  the existing no-background-monitor clause rather than restating it.
+- **`babysit-prs` clarifies the bare-wrapper invocation rule.** `reference/safety.md` now states
+  that the guarded-wrapper JSON must be parsed in a separate step — never piped into an
+  interpreter — because an interpreter-in-pipeline trips the auto-mode safety classifier and
+  blocks the call.
+
 ## [0.9.0]
 
 ### Changed

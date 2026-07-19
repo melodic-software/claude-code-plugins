@@ -200,6 +200,12 @@ interpreter and fail with a clear message when Python is absent). Both fail clos
   following a `ready:true` on the same expected head is often GitHub's own mergeability
   recompute lag — re-run the read-only check once before treating it as a real block.
 
+- **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to
+  a human (Pinned-Command Degradation, [reference/safety.md](reference/safety.md)), report that
+  outcome and end the PR's cycle. The no-background-monitor clause (Worker Contract,
+  [reference/orchestration.md](reference/orchestration.md)) governs this gate-completion step
+  exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
+
 - **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N
   --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
   only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
@@ -440,6 +446,11 @@ Failure patterns observed in real babysit sessions:
   ([review-discipline](../../reference/review-discipline.md) §1)
 - **Exit codes are not per-thread outcomes.** Both wrappers demand JSON `action`-field parsing;
   a zero exit covers skipped and refused threads too
+- **Self-blocking CI check.** A newly required check whose own fix PR carries that same check
+  cannot be gate-merged — the check is failing or absent on the very PR that would make it pass,
+  so the merge gate correctly refuses. Breaking the cycle is a one-time human admin-merge
+  bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
+  never as a reason to route around the gate
 
 ## References
 
