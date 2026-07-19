@@ -26,10 +26,9 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op).
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
+# or timed-out stdin skips this advisory hook.
+INPUT=$(hook::buffer_stdin) || exit 0
 SCRIPT=$(printf '%s' "$INPUT" | jq -r '.tool_input.script // empty' 2>/dev/null | tr -d '\r')
 SCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.scriptPath // empty' 2>/dev/null | tr -d '\r')
 

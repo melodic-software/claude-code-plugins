@@ -42,9 +42,17 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin` (Windows Git Bash
-# Win32-pipe ENOENT → silent no-op). Buffer once; parse each field from it.
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
+# once, parse each field from it. rc 1 (empty stdin) skips like the empty-field
+# guards below; rc 2 (read timed out before a complete payload) FAILS CLOSED —
+# the guard cannot evaluate the tool call, and a silent skip would pass exactly
+# the traffic this guard exists to stop. buffer_stdin already printed the
+# BLOCKED reason to stderr.
+INPUT=$(hook::buffer_stdin) || {
+  rc=$?
+  ((rc == 2)) && exit 2
+  exit 0
+}
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
 
 case "$TOOL" in

@@ -47,10 +47,16 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Read inherited fd0 directly (bare cat) — NEVER `</dev/stdin`: on Windows Git
-# Bash, CC spawns hooks with stdin = a Win32 pipe that `/dev/stdin` cannot
-# resolve (ENOENT → silent no-op).
-INPUT=$(cat)
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
+# (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed out
+# before a complete payload) FAILS CLOSED — the guard cannot evaluate the tool
+# call, and a silent skip would pass exactly the traffic this guard exists to
+# stop. buffer_stdin already printed the BLOCKED reason to stderr.
+INPUT=$(hook::buffer_stdin) || {
+  rc=$?
+  ((rc == 2)) && exit 2
+  exit 0
+}
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 
