@@ -32,5 +32,7 @@ line with: No linked issue
 
 <!--
 Issues, PRs, ADRs, or decision-log entries this PR references but does NOT close.
-Required non-empty. Use `Refs #N` to link an issue without closing it.
+Required non-empty even when the closing-keyword line above is `No linked issue`
+— if nothing applies, put `N/A`. Use `Refs #N` to link an issue without closing
+it.
 -->
