@@ -62,33 +62,33 @@ into a managed Python environment the repo already uses**, never by creating one
 globally, mirroring how the hook resolves the binary. Resolve the target from what the repo
 already declares:
 
-- A tool-managed project — uv (`uv.lock` or a `[tool.uv]` section), Poetry
-  (`poetry.lock` / `[tool.poetry]`), or Pipenv (`Pipfile`/`Pipfile.lock`) → use that
-  tool's own dependency command so the
-  manifest and lockfile record it — `uv add --dev ruff`, `poetry add --group dev ruff`,
-  `pipenv install --dev ruff` — never a bare install into the `.venv`, which the tool's
-  next sync, `pipenv clean`, or environment recreation would silently remove. State the
-  change before running. **And only when the environment is somewhere the hook
-  resolves**: Poetry and Pipenv both default their virtualenv to a cache directory, not
-  the repo `.venv`, while the hook resolves only repo-ancestor `.venv` interpreters or
-  `PATH` — so first confirm an in-project environment (Poetry:
-  `poetry config virtualenvs.in-project` effective true or a Poetry-managed repo
-  `.venv`; Pipenv: `PIPENV_VENV_IN_PROJECT=1` or a Pipenv-managed repo `.venv`). Without
-  one, don't run the install; guide instead — enable the tool's in-project mode and
-  recreate the environment, or otherwise put `ruff` on `PATH` — then re-check. uv with NO
-  existing `.venv`: record the dependency without touching environments —
-  `uv add --dev ruff --no-sync` (`uv add` otherwise syncs and would create `.venv`,
-  violating this skill's never-create guarantee) — then hand `uv sync` to the consumer as
-  their own step and defer the re-check until after it.
-- A plain existing `.venv` with NO managing tool detected (none of the uv, Poetry, or
-  Pipenv markers above — lockfiles OR their pyproject sections) → install with the
-  environment's own `pip install ruff`. State the change and the target environment
-  before running.
-- Anything ambiguous — no `.venv`, no recognized project tool, or conflicting signals —
-  stops with guidance rather than guessing; never create a virtual environment or
-  `pip install` outside a managed environment. The README's astral install URL
-  (`https://docs.astral.sh/ruff/installation/`) is the fallback pointer, matching the
-  hook's own skip-notice text.
+Principles, in order — they decide every case, whatever the tool:
+
+1. **Identify the repo's dependency manager from its own markers** — a lockfile or a
+   `pyproject.toml` tool section (uv, Poetry, Pipenv, PDM, Hatch, …). Recognize the tool
+   from what the repo declares; don't assume from an enumerated list.
+2. **Record through the manager, never around it.** A managed project gets Ruff via that
+   tool's own dev-dependency add command (e.g. `uv add --dev ruff`,
+   `poetry add --group dev ruff`, `pipenv install --dev ruff`, `pdm add -d ruff`) so the
+   manifest and lockfile record it — a bare `pip install` into its environment is state
+   the tool's next sync or clean silently removes.
+3. **Never create or mutate an environment.** When no environment exists yet, use the
+   tool's record-only mode when it has one (e.g. `uv add --dev ruff --no-sync` — plain
+   `uv add` syncs and would create `.venv`) and hand the sync/install step to the
+   consumer as their own command; when the tool's add command cannot avoid
+   creating/instantiating an environment, don't run it — give it as guidance instead.
+4. **Only where the hook resolves.** The hook resolves repo-ancestor `.venv` interpreters
+   or `PATH`, nothing else. Tools that default their environment to a cache directory
+   (Poetry, Pipenv, and any similar) must have an in-project environment confirmed first
+   (the tool's own config/env answers — e.g. `poetry config virtualenvs.in-project`,
+   `PIPENV_VENV_IN_PROJECT`); otherwise guide (enable in-project mode + recreate, or put
+   `ruff` on `PATH`) rather than installing somewhere the hook never looks.
+5. **Bare `pip install` only into a plain existing `.venv`** with no manager markers of
+   any kind. State the change and target environment before running.
+6. **Ambiguity stops.** No environment plus no recognized manager, or conflicting
+   signals → guidance only, anchored on the README's astral install URL
+   (`https://docs.astral.sh/ruff/installation/`), matching the hook's own skip-notice
+   text.
 
 After ANY remediation, re-run the relevant `check` probe and report its actual result —
 never claim resolved on the install command's exit code alone. For everything else `apply`
