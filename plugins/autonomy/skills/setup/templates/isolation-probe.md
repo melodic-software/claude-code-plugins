@@ -115,9 +115,10 @@ confirm both assertions failed inside a boundary the run itself created:
 When one run probes several `<host-credential-path>` locations, `credentials_absent.path` lists
 them comma-separated and `host_expanded`, `exit_code`, `outer_exit_code`, and
 `transport_outcome` list one entry per location, comma-separated in the same order — a single
-code cannot vouch for every listed location. The
-`egress_denied.outer_exit_code` pairs with the probed host the same way and must be `"0"`: the
-outer context reached the very target the inner probe failed against.
+code cannot vouch for every listed location. Several egress targets work the same way:
+`egress_denied.host` lists them comma-separated, `exit_code` pairs one non-zero code per target,
+and `outer_exit_code` pairs the same way and must be all-`"0"` — the outer context reached the
+very target the inner probe failed against.
 `credentials_absent.outer_exit_code` is its credential-side mirror, also all-`"0"`: the outer
 context proved the very target the inner read failed against exists on the host.
 

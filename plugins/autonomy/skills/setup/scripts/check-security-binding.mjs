@@ -180,6 +180,12 @@ function isRecognizedCredentialEntry(entry) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
     return CREDENTIAL_ENV_VARS.has(bare);
   }
+  // A dot segment resolves the path elsewhere than its anchor claims
+  // ("/root/../var/empty/.ssh" probes /var/empty/.ssh while "root" anchors),
+  // so the anchor cannot be trusted — rejected outright rather than
+  // canonicalized: resolving traversal invites its own edge cases, and a
+  // probe recipe has no reason to record a non-canonical path.
+  if (segments.some((segment) => segment === "." || segment === "..")) return false;
   // A UNC form ("//server/..." — a leading "\\" normalizes to it above)
   // invents its server: "//etc/credentials" names a share on a server called
   // "etc", not the host's /etc, so no UNC path names a by-construction-real
@@ -242,7 +248,13 @@ function credentialExpansionProblem(entry, expanded) {
   if (!(normalizedExpanded.startsWith("/") || /^[a-z]:\//.test(normalizedExpanded))) {
     return "the host-side expansion must be rooted (POSIX-absolute or drive-letter-absolute)";
   }
-  if (normalizedExpanded.split("/").some((segment) => EPHEMERAL_SEGMENTS.has(segment))) {
+  const expandedSegments = normalizedExpanded.split("/").filter((segment) => segment.length > 0);
+  // Same dot-segment rejection as the entry side: a traversal in the
+  // expansion resolves elsewhere than the recorded path claims.
+  if (expandedSegments.some((segment) => segment === "." || segment === "..")) {
+    return "the host-side expansion contains a dot segment (\".\", \"..\"), which resolves elsewhere than the recorded path claims";
+  }
+  if (expandedSegments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) {
     return "the host-side expansion sits under an ephemeral base (tmp, temp, shm) — planted evidence, not the host credential store";
   }
   const tail = normalizedEntry.slice(segments[0].length);
@@ -887,46 +899,68 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   // proves nothing. The credentials_absent codes are per-target and checked
   // alongside the path entries below.
   const nonzeroExit = (value) => typeof value === "string" && /^[1-9][0-9]*$/.test(value);
-  if (!nonzeroExit(transcript.assertions.egress_denied.exit_code)) {
-    return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(transcript.assertions.egress_denied.exit_code)} — a proven egress-denial requires a non-zero integer exit code string`;
-  }
   // An assertion without its recorded target proves nothing about the
   // boundary: a failing run against no named host/path could be any failing
   // command, not the probe.
-  const egressHost = transcript.assertions.egress_denied.host;
-  if (typeof egressHost !== "string" || egressHost.length === 0 || /\s/.test(egressHost)) {
-    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a proven egress-denial requires the probed external host (non-empty, no whitespace)`;
+  const rawEgressHost = transcript.assertions.egress_denied.host;
+  if (typeof rawEgressHost !== "string" || rawEgressHost.length === 0) {
+    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — a proven egress-denial requires the probed external host (non-empty; comma-separated entries when several targets were probed)`;
   }
-  // The transcript must record the BARE probed hostname or IP: URI and
-  // host:port forms would route a loopback down the wrong classification
-  // branch (e.g. "http://127.0.0.1"), so they are rejected outright rather
-  // than parsed — one classification path, no parser disagreements. A single
-  // colon can only be a port separator (hostnames and IPv4 have none, IPv6
-  // literals have at least two); a "]" not at the end is a bracketed
-  // authority with a port suffix.
-  if (
-    egressHost.includes("/") ||
-    (egressHost.match(/:/g) ?? []).length === 1 ||
-    (egressHost.includes("]") && !egressHost.endsWith("]"))
-  ) {
-    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — record the BARE probed hostname or IP; URI, path, and host:port forms are rejected rather than parsed`;
-  }
-  if (isNonExternalEgressHost(egressHost)) {
-    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
-  }
-  if (egressAllowList !== null) {
-    if (!egressAllowList.includes(egressHost.toLowerCase().replace(/\.$/, ""))) {
-      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — not in the configured egress-probe allow-list (--egress-hosts ${egressAllowList.join(",")})`;
+  // The host value is a comma-separated list of probed targets (usually just
+  // one), and every entry is validated INDEPENDENTLY below — classifying the
+  // unsplit string would reject a genuine multi-target capture as one
+  // invalid DNS name. Empty entries (leading/trailing/double commas) reject.
+  const egressHosts = rawEgressHost.split(",").map((host) => host.trim());
+  for (const host of egressHosts) {
+    if (host.length === 0 || /\s/.test(host)) {
+      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(rawEgressHost)} — every comma-separated host entry must be non-empty with no whitespace`;
     }
-  } else {
-    // RFC 2606/6761/6762/7686 special-use/reserved names never demonstrate
-    // public egress (a DNS failure with open egress also "denies"). A static
-    // checker cannot resolve DNS; the --egress-hosts allow-list seam plus
-    // the live probe recipe close the residual.
-    const bare = egressHost.toLowerCase().replace(/\.$/, "");
-    const specialTld = SPECIAL_USE_TLDS.find((tld) => bare === tld.slice(1) || bare.endsWith(tld));
-    if (specialTld !== undefined) {
-      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — the special-use/reserved TLD ${JSON.stringify(specialTld)} can never demonstrate public egress; probe a resolvable public host, or pass the org's configured target via --egress-hosts`;
+  }
+  // The inner exit codes pair with the probed hosts like the per-target
+  // credential codes: one non-zero code per host — a single code cannot
+  // prove denial toward every listed target.
+  const rawEgressCodes = transcript.assertions.egress_denied.exit_code;
+  const egressCodes = typeof rawEgressCodes === "string" ? rawEgressCodes.split(",").map((code) => code.trim()) : [];
+  if (egressCodes.length !== egressHosts.length) {
+    return `transcript ${path} records assertions.egress_denied.exit_code ${JSON.stringify(rawEgressCodes)} for ${egressHosts.length} probed host entr${egressHosts.length === 1 ? "y" : "ies"} — one recorded exit code per probed host is required, comma-separated and positionally paired with host: a single code cannot prove denial toward every listed target`;
+  }
+  for (const [index, code] of egressCodes.entries()) {
+    if (!nonzeroExit(code)) {
+      return `transcript ${path} records assertions.egress_denied.exit_code entry ${JSON.stringify(code)} for host ${JSON.stringify(egressHosts[index])} — a proven egress-denial requires a non-zero integer exit code string for every probed host`;
+    }
+  }
+  for (const host of egressHosts) {
+    // The transcript must record the BARE probed hostname or IP: URI and
+    // host:port forms would route a loopback down the wrong classification
+    // branch (e.g. "http://127.0.0.1"), so they are rejected outright rather
+    // than parsed — one classification path, no parser disagreements. A
+    // single colon can only be a port separator (hostnames and IPv4 have
+    // none, IPv6 literals have at least two); a "]" not at the end is a
+    // bracketed authority with a port suffix.
+    if (
+      host.includes("/") ||
+      (host.match(/:/g) ?? []).length === 1 ||
+      (host.includes("]") && !host.endsWith("]"))
+    ) {
+      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — record the BARE probed hostname or IP; URI, path, and host:port forms are rejected rather than parsed`;
+    }
+    if (isNonExternalEgressHost(host)) {
+      return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — a loopback/private/link-local or otherwise non-external target (after normalizing encoded forms) cannot prove EXTERNAL egress denial; probe a genuine external host (multi-label DNS name or public IP)`;
+    }
+    if (egressAllowList !== null) {
+      if (!egressAllowList.includes(host.toLowerCase().replace(/\.$/, ""))) {
+        return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — not in the configured egress-probe allow-list (--egress-hosts ${egressAllowList.join(",")})`;
+      }
+    } else {
+      // RFC 2606/6761/6762/7686 special-use/reserved names never demonstrate
+      // public egress (a DNS failure with open egress also "denies"). A
+      // static checker cannot resolve DNS; the --egress-hosts allow-list
+      // seam plus the live probe recipe close the residual.
+      const bare = host.toLowerCase().replace(/\.$/, "");
+      const specialTld = SPECIAL_USE_TLDS.find((tld) => bare === tld.slice(1) || bare.endsWith(tld));
+      if (specialTld !== undefined) {
+        return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(host)} — the special-use/reserved TLD ${JSON.stringify(specialTld)} can never demonstrate public egress; probe a resolvable public host, or pass the org's configured target via --egress-hosts`;
+      }
     }
   }
   // A non-zero inner exit alone cannot tell a denied boundary from a target
@@ -938,7 +972,6 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   // ("0") makes the inner failure evidence of the boundary. Required with or
   // without --egress-hosts: reachability evidence is orthogonal to which
   // targets are trusted.
-  const egressHosts = egressHost.split(",").map((host) => host.trim());
   const rawOuterCodes = transcript.assertions.egress_denied.outer_exit_code;
   const outerCodes = typeof rawOuterCodes === "string" ? rawOuterCodes.split(",").map((code) => code.trim()) : [];
   if (outerCodes.length !== egressHosts.length) {
@@ -1009,7 +1042,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, egre
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets) and never under an ephemeral base (tmp, temp, shm); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path component like ${[...CREDENTIAL_SEGMENTS].join(", ")} or ${CREDENTIAL_SEGMENT_PAIRS.map((pair) => pair.join("/")).join(", ")}, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
