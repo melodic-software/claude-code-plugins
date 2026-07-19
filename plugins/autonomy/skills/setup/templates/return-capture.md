@@ -98,7 +98,14 @@ latest wins only among equals).
 
 Wire the capture at the task boundary the org actually has: a close-triggered workflow
 (`<work-item closed>` / `<change merged>` event) invoking the record post + attestation
-request. Where a work-item-tracker binding is present, the comment write uses the bound
+request. A `<change merged>` event identifies a change, not the work item the record lives
+on: the handler resolves the merged change's linked work items through the platform's
+closing-link references and FANS OUT per item — each linked item independently runs the
+full eligibility gate and, when admitted, receives its own record (its own canonical item
+URL as the join key, its own owner snapshot and record-surface target). One merge closing
+several items yields one record per item; a merge with no resolvable linked work item
+captures NOTHING — a record attached to the change URL would never join the per-work-item
+telemetry. Where a work-item-tracker binding is present, the comment write uses the bound
 adapter's documented comment operations (comments are provider-specific mechanics there —
 the tracker seam exposes no comment verb); otherwise the standalone snippet posts directly
 (create-only-when-absent per the contract's race rule).
