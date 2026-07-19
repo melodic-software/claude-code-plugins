@@ -14,7 +14,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
 
-These values orient this fork only. The project root is an absolute machine path — use it to resolve files while working, but never echo it into `EXPLORE.md`; the `/explore` outcome gate you run in Step 3 requires repo-relative paths.
+These values orient this fork only. The project root is an absolute machine path — use it to resolve files while working, but never echo it into `EXPLORE.md`; the `/explore` outcome gate you run in Step 3 requires relative, machine-agnostic paths.
 
 ## Purpose
 
