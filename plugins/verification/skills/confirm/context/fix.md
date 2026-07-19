@@ -49,7 +49,7 @@ Gold standard for fix confirmation is a test that:
 If `/testing:diagnose` was used, this test should already exist. Reference it by name:
 
 ```
-Reproduction test: returns_null_when_user_is_deleted (name it per your framework's convention)
+Reproduction test: returns_null_when_user_is_deleted  # name it per your framework's convention
 - Fails on commit abc1234 (pre-fix): the reported failure (e.g. a null-dereference crash)
 - Passes on commit def5678 (post-fix): returns null as expected
 ```
