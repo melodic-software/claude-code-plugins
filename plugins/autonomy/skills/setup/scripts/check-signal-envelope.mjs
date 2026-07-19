@@ -21,6 +21,9 @@ import { join } from "node:path";
 import process from "node:process";
 
 const MARKER = "<!-- autonomy:signal:v1 -->";
+// Each supported minor version is added here together with its validation
+// rules — an unknown 1.x must not certify semantics this checker cannot see.
+const SUPPORTED_SCHEMA_VERSIONS = new Set(["1.0"]);
 const SURFACE_CLASSES = new Set(["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"]);
 const TRANSPORTS = new Set(["push", "push-lifecycle", "poll"]);
 const PROVENANCES = new Set(["human", "agent", "system"]);
@@ -35,8 +38,9 @@ const REQUIRED_KEYS = [
 ];
 // W3C Trace Context traceparent: this contract supports version "00" only
 // (and "ff" is forbidden by the spec outright); all-zero trace-id/parent-id
-// invalid.
-const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
+// invalid; version-00 trace flags define only the sampled bit (00 or 01 —
+// reserved bits must not be set by the authoring adapter).
+const TRACEPARENT = /^00-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-0[01]$/;
 
 const findings = [];
 
@@ -128,8 +132,10 @@ function collectSurfaces(binding) {
 
 function checkEnvelope(envelope, where, surfaces, bindingSupplied) {
   const version = envelope.schema_version;
-  if (typeof version !== "string" || !/^1\.\d+$/.test(version)) {
-    findings.push(`${where}: schema_version ${JSON.stringify(version)} is not a known 1.x version`);
+  if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
+    findings.push(
+      `${where}: schema_version ${JSON.stringify(version)} is not a supported version (${[...SUPPORTED_SCHEMA_VERSIONS].join(", ")})`,
+    );
   }
   for (const key of REQUIRED_KEYS) {
     const value = envelope[key];
