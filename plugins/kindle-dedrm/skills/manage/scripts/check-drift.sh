@@ -41,7 +41,7 @@ PINNED_KKF_FILENAME="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)
 PINNED_KKF_URL="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)" "Captured URL")"
 PINNED_KKF_SHA="$(pin "${VERSIONS_MD}" "Kindle_Key_Finder (techy-notes.com)" "SHA256")"
 
-PINNED_TUTORIAL_URL="$(grep -oE 'https://techy-notes\.com/remove-drm-from-kindle-ebooks/' "${SOURCES_MD}" | head -1)"
+PINNED_TUTORIAL_URL="$(grep -oE 'https://techy-notes\.com/[a-z0-9-]+/' "${SOURCES_MD}" | head -1)"
 if [[ -z "${PINNED_TUTORIAL_URL}" ]]; then
   echo "check-drift: cannot parse tutorial URL from ${SOURCES_MD}" >&2
   exit 2
@@ -54,7 +54,7 @@ note() { echo "            $*"; }
 
 echo "=== kindle-dedrm: drift report ==="
 echo
-echo "Captured baselines from references/versions.md (last verified 2026-05-10)."
+echo "Captured baselines from references/versions.md (see each row's Captured date)."
 echo
 
 # --- Source 1: Kindle for PC installer URL ---
@@ -84,37 +84,39 @@ else
 fi
 echo
 
-# --- Source 3: Tutorial article body (probe for current Key_Finder URL) ---
-echo "Kindle_Key_Finder zip URL (parsed from tutorial article):"
-ARTICLE_BODY=$(curl -s "${PINNED_TUTORIAL_URL}" 2>/dev/null || echo "")
-if [[ -z "${ARTICLE_BODY}" ]]; then
-  unreachable "${PINNED_TUTORIAL_URL} → no response"
-else
-  CURRENT_KKF=$(echo "${ARTICLE_BODY}" |
-    grep -oE 'https://techy-notes\.com/content/files/[0-9]+/[0-9]+/Kindle_Key_Finder_[0-9.]+\.JH\.zip' |
-    head -1)
-  if [[ -z "${CURRENT_KKF}" ]]; then
-    stale "Could not extract Kindle_Key_Finder URL from article body"
-    note "Article structure may have changed — re-WebFetch and inspect"
-  elif [[ "${CURRENT_KKF}" == "${PINNED_KKF_URL}" ]]; then
-    ok "article links pinned URL (${PINNED_KKF_FILENAME})"
-  else
-    stale "article links new URL: ${CURRENT_KKF}"
-    note "Pinned: ${PINNED_KKF_URL}"
-    note "Update references/versions.md Kindle_Key_Finder section, download, recompute SHA256"
-  fi
-fi
+# --- Source 3: Kindle_Key_Finder zip — HEAD the pinned direct URL ---
+# Roll-forward auto-discovery via the tutorial article body is dead: the
+# article moved and is now subscriber-gated (see references/sources.md), so its
+# public body carries no zip link. HEAD the pinned direct URL as the
+# authoritative signal — a non-200 means the author revoked or rolled it, at
+# which point a subscriber must read the current article and re-pin by hand.
+echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
+KKF_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_KKF_URL}" 2>/dev/null || echo "000")
+case "${KKF_HTTP}" in
+200) ok "${PINNED_KKF_URL} → HTTP 200 (${PINNED_KKF_FILENAME} still served)" ;;
+403 | 404)
+  stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (revoked or rolled forward)"
+  note "Subscriber must read the current techy-notes article for the new zip URL, then re-pin references/versions.md + recompute SHA256"
+  ;;
+000) unreachable "${PINNED_KKF_URL} → no response (network or DNS issue)" ;;
+*) stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (unexpected)" ;;
+esac
 echo
 
-# --- Source 4: Tutorial article body hash (informational, not actionable) ---
-echo "Tutorial article (techy-notes.com):"
-if [[ -n "${ARTICLE_BODY}" ]]; then
-  HASH=$(echo "${ARTICLE_BODY}" | sha256sum | awk '{print $1}')
-  note "current SHA256 of article body: ${HASH}"
-  note "(no captured baseline — content changes are normal and not actionable unless versions/URLs differ)"
-else
-  unreachable "${PINNED_TUTORIAL_URL}"
-fi
+# --- Source 4: Tutorial article reachability (informational) ---
+# The article is subscriber-gated, so no body diff is possible; a HEAD probe
+# just confirms the current slug still resolves. A 404 here means the author
+# moved or unpublished the page again — re-discover via the site sitemap.
+echo "Tutorial article (techy-notes.com — subscriber-gated):"
+ART_HTTP=$(curl -sI -o /dev/null -w "%{http_code}" "${PINNED_TUTORIAL_URL}" 2>/dev/null || echo "000")
+case "${ART_HTTP}" in
+200) note "${PINNED_TUTORIAL_URL} → HTTP 200 (slug resolves; body paywalled, not diffable)" ;;
+000) unreachable "${PINNED_TUTORIAL_URL} → no response" ;;
+*)
+  stale "${PINNED_TUTORIAL_URL} → HTTP ${ART_HTTP} (article moved again)"
+  note "Re-discover via https://techy-notes.com/sitemap-posts.xml, update references/sources.md"
+  ;;
+esac
 echo
 
 # --- Source 5: Local download SHAs ---

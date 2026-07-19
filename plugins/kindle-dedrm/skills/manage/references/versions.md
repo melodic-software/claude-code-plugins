@@ -1,6 +1,6 @@
 # Captured version pins
 
-Versions, URLs, and SHA256 hashes verified working on 2026-05-10. The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using.
+URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched — NOT that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using.
 
 ## Kindle for PC
 
@@ -22,32 +22,39 @@ Observed staged update during 2026-05-10 setup: `2.9.1.71006`. Captured installe
 
 | Field | Value |
 |---|---|
-| Pinned tag | `v10.0.20` |
+| Pinned tag | `v10.0.28` |
 | Pre-release | yes (Satsuoni's fork ships pre-releases as the user-facing channel) |
-| Asset URL | `https://github.com/Satsuoni/DeDRM_tools/releases/download/v10.0.20/DeDRM_tools.zip` |
-| SHA256 | `c908be142934a7a030d890ba023ba32becc4f8ef4637bd42d8efdcef90b3f2d2` |
-| File size | 1.1 MB (1,112,576 bytes) |
-| Asset date | 2026-04-18 |
-| Captured | 2026-05-10 |
+| Asset URL | `https://github.com/Satsuoni/DeDRM_tools/releases/download/v10.0.28/DeDRM_tools.zip` |
+| SHA256 | `520cce704edf9ae26e43196efe2871daf9b25d6cb489aa56051626801c362947` |
+| File size | 1.9 MB (1,944,296 bytes) |
+| Asset date | 2026-07-14 |
+| Captured | 2026-07-19 |
+
+Previous pin for rollback: `v10.0.20` (SHA256 `c908be142934a7a030d890ba023ba32becc4f8ef4637bd42d8efdcef90b3f2d2`, 1,112,576 bytes, asset date 2026-04-18, captured 2026-05-10).
 
 Repo: `https://github.com/Satsuoni/DeDRM_tools` — fork of the original NoDRM/Apprentice Harper DeDRM_tools, maintained specifically for compatibility with current Kindle for PC / KFX format. Upstream `noDRM/DeDRM_tools` is also viable but lags this fork on KFX support.
 
-Asset contents (verified 2026-05-10):
+Asset contents (verified 2026-07-19, v10.0.28):
 
 ```text
-DeDRM_plugin.zip            (Calibre plugin to install)
+DeDRM_plugin.zip                    (Calibre plugin to install)
 DeDRM_plugin_ReadMe.txt
-KFXArchiver291.exe          (Kindle 2.9.1 fallback extractor)
-KFXKeyExtractor28.exe       (Kindle 2.8.x primary extractor)
-KFXKeyExtractor282.exe      (alternate name for same)
-kindleFridaInstr.py         (Frida-based extraction for newer Kindle)
-KRFKeyExtractor.exe         (KRF key extractor)
-Obok_plugin.zip             (Kobo DRM removal — different ecosystem)
+KFXArchiver291.exe                  (Kindle 2.9.1 fallback extractor)
+KFXKeyExtractor28.exe               (Kindle 2.8.x primary extractor)
+KFXKeyExtractor282.exe              (alternate name for same)
+KRFKeyExtractor.exe                 (KRF key extractor)
+compiled_agent.js                   (NEW in v10.0.28: MSIX/Frida agent)
+kindleFridaDecrypt.py               (NEW: Frida-based decrypt, newer Kindle)
+kindleFridaInstr.py                 (Frida-based extraction for newer Kindle)
+kindledecr_arm64                    (NEW: ARM64 decryptor binary)
+kindledecr_x84_64                   (NEW: x86-64 decryptor binary; upstream spelling)
+MSIXKFXArchiverMobi1_18632.exe      (NEW: MSIX Kindle-app KFX/Mobi archiver)
+Obok_plugin.zip                     (Kobo DRM removal — different ecosystem)
 obok_plugin_ReadMe.txt
 ReadMe_Overview.txt
 ```
 
-For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Calibre via "Load plugin from file"). The `.exe` files are also bundled inside `Kindle_Key_Finder` so usually not needed from this archive.
+For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Calibre via "Load plugin from file"). The `.exe` files are also bundled inside `Kindle_Key_Finder` so usually not needed from this archive. The v10.0.28 additions target the newer MSIX "Amazon Kindle" reading app (Frida-instrumented decrypt path); the Kindle-for-PC 2.8.0 offset extractors this skill relies on are unchanged.
 
 ## Kindle_Key_Finder (techy-notes.com)
 
@@ -61,7 +68,7 @@ For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Ca
 | Internal version label | `2026.04.28.JH` (date-based, no semver) |
 | Captured | 2026-05-10 |
 
-Author rolls the URL forward periodically (date in filename + path matches build date). The `update` action's drift check walks the article body at `https://techy-notes.com/remove-drm-from-kindle-ebooks/` and extracts the current download link rather than guessing the next date.
+Author rolls the URL forward periodically (date in filename + path matches build date). The pinned direct URL above still serves the byte-identical zip (re-fetched + SHA-verified 2026-07-19). Roll-forward auto-discovery is currently BROKEN upstream: the tutorial article moved from `remove-drm-from-kindle-ebooks/` (now HTTP 404) to `drm-removal-from-kindle-ebook-purchases-old-method/` and is now behind a subscriber paywall, so the public article body no longer exposes the zip link for the `update` probe to walk. Until that changes, the drift check HEAD-probes the pinned direct zip URL as the authoritative signal; a maintainer with a techy-notes subscription must re-confirm any new build's URL by hand.
 
 Bundled tools (verified 2026-05-10):
 
