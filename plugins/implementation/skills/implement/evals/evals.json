@@ -18,12 +18,13 @@
       "id": 2,
       "name": "branch-check-stops-on-default-branch",
       "prompt": "/implementation:implement feature — start building the new export endpoint. (Assume the working session is currently on the `main` branch in a PR-based repo.)",
-      "expected_output": "The Step 1 prerequisite check detects the session is on the default branch in a feature-branch workflow and stops to create a feature branch (git checkout -b, or /source-control:worktree when installed) BEFORE the first edit — it does not begin editing on main.",
+      "expected_output": "The Step 1 prerequisite check detects the session is on the default branch in a feature-branch workflow and stops to create a feature branch (git checkout -b following the project's branch-naming convention, or /source-control:worktree when installed) BEFORE the first edit — it does not begin editing on main. It does not mandate a specific branch-name grammar.",
       "files": [],
       "expectations": [
         "Detects that the current branch is the default branch (main/master) in a feature-branch workflow",
         "Creates or directs creation of a feature branch before the first code edit, rather than editing on the default branch",
-        "Does NOT proceed to write code on the default branch and leave branch creation for later"
+        "Does NOT proceed to write code on the default branch and leave branch creation for later",
+        "Does NOT mandate a specific branch-name grammar — treats `<type>/<description>` as one acceptable form, not the only correct one"
       ]
     },
     {
