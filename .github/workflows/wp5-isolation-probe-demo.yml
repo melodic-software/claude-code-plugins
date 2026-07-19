@@ -33,20 +33,25 @@ jobs:
           set -u
           egress_exit=0
           docker run --rm --network none ubuntu:24.04 bash -c \
-            'timeout 10 bash -c "exec 3<>/dev/tcp/example.com/443"' 2>/dev/null || egress_exit=$?
-          if [ "${egress_exit}" = "0" ]; then
-            echo "egress-denial: FAIL - connection succeeded inside the boundary"
+            'if timeout 10 bash -c "exec 3<>/dev/tcp/example.com/443" 2>/dev/null; then exit 0; else exit 4; fi' || egress_exit=$?
+          if [ "${egress_exit}" != "4" ]; then
+            echo "egress-denial: FAIL - expected denial exit 4, got ${egress_exit} (0 = connection succeeded; other = container infra error, boundary not proven)"
             exit 1
           fi
           echo "egress-denial: PASS - external fetch failed inside the boundary (exit ${egress_exit})"
           cred_exit=0
-          docker run --rm --network none ubuntu:24.04 bash -c \
-            'ls "$HOME/.ssh" "$HOME/.netrc" "$HOME/.docker/config.json"' 2>/dev/null || cred_exit=$?
-          if [ "${cred_exit}" = "0" ]; then
-            echo "credential-absence: FAIL - host credential paths present"
+          docker run --rm --network none ubuntu:24.04 bash -c '
+            present=0
+            for p in "$HOME/.ssh" "$HOME/.netrc" "$HOME/.docker/config.json"; do
+              if [ -e "$p" ]; then echo "credential path readable: $p"; present=1; fi
+            done
+            [ "$present" = "0" ] && exit 3 || exit 0
+          ' || cred_exit=$?
+          if [ "${cred_exit}" != "3" ]; then
+            echo "credential-absence: FAIL - expected all-absent exit 3, got ${cred_exit} (0 = a credential path is readable; other = container infra error, boundary not proven)"
             exit 1
           fi
-          echo "credential-absence: PASS - no host credential paths inside the boundary (exit ${cred_exit})"
+          echo "credential-absence: PASS - every tested credential path absent inside the boundary (exit ${cred_exit})"
           mkdir -p live-evidence/probe-transcripts
           cat > live-evidence/probe-transcripts/ci-pool-a-l2.json <<EOF
           {
@@ -67,6 +72,9 @@ jobs:
           cat live-evidence/probe-transcripts/ci-pool-a-l2.json
       - name: Checker passes against the LIVE-captured evidence
         run: |
-          node plugins/autonomy/skills/setup/scripts/check-security-binding.mjs \
+          jq '.isolation_bindings["ci-pool-a"].L2.substrate = "nested-no-network-container"' \
             plugins/autonomy/skills/setup/evals/fixtures/security-binding/valid.json \
+            > live-evidence/demo-binding.json
+          node plugins/autonomy/skills/setup/scripts/check-security-binding.mjs \
+            live-evidence/demo-binding.json \
             --probe-evidence-root live-evidence

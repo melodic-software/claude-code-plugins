@@ -257,7 +257,7 @@ function validateStructure(binding) {
         }
         if (!isNonEmptyString(entry.ratified_at) || Number.isNaN(Date.parse(entry.ratified_at))) {
           findings.push(
-            `${where}.ratified_at: missing or not a parseable ISO 8601 date-time — the ratification instant anchors the promotion epoch contrary evidence is scoped to`,
+            `${where}.ratified_at: missing or not a parsable ISO 8601 date-time — the ratification instant anchors the promotion epoch contrary evidence is scoped to`,
           );
         }
       }
@@ -362,9 +362,12 @@ function jointlySatisfiable(markersA, markersB) {
 // A probe transcript proves an L2/L3 boundary only when it records both
 // failed-inside assertions AND a networked outer context (a fully-offline
 // outer context would deny egress on its own) — the capture shape of
-// templates/isolation-probe.md; keep the two in sync. Returns null when
+// templates/isolation-probe.md; keep the two in sync. The transcript's own
+// surface/level/substrate identity must match the binding entry it is cited
+// from: a genuine transcript reused under a different surface, level, or
+// substrate proves a DIFFERENT boundary, not this one. Returns null when
 // verified, else the reason the entry is unproven.
-function verifyProbeTranscript(ref, probeRoot) {
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   const path = probeRoot !== null && !isAbsolute(ref) ? join(probeRoot, ref) : ref;
   let transcript;
   try {
@@ -374,6 +377,15 @@ function verifyProbeTranscript(ref, probeRoot) {
   }
   if (!isPlainObject(transcript)) {
     return `transcript ${path} is not a capture-shape object`;
+  }
+  if (transcript.surface !== surfaceId) {
+    return `transcript ${path} records surface ${JSON.stringify(transcript.surface)}, not this binding entry's surface ${JSON.stringify(surfaceId)}`;
+  }
+  if (transcript.level !== level) {
+    return `transcript ${path} records level ${JSON.stringify(transcript.level)}, not this binding entry's level ${JSON.stringify(level)}`;
+  }
+  if (transcript.substrate !== substrate) {
+    return `transcript ${path} records substrate ${JSON.stringify(transcript.substrate)}, not this binding entry's substrate ${JSON.stringify(substrate)}`;
   }
   if (transcript.assertions?.egress_denied?.outcome !== "denied") {
     return `transcript ${path} does not record the egress-denial assertion with outcome "denied"`;
@@ -473,7 +485,7 @@ function checkSemantics(binding, probeRoot) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);
@@ -679,7 +691,7 @@ function resolveEffectivePromotion(binding, evidencePath) {
     for (const event of contrary) {
       const at = typeof event.at === "string" ? Date.parse(event.at) : Number.NaN;
       if (Number.isNaN(at)) {
-        inEpoch.push(`${event.event} with unparseable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpoch.push(`${event.event} with unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
         inEpoch.push(`${event.event} at ${event.at}`);
       } else {
