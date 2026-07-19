@@ -9,7 +9,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - Branch-naming grammar in `/implementation:implement` Step 1 and its gotchas no longer presents
   `<type>/<description>` as the mandated form; it now defers to the consuming project's branch-naming
-  convention (its `CLAUDE.md` / rules) and frames `<type>/<description>` as a common default, mirroring
+  convention (its `CLAUDE.md` / `AGENTS.md` / rules) and frames `<type>/<description>` as a common default, mirroring
   the commit-message convention deferral. The branch-check eval is reframed to accept any convention-
   compliant branch name rather than a single hardcoded grammar.
 

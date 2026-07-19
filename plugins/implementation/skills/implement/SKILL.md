@@ -53,7 +53,7 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use t
 Before writing code, verify the knowledge base:
 
 - **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first — `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
-- **Is the branch correct?** Check pre-computed branch. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / rules; `<type>/<description>` is a common default) — `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
+- **Is the branch correct?** Check pre-computed branch. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default) — `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it — don't mix concerns in one commit
 
 ## Step 2: Execute with Incremental Validation
