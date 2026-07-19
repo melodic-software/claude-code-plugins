@@ -2,13 +2,15 @@
 
 Reviews an existing GitHub PR with git-history context.
 
-## Primary path — `code-review` orchestrator plugin (when installed)
+## `code-review` orchestrator plugin (when installed)
 
-When the `code-review` plugin (from the `claude-plugins-official` marketplace) is available, invoke `/code-review:code-review`. It detects the current branch's PR, runs parallel review agents with confidence scoring, and posts findings as a PR comment.
+When the `code-review` plugin (from the `claude-plugins-official` marketplace) is available, `/code-review:code-review` detects the current branch's PR and runs parallel review agents with confidence scoring against it.
 
-## Fallback — manual PR review
+**PR-mutation gate:** its PR mode posts findings as a PR comment, which violates the review modes' report-only contract; when the branch has an open PR, dispatch it only on explicit user opt-in ("post the review comment"), otherwise skip it and name the skip in the review report — fall to the read-only manual path below.
 
-When the plugin is absent:
+## Manual PR review (default read-only path)
+
+Used when the plugin is absent, or when the opt-in above is withheld:
 
 1. `gh pr diff` for the change set (page it — large PRs flood context)
 2. Apply the project's review criteria (or `${CLAUDE_PLUGIN_ROOT}/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff

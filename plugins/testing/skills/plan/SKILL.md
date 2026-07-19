@@ -45,7 +45,7 @@ Classify each changed file:
 
 ### 2. Generate the test plan
 
-For each change area, produce:
+For each change area, produce (test-name forms follow the project's documented pattern; when undocumented, mirror the ecosystem's idiom — the PascalCase placeholders below are illustrative (.NET/xUnit)):
 
 ```markdown
 ## Test Plan for [branch/PR description]
@@ -103,6 +103,8 @@ Present the test plan to the user. Then suggest:
 - **Does not run tests** — `/toolchain:check` (SSOT for CLI invocation)
 
 ## Marketplace plugin skills (invoke only when installed)
+
+These enrichment skills are ecosystem-specific — the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
 
 - **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
 - **`document-skills:webapp-testing`** — Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage

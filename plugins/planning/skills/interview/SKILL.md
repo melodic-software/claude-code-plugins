@@ -1,6 +1,6 @@
 ---
 name: interview
-description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea — questions arrive in frontier rounds: every question whose prerequisites are settled asked together as one numbered set, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs the rounds loop when gaps remain, or interviews relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous, or on explicit request ('interview me', 'lock the brief', 'spec this task', 'grill me'); skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
+description: "Interview relentlessly to reach shared understanding on a plan, decision, or idea — questions arrive in frontier rounds: every question whose prerequisites are settled asked together as one numbered set, each with a recommendation. Routes by context: an engineering task locks a task contract (goal, constraints, acceptance criteria, named assumptions) into a PLAN.md Brief that feeds the planning pipeline; a general decision drives to a shared understanding and stops. Synthesizes directly when intent is clear, runs the rounds loop when gaps remain, or interviews relentlessly on request. Use proactively before behavior-changing work when intent is ambiguous or underspecified, or on explicit request ('interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified'); skip for mechanical work (typo/lint/whitespace/rename) and casual conversation."
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
@@ -18,7 +18,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Most rework comes from acting on assumptions the user never made and the agent never surfaced. `/interview` prevents it: a structured pass driving every load-bearing unknown to a decision OR capturing it as a named, explicit assumption — before exploration, planning, or execution start.
+Most rework comes from acting on assumptions the user never made and the agent never surfaced — an **underspecified** task, one missing the constraints needed to act safely. `/interview` is the pipeline's underspecification resolver: a structured pass driving every load-bearing unknown to a decision OR capturing it as a named, explicit assumption — before exploration, planning, or execution start.
 
 The **pre-clarity** stage — upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
 

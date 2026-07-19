@@ -52,7 +52,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
    | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
 
-3. **Write the failing test first** (Red) — the test name IS the specification:
+3. **Write the failing test first** (Red) — the test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. The forms below are illustrative (.NET/xUnit) — adapt casing/separators to the target ecosystem:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`
    - Integration: `{Subject}_{Behavior}` or `{Subject}_{Behavior}_{Context}`
    - Architecture: `{Subject}_Should{Constraint}`
@@ -75,7 +75,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] Test uses public interface only
 - [ ] Test would survive internal refactor
 - [ ] One logical assertion per test — one behavioral concept, not one `Assert` statement
-- [ ] No tautological assertions — expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing (detection layer: `dotnet-test:test-anti-patterns` + `dotnet-test:assertion-quality` plugins)
+- [ ] No tautological assertions — expected values are independently sourced (literal, hand-computed, known fixture), never recomputed the same way the code under test computes them; a round-trip/identity check of output against input proves nothing
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
 
@@ -90,7 +90,7 @@ Every test should score well on all four:
 
 ## Verify through the interface, not around it
 
-Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use:
+Tests that bypass the public interface to verify side effects are coupled to implementation. Verify through the same interface callers use (illustrative — .NET/xUnit; the principle is ecosystem-agnostic):
 
 ```csharp
 // BAD: Bypasses interface — coupled to storage implementation
@@ -135,8 +135,10 @@ No tests needed for:
 - **Fix + green test committed together** — the fix and its proof are atomic
 - **Commit before refactoring** — separate structural from behavioral commits
 
-## Marketplace plugin skills
+## Marketplace plugin skills (invoke only when installed)
 
-When writing tests, consider loading these marketplace plugin skills for guidance:
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
 
 - **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive test generation (researcher → planner → implementer → builder → tester → fixer → linter). Invoke for complex test scenarios requiring gap analysis and structured implementation
+- **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state) as a detection layer for the per-cycle checklist above
+- **`dotnet-test:assertion-quality`** — flag tautological and weak assertions where expected values are recomputed the same way the code under test computes them

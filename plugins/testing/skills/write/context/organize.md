@@ -50,7 +50,7 @@ Where a process-global singleton, expensive lifecycle, or framework-side limitat
 
 ## Naming
 
-- Test class: `{ClassUnderTest}Tests`
+- Test class: the project's documented test-class naming; when undocumented, mirror the ecosystem's idiom (`{ClassUnderTest}Tests` illustrates the .NET convention)
 - Test project: the project's unit-test naming convention (e.g. `{Project}.Tests` for .NET co-located)
 - Test file mirrors the structure of the code it tests
 
@@ -59,6 +59,8 @@ Where a process-global singleton, expensive lifecycle, or framework-side limitat
 Track per-repo via the repo's own testing-conventions documentation — architecture test project (if any), integration root, and fixture inventory live there.
 
 ## Marketplace plugin skills (invoke only when installed)
+
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
 
 - **`dotnet-test:crap-score`** — calculate CRAP (Change Risk Anti-Patterns) scores to prioritize which untested code is riskiest. Combines cyclomatic complexity with coverage data to identify methods where tests would have the highest impact
 - **`dotnet-test:test-anti-patterns`** — scan existing test projects for anti-patterns (flakiness indicators, over-mocking, missing assertions, shared static state). Use when assessing test quality during reorganization

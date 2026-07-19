@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Added
+
+- Named the **underspecification**/**underspecified** concept — a task missing the
+  constraints needed to act safely — in the planning-pipeline skills that already
+  cover it: `interview` (description trigger keywords + Purpose, as the pipeline's
+  underspecification resolver), `prd` (routing an underspecified engineering task to
+  `/interview`), and `design` (Purpose, naming the concept its underspecified-types
+  gap-finding instantiates). Vocabulary only; no behavior change.
+
 ## [0.21.1]
 
 ### Changed

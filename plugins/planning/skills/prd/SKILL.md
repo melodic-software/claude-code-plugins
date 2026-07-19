@@ -23,7 +23,7 @@ Most product-feature rework comes from skipping the *what for whom and why* laye
 This is the **product-intent** stage. **Upstream of exploration**, **upstream of `/planning:plan`**, and may run **before or alongside `/interview`** depending on task shape:
 
 - `/prd` — answers *what should we build, for whom, and why*. Outcome-focused. Required for new user-facing features, business-driven changes, cross-team initiatives
-- `/interview` — answers *what is the engineering contract for this task*. Constraint and acceptance-criteria focused. Required whenever intent is fuzzy, regardless of source
+- `/interview` — answers *what is the engineering contract for this task*. Constraint and acceptance-criteria focused. Required whenever intent is fuzzy or underspecified, regardless of source
 - Complementary, not redundant. A product feature usually wants both: `/prd` (product intent) → `/interview` (engineering contract) → exploration → research → `/design` → `/planning:plan`. Engineering-internal work skips `/prd` entirely
 
 The PRD is **never an implementation plan**. Boundaries: problem, users, success — yes. Architecture, files, tests, code shapes — no. That is `/planning:plan`'s job. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
