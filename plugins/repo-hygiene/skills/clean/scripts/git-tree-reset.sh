@@ -20,7 +20,8 @@
 # the apply unless --allow-unpushed.
 #
 # Exit: 0 success; 1 not a git repo; 2 usage/validation error;
-#       3 blocked on default branch; 4 blocked on unpushed commits.
+#       3 blocked on default branch; 4 blocked on unpushed commits;
+#       5 reset --hard failed (apply aborted before clean).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,7 +60,8 @@ Output labels:
   RestoredTracked: <count> (apply only — reparse-point casualties restored)
   Unremovable: <count> (apply only — files git clean could not delete, e.g. locked)
 
-Exit: 0; 1 not a git repo; 2 usage error; 3 blocked default branch; 4 unpushed commits.
+Exit: 0; 1 not a git repo; 2 usage error; 3 blocked default branch; 4 unpushed commits;
+      5 reset --hard failed (apply aborted before clean).
 EOF
 }
 
@@ -181,7 +183,16 @@ if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   printf 'AppliedClean: none\n'
   exit 4
 fi
-git reset --hard "$UPSTREAM"
+# Gate the destructive clean on a successful reset. Without -e, a failed
+# reset --hard would otherwise fall through to git clean -fdx, leaving the tree
+# cleaned but not reset (a partial destructive op). On failure: abort before
+# clean and the restore guard, report honestly, exit non-zero.
+if ! git reset --hard "$UPSTREAM"; then
+  printf 'FAILED: git reset --hard %s exited non-zero — aborting apply before clean; no files removed.\n' "$UPSTREAM" >&2
+  printf 'AppliedReset: failed\n'
+  printf 'AppliedClean: none\n'
+  exit 5
+fi
 
 # Capture clean stderr to surface files git could not remove (locked / in use).
 CLEAN_STDERR="$(git clean -fdx "${PRESERVE_ARGS[@]}" 2>&1 >/dev/null)"
