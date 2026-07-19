@@ -6,7 +6,7 @@
     "ci-pool-a": {
       "L2": {
         "substrate": "egress-denied-container-pool",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
+        "probe_evidence": "probe-transcripts/does-not-exist.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"
@@ -16,7 +16,7 @@
   },
   "merge_policy": {
     "C1": "human",
-    "C2": "auto",
+    "C2": "human",
     "C3": "human",
     "C4": "human",
     "C5": "human"
@@ -89,13 +89,5 @@
     ],
     "autonomous_concurrency": 1,
     "items_per_run": 3
-  },
-  "promotion_state": {
-    "C2-auto-merge": {
-      "state": "promoted",
-      "ratified_by_change": "change/2026-06-30-c2-auto-merge",
-      "evidence_window": "2026-06-01..2026-06-28",
-      "ratified_at": "2026-06-30T00:00:00Z"
-    }
   }
 }

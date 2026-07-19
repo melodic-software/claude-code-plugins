@@ -131,7 +131,7 @@
           "minLength": 1
         },
         "probe_evidence": {
-          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid.",
+          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with both assertions and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed.",
           "type": "string",
           "minLength": 1
         },
@@ -159,7 +159,7 @@
     "PromotionEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "ratified_by_change", "evidence_window"],
+      "required": ["state", "ratified_by_change", "evidence_window", "ratified_at"],
       "properties": {
         "state": {
           "description": "Promotion is a human-ratified knob flip, never automatic; demotion on contrary evidence is automatic, fail-closed, and resolved at evaluation time without writing this document.",
@@ -174,6 +174,11 @@
           "description": "The telemetry window the promotion's evidence predicate was satisfied over.",
           "type": "string",
           "minLength": 1
+        },
+        "ratified_at": {
+          "description": "Ratification instant — anchors the promotion epoch: contrary evidence predating it belongs to a previous epoch, already consumed by the re-earn that produced this ratification.",
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

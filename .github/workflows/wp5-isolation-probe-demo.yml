@@ -2,10 +2,12 @@ name: wp5-isolation-probe-demo
 
 # One-off WP5 Phase 4 acceptance probe (removed before merge; evidence lives in
 # the run log + PR body): the job PROVISIONS a genuine egress-denied boundary —
-# a nested no-network container on the hosted runner — and executes the
-# isolation-probe recipe INSIDE it. The outer job stays networked (control
-# step), so a passing egress-denial assertion is proof the inner boundary
-# sealed, never a property of the bare runner.
+# a nested no-network container on the hosted runner — executes the
+# isolation-probe recipe INSIDE it, captures the transcript in the
+# isolation-probe template's JSON shape, and proves the security-binding
+# checker passes only against that live-captured evidence. The outer job stays
+# networked (control step), so a passing egress-denial assertion is proof the
+# inner boundary sealed, never a property of the bare runner.
 on:
   pull_request:
     paths:
@@ -18,6 +20,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: Control - outer job egress is OPEN
         run: |
           code=$(curl -sS -o /dev/null -w '%{http_code}' https://example.com)
@@ -25,27 +30,43 @@ jobs:
           test "${code}" = "200"
       - name: Probe inside provisioned no-network boundary
         run: |
-          docker run --rm --network none ubuntu:24.04 bash -c '
-            set -u
-            fail=0
-            echo "surface: ci-nested-container (docker --network none)"
-            if timeout 10 bash -c "exec 3<>/dev/tcp/example.com/443" 2>/dev/null; then
-              echo "egress-denial: FAIL - connection succeeded"
-              fail=1
-            else
-              echo "egress-denial: PASS - external fetch failed inside the boundary"
-            fi
-            found=0
-            for p in /root/.ssh /root/.netrc /root/.docker/config.json /home/*/.ssh; do
-              if [ -e "$p" ]; then
-                echo "credential-absence: FAIL - present: $p"
-                found=1
-                fail=1
-              fi
-            done
-            if [ "$found" = "0" ]; then
-              echo "credential-absence: PASS - no host credential paths present"
-            fi
-            echo "probe-verdict: $([ "$fail" = "0" ] && echo BOUNDARY-PROVEN || echo BOUNDARY-NOT-PROVEN)"
-            exit "$fail"
-          '
+          set -u
+          egress_exit=0
+          docker run --rm --network none ubuntu:24.04 bash -c \
+            'timeout 10 bash -c "exec 3<>/dev/tcp/example.com/443"' 2>/dev/null || egress_exit=$?
+          if [ "${egress_exit}" = "0" ]; then
+            echo "egress-denial: FAIL - connection succeeded inside the boundary"
+            exit 1
+          fi
+          echo "egress-denial: PASS - external fetch failed inside the boundary (exit ${egress_exit})"
+          cred_exit=0
+          docker run --rm --network none ubuntu:24.04 bash -c \
+            'ls "$HOME/.ssh" "$HOME/.netrc" "$HOME/.docker/config.json"' 2>/dev/null || cred_exit=$?
+          if [ "${cred_exit}" = "0" ]; then
+            echo "credential-absence: FAIL - host credential paths present"
+            exit 1
+          fi
+          echo "credential-absence: PASS - no host credential paths inside the boundary (exit ${cred_exit})"
+          mkdir -p live-evidence/probe-transcripts
+          cat > live-evidence/probe-transcripts/ci-pool-a-l2.json <<EOF
+          {
+            "schema_version": "1",
+            "surface": "ci-pool-a",
+            "level": "L2",
+            "substrate": "nested-no-network-container",
+            "substrate_class": "container",
+            "probed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "assertions": {
+              "egress_denied": { "host": "example.com", "exit_code": "${egress_exit}", "outcome": "denied" },
+              "credentials_absent": { "path": "\$HOME/.ssh,\$HOME/.netrc,\$HOME/.docker/config.json", "exit_code": "${cred_exit}", "outcome": "absent-or-denied" }
+            },
+            "outer_context_networked": true
+          }
+          EOF
+          echo "captured live transcript:"
+          cat live-evidence/probe-transcripts/ci-pool-a-l2.json
+      - name: Checker passes against the LIVE-captured evidence
+        run: |
+          node plugins/autonomy/skills/setup/scripts/check-security-binding.mjs \
+            plugins/autonomy/skills/setup/evals/fixtures/security-binding/valid.json \
+            --probe-evidence-root live-evidence

@@ -6,7 +6,7 @@
     "ci-pool-a": {
       "L2": {
         "substrate": "egress-denied-container-pool",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2-2026-07-01.txt",
+        "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"
@@ -94,7 +94,8 @@
     "C4-merge": {
       "state": "promoted",
       "ratified_by_change": "change/2026-07-02-c4-merge",
-      "evidence_window": "2026-06-01..2026-07-01"
+      "evidence_window": "2026-06-01..2026-07-01",
+      "ratified_at": "2026-07-02T00:00:00Z"
     }
   }
 }

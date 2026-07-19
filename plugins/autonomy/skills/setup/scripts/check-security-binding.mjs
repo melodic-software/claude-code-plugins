@@ -8,8 +8,17 @@
 // joint-satisfiability, per-surface class-aware isolation verdicts, promotion
 // discipline, and admission floors/precedence.
 //
-// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>]
+// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
+//
+// Probe verification: an L2/L3 isolation level counts toward eligibility only
+// when its probe_evidence ref resolves (relative to --probe-evidence-root
+// when given, else as written) to a transcript proving the boundary per the
+// isolation-probe template's capture shape — an arbitrary string must never
+// enable autonomous dispatch. Under autonomous-enabled an unverifiable entry
+// is UNPROVEN: a finding, and the level is excluded from eligibility
+// (fail-closed). Under human-gated-only there is no autonomous dispatch to
+// protect, so unproven evidence is reported in the verdicts, not a finding.
 //
 // Evaluation mode (--evidence): resolves each promotion_state cell's EFFECTIVE
 // state. The bound state is a CEILING — contrary evidence (gate-failure,
@@ -24,6 +33,7 @@
 // promotion_state alone is non-conforming.
 
 import { readFileSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
@@ -237,13 +247,18 @@ function validateStructure(binding) {
           findings.push(`${where}: must be an object`);
           continue;
         }
-        checkAllowedKeys(entry, ["state", "ratified_by_change", "evidence_window"], where);
+        checkAllowedKeys(entry, ["state", "ratified_by_change", "evidence_window", "ratified_at"], where);
         if (!("state" in entry) || !checkEnum(entry.state, ["promoted", "unpromoted"], `${where}.state`)) continue;
         if (!isNonEmptyString(entry.ratified_by_change)) {
           findings.push(`${where}.ratified_by_change: missing or empty — the flip is a reviewable change on the governance surface`);
         }
         if (!isNonEmptyString(entry.evidence_window)) {
           findings.push(`${where}.evidence_window: missing or empty — the telemetry window the evidence predicate was satisfied over`);
+        }
+        if (!isNonEmptyString(entry.ratified_at) || Number.isNaN(Date.parse(entry.ratified_at))) {
+          findings.push(
+            `${where}.ratified_at: missing or not a parseable ISO 8601 date-time — the ratification instant anchors the promotion epoch contrary evidence is scoped to`,
+          );
         }
       }
     }
@@ -344,7 +359,35 @@ function jointlySatisfiable(markersA, markersB) {
   return true;
 }
 
-function checkSemantics(binding) {
+// A probe transcript proves an L2/L3 boundary only when it records both
+// failed-inside assertions AND a networked outer context (a fully-offline
+// outer context would deny egress on its own) — the capture shape of
+// templates/isolation-probe.md; keep the two in sync. Returns null when
+// verified, else the reason the entry is unproven.
+function verifyProbeTranscript(ref, probeRoot) {
+  const path = probeRoot !== null && !isAbsolute(ref) ? join(probeRoot, ref) : ref;
+  let transcript;
+  try {
+    transcript = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    return `transcript ${path} is not readable JSON (${error.message})`;
+  }
+  if (!isPlainObject(transcript)) {
+    return `transcript ${path} is not a capture-shape object`;
+  }
+  if (transcript.assertions?.egress_denied?.outcome !== "denied") {
+    return `transcript ${path} does not record the egress-denial assertion with outcome "denied"`;
+  }
+  if (transcript.assertions?.credentials_absent?.outcome !== "absent-or-denied") {
+    return `transcript ${path} does not record the credential-absence assertion with outcome "absent-or-denied"`;
+  }
+  if (transcript.outer_context_networked !== true) {
+    return `transcript ${path} does not record outer_context_networked true — an offline outer context would deny egress on its own`;
+  }
+  return null;
+}
+
+function checkSemantics(binding, probeRoot) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
@@ -396,7 +439,7 @@ function checkSemantics(binding) {
         const a = markerEntries[i];
         const b = markerEntries[j];
         if (a.surfaceId === b.surfaceId) continue;
-        const pairKey = `${a.surfaceId} ${b.surfaceId}`;
+        const pairKey = JSON.stringify([a.surfaceId, b.surfaceId]);
         if (reportedPairs.has(pairKey)) continue;
         if (jointlySatisfiable(a.markers, b.markers)) {
           reportedPairs.add(pairKey);
@@ -413,22 +456,55 @@ function checkSemantics(binding) {
   // so an L2-only surface is never selected for a C5 item, and an unbound
   // surface is blocked even when a sibling surface is bound.
   const verdicts = [];
-  let anySurfaceAtL2 = false;
+  let anyProvenL2 = false;
+  let anyUnprovenL2Plus = false;
   for (const [surfaceId, levels] of surfaces) {
     if (!isPlainObject(levels)) continue;
-    const boundLevels = Object.keys(levels).filter((token) => LEVEL_TOKEN.test(token)).map(levelNumber);
-    const maxLevel = boundLevels.length > 0 ? Math.max(...boundLevels) : -1;
-    if (maxLevel >= 2) anySurfaceAtL2 = true;
+    // L2/L3 count only when their probe transcript verifies; L0/L1 are
+    // exempt — they can never satisfy an eligibility floor, so unverified
+    // evidence there enables nothing.
+    let provenMax = -1;
+    const unproven = [];
+    for (const [level, entry] of Object.entries(levels)) {
+      if (!LEVEL_TOKEN.test(level) || !isPlainObject(entry)) continue;
+      const levelNo = levelNumber(level);
+      if (levelNo < 2) {
+        provenMax = Math.max(provenMax, levelNo);
+        continue;
+      }
+      const reason = isNonEmptyString(entry.probe_evidence)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot)
+        : "probe_evidence missing";
+      if (reason === null) {
+        provenMax = Math.max(provenMax, levelNo);
+        continue;
+      }
+      anyUnprovenL2Plus = true;
+      unproven.push(`${level} unproven (${reason})`);
+      // A missing ref already produced its structural finding; only a
+      // present-but-unverifiable ref needs one here.
+      if (autonomous && isNonEmptyString(entry.probe_evidence)) {
+        findings.push(
+          `isolation_bindings.${surfaceId}.${level}: probe evidence unverifiable — ${reason}; the level is UNPROVEN and does not count toward isolation eligibility (fail-closed) — run the isolation probe inside the boundary and reference its captured transcript`,
+        );
+      }
+    }
+    if (provenMax >= 2) anyProvenL2 = true;
     const perClass = WORK_CLASSES.map((workClass) => {
       const floor = MIN_ISOLATION[workClass];
-      return maxLevel >= floor
+      return provenMax >= floor
         ? `${workClass} eligible`
-        : `${workClass} blocked (requires L${floor}${maxLevel >= 0 ? `, bound L${maxLevel}` : ", no level bound"})`;
+        : `${workClass} blocked (requires L${floor}${provenMax >= 0 ? `, proven L${provenMax}` : ", no proven level"})`;
     });
-    verdicts.push(`surface ${JSON.stringify(surfaceId)}: ${perClass.join(", ")}`);
+    verdicts.push(
+      `surface ${JSON.stringify(surfaceId)}: ${perClass.join(", ")}${unproven.length > 0 ? `; ${unproven.join("; ")}` : ""}`,
+    );
   }
 
-  if (autonomous && !anySurfaceAtL2) {
+  // When an L2+ entry is bound but unproven, its own finding already names
+  // the failure and the compliant path — a second no-L2 finding would be
+  // redundant noise for the same root cause.
+  if (autonomous && !anyProvenL2 && !anyUnprovenL2Plus) {
     findings.push(
       "isolation_bindings: no bound surface reaches L2 under dispatch_posture autonomous-enabled — autonomous dispatch is blocked fail-closed; compliant paths: bind an L2-capable substrate (whole-process OS-sandbox wrap, default-deny-egress container) on an execution surface, or declare dispatch_posture human-gated-only",
     );
@@ -591,13 +667,35 @@ function resolveEffectivePromotion(binding, evidencePath) {
     const contrary = events.filter(
       (event) => isPlainObject(event) && event.cell === cell && CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
-    if (bound === "promoted" && contrary.length > 0) {
-      const summary = contrary.map((event) => `${event.event} at ${event.at}`).join("; ");
+    // Contrary evidence is scoped to the promotion epoch: an event predating
+    // the cell's ratified_at belongs to a previous epoch and was already
+    // consumed by the re-earn that produced this ratification. An event
+    // whose `at` cannot be parsed cannot be assigned to an epoch and is
+    // treated as contrary (fail-closed) — dropping it silently would let
+    // malformed telemetry mask a real demotion signal.
+    const ratifiedAt = Date.parse(entry.ratified_at);
+    const inEpoch = [];
+    const preEpoch = [];
+    for (const event of contrary) {
+      const at = typeof event.at === "string" ? Date.parse(event.at) : Number.NaN;
+      if (Number.isNaN(at)) {
+        inEpoch.push(`${event.event} with unparseable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+      } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
+        inEpoch.push(`${event.event} at ${event.at}`);
+      } else {
+        preEpoch.push(`${event.event} at ${event.at}`);
+      }
+    }
+    if (bound === "promoted" && inEpoch.length > 0) {
       lines.push(
-        `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${summary}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
+        `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
       );
     } else {
-      lines.push(`${cell}: bound ${bound} -> effective ${bound}`);
+      let line = `${cell}: bound ${bound} -> effective ${bound}`;
+      if (preEpoch.length > 0) {
+        line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at} and were consumed by the re-earn)`;
+      }
+      lines.push(line);
     }
   }
   if (Object.keys(promotionState).length === 0) {
@@ -611,9 +709,13 @@ function resolveEffectivePromotion(binding, evidencePath) {
 const args = process.argv.slice(2);
 let bindingPath = null;
 let evidencePath = null;
+let probeRoot = null;
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === "--evidence") {
     evidencePath = args[i + 1];
+    i += 1;
+  } else if (args[i] === "--probe-evidence-root") {
+    probeRoot = args[i + 1];
     i += 1;
   } else if (bindingPath === null) {
     bindingPath = args[i];
@@ -622,8 +724,12 @@ for (let i = 0; i < args.length; i += 1) {
     break;
   }
 }
-if (!isNonEmptyString(bindingPath) || (evidencePath !== null && !isNonEmptyString(evidencePath))) {
-  console.error("usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>]");
+if (
+  !isNonEmptyString(bindingPath) ||
+  (evidencePath !== null && !isNonEmptyString(evidencePath)) ||
+  (probeRoot !== null && !isNonEmptyString(probeRoot))
+) {
+  console.error("usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>]");
   process.exit(2);
 }
 
@@ -647,7 +753,7 @@ try {
 let verdicts = [];
 if (binding !== null) {
   validateStructure(binding);
-  if (isPlainObject(binding)) verdicts = checkSemantics(binding);
+  if (isPlainObject(binding)) verdicts = checkSemantics(binding, probeRoot);
 }
 
 if (findings.length > 0) {

@@ -6,7 +6,7 @@
     "ci-pool-a": {
       "L2": {
         "substrate": "egress-denied-container-pool",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2-2026-07-01.txt",
+        "probe_evidence": "probe-transcripts/ci-pool-a-l2.json",
         "runtime_markers": {
           "pool": "blue",
           "region": "us"
@@ -16,7 +16,7 @@
     "ci-pool-b": {
       "L2": {
         "substrate": "egress-denied-container-pool",
-        "probe_evidence": "probe-transcripts/ci-pool-b-l2-2026-07-01.txt",
+        "probe_evidence": "probe-transcripts/ci-pool-b-l2.json",
         "runtime_markers": {
           "pool": "blue",
           "os": "linux"
