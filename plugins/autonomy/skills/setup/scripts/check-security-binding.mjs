@@ -96,13 +96,41 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
-// Strict ISO 8601 date-time with an EXPLICIT offset (Z or +/-hh:mm), gated
-// by regex BEFORE Date.parse: Date.parse alone accepts forms like
-// "06/30/2026" whose timezone-dependent interpretation could flip an event
-// across the promotion-epoch boundary.
-const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+// Strict ISO 8601 date-time with an EXPLICIT offset (Z or +/-hh:mm),
+// validated by regex AND a calendar round trip: Date.parse alone accepts
+// forms like "06/30/2026" (timezone-dependent) and silently normalizes
+// calendar-invalid values like 2026-02-30 to March 2 — either could shift an
+// event across the promotion-epoch boundary. The epoch is derived from the
+// captured components, never from Date.parse, so no engine-specific parsing
+// behavior is load-bearing.
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
 function parseIsoStrict(value) {
-  return typeof value === "string" && ISO_DATE_TIME.test(value) ? Date.parse(value) : Number.NaN;
+  const match = typeof value === "string" ? ISO_DATE_TIME.exec(value) : null;
+  if (match === null) return Number.NaN;
+  const [, year, month, day, hour, minute, second, fraction, offset] = match;
+  // Milliseconds truncate at three fraction digits — Date's own precision.
+  const ms = Number((fraction ?? "").padEnd(3, "0").slice(0, 3) || "0");
+  const utc = new Date(Date.UTC(+year, +month - 1, +day, +hour, +minute, +second, ms));
+  // Date.UTC silently normalizes out-of-range fields; requiring the round
+  // trip back to the supplied components rejects calendar-invalid values
+  // (2026-02-30 fails, leap days pass).
+  if (
+    utc.getUTCFullYear() !== +year ||
+    utc.getUTCMonth() !== +month - 1 ||
+    utc.getUTCDate() !== +day ||
+    utc.getUTCHours() !== +hour ||
+    utc.getUTCMinutes() !== +minute ||
+    utc.getUTCSeconds() !== +second
+  ) {
+    return Number.NaN;
+  }
+  const offsetMs =
+    offset === "Z"
+      ? 0
+      : (offset[0] === "-" ? -1 : 1) *
+        (Number(offset.slice(1, 3)) * 60 + Number(offset.slice(4, 6))) *
+        60000;
+  return utc.getTime() - offsetMs;
 }
 
 function checkAllowedKeys(object, allowed, where) {
@@ -268,7 +296,7 @@ function validateStructure(binding) {
         }
         if (Number.isNaN(parseIsoStrict(entry.ratified_at))) {
           findings.push(
-            `${where}.ratified_at: missing or not a strict ISO 8601 date-time with explicit offset (Z or +/-hh:mm) — the ratification instant anchors the promotion epoch contrary evidence is scoped to, so its interpretation must not depend on the evaluator's timezone`,
+            `${where}.ratified_at: missing, not strict ISO 8601 with explicit offset (Z or +/-hh:mm), or not a calendar-valid instant — the ratification instant anchors the promotion epoch contrary evidence is scoped to, so its interpretation must depend on neither the evaluator's timezone nor silent date normalization`,
           );
         }
       }
