@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Changed
+
+- **`setup` split onto the uniform check/apply contract.** `check` inspects both concerns read-only —
+  the topic-docs seam (`.claude/topic-docs.yaml` effective values — absent is INFO, since the documented
+  defaults apply — schema parse validity, the committed-tier `git check-ignore` conflict, and the
+  deferred `gitbook` vault backend) and the standards index presence at `<standards_dir>/README.md`
+  (absent is INFO; a behind-version index reports a DIRECTIONAL delta) — and reports a PASS/FAIL/INFO
+  table; `apply` runs the two-concern resolve-and-persist flow, then re-runs `check` to verify. The
+  topic-docs resolution, the standards-contract bootstrap (implemented by reference), and the conflict
+  guard are unchanged; the read-only inspection path and the `check | apply` argument-hint are new.
+  `check` also reports the effective `use_ask_user_question` toggle, and `apply` carries the
+  `--config` fresh-install-only reconfigure guidance for it.
+
 ## [0.19.0]
 
 ### Added

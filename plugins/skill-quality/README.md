@@ -11,7 +11,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 | Skill | What it does |
 |---|---|
 | `/skill-quality:check` | Runs the contract gate (`check`) or schema-validates evals (`validate-evals`), for one skill or every skill. |
-| `/skill-quality:setup` | Confirms and persists the skills directory when it is not the conventional `.claude/skills`. |
+| `/skill-quality:setup` | `check` (default) resolves and verifies the skills directory; `apply` routes a non-default `skills_root` change through Claude Code. |
 
 ## Checks
 
@@ -41,12 +41,13 @@ The checker resolves the skills root through the convention-resolution ladder, f
 1. `${user_config.skills_root}` — set only when your skills live outside `.claude/skills`.
 2. `${CLAUDE_PROJECT_DIR}/.claude/skills` — the conventional default.
 
-`CHECK_SKILL_SKILLS_ROOT` is honored as a direct environment override (the escape hatch the setup
-skill can write into `settings.json` `env`). When your skills live at the default location, no
+`CHECK_SKILL_SKILLS_ROOT` is honored as a one-run environment override the checker reads directly;
+the setup skill neither writes nor persists it. When your skills live at the default location, no
 configuration is needed:
 
 ```shell
-/skill-quality:setup   # confirm + persist a non-default skills directory (re-runnable)
+/skill-quality:setup         # check (default): resolve + verify the skills directory (re-runnable)
+/skill-quality:setup apply   # route a non-default skills_root change through Claude Code
 ```
 
 ## Evals schema

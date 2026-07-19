@@ -19,7 +19,7 @@ the craft term.
 | `diagnosis` | `/songwriting:diagnosis <action>` | Review and revise — demo review, full-draft diagnosis, the pre-lock audit checklist, variations, and rewrite. |
 | `daily-practice` | `/songwriting:daily-practice <action>` | Habit — the daily craft routine and numbered exercises across all four Pat Pattison books. |
 | `suno` | `/songwriting:suno <action>` | Suno v5.5 prompt engineering — style prompts (6-layer formula), tagged lyrics with per-section overrides, 12 genre templates, genre research, troubleshooting, and feature guidance (Voices, Custom Models, Studio). |
-| `setup` | `/songwriting:setup` | Re-runnable configuration — scaffolds project-level prompt-template overrides under `songwriting/templates/pat-pattison/` from the bundled defaults and confirms where craft artifacts land. Idempotent; scaffolds only the templates you intend to customize. |
+| `setup` | `/songwriting:setup` | `check` (default) inventories the project-level prompt-template overrides under `songwriting/templates/pat-pattison/` and reports the effective artifact layout; `apply scaffold <name>` copies a bundled default into an override, `apply remove <name>` clears one. Idempotent; scaffold only the templates you intend to customize. |
 
 The lyric-craft skills and `suno` are deliberately paired: the lyric-craft skills develop the lyric;
 `/songwriting:suno` formats the finished lyric for Suno's syntax. Each works standalone.
@@ -60,7 +60,8 @@ default.
 
 This plugin has no `userConfig`. Its inputs are conversational (the action and material you pass),
 plus the project-level template override and layout override described above. Run `/songwriting:setup`
-to scaffold template overrides from the bundled defaults and confirm your artifact layout — it is
+to inventory your overrides and confirm your artifact layout (the read-only `check` default), then
+`/songwriting:setup apply scaffold <name>` to scaffold a template override from its bundled default —
 idempotent and safe to re-run to reconfigure.
 
 ## Requirements

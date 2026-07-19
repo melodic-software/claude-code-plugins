@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "infers-candidates-and-interviews-per-item",
-      "prompt": "/work-items:setup",
+      "prompt": "/work-items:setup apply",
       "expected_output": "Reads any existing .github/recurring-schedule.json and summarizes it, then infers candidate recurring items from what the repo actually contains (dependency manifests, lint/formatter config, CI workflows, security-sensitive surfaces) each with a recommended cadence, and interviews one item at a time with recommended field values marked before moving on. It does not invent items the repo gives no signal for, and writes only what the user accepts.",
       "files": [],
       "expectations": [
@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "idempotent-preserves-existing-item-dates",
-      "prompt": "/work-items:setup",
+      "prompt": "/work-items:setup apply",
       "expected_output": "Re-running against an existing schedule preserves each existing item's last_checked and next_due as-is — setup seeds but performs no maintenance, so it never advances the cadence clock — recomputing next_due only when the user explicitly reschedules or changes cadence, and never resetting last_checked to today. New items seed last_checked to today and next_due to today plus the cadence's day count. Blindly resetting an overdue item's dates (which would drop it from the due/work tiers) is avoided.",
       "files": [],
       "expectations": [
@@ -30,7 +30,7 @@
     {
       "id": 3,
       "name": "writes-tracked-config-ensures-label-unique-keys",
-      "prompt": "/work-items:setup\n\nSeed a sensible recurring schedule for this repo.",
+      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.",
       "expected_output": "Writes the accepted items to the consumer's tracked .github/recurring-schedule.json (project-root anchored, {\"items\": [ ... ]} root), verifying every final id AND every final title is unique across the array and stopping to prompt on any collision rather than writing a duplicate. It ensures the load-bearing recurring label exists via the bound provider (recommending creation, not treating it as optional) and never writes into the plugin directory or plugin data directory.",
       "files": [],
       "expectations": [
@@ -43,7 +43,7 @@
     {
       "id": 4,
       "name": "reconciles-renamed-or-dropped-row-open-item",
-      "prompt": "/work-items:setup",
+      "prompt": "/work-items:setup apply",
       "expected_output": "When an existing schedule row is renamed or dropped, it looks up that row's open [Maintenance] item under the OLD title, filtering provider search results to an exact [Maintenance] {old title} match (never a mere prefix/substring). A renamed row's item is retitled to the new title (or closed if retiring); a dropped row's item is closed with a note. A rename or drop with no exact-match open item needs no reconciliation.",
       "files": [],
       "expectations": [

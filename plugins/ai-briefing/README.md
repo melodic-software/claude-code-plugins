@@ -10,16 +10,16 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 | Skill | Invoke | What it does |
 |---|---|---|
 | `generate` | `/ai-briefing:generate` | Collects, cites, deduplicates, ranks, and emits a briefing; also supports `retro` and archive `search`. |
-| `setup` | `/ai-briefing:setup` | Scaffolds or updates a source/profile configuration and optionally installs presentation dependencies. |
+| `setup` | `/ai-briefing:setup` | Verifies (`check`) or scaffolds (`apply`) a source/profile configuration, and on `apply install-build-deps` installs the presentation build toolchain. |
 
 ## Getting started
 
-1. Enable the plugin and run `/ai-briefing:setup`.
+1. Enable the plugin and run `/ai-briefing:setup` to verify state, then `/ai-briefing:setup apply` to scaffold the profile.
 2. Add authorized official feeds, GitHub release pages, reputable publications, and any
    user-supplied URLs to `.claude/ai-briefing/sources.md`.
 3. Run `/ai-briefing:generate` for markdown output.
 4. Before the first `--format html` or `--format slides` run, install the optional locked
-   build toolchain with `/ai-briefing:setup --with-build-deps`.
+   build toolchain with `/ai-briefing:setup apply install-build-deps`.
 
 ## Optional build prerequisites
 
@@ -37,7 +37,7 @@ Setup preflights Node, npm, and the OS family. On Linux, Playwright's documented
 `install --with-deps` flow may invoke the system package manager and require elevation.
 Unsupported or missing prerequisites are reported before the existing runtime is changed.
 
-The `setup --with-build-deps` install step is a POSIX-shell script: it requires
+The `setup apply install-build-deps` install step is a POSIX-shell script: it requires
 Bash — on native Windows that is Git Bash (its platform gate accepts
 `MINGW*`/`MSYS*`/`CYGWIN*`; install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)).

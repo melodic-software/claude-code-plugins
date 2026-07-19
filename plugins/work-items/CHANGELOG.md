@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Changed
+
+- **`setup` split onto the uniform check/apply contract.** `check` inspects read-only the tracked
+  `.github/recurring-schedule.json` (presence — absent is INFO, since `due` / `recheck` / `work` degrade
+  gracefully — JSON validity, and the unique `id`/`title` reconciliation keys), the `jq` and
+  tracker-seam entry gates (probed via `reference/tracker-seam.md`, not restated), and the
+  recurring-maintenance role label, reporting a PASS/FAIL/INFO table; `apply` runs the
+  interview-seed-reconcile flow and the optional role→label remap, then re-runs `check` to verify. The
+  schedule shape, reconciliation logic, and role-label invariants are unchanged; the read-only
+  inspection path and the `check | apply` argument-hint are new.
+
 ## [0.10.0]
 
 ### Changed

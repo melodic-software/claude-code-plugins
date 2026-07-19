@@ -95,7 +95,14 @@ automatically. If you used `/claude-config-audit:memory-health`, install it expl
 
 No `userConfig`; no persistent plugin state. Network: `audit` fetches official docs pages and each
 registered marketplace's `marketplace.json` from `raw.githubusercontent.com` (read-only; a failed
-fetch degrades to SKIP). Scripts require `jq`; the drift check additionally requires `curl`.
+fetch degrades to SKIP).
+
+## Requirements
+
+The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
+[Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows) and require
+`jq`; the plugin-drift check additionally requires `curl`. Run `/claude-config:setup` (`check` by
+default) to verify these prerequisites; `apply` gives platform install guidance and re-verifies.
 
 ## License
 

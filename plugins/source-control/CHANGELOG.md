@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Changed
+
+- **`/source-control:setup` adopts the uniform setup contract** (fleet conformance wave). The skill
+  now splits into a read-only `check` action (default) and an `apply` action across both
+  configuration surfaces. `check` reports the effective commit-subject / PR-title convention (from
+  the tracked `.claude/source-control.md`) and the babysit-prs `userConfig` surface (effective
+  config, branch-protection posture, Windows long paths) — treating an unconfigured surface as INFO
+  (the Conventional Commits / inference default; the safe babysit tier) and FAILing only a
+  configured-but-broken convention (a non-machine-checkable `subject_pattern`, or a
+  `.claude/source-control.md` excluded by `.gitignore`). The previous interactive convention
+  interview becomes `apply`'s interview path, run when no arguments are supplied; `apply
+  subject_pattern=<anchored-regex | 'Conventional Commits'>` now writes the convention
+  non-interactively. The repo-root anchoring and the git-ignore / staging verification of the written
+  file are preserved unchanged.
+- The babysit reconfigure guidance is corrected to the fresh-install-only semantics of `--config`:
+  interactive `/plugin configure source-control` any time; headless requires
+  `claude plugin uninstall source-control` then reinstalling with `--config KEY=VALUE`. Reconfiguring
+  `userConfig` is not visible to the running session, so verification defers to a fresh session
+  rather than reporting a false failure.
+
 ## [0.8.1]
 
 ### Changed

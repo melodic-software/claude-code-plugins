@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "resolves-topic-docs-state-and-interviews-before-writing",
-      "prompt": "/planning:setup",
+      "prompt": "/planning:setup apply",
       "expected_output": "Reads the current state in ladder order — an existing .claude/topic-docs.yaml, a working-docs convention declared in CLAUDE.md/.claude/rules, an inferred conforming layout — and reports what it found. When nothing is configured, it presents the one load-bearing decision, contract_tier, with branch marked RECOMMENDED and presented first (local as the solo/offline alternative), keeps contract_dir and memory_dir at the documented defaults (docs/topics and .work) unless the repo declares otherwise, and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "rerun-preserves-existing-concern-file-keys",
-      "prompt": "/planning:setup\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
+      "prompt": "/planning:setup apply\n\nThis repo already has a .claude/topic-docs.yaml containing memory_dir: .scratch and vault_backend: gitbook.",
       "expected_output": "Reports the existing concern file's effective values as the baseline (memory_dir: .scratch, vault_backend: gitbook, other keys at the documented defaults) and proposes changes against it rather than overwriting blind. It explicitly reports that GitBook is deferred and non-writable, so durable writes still use docs and no GitBook API, MCP, or Git Sync writer is configured. Whatever the user changes, the re-run preserves every key the existing file carries — it never drops memory_dir or vault_backend — and writes nothing until the user accepts.",
       "files": [],
       "expectations": [
@@ -32,7 +32,7 @@
     {
       "id": 3,
       "name": "conflict-check-and-write-guards",
-      "prompt": "/planning:setup\n\nUse the defaults; this repo's .gitignore contains a docs/ ignore rule.",
+      "prompt": "/planning:setup apply\n\nUse the defaults; this repo's .gitignore contains a docs/ ignore rule.",
       "expected_output": "Before writing, runs git check-ignore -v on the chosen contract root and, because an ignore rule matches docs/topics, stops and surfaces the exact rule and its source line rather than silently producing an uncommittable contract tier. It never edits the consumer's root .gitignore (resolving the rule is the user's edit), writes only the tracked .claude/topic-docs.yaml once the conflict is cleared — recording only non-default keys — and never writes the plugin directory or the plugin data directory.",
       "files": [],
       "expectations": [
@@ -45,7 +45,7 @@
     {
       "id": 4,
       "name": "standards-bootstrap-second-run-is-a-no-op",
-      "prompt": "/planning:setup\n\nSet up the standards concern. This repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run of this setup.",
+      "prompt": "/planning:setup apply\n\nSet up the standards concern. This repo already has docs/standards/README.md with standards-contract frontmatter at the binding's current version, valid row paths, and a docs/standards/.gitignore containing *.local.md from a previous run of this setup.",
       "expected_output": "The standards bootstrap reads state in order (concern file, then the index presence test, then inference sources), finds a conforming index at the binding's contract version, validates the row paths, and short-circuits: it reports the index healthy and proposes no changes — a second run produces no diff. It does not re-interview, does not rewrite the index or the setup-owned overlay .gitignore, does not offer a migration (versions match), and touches no other ignore file.",
       "files": [],
       "expectations": [

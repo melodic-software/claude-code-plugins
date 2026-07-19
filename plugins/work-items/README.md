@@ -28,7 +28,7 @@ about work items, tracked work, or what to do next):
 | `/work-items:triage` | Evaluate raw intake — issues and unsolicited PRs (a PR is an item with attached code) — through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
-| `/work-items:setup` | Seeds the recurring-schedule seam — interviews the consumer, infers candidate items from the repo, writes the tracked `.github/recurring-schedule.json`, and offers the canonical-role → label remap in the tracker binding (re-runnable). |
+| `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` seeds the schedule — interviews the consumer, infers candidate items from the repo, writes the file, and offers the canonical-role → label remap in the tracker binding (re-runnable). |
 
 ## `/work-items:track` actions
 
@@ -93,8 +93,8 @@ enough that one skill no longer predicts its contents.
   documented in the plugin's `reference/label-taxonomy.md`.
 - **Recurring schedule** (optional): a `.github/recurring-schedule.json` in the
   consuming repo enables the `due` / `recheck` actions and the recurring
-  selection tiers of `/work-items:work`. Seed or reshape it with
-  `/work-items:setup`; everything else works without it.
+  selection tiers of `/work-items:work`. Inspect it with `/work-items:setup check`;
+  seed or reshape it with `/work-items:setup apply`. Everything else works without it.
 
 ## Install
 

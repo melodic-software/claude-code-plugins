@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Changed
+
+- **`setup` skill refactored onto the uniform check/apply contract** (fleet conformance wave).
+  `/claude-ops:setup` replaces the interactive-validation shape with `check` (default, read-only:
+  reports the effective `registry_dir` and `skill_usage_dir` destinations, their defaults, and
+  containment status as PASS/FAIL/INFO) and `apply` (non-interactive: states the
+  per-machine-vs-repository-resident tradeoff and routes reconfiguration through Claude Code's native
+  prompt, with the fresh-install-only `--config` headless semantics). Containment validation, the
+  personal-not-team-policy framing, and the dated `pluginConfigs` claim are unchanged. Setup still
+  never writes user settings or `pluginConfigs`.
+
 ## [0.11.3]
 
 ### Changed

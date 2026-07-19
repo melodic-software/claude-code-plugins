@@ -47,7 +47,7 @@ HTML/PDF artifacts. It is not a collection provider.
 | `--since <timeframe>` | 14d | Accept `1d`, `3d`, `7d`, `14d`, `30d`, or an ISO date. |
 | `--providers <list>` | All | Limit collection to comma-separated provider buckets. |
 | `--extras` / `--no-extras` | On | Include or omit robotics, science, and novel applications. |
-| `--format <type>` | `markdown` | Emit markdown, HTML, or PPTX. Non-markdown formats require prior `/ai-briefing:setup --with-build-deps`. |
+| `--format <type>` | `markdown` | Emit markdown, HTML, or PPTX. Non-markdown formats require prior `/ai-briefing:setup apply install-build-deps`. |
 | `--yes` / `-y` | Off | Skip the pre-execution confirmation gate. Required for headless runs. |
 
 Actions:
@@ -106,7 +106,7 @@ A profile may contain:
    profile's `${CLAUDE_PLUGIN_DATA}` state directory. Keep tracked profile configuration in
    the project; never write curated configuration into plugin data.
 8. For `--format html` or `--format slides`, require the optional build tree installed by
-   `/ai-briefing:setup --with-build-deps`. Run the staged build pipeline against the emitted
+   `/ai-briefing:setup apply install-build-deps`. Run the staged build pipeline against the emitted
    markdown with `AI_BRIEFING_PROFILE="$PROFILE"` set on the launched process. Playwright may
    open only generated local HTML for PDF rendering and layout validation. Surface missing
    prerequisites with the exact setup command; do not silently fall back to another browser

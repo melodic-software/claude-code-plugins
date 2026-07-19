@@ -11,7 +11,7 @@ authoritative.
    `${user_config.active_profile}` skill value, then `default`.
 4. Read the selected profile's `sources.md`, `audience.md`, and declarative `brand.json` when present.
 5. For HTML or slides, verify `${CLAUDE_PLUGIN_DATA}/runtime/build/` exists. If not, stop
-   with `/ai-briefing:setup --with-build-deps`.
+   with `/ai-briefing:setup apply install-build-deps`.
 
 ## 1. Confirmation gate
 

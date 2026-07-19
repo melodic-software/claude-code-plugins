@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **`setup` skill on the uniform contract** (`/claude-config:setup`). Closes the doctrine-tracked
+  setup gap: the plugin's audit scripts require external CLIs (`jq` for all three skills, `curl` for
+  the plugin-drift check) but no setup shipped. `check` (default, read-only) probes `jq`/`curl`/the
+  bash shell against the bundled scripts as source of truth and reports PASS/FAIL/INFO — `jq` missing
+  is a plugin-wide FAIL, `curl` missing a scoped FAIL for the drift check only. `apply` gives platform
+  install guidance and re-verifies; it installs no system package and writes nothing. README
+  Requirements now names the bash/Git-Bash shell prerequisite alongside `jq`/`curl`.
+
 ## [0.5.0]
 
 ### Changed

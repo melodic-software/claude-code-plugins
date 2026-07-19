@@ -3,6 +3,19 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **`setup` skill refactored onto the uniform check/apply contract** (fleet conformance wave).
+  `/songwriting:setup` replaces the interactive-interview shape with `check` (default, read-only:
+  inventories the tracked template overrides under `songwriting/templates/pat-pattison/`, flags
+  byte-identical overrides, and reports the effective artifact layout) and `apply` (non-interactive:
+  `apply scaffold <name>...` copies a bundled default into an override, `apply remove <name>...`
+  clears one). The two-surfaces model, the override-freeze cost, the copy-all-sixteen anti-pattern
+  warning, and the never-edit-consumer-`CLAUDE.md` boundary are unchanged. Overrides remain the only
+  thing setup writes.
+
 ## [0.4.1]
 
 ### Changed

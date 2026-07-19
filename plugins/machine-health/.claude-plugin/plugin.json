@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "machine-health",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Workstation health audit: OS-specific checks (disk, OS updates, security posture, CISA KEV correlation) run from a versioned catalog with trend-aware severity, approval-gated remediations, and dated markdown reports. Windows fully implemented; macOS/Linux scaffolded (report UNKNOWN and stop). Machine state persists in the plugin data directory; the report directory and check catalog are configurable.",
   "author": {
     "name": "Melodic Software",

@@ -45,7 +45,7 @@ support on other operating systems.
 | Action | What it does |
 |---|---|
 | (empty) / `status` | Probe current state and recommend the fitting action, or emit a diagnostic report |
-| `setup` | First-time provisioning: download + install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall block + ICACLS update lock |
+| `setup` | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract). `check` probes prerequisites + state read-only; `apply` runs first-time provisioning: download + install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall block + ICACLS update lock |
 | `sync` | Re-process books purchased after setup: disable firewall, sync in Kindle, delete any staged installer, re-enable firewall, re-run keyfinder |
 | `update` | Drift check (no mutations) against captured upstream baselines — version pins, tutorial URLs, supported-version matrix |
 | `cleanup` | Reverse every mutation with per-item confirmation. `--soft` keeps Kindle for PC + Calibre + Library; `--full` also offers to uninstall Kindle for PC and remove Calibre plugins |
@@ -90,8 +90,9 @@ against.
 
 This plugin has no `userConfig`. It is machine-scoped and single-user — every
 path is derived at runtime from the operating system's own environment variables,
-and there is nothing repo- or consumer-specific to configure. The `setup` action
-is a provisioning walkthrough, not a config writer.
+and there is nothing repo- or consumer-specific to configure. `/kindle-dedrm:setup`
+is a prerequisite/state check and a provisioning walkthrough, not a config writer —
+it writes no Claude Code user settings or `pluginConfigs`.
 
 ## License
 

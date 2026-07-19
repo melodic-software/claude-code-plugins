@@ -1,39 +1,73 @@
 ---
 name: setup
-description: "Configure the toolchain plugin for this repository: interview the user, infer per-ecosystem build/test/lint commands from the repo layout, write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first, and offer the tracked .claude/topic-docs.yaml concern file that places plan and verification artifacts. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Re-runnable — safe to invoke again to reconfigure."
-argument-hint: "[ecosystem] (no arguments — interview every inferred ecosystem; or name one to (re)configure just that ecosystem)"
+description: "Configure the toolchain plugin for this repository. check (read-only): report which ecosystems are configured, each one's resolved build/test/lint command surface, and the topic-docs concern file, validating the tracked files against the contract schema. apply: interview the user, infer per-ecosystem commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first, plus the offered .claude/topic-docs.yaml concern file. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Actions: check (read-only verification, default) | apply (write the ecosystem command config and topic-docs concern file). Re-runnable and safe."
+argument-hint: "check | apply [<ecosystem>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Write (or update) the consuming repo's tracked ecosystem command surface at
-`.claude/ecosystems/<ecosystem>.yaml` so `/toolchain:check` and `/toolchain:lint` resolve
-commands deterministically from rung 1 of the ladder
+Inspect and configure the consuming repo's tracked ecosystem command surface per the uniform setup
+contract: `check` reports what is configured, `apply` writes it. The tracked files at
+`.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
+deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))
 instead of inferring or falling back to bundled defaults every run. This skill is the ladder's
 **writer** for rungs 2 and 3 (infer-and-persist, ask-and-persist).
 
-Idempotent: re-running reads the existing files and offers updates rather than overwriting blind.
+Idempotent: re-running reads the existing files and offers updates rather than overwriting blind. The
+plugin ships working bundled portable defaults (rung 4), so an unconfigured ecosystem is **INFO** (the
+default resolves), never FAIL.
 
-## Task
+Action routing: no argument or `check` runs the check; `apply` runs the check first, then writes.
+`apply <ecosystem>` scopes the whole run to that one ecosystem; when a named ecosystem's inference is
+unambiguous it is written non-interactively, otherwise (or with no ecosystem argument in an
+interactive session) the interview below runs.
 
-### 0. Resolve repo root
+### Resolve repo root
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
-Write only inside `$REPO_ROOT/.claude/ecosystems/`. Never write into the plugin directory or the
-plugin data directory — configuration lives in the consumer's tracked files.
+Read and write only inside `$REPO_ROOT/.claude/` — never the plugin directory or the plugin data
+directory; configuration lives in the consumer's tracked files.
+
+## `check` (read-only)
+
+The bundled portable defaults and the contract schema are the single source of truth for the file
+shape (`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/`, `ecosystem.schema.json`). **Read the ladder
+first**, then report a PASS/FAIL/INFO table; modify nothing.
+
+1. **Configured ecosystems.** For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` present,
+   report the ecosystem and its resolved command surface
+   (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`). Validate each against the contract's
+   `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
+   remediation line), or a tracked ecosystem file excluded by `.gitignore` (teammates would never
+   receive it — report the matching rule). Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
+   the report to just that file.
+2. **Unconfigured ecosystems.** INFO: detect which ecosystems the repo has that are *not* yet
+   configured (see the inference signals under `apply`), and note that `/toolchain:check` /
+   `/toolchain:lint` resolve those through inference then the bundled portable defaults. The
+   remediation is `apply` to persist a command surface.
+3. **Topic-docs concern file** (`$REPO_ROOT/.claude/topic-docs.yaml`). Report present/absent and, when
+   present, the effective `contract_tier` and `vault_backend`. INFO when absent (companion plugins use
+   the documented defaults). When `vault_backend` is `gitbook`, note it is deferred and non-writable
+   (see `docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`) — the writable promotion target
+   remains `docs`.
+
+## `apply` (idempotent)
+
+Run `check` first. Then write the accepted ecosystem files and, when accepted, the topic-docs concern
+file. After each write, confirm the file is tracked (not gitignored) — re-run the `check` probe for
+that path rather than trusting the write.
 
 ### 1. Read existing config first
 
 For each `$REPO_ROOT/.claude/ecosystems/<ecosystem>.yaml` that already exists, load it and present a
-short summary (which ecosystems are configured, and each one's `build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`).
-The interview proposes changes against that baseline; nothing is dropped without the user confirming.
-If `$ARGUMENTS` names one ecosystem, scope the whole run to just that file.
+short summary. The interview proposes changes against that baseline; nothing is dropped without the
+user confirming. If `$ARGUMENTS` names one ecosystem, scope the whole run to just that file.
 
 ### 2. Infer candidates from the repo before asking
 
@@ -51,18 +85,21 @@ then specialize it to the repo:
 - **bash** / **powershell** — shell/PowerShell files present; keep the bundled check/fix commands
   unless the repo documents its own.
 - **markdown** — a markdownlint config present.
-- **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it, `/toolchain:check` does not).
+- **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it,
+  `/toolchain:check` does not).
 - **cross-cutting** — repo-root config for `typos`/`gitleaks`/editorconfig-checker present (lint-only).
 
 Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact
 freshness, schema regeneration) belong in the ecosystem file's `gates` array — draft one when the
 repo's CI runs such a check.
 
-### 3. Interview, one decision at a time
+### 3. Interview or write non-interactively
 
-Present each inferred ecosystem's drafted command surface with a recommendation; let the user accept,
-edit, or skip it. When inference is ambiguous (multiple test runners, no configured linter), ask for
-the command rather than guessing. Offer any ecosystem the repo has that inference missed last.
+When `apply <ecosystem>` names one ecosystem and its inference is unambiguous, write the drafted
+command surface non-interactively. Otherwise interview, one decision at a time: present each inferred
+ecosystem's drafted command surface with a recommendation; let the user accept, edit, or skip it. When
+inference is ambiguous (multiple test runners, no configured linter), ask for the command rather than
+guessing. Offer any ecosystem the repo has that inference missed.
 
 ### 4. Write the files
 
@@ -113,7 +150,7 @@ that change.
 
 Tracked `.claude/ecosystems/*.yaml` files in the consuming repo — plus `.claude/topic-docs.yaml`
 when accepted — and a one-paragraph summary of what was written and how to re-run this setup to
-reconfigure.
+reconfigure. `check` alone reports the effective configuration and changes nothing.
 
 ## What this skill does NOT do
 
