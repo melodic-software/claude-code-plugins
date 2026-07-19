@@ -104,7 +104,7 @@ Prerequisite: the WP4 implementation PR merged (`reference/trigger-dispatch.md` 
 admission leaf cites its seam; the interim is safe via WP4's fail-closed absent-binding
 clause).
 
-### Phase 1: Guardrail hub + leaf docs [TODO]
+### Phase 1: Guardrail hub + leaf docs [DONE]
 
 | File | Action | What changes |
 |---|---|---|
