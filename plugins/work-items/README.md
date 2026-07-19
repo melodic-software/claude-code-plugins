@@ -110,9 +110,15 @@ enough that one skill no longer predicts its contents.
 
 ## Configuration
 
-No `userConfig`. Project-specific behavior routes through the consuming repo's
-own surfaces: the bound provider in `.work-item-tracker.json` (including the
-optional `config.role_labels` canonical-role → label remap), its labels
+Two optional `userConfig` scalars tune autonomous `/work-items:work` execution:
+`work_dispatch_concurrency_cap` (max concurrent dispatch waves per cycle,
+default mirrors the `/implementation:implement-dispatch` 3–5 wave cap) and
+`work_cycle_batch_cap` (per-cycle item budget — bounds a cycle, never the loop).
+Both are unset by default and apply their manifest default when omitted.
+
+Everything else is project-specific behavior that routes through the consuming
+repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
+the optional `config.role_labels` canonical-role → label remap), its labels
 (taxonomy discovery through the adapter), its optional recurring schedule file,
 its optional rejected-concept ledger (`docs/out-of-scope/`, checked at intake),
 and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
