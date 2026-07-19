@@ -103,7 +103,7 @@ function isNonEmptyString(value) {
 // event across the promotion-epoch boundary. The epoch is derived from the
 // captured components, never from Date.parse, so no engine-specific parsing
 // behavior is load-bearing.
-const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 function parseIsoStrict(value) {
   const match = typeof value === "string" ? ISO_DATE_TIME.exec(value) : null;
   if (match === null) return Number.NaN;
@@ -398,6 +398,28 @@ function jointlySatisfiable(markersA, markersB) {
   return true;
 }
 
+// A connection failure to a loopback, private, or link-local target proves
+// nothing about EXTERNAL egress. Deny-list based: the checker has no config
+// source for the org's configured external probe target today, so a positive
+// allow-check against it is not possible here.
+function isLocalOrPrivateHost(host) {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h.includes(":")) {
+    // IPv6 literal: loopback/unspecified, fc00::/7 unique-local, fe80::/10 link-local.
+    return h === "::1" || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h);
+  }
+  return (
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h === "0.0.0.0" ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(h) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h) ||
+    /^169\.254\.\d{1,3}\.\d{1,3}$/.test(h)
+  );
+}
+
 // A probe transcript proves an L2/L3 boundary only when it records both
 // failed-inside assertions AND a networked outer context (a fully-offline
 // outer context would deny egress on its own) — the capture shape of
@@ -459,6 +481,9 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate) {
   const egressHost = transcript.assertions.egress_denied.host;
   if (typeof egressHost !== "string" || egressHost.length === 0 || /\s/.test(egressHost)) {
     return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a proven egress-denial requires the probed external host (non-empty, no whitespace)`;
+  }
+  if (isLocalOrPrivateHost(egressHost)) {
+    return `transcript ${path} records assertions.egress_denied.host ${JSON.stringify(egressHost)} — a loopback/private/link-local target cannot prove EXTERNAL egress denial; probe a genuine external host`;
   }
   if (!isNonEmptyString(transcript.assertions.credentials_absent.path)) {
     return `transcript ${path} records assertions.credentials_absent.path ${JSON.stringify(transcript.assertions.credentials_absent.path)} — a proven credential-absence requires the probed host-credential path`;
