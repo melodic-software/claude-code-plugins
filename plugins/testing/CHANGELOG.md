@@ -3,6 +3,21 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Changed
+
+- Neutralized repo-coupled `expected_output` in `diagnose` and `write` evals so they grade the
+  underlying decision, not one private monorepo's layout. The `diagnose` fixture-collision case now
+  grades recognition of a process-global singleton / shared-state collision and deferral to the
+  project's documented fixture convention (dropping the `MonolithApi.Tests` /
+  `MonolithApiTestFixture.CollectionName` names). The `write` cases now grade co-located placement and
+  naming per the consuming project's documented conventions, and the testable-vs-contracts decision,
+  without naming any project, path, or framework (dropping `Platform.Messaging`, `libs/dotnet/`, and the
+  ghost `testing.md` reference to xUnit v3 / Shouldly — this plugin ships `write.md`/`organize.md` and
+  defers framework/assertion choices to the consuming project). Eval prompts/expectations only; no skill
+  behavior, routing, or context files changed.
+
 ## [0.2.2]
 
 ### Changed
