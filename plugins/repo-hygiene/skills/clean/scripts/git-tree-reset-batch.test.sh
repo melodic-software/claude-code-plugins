@@ -40,7 +40,7 @@ assert_exit "no repos exits 2" 2 "$rc"
 # --- 3. clean_skip_matches: the exact mixed-separator bug, as a pure function ---
 # repo_key is what enumeration produces: a rev-parse toplevel (forward slashes)
 # run through clean_path_key. On Linux that leaves case intact.
-REPO_KEY="$(clean_path_key '/home/op/ghq/github.com/acme/keepme')"
+REPO_KEY="$(clean_path_key '/fleet/acme/keepme')"
 
 # A skip entry written with Windows backslashes (the incident's failing case).
 if clean_skip_matches "$REPO_KEY" 'acme\keepme'; then
@@ -61,7 +61,7 @@ else
   fail "bare repo-name skip matches" "match" "no-match"
 fi
 # Full absolute path with backslashes matches the forward-slash toplevel.
-if clean_skip_matches "$REPO_KEY" '/home/op/ghq/github.com/acme/keepme'; then
+if clean_skip_matches "$REPO_KEY" '/fleet/acme/keepme'; then
   pass "absolute-path skip matches exact toplevel"
 else
   fail "absolute-path skip matches exact toplevel" "match" "no-match"
@@ -74,7 +74,7 @@ else
   pass "partial trailing segment 'eepme' does not match 'keepme'"
 fi
 # A sibling repo sharing a suffix name must not be caught.
-OTHER_KEY="$(clean_path_key '/home/op/ghq/github.com/acme/other-keepme')"
+OTHER_KEY="$(clean_path_key '/fleet/acme/other-keepme')"
 if clean_skip_matches "$OTHER_KEY" 'keepme'; then
   fail "sibling 'other-keepme' must NOT be skipped by 'keepme'" "no-match" "match"
 else
