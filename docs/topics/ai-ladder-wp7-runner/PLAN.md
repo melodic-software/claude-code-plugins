@@ -119,7 +119,7 @@ Design-pack docs live under `reference/runner/` (hub `reference/runner.md`).
 Prerequisites: WP4 + WP5 + WP6 implementation PRs merged (this pack imports their contracts
 by citation). Design only — zero build artifacts; the runner-execution home stays unborn.
 
-### Phase 1: Charter import + spine and seam specs [TODO]
+### Phase 1: Charter import + spine and seam specs [DONE]
 
 | File | Action | What changes |
 |---|---|---|
