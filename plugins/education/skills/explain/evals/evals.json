@@ -72,6 +72,18 @@
         "Resolves the referent from conversational context and delivers a plain-language explanation",
         "Does not depend on the user naming the /education:explain command for the trigger to fire"
       ]
+    },
+    {
+      "id": 7,
+      "name": "cold-start-empty-argument-asks-what",
+      "prompt": "I don't get it.",
+      "expected_output": "This is the first message in a new conversation — there is no prior assistant response to resolve the anaphora against. With nothing to drop to plain language, the skill does not hallucinate a referent or emit a confused response; it asks 'What would you like explained?' and waits for the user to name the object.",
+      "files": [],
+      "expectations": [
+        "Detects that there is no prior assistant message in the conversation to treat as the anaphora referent",
+        "Asks 'What would you like explained?' (or equivalent) instead of proceeding blind or inventing a topic to explain",
+        "Does not hallucinate a referent or produce a confident plain-language explanation of something never stated"
+      ]
     }
   ]
 }

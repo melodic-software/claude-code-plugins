@@ -45,7 +45,11 @@ When invoked with no argument, the object is the **assistant's own previous
 response** — the thing the user is reacting to. `I don't get it` needs no topic
 named. Re-read that prior message, find the part most likely to have lost the
 reader (the densest jargon, the biggest leap), and drop *that* to plain words.
-Do not ask "explain what?" when the conversation makes the referent obvious.
+Do not ask "explain what?" when the conversation makes the referent obvious. But
+when there is **no prior assistant message** to resolve the anaphora against — a
+cold start where the user opens the conversation with `I don't get it` and nothing
+has been said yet — do not hallucinate a referent: ask "What would you like
+explained?" instead of proceeding blind.
 
 ## Altitude layering — on request only
 
