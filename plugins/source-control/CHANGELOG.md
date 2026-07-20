@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Fixed
+
+- **`/pull-request` create flow no longer hardcodes the remote name `origin` (#442).** The
+  `create.md` reference had baked `git fetch origin` (§2.2 rebase) and `git push -u origin <branch>`
+  (§2.4.1), so a consumer whose remote is not named `origin` (a repo cloned with `git clone -o
+  <name>`, or a fork-based multi-remote setup) would break — a baked repo assumption the
+  convention-resolution ladder forbids. Both sites now resolve the remote with the same
+  candidate-priority idiom the `toolchain` linters already use: the current branch's configured
+  remote (`branch.<name>.remote`, a local-only `.` upstream treated as unset), else `origin`, else
+  the sole configured remote. The §2.2 substitution is complete — every `origin/$DEFAULT_BRANCH`
+  occurrence (fetch, `merge-base`, `rev-parse`, `rev-list`, `rebase`, the progress echo, and the
+  merge-vs-rebase / skip-condition prose) now reads `$REMOTE/$DEFAULT_BRANCH`, and the
+  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path — a
+  single-remote repo, or a fresh feature branch with no `branch.<name>.remote` yet — both sites
+  still resolve to `origin`, preserving current behavior exactly. Triangular fork flows that fetch a
+  separate `upstream` while pushing to a fork remain out of scope (`branch.<name>.remote` tracks the
+  push remote, not upstream); the same hardcoding also lives in `merge.md` and the `babysit-prs`
+  references, deferred to a follow-up.
+
 ## [0.15.3]
 
 ### Added
