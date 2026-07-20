@@ -117,7 +117,7 @@ Only after verification (or for enhancements, where the open question is scope, 
 
 ### 5. Apply outcome
 
-Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker**: remove `status:needs-triage` (and the item leaves the unlabeled raw state) in the same edit that applies the labels below. The label sets in the table are the item's **resulting** state, not deltas stacked over `status:needs-triage` — normalization replaces the raw marker, it never adds to it.
+Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker** — the default `needs-triage` label a fresh item carries before triage, resolved from the live set (whichever axis the repo files it under) — in the same edit that applies the labels below, and the item leaves the unlabeled raw state. The label sets in the table are the item's **resulting** state, not deltas stacked over the raw marker — normalization replaces the raw marker, it never adds to it.
 
 | Outcome | Action |
 |---------|--------|
@@ -141,7 +141,7 @@ Label edits, comments, and closes route through the adapter's write mechanics (a
 
 **Closing invariant — no outcome leaves a re-selectable raw item.** The attention view lists *open* items and re-selects anything still carrying the raw marker, so every outcome must leave the item unre-selectable:
 
-- Outcomes that keep the item **open** (briefed/ready, a role label, or `status:needs-info`) **clear `status:needs-triage`**. A raw marker alongside `status:ready`, the autonomous-eligible role label, or the human-gated role label is a contradiction — the attention view reads it as still-raw and re-triages it every cycle. If an item shows both, the briefed state is the truth; clear the stale raw marker.
+- **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels — no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, and `status:needs-info` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction — the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
 - **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot — a closed item never re-triages.
 
 ## Needs-info template
