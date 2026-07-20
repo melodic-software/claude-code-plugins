@@ -56,8 +56,8 @@ OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "cd ${MAC_HOME}")" 2>&1); RC=$
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 
 # Repo-path branch: a genuine (non-home) git checkout root hardcoded in content
-# is a machine-specific marker and MUST still fire — guards against issue #389
-# F1 over-suppressing the branch entirely (the branch had no prior test).
+# is a machine-specific marker and MUST still fire — guards against the home-gate
+# over-suppressing the branch entirely (the branch had no prior test).
 REPO_REAL="$TEST_TMPDIR/realrepo"
 mkdir -p "$REPO_REAL"
 git -C "$REPO_REAL" init -q
@@ -113,9 +113,9 @@ OUT=$(CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" <<<"$
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
 
-# --- issue #389 F1: repo-path branch must not flag paths under a project dir
-# that is the user's home (or a non-git dir). The branch matched PROJECT_ROOT
-# as a literal substring and was never OS-suppressed. ---
+# --- Repo-path branch must not flag paths under a project dir that is the
+# user's home (or a non-git dir). The branch matched PROJECT_ROOT as a literal
+# substring and was never OS-suppressed. ---
 
 # F1a — the reported incident: project dir is a NON-git home (e.g. a
 # chezmoi-managed home, which is not itself a work tree). A .cmd suppresses the
