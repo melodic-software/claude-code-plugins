@@ -296,22 +296,30 @@ With no argument in an interactive session, run the interview:
    IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
    # An ignore rule does not untrack an already-committed file, so ask the index separately.
    TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
+   # Exit non-zero on either FAIL, exactly as the team guard does. The overlay was written at step 5,
+   # so proceeding here would report an effective merge over a personal file that is still shareable —
+   # visible to `git status` (no rule) or already in team history (tracked). Halt until it is fixed.
    if [ "$HAS_RULE" -eq 1 ] && [ -z "$TRACKED" ]; then
      echo "OK: personal overlay is ignored and untracked: $IGNORE_MATCH"
    elif [ -n "$TRACKED" ]; then
-     echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY"
+     echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY" >&2
+     exit 1
    else
-     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/*.local.* to .gitignore"
+     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/*.local.* to .gitignore" >&2
+     exit 1
    fi
    ```
 
    The tracked branch takes precedence in the report: adding the `.gitignore` line to an
    already-committed overlay changes nothing, so recommending it there sends the user in a circle.
 
-   If the team guard stops the sequence (non-zero exit, `IGNORE_MATCH` reported), do not report
-   success: tell the user the matching `.gitignore` pattern and ask them to either fix `.gitignore`
-   so `.claude/source-control.md` is no longer excluded, or persist the convention to a different
-   layer, then re-run this step.
+   Either guard stopping the sequence (non-zero exit) halts the apply — do not report success or
+   proceed to step 7. For the team guard (`IGNORE_MATCH` reported), tell the user the matching
+   `.gitignore` pattern and ask them to either fix `.gitignore` so `.claude/source-control.md` is no
+   longer excluded, or persist the convention to a different layer. For the `layer=local` guard,
+   surface the failure's own remediation — the `.claude/*.local.*` ignore line for a missing rule, or
+   `git rm --cached` for an already-tracked overlay — so the personal overlay does not linger in a
+   shareable state. Re-run this step once the state is fixed.
 
    This skill stages but does not commit — `git status --porcelain` legitimately keeps printing an
    index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file,
