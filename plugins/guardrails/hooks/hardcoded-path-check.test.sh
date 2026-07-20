@@ -66,6 +66,18 @@ OUT=$(HOME="$TEST_TMPDIR/elsewhere" CLAUDE_PROJECT_DIR="$REPO_REAL" \
 assert_exit "repo root in real non-home checkout → exit 2" 2 "$RC"
 assert_contains "repo root → machine-specific repo message" "$OUT" "Machine-specific repo path"
 
+# Project dir a SUBDIR of a genuine non-home checkout: the toplevel is non-home,
+# so the branch stays active and a hardcoded project-dir path still fires. Guards
+# the toplevel comparison against over-suppressing real checkouts reached via a
+# subdirectory.
+SUBREPO="$TEST_TMPDIR/subrepo"
+mkdir -p "$SUBREPO/pkg"
+git -C "$SUBREPO" init -q
+OUT=$(HOME="$TEST_TMPDIR/elsewhere2" CLAUDE_PROJECT_DIR="$SUBREPO/pkg" \
+  bash "$HOOK" <<<"$(write_json "$SUBREPO/pkg/notes.txt" "at $SUBREPO/pkg/x")" 2>&1); RC=$?
+assert_exit "repo subdir of non-home checkout → exit 2" 2 "$RC"
+assert_contains "repo subdir → machine-specific repo message" "$OUT" "Machine-specific repo path"
+
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" 2>&1); RC=$?
 assert_exit "clean content → exit 0" 0 "$RC"
@@ -127,15 +139,36 @@ OUT=$(CLAUDE_PROJECT_DIR="$HOME_DIR" bash "$HOOK" <<<"$(write_json "$HOME_CMD" "
 assert_exit "F1: non-git home project + path under home → exit 0" 0 "$RC"
 assert_silent "F1: non-git home → no stderr" "$OUT"
 
+# The gate compares the git toplevel against $HOME, so the two must be in the
+# same path form. git canonicalizes an MSYS /tmp path to a native Windows path on
+# Git Bash, so derive $HOME from git's own --show-toplevel output (an identity on
+# Linux, where /tmp is not remapped) — this mirrors a real environment, where
+# $HOME and git agree on the path form.
+
 # F1b — belt-and-suspenders: project dir IS a git checkout but equals $HOME
-# (dotfiles-as-home). The not-$HOME clause suppresses the branch.
+# (dotfiles-as-home). The enclosing-checkout-is-home clause suppresses the branch.
 GITHOME="$TEST_TMPDIR/githome"
 mkdir -p "$GITHOME"
 git -C "$GITHOME" init -q
-OUT=$(HOME="$GITHOME" CLAUDE_PROJECT_DIR="$GITHOME" \
+GITHOME_TL="$(git -C "$GITHOME" rev-parse --show-toplevel)"
+OUT=$(HOME="$GITHOME_TL" CLAUDE_PROJECT_DIR="$GITHOME" \
   bash "$HOOK" <<<"$(write_json "$GITHOME/notes.txt" "path $GITHOME/data/app.bin")" 2>&1); RC=$?
 assert_exit "F1: git checkout equal to \$HOME → exit 0" 0 "$RC"
 assert_silent "F1: \$HOME checkout → no stderr" "$OUT"
+
+# F1c — the side door: $HOME is itself a git checkout (chezmoi dotfiles) and the
+# project dir is a SUBDIR of home (e.g. $HOME/Desktop). rev-parse discovers the
+# parent checkout at home; the home comparison must run against that TOPLEVEL,
+# not the subdir — comparing the subdir leaves it neither home nor a home-ancestor
+# and re-enables the branch, hard-denying paths under the subdir.
+HOMEREPO="$TEST_TMPDIR/homerepo"
+mkdir -p "$HOMEREPO/Desktop"
+git -C "$HOMEREPO" init -q
+HOMEREPO_TL="$(git -C "$HOMEREPO" rev-parse --show-toplevel)"
+OUT=$(HOME="$HOMEREPO_TL" CLAUDE_PROJECT_DIR="$HOMEREPO/Desktop" \
+  bash "$HOOK" <<<"$(write_json "$HOMEREPO/Desktop/run.txt" "path $HOMEREPO/Desktop/data.bin")" 2>&1); RC=$?
+assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
+assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
 
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
