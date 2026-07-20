@@ -1,0 +1,77 @@
+{
+  "skill_name": "explain",
+  "evals": [
+    {
+      "id": 1,
+      "name": "empty-argument-anaphora-default",
+      "prompt": "I don't get it.",
+      "expected_output": "With no topic named, the object is the assistant's own previous response. The skill re-reads that prior message, finds the part most likely to have lost the reader, and drops it to plain language — without asking 'explain what?' when the referent is obvious from the conversation.",
+      "files": [],
+      "expectations": [
+        "Treats the empty argument as anaphora — the object is the ASSISTANT's previous output, not the user's, and not a re-prompt for a topic",
+        "Re-reads the prior assistant message this turn rather than recalling or guessing what was said",
+        "Does not ask 'explain what?' when the conversation makes the referent obvious"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "plain-first-pass-concrete-analogy-zero-jargon",
+      "prompt": "/education:explain what a hash map is",
+      "expected_output": "Lands at the lowest useful altitude first: one concrete everyday analogy, zero jargon, any unavoidable term defined inline. It leads with what the thing is actually doing, not with vocabulary, and does not open at peer level.",
+      "files": [],
+      "expectations": [
+        "Opens at rung 1 (plain / ELI5) with a concrete everyday analogy and zero unexplained jargon",
+        "Leads with the analogy and the 'what it's doing', not with a vocabulary dump; any unavoidable term is defined inline",
+        "Does not front-load the high-school or peer-level explanation"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "altitude-climbs-only-on-request",
+      "prompt": "/education:explain the CAP theorem — and I already know distributed systems basics, give me the real version.",
+      "expected_output": "Altitude layering is on request. Because the user explicitly asks for the real version, the skill climbs toward peer level (rung 3) rather than staying at ELI5 — but the rungs are still offered as an invitation, not front-loaded across every response by default.",
+      "files": [],
+      "expectations": [
+        "Recognizes the explicit request for higher altitude and climbs the rung ladder rather than staying pinned at rung 1",
+        "Treats altitude as request-driven — it does not default to dumping the peer-level explanation on an unqualified 'explain X'",
+        "Introduces real terms of art with definitions as altitude increases rather than assuming them silently"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "feynman-gap-check-surfaces-gap",
+      "prompt": "/education:explain simply why this proof of the Atiyah-Singer index theorem works",
+      "expected_output": "When the plain-language pass cannot shed the jargon without hand-waving, that is a detected understanding gap on the explainer's side. The skill surfaces it honestly — naming the specific part it cannot yet reduce and grounding harder — instead of emitting a confident-sounding restatement of jargon.",
+      "files": [],
+      "expectations": [
+        "Runs the plain-language pass as a comprehension self-test, not a rewording service",
+        "When jargon cannot be shed, surfaces the specific gap honestly instead of papering over it with a confident restatement of the same jargon",
+        "Grounds harder (re-reads / fetches the source) before claiming to have explained it plainly"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "closes-with-teach-handoff",
+      "prompt": "/education:explain how Git rebase works",
+      "expected_output": "After the one-shot explanation, it closes with a single lightweight line offering the multi-session path, /education:teach topic <x>, as the first-party sibling for ongoing coaching — one line, not a workspace pitch.",
+      "files": [],
+      "expectations": [
+        "Closes the explanation with a lightweight offer of /education:teach for a multi-session deeper dive",
+        "Frames the handoff as one standard closing line, not a hard sell or a full workspace setup",
+        "Keeps the explanation itself one-shot — no persistent workspace, mission, or learning state is created"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "auto-invokes-on-colloquial-trigger",
+      "prompt": "wait, what does this actually do?",
+      "expected_output": "The skill carries colloquial triggers and does not disable model invocation, so a bare 'what does this actually do' reaches it without an explicit command. It resolves the referent from context (anaphora) and drops it to plain language. Auto-trigger is best-effort; the explicit /education:explain path remains guaranteed.",
+      "files": [],
+      "expectations": [
+        "Is eligible for model auto-invocation on a colloquial trigger (no disable-model-invocation) rather than requiring the explicit command",
+        "Resolves the referent from conversational context and delivers a plain-language explanation",
+        "Does not depend on the user naming the /education:explain command for the trigger to fire"
+      ]
+    }
+  ]
+}
