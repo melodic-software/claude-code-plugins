@@ -147,7 +147,7 @@ merges after both.
 - `grep -c 'temporal' plugins/autonomy/skills/setup/templates/routine-definitions.md` ≥ 1 (queue-entry via the trigger contract)
 - Fleet-name sweep exit 0
 
-### Phase 4: Derivation demonstration + gates [TODO]
+### Phase 4: Derivation demonstration + gates [DONE]
 
 Acceptance probe: classify one NOVEL routine class end-to-end using only the shipped mapping
 rules (axes → guardrail row → prerequisites) — the acceptance criterion that an org can
