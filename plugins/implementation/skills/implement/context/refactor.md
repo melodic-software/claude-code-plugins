@@ -31,9 +31,9 @@ These go in separate commits. Squash merge collapses them on main, but separate 
 - **Refactoring without tests** — if code lacks test coverage, add characterization tests first (separate commit), then refactor. Otherwise you have no safety net
 - **Big-bang refactors** — moving 20 files in one commit. If something breaks, you can't tell which move caused it. Incremental commits are free on feature branches
 
-## Optional capability skills (invoke the installed skill that provides it)
+## Marketplace plugin skills (invoke only when installed)
 
-Name the capability you need, not a specific tool; resolve the concrete skill from what the target environment has installed, and fall back to the project's own workflow when none provides it.
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own build/reference tooling:
 
-- **Build-config anti-pattern scanning** — after moving types across projects, invoke an installed skill that scans the changed build/project files for anti-patterns introduced by the restructuring (stale references, unscoped package assets, unconditional overrides)
-- **Project-reference validation** — when renaming or moving projects, invoke an installed skill that detects broken or circular references in the build dependency graph before committing
+- **`dotnet-msbuild:msbuild-antipatterns`** — after moving types across projects, invoke to scan changed .csproj/.props/.targets for anti-patterns introduced by the restructuring (missing PrivateAssets, stale references, unconditional overrides)
+- **`dotnet-msbuild:resolve-project-references`** — when renaming or moving projects, invoke to detect broken or circular references in the MSBuild dependency graph before committing

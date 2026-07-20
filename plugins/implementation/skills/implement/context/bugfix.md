@@ -21,9 +21,9 @@ Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptatio
 - **Expanding scope** — a bug fix that also refactors the surrounding code is two changes. Commit the fix first, refactor separately
 - **Fixing the symptom** — null check at the call site instead of fixing why the value is null in the first place
 
-## Optional capability skills (invoke the installed skill that provides it)
+## Marketplace plugin skills (invoke only when installed)
 
-Name the capability you need, not a specific tool; resolve the concrete skill from what the target environment has installed, and fall back to the project's own workflow when none provides it.
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own diagnostic tooling:
 
-- **Performance diagnosis** — when the bug involves async deadlocks, memory pressure, or timing issues, invoke an installed performance-diagnosis skill for systematic anti-pattern scanning
-- **Build-failure analysis** — when a build-system failure masquerades as a code bug (wrong assembly loaded, missing reference, analyzer conflict), invoke an installed build-diagnosis skill to trace it to the build rather than the code
+- **`dotnet-diag:analyzing-dotnet-performance`** — when the bug involves async deadlocks, memory pressure, or timing issues, invoke for systematic anti-pattern scanning (~50 patterns across async, memory, strings, collections)
+- **`dotnet-msbuild:binlog-failure-analysis`** — when a build system failure masquerades as a code bug (wrong assembly loaded, missing reference, analyzer conflict), invoke to replay the MSBuild binary log for diagnosis

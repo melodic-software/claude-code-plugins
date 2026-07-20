@@ -7,15 +7,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Changed
 
-- Ecosystem-neutral optional-capability references: the `implement` skill's mode contexts
-  (`skills/implement/context/feature.md`, `bugfix.md`, `refactor.md`) no longer name a specific
-  ecosystem's marketplace skills as the only optional collaborators. Each "Marketplace plugin skills"
-  section is restated as an "Optional capability skills" section that names the *capability* needed
-  (project scaffolding, performance diagnosis, build-failure analysis, build-config anti-pattern
-  scanning, project-reference validation) and instructs resolving the concrete skill from what the
-  target environment has installed, with a stated fallback to the project's own workflow when none is
-  installed — per the `docs/conventions/seam-phrasing/` shape and the `docs/PLUGIN-PHILOSOPHY.md`
-  design boundary. Presence-gating is preserved; no hardcoded tool name replaces the removed ones.
+- Stack-qualified the `implement` skill's optional-collaborator references: the mode contexts
+  (`skills/implement/context/feature.md`, `bugfix.md`, `refactor.md`) retain their `dotnet-*`
+  marketplace-skill names and `## Marketplace plugin skills (invoke only when installed)` presence
+  gate, and each now opens with a lead-in that frames those skills as .NET-ecosystem forward
+  references — invoked only when your stack is .NET and the plugin is installed — with an explicit
+  fallback to the project's own tooling otherwise, so a non-.NET consumer keeps the generic path
+  first-class rather than being handed a dead list. Matches the conforming `testing` (#491) and
+  `verification` (#526) pattern per the ratified #412 disposition governing #405. No reference
+  removal; every reference stays optional and installed-gated.
 
 ## [0.7.2]
 

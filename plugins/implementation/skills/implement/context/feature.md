@@ -26,9 +26,9 @@ Commit after each of these milestones:
 - **Implementing everything before testing anything** — large untested batches hide compounding errors
 - **Skipping the scaffold commit** — if the scaffold is wrong (wrong project, wrong namespace, wrong layer), you want to revert just the scaffold, not scaffold plus implementation
 
-## Optional capability skills (invoke the installed skill that provides it)
+## Marketplace plugin skills (invoke only when installed)
 
-Name the capability you need, not a specific tool; resolve the concrete skill from what the target environment has installed, and fall back to the project's own workflow when none provides it.
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own scaffolding tooling:
 
-- **Project scaffolding** — when creating a new project, invoke an installed scaffolding/template skill for the target ecosystem for template selection, dependency-manifest adaptation, and latest-version resolution
-- **Service/protocol-server scaffolding** — when standing up a new service or protocol server (e.g. an MCP server), invoke an installed skill that scaffolds it: project layout, endpoint/tool/resource wiring, and transport configuration
+- **`dotnet-ai:mcp-csharp-create`** — when implementing a new C# MCP server, invoke for scaffolding guidance (project templates, tool/prompt/resource implementation, stdio and HTTP transport configuration)
+- **`dotnet-template-engine:template-instantiation`** — when creating a new .NET project, invoke for template selection with CPM adaptation and latest NuGet version resolution
