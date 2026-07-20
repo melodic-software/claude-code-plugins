@@ -119,7 +119,7 @@ Design-pack docs live under `reference/runner/` (hub `reference/runner.md`).
 Prerequisites: WP4 + WP5 + WP6 implementation PRs merged (this pack imports their contracts
 by citation). Design only — zero build artifacts; the runner-execution home stays unborn.
 
-### Phase 1: Charter import + spine and seam specs [TODO]
+### Phase 1: Charter import + spine and seam specs [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -133,7 +133,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - Seam count: `grep -cE '^## ' plugins/autonomy/reference/runner/seams.md` = 8
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: Lifecycle + stop-criteria + escalation leaves [TODO]
+### Phase 2: Lifecycle + stop-criteria + escalation leaves [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -149,7 +149,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - `grep -c 'USER-RESERVED' plugins/autonomy/reference/runner/topology.md` ≥ 1
 - Vendor+fleet deny-list sweep exit 0
 
-### Phase 3: Setup note + WP5 escalation-route join [TODO]
+### Phase 3: Setup note + WP5 escalation-route join [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -166,7 +166,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - Schema additivity: `grep -c 'escalation_severity_routes' …schema.json` ≥ 1 and a pre-WP7 fixture binding still passes `check-security-binding.mjs` unchanged (no major bump proven, not asserted)
 - `/skill-quality:check` + `validate-evals` pass; `claude plugin validate --strict` exit 0
 
-### Phase 4: Zero-build audit + gates [TODO]
+### Phase 4: Zero-build audit + gates [DONE]
 
 Acceptance probe (mechanical): the package introduces no executable/runtime artifact — the
 diff contains no new files outside `reference/`, `skills/setup/`, README, and plugin
