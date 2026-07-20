@@ -142,11 +142,18 @@ for manifest in "${manifests[@]}"; do
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
   # satisfy the gate. The match is a FIXED-STRING heading anchored to line
-  # start (awk index()==1), so the version string appearing in prose or a
-  # fenced example never satisfies — or falsely pre-exists — the release
-  # entry, and SemVer metacharacters (1.0.1+build.1) never leak into a regex.
+  # start (awk index()==1) and OUTSIDE fenced code, so the version string
+  # appearing in prose, an indented line, or a ``` / ~~~ example never
+  # satisfies — or falsely pre-exists — the release entry, and SemVer
+  # metacharacters (1.0.1+build.1) never leak into a regex.
   heading="## [${head_version}]"
-  has_heading() { awk -v h="$heading" 'index($0, h) == 1 { found=1; exit } END { exit !found }'; }
+  has_heading() {
+    awk -v h="$heading" '
+      /^[[:space:]]*(```|~~~)/ { infence = !infence; next }
+      !infence && index($0, h) == 1 { found = 1; exit }
+      END { exit !found }
+    '
+  }
   if [[ -f "$changelog" ]] && has_heading <"$changelog"; then
     # The release entry must be ADDED by this change set, not merely present:
     # a heading that already existed in the changelog at $base means the bump

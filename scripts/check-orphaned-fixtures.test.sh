@@ -72,6 +72,19 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"valid.json.bak"* && "$out" != *"ORPHANED FIXTURE"*"fixtures/valid.json is"* ]]; then ok "suffix sibling of a referenced fixture red-lines (bounded basename match)"; else fail "reference-name suffix sibling not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# --- files[] PATH match is EXACT, not a whole-file substring: an eval that
+# references the longer evals/fixtures/valid.json.bak must NOT consume a new
+# evals/fixtures/valid.json sibling (shorter $rel is a substring of the longer
+# files[] value) -> valid.json red-lines, valid.json.bak stays consumed -------
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json.bak"'
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
+out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"fixtures/valid.json is"* && "$out" != *"valid.json.bak is"* ]]; then ok "files[] path match is exact (substring of a longer referenced path does not consume)"; else fail "files[] substring path match not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''

@@ -153,11 +153,11 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "SemVer build-metadata version with a proper entry passes (no regex leak)"; else fail "build-metadata version wrongly failed"; fi
 rm -rf "$repo"
 
-# PROSE / CODE-EXAMPLE MENTION: the bumped version's `## [1.1.0]` appears only
-# inside prose (an indented example line), never as a line-start heading ->
-# fails as UNDOCUMENTED. Proves the heading match is anchored, so a mention in
-# body text or a fenced example neither satisfies nor falsely pre-exists the
-# release entry.
+# PROSE MENTION: the bumped version's `## [1.1.0]` appears only inline and on an
+# indented line, never as a column-zero heading -> fails as UNDOCUMENTED. Proves
+# the heading match is anchored, so an inline or indented mention neither
+# satisfies nor falsely pre-exists the release entry. (The fenced-block case,
+# where `## [1.1.0]` sits at column zero inside ```, is covered separately.)
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -170,6 +170,24 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "version string in prose/indented example does not satisfy the anchored heading match"; else fail "unanchored-mention not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# FENCED-BLOCK EXAMPLE: the bumped version's `## [1.1.0]` sits at column zero but
+# INSIDE a ``` fenced block, never as a real heading -> fails as UNDOCUMENTED.
+# Proves the heading match tracks fence state (column-zero alone is not enough).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick fence and \n are literal changelog bytes, not shell expansions
+printf '# Changelog\n\nExample of a heading:\n\n```\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "fenced-code example heading (column zero inside a fence) does not satisfy --check-bump"; else fail "fenced-block heading wrongly satisfied gate: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
