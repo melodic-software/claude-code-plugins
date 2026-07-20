@@ -16,6 +16,8 @@ instead of a session prompt, delegating anything a sibling skill already owns ra
   out-of-tree worktree — the orchestrator never edits source. Dispatch *mechanics* are chained to
   `/implementation:implement-dispatch` (not re-described); worktree lifecycle stays with
   `/source-control:worktree`; the interactive all-inline path remains `/implementation:implement`.
+  The autonomous dispatch handoff (branch/worktree provisioning before the dispatch preflight and
+  orchestrator-owned PR creation) is not yet guaranteed end-to-end — deferred to `#572`.
 - **The dispatch brief carries the PR contract forward (`#462`).** The brief relays what
   `/source-control:pull-request` will require at PR time — that skill still owns the PR body shape,
   `Closes #N` injection, and merge style — enumerating the version-bump, CHANGELOG, attribution-trailer
@@ -30,7 +32,10 @@ instead of a session prompt, delegating anything a sibling skill already owns ra
   hooks — complementing the worker scope-fence with an orchestrator read of what actually changed.
 - **Concurrency and batch caps as `userConfig`.** New `work_dispatch_concurrency_cap` (default mirrors
   `/implementation:implement-dispatch`'s 3–5 wave cap) and `work_cycle_batch_cap` scalars; the execute
-  step resolves them from config with no hardcoded literal. A batch cap bounds one CYCLE, never the loop
+  step resolves them from config with no hardcoded literal. Enforcement is not yet wired — these are the
+  *intended* values (implement-dispatch still applies its own internal cap and no consumer reads the batch
+  cap), with threading into the delegated dispatch and driving loop tracked in `#573`. A batch cap bounds
+  one CYCLE, never the loop
   — cap-reached or frontier-drained ends the cycle only, not autonomous operation (loop wakeup and delay
   stay owned by `/loop`). Same-plugin serialization carries an interim awareness note pending `#464`.
 - **Explicit never-merge boundary.** The skill states that `work`'s lane ends at PR creation and
