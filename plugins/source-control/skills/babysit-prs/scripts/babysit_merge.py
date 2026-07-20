@@ -20,6 +20,14 @@ Contract enforced here (encoded as code, not convention):
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
   authored by someone other than a configured self login is held unless
   `--allow-unprotected` is passed: on such a base `CLEAN` proves nothing.
+- The #476 autopilot merge tier (`--autopilot-merge-tier`) layers five extra
+  criteria on top of the base gate -- issue-linked, lane-authored, no blocking
+  label, a distinct-bot approving review on the live head (author != approver via
+  bot identity, unchanged since review), and no human blocking comment. It is
+  fail-closed: the umbrella flag refuses to run unless `--lane-logins`,
+  `--approver-bot-logins`, and `--block-labels` are all non-empty. Any criterion
+  failing is just another blocker, so the caller falls back to the human
+  merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, up-to-date, approvals, and conversation resolution) plus
@@ -37,11 +45,23 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
-from babysit_classify import is_dependency_author, is_self_login, normalize_self_logins
+from babysit_classify import (
+    actor_kind,
+    has_blocking_severity,
+    has_blocking_text,
+    is_bot,
+    is_dependency_author,
+    is_self_login,
+    normalize_login_set,
+    normalize_self_logins,
+)
 from babysit_gh import (
+    fetch_issue_comments,
+    fetch_pull_request_reviews,
     fetch_review_threads,
     gh_capture,
     gh_json,
@@ -56,6 +76,31 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+
+
+@dataclass(frozen=True)
+class AutopilotMergeTierConfig:
+    """The extra criteria the #476 autopilot merge tier gates on, over the base
+    readiness gate that every tier already shares.
+
+    Present only when the caller passes `--autopilot-merge-tier`; absent (None)
+    the gate behaves exactly as it always has, so worker/autopilot's existing
+    gate-proven merges are unchanged. Every field is caller-supplied and the
+    umbrella flag refuses to run with any of the three required sets empty, so
+    the tier is fail-closed: it can never merge without knowing which authors are
+    pipeline lanes, which login the distinct bot approver posts under, and which
+    labels veto a merge.
+    """
+
+    lane_logins: frozenset[str]
+    approver_bot_logins: frozenset[str]
+    block_labels: frozenset[str]
+
+
+def parse_csv_set(raw: str | None) -> set[str]:
+    if not raw:
+        return set()
+    return {part.strip() for part in raw.split(",") if part.strip()}
 
 
 def split_owner(repo: str) -> str:
@@ -145,6 +190,155 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     return summary
 
 
+def find_distinct_bot_approval(
+    reviews: list[dict[str, Any]],
+    author_login: str | None,
+    head: str | None,
+    approver_bot_logins: frozenset[str],
+) -> dict[str, Any] | None:
+    """The most recent APPROVED review by a distinct bot identity on the live head.
+
+    Enforces two #476 criteria at once: author != approver (via bot identity) and
+    head SHA unchanged since review. An approval is eligible only when its author
+    is a bot (structural `[bot]`/`Bot` type, or a caller-named approver login), is
+    not the PR author (normalized login compare), and was submitted against the
+    exact live head commit — a stale approval left on a since-superseded commit is
+    not "unchanged since review". Reviews arrive oldest-first; the last eligible
+    one wins so a re-approval on the current head is honored.
+    """
+    author_norm = normalize_login_set([author_login] if author_login else [])
+    match: dict[str, Any] | None = None
+    for review in reviews:
+        if str(review.get("state") or "") != "APPROVED":
+            continue
+        review_author = review.get("author")
+        login = (
+            review_author.get("login")
+            if is_json_object(review_author)
+            else review_author
+        )
+        typename = (
+            review_author.get("__typename") if is_json_object(review_author) else None
+        )
+        if normalize_login_set([login]) & author_norm:
+            continue  # same identity as the PR author -- not a distinct approver
+        if not is_bot(login, typename, approver_bot_logins):
+            continue
+        commit = review.get("commit")
+        commit_oid = commit.get("oid") if is_json_object(commit) else None
+        if not (head and commit_oid and str(commit_oid) == str(head)):
+            continue  # approval is on a superseded commit -- head moved since review
+        match = review
+    return match
+
+
+def evaluate_autopilot_tier(
+    repo: str,
+    number: int,
+    head: str | None,
+    author_login: str | None,
+    labels: list[Any],
+    closing_issues: list[Any],
+    tier: AutopilotMergeTierConfig,
+) -> tuple[list[str], dict[str, Any]]:
+    """Evaluate the #476 tier criteria that ride on top of the base gate.
+
+    Returns the tier's own blockers plus a self-documenting per-criterion record.
+    Every predicate is imported from the shared classifier (`babysit_classify`) so
+    the tier never re-implements authorship, bot, or blocking-text detection. Any
+    criterion failing simply adds a blocker; the caller falls back to reporting the
+    PR on the human merge-ready list, never routing around the gate.
+    """
+    blockers: list[str] = []
+
+    issue_linked = bool(closing_issues)
+    if not issue_linked:
+        blockers.append(
+            "not issue-linked -- no closing-issue reference (autopilot merge tier)"
+        )
+
+    label_names = {str(name).casefold() for name in labels if name}
+    blocking_labels = sorted(
+        label
+        for label in tier.block_labels
+        if label.casefold() in label_names
+    )
+    if blocking_labels:
+        blockers.append(
+            "blocked by label(s) " + ", ".join(repr(b) for b in blocking_labels)
+        )
+
+    lane_authored = bool(
+        normalize_login_set([author_login] if author_login else [])
+        & normalize_login_set(tier.lane_logins)
+    )
+    if not lane_authored:
+        blockers.append(
+            f"author {author_login!r} is not a configured pipeline lane "
+            "(autopilot merge tier requires a lane-authored PR)"
+        )
+
+    reviews = fetch_pull_request_reviews(repo, number)
+    approval = find_distinct_bot_approval(
+        reviews, author_login, head, tier.approver_bot_logins
+    )
+    if approval is None:
+        blockers.append(
+            "no distinct-bot approving review on the live head "
+            "(need author != approver via bot identity, approval unchanged since head)"
+        )
+
+    # A human "do not merge"/blocking comment that is not a formal
+    # CHANGES_REQUESTED and not an unresolved inline thread (both already gated
+    # above) still halts the tier. Reuse the shared blocking-text/severity
+    # predicates over every human-authored issue comment and review summary.
+    human_blocking: list[str] = []
+    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
+    corpus.extend(reviews)
+    for item in corpus:
+        if actor_kind(item) != "human":
+            continue
+        body = str(item.get("body") or "")
+        if has_blocking_text(body) or has_blocking_severity(body):
+            login = item.get("author")
+            login = login.get("login") if is_json_object(login) else login
+            human_blocking.append(str(login or "unknown"))
+    if human_blocking:
+        blockers.append(
+            "human blocking comment(s) from "
+            + ", ".join(sorted(set(human_blocking)))
+            + " -- resolve before an autopilot merge"
+        )
+
+    tier_result = {
+        "enabled": True,
+        "issueLinked": issue_linked,
+        "closingIssues": [
+            c.get("number") if is_json_object(c) else c for c in closing_issues
+        ],
+        "laneAuthored": lane_authored,
+        "blockingLabels": blocking_labels,
+        "distinctBotApproval": (
+            {
+                "author": (
+                    approval.get("author", {}).get("login")
+                    if is_json_object(approval.get("author"))
+                    else None
+                ),
+                "commit": (
+                    approval.get("commit", {}).get("oid")
+                    if is_json_object(approval.get("commit"))
+                    else None
+                ),
+            }
+            if approval
+            else None
+        ),
+        "humanBlockingComments": sorted(set(human_blocking)),
+    }
+    return blockers, tier_result
+
+
 def evaluate(
     repo: str,
     number: int,
@@ -153,6 +347,7 @@ def evaluate(
     self_logins: frozenset[str],
     allow_dependency: bool,
     allow_unprotected: bool,
+    tier: AutopilotMergeTierConfig | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     pr_data = gh_json(
@@ -164,7 +359,8 @@ def evaluate(
             repo,
             "--json",
             "state,isDraft,mergeable,mergeStateStatus,reviewDecision,"
-            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup",
+            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup,"
+            "closingIssuesReferences",
         ]
     )
     pr = cast(dict[str, Any], pr_data) if isinstance(pr_data, dict) else {}
@@ -292,9 +488,21 @@ def evaluate(
             "login -- held (pass --allow-unprotected to override)"
         )
 
+    closing_issues = cast(
+        list[Any], pr.get("closingIssuesReferences") or []
+    )
+    tier_result: dict[str, Any] = {"enabled": False}
+    if tier is not None:
+        tier_blockers, tier_result = evaluate_autopilot_tier(
+            repo, number, str(head) if head else None, author_login, labels,
+            closing_issues, tier,
+        )
+        blockers.extend(tier_blockers)
+
     ready = not blockers
     return {
         "pr": f"{repo}#{number}",
+        "autopilotMergeTier": tier_result,
         "url": pr.get("url"),
         "title": pr.get("title"),
         "author": author_login,
@@ -402,6 +610,38 @@ def main() -> int:
             "the TOCTOU guard that pins the vetted head SHA"
         ),
     )
+    parser.add_argument(
+        "--autopilot-merge-tier",
+        action="store_true",
+        help=(
+            "gate on the #476 autopilot-merge-tier criteria in addition to the "
+            "base readiness gate: issue-linked, lane-authored, no blocking label, "
+            "a distinct-bot approving review on the live head, and no human "
+            "blocking comment. Fail-closed: requires --lane-logins, "
+            "--approver-bot-logins, and --block-labels to be non-empty"
+        ),
+    )
+    parser.add_argument(
+        "--lane-logins",
+        default=None,
+        help="comma-separated pipeline lane author logins (autopilot merge tier)",
+    )
+    parser.add_argument(
+        "--approver-bot-logins",
+        default=None,
+        help=(
+            "comma-separated bot logins whose approving review satisfies the "
+            "author != approver criterion (autopilot merge tier)"
+        ),
+    )
+    parser.add_argument(
+        "--block-labels",
+        default=None,
+        help=(
+            "comma-separated labels that veto a tier merge, e.g. do-not-merge "
+            "(autopilot merge tier)"
+        ),
+    )
     args = parser.parse_args()
 
     allowed = parse_allowed_owners(args.allowed_owners)
@@ -454,6 +694,59 @@ def main() -> int:
         )
         return 3
 
+    # Build the autopilot-merge-tier config before any network access, failing
+    # closed on a partial configuration: the tier's whole point is that the three
+    # sets are all supplied deliberately, so an umbrella flag with any of them
+    # empty is a refusal, never a merge on an under-specified tier.
+    tier: AutopilotMergeTierConfig | None = None
+    if args.autopilot_merge_tier:
+        lane = parse_csv_set(args.lane_logins)
+        approver = parse_csv_set(args.approver_bot_logins)
+        block = parse_csv_set(args.block_labels)
+        missing = [
+            name
+            for name, value in (
+                ("--lane-logins", lane),
+                ("--approver-bot-logins", approver),
+                ("--block-labels", block),
+            )
+            if not value
+        ]
+        if missing:
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "error": (
+                            "--autopilot-merge-tier requires non-empty "
+                            + ", ".join(missing)
+                            + "; refusing to run the tier under-specified"
+                        ),
+                    }
+                )
+            )
+            return 3
+        tier = AutopilotMergeTierConfig(
+            lane_logins=frozenset(lane),
+            approver_bot_logins=frozenset(approver),
+            block_labels=frozenset(block),
+        )
+    elif any(
+        (args.lane_logins, args.approver_bot_logins, args.block_labels)
+    ):
+        print(
+            json.dumps(
+                {
+                    "pr": args.pr,
+                    "error": (
+                        "--lane-logins / --approver-bot-logins / --block-labels "
+                        "are only meaningful with --autopilot-merge-tier"
+                    ),
+                }
+            )
+        )
+        return 2
+
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed
     # input is rejected before any network access.
@@ -478,6 +771,7 @@ def main() -> int:
             self_logins,
             args.allow_dependency,
             args.allow_unprotected,
+            tier,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.
