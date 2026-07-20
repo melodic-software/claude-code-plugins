@@ -237,10 +237,16 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
   let surfaceEntry = null;
   let sourceSection = null;
   if (signalClass === "temporal") {
-    // signal.routine's grammar is checked whenever a value is present; whether
-    // a routine is REQUIRED is section-dependent (routine-emitting surfaces
-    // only) and decided once the source surface resolves below.
-    if (typeof routine === "string" && routine.length > 0 && !ROUTINE_IDENTITY.test(routine)) {
+    // signal.routine's shape is checked whenever the KEY is present — an
+    // empty or non-string value is a claim that is neither a conforming
+    // identity nor an absent one, so it fails closed rather than slipping
+    // between the claimed and claimless branches below; whether a routine is
+    // REQUIRED is decided once the source surface resolves.
+    if (routine !== undefined && (typeof routine !== "string" || routine.length === 0)) {
+      findings.push(
+        `${where}: signal.routine must be a nonempty routine identity when the key is present — an empty or non-string claim is neither a conforming identity nor an absent one, fail-closed`,
+      );
+    } else if (typeof routine === "string" && !ROUTINE_IDENTITY.test(routine)) {
       findings.push(
         `${where}: signal.routine ${JSON.stringify(routine)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*`,
       );
