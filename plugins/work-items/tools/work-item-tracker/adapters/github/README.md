@@ -172,7 +172,7 @@ gh api graphql \
   -f query='query($owner:String!, $repo:String!, $n:Int!) {
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
-        closedByPullRequestsReferences(first:20, includeClosedPrs:false) { nodes { number state } }
+        closedByPullRequestsReferences(first:100, includeClosedPrs:false) { nodes { number state } }
       }
     }
   }' \
@@ -188,9 +188,12 @@ The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `inclu
 that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
 connection and must be dropped here — otherwise an issue whose only closing PR merged to a
 non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
-`first:20` bounds the page; an issue carrying more than 20 linked closing PRs (not realistic in
-practice) would need cursor pagination, the GraphQL analogue of the `--limit` note under "List
-items". Why GitHub's computed
+`first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
+Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
+linked as closing — not only the open ones — so a long merge/reopen history consumes page slots
+ahead of the currently-open PR. An issue carrying more than 100 such linked closing PRs (not
+realistic in practice) would need cursor pagination, the GraphQL analogue of the `--limit` note
+under "List items". Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
 - **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
