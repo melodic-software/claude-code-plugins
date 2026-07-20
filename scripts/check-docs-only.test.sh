@@ -93,6 +93,14 @@ assert_flag "toolchain lockfile" false "package-lock.json"
 assert_flag "sibling of an allowed prefix (docs/topics-archive/)" false "docs/topics-archive/old.md"
 assert_flag "mixed docs+code" false "docs/topics/example/PLAN.md" "plugins/p1/skills/alpha/SKILL.md"
 
+# --- hygiene job's docs-irrelevant step set: their inputs are NOT docs-only --
+# ShellCheck (scripts/, plugins/**), actionlint + workflow-schema (.github/
+# workflows/) are already pinned false above; these pin the remaining check-
+# jsonschema inputs so a widened allowlist that let one through fails the suite.
+assert_flag "marketplace manifest (marketplace-schema reads it)" false ".claude-plugin/marketplace.json"
+assert_flag "plugin manifest (plugin-schema reads it)" false "plugins/p1/.claude-plugin/plugin.json"
+assert_flag "dependabot.yml (dependabot-schema reads it)" false ".github/dependabot.yml"
+
 # --- fail-closed paths: emit false, exit 0 (run full, never block) ---------
 repo="$(mk_repo)"
 out="$(cd "$repo" && bash scripts/check-docs-only.sh "does-not-exist" 2>/dev/null)"
