@@ -1,0 +1,53 @@
+# Skill leaf names deliberately carried by more than one plugin. Read by
+# check-skill-leaf-names.sh --check: a collision not listed here fails as
+# "unregistered" (a new shared leaf name needing a decision); an entry listed
+# here that no longer collides fails as stale and must be dropped.
+#
+# Every one of these is separately invocable -- namespacing guarantees that, and
+# the philosophy's Naming section is explicit that a name is never degraded to
+# dodge a collision. What a shared leaf name costs is legibility: the picker
+# labels the row by this name, so two entries read identically and are told
+# apart only by the `(<plugin-name>)` prefix on the description. That is the
+# cost each entry below is accepted at, and the reason each description's first
+# clause has to name its object.
+#
+# One leaf name per line, with the grounds it is accepted on.
+
+# Contract-mandated. docs/PLUGIN-PHILOSOPHY.md (Setup) fixes the name for every
+# plugin that ships consumer configuration; uniformity IS the contract. Not
+# consolidatable: ${CLAUDE_PLUGIN_ROOT} resolves per containing plugin and there
+# is no cross-plugin skill inheritance, so each plugin owns its own.
+setup
+
+# Fixed verb meaning: read-only findings report (PLUGIN-PHILOSOPHY.md, Naming
+# verb table). The namespace supplies the object in every case --
+# claude-config, claude-memory, codebase-health, machine-health, mcp-tools,
+# repo-fleet-hygiene. Qualifying the verb per plugin would say the same thing
+# twice; a topic qualifier is reserved for siblings WITHIN one namespace
+# (audit-noise beside audit-encapsulation).
+audit
+
+# Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
+# skill, toolchain checks a build.
+check
+
+# Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
+# directory tree, repo-hygiene cleans a repository's caches and git metadata.
+clean
+
+# D19, kept on merit. songwriting diagnoses a song, testing diagnoses a failing
+# suite -- unrelated domains, and the namespace disambiguates.
+diagnose
+
+# D19, kept on merit. planning:plan is the root-echo core action of its domain;
+# testing:plan is a test-strategy plan. The bare token still belongs to the
+# built-in plan-mode toggle, which neither shadows.
+plan
+
+# D19, kept on merit. session-flow:workflow routes a development session,
+# songwriting:workflow routes a writing session.
+workflow
+
+# Fixed verb meaning: produces an artifact. bug-report writes a report, testing
+# writes tests.
+write
