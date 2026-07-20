@@ -110,6 +110,29 @@ allowed() {
 # conflict resolution driven at another repo via `-C` reads the WRONG repo's
 # state — the sequencer probe and the alias lookup would both answer for the
 # session cwd instead of the repo actually being committed to.
+# Value of an explicit `--git-dir` (attached or separated), empty when absent.
+# A commit driven with --git-dir concludes a sequencer in THAT git dir, so
+# probing the cwd's state would refuse to exempt a real in-progress merge.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+explicit_git_dir() {
+  local i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    case "$arg" in
+    --git-dir)
+      ((i + 1 < n)) && printf '%s' "${a[i + 1]}"
+      return 0
+      ;;
+    --git-dir=*)
+      printf '%s' "${arg#--git-dir=}"
+      return 0
+      ;;
+    *) ;;
+    esac
+  done
+}
+
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 effective_dir() {
   local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
@@ -135,11 +158,18 @@ effective_dir() {
 # an uncertain answer must not silently open the gate.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
-  local dir f repo="$1"
-  # --absolute-git-dir, not --git-dir: the latter answers relative to the repo,
-  # which would resolve against the HOOK's cwd here and silently miss every
-  # sequencer file.
-  dir=$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null) || return 1
+  local dir f repo="$1" explicit="$2"
+  if [[ -n "$explicit" ]]; then
+    # An explicit --git-dir names the git dir outright; asking git to resolve it
+    # would just echo it back, and `-C` may point somewhere unrelated.
+    dir="$explicit"
+    [[ "$dir" == /* || "$dir" =~ ^[A-Za-z]:[\/] ]] || dir="$repo/$dir"
+  else
+    # --absolute-git-dir, not --git-dir: the latter answers relative to the repo,
+    # which would resolve against the HOOK's cwd here and silently miss every
+    # sequencer file.
+    dir=$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null) || return 1
+  fi
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
     [[ -e "$dir/$f" ]] && return 0
@@ -273,7 +303,7 @@ check_segment() {
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   allowed "message-flag" && return 0
-  sequencer_in_progress "$(effective_dir "${w[@]}")" && return 0
+  sequencer_in_progress "$(effective_dir "${w[@]}")" "$(explicit_git_dir "${w[@]}")" && return 0
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2

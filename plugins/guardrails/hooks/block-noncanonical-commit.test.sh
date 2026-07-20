@@ -169,6 +169,21 @@ if [[ -d "$GITDIR" ]]; then
   assert_exit "git -C with no sequencer state in the target repo is blocked" 2 $?
 fi
 
+# --- explicit --git-dir names the repo whose sequencer state matters ---------
+if [[ -d "$GITDIR" ]]; then
+  : >"$GITDIR/MERGE_HEAD"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m x" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "--git-dir honors that repo's in-progress merge" 0 $?
+
+  rm -f "$GITDIR/MERGE_HEAD"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git --git-dir=$GITDIR --work-tree=$SEQ commit -m x" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "--git-dir with no sequencer state is blocked" 2 $?
+fi
+
 # --- aliases persisted in git config (not just inline -c) --------------------
 # `git config alias.c commit` lives in .git/config, where the parser's inline
 # -c capture cannot see it; the hook must ask git to resolve it.
