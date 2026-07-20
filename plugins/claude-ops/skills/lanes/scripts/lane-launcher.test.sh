@@ -83,6 +83,12 @@ printf 'git %s\n' "\$*" >>"$CLAUDE_LOG"
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
+# Hermetic: the suite must not depend on an ambient `claude` (CI runners have
+# none). Every case resolves `claude`/`git` to the logging stubs; cases that
+# inspect the log reset it first. Real git is never needed — repos are passed
+# via --repo, so resolve_repo never shells out.
+export PATH="$STUB_BIN:$PATH"
+
 run_launcher() { bash "$SCRIPT" "$@"; }
 
 # ============================================================================
@@ -147,7 +153,7 @@ assert_not_contains "restart scoped to work" "$out" "claude --bg -n babysit"
 # stop (real dispatch via PATH-stub claude)
 # ============================================================================
 : >"$CLAUDE_LOG"
-out="$(PATH="$STUB_BIN:$PATH" run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
+out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
 log="$(cat "$CLAUDE_LOG")"
 assert_contains "stop dispatches claude stop for running lane" "$log" "stop sid-work-1"
 assert_contains "stop reports non-running lanes" "$out" "babysit — not running"
@@ -159,7 +165,7 @@ assert_not_contains "stop never targets a non-lane session" "$log" "sid-other"
 # the prompt-file BODY as a single trailing argument (not --dry-run).
 # ============================================================================
 : >"$CLAUDE_LOG"
-out="$(PATH="$STUB_BIN:$PATH" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 log="$(cat "$CLAUDE_LOG")"
 assert_contains "start really pulls the repo" "$log" "git -C $REPO pull --ff-only"
 assert_contains "start really updates the marketplace" "$log" "plugin marketplace update"

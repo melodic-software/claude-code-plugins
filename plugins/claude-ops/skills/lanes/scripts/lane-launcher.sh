@@ -155,6 +155,10 @@ require_jq() {
 # fixture-fed (--agents-json) reads must work with no CLI installed.
 require_claude() {
   ((DRY_RUN)) && return 0
+  # A fixture-fed status read (--agents-json) makes no claude call, so it works
+  # fully offline as documented; only the paths that actually shell out to
+  # claude (launch / stop / marketplace update, or a live agents list) need it.
+  [[ "$ACTION" == "status" && -n "$AGENTS_JSON_FILE" ]] && return 0
   command -v claude >/dev/null 2>&1 || {
     err "claude CLI not found (required)"
     exit 4
