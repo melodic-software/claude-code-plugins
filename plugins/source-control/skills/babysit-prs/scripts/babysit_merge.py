@@ -217,6 +217,7 @@ def find_distinct_bot_approval(
     one wins so a re-approval on the current head is honored.
     """
     author_norm = normalize_login_set([author_login] if author_login else [])
+    approver_norm = normalize_login_set(approver_bot_logins)
     match: dict[str, Any] | None = None
     for review in reviews:
         if str(review.get("state") or "") != "APPROVED":
@@ -233,6 +234,11 @@ def find_distinct_bot_approval(
         if normalize_login_set([login]) & author_norm:
             continue  # same identity as the PR author -- not a distinct approver
         if not is_bot(login, typename, approver_bot_logins):
+            continue
+        # A bot, but it must be the configured approver identity: `is_bot` accepts
+        # any `[bot]`/Bot-typed login, so without this an arbitrary installed
+        # App's approval would authorize a tier merge past the configured boundary.
+        if not (normalize_login_set([login]) & approver_norm):
             continue
         commit = review.get("commit")
         commit_oid = commit.get("oid") if is_json_object(commit) else None

@@ -191,6 +191,15 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         result = self._evaluate(_pr(), reviews=[])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
+    def test_unconfigured_bot_approval_is_rejected(self) -> None:
+        # An unrelated installed App's [bot] approval must not satisfy the tier:
+        # being a bot is not enough, it must be the configured approver identity.
+        result = self._evaluate(
+            _pr(), reviews=[_approval("random-app[bot]", HEAD)]
+        )
+        self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
+        self.assertFalse(result["ready"])
+
     def test_human_blocking_comment_blocks(self) -> None:
         comment = {
             "author": {"login": "maintainer", "__typename": "User", "is_bot": False},
