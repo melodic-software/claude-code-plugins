@@ -15,8 +15,8 @@
 # configuration. Only the stdin form belongs in a gate.
 #
 # WHY NOT "did you type /commit": a hook cannot tell a skill-driven Bash call
-# from an ad hoc one — anthropics/claude-code#22655 (add skill_name to hook
-# payloads) is closed as not planned. Gating on command SHAPE is what is
+# from an ad hoc one — the payload carries no originating-skill field, and the
+# upstream request to add one was declined. Gating on command SHAPE is what is
 # actually available, and is the better target anyway: it enforces the outcome
 # a reviewer can verify in `git log`, not the ceremony that produced it.
 #
