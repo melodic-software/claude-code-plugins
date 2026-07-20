@@ -150,6 +150,54 @@ run "echo > file in until header (blocked)" \
 run "non-producer in if header > file (allowed)" \
   'if grep -q x file; then ls; fi' 0
 
+# --- Leading redirect before the producer word (bypass regression) -----------
+# Bash permits redirections before the command word, so a producer can hide
+# behind one. The leading redirect is peeled to expose echo/printf, while the
+# redirect itself still counts as the write signal.
+run "leading redirect before echo (blocked)" '> real.txt echo x' 2
+run "leading redirect before printf (blocked)" '> real.txt printf x' 2
+run "leading redirect glued to target before echo (blocked)" '>real.txt echo x' 2
+run "leading redirect + env-assignment before echo (blocked)" \
+  '> real.txt FOO=bar echo x' 2
+# No new false positive: a leading INPUT redirect writes nothing, a leading
+# stdout /dev/null discard is not a bypass, and a non-producer command word after
+# a leading redirect is allowed.
+run "leading input redirect before echo (allowed)" '< input.txt echo x' 0
+run "leading /dev/null redirect before echo (allowed)" '> /dev/null echo x' 0
+run "leading redirect before non-producer (allowed)" '> out.txt ls -la' 0
+
+# --- coproc header before the producer (bypass regression) -------------------
+# A bare `coproc` header can precede the producer of a simple command; it is
+# peeled like the other command headers so the producer inside is still seen.
+run "coproc before echo > file (blocked)" 'coproc echo x > real.txt' 2
+run "coproc before printf > file (blocked)" 'coproc printf x > real.txt' 2
+# No new false positive: a non-producer command word after coproc is allowed.
+run "coproc before non-producer > file (allowed)" 'coproc make > log.txt' 0
+
+# --- Comment quote-state leak (bypass regression) ----------------------------
+# strip_literals carries an open quote across physical lines. An unmatched quote
+# inside a `#` comment must NOT leak a quote span onto the next line — otherwise
+# the next line's real producer gets stripped away and the write slips through.
+COMMENT_QUOTE_LEAK=$(printf 'true # "\necho x > real.txt')
+run "unmatched quote in comment, next-line bypass (blocked)" \
+  "$COMMENT_QUOTE_LEAK" 2
+# Same leak reachable via an operator-preceded comment (`;#`), a word boundary too.
+COMMENT_QUOTE_LEAK_SEMI=$(printf 'true;# "\necho x > real.txt')
+run "unmatched quote in operator-preceded comment, next-line bypass (blocked)" \
+  "$COMMENT_QUOTE_LEAK_SEMI" 2
+# Discriminating: a `#` mid-word is literal, not a comment introducer, so a real
+# `echo a#b > file` write must STILL block (the comment strip must not over-reach).
+run "mid-word # is literal, real write still blocked" 'echo a#b > real.txt' 2
+# A parameter expansion `${v#x}` carries a `#` that is not a comment either — the
+# producer + redirect after it must still block.
+# shellcheck disable=SC2016  # literal ${v#x} is the command under test, not for expansion
+run "parameter-expansion # then echo > file (blocked)" \
+  'echo "${v#x}" > real.txt' 2
+# A genuine trailing comment on an allowed command stays allowed and does not
+# swallow a following unrelated line via a leaked quote.
+COMMENT_BENIGN=$(printf 'ls -la # list files\ngit status')
+run "benign trailing comment, no leak (allowed)" "$COMMENT_BENIGN" 0
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays

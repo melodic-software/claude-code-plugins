@@ -94,12 +94,14 @@ emit_tel() {
 # (their content is data, not a command). The quote strip carries an OPEN quote
 # across physical lines, so a quoted argument spanning newlines (a `--body "..."`
 # payload whose text merely mentions `echo`/`>`) stays inert end-to-end instead
-# of leaking its tokens from the second line on.
+# of leaking its tokens from the second line on. An unquoted `#` comment is dropped
+# to end-of-line without carrying quote state, so an unmatched quote inside a
+# comment cannot leak a span onto the next line (see the `#` case below).
 strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   # `open_quote` carries a single- or double-quote span across lines: "" outside
   # any quote, "'" or '"' inside one that opened on an earlier line.
-  local open_quote="" out i n c
+  local open_quote="" out i n c prev
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -169,6 +171,25 @@ strip_literals() {
           open_quote='"'
           ((i += 1))
           ;;
+        '#')
+          # `#` starts a comment only at a word boundary — start of line, or
+          # after an unquoted blank or shell metacharacter (`;|&()<>`). The rest
+          # of the physical line is comment text and is dropped WITHOUT touching
+          # `open_quote`, so an unmatched quote inside a comment (`true # "`)
+          # cannot leak a quote span onto the next line and silently strip a real
+          # producer there. Mid-word (`echo a#b`, `${v#x}`) the `#` is literal and
+          # kept, so a genuine `a#b > file` write still reaches the scan. A
+          # backslash-escaped `#` never lands here — the `\` case above consumes it.
+          if ((i == 0)) ||
+            {
+              prev="${line:i-1:1}"
+              [[ "$prev" == [[:space:]] || "$prev" == [\;\|\&\(\)\<\>] ]]
+            }; then
+            break
+          fi
+          out+="$c"
+          ((i += 1))
+          ;;
         $'\\')
           out+="${line:i:2}"
           ((i += 2))
@@ -201,12 +222,24 @@ _producer_head='^(echo|printf)([[:space:]]|>)'
 # modifiers `command` / `builtin` / `exec` / `env`. Peeling them (see
 # producer_redirect_bypass) exposes an echo/printf hidden behind a valid prefix
 # (`command echo x > f`, `FOO=bar echo x > f`) so the producer scan still sees it.
+# A bare `coproc` is a command header that can precede the producer of a simple
+# command (`coproc echo x > f`), so it is peeled too. Only the bare keyword is
+# peeled: the optional NAME form is `coproc NAME compound-command`, so eating a
+# second token would swallow the real command word in `coproc echo …`.
 # The compound-command header keywords / group opener / pipeline negation that put
 # a producer inside a loop, conditional, or negated command
 # (`if`/`elif`/`while`/`until`/`do`/`then`/`else`/`{`/`!`) are peeled by the same
 # pass. Peeling is safe: the `_producer_head` gate still requires echo/printf, so
 # revealing a NON-echo command word can never cause a block.
-_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|if|elif|then|else|while|until|do|!|\{)([[:space:]]|$)'
+_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|coproc|if|elif|then|else|while|until|do|!|\{)([[:space:]]|$)'
+# A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
+# bash permits redirections before the command word, so a producer can hide behind
+# one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
+# — to expose the producer for _producer_head, while _echo_file_out/_echo_devnull
+# still run on the UN-peeled segment so the redirect itself remains the write
+# signal. Not anchored to stdout-to-file: any leading redirect is peeled for
+# producer exposure; whether a real file write exists is decided by _echo_file_out.
+_leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
 # stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
@@ -239,6 +272,12 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
 # per-utility argument parsing (each has a different option grammar), out of scope
 # for this false-positive fix; the forms are structurally unusual for LLM output
 # and covered by an accepted-floor test.
+#
+# SCOPE (documented residual): only the BARE `coproc echo …` header is peeled (see
+# _cmd_prefix). The named form `coproc NAME { echo x > f; }` is not, because NAME is
+# indistinguishable from a command word by prefix-peeling alone, and the redirect
+# there is group-level (same brace-group floor as above). Structurally unusual for
+# LLM output and covered by an accepted-floor test.
 producer_redirect_bypass() {
   local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' normalized seg
   # Protect fd-duplication / both-streams redirect ampersands (`2>&1`, `>&2`,
@@ -258,17 +297,32 @@ producer_redirect_bypass() {
   normalized="${normalized//"$soh"/&}"
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
-    # Peel leading command-prefix tokens (see _cmd_prefix) so a producer hidden
-    # behind an env assignment (`FOO=bar echo x > f`), a command-name modifier
-    # (`command echo ...`, `builtin printf ...`, `exec echo ...`, `env echo ...`),
-    # or a compound-command header / group opener / negation (`; do echo x > f`,
-    # `if echo x > f`, `while echo ...`, `! echo ...`, `{ echo ...`) is still seen
-    # as the segment's command word rather than being masked by the prefix head.
-    while [[ "$seg" =~ $_cmd_prefix ]]; do
-      seg="${seg#"${BASH_REMATCH[1]}"}"
-      seg="${seg#"${seg%%[![:space:]]*}"}"
+    # Peel leading command-prefix tokens (see _cmd_prefix) and leading redirections
+    # (see _leading_redir) into `head` so a producer hidden behind an env assignment
+    # (`FOO=bar echo x > f`), a command-name modifier (`command echo ...`, `builtin
+    # printf ...`, `exec echo ...`, `env echo ...`, `coproc echo ...`), a
+    # compound-command header / group opener / negation (`; do echo x > f`, `if echo
+    # x > f`, `while echo ...`, `! echo ...`, `{ echo ...`), or a leading redirect
+    # (`> real.txt echo x`) is still seen as the segment's command word. The redirect
+    # itself is left in `seg`: _echo_file_out/_echo_devnull below decide whether a
+    # real file write exists, so a leading redirect stays the write signal.
+    local head="$seg" tgt
+    while :; do
+      if [[ "$head" =~ $_cmd_prefix ]]; then
+        head="${head#"${BASH_REMATCH[1]}"}"
+        head="${head#"${head%%[![:space:]]*}"}"
+        continue
+      fi
+      if [[ "$head" =~ $_leading_redir ]]; then
+        head="${head#"${BASH_REMATCH[0]}"}"
+        tgt="${head%%[[:space:]]*}"
+        head="${head#"$tgt"}"
+        head="${head#"${head%%[![:space:]]*}"}"
+        continue
+      fi
+      break
     done
-    [[ "$seg" =~ $_producer_head ]] || continue
+    [[ "$head" =~ $_producer_head ]] || continue
     [[ "$seg" =~ $_echo_file_out ]] || continue
     [[ "$seg" =~ $_echo_devnull ]] && continue
     return 0
