@@ -300,14 +300,15 @@ def skip_downgrade(text: str) -> bool:
 
     A not-approving comment whose stated reason is a skipped review run (for
     example a usage limit) and which carries no findings of its own is a
-    user-triage item, not a code blocker. Any residual blocking language keeps
-    it blocking.
+    user-triage item, not a code blocker. Any residual blocking language --
+    imperative blocking text or a surviving CRITICAL/IMPORTANT severity marker
+    -- keeps it blocking.
     """
     if not REVIEW_SKIP_RE.search(text):
         return False
     remainder = NOT_APPROVING_RE.sub("", text)
     remainder = REVIEW_SKIP_RE.sub("", remainder)
-    return not has_blocking_text(remainder)
+    return not has_blocking_text(remainder) and not has_blocking_severity(remainder)
 
 
 def collect_feedback(

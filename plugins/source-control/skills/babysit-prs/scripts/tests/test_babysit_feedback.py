@@ -286,6 +286,30 @@ class DowngradeHeuristicTests(unittest.TestCase):
         )
         self.assertFalse(fb.skip_downgrade("Not approving; P1 regression found."))
 
+    def test_skip_downgrade_rejects_live_severity_marker(self) -> None:
+        # A skip comment carrying a genuine CRITICAL/IMPORTANT marker has no
+        # imperative blocking text, so has_blocking_text alone would let it
+        # downgrade; the severity guard keeps the live finding blocking.
+        self.assertFalse(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "CRITICAL: authorization bypass."
+            )
+        )
+        self.assertFalse(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "IMPORTANT: unbounded retry loop."
+            )
+        )
+        # A negated severity conclusion still downgrades -- it is not a finding.
+        self.assertTrue(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "No CRITICAL or IMPORTANT issues seen before the cutoff."
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
