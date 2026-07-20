@@ -90,7 +90,7 @@ Produce a structured plan using the template in [context/plan-template.md](conte
 
 - **Goal**: what we're trying to achieve and why
 - **Approach**: the specific steps, in order
-- **Test strategy**: how we'll verify the changes work — for which test type each kind of change needs (unit / integration / e2e / architecture / analyzer), `/testing:plan`'s file-type classification table is the SSOT; **invoke `/tdd:principles` (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical
+- **Test strategy**: how we'll verify the changes work — for which test type each kind of change needs (unit / integration / e2e / architecture / analyzer), `/testing:plan`'s file-type classification table is the SSOT **when the `testing` plugin is installed**; **invoke `/tdd:principles` (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical
 - **Files affected**: what gets created, modified, or deleted
 - **Alternatives considered**: what was rejected and why
 - **Risks and mitigations**: what could go wrong
