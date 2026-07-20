@@ -57,7 +57,8 @@ Side exits from any state: `status:needs-info` (returns to raw when the reporter
 - **human-gated** — reserved for a genuinely open decision (open design space, product intent, or cross-repo policy), or work that cannot be delegated for a capability reason (external access, manual QA) → human-gated role (default `needs-human`).
 
 ```text
-raw → verified → briefed → autonomous-eligible (role label, default agent-ready)
+raw → verified → briefed
+ |        |          ├→ delegable → autonomous-eligible (role label, default agent-ready)
  |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
@@ -122,7 +123,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 |---------|--------|
 | Briefed, delegable | Write the brief per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) — durability over precision: behavioral contracts and named interfaces, **no file paths or line numbers** — apply labels + the autonomous-eligible role label (default `agent-ready`) |
 | Briefed, decision-defaulted | Same brief structure and durability rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment |
-| Briefed, T1 multi-surface stub | For a trivial (T1) fix spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`). The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
+| Briefed, T1 multi-surface stub | For a trivial (T1) fix spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready` — the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
 | Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
 | Needs more info | `status:needs-info` + needs-info template comment |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
