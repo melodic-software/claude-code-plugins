@@ -637,6 +637,15 @@ function validateStructure(binding) {
           );
         }
       }
+      // The escalation contract caps re-escalation at a single bump, never a
+      // loop — a cap above one would let the runner repeatedly re-escalate
+      // the same unacknowledged item, the notification loop the contract
+      // rules out.
+      if (Number.isInteger(binding.escalation_ack.reescalation_cap) && binding.escalation_ack.reescalation_cap > 1) {
+        findings.push(
+          `escalation_ack.reescalation_cap: ${binding.escalation_ack.reescalation_cap} exceeds the contract cap — the runner escalation contract allows a single stale-unacked re-escalation (one severity bump, never a loop), so 1 is the only bindable value`,
+        );
+      }
     }
   }
 

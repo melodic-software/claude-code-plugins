@@ -104,9 +104,10 @@
           "minimum": 1
         },
         "reescalation_cap": {
-          "description": "Maximum number of stale-unacked re-escalations (a single bump, never a loop).",
+          "description": "Maximum number of stale-unacked re-escalations. The escalation contract caps this at a single bump, never a loop, so 1 is the only accepted value; the key exists so an org binds the knob explicitly rather than inheriting it silently.",
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 1
         }
       }
     },
