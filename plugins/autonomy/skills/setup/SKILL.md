@@ -286,7 +286,8 @@ multi-posture class whose catalog leaf defines more than one work-class posture 
 canonical posture tokens live in the catalog leaves). A multi-posture class binds PER-POSTURE
 identities, never its bare token — each posture is a distinct work class and therefore a distinct
 identity on a distinct emitting surface. The handler serializes its identity as the envelope's
-`signal.routine`, required on every temporal routine signal.
+`signal.routine`, and its platform-attested producer as `signal.producer_identity`, required on
+every routine-fired temporal signal.
 
 **Binding-home split by governance sensitivity (the guardrail contract's split).** A routine's
 `signal.work_class` is stamped, per
@@ -299,21 +300,26 @@ association is ADMISSION data: it binds ONLY in the security binding's
 ([`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)),
 on the settings-as-code home outside the agents' blast radius — for reconciled existing bots
 exactly as for freshly wired routines. Each entry is keyed by routine identity and carries
-`{"class": "C1"–"C5", "source_surface": "<surfaces-map id>", "run_link_prefix": "<prefix>"}`: the
-class the identity's signals stamp, the one scheduling surface permitted to emit them, AND the
-run permalink namespace ratified for that surface — a platform run URL prefix (`https://…`) for a
-`ci-cron` surface, or a durable `file:` or artifact-store URI prefix for a `local-scheduler`
-surface (weaker authority — a developer-machine run record or the org's artifact store). **One
-identity per emitting surface** — no two
-`classification.temporal` entries may share a `source_surface`, so the surface the platform
-attests (through the execution-surface attestation and the signal's raw link) is bound to exactly
-ONE identity. Admission validates the envelope's `(signal.routine, resolved source surface)` pair
-against this table AND that `signal.raw_link` falls under the ratified `run_link_prefix` BEFORE
+`{"class": "C1"–"C5", "source_surface": "<surfaces-map id>", "run_link_prefix": "<prefix>",
+"producer_identity": "<platform-attested producer ref>"}`: the class the identity's signals
+stamp, the one scheduling surface permitted to emit them, the run permalink namespace ratified
+for that surface — a platform run URL prefix (`https://…`) for a `ci-cron` surface, or a durable
+`file:` or artifact-store URI prefix for a `local-scheduler` surface (weaker authority — a
+developer-machine run record or the org's artifact store), which may be repo-scoped and SHARED
+across the repo's schedules rather than disjoint per entry — AND the `producer_identity`, the
+platform-attested workflow-file or scheduler-unit reference that pins WHICH schedule fired within
+that namespace. **One identity per emitting surface** — no two `classification.temporal` entries
+may share a `source_surface`, and **producer identities are unique across entries**, so the
+producer the platform attests (through the execution-surface attestation and the signal's raw
+link and producer reference) is bound to exactly ONE identity. Admission validates the envelope's `(signal.routine, resolved source surface)` pair
+against this table AND that `signal.raw_link` falls under the ratified `run_link_prefix` AND that
+the attested `signal.producer_identity` equals the entry's ratified `producer_identity` BEFORE
 stamping `signal.work_class`; an absent entry, a `source_surface` that does not equal the attested
-surface, or a raw link outside the ratified prefix is fail-closed human-gated. A swapped
-`--routine` selector therefore cannot launder high-risk work as a benign class — claiming a
-different identity resolves to THAT identity's own surface and prefix, which the attested surface
-and raw link will not match. A repo-local class source would be the precise agent-writable bypass
+surface, a raw link outside the ratified prefix, or a producer identity that does not match is
+fail-closed human-gated. A swapped `--routine` selector therefore cannot launder high-risk work as
+a benign class — claiming a different identity resolves to THAT identity's own surface and
+producer, which the platform-attested producer will not match (a shared run-link namespace no
+longer distinguishes schedules on its own). A repo-local class source would be the precise agent-writable bypass
 the trigger contract's classification obligation forbids. The NON-security keys — cadence,
 enablement, surface choice — are the ONLY routine data that lands repo-local: they go in the
 additive `routines` section of the repo-local autonomy binding under `.claude/autonomy/` (the same
@@ -353,7 +359,8 @@ resolution order.
      land as the `routines` section of the repo-local autonomy binding under `.claude/autonomy/`
      (the same artifact as the `triggers` section);
    - the protected identity↔surface association — each routine identity →
-     `{class, source_surface, run_link_prefix}`, one entry per identity, no two sharing a surface —
+     `{class, source_surface, run_link_prefix, producer_identity}`, one entry per identity, no two
+     sharing a surface and no two sharing a `producer_identity` —
      lands as the `admission.classification.temporal` change PREPARED for the security binding on
      the settings-as-code home (a separate artifact from the autonomy binding above).
 
@@ -373,7 +380,7 @@ resolution order.
    | Key | Value |
    |---|---|
    | `surfaces` | object keyed by scheduling-surface id, the SAME shape the [trigger slice](#triggerdispatch-slice)'s `surfaces` map uses (`{"class": "temporal", "transport": "poll"\|"push-lifecycle", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded id>"}`; a `local-scheduler` surface using an org artifact store also declares `artifact_schemes`). Record a surface here ONLY when the trigger slice has not already recorded it — [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs)'s resolver merges every section's `surfaces` map and refuses an id recorded in two sections as ambiguous; a routine riding an already-recorded surface REFERENCES its id, it does not re-declare it |
-   | `enabled` | object keyed by the FULL routine identity (`<class-token>` or `<class-token>/<posture-token>`) — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. Its `source_surface` MUST agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal` — binding review and the envelope checker catch drift. The class and its `run_link_prefix` are NOT here; an identity with no protected classification entry, or one whose surface disagrees, stays unclassified and fail-closed human-gated |
+   | `enabled` | object keyed by the FULL routine identity (`<class-token>` or `<class-token>/<posture-token>`) — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. Its `source_surface` MUST agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal` — binding review and the envelope checker catch drift. The class, its `run_link_prefix`, and its `producer_identity` are NOT here; an identity with no protected classification entry, or one whose surface disagrees, stays unclassified and fail-closed human-gated |
 
 6. **Conformance** — the wired state is reached when
    [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs), run with BOTH
@@ -382,9 +389,10 @@ resolution order.
    confirms `signal.routine` is present, resolves `signal.source_surface` to a recorded surface
    with its temporal raw-link form, and verifies any stamped `signal.work_class` matches the
    protected classification entry for that `(identity, surface)` pair AND that `signal.raw_link`
-   falls under that entry's ratified `run_link_prefix`; a missing `signal.routine`, an unresolvable
-   surface, an identity↔surface mismatch, a raw link outside the ratified prefix, or an
-   unclassified class is a finding.
+   falls under that entry's ratified `run_link_prefix` AND that the attested
+   `signal.producer_identity` equals that entry's ratified `producer_identity`; a missing
+   `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
+   ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
 
 ## Gotchas
 

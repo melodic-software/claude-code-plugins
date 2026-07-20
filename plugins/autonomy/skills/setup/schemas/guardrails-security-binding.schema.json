@@ -193,14 +193,15 @@
         "oneOf": [
           { "enum": ["C1", "C2", "C3", "C4", "C5"] },
           {
-            "description": "Surface-bound classification entry: binds the marker (a routine identity, for the temporal home) to its work class, the one emitting surface admission attests, AND the ratified attestation anchor run_link_prefix — the platform run-permalink namespace of the ONE schedule allowed to emit this identity (ci-cron: absolute https prefix; local-scheduler: durable file:/artifact-scheme prefix). The protected associations live here, on the agent-unwritable surface — without them the marker is an unprotected selector an agent-writable scheduled workflow could point at any class, and an agent-writable schedule cannot mint run permalinks under another workflow's platform-assigned namespace.",
+            "description": "Surface-bound classification entry: binds the marker (a routine identity, for the temporal home) to its work class, the one emitting surface admission attests, the ratified attestation anchor run_link_prefix, AND the ratified producer_identity. The run_link_prefix pins the platform-and-repository run-permalink namespace — which may be shared across schedules on repo-scoped platforms, where every schedule mints run permalinks under one shared namespace — while the producer_identity (the workflow or unit reference the platform injects into the authenticated run context) pins WHICH schedule within that namespace is allowed to emit this identity (ci-cron: absolute https prefix; local-scheduler: durable file:/artifact-scheme prefix). The protected associations live here, on the agent-unwritable surface — without them the marker is an unprotected selector an agent-writable scheduled workflow could point at any class, and an agent-writable schedule can neither mint run permalinks outside the ratified namespace nor forge the producer identity the platform attests into the authenticated run context.",
             "type": "object",
             "additionalProperties": false,
-            "required": ["class", "source_surface", "run_link_prefix"],
+            "required": ["class", "source_surface", "run_link_prefix", "producer_identity"],
             "properties": {
               "class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
               "source_surface": { "type": "string", "minLength": 1 },
-              "run_link_prefix": { "type": "string", "minLength": 1 }
+              "run_link_prefix": { "type": "string", "minLength": 1 },
+              "producer_identity": { "type": "string", "minLength": 1 }
             }
           }
         ]

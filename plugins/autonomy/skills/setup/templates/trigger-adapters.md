@@ -78,9 +78,16 @@ interval 5 minutes, delays under load, 60-day public-repo auto-disable — plus
   surface, and for each detected condition enqueue the envelope with
   `signal.transport: "poll"`, `signal.source_surface` = this surface's id in the binding's
   `surfaces` map, `signal.raw_link` = a durable reference to the observed state (https
-  permalink; a local-scheduler surface may use an absolute `file:` or artifact-store URI).
-  State-based detections with no instance identity bound dedup retention to open items —
-  re-detection after closure is a new signal.
+  permalink; a local-scheduler surface may use an absolute `file:` or artifact-store URI). A
+  detector-fired temporal signal carries NO `signal.routine` and never stamps
+  `signal.work_class` — it stays unclassified (human-gated downstream), and a routine identity
+  or a stamped class on it is rejected fail-closed. State-based detections with no instance
+  identity bound dedup retention to open items — re-detection after closure is a new signal.
+
+The scheduled-ROUTINE shape is the temporal surface's other producer, wired per
+[`routine-definitions.md`](routine-definitions.md): unlike the poll-detector it carries
+`signal.routine`, and it resolves `signal.producer_identity` — with `signal.source_surface` and
+`signal.raw_link` — from the platform's authenticated run context, never from job arguments.
 
 ## agent-internal — session files follow-up via the queue seam
 
@@ -108,5 +115,5 @@ vendor-hosted channel agents are advisory, plan-gated):
 4. Acknowledge in-thread per [`ack-reply.md`](ack-reply.md).
 
 A continuous routine never enqueues its RUN here: the feed emission may wake the routine's
-ratified temporal surface, and the run enters via the temporal adapter carrying
-`signal.routine`; `channel-feed` carries only the ordinary feed signal.
+ratified temporal surface, and the run enters via the temporal adapter carrying `signal.routine`
+and `signal.producer_identity`; `channel-feed` carries only the ordinary feed signal.

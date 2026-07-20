@@ -18,7 +18,8 @@ Constant across every shape — the routine handler does exactly this and no mor
 | Emit | writes ONE `temporal` signal envelope onto a governed queue item (the `<!-- autonomy:signal:v1 -->` marker record); it never runs the routine's own work |
 | Stamp identity | sets `signal.routine` to the routine's IDENTITY — `<class-token>`, or `<class-token>/<posture-token>` for a multi-posture class — a CLAIM the handler makes, never a trust anchor |
 | Stamp source | sets `signal.source_surface` to the routine's recorded scheduling-surface id so the envelope check resolves it against the binding's `routines` (or `triggers`) `surfaces` map |
-| Carry class | leaves `signal.work_class` to admission, which stamps it only after validating the `(signal.routine, attested source surface)` pair against the security binding's `admission.classification.temporal` table AND that `signal.raw_link` falls under that entry's ratified `run_link_prefix`; the handler never self-stamps a class |
+| Stamp producer | sets `signal.producer_identity` from the platform's authenticated run context — the workflow-file or scheduler-unit reference the platform injects — never from job arguments; admission checks it for equality with the entry's ratified `producer_identity` |
+| Carry class | leaves `signal.work_class` to admission, which stamps it only after validating the `(signal.routine, attested source surface)` pair against the security binding's `admission.classification.temporal` table AND that `signal.raw_link` falls under that entry's ratified `run_link_prefix` AND that the attested `signal.producer_identity` equals the entry's ratified `producer_identity`; the handler never self-stamps a class |
 | Raw link | `signal.raw_link` = the surface's durable reference (an https run permalink on a `ci-cron` surface, a durable `file:`/artifact URI on a `local-scheduler` surface) — itself a CLAIM, admitted only when it falls under the surface's ratified `run_link_prefix` |
 | Trace | injects `signal.traceparent` so the causal tree spans schedule → queue → agent session |
 | No dispatch | returns after enqueue; the standing drain claims and dispatches through the one entrypoint |
@@ -28,12 +29,16 @@ classes below each RECORD as one of the two by the raw-link form, never as a new
 
 The `--routine` argument, the workflow file, and the emitted `--raw-link` are all CLAIMS, not
 trust anchors: the security binding's protected identity↔surface association is authoritative. Each
-of its entries carries `{class, source_surface, run_link_prefix}` and binds exactly ONE routine
-identity per emitting surface; the `run_link_prefix` — the run permalink namespace of that one
-surface — is recorded at binding review, NOT emitted by the job. A shape below therefore emits for
-a SINGLE identity (a multi-posture class runs one shape per posture on its own surface), so the
-surface the platform attests pins the identity, and a swapped `--routine`, or a forged
-`--raw-link` outside the ratified prefix, cannot resolve a different class.
+of its entries carries `{class, source_surface, run_link_prefix, producer_identity}` and binds
+exactly ONE routine identity per emitting surface. The `run_link_prefix` — the run permalink
+namespace, which may be repo-scoped and SHARED across a repo's schedules rather than disjoint per
+entry — is recorded at binding review, NOT emitted by the job; the `producer_identity` (the
+platform-attested workflow-file or scheduler-unit reference) is the per-schedule pin WITHIN that
+namespace and is unique across entries. A shape below therefore emits for a SINGLE identity (a
+multi-posture class runs one shape per posture on its own surface), so the platform-attested
+producer pins the identity, and a swapped `--routine`, or a forged `--raw-link` — whether outside
+the ratified prefix or under it but from another schedule — cannot resolve a different class,
+because the attested `producer_identity` must equal the ratified value.
 
 ## CI-cron surface (marked example: a hosted CI scheduler)
 
@@ -89,7 +94,9 @@ current vendor docs at wire time, never from this template.
 One shape per (routine identity × cadence × surface), and — because the security binding permits
 one identity per surface — one identity per emitting surface. The identity selects the catalog
 definition (posture leaf for a multi-posture class) and the `admission.classification.temporal`
-entry the signal's work class is stamped from; that entry's `run_link_prefix` is ratified for the
-surface at binding review. Cadence and surface choice come from the repo-local `routines` section.
+entry the signal's work class is stamped from; that entry's `run_link_prefix` and its
+`producer_identity` are ratified at binding review — the prefix pinning the (possibly shared)
+run-permalink namespace, the producer identity pinning this schedule within it. Cadence and
+surface choice come from the repo-local `routines` section.
 A reconciled existing bot reuses this table by recording its identity and its surface — wiring
 nothing new — so the same concern never carries two mechanisms.

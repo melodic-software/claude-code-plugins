@@ -149,25 +149,34 @@ function extractEnvelope(body, where) {
 }
 
 // Merge every `surfaces` map any top-level binding section records (triggers
-// today, routines when that section lands). An id recorded by more than one
-// section is AMBIGUOUS — resolution refuses it rather than silently picking a
-// winner whose scheduler class may differ.
+// and routines both do). An id recorded by more than one section is AMBIGUOUS
+// — resolution refuses it rather than silently picking a winner whose
+// scheduler class may differ. Alongside the raw entry we record WHICH
+// top-level section recorded each id: the section discriminates a
+// routine-emitting `routines` surface (a routine identity and a ratified
+// classification home apply) from a non-routines detector surface (e.g. a
+// poll-fallback detector under `triggers`, which emits no routine run and has
+// no classification home).
 function collectSurfaces(binding) {
   const surfaces = new Map();
+  const sections = new Map();
   const duplicates = new Set();
-  for (const section of Object.values(binding ?? {})) {
+  for (const [sectionName, section] of Object.entries(binding ?? {})) {
     if (typeof section !== "object" || section === null) continue;
     const map = section.surfaces;
     if (typeof map !== "object" || map === null) continue;
     for (const [id, entry] of Object.entries(map)) {
       if (surfaces.has(id)) duplicates.add(id);
-      else surfaces.set(id, entry);
+      else {
+        surfaces.set(id, entry);
+        sections.set(id, sectionName);
+      }
     }
   }
-  return { surfaces, duplicates };
+  return { surfaces, sections, duplicates };
 }
 
-function checkEnvelope(envelope, where, { surfaces, duplicates, securityBinding }, bindingSupplied, securityBindingSupplied) {
+function checkEnvelope(envelope, where, { surfaces, sections, duplicates, securityBinding }, bindingSupplied, securityBindingSupplied) {
   const version = envelope.schema_version;
   if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
     findings.push(
@@ -216,12 +225,15 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, securityBinding 
   const rawLink = envelope["signal.raw_link"];
   const sourceSurface = envelope["signal.source_surface"];
   const routine = envelope["signal.routine"];
+  const producerIdentity = envelope["signal.producer_identity"];
   let localScheduler = false;
   let surfaceEntry = null;
+  let sourceSection = null;
   if (signalClass === "temporal") {
-    if (typeof routine !== "string" || routine.length === 0) {
-      findings.push(`${where}: signal.routine missing (required for temporal signals)`);
-    } else if (!ROUTINE_IDENTITY.test(routine)) {
+    // signal.routine's grammar is checked whenever a value is present; whether
+    // a routine is REQUIRED is section-dependent (routine-emitting surfaces
+    // only) and decided once the source surface resolves below.
+    if (typeof routine === "string" && routine.length > 0 && !ROUTINE_IDENTITY.test(routine)) {
       findings.push(
         `${where}: signal.routine ${JSON.stringify(routine)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*`,
       );
@@ -249,70 +261,120 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, securityBinding 
       } else {
         surfaceEntry = entry;
         localScheduler = entry.scheduler_class === "local-scheduler";
+        sourceSection = sections.get(sourceSurface) ?? null;
       }
     }
-    // A temporal envelope carrying signal.work_class is conformant only when
-    // the SECURITY binding's admission.classification.temporal ratifies the
-    // exact (routine, source_surface) -> class association — the same
-    // rationale as the agent-internal provenance rule: a self-stamped or
-    // wrongly associated class would bypass admission, so the class must
-    // trace to the protected security binding, never to the agent-writable
-    // autonomy binding or the agent-writable scheduled workflow that stamped
-    // the identity. The routine and surface fields are themselves
-    // agent-controlled claims, so consistency among them proves nothing on
-    // its own: the ratified entry's run_link_prefix ties the claim to
-    // platform-issued run identity — the platform assigns each schedule its
-    // own run-permalink namespace, and an agent-writable schedule cannot
-    // mint run permalinks under another workflow's platform-assigned
-    // namespace, so a raw link outside the ratified prefix means the claimed
-    // schedule is not the platform-attested producer. An envelope WITHOUT
-    // signal.work_class stays legal: unclassified enqueues fail-closed
-    // human-gated downstream. The association check runs only once the
-    // source surface RESOLVED — an unresolved surface already carries its
-    // own finding above.
+
     const stampedClass = typeof workClass === "string" && WORK_CLASSES.has(workClass);
-    if (stampedClass && !securityBindingSupplied) {
+
+    if (surfaceEntry !== null && sourceSection !== "routines") {
+      // The source resolves to a NON-routines scheduling surface — a
+      // poll-fallback detector recorded under the autonomy binding's triggers
+      // section, not a routine emitter. Such a surface cannot emit routine
+      // runs, so a routine identity here is a category error; and it has no
+      // admission.classification.temporal home, so a stamped class can never
+      // be attested and fails closed. An envelope WITHOUT a class stays legal
+      // — an unclassified enqueue is human-gated downstream.
+      if (routine !== undefined) {
+        findings.push(
+          `${where}: signal.routine ${JSON.stringify(routine)} is stamped on a signal whose source_surface ${JSON.stringify(sourceSurface)} is a ${JSON.stringify(sourceSection)}-section (detector) surface — a detector surface cannot emit routine runs, so a routine identity here has no ratified classification home and fails closed`,
+        );
+      }
+      if (stampedClass) {
+        findings.push(
+          `${where}: signal.work_class ${JSON.stringify(workClass)} is stamped on a detector-fired temporal signal whose source_surface ${JSON.stringify(sourceSurface)} is a ${JSON.stringify(sourceSection)}-section (detector) surface — a detector surface has no admission.classification.temporal home, so the class cannot be attested and fails closed; omit the class (an unclassified enqueue is human-gated downstream)`,
+        );
+      }
+    } else if (surfaceEntry !== null) {
+      // Routine-emitting (routines-section) surface: a routine identity and a
+      // producer identity are required, and a stamped class must trace to the
+      // SECURITY binding's admission.classification.temporal entry that
+      // ratifies the exact (routine, source_surface) association — the same
+      // rationale as the agent-internal provenance rule: a self-stamped or
+      // wrongly associated class bypasses admission, so the class rides the
+      // protected binding, never the agent-writable autonomy binding or the
+      // agent-writable scheduled workflow that stamped the identity. The
+      // routine, surface, and producer fields are agent-controlled claims, so
+      // consistency among them proves nothing on its own. Two ratified
+      // anchors pin the producing schedule together, because a run-permalink
+      // namespace may be repo-scoped and SHARED across every schedule: the
+      // run_link_prefix pins the platform-and-repository namespace a raw link
+      // must fall under, while the producer_identity — the workflow/unit
+      // reference the platform injects into the authenticated run context —
+      // pins WHICH schedule within that shared namespace produced the run. An
+      // envelope WITHOUT signal.work_class stays legal: an unclassified
+      // enqueue is human-gated downstream. The association check runs only
+      // once the source surface RESOLVED as a routines surface — an
+      // unresolved surface already carries its own finding above.
+      if (typeof routine !== "string" || routine.length === 0) {
+        findings.push(`${where}: signal.routine missing (required for temporal signals from a routines-section surface)`);
+      }
+      if (typeof producerIdentity !== "string" || producerIdentity.length === 0) {
+        findings.push(
+          `${where}: signal.producer_identity missing (required for routine-fired temporal signals) — the adapter must resolve it from the platform's authenticated run context, like signal.source_surface and signal.raw_link, so admission can pin which schedule within the ratified namespace produced the run`,
+        );
+      }
+      if (stampedClass && !securityBindingSupplied) {
+        findings.push(
+          `${where}: signal.work_class ${JSON.stringify(workClass)} cannot be verified without --security-binding — the class association lives in the protected security binding, and an unverifiable class fails closed rather than certifying`,
+        );
+      }
+      if (stampedClass && securityBindingSupplied && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+        const temporalHome = securityBinding?.admission?.classification?.temporal;
+        const classificationEntry =
+          typeof temporalHome === "object" && temporalHome !== null ? temporalHome[routine] : undefined;
+        if (typeof classificationEntry !== "object" || classificationEntry === null) {
+          findings.push(
+            `${where}: signal.work_class ${JSON.stringify(workClass)} has no admission.classification.temporal object entry for routine ${JSON.stringify(routine)} in the security binding — a class the protected binding never ratified is self-stamped and bypasses admission`,
+          );
+        } else {
+          if (classificationEntry.source_surface !== sourceSurface) {
+            findings.push(
+              `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a wrongly associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
+            );
+          }
+          if (classificationEntry.class !== workClass) {
+            findings.push(
+              `${where}: signal.work_class ${JSON.stringify(workClass)} does not match the class the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.class)}) — the work class rides the protected binding, never the envelope's own stamp`,
+            );
+          }
+          const runLinkPrefix = classificationEntry.run_link_prefix;
+          if (typeof runLinkPrefix !== "string" || runLinkPrefix.length === 0) {
+            findings.push(
+              `${where}: the security binding ratifies no run_link_prefix for routine ${JSON.stringify(routine)} — without the ratified attestation anchor the run-permalink namespace cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
+            );
+          } else if (typeof rawLink === "string" && rawLink.length > 0 && !underRunLinkPrefix(rawLink, runLinkPrefix)) {
+            findings.push(
+              `${where}: signal.raw_link ${JSON.stringify(rawLink)} is outside the run-link namespace the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(runLinkPrefix)}) — the ratified run_link_prefix pins the platform-and-repository run-permalink namespace (which may be shared across schedules), and an agent-writable schedule cannot mint run permalinks outside it: a raw link outside the ratified prefix is not a platform-attested run in that namespace`,
+            );
+          }
+          const ratifiedProducer = classificationEntry.producer_identity;
+          if (typeof ratifiedProducer !== "string" || ratifiedProducer.length === 0) {
+            findings.push(
+              `${where}: the security binding ratifies no producer_identity for routine ${JSON.stringify(routine)} — without the ratified producer the schedule within the run-permalink namespace cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
+            );
+          } else if (typeof producerIdentity === "string" && producerIdentity.length > 0 && producerIdentity !== ratifiedProducer) {
+            findings.push(
+              `${where}: signal.producer_identity ${JSON.stringify(producerIdentity)} does not match the producer the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(ratifiedProducer)}) — the producer identity the platform injects into the authenticated run context pins which schedule within the shared namespace ran; a mismatch means the claimed producer is not the schedule the binding ratifies for this routine identity`,
+            );
+          }
+        }
+      }
+    }
+  } else {
+    // signal.routine and signal.producer_identity are temporal-only identity
+    // claims; stamped on any other class they fail closed rather than riding
+    // past the protected admission mapping.
+    if (routine !== undefined) {
       findings.push(
-        `${where}: signal.work_class ${JSON.stringify(workClass)} cannot be verified without --security-binding — the class association lives in the protected security binding, and an unverifiable class fails closed rather than certifying`,
+        `${where}: signal.routine is temporal-only — a routine identity stamped on a ${JSON.stringify(signalClass)} signal smuggles a routine run past the protected temporal admission mapping (a routine run always enters the queue as a temporal-class signal through its ratified scheduling surface; see routines.md)`,
       );
     }
-    if (stampedClass && securityBindingSupplied && surfaceEntry !== null && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
-      const temporalHome = securityBinding?.admission?.classification?.temporal;
-      const classificationEntry =
-        typeof temporalHome === "object" && temporalHome !== null ? temporalHome[routine] : undefined;
-      if (typeof classificationEntry !== "object" || classificationEntry === null) {
-        findings.push(
-          `${where}: signal.work_class ${JSON.stringify(workClass)} has no admission.classification.temporal object entry for routine ${JSON.stringify(routine)} in the security binding — a class the protected binding never ratified is self-stamped and bypasses admission`,
-        );
-      } else {
-        if (classificationEntry.source_surface !== sourceSurface) {
-          findings.push(
-            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a wrongly associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
-          );
-        }
-        if (classificationEntry.class !== workClass) {
-          findings.push(
-            `${where}: signal.work_class ${JSON.stringify(workClass)} does not match the class the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.class)}) — the work class rides the protected binding, never the envelope's own stamp`,
-          );
-        }
-        const runLinkPrefix = classificationEntry.run_link_prefix;
-        if (typeof runLinkPrefix !== "string" || runLinkPrefix.length === 0) {
-          findings.push(
-            `${where}: the security binding ratifies no run_link_prefix for routine ${JSON.stringify(routine)} — without the ratified attestation anchor the producing schedule cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
-          );
-        } else if (typeof rawLink === "string" && rawLink.length > 0 && !underRunLinkPrefix(rawLink, runLinkPrefix)) {
-          findings.push(
-            `${where}: signal.raw_link ${JSON.stringify(rawLink)} is outside the run-link namespace the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(runLinkPrefix)}) — the platform assigns each schedule its own run-permalink namespace, and an agent-writable schedule cannot mint run permalinks under another workflow's platform-assigned namespace: a raw link outside the ratified prefix means the claimed schedule is not the platform-attested producer`,
-          );
-        }
-      }
+    if (producerIdentity !== undefined) {
+      findings.push(
+        `${where}: signal.producer_identity is temporal-only — a producer identity stamped on a ${JSON.stringify(signalClass)} signal has no ratified run-permalink namespace or schedule to pin and smuggles a producer claim past the protected temporal admission mapping`,
+      );
     }
-  } else if (routine !== undefined) {
-    // signal.routine is a temporal-only identity; stamped on any other class
-    // it fails closed rather than riding past the protected admission mapping.
-    findings.push(
-      `${where}: signal.routine is temporal-only — a routine identity stamped on a ${JSON.stringify(signalClass)} signal smuggles a routine run past the protected temporal admission mapping (a routine run always enters the queue as a temporal-class signal through its ratified scheduling surface; see routines.md)`,
-    );
   }
   if (typeof rawLink === "string" && rawLink.length > 0) {
     if (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink)) {
@@ -354,7 +416,7 @@ if (targets.length === 0) {
   process.exit(2);
 }
 
-let resolver = { surfaces: new Map(), duplicates: new Set(), securityBinding: null };
+let resolver = { surfaces: new Map(), sections: new Map(), duplicates: new Set(), securityBinding: null };
 if (bindingPath !== null) {
   try {
     resolver = { ...resolver, ...collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8"))) };

@@ -57,11 +57,6 @@ const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
 // the same non-durable set the signal-envelope checker rejects for raw links
 // (a data:/javascript:/http: prefix could never match a durable permalink).
 const NON_DURABLE_PREFIX_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
-// Segment-boundary containment: `longer` sits under `shorter` only when it
-// equals it or continues with "/" immediately after — plain startsWith would
-// treat ".../runs-evil" as living inside the ".../runs" namespace.
-const underSegmentPrefix = (longer, shorter) =>
-  longer === shorter || longer.startsWith(shorter.endsWith("/") ? shorter : `${shorter}/`);
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
 const DISPOSITIONS = ["autonomous-eligible", "human-gated", "audited-rejection"];
@@ -652,18 +647,22 @@ function validateAdmissionStructure(admission) {
 // unprotected selector — a bare class here would let a swapped selector
 // resolve high-risk scheduled work through a benign class. Only the
 // identity-to-surface association ratified on this agent-unwritable surface
-// lets admission stamp a class; anything less fails closed. The entry's
-// run_link_prefix is the ratified attestation anchor: the platform assigns
-// each schedule its own run-permalink namespace, and an agent-writable
-// schedule cannot mint run permalinks under another workflow's
-// platform-assigned namespace — so the prefix pins which schedule produced a
-// signal, and prefixes must be unique at path-segment granularity
-// (overlapping namespaces make that attestation ambiguous). The other
-// classification homes keep their bare-enum entries: their markers arrive on
-// attested event surfaces, not through an agent-writable selector.
+// lets admission stamp a class; anything less fails closed. Two anchors pin
+// the producing schedule together, because a run-permalink namespace may be
+// repo-scoped and SHARED across every schedule on the platform: the
+// run_link_prefix pins the platform-and-repository namespace (a relative or
+// non-durable prefix could never match a platform-assigned permalink), while
+// the producer_identity — the workflow/unit reference the platform injects
+// into the authenticated run context — pins WHICH schedule within that shared
+// namespace produced the run. Prefixes may therefore overlap or coincide
+// across entries (one shared namespace is the norm on repo-scoped platforms);
+// what must stay unique is the producer_identity, since two routine
+// identities sharing one producer cannot be distinguished at admission. The
+// other classification homes keep their bare-enum entries: their markers
+// arrive on attested event surfaces, not through an agent-writable selector.
 function validateTemporalClassificationHome(ruleHome, where) {
   const identityBySurface = new Map();
-  const identityByPrefix = new Map();
+  const identityByProducer = new Map();
   for (const [identity, entry] of Object.entries(ruleHome)) {
     const entryWhere = `${where}.${JSON.stringify(identity)}`;
     if (!ROUTINE_IDENTITY.test(identity)) {
@@ -673,11 +672,11 @@ function validateTemporalClassificationHome(ruleHome, where) {
     }
     if (!isPlainObject(entry)) {
       findings.push(
-        `${entryWhere}: ${JSON.stringify(entry)} is a bare work class — a temporal classification with no bound emitting surface is an unprotected selector: the scheduled workflow (agent-writable in adopting repos) would pick the class; bind the object form {class, source_surface, run_link_prefix}`,
+        `${entryWhere}: ${JSON.stringify(entry)} is a bare work class — a temporal classification with no bound emitting surface is an unprotected selector: the scheduled workflow (agent-writable in adopting repos) would pick the class; bind the object form {class, source_surface, run_link_prefix, producer_identity}`,
       );
       continue;
     }
-    checkAllowedKeys(entry, ["class", "source_surface", "run_link_prefix"], entryWhere);
+    checkAllowedKeys(entry, ["class", "source_surface", "run_link_prefix", "producer_identity"], entryWhere);
     if (Object.hasOwn(entry, "class")) {
       checkEnum(entry.class, WORK_CLASSES, `${entryWhere}.class`);
     } else {
@@ -694,10 +693,21 @@ function validateTemporalClassificationHome(ruleHome, where) {
     } else {
       identityBySurface.set(entry.source_surface, identity);
     }
+    if (!isNonEmptyString(entry.producer_identity)) {
+      findings.push(
+        `${entryWhere}.producer_identity: missing or empty — with repo-scoped run-permalink namespaces shared across schedules, only the ratified producer identity (the workflow/unit reference the platform injects into the authenticated run context) pins WHICH schedule may emit this identity; without it the class association cannot be attested, fail-closed`,
+      );
+    } else if (identityByProducer.has(entry.producer_identity)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityByProducer.get(entry.producer_identity))} and ${JSON.stringify(identity)} both declare producer_identity ${JSON.stringify(entry.producer_identity)} — two routine identities sharing one producer cannot be distinguished at admission, so the producer that pins the schedule within the shared namespace must be unique per entry`,
+      );
+    } else {
+      identityByProducer.set(entry.producer_identity, identity);
+    }
     const prefix = entry.run_link_prefix;
     if (!isNonEmptyString(prefix)) {
       findings.push(
-        `${entryWhere}.run_link_prefix: missing or empty — the ratified attestation anchor is required: an agent-writable schedule cannot mint run permalinks under another workflow's platform-assigned namespace, so only the ratified prefix pins which schedule produced a signal; without it the class association cannot be attested, fail-closed`,
+        `${entryWhere}.run_link_prefix: missing or empty — the ratified attestation anchor is required: it pins the platform-and-repository run-permalink namespace a raw link must fall under, and without it the producer identity cannot be located within a ratified namespace, so the class association cannot be attested, fail-closed`,
       );
       continue;
     }
@@ -715,18 +725,9 @@ function validateTemporalClassificationHome(ruleHome, where) {
       NON_DURABLE_PREFIX_SCHEMES.has(prefixUrl.protocol.slice(0, -1))
     ) {
       findings.push(
-        `${entryWhere}.run_link_prefix: ${JSON.stringify(prefix)} is not an attestable run-permalink namespace — an absolute https URL prefix (ci-cron) or a durable file:/artifact-scheme URI prefix (local-scheduler) is required: a relative or non-durable prefix can never match a platform-assigned run permalink, so it could never pin the producing schedule`,
+        `${entryWhere}.run_link_prefix: ${JSON.stringify(prefix)} is not an attestable run-permalink namespace — an absolute https URL prefix (ci-cron) or a durable file:/artifact-scheme URI prefix (local-scheduler) is required: a relative or non-durable prefix can never match a platform-assigned run permalink, so it could never anchor the ratified namespace`,
       );
-      continue;
     }
-    for (const [otherPrefix, otherIdentity] of identityByPrefix) {
-      if (underSegmentPrefix(prefix, otherPrefix) || underSegmentPrefix(otherPrefix, prefix)) {
-        findings.push(
-          `${where}: run_link_prefix values of routine identities ${JSON.stringify(otherIdentity)} (${JSON.stringify(otherPrefix)}) and ${JSON.stringify(identity)} (${JSON.stringify(prefix)}) overlap on a segment boundary — overlapping namespaces make attestation ambiguous: a run permalink under both prefixes cannot pin which ratified schedule produced it`,
-        );
-      }
-    }
-    identityByPrefix.set(prefix, identity);
   }
 }
 

@@ -59,12 +59,14 @@
         "doc-freshness-sweep/advisory": {
           "class": "C1",
           "source_surface": "ci-cron-doc-freshness-advisory",
-          "run_link_prefix": "https://ci.example.com/actions/workflows"
+          "run_link_prefix": "https://ci.example.com/repo/actions/runs",
+          "producer_identity": "ci/workflows/doc-freshness-advisory.yml"
         },
         "ci-health-review": {
           "class": "C1",
           "source_surface": "ci-cron-health-review",
-          "run_link_prefix": "https://ci.example.com/actions/workflows/health-review"
+          "run_link_prefix": "https://ci.example.com/repo/actions/runs",
+          "producer_identity": "ci/workflows/health-review.yml"
         }
       }
     },
