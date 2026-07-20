@@ -30,6 +30,30 @@ wit_iso_to_epoch() {
     || return 1
 }
 
+# wit_select_active_lease <lease-comment-rows-json> — from a JSON array of lease
+# comment rows ({id, body, ...}), select the ACTIVE lease = the newest (highest
+# id) NON-superseded lease, and set WIT_ACTIVE_LEASE_ID / WIT_ACTIVE_LEASE_JSON
+# (both empty when no active lease exists). Not blind `last`: a claim that backs
+# off supersedes its own newer comment, so the highest-id comment can be a
+# superseded back-off while an earlier comment is the still-active lease.
+WIT_ACTIVE_LEASE_ID=""
+WIT_ACTIVE_LEASE_JSON=""
+wit_select_active_lease() {
+  local leases="$1" row cand
+  WIT_ACTIVE_LEASE_ID=""
+  WIT_ACTIVE_LEASE_JSON=""
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
+    [[ -n "$cand" ]] || continue
+    [[ "$(jq -r '.superseded_at // empty' <<<"$cand")" == "" ]] || continue
+    WIT_ACTIVE_LEASE_ID="$(jq -r '.id' <<<"$row")"
+    WIT_ACTIVE_LEASE_JSON="$cand"
+    break
+  done < <(jq -c 'sort_by(.id) | reverse | .[]' <<<"$leases")
+  export WIT_ACTIVE_LEASE_ID WIT_ACTIVE_LEASE_JSON
+}
+
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.
 wit_lease_is_live() {
   local lease="$1" now_epoch="$2" renewed ttl renewed_epoch

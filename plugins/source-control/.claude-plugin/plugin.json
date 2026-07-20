@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.9.3",
-  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention and babysit-prs config, or apply — interview the repo and write the tracked convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.",
+  "version": "0.14.0",
+  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -34,6 +34,11 @@
       "multiple": true,
       "title": "Babysit extra self identities",
       "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs uses for discovery scope, readiness-gate classification rows, and the merge-gate self-exemption. Absent: your gh login alone."
+    },
+    "babysit_intended_write_identity": {
+      "type": "string",
+      "title": "Babysit intended write identity",
+      "description": "The single GitHub login babysit-prs's own writes are intended to land under — typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant."
     },
     "babysit_default_tier": {
       "type": "string",
@@ -77,7 +82,7 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit approval-downgrade reviewer logins",
-      "description": "AI reviewer logins whose APPROVED verdict is downgraded when the review body still carries blocking language. Absent: the downgrade heuristic stays dormant."
+      "description": "AI reviewer logins whose approval is surfaced as a `material` finding instead of `ignored` in the one case the structural approval-downgrade reaches: a review body carrying blocking-looking prose that still parses as an approval verdict (no CRITICAL/IMPORTANT or required-fix marker). Every bot's such approval is downgraded to non-blocking regardless; naming a login opts its own into the more-conservative `material` bucket rather than being ignored. Does not affect a review already in the APPROVED state or a plain clean approval with no blocking-looking prose — both are ignored regardless. Absent: such approvals are ignored for every bot."
     },
     "babysit_skip_downgrade_logins": {
       "type": "string",

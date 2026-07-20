@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "dotnet test failed with 'Bootstrap logger is frozen' error",
-      "expected_output": "Routes to context/investigate.md. Immediately identifies the MonolithApi.Tests collection fixture issue — test class is using IClassFixture<WebApplicationFactory<Program>> instead of [Collection(MonolithApiTestFixture.CollectionName)]. Explains the process-global singleton root cause. Does NOT suggest retrying.",
+      "prompt": "A test run failed with a 'logger is frozen / already initialized' error",
+      "expected_output": "Routes to context/investigate.md. Immediately recognizes the symptom as a process-global singleton / shared-state collision rather than a transient error. Explains the shared-state root cause, then inspects the project's fixture layout or asks for its documented fixture convention before committing to a specific mechanism (e.g. asserting that multiple fixture instances are needed when a shared-collection fixture is required, or vice versa). Does NOT suggest retrying.",
       "files": []
     },
     {

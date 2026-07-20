@@ -178,6 +178,64 @@ class ForeignActivityTests(unittest.TestCase):
         self.assertFalse(result["detected"])
 
 
+class AttributionDriftTests(unittest.TestCase):
+    """A recorded write landing under a self-login other than the intended one."""
+
+    def _config(self, intended: str = "bot") -> delta.ClassifyConfig:
+        return delta.ClassifyConfig(
+            allowed_owners=frozenset({"owner"}),
+            self_logins=frozenset({"bot", "personal"}),
+            intended_write_identity=intended,
+        )
+
+    def _ledger_prev(self) -> dict[str, object]:
+        return {"review_trigger": {"request_history": {HEAD: {"comment_id": "100"}}}}
+
+    def _recorded_write(self, author: str) -> dict[str, object]:
+        return make_pr(comments=[{"author": {"login": author},
+                                  "body": "please review", "databaseId": 100}])
+
+    def test_dormant_without_intended_identity(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config(intended=""))
+        self.assertFalse(result["detected"])
+
+    def test_detects_recorded_write_landed_under_other_self_login(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config())
+        self.assertTrue(result["detected"])
+        self.assertEqual(result["evidence"][0]["landed_author"], "personal")
+        self.assertEqual(result["evidence"][0]["intended_author"], "bot")
+
+    def test_no_drift_when_landed_under_intended_identity(self) -> None:
+        pr = self._recorded_write("bot")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config())
+        self.assertFalse(result["detected"])
+
+    def test_unledgered_write_is_not_drift(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, None, self._config())
+        self.assertFalse(result["detected"])
+
+    def test_drift_surfaces_as_material_finding_via_classify(self) -> None:
+        # Acceptance path: the finding must ride the cycle-status material
+        # channel, not merely the raw detector return -- and with no gh-bot.sh
+        # (token wrapper) in the loop at all.
+        pr = self._recorded_write("personal")
+        prev = make_prev(review_trigger={"request_history":
+                                         {HEAD: {"comment_id": "100"}}})
+        result = delta.classify_pr(pr, prev, None, OBS, config=self._config())
+        self.assertTrue(result["attribution_drift"]["detected"])
+        self.assertTrue(
+            any("attribution drift" in finding
+                for finding in result["material_findings"]),
+            result["material_findings"],
+        )
+
+
 class SuppressibleDeltaArmTests(unittest.TestCase):
     """Each suppressible arm: reason present only when NOT direct-gate-ready."""
 

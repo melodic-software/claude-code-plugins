@@ -100,6 +100,31 @@ class ResolveGuardFailsClosed(unittest.TestCase):
         self.assertIn("expected-comment-count", payload.get("error", ""))
         self.assertIn("expected-last-updated", payload.get("error", ""))
 
+    def test_autonomous_bulk_resolve_without_thread_id_is_refused(self):
+        # The bug this guard closes: an unattended worker's own push marks a
+        # thread isOutdated, and a bulk (no --thread-id) autonomous resolve would
+        # clear it with no proof the finding was addressed. Refused before any
+        # network fetch -- the fix-closed contract the docs already describe.
+        code, payload = run(
+            RESOLVE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autonomous", "--resolve",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("thread-id", payload.get("error", ""))
+        self.assertIn("bulk-resolve", payload.get("error", ""))
+
+    def test_autonomous_allow_unpinned_thread_is_refused(self):
+        # There is no unpinned autonomous resolve: --allow-unpinned-thread is an
+        # interactive-only override and must not open a bypass around the pins in
+        # unattended mode, even with a single --thread-id.
+        code, payload = run(
+            RESOLVE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autonomous", "--resolve", "--thread-id", "PRRT_abc",
+            "--allow-unpinned-thread",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("allow-unpinned-thread", payload.get("error", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

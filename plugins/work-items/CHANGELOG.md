@@ -3,6 +3,227 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+Close the work-items entry-invariant gap where a missing provider binding (`.work-item-tracker.json`)
+degraded silently — role labels fell to defaults with no signal, and seam coordination verbs surfaced
+a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remote / no-checkout mode
+(shallow-clone or `gh api`-backed codebase reads) stays deferred with a recorded trigger.
+
+### Added
+
+- **Binding presence is a third loud entry invariant (`#449`).** "Shared tracker context" now checks
+  the provider binding alongside `jq` and the seam script, but discharges it distinctly: the first two
+  have no recovery path and stop; a missing binding is loud and routable, never a silent default and
+  never a raw `exit 3`. Seam **coordination** verbs (`create-item`, `get-item`, `claim`, `renew-lease`,
+  `reclaim`, `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run unbound, so
+  before the first one the skill surfaces a message distinguishing **setup was never run** (→
+  `/work-items:setup`) from a **deliberate gh-native
+  operating mode** (proceed for provider-mechanic operations only, accepting no race-safe claim/lease).
+  Provider-mechanic operations (list/search/close, label/comment edits) run as raw `gh`, never read
+  the binding, and proceed unbound. Caveat recorded: the gh-native path presumes a `gh`-backed
+  provider — a `local-markdown` target with no binding cannot proceed and stays a hard stop.
+  `/work-items:work` gains an explicit binding preflight **before Step 0** — its `reclaim` is the
+  lane's first coordination verb, so the check is discharged before it runs rather than surfacing as a
+  raw mid-reclaim `exit 3`.
+
+### Changed
+
+- **Silent role-label default becomes a loud warning (`#449`).** When a canonical role resolves to its
+  documented default because `.work-item-tracker.json` or its `config.role_labels` entry is absent, the
+  skills now warn loudly instead of substituting silently — a repo that remapped `config.role_labels`
+  was previously queried under the wrong strings with no signal. Applied at every action-entry
+  resolution site that inlines it (`work`, `triage`, `track` — `SKILL.md` summary plus
+  `due`/`recheck`/`audit` — and `decompose`) and in the shared invariants (`reference/tracker-seam.md`,
+  `reference/label-taxonomy.md`). A present-but-malformed, empty, or non-string configured value
+  remains a hard stop, unchanged.
+
+### Deferred
+
+- **A first-class gh-native no-lease claim path for coordination-*dependent* lanes (`/work-items:work`)
+  is parked, not built (`#449`).** Making those lanes runnable unbound (assignee-only claim, no lease,
+  races are the operator's problem) is claim-safety contract surface — deferred with the same trigger
+  as the full remote-repo mode: someone needs unattended coordination-dependent work at scale.
+
+## [0.14.4]
+
+### Fixed
+
+- **`/work-items:work` Step 5 guards against loop-prompts that restate dispatch without the claim (`#581`).**
+  Step 5's sequence already put the seam `claim` (assignee + lease) first, but a hand-authored loop-prompt
+  standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree"
+  reads as a complete execution contract on its own and never mentions claiming — so an orchestrator
+  following that loop-prompt literally did the worktree isolation and skipped the seam's race-safe claim
+  entirely (observed twice on live loop-lane sessions, leaving actively-worked issues unassigned with no
+  lease). A prominent guard note at the head of Step 5 now states the claim-before-dispatch invariant the
+  skill enforces regardless of loop-prompt wording: worktree isolation is not the collision signal between
+  concurrent lanes, the seam claim is, and dispatching a subagent before the claim is held is a defect even
+  when the loop-prompt never named the claim step. Documentation/guidance only — no skill-code or seam
+  behavior change; eval 1 gains a matching expectation.
+
+## [0.14.3]
+
+### Fixed
+
+- **GitHub adapter `renew-lease` no longer revives an expired lease (`#370`).** `renew-lease` confirmed
+  the handle still matched the active (newest non-superseded) lease but never checked liveness, so a
+  crashed or delayed holder retaining its handle past `renewed_at + ttl_hours` — with no newer lease
+  comment — could PATCH a fresh `renewed_at` and reclaim an item another worker had reasonably treated
+  as expired, defeating TTL-based handoff. It now checks `wit_lease_is_live` immediately before
+  patching and returns a conflict (exit `7`) for an expired lease instead of reviving it.
+- **GitHub adapter `reclaim` unassigns only the expired lease's holder (`#370`).** On the expired-lease,
+  no-activity path `reclaim` read all assignees and removed every one, silently unassigning a user
+  added manually after the old lease or a concurrent claimer added before the snapshot — in the
+  concurrent case leaving that claimer's live lease in place while the frontier treated the item as
+  unassigned (two workers on one item). Removal is now scoped to the lease's `holder`, and ownership is
+  revalidated immediately before mutating (the lease must still be the active, expired lease) so a
+  concurrent claim during the activity-check window aborts the reclaim as a no-op rather than stripping
+  the new owner. The shared active-lease selection is extracted to `wit_select_active_lease`
+  (`lib/lease.sh`), reused by both verbs.
+
+## [0.14.2]
+
+### Fixed
+
+- **Local-markdown expired lease returns the item to the frontier (`#367`).** For the `local-markdown`
+  binding an expired lease still left `assignees` populated, and since `reclaim` is unsupported for
+  this offline adapter (no coordination surface to run an activity check over) and `list-frontier`
+  always excludes assigned items, any abandoned local claim was permanently absent from selection after
+  its TTL expired. `list-items` now projects the effective assignee of an expired-lease item as empty,
+  so the core frontier derivation returns it to the frontier — without inventing a new adapter
+  capability. The projection is scoped to list/frontier derivation; `get-item` still reports the stored
+  assignee verbatim (parity with the GitHub adapter, whose assignee persists until reclaim).
+- **Local-markdown claim no longer reports success on a failed assignee write (`#367`).** `claim`
+  appended the inline lease marker and then set `assignees` with no return-code check, so a failed
+  assignee write (store full or unwritable) was silently ignored and a successful claim JSON was still
+  emitted — leaving a live lease marker with an empty `assignees`, which `list-frontier` presents as
+  available while later claims conflict on the live lease until it expires. The two writes are now a
+  single consistent operation: a failed assignee write rolls the just-appended marker back and fails
+  the claim (exit `1`), emitting no success record for a half-applied write.
+
+## [0.14.1]
+
+### Fixed
+
+- **Open-linked-PR filter no longer wrongly drops issues from fenced examples (`#654`).** The GitHub
+  adapter's "Open linked PRs" mechanic (`#463`) matched a closing-keyword `jq` regex over the raw
+  PR body, so a PR body carrying a fenced `Closes #<N>` example spuriously reported issue `#<N>` as
+  having an open closing PR and dropped the still-pickable issue from the `/work-items:work`
+  frontier. The mechanic now reads GitHub's own computed close-linkage via the GraphQL
+  `Issue.closedByPullRequestsReferences` connection (open-state nodes only), which excludes fenced
+  code blocks and HTML comments, needs no word/number-boundary guards, and honors the default-branch
+  requirement — retiring the raw-body regex and its partial `gsub` fence-stripper (which recognized
+  only exactly-three backtick/tilde fences). Behavior change: an issue whose only `Closes #<N>` is on
+  a non-default-base PR now stays pickable, matching GitHub's real auto-close semantics.
+
+## [0.14.0]
+
+Absorb bullets 1–4 of the v4 loop-prompt routing rules into `/work-items:triage` so the skill owns
+them instead of a session prompt (`#478`). Bullet 5 stays deferred to `#459` (pointer only); bullet 6
+(`wayfind:*` label semantics) is cross-repo label policy noted on `github-iac#176` and untouched here.
+
+### Added
+
+- **Decision-defaulted ready route (`#478`).** "Triage states" now documents three briefed exits —
+  delegable, decision-defaulted, human-gated. A single-fork item whose brief carries a well-grounded
+  RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative routes to the
+  autonomous-eligible role with `status:ready` plus a `Decision defaulted: X — veto before merge`
+  comment, instead of falling to human-gated. "Recommend category + state" carries the routing test
+  (reversible/maintainer-vetoable → defaulted; genuinely open → human-gated) and "Apply outcome" adds
+  the matching row.
+- **Cluster-aware routing (`#478`).** "Gather context" adds a cluster-detection cross-reference: when
+  several open items share one underlying decision, one representative becomes the decision carrier
+  (human-gated, member numbers in its body) and each member links to it via the native `blocked-by`
+  edge with a `blocked by #<carrier> decision` comment — no per-member human-gated label. One human
+  touch per decision. No new labels.
+- **Multi-surface T1 stub (`#478`).** "Apply outcome" adds a lightweight briefing variant: a trivial
+  (T1) fix spanning 3+ surfaces gets a one-line `sites + fix pattern` comment in place of a full brief
+  and still takes the autonomous-eligible role. The brief durability rule holds — name sites by
+  interface / symbol / domain concept, not file paths or line numbers (recommended default:
+  symbol-level naming).
+- **Severity sub-sort (`#478`).** The priority-label step now records the finding's self-labeled
+  severity in the triage comment (`priority set to pX by <rule>; reporter severity: <sev>`) when a
+  directive or category rule sets the `priority:` label above it, so implementers can sub-sort within
+  a priority band. No new labels.
+
+### Changed
+
+- **Human-gated narrowed (`#478`).** The human-gated briefed exit is reserved for a genuinely open
+  decision (open design space, product intent, cross-repo policy) or a capability blocker (external
+  access, manual QA), distinguishing it from the new decision-defaulted route.
+
+## [0.13.1]
+
+### Fixed
+
+- **`status: ready` issues with an open linked PR are no longer pickable (`#463`).** `/work-items:work`
+  selection now excludes a frontier candidate (tiers 2–3) that already has an open PR targeting it for
+  closure, closing the re-pick risk where an issue kept `status: ready` for its entire open-PR window and
+  a picker had to hand-cross-check `gh pr list` to avoid starting a duplicate branch. The check routes
+  through a new GitHub adapter *Open linked PRs* mechanic (closing-keyword linkage — the same `Closes #N`
+  signal `pr-issue-linkage` enforces — is authoritative; an intentional `Refs #N` opt-out does not
+  exclude), and fails open when the bound provider exposes no PR host (offline `local-markdown`). This
+  retires the interim in-flight heuristic that lived in the execute-step staleness pre-check. The durable
+  seam-level in-review state is deferred to the tracker-seam layer (`#416`/`#498`), not built here.
+
+## [0.13.0]
+
+Absorb the v4 loop-prompt execution rules into `/work-items:work` so the execute step owns them
+instead of a session prompt, delegating anything a sibling skill already owns rather than restating it.
+
+### Added
+
+- **Orchestrator-dispatch is the documented default for autonomous execution (`#451`).** The execute
+  step's generic "follow the project's development workflow" deference now states the default posture:
+  pick and claim, then dispatch a scope-fenced implementation subagent that edits source in its own
+  out-of-tree worktree — the orchestrator never edits source. Dispatch *mechanics* are chained to
+  `/implementation:implement-dispatch` (not re-described); worktree lifecycle stays with
+  `/source-control:worktree`; the interactive all-inline path remains `/implementation:implement`.
+  The autonomous dispatch handoff (branch/worktree provisioning before the dispatch preflight and
+  orchestrator-owned PR creation) is not yet guaranteed end-to-end — deferred to `#572`.
+- **The dispatch brief carries the PR contract forward (`#462`).** The brief relays what
+  `/source-control:pull-request` will require at PR time — that skill still owns the PR body shape,
+  `Closes #N` injection, and merge style — enumerating the version-bump, CHANGELOG, attribution-trailer
+  plus session link, and `## Related` obligations so a worker knows them up front, not via red CI.
+- **Post-green review pass with work-item linkage.** After CI green, one review pass fixes branch-owned
+  findings via the owning subagent; the fetch → validate → classify → reply → resolve loop stays owned
+  by `/source-control:pull-request`. A VALID-but-deferred finding now requires a follow-up issue filed
+  via `/work-items:track add`, cited in the reply and in `## Related`, before it can be resolved. The PR
+  then hands off to `/source-control:babysit-prs`.
+- **High-blast-radius pre-PR diff gate.** The orchestrator does a full-diff read before opening a PR
+  when the diff touches skill frontmatter descriptions or trigger keywords, cross-plugin contracts, or
+  hooks — complementing the worker scope-fence with an orchestrator read of what actually changed.
+- **Concurrency and batch caps as `userConfig`.** New `work_dispatch_concurrency_cap` (default mirrors
+  `/implementation:implement-dispatch`'s 3–5 wave cap) and `work_cycle_batch_cap` scalars; the execute
+  step resolves them from config with no hardcoded literal. Enforcement is not yet wired — these are the
+  *intended* values (implement-dispatch still applies its own internal cap and no consumer reads the batch
+  cap), with threading into the delegated dispatch and driving loop tracked in `#573`. A batch cap bounds
+  one CYCLE, never the loop
+  — cap-reached or frontier-drained ends the cycle only, not autonomous operation (loop wakeup and delay
+  stay owned by `/loop`). Same-plugin serialization carries an interim awareness note pending `#464`.
+- **Explicit never-merge boundary.** The skill states that `work`'s lane ends at PR creation and
+  handoff; merging is the babysit lane or a human, never `work`.
+
+### Changed
+
+- **Selection skips a frontier item that already has an open PR (interim, retire on `#463`).** The
+  staleness pre-check advances past an in-flight item rather than starting a duplicate branch, until the
+  durable in-progress marker lands and the frontier excludes in-flight items itself.
+
+## [0.12.3]
+
+### Fixed
+
+- **Triage's step-2 wait-gate no longer contradicts its own autonomous mode.** The "Recommend
+  category + state" step ended with a flat "Wait for the user's direction before mutating anything,"
+  while the AI disclaimer section presupposed the opposite — autonomous/agent sessions that mutate
+  without a human turn. No branch selected between them, so an operator following step 2 could not triage
+  autonomously and an autonomous lane necessarily violated step 2. The gate is now an explicit
+  two-branch direction gate: interactive sessions (a human present, no standing lane rules) keep the
+  wait-gate; autonomous `/loop` / `/schedule` AFK lanes treat their standing rules as the direction
+  the gate requires and proceed without a human turn (the mode the AI disclaimer already anticipates),
+  so the gate is satisfied by the lane's mandate rather than silently ignored.
+
 ## [0.12.2]
 
 ### Fixed

@@ -7,23 +7,30 @@ user-, and tool-agnostic.
 
 Contract set: seven resolved design threads (T1–T7) from wayfind map claude-code-plugins#239
 (closed). Design slice: `design/` (design-threads.md is the contract record; RESEARCH-*.md are
-the evidence base; boris-step-and-your-role.txt is the captured source artifact). Session
+the evidence base; boris-step-and-your-role.txt is the captured source artifact — canonical
+upstream: the [Boris Cherny "Steps of AI Adoption" Google Doc](https://docs.google.com/document/d/1R91ayvj7uvlxgNi--__2-Bf3w8x5r1nF-xIBN7ds8Ns/edit)
+and its [companion Claude artifact](https://claude.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf)
+(artifact link currently fails to load; kept as the upstream reference)). Session
 working memory (checklists, drafts) stays in gitignored `.work/ai-adoption-ladder/`.
 
 ## Work packages
 
-| WP | Topic slug | Contract source | Status |
-|----|-----------|-----------------|--------|
-| WP1 | `ai-ladder-wp1-packaging` | cross-cutting (T4 + #241 deferred packaging) | Brief locked |
-| WP2 | `ai-ladder-wp2-telemetry` | T6 telemetry unification | Brief locked |
-| WP3 | `ai-ladder-wp3-return-accounting` | T5 return accounting | Brief locked |
-| WP4 | `ai-ladder-wp4-trigger-dispatch` | T1 trigger layer | Brief locked |
-| WP5 | `ai-ladder-wp5-guardrails` | T2 sandbox bar + T3 guardrail matrix + #241 instance | Brief locked |
-| WP6 | `ai-ladder-wp6-routines` | T7 standing routines | Brief locked |
-| WP7 | `ai-ladder-wp7-runner` | T4 runner charter (build trigger-gated) | Brief locked |
+All seven packages are DELIVERED and their topic slices pruned at effort end; each PLAN
+(Brief + Plan, with every review fold) is published in its merged PR's `PLAN` details block —
+the PR is the PLAN's durable home.
 
-Dependency order: WP1 blocks file layout everywhere; WP3 joins on WP2's work-item attribute;
-WP6 needs WP4 adapters + WP5 matrix; WP7's Brief locks now, build waits on the T4 trigger.
+| WP | Delivered in | Contract source |
+|----|--------------|-----------------|
+| WP1 | #333 | cross-cutting (T4 + #241 deferred packaging) |
+| WP2 | #343 | T6 telemetry unification |
+| WP3 | #356 | T5 return accounting |
+| WP4 | #372 | T1 trigger layer |
+| WP5 | #377 | T2 sandbox bar + T3 guardrail matrix + #241 instance |
+| WP6 | #600 | T7 standing routines |
+| WP7 | #676 | T4 runner charter (design pack; build stays trigger-gated) |
 
-Each package: `/planning:interview` locks the Brief in `docs/topics/<slug>/PLAN.md`, then
-`/planning:architect` fills the Plan section.
+## Post-delivery decision records
+
+- [`native-vs-hook-telemetry-audit.md`](native-vs-hook-telemetry-audit.md) — the WP2-deferred
+  emission-source decision (#351): hybrid, native-first, with version-pinned empirical probes
+  and revisit triggers.

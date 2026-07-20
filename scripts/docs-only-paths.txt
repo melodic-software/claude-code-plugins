@@ -1,0 +1,41 @@
+# Docs-only allowlist — path prefixes that feed NO code lane, so a PR whose diff
+# is confined to them lets the heavy lanes (plugin-gate, miro-plugin) and the
+# hygiene job's path-scoped linters report an honest
+# evaluated-and-not-applicable success instead of running their full suites.
+# Consumed by scripts/check-docs-only.sh.
+#
+# ALLOWLIST, NOT BLOCKLIST — by design. A blocklist ("skip on any doc the
+# validators don't currently read") silently turns false-green the day a
+# validator starts reading a new doc. This positive list fails safe: any path
+# NOT listed here — including a brand-new code input — forces the full suite to
+# run. That is why the seed is deliberately narrow.
+#
+# Adding an entry is a two-part proof, enforced by the self-test:
+#   1. The prefix must feed no code lane. Today the lanes this gate wraps are:
+#      - plugin-gate: hermetic plugins/**/*.test.sh, then manifest + catalog
+#        validation (reads README.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
+#        docs/CATALOG-TAXONOMY.md);
+#      - miro-plugin: reads only plugins/miro/**;
+#      - hygiene's path-scoped subset — actionlint + the workflow
+#        check-jsonschema (read .github/workflows/**), and the marketplace /
+#        plugin / dependabot check-jsonschema steps (read
+#        .claude-plugin/marketplace.json, plugins/*/.claude-plugin/plugin.json,
+#        .github/dependabot.yml).
+#      NONE of those read the paths below — that is the inertness proof. The
+#      remaining hygiene checks stay UNCONDITIONAL and are not gated on this
+#      list: markdown, typos, editorconfig, gitleaks, eol-renormalize,
+#      comment-hygiene, machine-specific-paths read the changed docs directly;
+#      ShellCheck (lints every tracked *.sh/*.bash) and exec-bit (flags every
+#      tracked shebang file recorded 100644) scan the whole repo extension- and
+#      directory-agnostically, so a shell/shebang file added under docs/topics/
+#      IS input they must still catch — gating them would open a fail-closed
+#      hole.
+#   2. A matching case in scripts/check-docs-only.test.sh must pin it.
+#
+# Prefixes match by literal string prefix; keep the trailing slash so
+# docs/topics/ never matches a sibling like docs/topics-archive/.
+
+# Operator precedent-codification & session working docs. Read by humans and by
+# the docs-hygiene audit skills' OWN runtime (never by a CI lane); the audit
+# lanes here scan changed files in place, not this tree.
+docs/topics/

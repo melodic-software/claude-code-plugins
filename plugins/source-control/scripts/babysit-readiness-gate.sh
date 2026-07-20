@@ -26,7 +26,10 @@
 #   classified = TABLE ROWS (`|`-prefixed lines) carrying a classification
 #                token (VALID|INCORRECT|UNCERTAIN) across all SELF replies —
 #                one per line, so prose repetition never inflates the count.
-#                Word-boundary matched so "INVALID" does not count as "VALID"
+#                Word-boundary matched so "INVALID" does not count as "VALID".
+#                Capped at findings so a surplus of rows cannot mask an
+#                unclassified finding (the Python path refines this to a
+#                per-surface credit — see the classifier-preference note below).
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
@@ -65,7 +68,7 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,58p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -240,6 +243,54 @@ sev_plain=${sev_plain//[^0-9]/}
 classified=${classified//[^0-9]/}
 findings=$((${sev_words:-0} + ${sev_badges:-0} + ${sev_plain:-0}))
 classified=${classified:-0}
+
+# Cap classified at findings: a surplus of classification rows cannot offset
+# findings that do not exist. This is the coarse, thread-state-free analogue of
+# the Python counter's per-surface credit (#642) — the bash degrade has no
+# reply-thread links, so it cannot bucket thread vs PR-level, but capping still
+# stops an over-count of rows from masking an unclassified finding, and keeps
+# the degrade count convergent with the Python `min(classified, findings)` on
+# thread-state-free input.
+((classified > findings)) && classified="$findings"
+
+# --- Prefer the shared Python classifier when available -----------------------
+
+# The bash counts above are the Python-free safe-tier degrade (reference/loop.md
+# is that path, and it runs this gate). When a Python 3.11+ interpreter is
+# present, re-count via the shared babysit_classify module instead: it owns the
+# severity vocabulary as ONE source of truth rather than a second bash copy that
+# can drift from the snapshot classifier (the divergence class #534 exists to
+# close), and it discounts a severity marker carried in a resolved or outdated
+# thread, so a lifetime badge no longer inflates the count into a false
+# READINESS_BLOCKED (#465). It also credits classifications per surface — a
+# PR-level (non-thread) row cannot offset a finding raised fresh in an open
+# review thread — closing a fail-open the thread-blind bash degrade cannot see
+# (#642). A convergence test pins the two counts together on thread-state-free
+# input; if the Python counter cannot run (no interpreter, or a transient live
+# fetch failure) the bash degrade counts above stand.
+# BABYSIT_READINESS_BASH_ONLY=1 forces the degrade even when Python is present --
+# the operator escape that exercises (and, in the gate's own tests, pins) the
+# Python-free path deterministically.
+PY_SCRIPTS="$SCRIPT_DIR/../skills/babysit-prs/scripts"
+if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.sh" ]]; then
+  # shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
+  . "$PY_SCRIPTS/babysit-python.sh"
+  self_csv_joined="$(
+    IFS=,
+    printf '%s' "${SELF_LOGINS[*]}"
+  )"
+  if [[ -n "$COMMENTS_JSON" ]]; then
+    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
+      --comments-json "$COMMENTS_JSON" --self "$self_csv_joined" 2>/dev/null)"
+  else
+    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
+      --pr "$PR_NUMBER" --self "$self_csv_joined" 2>/dev/null)"
+  fi
+  if [[ "$py_out" =~ findings=([0-9]+)[[:space:]]+classified=([0-9]+) ]]; then
+    findings="${BASH_REMATCH[1]}"
+    classified="${BASH_REMATCH[2]}"
+  fi
+fi
 
 # --- R6: checklist completeness ----------------------------------------------
 

@@ -12,8 +12,11 @@ subdirectory of the plugin data directory.
 
 Spawn a fresh 1:1 worker for a PR **only when the snapshot's `needs_worker` field for that PR is
 `true`**. This is a deterministic engine output, not something to re-derive by eyeballing
-`material_findings` text or the raw `classification`. Read it straight from the per-PR output of
-the snapshot engine (see `needs_worker_reasons` for why):
+`material_findings` text or the raw `classification`. The authorship, finding, and approval
+classification behind those fields is one shared classifier locked by golden fixtures — the same
+classifier the readiness gate and merge gate consume — so eyeballing it is strictly less reliable
+than the field it would second-guess, not a safety check on top of it. Read it straight from the
+per-PR output of the snapshot engine (see `needs_worker_reasons` for why):
 
 ```text
 python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue --author @me --owners <watched-owners> --state-dir <state-dir> --write-state
@@ -155,6 +158,18 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   contention report naming the unaccounted events — back off and report; never race a foreign
   session for the same PR. The suppression is per-PR and per-cycle: once a later snapshot shows
   every recent same-login event ledger-accounted again, the ordinary arms resume dispatching.
+- **`attribution_drift`** (a material-finding **reporter**, not a suppressor) — the complement of
+  `foreign_activity`. Where that arm reconciles same-login timeline events the ledger cannot
+  account for, this one reconciles the writes the ledger DID record: for each recorded write with a
+  recoverable landed author, it checks that the author is the configured `--intended-write-identity`
+  and not merely *some* accepted `<self-logins>` login. A recorded write that landed under a
+  different self-login — the canonical case being a bot write-identity that silently degraded to the
+  operator's personal login when a token mint failed — is surfaced as an attribution-drift material
+  finding on that PR's status line. Unlike `foreign_activity` it does NOT suppress dispatch: the PR
+  is still ours to babysit; only the authorship of a past write is wrong, so the finding is
+  reported while normal processing continues. Dormant when no intended write-identity is configured.
+  Coverage is bounded to the write class the ledger records with authorship (review-trigger
+  comments); reactions, classification replies, and branch pushes are not yet reconcilable this way.
 - **`quiet_recheck_due`** — the safety-net fallback below, suppressed by the same
   clean/non-draft/zero-blocker condition for the same reason: it would otherwise fire every cycle
   for a PR that, by design, never gets a worker check-in recorded.

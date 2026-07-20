@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "surface": "ci-pool-a",
+  "level": "L2",
+  "substrate": "egress-denied-container-pool",
+  "substrate_class": "container",
+  "probed_at": "2026-07-02T06:00:00Z",
+  "assertions": {
+    "egress_denied": { "host": "example.com", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
+    "credentials_absent": { "path": "http://169.254.169.254:1/metadata", "host_expanded": "http://169.254.169.254:1/metadata", "exit_code": "1", "outer_exit_code": "0", "transport_outcome": "connect-failed", "outcome": "absent-or-denied" }
+  },
+  "outer_context_networked": true
+}

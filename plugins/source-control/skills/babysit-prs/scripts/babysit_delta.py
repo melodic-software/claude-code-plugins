@@ -17,13 +17,15 @@ from babysit_checks import (
     classify_checks,
     persisted_check_identity_keys,
 )
-from babysit_feedback import (
+from babysit_classify import (
     DEFAULT_FEEDBACK_CONFIG,
     FeedbackConfig,
     actor_kind,
     author_login,
-    collect_feedback,
+    is_self_login,
+    normalize_self_logins,
 )
+from babysit_feedback import collect_feedback
 from babysit_gh import find_open_prs_for_head_ref
 from babysit_review_trigger import (
     DEFAULT_REVIEW_TRIGGER_CONFIG,
@@ -74,6 +76,7 @@ class ClassifyConfig:
 
     allowed_owners: frozenset[str] = field(default_factory=frozenset)
     self_logins: frozenset[str] = field(default_factory=frozenset)
+    intended_write_identity: str = ""
     feedback: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG
     review_trigger: ReviewTriggerConfig = DEFAULT_REVIEW_TRIGGER_CONFIG
     max_quiet_recheck_seconds: float = DEFAULT_MAX_QUIET_RECHECK_SECONDS
@@ -210,7 +213,7 @@ def detect_foreign_activity(
     the arm is dormant.
     """
     recognizer = trigger_regex(config.review_trigger.trigger_phrase)
-    self_logins = {login.casefold() for login in config.self_logins if login}
+    self_logins = normalize_self_logins(config.self_logins)
     if recognizer is None or not self_logins:
         return {"detected": False, "evidence": []}
     prior = json_object((previous or {}).get("review_trigger"))
@@ -223,7 +226,7 @@ def detect_foreign_activity(
     for comment in json_array(pr.get("comments")):
         if not is_json_object(comment):
             continue
-        if author_login(comment).casefold() not in self_logins:
+        if not is_self_login(author_login(comment), self_logins):
             continue
         if not recognizer.fullmatch(str(comment.get("body") or "")):
             continue
@@ -234,6 +237,71 @@ def detect_foreign_activity(
             {
                 "comment_id": comment_id,
                 "author": author_login(comment),
+                "url": str(comment.get("url") or ""),
+                "created_at": str(comment.get("createdAt") or ""),
+            }
+        )
+    return {"detected": bool(evidence), "evidence": evidence}
+
+
+def detect_attribution_drift(
+    pr: dict[str, Any],
+    previous: dict[str, Any] | None,
+    config: ClassifyConfig,
+) -> dict[str, Any]:
+    """Detect a recorded write that landed under the wrong self-identity.
+
+    `detect_foreign_activity` asks whether a self-login timeline event is
+    unaccounted for in our ledger; this asks the complementary question about
+    the events that ARE ours. `self_logins` defines *acceptable-as-mine*, not
+    *intended-as-author*: when a bot write-identity degrades to the operator's
+    personal login (e.g. a bot-token mint fails and the write silently falls
+    back), the write still lands under an accepted self-login, so no existing
+    arm notices. Here a write the ledger recorded performing whose landed
+    author is a self-login OTHER than `intended_write_identity` is attribution
+    drift. Pure authorship verification against our own ledger -- it needs no
+    signal from the identity wrapper that minted (or failed to mint) the token.
+
+    Coverage is bounded to the write class the mutation ledger records with a
+    recoverable landed author: review-trigger comments (`request_history` /
+    `request_attempt_history`, keyed by `comment_id`). Reactions, classification
+    replies, and branch pushes are not yet ledgered with authorship, so drift on
+    them is out of reach until the ledger records their identifiers (tracked as
+    a follow-up). Dormant when no `intended_write_identity` is configured, so an
+    unconfigured classifier never fires false positives.
+    """
+    intended = config.intended_write_identity.casefold()
+    self_logins = normalize_self_logins(config.self_logins)
+    if not intended or not self_logins:
+        return {"detected": False, "evidence": []}
+    prior = json_object((previous or {}).get("review_trigger"))
+    recorded_comment_ids: set[str] = set()
+    for history_key in ("request_history", "request_attempt_history"):
+        for entry in json_object(prior.get(history_key)).values():
+            if is_json_object(entry) and entry.get("comment_id") is not None:
+                recorded_comment_ids.add(str(entry["comment_id"]))
+    if not recorded_comment_ids:
+        return {"detected": False, "evidence": []}
+    evidence: list[dict[str, str]] = []
+    for comment in json_array(pr.get("comments")):
+        if not is_json_object(comment):
+            continue
+        comment_id = issue_comment_database_id(comment)
+        if not comment_id or comment_id not in recorded_comment_ids:
+            continue
+        landed = author_login(comment)
+        landed_cf = landed.casefold()
+        # Only a landed author that is still one of our accepted self-logins is
+        # drift (the degrade case). A non-self author on a ledgered id is not
+        # this arm's concern -- foreign-activity semantics, and structurally
+        # unreachable for an immutable comment we posted.
+        if landed_cf == intended or not is_self_login(landed, self_logins):
+            continue
+        evidence.append(
+            {
+                "comment_id": comment_id,
+                "landed_author": landed,
+                "intended_author": config.intended_write_identity,
                 "url": str(comment.get("url") or ""),
                 "created_at": str(comment.get("createdAt") or ""),
             }
@@ -308,6 +376,7 @@ def classify_pr(
         config=config.review_trigger,
     )
     foreign_activity = detect_foreign_activity(pr, prev, config)
+    attribution_drift = detect_attribution_drift(pr, prev, config)
     advisory_rounds = dict(prev.get("advisory_fix_rounds") or {})
     advisory_round_count = len(dict(advisory_rounds.get("rounds") or {}))
     advisory_cap_reached = advisory_round_count >= config.advisory_fix_round_cap
@@ -369,7 +438,7 @@ def classify_pr(
     # gate. Filtering it there instead would silently strip the solo maintainer's
     # ability to human-stop their own PR. Here it only stops re-dispatching a
     # worker onto the engine's own prior output.
-    self_logins = {login.casefold() for login in config.self_logins if login}
+    self_logins = normalize_self_logins(config.self_logins)
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
@@ -412,7 +481,7 @@ def classify_pr(
         item
         for item in (*feedback["human_blocking"], *feedback["human"])
         if item["id"] not in prev_human_ids
-        and str(item.get("author") or "").casefold() not in self_logins
+        and not is_self_login(item.get("author"), self_logins)
     ]
     changed = bool(prev) and (
         prev.get("head_sha") != head_sha or prev.get("updated_at") != updated_at
@@ -493,6 +562,14 @@ def classify_pr(
         material.append(
             "foreign same-login activity detected; a concurrent babysit session "
             "appears to be driving this PR (worker dispatch suppressed)"
+        )
+    if attribution_drift["detected"]:
+        material.append(
+            f"attribution drift: {len(attribution_drift['evidence'])} recorded "
+            f"write(s) landed under a self-login other than the intended write "
+            f"identity '{config.intended_write_identity}' -- a degraded bot "
+            "write-identity (e.g. bot-token fallback to a personal login), not a "
+            "concurrent session; investigate the identity binding"
         )
     if merge_state in {"", "UNKNOWN"}:
         material.append("merge state unknown")
@@ -672,7 +749,7 @@ def classify_pr(
         item
         for item in feedback["human_blocking"]
         if item["id"] not in prev_human_blocking_ids
-        and str(item.get("author") or "").casefold() not in self_logins
+        and not is_self_login(item.get("author"), self_logins)
     ]
     # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
     # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the
@@ -1055,6 +1132,7 @@ def classify_pr(
         "checks": checks,
         "review_trigger": review_trigger,
         "foreign_activity": foreign_activity,
+        "attribution_drift": attribution_drift,
         "feedback": {
             "blocking": feedback["blocking"],
             "material": feedback["material"],

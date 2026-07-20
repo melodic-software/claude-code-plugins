@@ -25,7 +25,8 @@ actions below in particular:
 - **Role-label resolution is an action-entry invariant.** `add`, `due`, `recheck`, and `audit`
   query, create, or filter items by a canonical role — resolve each role from
   `.work-item-tracker.json` `config.role_labels` at action entry and use the resolved strings in
-  every query.
+  every query. When a role defaults because the file or entry is absent, warn loudly rather than
+  substituting silently; a present malformed/empty/non-string value is a hard stop.
 
 ## Scope
 

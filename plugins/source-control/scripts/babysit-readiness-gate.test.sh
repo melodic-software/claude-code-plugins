@@ -262,4 +262,137 @@ r=$(run_gate "$F")
 assert_contains "out-of-range [P-num] -> findings=0" "$r" "findings=0"
 assert_contains "out-of-range [P-num] -> OK" "$r" "READINESS_OK"
 
+# --- Case: #465 lifetime findings in resolved/outdated threads are discounted -
+# A severity marker carried in a thread GitHub reports resolved or outdated is a
+# lifetime artifact of an already-addressed round, not a live finding. The shared
+# Python classifier (babysit_findings.py) discounts it (open-state aware) so a
+# fully-classified PR with re-review history no longer false-BLOCKs. The bash
+# degrade cannot see thread state and counts lifetime markers, so this enriched
+# behavior is asserted only when a Python 3.11+ interpreter is present -- the same
+# path the gate itself prefers. Three lifetime markers, only one open: findings=1.
+probe_py() {
+  "$@" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' \
+    >/dev/null 2>&1
+}
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson lifetime-open '[
+    {author:"codex[bot]", body:"[CRITICAL] resolved earlier", isResolved:true},
+    {author:"codex[bot]", body:"[CRITICAL] outdated round", isOutdated:true},
+    {author:"codex[bot]", body:"[P1] still open null deref"},
+    {author:"me[bot]", body:"| 1 | null deref | VALID | fixed abc123 |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#465 lifetime discount -> findings=1 (only open)" "$r" "findings=1"
+  assert_contains "#465 lifetime discount -> READINESS_OK" "$r" "READINESS_OK"
+else
+  pass "#465 lifetime discount skipped (no Python 3.11+; bash degrade counts lifetime)"
+fi
+
+# --- Case: #642 stale PR-level classification does NOT cover an open-thread finding
+# A classification pipe-row in a PR-level (non-thread) comment can never be
+# thread-resolved, so it must not offset a finding raised fresh in an OPEN review
+# thread. The Python counter credits classifications per surface, confining the
+# stale row to the (empty) PR-level finding bucket -> classified=0 < findings=1
+# -> BLOCKED. Thread-aware, so asserted only under Python; the bash degrade is
+# reply-thread-blind and false-passes here (the accepted degrade coarseness, same
+# as the #465 discount above).
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson stale-pr-classification '[
+    {author:"codex[bot]", body:"[CRITICAL] fresh unclassified finding", in_review_thread:true},
+    {author:"me[bot]", body:"| 1 | old resolved finding | VALID | fixed |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 stale PR-level row -> classified=0 (no cross-surface credit)" "$r" "findings=1 classified=0"
+  assert_contains "#642 stale PR-level row -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 per-surface credit skipped (no Python 3.11+; bash degrade is thread-blind)"
+fi
+
+# --- Case: #642 reuse path — fetch-all-pr-comments.sh `type` tags are surface-aware
+# On `--comments-json` fed fetch-all-pr-comments.sh output, an inline finding is
+# tagged `type:"inline"` and a detached PR-level classification `type:"review"`.
+# The Python counter buckets by that tag, so the stale review-surface row cannot
+# cross-credit the inline finding -> classified=0 < findings=1 -> BLOCKED.
+# Thread-aware (tag-driven), so Python-gated; the bash degrade greps all bodies
+# and false-passes here, the accepted degrade coarseness.
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson reuse-inline-type '[
+    {type:"inline", author:"codex[bot]", body:"[CRITICAL] inline finding"},
+    {type:"review", author:"me[bot]", body:"| 1 | old | VALID | fixed |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 reuse-path inline tag -> classified=0" "$r" "findings=1 classified=0"
+  assert_contains "#642 reuse-path inline tag -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 reuse-path inline tag skipped (no Python 3.11+; bash degrade is thread-blind)"
+fi
+
+# --- Case: #642 fail-closed on unsignalled provenance ------------------------
+# A finding bearing neither an `in_review_thread` stamp nor a `type` tag is
+# isolated in the unknown bucket, where a PR-level (`type:"review"`)
+# classification row cannot offset it -> classified=0 < findings=1 -> BLOCKED.
+# Defensive (production paths always signal); Python-gated like the cases above.
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson unsignalled-provenance '[
+    {author:"codex[bot]", body:"[CRITICAL] unsignalled finding"},
+    {type:"review", author:"me[bot]", body:"| 1 | x | VALID | y |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 unsignalled finding -> classified=0" "$r" "findings=1 classified=0"
+  assert_contains "#642 unsignalled finding -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 unsignalled-provenance isolation skipped (no Python 3.11+)"
+fi
+
+# --- Convergence: Python counter and bash degrade agree on thread-state-free input
+# The gate prefers the shared Python counter but keeps the bash grep counting as
+# the Python-free safe-tier degrade. The two must not drift: a severity marker is
+# a finding under both, or the safe tier and the engine-backed tier disagree on
+# readiness. BABYSIT_READINESS_BASH_ONLY=1 forces the degrade so both counts are
+# observable in one run; every representative fixture must yield identical
+# `findings=/classified=`. (On a host without Python both runs already take the
+# bash path and agree trivially; the assertion still holds.)
+gate_counts() { # gate_counts <fixture> -> "findings=N classified=N"
+  bash "$GATE" 123 --comments-json "$1" --self 'me[bot]' 2>/dev/null |
+    grep -oE 'findings=[0-9]+ classified=[0-9]+'
+}
+converge() { # converge <name> <fixture>
+  local py bash_only
+  py="$(gate_counts "$2")"
+  bash_only="$(BABYSIT_READINESS_BASH_ONLY=1 gate_counts "$2")"
+  if [[ -n "$py" && "$py" == "$bash_only" ]]; then
+    pass "convergence [$1]: python == bash degrade ($py)"
+  else
+    fail "convergence [$1]: python == bash degrade" "$py" "$bash_only"
+  fi
+}
+F=$(mkjson conv-words '[
+  {author:"claude[bot]", body:"CRITICAL a and IMPORTANT b on one line\nSUGGESTION c"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |"}
+]')
+converge "severity-words" "$F"
+F=$(mkjson conv-badge '[
+  {author:"chatgpt-codex-connector[bot]", body:"![P1 Badge](https://img.shields.io/badge/P1-red?style=flat) and ![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)"},
+  {author:"me[bot]", body:"| 1 | x | VALID | y |"}
+]')
+converge "codex-badges" "$F"
+F=$(mkjson conv-plain '[
+  {author:"some-reviewer[bot]", body:"[P1] null deref\n[P2] missing timeout"},
+  {author:"me[bot]", body:"| 1 | null deref | VALID | fixed |"}
+]')
+converge "plain-p-markers" "$F"
+F=$(mkjson conv-selfrow '[
+  {author:"claude[bot]", body:"CRITICAL null deref in handler"},
+  {author:"me[bot]", body:"| 1 | CRITICAL: null deref | VALID | fixed abc123 |"}
+]')
+converge "self-row-exclusion" "$F"
+# Over-classified, thread-state-free: the Python per-surface credit collapses to
+# min(classified, findings) and the bash degrade's own cap does the same, so both
+# report classified=1 for one finding + two rows (#642 cap convergence).
+F=$(mkjson conv-overclassified '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |"}
+]')
+converge "over-classified-cap" "$F"
+
 [[ $FAILED -eq 0 ]] || exit 1

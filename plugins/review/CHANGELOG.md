@@ -3,6 +3,118 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.6]
+
+### Fixed
+
+- **`quality-gate` slash invocation no longer dies silently in headless
+  sessions.** The skill's *Pre-computed context* block injects dynamic context
+  via the `` !`<command>` `` syntax, which is preprocessing that runs during
+  prompt expansion — before the model turn — so the permission gate sits *above*
+  the shell. In a non-interactive session (`claude -p "/review:quality-gate …"`)
+  the `gh pr list` preflight was permission-denied during that preprocessing,
+  and the whole invocation aborted with empty output and exit 0 — total silent
+  failure with no model output. The in-command `|| echo "unknown"` guard is
+  structurally incapable of catching this: the denial happens a layer above the
+  shell, so the shell string (and its `||` fallback) never runs. Prose
+  invocation degraded gracefully only because it has no dynamic-context
+  preprocessing — the model issues `gh` as an ordinary Bash *tool* call whose
+  denial returns a handleable result. Fix: declare `allowed-tools` frontmatter
+  authorizing every segment of the three compound pre-computed lines
+  (`git branch --show-current`, `git status`, `head`, `echo`, `gh pr list`), the
+  documented canonical mechanism for dynamic-context bash, matching the
+  `pressure-test` and `wayfind` in-repo precedents. The existing `|| echo`
+  fallbacks are retained — they cover a different failure mode (`gh` missing /
+  unauthenticated / no PRs) that `allowed-tools` does not touch. The three
+  fixed pre-computed lines are granted as EXACT full-command rules (no
+  prefix wildcards), so neither mutating subcommands nor output-redirection
+  writes (`echo payload > file`, `head src > dst`) fall inside the grant;
+  the only wildcard kept is `Bash(gh pr list:*)` for the documented uncapped
+  fallback query.
+
+## [0.14.5]
+
+### Fixed
+
+- **Reviewer agents captured the wrong diff base in single-branch clones whose
+  branch is based off a non-default branch.** The diff-base resolution ladder in
+  all four change-set agents (`code-reviewer`, `security-reviewer`,
+  `architecture-guardian`, `ecosystem-specialist`) fetched the PR's real base
+  (`git fetch origin "$PR_BASE"`) into `FETCH_HEAD`, but rung 1 then referenced
+  `origin/$PR_BASE` — a ref that a `--single-branch` clone never creates — so the
+  rung failed and a later fallback rung fetched the default branch, overwriting
+  `FETCH_HEAD` before the real base was ever used. `merge-base` then ran against
+  the default branch, folding the base branch's own pre-existing commits into the
+  review as if they were the PR's (empirically: 3 commits reviewed where only 1
+  belonged to the PR). The base rev is now captured
+  (`BASE="$(git rev-parse FETCH_HEAD)"`) immediately after the base fetch and used
+  directly for `merge-base`, before any fallback fetch can clobber `FETCH_HEAD`;
+  the prior no-PR / fetch-failed behavior is preserved via
+  `${BASE:-origin/${PR_BASE:-HEAD}}`. Facet B of #625; #661.
+
+## [0.14.4]
+
+### Changed
+
+- **`fanout` `fix` action no longer mutates the working tree unconfirmed in a
+  headless session.** The fix action's Step-3 confirmation gate previously
+  self-downgraded — "interactive sessions; non-interactive sessions proceed
+  without the gate" — so a headless `/review:fanout fix` applied correctness- and
+  cleanup-class fixes with no confirmation at all, in exactly the unattended
+  context where a human check matters most. The silent waiver is replaced with an
+  explicit opt-in flag mirroring the `ai-briefing:generate` `--yes` / `-y`
+  precedent ("Skip the pre-execution confirmation gate. Required for headless
+  runs."). Interactive `fix` is unchanged (emit plan, confirm, apply). Headless
+  `fix` WITHOUT `--yes` now emits the classification plan and STOPs, mutating
+  nothing — the plan is the report, so an operator reviews what would have been
+  applied and re-runs with the flag. Headless `fix` WITH `--yes` applies, then
+  writes a durable applied-plan record (`type: fix-pass-record`) into the branch
+  findings directory for after-the-fact review; the non-`review-findings` type
+  makes the fix-pass locator skip it so it is never re-consumed as findings.
+  Start-strict posture: loosening later is additive, tightening later would break
+  automations built against a permissive default. Implements the operator-accepted
+  direction on #435.
+
+## [0.14.3]
+
+### Fixed
+
+- **Review diff base no longer bakes `main` as the terminal default-branch
+  fallback** (silent-empty-diff fix). Every base-resolution surface resolved the
+  default branch as `origin/HEAD`, then fell straight to the literal `origin/main`.
+  `origin/HEAD` is frequently unset in CI, shallow, single-branch, and fresh
+  clones, so a repository whose default branch is `master`/`develop` fell past a
+  non-existent `origin/main` all the way to the `echo HEAD` / `echo "unavailable"`
+  terminal — producing an EMPTY diff on a clean committed branch, i.e. a silent
+  no-op review with no error. This violated the convention-resolution ladder's
+  "No baked repo assumptions, ever". A dynamic resolution rung now sits BEFORE the
+  literal `origin/main`: `git ls-remote --symref origin HEAD` queries the remote's
+  own default branch over the same transport the clone used — host-agnostic,
+  needing neither a locally-set `origin/HEAD` symref nor `gh`. The resolved branch
+  is then fetched and the diff is taken against `FETCH_HEAD`, because `ls-remote`
+  reports only the branch name and does not populate a local `refs/remotes/origin/*`
+  ref — so `origin/<default>` is unresolvable in a full-depth `--single-branch`
+  clone (and in a full clone whose `origin/HEAD` is unset), where
+  `merge-base "origin/<default>"` would otherwise still fall through to the
+  empty-diff terminal. This mirrors the existing `PR_BASE` fetch. The rung stays
+  lazy — the network `ls-remote`/fetch fire only when the local `origin/HEAD` rung
+  fails, so the well-connected common case pays no round-trip. Falls to
+  `origin/main` only as the terminal last resort. Applied identically across the
+  four reviewer agents (`code-reviewer`, `security-reviewer`, `architecture-guardian`,
+  `ecosystem-specialist`), the `fanout` pre-computed diff-size snippet, and the
+  `fanout`/`quality-gate` shared-input and subagent-prompt prose. The remote name
+  stays `origin` (de-hardcoding the remote is the cross-plugin shared default-branch
+  helper tracked separately by #442, out of scope here). Same bug shape as the
+  toolchain gap resolved in #411, using that fix's `git ls-remote --symref`
+  resolution mechanism.
+
+  Known limitation: a `--depth=1` shallow clone (the default `actions/checkout`
+  shape) still degrades to the empty-diff terminal — after fetching the resolved
+  branch at the same shallow depth, `merge-base FETCH_HEAD HEAD` finds no common
+  ancestor. Resolving that requires deepening/unshallowing (or a convention-aligned
+  report-and-stop) — a real design fork, tracked and deferred to #625 rather than
+  bolted onto every reviewer-agent invocation here.
+
 ## [0.14.2]
 
 ### Fixed

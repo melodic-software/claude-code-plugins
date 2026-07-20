@@ -1,7 +1,7 @@
 ---
 name: setup
-description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention (tracked .claude/source-control.md) and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths). apply: interview the repo and write the convention config, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
-argument-hint: "check | apply [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
+description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
+argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -11,12 +11,13 @@ disable-model-invocation: true
 Inspect and configure the source-control plugin per the uniform setup contract: `check` reports the
 effective configuration, `apply` writes it. Two configuration surfaces:
 
-1. The tracked commit-subject / PR-title convention at
-   `${CLAUDE_PROJECT_DIR}/.claude/source-control.md`, resolved first by `/source-control:commit` and
-   `/source-control:pull-request` before they fall back to inference or the bundled Conventional
-   Commits default. Conventional Commits is genuinely optional — some orgs gate on ticket-prefixed
-   subjects (`WEB-123: description`) — so the plugin ships a sensible default, not a hardcoded
-   requirement.
+1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
+   team file, and a gitignored personal overlay and merged per key by
+   [../../reference/config-resolution.md](../../reference/config-resolution.md) — resolved first by
+   `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
+   the bundled Conventional Commits default. Conventional Commits is genuinely optional — some orgs
+   gate on ticket-prefixed subjects (`WEB-123: description`) — so the plugin ships a sensible
+   default, not a hardcoded requirement.
 2. The `/source-control:babysit-prs` native `userConfig` surface (not a tracked repo file).
 
 Idempotent: re-running reads the existing configuration and offers updates rather than overwriting
@@ -27,7 +28,7 @@ FAIL.
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 remediation. When `apply` carries a `subject_pattern=` argument it writes the convention
 non-interactively; with no arguments in an interactive session it runs the convention interview
-below.
+below. `layer=` selects which config layer `apply` writes, defaulting to the tracked team file.
 
 ## `check` (read-only)
 
@@ -36,21 +37,43 @@ Report a PASS/FAIL/INFO table across both surfaces; modify nothing.
 ### Convention config
 
 Anchor at the repo root: resolve `REPO_ROOT` once — `${CLAUDE_PROJECT_DIR}` when set, otherwise
-`git rev-parse --show-toplevel` — and use that literal resolved path for every read below, never a
-cwd-relative path (invoked from a nested directory, a cwd-relative path would inspect the wrong
-`.claude/source-control.md`). Re-resolve `REPO_ROOT` at the top of every self-contained Bash call —
-a fresh shell does not carry a prior call's variables.
+`git rev-parse --show-toplevel` — and use that literal resolved path for every repo-relative read
+below, never a cwd-relative path (invoked from a nested directory, a cwd-relative path would inspect
+the wrong file). Re-resolve `REPO_ROOT` at the top of every self-contained Bash call — a fresh shell
+does not carry a prior call's variables.
 
-- **Present** (`REPO_ROOT/.claude/source-control.md` exists): load it and report the effective
-  convention (`subject_pattern`, `type_list` if present, `pr_title_pattern`, `trailer_policy` if
-  present). **FAIL** when `subject_pattern` is not machine-checkable — it must be either the literal
-  keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language description
-  cannot be evaluated by `/commit` or `/pull-request`. **FAIL** when the file is excluded by
-  `.gitignore` (teammates would never receive the shared convention) — report the matching rule.
-  Otherwise PASS.
-- **Absent**: INFO — no tracked convention; `/commit` and `/pull-request` infer from the repo's own
-  `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional Commits default. The
-  remediation is `apply` to persist a convention.
+Read all three layers, then report **one effective-configuration table** — a row per key, its
+resolved value, and which layer supplied it — followed by a per-layer presence line. Never present a
+single layer's value as the effective convention; a reader who cannot see which layer won cannot
+tell why `/commit` behaves as it does.
+
+```text
+key                value                       won by
+subject_pattern    ^[A-Z]+-\d+: .+             team
+pr_title_pattern   Same as subject_pattern      team
+trailer_policy     none                         local overlay
+```
+
+Per-layer verdicts:
+
+- **User-global** (`~/.claude/source-control.md`): present → report which keys it contributes;
+  absent → INFO. It is outside the repo, so no git check applies to it.
+- **Team** (`REPO_ROOT/.claude/source-control.md`): present → PASS. **FAIL** when excluded by
+  `.gitignore` — teammates would never receive the shared convention; report the matching rule.
+  Absent → INFO, remediable by `apply`.
+- **Local overlay** (`REPO_ROOT/.claude/source-control.local.md`): PASS only when an ignore rule
+  matches it **and** it is not in the index. Two distinct failures hide behind one symptom and need
+  different remediations, so probe them separately — see the two-probe form under `apply`. Absent →
+  INFO, which is the common case.
+
+**FAIL** when the *effective* `subject_pattern` is not machine-checkable — it must be either the
+literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language
+description cannot be evaluated by `/commit` or `/pull-request`. Name the layer that supplied the
+offending value.
+
+With **all three layers absent**: INFO — no declared convention; `/commit` and `/pull-request` infer
+from the repo's own `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional
+Commits default. The remediation is `apply` to persist a convention.
 
 ### Babysit config
 
@@ -87,21 +110,66 @@ reconfigure paths (surface 2).
 
 ### Convention config
 
+**Pick the target layer first.** `layer=` selects it; `team` is the default when the argument is
+absent, since a convention is a team artifact until someone says otherwise.
+
+| `layer=` | Target path | For |
+|---|---|---|
+| `user` | `~/.claude/source-control.md` | the operator's own preference across every repo |
+| `team` (default) | `REPO_ROOT/.claude/source-control.md` | the shared, tracked convention |
+| `local` | `REPO_ROOT/.claude/source-control.local.md` | a personal deviation from team policy here |
+
+Infer the layer rather than asking when the request names one — "my personal convention" / "on this
+machine" is `local`, "for all my repos" is `user`, "our convention" is `team` — but state which
+layer you picked before writing, since writing to the wrong one either fails to reach teammates or
+commits a personal preference to shared history.
+
 When the invocation carries a `subject_pattern=` argument, write non-interactively: use it as
 `subject_pattern` (the literal `Conventional Commits` keyword, which resolves to the bundled 11-type
-anchored pattern and enables `type_list`, or an anchored regex), set `pr_title_pattern` to the same,
-and omit `trailer_policy`. Reject a `subject_pattern` that is not machine-checkable (a plain-language
-value) with the same message `check` gives, rather than persisting it. With no argument in an
-interactive session, run the interview:
+anchored pattern and enables `type_list`, or an anchored regex), and set `pr_title_pattern` to the
+same. Reject a `subject_pattern` that is not machine-checkable (a plain-language value) with the same
+message `check` gives, rather than persisting it.
+
+**A non-interactive write is an update, not a fresh file.** The target layer is rewritten in place, so
+read it first and carry through every *independent* key the invocation did not ask to change. An
+argument naming `subject_pattern` says nothing about `trailer_policy`; dropping an existing
+`trailer_policy: none` because the new invocation did not mention it changes commit behavior the user
+never asked to change. Only a key the invocation explicitly sets may be replaced, and only a key the
+user explicitly clears may be removed.
+
+**Keys derived from a changed key are recomputed, not carried.** `type_list` and `pr_title_pattern`
+are functions of `subject_pattern`, so preserving them across a `subject_pattern` change produces a
+config that contradicts itself. Replacing a Conventional-Commits pattern with a custom regex drops
+`type_list` entirely — a custom pattern has no type vocabulary, and a stale
+`build, chore, ci, …` list beside `^[A-Z]+-\d+: .+` would have `/commit` pre-check against a
+vocabulary the pattern does not use. Moving the other way re-adds the bundled 11-type list.
+`pr_title_pattern` follows the same rule unless the user set it to a value independent of
+`subject_pattern`, which is carried through like any other independent key.
+
+**Writing an overlay layer — `user` or `local` — resolve the layers below first and omit any
+*requested* key already equal to that merge.** A non-interactive argument is not evidence of a genuine
+deviation: `apply layer=local subject_pattern=X` against a team file that already declares `X` would
+otherwise pin `X` locally, so a later team change would be silently ignored on this machine — the
+exact failure per-key override exists to prevent. This applies to the requested keys only; it never
+licenses dropping an unrelated key the overlay already carries. When every requested key already holds
+and the overlay would otherwise be empty, write nothing and say so rather than materializing an empty
+file.
+
+With no argument in an interactive session, run the interview:
 
 0. **Anchor at the repo root** exactly as `check` does — resolve `REPO_ROOT` once and reuse the
    literal resolved path for every read, write, and git command below; re-resolve it at the top of
    every self-contained Bash call.
-1. **Read the current config first.** If `REPO_ROOT/.claude/source-control.md` exists, present its
-   summary; the interview proposes changes against that baseline and overwrites nothing without
-   confirmation.
-2. **Infer before asking.** With no config file, look for an existing declared or enforced
-   convention, surfacing which signal produced the candidate:
+1. **Read the current config first** — all three layers, not just the target. Present the effective
+   merge and which layer supplies each key; the interview proposes changes against that baseline and
+   overwrites nothing without confirmation. Writing an overlay layer, carry only the keys that
+   genuinely differ from the merge below it: an overlay that restates every key silently pins values
+   the base layer should still own, which is the failure mode per-key override exists to avoid.
+2. **Infer before asking.** Gate this on the resolved value, not on file presence: infer whenever the
+   **effective merged `subject_pattern` is unresolved**, which includes the case where layers exist
+   but contribute only other keys. Skipping inference because some file exists would recommend the
+   bundled default over a `commit-msg` hook that demands ticket-prefixed subjects. Look for an
+   existing declared or enforced convention, surfacing which signal produced the candidate:
    - The repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules` — prose stating a commit-message or
      PR-title convention.
    - A commit-msg git hook — `lefthook.yml` (`commit-msg` entry), `.husky/commit-msg`,
@@ -134,29 +202,34 @@ interactive session, run the interview:
      minimum) that `/commit` and `/pull-request` can evaluate directly. If the user describes their
      convention in prose, translate it into an anchored regex yourself and confirm the translation
      before persisting — never write the prose. If a convention genuinely cannot be expressed as one
-     regex, ask the user to restate it as an anchored regex (or a short any-of list), or fall back to
-     the Conventional Commits default; do not persist a free-text `subject_pattern`.
+     regex, express the alternatives as alternation inside one anchored regex
+     (`^(?:feat|fix): .+|^[A-Z]+-\d+: .+`), or fall back to the Conventional Commits default; do not
+     persist a free-text `subject_pattern`, and never persist a list — `subject_pattern` is exactly
+     one value, because nothing here defines how a list would serialize or match.
 4. **Settle the remaining fields**, recommendation first:
    - **`pr_title_pattern`** — usually identical to `subject_pattern` (squash-merge repos set the PR
      title as the squash commit's subject). Ask only if the user wants them to differ; otherwise
-     record "same as `subject_pattern`".
+     write the deferral marker exactly as `` Same as `subject_pattern`. `` — capital S, backticked key,
+     trailing period. That literal is what the resolution contract recognizes and expands against the
+     effective `subject_pattern`; any other casing or punctuation is read as a pattern in its own
+     right and pre-checked as a regex.
    - **`trailer_policy`** (optional) — whether commits should carry a `Co-Authored-By:` (or other)
      attribution trailer, and its exact template. Recommend keeping `/commit`'s default unless the
      user states otherwise. Omit this section entirely if the repo has no trailer convention.
-5. **Write the config.** Materialize `REPO_ROOT/.claude/source-control.md` with these sections:
+5. **Write the config.** Materialize the target layer's path with these sections:
 
    ```markdown
    # source-control configuration
 
-   Tracked commit-subject / PR-title convention for the source-control plugin. `/source-control:commit`
-   and `/source-control:pull-request` resolve this file first, before inferring from the repo's own
-   CLAUDE.md/rules/commit-msg hook or falling back to the bundled Conventional Commits default.
+   Commit-subject / PR-title convention for the source-control plugin, resolved by
+   `/source-control:commit` and `/source-control:pull-request` before they infer from the repo's own
+   CLAUDE.md/rules/commit-msg hook or fall back to the bundled Conventional Commits default.
    Re-run `/source-control:setup` to change these values.
 
    ## subject_pattern
 
-   <the literal keyword `Conventional Commits`, or a single anchored regex (or an any-of list of
-   anchored regexes) — always machine-checkable, never a plain-language description>
+   <the literal keyword `Conventional Commits`, or exactly one anchored regex — always
+   machine-checkable, never a list and never a plain-language description>
 
    ## type_list
 
@@ -172,15 +245,36 @@ interactive session, run the interview:
    <only present if the repo has a trailer convention>
    ```
 
-   Drop any section with no content rather than leaving it empty. Then verify the file is actually
-   staged before reporting success — neither `git check-ignore -v` nor `git ls-files --error-unmatch`
-   proves this alone. `git check-ignore -v` only reports a matching `.gitignore` pattern, staying
-   silent for both a properly tracked file and a plain untracked one. `git ls-files --error-unmatch`
-   only proves the path is *somewhere* in the index: on a reconfiguration run (the file already
-   existed and this step just rewrote it), the path was already tracked, so that check exits 0 even
-   though the new content is still an unstaged working-tree modification.
+   Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
+   line under the heading naming which layer this file is and that it overrides per key — the file
+   sits next to (or looks identical to) the team file, and the next reader has no other signal.
 
-   Run these as one Bash tool call so `REPO_ROOT` only needs resolving once for the whole sequence:
+6. **Verify the write, per layer.** The post-write check inverts between layers and there is no
+   shared shortcut: the team file must be tracked, the local overlay must be ignored, and the
+   user-global file is not in a repository at all. Run the wrong one and the skill reports success
+   over exactly the failure it exists to catch.
+
+   - **`layer=user`** — `~/.claude/source-control.md` is outside `REPO_ROOT`. Run no git command
+     against it: `git check-ignore` and `git status` on a path outside the worktree are meaningless
+     here, and a home directory that happens to be its own repository would produce a confidently
+     wrong verdict. Confirm the file exists with the intended content and report the path. It takes
+     effect immediately in the next session; nothing is staged or committed.
+   - **`layer=local`** — `REPO_ROOT/.claude/source-control.local.md` **must** be both ignore-matched
+     and untracked, and those are two independent probes. Bare `git check-ignore` consults the index
+     and reports nothing for a file that is already tracked, because gitignore rules do not apply to
+     tracked files — so "no rule exists" and "a rule exists but the file was committed anyway" are
+     indistinguishable from its output alone, and they need opposite remediations. Never stage the
+     overlay in either case.
+   - **`layer=team`** — `REPO_ROOT/.claude/source-control.md` must be tracked and staged. Verify it
+     is actually staged before reporting success; neither `git check-ignore -v` nor
+     `git ls-files --error-unmatch` proves this alone. `git check-ignore -v` only reports a matching
+     `.gitignore` pattern, staying silent for both a properly tracked file and a plain untracked one.
+     `git ls-files --error-unmatch` only proves the path is *somewhere* in the index: on a
+     reconfiguration run (the file already existed and this step just rewrote it), the path was
+     already tracked, so that check exits 0 even though the new content is still an unstaged
+     working-tree modification.
+
+   For `layer=team`, run these as one Bash tool call so `REPO_ROOT` only needs resolving once:
 
    ```bash
    REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
@@ -190,7 +284,7 @@ interactive session, run the interview:
    # `git diff --quiet` on an ignored untracked file exits 0 trivially, so the sequence would report
    # false success with nothing actually staged for teammates.
    if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/.claude/source-control.md")"; then
-     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH"
+     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH" >&2
      exit 1
    fi
    # With no ignore match, read the two-character XY status: `??` (untracked) or a non-blank
@@ -205,16 +299,53 @@ interactive session, run the interview:
    git -C "$REPO_ROOT" diff --quiet -- .claude/source-control.md
    ```
 
-   If the guard stops the sequence (non-zero exit, `IGNORE_MATCH` reported), do not report success:
-   tell the user the matching `.gitignore` pattern and ask them to either fix `.gitignore` so
-   `.claude/source-control.md` is no longer excluded, or choose a different tracked location, then
-   re-run this step.
+   For `layer=local`, run both probes and branch on the pair:
+
+   ```bash
+   REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+   OVERLAY=".claude/source-control.local.md"
+   # --no-index answers "does a matching ignore rule exist?" on its own terms. Without it, git
+   # consults the index first and reports nothing for an already-tracked file, conflating a missing
+   # rule with a rule that exists but was overridden by a past commit.
+   IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
+   # An ignore rule does not untrack an already-committed file, so ask the index separately.
+   TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
+   # Exit non-zero on either FAIL, exactly as the team guard does. The overlay was written at step 5,
+   # so proceeding here would report an effective merge over a personal file that is still shareable —
+   # visible to `git status` (no rule) or already in team history (tracked). Halt until it is fixed.
+   if [ "$HAS_RULE" -eq 1 ] && [ -z "$TRACKED" ]; then
+     echo "OK: personal overlay is ignored and untracked: $IGNORE_MATCH"
+   elif [ -n "$TRACKED" ]; then
+     echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY" >&2
+     exit 1
+   else
+     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/*.local.* to .gitignore" >&2
+     exit 1
+   fi
+   ```
+
+   The tracked branch takes precedence in the report: adding the `.gitignore` line to an
+   already-committed overlay changes nothing, so recommending it there sends the user in a circle.
+
+   Either guard stopping the sequence (non-zero exit) halts the apply — do not report success or
+   proceed to step 7. For the team guard (`IGNORE_MATCH` reported), tell the user the matching
+   `.gitignore` pattern and ask them to either fix `.gitignore` so `.claude/source-control.md` is no
+   longer excluded, or persist the convention to a different layer. For the `layer=local` guard,
+   surface the failure's own remediation — the `.claude/*.local.*` ignore line for a missing rule, or
+   `git rm --cached` for an already-tracked overlay — so the personal overlay does not linger in a
+   shareable state. Re-run this step once the state is fixed.
 
    This skill stages but does not commit — `git status --porcelain` legitimately keeps printing an
    index (`X`) column of `A` or `M` with a blank worktree column for a staged-but-uncommitted file,
    so success does **not** require porcelain to be fully empty, only that no *unstaged* changes
-   remain. Prompt the user to commit, since this file is team-shared and must be committed to take
-   effect. Only report success once both checks pass: not ignored, and no unstaged changes remain.
+   remain. Prompt the user to commit the team file, since it is team-shared and must be committed to
+   take effect. Only report success once both checks pass: not ignored, and no unstaged changes
+   remain.
+
+7. **Report the new effective merge**, not just what was written. A `layer=user` write can be
+   overridden by an existing team file, and a `layer=team` write can be overridden by an existing
+   local overlay — a user who is told only "wrote `subject_pattern`" and then sees `/commit` use a
+   different pattern has been misled by the success message.
 
 ### Babysit config
 
@@ -237,10 +368,10 @@ a fresh session".
 
 ## Output
 
-A tracked `.claude/source-control.md` in the consuming repo (when `apply` wrote the convention), plus
-a one-paragraph summary of the convention and which source it came from (inferred or user-declared),
-and — for babysit — the `check` probe report and the reconfigure path used. `check` alone reports the
-effective configuration across both surfaces and changes nothing.
+A convention config file at the chosen layer (when `apply` wrote one), plus the resulting effective
+merge with the winning layer per key, a one-paragraph summary of where the convention came from
+(inferred or user-declared), and — for babysit — the `check` probe report and the reconfigure path
+used. `check` alone reports the effective configuration across both surfaces and changes nothing.
 
 ## What this skill does NOT do
 
@@ -248,6 +379,8 @@ effective configuration across both surfaces and changes nothing.
 - Enforce the convention at commit time — a project's own `commit-msg` hook (when one exists) remains
   the authoritative gate; this config only tells the plugin's skills what shape to draft and
   pre-check against.
-- Write machine-local state, the plugin cache, Claude Code user settings, or `pluginConfigs` — the
-  convention lives in the consumer's tracked `.claude/source-control.md`; babysit settings live in
-  Claude-Code-owned `userConfig`, reconfigured only through the two paths above.
+- Write the consumer's `.gitignore`. The personal overlay needs `.claude/*.local.*` ignored; this
+  skill recommends the line and leaves the edit to the consumer.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs` — the convention lives in the
+  consumer's own config layers; babysit settings live in Claude-Code-owned `userConfig`,
+  reconfigured only through the two paths above.

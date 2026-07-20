@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## 0.10.3 — 2026-07-19
+## [0.10.3] — 2026-07-19
 
 Changed:
 
@@ -12,7 +12,7 @@ Changed:
   name, never by editing the plugin. Documents the existing boundary per the
   extensibility contract; no behavior change.
 
-## 0.10.2 — 2026-07-19
+## [0.10.2] — 2026-07-19
 
 Fixed:
 
@@ -22,7 +22,7 @@ Fixed:
   copy-as-is run of the snippet previously bypassed the memory_dir seam, missing
   the handoff chain in any repo that relocates its memory tier.
 
-## 0.10.1 — 2026-07-19
+## [0.10.1] — 2026-07-19
 
 Changed:
 
@@ -32,7 +32,7 @@ Changed:
   own sections and keeps only the plugin-specific no-project-root fallback
   detail.
 
-## 0.10.0 — 2026-07-18
+## [0.10.0] — 2026-07-18
 
 Added:
 
@@ -50,7 +50,7 @@ Added:
   worktree mechanics route to whatever capabilities are installed, falling back
   to direct git / gh. The plugin now bundles seven skills.
 
-## 0.9.1 — 2026-07-18
+## [0.9.1] — 2026-07-18
 
 Fixed:
 
@@ -62,7 +62,7 @@ Fixed:
   model defaults to `inherit` per the subagents doc (resolution order and cost-control quote
   now cited in `context/sources.md`).
 
-## 0.9.0 — 2026-07-18
+## [0.9.0] — 2026-07-18
 
 Added:
 
@@ -75,7 +75,7 @@ Added:
   re-anchors; it does not resume the work (the keep-going sibling), enumerate
   worktrees, or triage PR feedback. The plugin now bundles six skills.
 
-## 0.8.0 — 2026-07-17
+## [0.8.0] — 2026-07-17
 
 Changed:
 
@@ -84,13 +84,13 @@ Changed:
   the contract's `.worktreeinclude` template carries into new worktrees, while handoffs are
   session-scoped and deliberately not carried.
 
-## 0.7.1
+## [0.7.1]
 
 ### Changed
 
 - References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
 
-## 0.7.0 — 2026-07-17
+## [0.7.0] — 2026-07-17
 
 Added:
 
@@ -105,7 +105,7 @@ Added:
   the interruption cause is deliberately not diagnosed (recovery is
   identical regardless). The plugin now bundles five skills.
 
-## 0.6.0 — 2026-07-16
+## [0.6.0] — 2026-07-16
 
 Changed:
 
@@ -125,7 +125,7 @@ Added:
   pressure, and concurrent-session / rate-limit headroom, with
   small/medium/large fan-out sizing and single-agent as the floor.
 
-## 0.5.0 — 2026-07-15
+## [0.5.0] — 2026-07-15
 
 Added:
 
@@ -157,7 +157,7 @@ Added:
   actual capability inventory whenever capabilities are added, renamed,
   or retired.
 
-## 0.4.0 — 2026-07-15
+## [0.4.0] — 2026-07-15
 
 Added:
 
@@ -171,7 +171,7 @@ Added:
   handoff without verifiable sanity-check evidence, continuing past an
   explicit stop). Loaded on demand from the SKILL.md checklist.
 
-## 0.3.0 — 2026-07-14
+## [0.3.0] — 2026-07-14
 
 Adopt the marketplace topic-docs convention
 (`docs/conventions/topic-docs/`, contract v1.0.0):

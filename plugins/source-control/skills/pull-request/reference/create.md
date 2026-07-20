@@ -131,7 +131,7 @@ if [[ -n "$ISSUE_NUM" ]]; then
     CLOSES_LINE="Closes #${ISSUE_NUM}"
   else
     echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
-    ISSUE_NUM=""   # fall through to orphan-PR 3-option prompt below
+    ISSUE_NUM=""   # fall through to orphan-PR 2-option prompt below
   fi
 fi
 # If still empty, the orphan-PR prompt populates CLOSES_LINE below.
@@ -143,13 +143,14 @@ fi
 
 > *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
 
-Append each accepted line to `${CLOSES_LINE}` (newline-separated). GitHub accepts one keyword per issue, comma- or newline-separated.
+Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); route each `Refs #Y` line into the `## Related` section instead (§2.4.1, replacing its `N/A`), never onto the closing-keyword line — the same rule the orphan-PR and `## Related` guidance below apply to every non-closing reference. GitHub accepts one keyword per issue, comma- or newline-separated.
 
-**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with three options:
+**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with two options:
 
 1. `Closes #<N>` — provide a number to auto-close on merge
-2. `Refs #<N>` — link without closing
-3. `No related issue: <reason>` — orphan PR, no linkage
+2. `No related issue: <reason>` — orphan PR, no linkage
+
+To reference an issue this PR does **not** close, put a `Refs #N — <why>` line in the `## Related` section (§2.4.1), not on the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -159,7 +160,7 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 git push -u origin <branch-name>
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (SKILL.md §"PR title format" ladder: `.claude/source-control.md` → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + Claude Code attribution:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + Claude Code attribution:
 
 ```bash
 # Quoted heredoc — body template is inert; nothing inside expands.
@@ -170,6 +171,9 @@ TEMPLATE=$(cat <<'EOF'
 
 ## Test plan
 - ...
+
+## Related
+N/A
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -190,6 +194,13 @@ BODY+="$TEMPLATE"
 
 `gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body.
 
+**Linkage scaffolds — always emitted.** Two scaffolds mirror the two-part contract a `pr-issue-linkage`-style gate enforces (a non-empty `## Related` section AND a native GitHub closing keyword or `No related issue:` opt-out), so a skill-driven PR clears that gate on first push instead of burning a red-CI round-trip:
+
+- **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration.
+- **`## Related` section**: defaults to the literal `N/A` so the section is non-empty by default. Replace `N/A` with genuinely related-but-not-closed references — sibling PRs, ADRs, or decision-log entries (`Refs #N — <why>`, matching the repo's own `## Related` convention) — whenever they exist; leave `N/A` only when nothing else applies. The issue this PR *closes* belongs on the closing-keyword line, not here.
+
+A `Refs #N` line links an issue without closing it and belongs in the `## Related` section, never on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
+
 ### 2.4.2 Verify closing-keyword line (pre-create gate)
 
 Before invoking `gh pr create`, grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
@@ -200,7 +211,10 @@ Before invoking `gh pr create`, grep assembled `$BODY` for a valid closing keywo
 # linked-issues docs. The 3-keyword shortcut (Closes|Fixes|Resolves)
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
-OPTOUT_REGEX='^(Refs #[0-9]+|No related issue:)'
+# Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
+# satisfy the real pr-issue-linkage validator's closing-keyword half, so accepting
+# it here would clear a body the CI gate then rejects.
+OPTOUT_REGEX='^No related issue:'
 
 if printf '%s\n' "$BODY" | grep -iE "$KEYWORD_REGEX" >/dev/null; then
   :  # closing keyword present — gate passes
@@ -210,14 +224,14 @@ else
   # No closing keyword AND no opt-out marker. §2.4.0's orphan-PR prompt
   # should have populated one. If we reach here, either the prompt was
   # skipped or `$CLOSES_LINE` is empty.
-  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (Refs #N / No related issue:)." >&2
-  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | Refs #N | No related issue: <reason>" >&2
+  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (No related issue:)." >&2
+  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | No related issue: <reason>" >&2
   echo "  Aborting PR creation. (Silent proceed would orphan the PR from any tracked issue.)" >&2
   exit 1
 fi
 ```
 
-When user explicitly selected `Refs #<N>` or `No related issue: <reason>` in §2.4.0, gate passes silently — opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
+When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate passes silently — the opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
 
 ### 2.4.3 Create PR
 
@@ -230,8 +244,8 @@ When user explicitly selected `Refs #<N>` or `No related issue: <reason>` in §2
 # `--reviewer`. Reviews come from whatever AI reviewers the repo wires up
 # and any humans who opt in.
 # Title shape: whatever the resolved subject/title convention requires
-# (Conventional Commits default shown; a custom .claude/source-control.md
-# pattern or the project's own convention overrides this).
+# (Conventional Commits default shown; a custom resolved pr_title_pattern
+# or the project's own convention overrides this).
 PR_URL=$(gh pr create --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).

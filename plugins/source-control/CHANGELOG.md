@@ -3,6 +3,238 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **The convention config is now three layers, not one.** `source-control.md` was resolved as a
+  single project-level file, so a commit convention could not follow an operator across repos or
+  machines and a personal deviation from team policy had nowhere to live — per-machine
+  reconfiguration meant editing the team-tracked file. It now resolves
+  `~/.claude/source-control.md` (user-global) → `.claude/source-control.md` (team, tracked) →
+  `.claude/source-control.local.md` (gitignored personal overlay), the order the tracked-rich-config
+  seam mandates. `/commit`, `/pull-request`, and `/setup` all read the layering rules from one new
+  bundled reference instead of restating them.
+- **`/setup apply` takes a `layer=user|team|local` target**, defaulting to `team`, and infers the
+  layer from a request that names one ("my personal convention", "for all my repos"). `/setup check`
+  now renders the effective merge as a row per key with the layer that supplied it, rather than
+  reporting the team file's values as if they were the whole convention.
+
+### Changed
+
+- **Merge semantics are per-key override, a recorded deviation from the seam's concatenating
+  default.** A later layer replaces an earlier layer's value key by key and never drops the base
+  layer wholesale; a key absent from a later layer keeps the earlier value. Concatenation is right
+  for the first-party `security-guidance` precedent, whose layers are prose blocks that genuinely
+  accumulate. Every key here is a scalar or a closed list: two `subject_pattern` regexes cannot
+  concatenate into a third valid regex, and a concatenated `trailer_policy` would emit two trailers.
+
+### Fixed
+
+- **`/setup`'s gitignore guard no longer applies one verdict to layers that need opposite ones.** A
+  gitignored *team* file remains a hard STOP — teammates would never receive the shared convention.
+  A gitignored *personal overlay* is the success condition, and the overlay is never staged; when it
+  is not ignored, `/setup` surfaces the `.claude/*.local.*` line for the consumer to add rather than
+  editing their `.gitignore`. The user-global file is outside the worktree, so no git command runs
+  against it at all — `git check-ignore` and `git status` on a path outside the repository would
+  produce a meaningless verdict, or a confidently wrong one when the home directory is itself a
+  repository.
+
+## [0.13.4]
+
+### Fixed
+
+- **`babysit-prs` dynamic `/loop` wakeups now map `recommended_cadence` to a concrete
+  `ScheduleWakeup.delaySeconds` instead of falling back to the generic `/loop` heuristic.** The
+  snapshot engine emits `recommended_cadence` (`reference/cadence.md`: active / normal / quiet /
+  idle) and `reference/loop.md` §5.3 told the orchestrator to "derive the wake interval" from it,
+  but never gave the string-to-seconds translation — so orchestrators silently fell back to the
+  generic `/loop` skill's own "lean 1200–1800s" fallback-heartbeat range, overriding the domain
+  skill's tighter adaptive-cadence contract and leaving PRs with pending CI or blocking feedback
+  unchecked 4–5x longer than intended. §5.3 now carries a deterministic mapping table
+  (`active`→300, `normal`→900, `quiet`→3600, `idle`→3600) and states plainly that this signal
+  ALWAYS wins over the generic heuristic whenever a snapshot supplies it — in babysit dynamic mode
+  the `ScheduleWakeup` delay is the primary cadence signal, not a fallback heartbeat. The `idle`
+  row is documented as a ceiling: `ScheduleWakeup` clamps `delaySeconds` to `[60, 3600]`, so
+  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling — a genuine daily cadence
+  needs the durable `/schedule` cron mechanism, not a single-session `/loop` wakeup.
+
+## [0.13.3]
+
+### Fixed
+
+- **`babysit-readiness-gate` now credits classification rows per comment surface, closing a
+  fail-open where a stale classification could pass the gate past a live unclassified finding
+  (#642).** The gate blocks while source findings outnumber their per-finding classification rows.
+  The shared classifier counted a self-authored classification pipe-row in ANY comment, including
+  PR-level review-summary comments that are never thread-resolved. Because a review thread's
+  findings drop when it resolves (the lifetime-vs-open discount) but a PR-level comment can never
+  resolve, a stale classification posted outside a thread kept counting after its finding was
+  discounted — inflating the classified count past a fresh, still-unclassified open-thread finding
+  and emitting a fail-open `READINESS_OK`. Classification credit is now bucketed by surface
+  (review-thread, PR-level, and an isolated bucket for comments bearing no surface signal) and
+  capped within each bucket, so a classification can only offset a finding on its own surface. The
+  Python-free bash degrade gains the thread-state-free analogue (`classified = min(classified,
+  findings)`); the per-surface refinement is Python-only, mirroring the existing lifetime discount,
+  and stays convergent with the degrade on unsignalled input.
+
+### Changed
+
+- **BEHAVIOR FLIP — a PR whose inline-thread findings are answered only by detached PR-level
+  classification replies now reports `READINESS_BLOCKED` where it previously passed.** With
+  per-surface credit, a PR-level classification row no longer offsets an inline-thread finding, so
+  the gate blocks until each inline finding is answered on its own thread. This enforces
+  `review-discipline.md` §D5's already-ratified reply routing (inline findings MUST reply threaded,
+  "NEVER a detached `pr comment`") mechanically rather than by prose. Runs that already follow §D5
+  routing are unaffected; only runs relying on the previously-tolerated detached-reply shape change
+  verdict, and the fix direction is fail-closed.
+
+## [0.13.2]
+
+### Fixed
+
+- **`pull-request` create flow no longer treats a bare `Refs #N` as a closing-keyword opt-out in its
+  §2.4.2 pre-create gate.** The local gate's `OPTOUT_REGEX` accepted `Refs #N`, but the real
+  `pr-issue-linkage` reusable CI workflow (`melodic-software/ci-workflows` `pr-issue-linkage.yml`,
+  the SHA this repo pins) accepts only a native closing keyword (`Closes`/`Fixes`/`Resolves #N`) or a
+  literal `No linked issue` / `No related issue:` phrase for its closing-keyword half — `Refs #N` is
+  not in that set. A `Refs #N`-only body therefore cleared the skill's own gate yet still failed the
+  CI gate on push. The regex now drops `Refs #N` (`^No related issue:` only), so any body the local
+  gate passes the validator also passes (a strict safe subset). `Refs #N` remains a valid
+  link-without-close reference in the `## Related` section; the §2.4.0 orphan-PR prompt, the §2.4.1
+  asymmetry note, and the §2.4.2 gate messages were reconciled to match. The §2.4.0 multi-issue
+  prompt still offers `Refs #Y`, but its accepted `Refs` lines now route into `## Related` rather
+  than onto the closing-keyword line, and the `closed-branch-issue-does-not-autoclose` eval's
+  expected output was aligned to the two-option orphan prompt (`Closes` or `No related issue:`).
+  Narrow same-repo fix (option 1); extending the upstream validator to accept `Refs #N` was out of
+  scope.
+
+## [0.13.1]
+
+### Fixed
+
+- **`pull-request` create flow now scaffolds a non-empty `## Related` section in the assembled PR
+  body.** The create flow builds the PR body from its own template and passes it via `gh pr create
+  --body`, which fully overrides `.github/pull_request_template.md` (cli/cli#10751) — so
+  skill-driven PRs never see a repo PR template. The assembled skeleton had `## Summary` /
+  `## Test plan` but no `## Related` section, so PRs in a repo whose CI enforces a
+  `pr-issue-linkage`-style contract (non-empty `## Related` + a native closing keyword) failed the
+  gate on first push and burned a red-CI round-trip. The template now emits a `## Related` section
+  defaulting to the literal `N/A` (non-empty by default; replace with `Refs #N` references to
+  related-but-not-closed PRs/ADRs/decisions when they exist), pairing with the always-present
+  `${CLOSES_LINE}` closing keyword so both halves of the contract are scaffolded up front. This is
+  the create-flow half of the same gap the repo PR template covers for the web/editor authoring
+  path. The §2.4.1 prose documents both scaffolds and flags that a bare `Refs #N` opt-out does not
+  satisfy a validator's closing-keyword half (only a real keyword or a `No linked issue` /
+  `No related issue:` phrase does).
+
+## [0.13.0]
+
+### Changed
+
+- **`babysit-prs` authorship / finding / approval classification is now one shared module.** The
+  self/bot/human authorship test, the finding severity + lifetime-vs-open counting, and the
+  approval-verdict heuristics were hand-rolled independently across the snapshot classifier, the
+  merge gate, the resolve-thread reporter, and the readiness gate, and the surfaces disagreed on
+  identical input — the six-issue misclassification class this refactor closes. They now consume
+  one classifier: `babysit_delta`, `babysit_feedback`, and `babysit_merge` import the self-login
+  membership test and authorship/finding/approval primitives directly instead of re-deriving them,
+  `babysit_resolve_thread` shares the same `is_bot` test, and `babysit-readiness-gate.sh` shells
+  out to the shared finding counter (mirroring the existing merge-gate wrapper) rather than
+  re-implementing the severity vocabulary in bash grep. Every surface stays a pure predicate with
+  no writes. Each formerly-divergent member issue is now a golden fixture, regression-proof by
+  construction.
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` no longer over-counts lifetime findings as unaddressed.** The gate
+  counted every severity marker ever posted across a PR's lifetime — including markers in review
+  threads GitHub already reports resolved or outdated — so a fully-classified PR with re-review
+  history reported `READINESS_BLOCKED reason=under-decomposed` permanently even when every open
+  item was addressed. The shared finding counter discounts a marker carried in a resolved or
+  outdated thread, counting currently-open findings only. (De-duplicating the same concern restated
+  across re-review rounds within still-open threads is deliberately out of scope — there is no
+  reliable mechanical "same concern" signal — so restatements still count.) The bash counting is
+  retained only as the Python-free safe-tier degrade, which cannot see thread state; a convergence
+  test pins the two counts together on thread-state-free input.
+- **`source-control-babysit-resolve-thread` no longer reports `humanThreadsActed` for a
+  Bot-authored thread.** The counter incremented for any acted thread whose comments were not
+  *all* bots (`botOnly` false), so a bot-opened thread carrying a later human reply was reported as
+  a human-thread action that never happened, undermining the human-thread safety rail's own
+  telemetry. It now counts only threads whose opening author is human, via the shared authorship
+  classifier — the same author check the `--include-human` eligibility decision already uses.
+
+## [0.12.0]
+
+### Fixed
+
+- **`babysit-prs` snapshot no longer classifies an Approve-with-nits bot review as blocking bot
+  feedback.** A `claude[bot]` PR review posted as an issue-level comment with an explicit
+  **Approve** verdict and only 🟡-nit findings (no `CRITICAL`/`IMPORTANT` or other severity
+  marker) was surfaced as a blocking, genuinely-fresh finding because the body's prose contained
+  the word "blocking" ("blocking criteria", "blocking checks", "No blocking issues"), which the
+  text heuristic matched. The classifier now parses the verdict and severity markers: an explicit
+  approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
+  configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
+  reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
+  unweakened — in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
+  a Request-changes verdict still classifies as blocking, and `CRITICAL`/`IMPORTANT` are now
+  recognized as blocking-severity markers in their own right. (A review submitted in the formal
+  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check — pre-existing
+  behavior this change does not alter; whether such reviews should be severity-scanned first is
+  tracked as a follow-up in #621.) A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
+  findings` — is redacted before the severity check, the structured-marker analogue of the
+  existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
+  re-create a false blocker for that common clean-verdict phrasing. A login named in
+  `babysit_approval_downgrade_logins` opts that bot's approval into the more-conservative
+  `material` bucket (surfaced but non-blocking) instead of `ignored` in the one case the
+  structural downgrade reaches — a review body carrying blocking-looking prose that still parses
+  as an approval verdict. It does not affect a review already in the APPROVED state or a plain
+  clean approval whose body carries no blocking-looking prose: both are ignored regardless of the
+  setting, since neither reaches the downgrade branch.
+
+## [0.11.0]
+
+### Added
+
+- **`babysit-prs` surfaces a silent bot→personal identity fallback as an attribution-drift material
+  finding.** The snapshot engine gains an `attribution_drift` reconciliation arm: for each write the
+  mutation ledger recorded performing, it verifies the landed timeline author is the configured
+  intended write-identity, not merely *some* accepted self-login. A recorded write that landed under
+  a different self-login — the canonical case being a bot write-identity that degraded to the
+  operator's personal login when a token mint failed — becomes a first-class material finding on that
+  PR's cycle-status line instead of drifting silently. It is the complement of `foreign_activity`
+  (which reconciles same-login events the ledger *cannot* account for) and is mutually exclusive with
+  it per comment; unlike `foreign_activity` it reports without suppressing dispatch, since the PR is
+  still ours to babysit. The intended identity is configured via the new `babysit_intended_write_identity`
+  userConfig key (threaded as `--intended-write-identity` to the snapshot); absent it, the arm is
+  dormant. This is pure plugin-side authorship verification — the token-generation root cause is a
+  cross-repo concern (medley `gh-bot.sh`) and no change there is needed for the finding to fire.
+  Coverage is bounded to the write class the ledger records with a recoverable author (review-trigger
+  comments); drift on reactions, classification replies, and branch pushes awaits ledgering their
+  identifiers with authorship. Covered by unit and full-classify regression tests in
+  `test_babysit_delta.py`. Closes #450.
+
+## [0.10.0]
+
+### Changed
+
+- **`babysit-prs` requires per-thread pins for autonomous thread resolves — the bulk autonomous
+  path is refused.** `babysit_resolve_thread.py` now rejects a `--autonomous --resolve` call that
+  carries no `--thread-id`, forcing the unattended-worker path through a per-thread vetted loop
+  (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
+  existing TOCTOU pin guard). `--allow-unpinned-thread` is likewise refused in `--autonomous`
+  mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
+  `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
+  proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
+  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
+  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  behavior change to the
+  autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
+  per-thread loop, aligning it with the pinned form already documented in
+  `reference/orchestration.md` and `reference/safety.md`. Covered by a regression test in
+  `test_guards.py`.
+
 ## [0.9.3]
 
 ### Added

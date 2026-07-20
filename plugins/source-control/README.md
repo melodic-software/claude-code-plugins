@@ -10,9 +10,10 @@ merge-conflict resolution.
 ### `/source-control:commit`
 
 Builds a commit the safe way: drafts a subject matching the resolved
-convention — `.claude/source-control.md` (written by `/source-control:setup`)
-→ the consuming project's own `CLAUDE.md`/rules/commit-msg hook → Conventional
-Commits (11-type vocabulary) as the default — pre-checks it against the
+convention — the layered `source-control.md` config (written by
+`/source-control:setup`) → the consuming project's own
+`CLAUDE.md`/rules/commit-msg hook → Conventional Commits (11-type vocabulary)
+as the default — pre-checks it against the
 pattern before git runs, appends a `Co-Authored-By: Claude …` trailer, and
 feeds the message via Bash heredoc (`git commit -F - --cleanup=verbatim`) —
 never PowerShell here-strings, never scratch files in `.git/`. Stages
@@ -90,13 +91,15 @@ destructive branch deletion for the user), `audit` (configuration health).
 ### `/source-control:setup`
 
 `check` (read-only, default) reports the effective commit-subject / PR-title
-convention (from the tracked `.claude/source-control.md`) and the babysit-prs
-`userConfig` surface. `apply` interviews the repo and writes the convention
-config — inferring first from the repo's own `CLAUDE.md`/rules, commit-msg
-hook, or git log history before asking, and offering Conventional Commits
-(11-type vocabulary) as the recommended default or a custom pattern (e.g. a
-ticket-prefix regex) for orgs that don't use Conventional Commits. Supply
-`subject_pattern=` to write it non-interactively. Re-runnable to reconfigure.
+convention — one row per key with the config layer that supplied it — and the
+babysit-prs `userConfig` surface. `apply` interviews the repo and writes the
+convention config — inferring first from the repo's own `CLAUDE.md`/rules,
+commit-msg hook, or git log history before asking, and offering Conventional
+Commits (11-type vocabulary) as the recommended default or a custom pattern
+(e.g. a ticket-prefix regex) for orgs that don't use Conventional Commits.
+Supply `subject_pattern=` to write it non-interactively, and
+`layer=user|team|local` to pick which layer receives it (default: the tracked
+team file). Re-runnable to reconfigure.
 
 ### `/source-control:resolve-conflicts`
 
@@ -124,8 +127,10 @@ user decision to abandon the integration.
   provides them and replaced by inline guidance when absent. No phase blocks
   on a missing tool.
 - **Reads your conventions, assumes none.** Commit-subject / PR-title
-  convention resolves from the tracked `.claude/source-control.md` (written by
-  `/source-control:setup`) first, then the consuming project's own
+  convention resolves from the `source-control.md` config (written by
+  `/source-control:setup`) first — a `~/.claude` user-global file, the tracked
+  team file, and a gitignored `.claude/source-control.local.md` personal
+  overlay, merged per key — then the consuming project's own
   `CLAUDE.md`, rules, and hooks; branch naming, PR template, merge style, and
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
@@ -158,7 +163,7 @@ repo's owner.
 | `babysit_review_gate_context` | string | review gate treated as absent |
 | `babysit_ci_gateway_context` | string | gateway check unused |
 | `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
-| `babysit_approval_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
+| `babysit_approval_downgrade_logins` | string (multiple) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | number | 14400 |
 | `babysit_advisory_fix_round_cap` | number | 100 |
@@ -168,8 +173,10 @@ repo's owner.
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
 
 The commit-subject / PR-title convention is separate: run
-**`/source-control:setup`** to interview your repo and write the tracked
-`.claude/source-control.md` config — idempotent and safe to re-run.
+**`/source-control:setup`** to interview your repo and write the
+`source-control.md` config — idempotent and safe to re-run. Add
+`.claude/*.local.*` to your `.gitignore` so the personal overlay layer stays
+out of version control (no skill here edits your `.gitignore`).
 Remaining optional environment variables:
 
 | Variable | Used by | Effect |

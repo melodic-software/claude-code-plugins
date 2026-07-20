@@ -34,6 +34,20 @@ derive `<slug>` per its slug spec and, on the session's first memory-tier write,
 memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
 Tick each step as completed.
 
+## Binding preflight (before Step 0)
+
+Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
+invariant ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Shared tracker context") is discharged **here, before Step 0 runs** — never left to surface as a raw
+`exit 3` mid-reclaim. If `.work-item-tracker.json` does not resolve, surface the actionable choice
+before attempting `reclaim`: **(1) setup was never run** → run `/work-items:setup` to bind the
+provider; **(2) a deliberate gh-native operating mode** → this lane is coordination-*dependent* (Step
+0 `reclaim`, `list-frontier`, and the Step 5 `claim` are all seam verbs that need the binding), so an
+unbound run cannot acquire a race-safe claim/lease. Do NOT silently skip the claim and dispatch anyway
+(claim-before-dispatch is a Step 5 invariant): surface that the lane is unbound and stop for the
+remediation. A first-class gh-native no-lease claim path for this lane is a parked decision, not yet a
+supported mode. A `local-markdown` target with no binding cannot proceed at all.
+
 ## Step 0: Session-start reclaim (idempotent)
 
 Before selecting, clear stale claims left by crashed or abandoned sessions (an idempotent entry step). Enumerate currently-assigned items (adapter: "List items", assigned filter — the rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run the seam `reclaim` verb on each id — idempotent; outcome + activity-check semantics per `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol".
@@ -63,8 +77,9 @@ Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound prov
 ### Role-label preflight
 
 Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
-empty, or non-string configured value. Use the resolved string for every recurring/non-recurring
+`config.role_labels`, using `recurring` only when the file or entry is absent — and warn loudly when
+it defaults for that reason (surface it, never silent). Stop on a malformed, empty, or non-string
+configured value. Use the resolved string for every recurring/non-recurring
 filter and every adapter query in this action; do not compare labels against the default literal after
 a remap.
 
@@ -93,6 +108,8 @@ For each tier, emit the corresponding query:
   ```
 
   `--autonomous` additionally excludes items carrying the human-gated role label (`needs-human` by default — [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles"). Tier 2 keeps only `area: guardrails` items that do not carry the resolved recurring-maintenance label; tier 3 keeps the rest of that non-recurring set. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
+
+**Exclude in-flight frontier candidates (open linked PR).** A frontier candidate (tiers 2–3) that already has an open PR targeting it for closure is work already in flight — drop it from the pickable set so it is not re-picked. For each surviving frontier number, query the bound adapter's *open linked PRs* operation (GitHub: [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md) "Open linked PRs") and exclude the number when it reports an open PR closing that item. The **closing-keyword linkage** is the authoritative signal — the same `Closes #N` / native-closing-keyword linkage `pr-issue-linkage` enforces (owned by `/source-control:pull-request`), so an intentional `Refs #N` opt-out does not exclude its issue. Provider search syntax never leaves the adapter — this filter reads only the open-closing-PR boolean the adapter returns per number. **Fail open when the bound provider exposes no PR host:** the offline `local-markdown` binding is never a coordination surface and touches no network tool ([`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md) "local-markdown adapter"), so when no PR-host operation is available this filter has nothing to query — keep the candidate rather than blocking or reaching for a network tool.
 
 Tiers flagged `last-resort: true` are skipped if any prior tier yielded a candidate.
 
@@ -125,6 +142,8 @@ Before claiming, verify the item is still actionable:
 
 ### Step 5: Claim and execute
 
+> **The seam claim (assignee + lease) is a non-optional prerequisite of this step — claim-before-dispatch is an invariant this skill enforces, not merely an implication of the sub-step ordering below.** An external loop-prompt or standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree" describes only the execute sub-step; it is **not** a complete execution contract and is **not** a substitute for claiming. Worktree isolation is not a race-safe collision signal between concurrent lanes — the seam claim is. Acquire the claim first, before branching or dispatching a subagent, regardless of whether the invoking loop-prompt mentioned claiming: dispatching a subagent before the claim is held is a defect even when the loop-prompt's own wording never named the claim step.
+
 On user confirmation ("yes"):
 
 1. **Claim via the seam** — the atomic, race-safe acquisition (assign `@me` → lease → back off on a foreign earlier lease):
@@ -139,7 +158,17 @@ On user confirmation ("yes"):
 
 1. **Suggest branch name.** Propose `<type>/<N>-<slug>` so `/pull-request create` can auto-inject `Closes #N` from the branch parse. Same protocol as the `/work-items:track start` action's branch-name step ([`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/start.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/start.md) "Suggest branch name") — branch `<type>` vocabulary derived from the item's issue type (native Issue Type preferred, `type:*` label fallback), slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). Agent emits `git checkout -b ...` for the user; never executes itself.
 
-1. **Execute the project's development workflow:** the agent MUST follow every step — no shortcuts, no skipping research, no surface-level execution. When the consuming project defines a workflow (a workflow skill, a CLAUDE.md workflow section, or team convention), follow every step of it and read the project's rules for the item's domain first; otherwise follow the generic sequence: explore → plan → implement → test → review → PR.
+1. **Execute — orchestrator-dispatch is the default (`#451`).** For autonomous execution the default posture is orchestrator, not inline editor: this skill picks and claims the item, then **dispatches a scope-fenced implementation subagent** that does the source edits in its **own out-of-tree worktree** (lifecycle owned by `/source-control:worktree`, one per pick), collects the return, verifies it, and does the bookkeeping. **The orchestrator never edits source itself.** All dispatch *mechanics* — worker-brief composition, orchestrator-never-edits, verify-returns-against-evidence, and the concurrent-wave cap — are owned by `/implementation:implement-dispatch`; chain to it rather than re-describing them here. An interactive, all-inline run instead uses `/implementation:implement`. Whichever path runs, the executing surface MUST follow every step of the consuming project's development workflow (a workflow skill, a `CLAUDE.md` workflow section, or team convention) and read the project's rules for the item's domain first — no shortcuts, no skipping research, no surface-level execution; dispatch is only *how* that workflow is carried out. **Autonomous branch/worktree provisioning is deferred to `#572`:** the seam that puts an autonomous run onto a non-default branch/worktree *before* the dispatch preflight — together with the orchestrator-owned PR-creation timing and whether a CI-found fix re-dispatches to the original worker or a fresh subagent — spans `work`, `/implementation:implement-dispatch`, and `/source-control:worktree`; until it lands, this path is not guaranteed end-to-end from a default-branch checkout without operator-provided branch setup.
+
+   **The dispatch brief carries the PR contract forward (`#462`).** So a worker knows the target up front instead of discovering it through red CI, the brief relays what `/source-control:pull-request` will require at PR time — that skill owns the PR body shape, the `Closes #N` closing-keyword injection, and merge style; do **not** redefine them here. The brief enumerates the consuming-project obligations the worker must satisfy: per-plugin version bump plus the matching CHANGELOG entry, the attribution trailer plus session link, and a `## Related` section — alongside the `Closes #N` the branch name carries.
+
+   **Concurrency and batch caps are configured via `userConfig`, never a hardcoded literal.** The *intended* maximum concurrent dispatch waves is `${user_config.work_dispatch_concurrency_cap}` and the *intended* per-cycle item budget is `${user_config.work_cycle_batch_cap}`; a surviving literal `${user_config.…}` placeholder means that key is unset — apply the manifest default (the concurrency default mirrors `/implementation:implement-dispatch`'s 3–5 wave cap). **Enforcement of both caps is not yet wired (`#573`):** `/implementation:implement-dispatch` still applies its own internal 3–5 wave cap and reads no `userConfig`, and no in-repo consumer reads the batch cap today — threading these values into the delegated dispatch and the driving loop is tracked there. A batch cap **bounds one autonomous CYCLE, never the loop**: reaching the cap or draining the frontier ends the current cycle only — it is not a session quota and does not stop autonomous operation. Wakeup scheduling and the next-cycle delay are owned by the driving loop (`/loop`); this skill's contract is only that cycle-end ≠ loop-end. **Same-plugin serialization is deferred to `#464`:** until it lands, treat two in-flight items in the same plugin as an awareness note — prefer not to dispatch a second concurrently, since their diffs and version/CHANGELOG bumps can collide.
+
+1. **High-blast-radius diff gate (pre-PR).** Before a PR is opened, the orchestrator does a **full-diff read** when the diff touches skill frontmatter descriptions or trigger keywords, cross-plugin contracts, or hooks. This complements the worker scope-fence: the scope-fence bounds what a worker *may* touch, this gate is the orchestrator's own read of what the worker *did* touch before the change leaves the lane.
+
+1. **Post-green review pass, then hand off.** After CI is green, run one review pass. The fetch-once → validate → classify → threaded-reply → react → resolve-bot-thread loop is owned by `/source-control:pull-request`; this skill adds only the sequencing and the work-item linkage: fix branch-owned findings via the **owning subagent** (the orchestrator still never edits source), and a **VALID-but-deferred finding requires a filed follow-up issue** — file it via `/work-items:track add`, then cite that issue **both** in the classification reply **and** in the PR's `## Related` section; a deferred finding cannot be resolved without it. Then hand the PR off to `/source-control:babysit-prs` (fleet loop, owned there).
+
+1. **Never-merge boundary.** This skill's lane ends at PR creation and the handoff above (review pass, then babysit). **Merging is the babysit lane or a human, never `work`** — consistent with `/source-control:babysit-prs`'s safe default never merging (its opt-in `worker`/`autopilot` tiers merge only behind a deterministic readiness gate) and `/source-control:pull-request` merges being human-gated.
 
 1. **On completion:** run `/work-items:track done` (one-off items) or `/work-items:track recheck` (recurring items).
 

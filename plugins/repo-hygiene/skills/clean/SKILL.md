@@ -1,8 +1,8 @@
 ---
 name: clean
-description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), tree (destructive fresh-pull reset), all. Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, stale branches, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
+description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all. Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, reset all my repos, stale branches, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
-argument-hint: "[scan|caches|build|git|tree|all|aliases…] (bare → menu or auto-detect)"
+argument-hint: "[scan|caches|build|git|tree|tree-batch|all|aliases…] (bare → menu or auto-detect)"
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)
 hooks:
@@ -48,9 +48,10 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh $ARGUMEN
 | `build` | Clear build output and logs | Low | Yes (includes caches) | — |
 | `git` | Prune stale git metadata; audit branches | Low | No | Yes |
 | `tree` | Reset working tree like a fresh pull | **Destructive** | No (always dry-run first) | **Never** |
+| `tree-batch` | Reset many repos like a fresh pull (skip-list + dirty guard) | **Destructive** | No (always dry-run first) | **Never** |
 | `all` | Sweep caches + build + git hygiene | Medium | Yes | — |
 
-Tiers cumulative: `build` includes `caches`. `all` = `build` + `git`. **`tree` is never composed into `all`.**
+Tiers cumulative: `build` includes `caches`. `all` = `build` + `git`. **Neither `tree` nor `tree-batch` is ever composed into `all`.**
 
 Aliases (`fresh`, `inventory`, `artifacts`, …): [context/action-router.md](context/action-router.md).
 
@@ -119,6 +120,14 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset.sh` — default `--dry-run`. Detail: [context/git-tree-reset.md](context/git-tree-reset.md). Default-preserve; opt-in `--include-deps` / `--include-secrets`; `--allow-unpushed` when HEAD is ahead of upstream.
 
 **Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface the dry-run's `PreserveDeps` / `PreserveSecrets` / `AheadCount` lines in the confirmation so the user knows what survives. An exit 4 (`unpushed-commits`) or non-zero `AheadCount` means HEAD has unpushed commits — confirm loss before adding `--allow-unpushed`. Autonomous sessions: abort. Post-step: after a tree reset that removed dependencies, suggest reinstalling them with the project's own bootstrap/setup and re-validating the environment. For a truly pristine tree, close running dev tooling first (MCP servers, telemetry collectors, build/test watchers) — live processes recreate ignored dirs (`obj/`, `node_modules/`, and the like) the moment they are deleted, and may hold locks that surface as `Unremovable:`.
+
+### 6.5. Tree batch — multi-repo (destructive)
+
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-tree-reset-batch.sh` — default `--dry-run`. Runs §6 `tree` across a set of repos behind one gate, with a separator-agnostic skip list and a dirty-by-default guard. Detail + examples: [context/git-tree-reset-batch.md](context/git-tree-reset-batch.md). Additive over §6 — the batch layer runs no destructive git itself; each per-repo reset delegates to the unchanged `git-tree-reset.sh`, preserving every single-repo gate.
+
+Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p` output). Skip list: `--skip ENTRY` / `--skip-from FILE` (absolute path, `owner/repo`, or bare `repo`; separator-agnostic). Passthrough to the child: `--force-default-branch` / `--include-deps` / `--include-secrets`.
+
+**Mandatory gate (single, batch-wide):** show the `--dry-run` whole-batch plan (per-repo `Outcome`/`Reason`, the `Summary` totals, and any `UnmatchedSkip:` warnings) → `AskUserQuestion` **once** → only then `--apply` **once**. Do not gate per repo. A fresh-clone fleet is typically all on the default branch, so expect an all-blocked dry-run unless `--force-default-branch` — surface that in the confirmation. `--include-dirty` re-enables the exact data-loss vector (resets repos with uncommitted/untracked changes or unpushed commits); it needs its own explicit confirmation naming the dirty repos, exactly like `--include-secrets`. Autonomous sessions: abort.
 
 ### 7. Orphaned path removal (destructive, on explicit request only)
 

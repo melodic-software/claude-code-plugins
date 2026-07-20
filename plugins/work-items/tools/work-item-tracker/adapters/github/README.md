@@ -155,6 +155,66 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
 `No related issue:` leave the body untouched.
 
+## Open linked PRs
+
+For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
+for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
+than re-picked. The authoritative signal is **GitHub's own computed close-linkage**, not a text
+match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
+exactly the PRs GitHub links as closing this issue — the same linkage GitHub renders in the
+issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
+PR that closed the issue already dropped it from the open frontier, and a `CLOSED` (unmerged) PR
+is not in flight (bare read):
+
+```bash
+OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name' | tr -d '\r')
+gh api graphql \
+  -f query='query($owner:String!, $repo:String!, $n:Int!) {
+    repository(owner:$owner, name:$repo) {
+      issue(number:$n) {
+        closedByPullRequestsReferences(first:100, includeClosedPrs:false) { nodes { number state } }
+      }
+    }
+  }' \
+  -f owner="${OWNER_REPO% *}" -f repo="${OWNER_REPO#* }" -F n=<N> \
+  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any' \
+  | tr -d '\r'
+```
+
+Emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. `-F n=<N>` passes the
+number as a GraphQL `Int` (typed); `-f` passes the owner/repo strings; the trailing `| tr -d '\r'`
+follows the Windows/Git Bash rule under "Gotchas" (the boolean can otherwise arrive as `true\r`).
+The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `includeClosedPrs:false`**:
+that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
+connection and must be dropped here — otherwise an issue whose only closing PR merged to a
+non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
+`first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
+Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
+linked as closing — not only the open ones — so a long merge/reopen history consumes page slots
+ahead of the currently-open PR. An issue carrying more than 100 such linked closing PRs (not
+realistic in practice) would need cursor pagination, the GraphQL analogue of the `--limit` note
+under "List items". Why GitHub's computed
+linkage instead of a body regex over `gh pr list --search`:
+
+- **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
+  keyword that appears only inside a fenced code block or an HTML comment, so an example snippet
+  such as a fenced `Closes #<N>` never surfaces here and never spuriously excludes the still-open
+  issue. There is no fence-tracking heuristic to maintain — the retired approach hand-rolled a
+  `jq` `gsub` that recognized only exactly-three backticks or tildes and silently missed
+  four-or-more-backtick and indented fences. This closes the fence-blindness the prior regex
+  carried.
+- **No word-boundary or number-boundary guards.** `#463` cannot collide with `#4630` / `#1463`
+  and a keyword cannot match inside a longer word, because the reference is GitHub's parsed issue
+  linkage, not a regex over raw text.
+- **Base-branch correctness (behavior change).** GitHub forms the close-link only for a PR that
+  targets the repository's default branch — a closing keyword on any other base branch is ignored
+  and creates no linkage. This mechanic therefore does not exclude an issue whose only `Closes
+  #<N>` lives on a non-default-base PR, whereas the retired raw-body regex counted it. That issue
+  now stays pickable, matching GitHub's real merge-time auto-close semantics.
+- **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
+  the closing linkage, so it correctly does not exclude its issue — the same opt-out the
+  `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
+
 ## Aggregate / count (dashboard + hygiene)
 
 `gh issue list --json ... --jq` projections for `stats` and `audit` (bare `gh`).

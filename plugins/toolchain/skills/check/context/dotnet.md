@@ -71,6 +71,8 @@ Checks repos often gate in CI that plain build/test/format don't catch locally �
 
 ## Marketplace plugin skills for build diagnostics (invoke only when installed)
 
+These are .NET-ecosystem plugin skills — applicable when your stack is .NET — and forward references to the planned `dotnet-*` plugin family: invoke each only when its plugin is installed, otherwise fall back to the prose remediation and the binlog gotcha above.
+
 - **Slow builds** — `dotnet-msbuild:build-perf-diagnostics` for bottleneck analysis via binary logs, `dotnet-msbuild:build-perf-baseline` for before/after measurement
 - **Build failures** — `dotnet-msbuild:binlog-failure-analysis` to diagnose opaque MSBuild errors, `dotnet-msbuild:binlog-generation` for binary log capture (`dotnet build /bl:{}`)
 - **Build config issues** — `dotnet-msbuild:msbuild-antipatterns` for AP-01 through AP-21, `dotnet-msbuild:check-bin-obj-clash` for OutputPath conflicts
