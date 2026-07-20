@@ -1,0 +1,61 @@
+name: claude-security-review
+
+# Dedicated LLM security-review pass via the ci-workflows reusable workflow — the
+# security sibling of claude-review.yml, ADR 0002's default-on advisory posture.
+# The caller owns the triggers, the GITHUB_TOKEN grant, and the PATH FILTER: a
+# security pass on every prose PR is noise, so this filter scopes default-on to
+# the repo's security-sensitive surfaces. Fork PRs receive no secrets and a
+# read-only token, so they are simply not reviewed by design. Requires
+# `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
+# selected-repositories scope. Public repo: hosted default runner.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    paths:
+      - ".github/**"
+      - ".claude/**"
+      - "scripts/**"
+      - "plugins/*/hooks/**"
+      - "plugins/*/bin/**"
+      - "plugins/*/tools/**"
+      - "plugins/*/skills/**"
+      - "plugins/*/agents/**"
+      - "plugins/*/commands/**"
+      - ".claude-plugin/**"
+      - "REVIEW.md"
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - "plugins/*/src/**"
+      - "plugins/*/dist/**"
+      - "**/*.sh"
+      - "**/*.ps1"
+      - "**/*.mjs"
+      - "**/*.ts"
+      - "**/*.js"
+      - "**/*.cjs"
+      - "**/.mcp.json"
+      - "**/mcp.json"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "plugins/*/.claude-plugin/plugin.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  security-review:
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post the security review
+      id-token: write        # OIDC — mints the Claude GitHub App token
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@0a5fd4c578f2a6278fdc0e586b8e08392e64299a # 0a5fd4c 2026-07-20
+    with:
+      runner: ubuntu-24.04
+      skip-actors: "dependabot[bot],melodic-standards-sync[bot]"
+    # One named secret (least privilege), never `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

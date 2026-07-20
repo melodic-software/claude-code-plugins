@@ -3,6 +3,57 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Changed
+
+- **`babysit-prs` autopilot merge tier (#476) — completed the gate-off flip precondition (#675),
+  still shipped DISABLED.** Three coherence gaps that had to close before the tier can ever be
+  flipped on are now resolved, all as prose/contract changes with no behavioral shift to the
+  merge gate. (1) **Merge-surface wiring:** every autopilot merge surface is swept so an ENABLED
+  config can no longer merge via the flagless base path — autopilot's step 3 in `SKILL.md` and the
+  zero-blocker direct-gate path both point at `reference/safety.md`, now the single home for both
+  the base and the enabled-tier merge paths, and the Pinned-Command Degradation operator handoff
+  reproduces the tier-flagged command when the tier is enabled. (2) **Second-account approve mechanic:** the concrete
+  out-of-band approval the gate's distinct-bot criterion requires is specified — `gh pr review
+  … --approve` submitted under a distinct `<approver-bot-logins>` identity (`GH_TOKEN` or `gh
+  auth switch`, never the PR author or a lane identity), only after a genuine clean review pass,
+  on the live head so the `--expected-head` pin holds. (3) **Review-workflow requiredness
+  precondition:** enabling the tier now carries a documented operator precondition — the base
+  branch's ruleset must make the review workflow a **required** status context *and* that workflow
+  must always run to a non-skipped conclusion on every PR to the base (requiredness is necessary
+  but not sufficient: a required-but-skipped review still reads `mergeStateStatus == CLEAN` without
+  having gated anything). Where the review workflow is not required, or can conditionally skip on
+  the tier's PRs, the tier must not be enabled. Chosen over a merge-gate review-context config
+  (rejected option b) to keep the gate deterministic with nothing new to wire. The skill-contract
+  tests are extended to pin all three contracts against drift.
+
+## [0.15.0]
+
+### Added
+
+- **`babysit-prs` autopilot merge tier (#476), shipped DISABLED behind an explicit operator
+  flag.** At day-scale throughput, human approve-and-merge is the pipeline bottleneck. The new
+  tier lets the fleet satisfy the branch ruleset instead of bypassing it: a second bot account
+  (author ≠ approver) runs a genuine review pass through the review plugin and submits an
+  approving review only when clean, after which the pinned merge gate merges **only when every
+  criterion holds** — required checks green including the review workflow (`mergeStateStatus`
+  CLEAN, ruleset untouched), issue-linked, authored by a configured pipeline lane, no human
+  `CHANGES_REQUESTED` / blocking comment / unresolved thread, no configured do-not-merge label,
+  no unratified `Decision defaulted` marker on the linked issue (the triage lane's maintainer
+  veto window, which a maintainer ratifies by comment before the default rides into a merge),
+  and a distinct-bot approval on the live head (head SHA unchanged since review). Any criterion
+  failing falls back to today's behavior: the PR is reported on the human merge-ready list. The
+  gate flag `--autopilot-merge-tier` is **fail-closed** — it refuses unless `--lane-logins`,
+  `--approver-bot-logins`, and `--block-labels` are all supplied — and every criterion predicate
+  is reused from the shared `babysit_classify` module rather than re-implemented. The tier exists
+  only while `babysit_autopilot_merge_tier` is enabled (new boolean userConfig, default off);
+  enabling it and any later gate-off flip is a separate, announced operator step. New userConfig:
+  `babysit_autopilot_merge_tier`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
+  `babysit_merge_block_labels`. Absent the flag the merge gate is byte-for-byte its prior self, so
+  worker/autopilot's existing gate-proven merges are unchanged. `safety.md`'s "Never do
+  automatically: merge" contract is updated deliberately to codify the tier and its criteria.
+
 ## [0.14.0]
 
 ### Added

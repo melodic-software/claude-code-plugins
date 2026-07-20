@@ -134,6 +134,13 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   to merge on an unprotected repository — zero required reviews AND zero required status contexts
   — when the PR author is not one of `<self-logins>`, absent `--allow-unprotected`. Both
   overrides are human decisions, never passed autonomously.
+- The merge wrapper's `--autopilot-merge-tier` flag layers the #476 tier criteria (issue-linked,
+  lane-authored, no blocking label, a distinct-bot approval on the live head, no human blocking
+  comment) onto the base gate. It is **fail-closed**: the umbrella flag refuses (exit `3`) unless
+  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all non-empty, and supplying
+  any of those three without the umbrella is a usage error (exit `2`). Absent the flag the gate is
+  exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
+  tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`) and `--resolve --include-human` (autopilot's
   addressed-thread widening).
@@ -152,6 +159,63 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so.
+
+## Autopilot Merge Tier: Enabled-Path Mechanics
+
+Reachable only while `babysit_autopilot_merge_tier` is enabled; absent that flag none of this
+section applies and autopilot's merge path is byte-for-byte its prior self. This is the single
+home for the enabled-path merge command that autopilot's step 3 in `SKILL.md` points at, so the
+base and enabled-tier merge paths never drift apart. The tier still ships **DISABLED**; enabling
+it, and any later gate-off flip, is a separate announced operator step.
+
+- **Enabled-path merge command.** After the worker's final push and a fresh post-push snapshot
+  (or the exact pushed commit, vetted), merge on that post-push head by layering the tier flags
+  onto the base gate command — this is the *only* autopilot merge path once the tier is enabled,
+  never the four-flagless base command, which would ignore every tier criterion:
+
+  ```text
+  source-control-babysit-merge owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>
+  ```
+
+  The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
+  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all supplied, and any of
+  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>`
+  when configured, exactly as for the base merge readiness gate above.
+
+- **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
+  requires is submitted out-of-band by the agent — the gate only verifies one exists on the live
+  head, it never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
+  accounts, never the PR author or a lane identity), run a **genuine** review pass — through a
+  review skill/plugin when one is installed, otherwise an equivalent thorough manual review (this
+  skill declares no review-plugin dependency; the gate requires only that the resulting approval
+  exists on the live head, not that a particular tool produced it) — and only when that pass is
+  clean submit the approval under that identity:
+
+  ```text
+  GH_TOKEN=<approver-bot-token> gh pr review owner/repo#N --approve --body "<clean-review-summary>"
+  ```
+
+  `gh auth switch --user <approver-login>` before a plain `gh pr review … --approve` is the
+  equivalent when the approver is a persisted gh account rather than a bound token. Submit on the
+  live head so the gate's head-unchanged-since-review pin (`--expected-head`) still holds; any
+  push after the approval invalidates it and the review pass must be re-run against the new head.
+  Never approve on an unclean pass, and never under the author or a lane identity — either
+  collapses author ≠ approver and the gate refuses the merge fail-closed.
+
+- **Review-workflow requiredness precondition (enabling).** Enable the tier ONLY on a base branch
+  whose ruleset makes the review workflow a **required status context** *and* whose review workflow
+  always runs to a non-skipped conclusion on every PR to that base. The gate proves the review ran
+  solely through `mergeStateStatus == CLEAN`, which guarantees only that *required* contexts passed;
+  a review workflow that is present but not required can be absent, skipped, or failing while the PR
+  still reads CLEAN, so the gate could green-light a merge the review never actually gated.
+  Requiredness is necessary but not sufficient: a conditionally-skipped review job can report a
+  `SKIPPED` conclusion that is counted as a passing state, so a required-but-skipped review still
+  reads CLEAN without having run. Requiring the review workflow therefore closes that hole
+  deterministically *only when* it cannot conditionally skip on the paths or conditions the tier's
+  PRs hit — it must always execute and produce a non-skipped result on the pinned head. Where the
+  review workflow is not a required context, or can skip on those PRs, do not enable the tier: this
+  is an operator enabling precondition, verified before the flip, not something the merge gate can
+  self-enforce.
 
 ## Harness Permission Layer
 
@@ -192,6 +256,11 @@ For a merge:
 source-control-babysit-merge owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method>
 ```
 
+When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
+surface the enabled-path command from Autopilot Merge Tier: Enabled-Path Mechanics above, not this
+flagless base form, so the operator's manual merge is held to the same tier criteria the blocked
+gate would have enforced.
+
 For a thread resolve, never surface a bare `--autonomous` or `--include-human` resolve: both
 re-fetch the live thread list and re-evaluate every eligible thread at execution time, so an
 unpinned command could resolve a thread this run never vetted — one opened or changed after its
@@ -221,7 +290,43 @@ as done and re-running the gate.
 ## Never Do Automatically
 
 - Merge in default (safe) mode, or merge through any path other than the pinned merge wrapper's
-  gate.
+  gate. Worker and autopilot merge only a PR that gate proves 100% ready.
+- Generate an approving review to satisfy a required-review ruleset, or merge on a review the
+  fleet produced itself — **except** under the autopilot merge tier (#476), a deliberate,
+  config-gated opt-in that ships **DISABLED**. It engages only when the operator sets
+  `babysit_autopilot_merge_tier`; enabling that flag, and any later gate-off flip, is a
+  separate, loudly-announced operator step, never a default and never a side effect of another
+  change. When the tier is enabled, a second bot account (author ≠ approver) runs a **genuine**
+  review pass and submits an approving review **only when it is clean**, and the pinned merge
+  wrapper's `--autopilot-merge-tier` gate then merges **only when every criterion holds**, each
+  enforced deterministically:
+  - required checks green, including the review workflow, with the base ruleset satisfied
+    (`mergeStateStatus` CLEAN — the ruleset itself is never bypassed);
+  - the PR is issue-linked (carries a closing-issue reference);
+  - the PR is authored by a configured pipeline lane;
+  - no human `CHANGES_REQUESTED`, no human blocking comment, no unresolved review thread;
+  - no configured do-not-merge label is present;
+  - the PR's linked issue carries no unratified `Decision defaulted` marker — the triage lane
+    records a defaulted (maintainer-vetoable) decision only as a `Decision defaulted: X — veto
+    before merge` issue comment, invisible to the gate, so the default rides into an autopilot
+    merge only once a maintainer has **ratified** it: a human `OWNER`/`MEMBER` comment posted
+    after the marker carrying an explicit ratification signal — a closed, whole-word token set
+    (`ratify`/`ratified`, `approve`/`approved`, `confirm`/`confirmed`), and not a
+    withheld-approval negation (`not approved`, `cannot approve`). All maintainer comments
+    after the marker are scanned and the **latest decisive signal wins**: a ratification token
+    ratifies, while a revocation reusing the veto vocabulary (`not approved`, `do not merge`)
+    re-holds, so a maintainer who ratifies and then revokes holds the PR. Matching is strict and
+    fail-closed: an unrelated maintainer comment, a signal appearing before the marker, a
+    ratify/revoke tie at the same timestamp, an unratified marker, or an issue whose comments
+    cannot be read all hold the PR;
+  - the approving review is by a **distinct bot identity** (author ≠ approver) and was
+    submitted against the **live head** (head SHA unchanged since review), pinned as always by
+    `--expected-head`.
+
+  Any criterion failing falls back to today's behavior — the PR is reported on the human
+  merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
+  review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
+  tier does not exist and the first bullet governs unchanged.
 - Enable auto-merge.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.

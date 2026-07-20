@@ -1,7 +1,7 @@
 ---
 name: explore
-description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration. Use as step 1 before any code change, for 'what exists for X' investigation, or in blindspot mode to surface the user's unknown-unknowns in unfamiliar territory."
-argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config, /discovery:explore blindspot <area-or-domain>)"
+description: "Explore the local codebase before making changes — read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration. Use as step 1 before any code change, or for 'what exists for X' investigation."
+argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -115,20 +115,10 @@ The `$ARGUMENTS` value shapes the exploration focus:
 | `git` | Recent change history | `git log`, active branches, recent contributors, change velocity |
 | `config` | Build and tool configuration | Read `.editorconfig`, build configs, analyzer settings, CI workflows |
 | `<file-path>` | Single file deep-dive | Read file, its tests, its callers, its git history |
-| `blindspot <area-or-domain>` | The USER's unknown-unknowns, not the agent's | See "Blindspot mode" below |
 
 Multiple arguments combine: `/discovery:explore payments deps tests` explores that area's dependencies AND test coverage.
 
-## Blindspot mode
-
-Every other mode builds the AGENT's local knowledge; blindspot mode builds the USER's. Run it when the user is about to work in territory they don't know — an unfamiliar codebase area OR an unfamiliar domain vocabulary — and the goal is a better prompt.
-
-1. **Intake** — ask the user's starting point first (one question). Blindspot output calibrates to that disclosure.
-2. **Scan** — codebase lane: read the target area (dimensions 1-3 above) looking specifically for things the user's framing didn't account for — existing patterns they'd duplicate, constraints they'd violate, historical decisions they'd re-litigate, adjacent code their change would break. Domain lane: build a lightweight vocabulary ladder grounded in sources fetched this session (repo files, official docs) — never bare training recall.
-3. **Output — blindspot cards.** One card per blindspot: the gap, why it matters here, and a copyable prompt-fix line. Close by assembling the fixes into ONE improved implementation prompt the user can run next.
-4. **Escalate when depth warranted** — a domain too deep for a lightweight ladder gets a recommendation to run proper external research (`/research`) or whatever structured-learning capability the environment provides.
-
-Blindspot mode does NOT write EXPLORE.md by default — its deliverable is the user's understanding plus the improved prompt. Offer the persist only when findings double as stage-1 exploration.
+> Surfacing the USER's unknown-unknowns before they work in unfamiliar territory — a better-prompt deliverable, not the `EXPLORE.md` artifact — is the sibling [`/discovery:blindspot`](${CLAUDE_PLUGIN_ROOT}/skills/blindspot/SKILL.md) skill.
 
 ## Output format
 
@@ -146,7 +136,7 @@ If invoked standalone, present findings directly. If invoked as part of a larger
 
 ## Outcome gate (before EXPLORE.md handoff)
 
-Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus an improved prompt, not the 7-section artifact (run it only when the user opts into the EXPLORE.md persist). For all other modes: before writing EXPLORE.md (or returning the summary), check the artifact against **binary criteria read off it** — not a "did I explore enough?" recap. Any FAIL → return to the named dimension and fix before handoff:
+Before writing EXPLORE.md (or returning the summary), check the artifact against **binary criteria read off it** — not a "did I explore enough?" recap. Any FAIL → return to the named dimension and fix before handoff:
 
 - **Every Output-format section populated with specifics** — each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap** — nothing the task plausibly depends on is silently unexplored.
@@ -156,7 +146,7 @@ Blindspot-only runs SKIP this gate — their deliverable is blindspot cards plus
 
 ## Final step: persist artifact for handoff
 
-Blindspot-only runs SKIP this step (see "Blindspot mode"). For all other modes: write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md` — a memory-tier artifact, never committed. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
 This file is the authoritative stage summary — a fresh session must be able to resume external research or planning reading only this artifact. The artifact's Findings section follows the 7-point Output format above, and a closing Next-stage-handoff names what external research (`/research`) or planning needs.
 
@@ -171,7 +161,7 @@ If exploration spans many sub-areas and EXPLORE.md exceeds ~2000 words, split ov
 
 ## What this skill does NOT do
 
-- **Does not research externally** — that's `/research`. This skill reads local code, git, and file system only. Sole carve-out: the blindspot domain lane may fetch official docs to ground its vocabulary ladder
+- **Does not research externally** — that's `/research`. This skill reads local code, git, and file system only
 - **Does not make changes** — it explores. Execution is a separate step
 - **Does not make decisions** — it presents what IS. The planning step decides what SHOULD BE
 - **Does not skip dimensions for "simple" tasks** — a quick bug fix still benefits from reading the surrounding code and checking for tests
