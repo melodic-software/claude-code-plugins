@@ -150,7 +150,7 @@ On user confirmation ("yes"):
 
 1. **Post-green review pass, then hand off.** After CI is green, run one review pass. The fetch-once → validate → classify → threaded-reply → react → resolve-bot-thread loop is owned by `/source-control:pull-request`; this skill adds only the sequencing and the work-item linkage: fix branch-owned findings via the **owning subagent** (the orchestrator still never edits source), and a **VALID-but-deferred finding requires a filed follow-up issue** — file it via `/work-items:track add`, then cite that issue **both** in the classification reply **and** in the PR's `## Related` section; a deferred finding cannot be resolved without it. Then hand the PR off to `/source-control:babysit-prs` (fleet loop, owned there).
 
-1. **Never-merge boundary.** This skill's lane ends at PR creation and the handoff above (review pass, then babysit). **Merging is the babysit lane or a human, never `work`** — consistent with `/source-control:babysit-prs` never merging and `/source-control:pull-request` merges being human-gated.
+1. **Never-merge boundary.** This skill's lane ends at PR creation and the handoff above (review pass, then babysit). **Merging is the babysit lane or a human, never `work`** — consistent with `/source-control:babysit-prs`'s safe default never merging (its opt-in `worker`/`autopilot` tiers merge only behind a deterministic readiness gate) and `/source-control:pull-request` merges being human-gated.
 
 1. **On completion:** run `/work-items:track done` (one-off items) or `/work-items:track recheck` (recurring items).
 
