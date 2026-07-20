@@ -59,16 +59,26 @@ from babysit_classify import (
     normalize_login_set,
     normalize_self_logins,
 )
+from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
     fetch_issue_comments,
+    fetch_pull_request_review_comments,
     fetch_pull_request_reviews,
     fetch_review_threads,
     gh_capture,
     gh_json,
+    normalized_rest_author,
     parse_repo_number,
     resolve_authors,
 )
 from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
+
+# A plain human "do not merge" veto that is neither a formal CHANGES_REQUESTED
+# review nor the configured label: the shared blocking-text predicate does not
+# carry a do-not-merge pattern, so the tier's "no human blocking comment"
+# criterion matches it here. Bounded to the merge-veto sense (do/don't/do-not
+# merge) so ordinary prose does not false-block.
+HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re.I)
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -279,8 +289,13 @@ def evaluate_autopilot_tier(
         )
 
     reviews = fetch_pull_request_reviews(repo, number)
+    # Collapse to each actor's latest decisive review before accepting a tier
+    # approval: a bot that approved and then submitted CHANGES_REQUESTED (or had
+    # its approval dismissed) on the same head must no longer count as the
+    # approver, even when another approval keeps the base reviewDecision APPROVED.
+    decisive_reviews = latest_reviews_by_author({"reviews": reviews}, decisive_only=True)
     approval = find_distinct_bot_approval(
-        reviews, author_login, head, tier.approver_bot_logins
+        decisive_reviews, author_login, head, tier.approver_bot_logins
     )
     if approval is None:
         blockers.append(
@@ -295,11 +310,22 @@ def evaluate_autopilot_tier(
     human_blocking: list[str] = []
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
+    # Inline review-thread comments are neither issue comments nor review
+    # summaries; a human veto left inline whose thread is later resolved would
+    # otherwise escape both the base unresolved-thread gate and this scan.
+    corpus.extend(
+        {"author": normalized_rest_author(row), "body": row.get("body")}
+        for row in fetch_pull_request_review_comments(repo, number)
+    )
     for item in corpus:
         if actor_kind(item) != "human":
             continue
         body = str(item.get("body") or "")
-        if has_blocking_text(body) or has_blocking_severity(body):
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
             login = item.get("author")
             login = login.get("login") if is_json_object(login) else login
             human_blocking.append(str(login or "unknown"))

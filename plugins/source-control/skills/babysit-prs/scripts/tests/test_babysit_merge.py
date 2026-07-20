@@ -60,11 +60,18 @@ def _pr(**overrides: Any) -> dict[str, Any]:
 RULES = [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}]
 
 
-def _approval(login: str, oid: str, typename: str = "Bot", state: str = "APPROVED") -> dict[str, Any]:
+def _approval(
+    login: str,
+    oid: str,
+    typename: str = "Bot",
+    state: str = "APPROVED",
+    submitted_at: str = "2026-01-01T00:00:00Z",
+) -> dict[str, Any]:
     return {
         "state": state,
         "author": {"login": login, "__typename": typename, "is_bot": typename == "Bot"},
         "commit": {"oid": oid},
+        "submittedAt": submitted_at,
         "body": "",
     }
 
@@ -81,6 +88,7 @@ class TierEvaluateHarness(unittest.TestCase):
         *,
         reviews: list[dict[str, Any]] | None = None,
         issue_comments: list[dict[str, Any]] | None = None,
+        review_comments: list[dict[str, Any]] | None = None,
         tier: merge.AutopilotMergeTierConfig | None = TIER,
     ) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
@@ -101,12 +109,17 @@ class TierEvaluateHarness(unittest.TestCase):
                 merge, "fetch_issue_comments",
                 return_value=(issue_comments or []),
             ) as comments_mock,
+            mock.patch.object(
+                merge, "fetch_pull_request_review_comments",
+                return_value=(review_comments or []),
+            ) as review_comments_mock,
         ):
             result = merge.evaluate(
                 "owner/repo", 476, HEAD, {"owner"}, frozenset(), False, False, tier,
             )
         result["_reviews_called"] = reviews_mock.called
         result["_comments_called"] = comments_mock.called
+        result["_review_comments_called"] = review_comments_mock.called
         return result
 
 
@@ -188,6 +201,44 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
         self.assertTrue(any("human blocking comment" in b for b in result["blockers"]))
 
+    def test_superseded_bot_approval_is_ignored(self) -> None:
+        # The approver bot approved, then requested changes on the same head; a
+        # human approval keeps the base reviewDecision APPROVED. The bot's latest
+        # decisive state is CHANGES_REQUESTED, so it is not a valid tier approver.
+        result = self._evaluate(
+            _pr(),
+            reviews=[
+                _approval(f"{APPROVER}[bot]", HEAD, submitted_at="2026-01-01T00:00:00Z"),
+                _approval(
+                    f"{APPROVER}[bot]", HEAD, state="CHANGES_REQUESTED",
+                    submitted_at="2026-01-02T00:00:00Z",
+                ),
+            ],
+        )
+        self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
+        self.assertFalse(result["ready"])
+
+    def test_plain_do_not_merge_comment_blocks(self) -> None:
+        comment = {
+            "author": {"login": "maintainer", "__typename": "User", "is_bot": False},
+            "body": "Please do not merge this PR yet.",
+        }
+        result = self._evaluate(_pr(), issue_comments=[comment])
+        self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
+        self.assertFalse(result["ready"])
+
+    def test_inline_review_comment_veto_blocks(self) -> None:
+        # A human inline review comment on a since-resolved thread escapes the
+        # base unresolved-thread gate; the tier still catches it.
+        row = {
+            "user": {"login": "maintainer", "type": "User"},
+            "body": "This is a blocking regression.",
+        }
+        result = self._evaluate(_pr(), review_comments=[row])
+        self.assertTrue(result["_review_comments_called"])
+        self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
+        self.assertFalse(result["ready"])
+
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         # A bot review body carrying blocking-looking prose is not a human stop.
         comment = {
@@ -205,6 +256,7 @@ class TierAbsentIsInert(TierEvaluateHarness):
         self.assertFalse(result["autopilotMergeTier"]["enabled"])
         self.assertFalse(result["_reviews_called"])
         self.assertFalse(result["_comments_called"])
+        self.assertFalse(result["_review_comments_called"])
         self.assertTrue(result["ready"], result["blockers"])
 
 
