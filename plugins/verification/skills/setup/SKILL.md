@@ -20,8 +20,8 @@ every key optional, absent keys mean the documented defaults (`contract_dir: doc
 `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`).
 
 This skill offers the shared consumer-side concern file, independent of whether the sibling lifecycle
-plugins (`discovery`, `planning`, `implementation`) are installed today; each of those offers the same
-file from its own setup, and re-running any of them reads the current state rather than overwriting.
+plugins `discovery` and `planning` are installed today; each of those offers the same file from its
+own setup, and re-running any of them reads the current state rather than overwriting.
 
 Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
 re-running reads the current state and offers an update rather than overwriting blind.
