@@ -1,0 +1,710 @@
+{
+  "_comment": "Graded-fixture manifest for check-security-binding.fixtures.test.mjs. Keyed by top-level fixture filename under evals/fixtures/security-binding/. Each entry: expected checker exit (0 valid, 1 findings) and defect-naming substrings the runner asserts (stdout when exit 0, stderr when exit 1). A binding+evidence pair grades evaluation mode with the named event-array input; egress_hosts pins the --egress-hosts allow-list seam. quarantined lists any fixture whose real checker behavior contradicts its name (none currently).",
+  "fixtures": {
+    "admission-weakened-no-justification.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rules[2]: disposition \"autonomous-eligible\" is more permissive than the shipped default for C3"
+      ]
+    },
+    "ambiguous-runtime-markers.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings: runtime_markers of surfaces \"ci-pool-a\" and \"ci-pool-b\" are jointly satisfiable"
+      ]
+    },
+    "as112-v6-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "c2-auto-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C2: \"auto\" without a ratified promotion_state.C2-auto-merge entry (state \"promoted\")"
+      ]
+    },
+    "c3-blocking-unratified.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_blocking.ai-review.C3: \"blocking\" without a ratified promotion_state.C3-ai-review-blocking entry (state \"promoted\")"
+      ]
+    },
+    "c4-auto-merge.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C4: \"auto\" exceeds the matrix cap"
+      ]
+    },
+    "equal-specificity-tie.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rules[5] and admission.rules[6]: equal specificity (2 bound axes) with different dispositions and a jointly matchable triple"
+      ]
+    },
+    "escalation-ack-invalid.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "escalation_ack.staleness_window: must be a positive integer (>= 1)"
+      ]
+    },
+    "escalation-ack-loop.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "escalation_ack.reescalation_cap: 2 exceeds the contract cap"
+      ]
+    },
+    "escalation-push-without-channel.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "escalation_severity_routes.urgent: binds a push leg with no channel leg"
+      ]
+    },
+    "escalation-runner-route-missing.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "escalation_severity.runner-needs-human: severity is bound for a runner event class with no escalation_routes.runner-needs-human entry"
+      ]
+    },
+    "escalation-severity-bad-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "escalation_severity.gate-failure: \"critical\" is not one of notice | attention | urgent"
+      ]
+    },
+    "escalation-severity-tracker-only-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "escalation-severity-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "evidence-contrary.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-contrary.json",
+      "exit": 0,
+      "findings_substrings": [
+        "ceiling lowered by contrary evidence"
+      ]
+    },
+    "evidence-stale.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-stale.json",
+      "exit": 0,
+      "findings_substrings": [
+        "pre-epoch contrary event(s) ignored"
+      ]
+    },
+    "hosted-ephemeral-l3-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "human-gated-only-no-l2.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "l3-ratified-class-container.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L3.substrate_class: \"container\" ratified for an L3 entry"
+      ]
+    },
+    "marker-prototype-key.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a: runtime_markers of level entries L2 and L3 are jointly satisfiable"
+      ]
+    },
+    "missing-l2-autonomous.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings: no bound surface reaches L2 under dispatch_posture autonomous-enabled"
+      ]
+    },
+    "missing-probe-evidence.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L2.probe_evidence: missing or empty"
+      ]
+    },
+    "missing-substrate-class.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L2.substrate_class: undefined"
+      ]
+    },
+    "multi-host-egress-valid.json": {
+      "egress_hosts": "example.com,iana.org",
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "probe-evidence-6to4-relay.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"192.88.99.1\""
+      ]
+    },
+    "probe-evidence-6to4-v6.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"2002:101:101::1\""
+      ]
+    },
+    "probe-evidence-bare-metadata.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"http://metadata/computeMetadata\""
+      ]
+    },
+    "probe-evidence-benchmarking-v6.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"2001:2::7\""
+      ]
+    },
+    "probe-evidence-bogus-credpath.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/definitely-not-a-host-credential\""
+      ]
+    },
+    "probe-evidence-bogus-metadata.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"http://metadata.invalid/not-a-credential\""
+      ]
+    },
+    "probe-evidence-cred-outer-missing.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.outer_exit_code undefined for 1 probed path entry"
+      ]
+    },
+    "probe-evidence-cred-outer-nonzero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.outer_exit_code entry \"1\" for path \"/root/.ssh/id_rsa\""
+      ]
+    },
+    "probe-evidence-credpath-code-count.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.exit_code \"1\" for 2 probed path entries"
+      ]
+    },
+    "probe-evidence-credpath-partial-zero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.exit_code entry \"0\" for path \"http://169.254.169.254/metadata/instance\""
+      ]
+    },
+    "probe-evidence-discard-only.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"100::1\""
+      ]
+    },
+    "probe-evidence-doc-3fff.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"3fff::1\""
+      ]
+    },
+    "probe-evidence-docnet-host.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"2001:db8::1\""
+      ]
+    },
+    "probe-evidence-dot-traversal.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/root/../var/empty/.ssh/id_rsa\""
+      ]
+    },
+    "probe-evidence-dummy-prefix.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"100:0:0:1::1\""
+      ]
+    },
+    "probe-evidence-encoded-loopback.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"2130706433\""
+      ]
+    },
+    "probe-evidence-etc-descendant-credpath.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/etc/example/credentials\""
+      ]
+    },
+    "probe-evidence-expanded-loopback.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"0:0:0:0:0:0:0:1\""
+      ]
+    },
+    "probe-evidence-expansion-ephemeral.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.host_expanded entry \"/tmp/.ssh/id_rsa\" for path \"$HOME/.ssh/id_rsa\""
+      ]
+    },
+    "probe-evidence-expansion-tail-mismatch.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "the host-side expansion is not tail-consistent"
+      ]
+    },
+    "probe-evidence-generic-env-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$TOKEN\""
+      ]
+    },
+    "probe-evidence-generic-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/tmp/token\""
+      ]
+    },
+    "probe-evidence-home-descendant-credpath.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$HOME/scratch/credentials\""
+      ]
+    },
+    "probe-evidence-host-home-mount.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/host-home/.netrc\""
+      ]
+    },
+    "probe-evidence-imds-http-error.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.transport_outcome entry \"read-denied\" for metadata-URL path \"http://169.254.169.254/metadata/instance\""
+      ]
+    },
+    "probe-evidence-invalid-tld.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"does-not-exist.invalid\""
+      ]
+    },
+    "probe-evidence-invented-env-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$NOT_A_TOKEN\""
+      ]
+    },
+    "probe-evidence-invented-home-user.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "definitely-not-a-host-user"
+      ]
+    },
+    "probe-evidence-invented-token.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$HOME/definitely_not_a_token\""
+      ]
+    },
+    "probe-evidence-ipv4-compat.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"::127.0.0.1\""
+      ]
+    },
+    "probe-evidence-known-hosts.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$HOME/.ssh/known_hosts\""
+      ]
+    },
+    "probe-evidence-l3-container.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L3.substrate_class: \"container\" ratified for an L3 entry"
+      ]
+    },
+    "probe-evidence-level-mismatch.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records level \"L2\", not this binding entry's level \"L3\""
+      ]
+    },
+    "probe-evidence-local-host.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"localhost\""
+      ]
+    },
+    "probe-evidence-malformed-dns.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"egress..example.com\""
+      ]
+    },
+    "probe-evidence-metadata-port.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"http://169.254.169.254:1/metadata\""
+      ]
+    },
+    "probe-evidence-metadata-route-boundary.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"http://169.254.169.254/metadata-not-a-credential\""
+      ]
+    },
+    "probe-evidence-metadata-route.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"http://169.254.169.254/not-a-credential\""
+      ]
+    },
+    "probe-evidence-metadata-scheme.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"file://169.254.169.254/metadata\""
+      ]
+    },
+    "probe-evidence-missing-host-expanded.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.host_expanded undefined for 1 probed path entry"
+      ]
+    },
+    "probe-evidence-missing-outer-exit.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.outer_exit_code undefined for 1 probed host entry"
+      ]
+    },
+    "probe-evidence-missing-probed-at.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records probed_at undefined"
+      ]
+    },
+    "probe-evidence-missing-target.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host undefined"
+      ]
+    },
+    "probe-evidence-missing-transport.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.transport_outcome undefined for 1 probed path entry"
+      ]
+    },
+    "probe-evidence-multi-host-private.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"10.0.0.1\""
+      ]
+    },
+    "probe-evidence-nat64-local.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"64:ff9b:1::1\""
+      ]
+    },
+    "probe-evidence-nat64-private-embed.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"64:ff9b::10.0.0.1\""
+      ]
+    },
+    "probe-evidence-outer-egress-failed.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.outer_exit_code entry \"6\" for host \"definitely-no-such-probe-target-983475.example.net\""
+      ]
+    },
+    "probe-evidence-protocol-assignment.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"192.0.0.1\""
+      ]
+    },
+    "probe-evidence-ratified-class-mismatch.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records substrate_class \"container\", not this binding entry's ratified substrate_class \"vm-microvm\""
+      ]
+    },
+    "probe-evidence-relative-credpath.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"home/.ssh\""
+      ]
+    },
+    "probe-evidence-root-escape.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "via \"..\" traversal"
+      ]
+    },
+    "probe-evidence-site-local-v6.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"fec0::1\""
+      ]
+    },
+    "probe-evidence-srv6-sid.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"5f00::1\""
+      ]
+    },
+    "probe-evidence-ssh-dir.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$HOME/.ssh\""
+      ]
+    },
+    "probe-evidence-teredo.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"2001::5\""
+      ]
+    },
+    "probe-evidence-token-substring.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/definitely-not-a-host-token\""
+      ]
+    },
+    "probe-evidence-transport-cross-type.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.transport_outcome entry \"connect-failed\" for path \"$HOME/.netrc\""
+      ]
+    },
+    "probe-evidence-unanchored-credpath.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"/tmp/.ssh\""
+      ]
+    },
+    "probe-evidence-unanchored-envvar.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"$UNRELATED/.ssh\""
+      ]
+    },
+    "probe-evidence-unc-etc.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.credentials_absent.path entry \"//etc/credentials\""
+      ]
+    },
+    "probe-evidence-uri-host.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.host \"http://127.0.0.1\""
+      ]
+    },
+    "probe-evidence-zero-exit.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "records assertions.egress_denied.exit_code entry \"0\" for host \"example.com\""
+      ]
+    },
+    "promoted-c2.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "promotion-nonpromotable.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "promotion_state.C4-merge: not a promotable cell"
+      ]
+    },
+    "ratified-at-calendar-invalid.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "promotion_state.C2-auto-merge.ratified_at: missing, not strict ISO 8601 with explicit offset (Z or +/-hh:mm), or not a calendar-valid instant"
+      ]
+    },
+    "ratified-at-non-iso.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "promotion_state.C2-auto-merge.ratified_at: missing, not strict ISO 8601 with explicit offset (Z or +/-hh:mm), or not a calendar-valid instant"
+      ]
+    },
+    "ratified-at-offset-invalid.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "promotion_state.C2-auto-merge.ratified_at: missing, not strict ISO 8601 with explicit offset (Z or +/-hh:mm), or not a calendar-valid instant"
+      ]
+    },
+    "ratified-at-submilli.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "promotion_state.C2-auto-merge.ratified_at: missing, not strict ISO 8601 with explicit offset (Z or +/-hh:mm), or not a calendar-valid instant"
+      ]
+    },
+    "same-surface-level-ambiguity.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a: runtime_markers of level entries L2 and L3 are jointly satisfiable"
+      ]
+    },
+    "ssh-id-rsa-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "temporal-classification-bare-string.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal.\"doc-freshness-sweep/advisory\": \"C1\" is a bare work class"
+      ]
+    },
+    "temporal-classification-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "temporal-duplicate-producer-identity.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal: routine identities \"doc-freshness-sweep/advisory\" and \"ci-health-review\" both declare producer_identity \"ci/workflows/shared-scheduler.yml\""
+      ]
+    },
+    "temporal-empty-source-surface.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal.\"ci-health-review\".source_surface: missing or empty"
+      ]
+    },
+    "temporal-identity-grammar.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal.\"Doc-Freshness-Sweep/advisory\": \"Doc-Freshness-Sweep/advisory\" is not a routine identity"
+      ]
+    },
+    "temporal-missing-producer-identity.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal.\"ci-health-review\".producer_identity: missing or empty"
+      ]
+    },
+    "temporal-missing-run-link-prefix.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal.\"ci-health-review\".run_link_prefix: missing or empty"
+      ]
+    },
+    "temporal-shared-run-link-prefix-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "temporal-shared-source-surface.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.classification.temporal: routine identities \"doc-freshness-sweep/advisory\" and \"ci-health-review\" both bind source_surface \"ci-cron-doc-freshness-advisory\""
+      ]
+    },
+    "two-level-surface-valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "unverifiable-probe-evidence.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "is not readable JSON"
+      ]
+    },
+    "valid.json": {
+      "exit": 0,
+      "findings_substrings": []
+    },
+    "vendor-hosted-auto.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "merge_policy.C2: \"auto\" with executor_class vendor-hosted"
+      ]
+    },
+    "verification-below-floor.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "verification_blocking.deterministic.C2: \"advisory\" weakens the shipped floor \"blocking\""
+      ]
+    }
+  },
+  "quarantined": {},
+  "probe_transcripts": [
+    "ci-pool-a-l2-6to4-relay.json",
+    "ci-pool-a-l2-6to4-v6.json",
+    "ci-pool-a-l2-as112-v6.json",
+    "ci-pool-a-l2-bare-metadata.json",
+    "ci-pool-a-l2-benchmarking-v6.json",
+    "ci-pool-a-l2-bogus-credpath.json",
+    "ci-pool-a-l2-bogus-metadata.json",
+    "ci-pool-a-l2-cred-outer-missing.json",
+    "ci-pool-a-l2-cred-outer-nonzero.json",
+    "ci-pool-a-l2-credpath-code-count.json",
+    "ci-pool-a-l2-credpath-partial-zero.json",
+    "ci-pool-a-l2-discard-only.json",
+    "ci-pool-a-l2-doc-3fff.json",
+    "ci-pool-a-l2-docnet.json",
+    "ci-pool-a-l2-dot-traversal.json",
+    "ci-pool-a-l2-dummy-prefix.json",
+    "ci-pool-a-l2-encoded-loopback.json",
+    "ci-pool-a-l2-etc-descendant-credpath.json",
+    "ci-pool-a-l2-expanded-loopback.json",
+    "ci-pool-a-l2-expansion-ephemeral.json",
+    "ci-pool-a-l2-expansion-tail-mismatch.json",
+    "ci-pool-a-l2-generic-env-token.json",
+    "ci-pool-a-l2-generic-token.json",
+    "ci-pool-a-l2-home-descendant-credpath.json",
+    "ci-pool-a-l2-host-home-mount.json",
+    "ci-pool-a-l2-id-rsa.json",
+    "ci-pool-a-l2-imds-http-error.json",
+    "ci-pool-a-l2-invalid-tld.json",
+    "ci-pool-a-l2-invented-env-token.json",
+    "ci-pool-a-l2-invented-home-user.json",
+    "ci-pool-a-l2-invented-token.json",
+    "ci-pool-a-l2-ipv4-compat.json",
+    "ci-pool-a-l2-known-hosts.json",
+    "ci-pool-a-l2-localhost.json",
+    "ci-pool-a-l2-malformed-dns.json",
+    "ci-pool-a-l2-metadata-port.json",
+    "ci-pool-a-l2-metadata-route-boundary.json",
+    "ci-pool-a-l2-metadata-route.json",
+    "ci-pool-a-l2-metadata-scheme.json",
+    "ci-pool-a-l2-multi-host-private.json",
+    "ci-pool-a-l2-multi-host.json",
+    "ci-pool-a-l2-nat64-local.json",
+    "ci-pool-a-l2-nat64-private-embed.json",
+    "ci-pool-a-l2-no-host-expanded.json",
+    "ci-pool-a-l2-no-host.json",
+    "ci-pool-a-l2-no-outer-exit.json",
+    "ci-pool-a-l2-no-probed-at.json",
+    "ci-pool-a-l2-no-transport.json",
+    "ci-pool-a-l2-outer-egress-failed.json",
+    "ci-pool-a-l2-protocol-assignment.json",
+    "ci-pool-a-l2-relative-credpath.json",
+    "ci-pool-a-l2-site-local-v6.json",
+    "ci-pool-a-l2-srv6-sid.json",
+    "ci-pool-a-l2-ssh-dir.json",
+    "ci-pool-a-l2-teredo.json",
+    "ci-pool-a-l2-token-substring.json",
+    "ci-pool-a-l2-transport-cross-type.json",
+    "ci-pool-a-l2-unanchored-credpath.json",
+    "ci-pool-a-l2-unanchored-envvar.json",
+    "ci-pool-a-l2-unc-etc.json",
+    "ci-pool-a-l2-uri-host.json",
+    "ci-pool-a-l2-zero-exit.json",
+    "ci-pool-a-l2.json",
+    "ci-pool-a-l3-container.json",
+    "ci-pool-a-l3-hosted.json",
+    "ci-pool-a-l3.json",
+    "ci-pool-b-l2.json"
+  ]
+}
