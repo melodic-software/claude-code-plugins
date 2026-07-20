@@ -73,15 +73,58 @@ else
   fail "unregistered collision should fail (rc=$rc): $out"
 fi
 
-# 5. --check passes once the collision is registered, and comments/blank lines
-#    in the registry are ignored.
-printf '# a comment\n\n  shared  # trailing comment\n' >"$REGISTRY"
+# 5. --check passes once the collision is registered with its owner set, and
+#    comments/blank lines in the registry are ignored.
+printf '# a comment\n\n  shared alpha,beta,gamma  # trailing comment\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'are registered' <<<"$out"; then
   pass "registered collision passes --check (comments and whitespace ignored)"
 else
   fail "registered collision should pass (rc=$rc): $out"
+fi
+
+# 5b. Owner order in the registry does not matter — sets are compared, not lists.
+printf 'shared gamma,alpha,beta\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  pass "owner set comparison is order-independent"
+else
+  fail "reordered owner set should pass (rc=$rc): $out"
+fi
+
+# 5c. A registered name whose owner set GREW fails — the first registration must
+#     not pre-authorize later owners joining on the original grounds.
+printf 'shared alpha,beta\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'is registered for' <<<"$out"; then
+  pass "a new owner joining a registered collision fails"
+else
+  fail "grown owner set should fail (rc=$rc): $out"
+fi
+
+# 5d. A bare name with no owner field is rejected, so the old format cannot
+#     silently keep passing as an open registration.
+printf 'shared\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'without an owner set' <<<"$out"; then
+  pass "registration without an owner set is rejected"
+else
+  fail "bare-name entry should fail (rc=$rc): $out"
+fi
+
+# 5e. `*` accepts any owner set — and must reach the comparison as a literal
+#     rather than being pathname-expanded against the cwd.
+printf 'shared *\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'are registered' <<<"$out"; then
+  pass "wildcard owner set accepts any owners (literal, not glob-expanded)"
+else
+  fail "wildcard entry should pass (rc=$rc): $out"
 fi
 
 # 6. Stale guard: a registry entry that no longer collides fails.

@@ -6,8 +6,9 @@
 #                                               owned by 2+ plugins, with its
 #                                               owners and registration state
 #   scripts/check-skill-leaf-names.sh --check  fail on an UNREGISTERED
-#                                               collision, or a registry entry
-#                                               that no longer collides
+#                                               collision, on a registered one
+#                                               whose OWNER SET changed, or on
+#                                               an entry that no longer collides
 #
 # Namespacing already guarantees every one of these is separately invocable --
 # `/disk-hygiene:clean` and `/repo-hygiene:clean` can never resolve to each
@@ -25,8 +26,12 @@
 # across plugins.
 #
 # Registering a leaf name in skill-leaf-name-registry.txt records the grounds it
-# was accepted on. An unregistered collision is a decision waiting to be made,
-# not yet a violation of anything.
+# was accepted on, together with the owner set those grounds were argued over.
+# A new plugin joining an already-registered collision has to be argued on its
+# own merits, so the owner set is part of the entry rather than the bare name --
+# otherwise the first registration would silently pre-authorize every later one.
+# An unregistered collision is a decision waiting to be made, not yet a
+# violation of anything.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -58,6 +63,8 @@ for leaf in "${!leaf_owners[@]}"; do
   collisions["$leaf"]="${leaf_owners[$leaf]}"
 done
 
+# leaf name -> accepted owner set: a sorted comma-separated plugin list, or `*`
+# for a name whose owner set is open by contract (see the registry header).
 declare -A registered
 if [[ -f "$registry" ]]; then
   while IFS= read -r line; do
@@ -65,9 +72,17 @@ if [[ -f "$registry" ]]; then
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
-    registered["$line"]=1
+    # `read`, not array splitting: the owner field may be a literal `*`, which
+    # unquoted word splitting would pathname-expand against the cwd.
+    read -r leaf_key owner_field _ <<<"$line"
+    registered["$leaf_key"]="${owner_field:-}"
   done <"$registry"
 fi
+
+# Sorted comma-separated owner set, so the comparison is order-independent.
+owner_set() {
+  printf '%s\n' "$@" | sort | paste -sd, -
+}
 
 mode="${1:-discover}"
 case "$mode" in
@@ -86,8 +101,21 @@ if [[ "$mode" == "discover" ]]; then
   for leaf in $(printf '%s\n' "${!collisions[@]}" | sort); do
     # shellcheck disable=SC2206
     owners=(${collisions[$leaf]})
+    # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
+    actual="$(owner_set "${owners[@]}")"
     state="UNREGISTERED"
-    [[ -n "${registered[$leaf]:-}" ]] && state="registered"
+    if [[ -n "${registered[$leaf]+set}" ]]; then
+      accepted="${registered[$leaf]}"
+      state="OWNERS-CHANGED"
+      if [[ "$accepted" == "*" ]]; then
+        state="registered(*)"
+      elif [[ -n "$accepted" ]]; then
+        IFS=',' read -ra accepted_owners <<<"$accepted"
+        # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
+        accepted="$(owner_set "${accepted_owners[@]}")"
+        [[ "$accepted" == "$actual" ]] && state="registered"
+      fi
+    fi
     printf '%-14s %-14s %d plugins: %s\n' \
       "$leaf" "$state" "${#owners[@]}" "$(printf '%s ' "${owners[@]}" | sed 's/ $//')"
   done
@@ -97,14 +125,44 @@ fi
 failed=0
 
 for leaf in $(printf '%s\n' "${!collisions[@]}" | sort); do
-  [[ -n "${registered[$leaf]:-}" ]] && continue
   # shellcheck disable=SC2206
   owners=(${collisions[$leaf]})
-  printf 'FAIL: skill leaf name %s is now carried by %d plugins (%s) and is not registered.\n' \
-    "$leaf" "${#owners[@]}" "$(printf '%s ' "${owners[@]}" | sed 's/ $//')" >&2
-  printf '      These are separately invocable, but the picker labels both rows %s.\n' "$leaf" >&2
-  printf '      Rename one, or add %s to %s with the grounds it is accepted on.\n' "$leaf" "$registry" >&2
-  failed=1
+  # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
+  actual="$(owner_set "${owners[@]}")"
+
+  if [[ -z "${registered[$leaf]+set}" ]]; then
+    printf 'FAIL: skill leaf name %s is now carried by %d plugins (%s) and is not registered.\n' \
+      "$leaf" "${#owners[@]}" "${actual//,/ }" >&2
+    printf '      These are separately invocable, but the picker labels every row %s.\n' "$leaf" >&2
+    printf '      Rename one, or add "%s %s" to %s with the grounds it is accepted on.\n' \
+      "$leaf" "$actual" "$registry" >&2
+    failed=1
+    continue
+  fi
+
+  accepted="${registered[$leaf]}"
+  # An open owner set is accepted by contract; only the name is registered.
+  [[ "$accepted" == "*" ]] && continue
+
+  # Normalize the registry side too, so the comparison is genuinely set-vs-set
+  # and a hand-edited entry does not fail on ordering alone.
+  if [[ -n "$accepted" ]]; then
+    IFS=',' read -ra accepted_owners <<<"$accepted"
+    # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
+    accepted="$(owner_set "${accepted_owners[@]}")"
+  fi
+
+  if [[ -z "$accepted" ]]; then
+    printf 'FAIL: %s registers %s without an owner set. Record it as "%s %s".\n' \
+      "$registry" "$leaf" "$leaf" "$actual" >&2
+    failed=1
+  elif [[ "$accepted" != "$actual" ]]; then
+    printf 'FAIL: skill leaf name %s is registered for %s but is now carried by %s.\n' \
+      "$leaf" "${accepted//,/ }" "${actual//,/ }" >&2
+    printf '      A new owner joins an accepted collision on its own grounds, not the old ones.\n' >&2
+    printf '      Update the entry to "%s %s" and revisit the rationale above it.\n' "$leaf" "$actual" >&2
+    failed=1
+  fi
 done
 
 # Stale guard: a registry entry that no longer collides has outlived its reason
