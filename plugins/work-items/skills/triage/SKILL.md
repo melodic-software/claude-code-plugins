@@ -48,10 +48,17 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable — eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), the human-gated role label (default `needs-human`) when the work is briefed but needs human judgment, or close (wontfix / duplicate / already implemented).
+Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+
+**A briefed item takes one of three exits**, distinguished by the decision its brief carries:
+
+- **delegable** — fully specified with no open decision → autonomous-eligible role (default `agent-ready`).
+- **decision-defaulted** — a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment. The default rides in; a maintainer vetoes before merge if it is wrong.
+- **human-gated** — reserved for a genuinely open decision (open design space, product intent, or cross-repo policy), or work that cannot be delegated for a capability reason (external access, manual QA) → human-gated role (default `needs-human`).
 
 ```text
 raw → verified → briefed → autonomous-eligible (role label, default agent-ready)
+ |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
  └→ close: wontfix | duplicate | already implemented
@@ -77,21 +84,22 @@ Read the item body, comments, and any linked PRs; for a PR, the diff too (adapte
 
 - **Redundancy** — search the codebase for an existing implementation of the requested behavior by domain concept (not the request's wording), and report where you looked. Found → it's an already-implemented close (step 5).
 - **Rejected-concept ledger** — when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), match the request against the concept files by **concept similarity, not keyword**. On a match, answer from the ledger instead of re-litigating: "Rejected before — `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
+- **Cluster detection** — cross-reference other open intake: when this item shares **one underlying decision** with other open items, do not human-gate each member individually. Designate one representative as the **decision carrier** (human-gated, with the member numbers listed in its body) and link every other member to it via the native `blocked-by` edge with a `blocked by #<carrier> decision` comment (applied in step 5). One human touch on the carrier resolves the decision for the whole cluster.
 
 ### 2. Recommend category + state
 
 Classify **bug vs enhancement** first — it steers the rest of the flow (bugs get reproduced; rejected enhancements get ledgered). Then recommend:
 
 - **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos
-- **Priority label** (`priority:p0-critical` through `priority:p3-low`)
-- **Target state** — from the state machine above: needs-info, briefed for human-gated, or on track to autonomous-eligible
+- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — when a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels
+- **Target state** — from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open — open design space, product intent, or cross-repo policy (→ **human-gated**)?
 
 **Direction gate.** Recommending is read-only; the gate governs *mutation* — labels, comments, closes, item creation — and which side of it you are on is fixed by how triage was invoked:
 
 - **Interactive session** — a human operator is present and no standing lane rules were supplied. Present the recommendation and **wait for the user's explicit direction** before mutating anything. This is the default whenever the invocation carries no autonomous mandate.
 - **Autonomous lane** — triage is running unattended as a `/loop` or `/schedule` AFK session whose standing rules — the directive supplied with its `/loop` / `/schedule` invocation — already authorize triage mutations. Those standing rules **are** the direction this gate requires: treat the gate as satisfied and proceed through verification and outcome without a human turn, prefixing every comment and item you create with the AI disclaimer. There is no operator turn to wait for, so blocking here would deadlock the lane — the gate is met by the lane's mandate, not skipped.
 
-The autonomous branch is the mode the AI disclaimer already anticipates: a session that mutates without a human turn. The two are one mode, not a contradiction.
+The autonomous branch is the mode the AI disclaimer already anticipates: a session that mutates without a human turn. The two are one mode, not a contradiction. Formalizing this as the autonomous-mode contract — codifying that standing-lane rules constitute direction — is tracked in #459.
 
 ### 3. Verify — BEFORE any interview
 
@@ -113,7 +121,9 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Outcome | Action |
 |---------|--------|
 | Briefed, delegable | Write the brief per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) — durability over precision: behavioral contracts and named interfaces, **no file paths or line numbers** — apply labels + the autonomous-eligible role label (default `agent-ready`) |
-| Briefed, needs human judgment | Same brief structure, plus why it can't be delegated (design decision, external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
+| Briefed, decision-defaulted | Same brief structure and durability rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment |
+| Briefed, T1 multi-surface stub | For a trivial (T1) fix spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`). The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
+| Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
 | Needs more info | `status:needs-info` + needs-info template comment |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
@@ -121,6 +131,8 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Duplicate | Close with link to original |
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
+
+**Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment — **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
 
 Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare. Item creation, when triage spawns follow-up work, goes through the seam `create-item` verb (`/work-items:track add` is the canonical path).
 
