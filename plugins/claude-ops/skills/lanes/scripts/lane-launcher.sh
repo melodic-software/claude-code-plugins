@@ -388,7 +388,7 @@ refresh_repo_and_plugins() {
   # A skipped step (--no-pull/--no-update) leaves rc=0, so this only fires on an
   # UNEXPECTED failure of a step that actually ran — the intentional-bypass path
   # stays clean. Callers abort the launch on non-zero (see action_start/restart).
-  ((rc)) && err "refresh failed — aborting launch (pass --no-pull/--no-update to skip refresh intentionally)"
+  ((rc)) && err "refresh failed (pass --no-pull/--no-update to skip refresh intentionally)"
   return "$rc"
 }
 

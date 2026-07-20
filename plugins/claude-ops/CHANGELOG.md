@@ -5,7 +5,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ## [0.15.1]
 
-### Changed
+### Fixed
 
 - **`lanes` skill — launch aborts on a failed pre-launch refresh.** `start` /
   `restart` previously ran `refresh_repo_and_plugins || rc=1` and launched lanes
@@ -15,8 +15,6 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   unexpected failure now hard-stops the launch (exit non-zero) with an actionable
   message; `--no-pull` / `--no-update` remain the intentional-skip path (a
   skipped step is not a failure). (#639)
-
-### Fixed
 
 - **`lanes` skill — unknown restart/stop targets are rejected before any refresh
   mutation.** `restart does-not-exist` ran `git pull --ff-only` +

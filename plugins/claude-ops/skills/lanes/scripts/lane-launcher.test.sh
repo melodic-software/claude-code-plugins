@@ -359,7 +359,7 @@ out="$(STUB_GIT_PULL_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" -
 rc=$?
 log="$(cat "$CLAUDE_LOG")"
 assert_eq "start aborts when git pull fails (exit 1)" 1 "$rc"
-assert_contains "start refresh-failure message is actionable" "$out" "refresh failed — aborting launch"
+assert_contains "start refresh-failure message is actionable" "$out" "refresh failed"
 assert_not_contains "no lane launched after a failed pull" "$log" "--bg -n"
 
 : >"$CLAUDE_LOG"
@@ -367,6 +367,7 @@ out="$(STUB_CLAUDE_UPDATE_RC=1 run_launcher start --repo "$REPO" --config "$CONF
 rc=$?
 log="$(cat "$CLAUDE_LOG")"
 assert_eq "start aborts when marketplace update fails (exit 1)" 1 "$rc"
+assert_contains "start marketplace-update refresh-failure message is actionable" "$out" "refresh failed"
 assert_not_contains "no lane launched after a failed update" "$log" "--bg -n"
 
 : >"$CLAUDE_LOG"
@@ -384,6 +385,15 @@ out="$(STUB_GIT_PULL_RC=1 STUB_CLAUDE_UPDATE_RC=1 run_launcher start --repo "$RE
 rc=$?
 assert_eq "refresh bypass still launches despite failure env (exit 0)" 0 "$rc"
 assert_contains "refresh bypass launches lanes" "$out" "claude --bg -n work"
+
+# The same intentional-bypass invariant holds for restart, which refreshes via a
+# different callback path (_restart_one): --no-pull/--no-update keeps the refresh
+# status 0, so a targeted dry-run restart still previews the relaunch despite the
+# failure env being set.
+out="$(STUB_GIT_PULL_RC=1 STUB_CLAUDE_UPDATE_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --no-pull --no-update --dry-run 2>&1)"
+rc=$?
+assert_eq "restart refresh bypass still relaunches despite failure env (exit 0)" 0 "$rc"
+assert_contains "restart refresh bypass previews the lane relaunch" "$out" "claude --bg -n work"
 
 # ============================================================================
 # An unknown restart target is rejected BEFORE the refresh mutates anything
