@@ -67,6 +67,9 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     return delta.ClassifyConfig(
         allowed_owners=owners,
         self_logins=self_logins,
+        intended_write_identity=str(
+            getattr(args, "intended_write_identity", None) or ""
+        ),
         feedback=FeedbackConfig(
             extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
             approval_downgrade_logins=_csv(
@@ -519,6 +522,16 @@ def main() -> int:
         help=(
             "Comma-separated reviewer-bot logins whose not-approving text may "
             "downgrade when their review provably could not run (ships empty)."
+        ),
+    )
+    parser.add_argument(
+        "--intended-write-identity",
+        default=None,
+        help=(
+            "Login the orchestrator's own writes are intended to land under "
+            "(e.g. a bot posting identity). A recorded write that lands under a "
+            "different self-login is surfaced as attribution drift. Absent: the "
+            "check is dormant."
         ),
     )
     args = parser.parse_args()

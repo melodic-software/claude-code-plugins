@@ -155,6 +155,18 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   contention report naming the unaccounted events — back off and report; never race a foreign
   session for the same PR. The suppression is per-PR and per-cycle: once a later snapshot shows
   every recent same-login event ledger-accounted again, the ordinary arms resume dispatching.
+- **`attribution_drift`** (a material-finding **reporter**, not a suppressor) — the complement of
+  `foreign_activity`. Where that arm reconciles same-login timeline events the ledger cannot
+  account for, this one reconciles the writes the ledger DID record: for each recorded write with a
+  recoverable landed author, it checks that the author is the configured `--intended-write-identity`
+  and not merely *some* accepted `<self-logins>` login. A recorded write that landed under a
+  different self-login — the canonical case being a bot write-identity that silently degraded to the
+  operator's personal login when a token mint failed — is surfaced as an attribution-drift material
+  finding on that PR's status line. Unlike `foreign_activity` it does NOT suppress dispatch: the PR
+  is still ours to babysit; only the authorship of a past write is wrong, so the finding is
+  reported while normal processing continues. Dormant when no intended write-identity is configured.
+  Coverage is bounded to the write class the ledger records with authorship (review-trigger
+  comments); reactions, classification replies, and branch pushes are not yet reconcilable this way.
 - **`quiet_recheck_due`** — the safety-net fallback below, suppressed by the same
   clean/non-draft/zero-blocker condition for the same reason: it would otherwise fire every cycle
   for a PR that, by design, never gets a worker check-in recorded.

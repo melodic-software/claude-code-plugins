@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`babysit-prs` surfaces a silent bot→personal identity fallback as an attribution-drift material
+  finding.** The snapshot engine gains an `attribution_drift` reconciliation arm: for each write the
+  mutation ledger recorded performing, it verifies the landed timeline author is the configured
+  intended write-identity, not merely *some* accepted self-login. A recorded write that landed under
+  a different self-login — the canonical case being a bot write-identity that degraded to the
+  operator's personal login when a token mint failed — becomes a first-class material finding on that
+  PR's cycle-status line instead of drifting silently. It is the complement of `foreign_activity`
+  (which reconciles same-login events the ledger *cannot* account for) and is mutually exclusive with
+  it per comment; unlike `foreign_activity` it reports without suppressing dispatch, since the PR is
+  still ours to babysit. The intended identity is configured via the new `babysit_intended_write_identity`
+  userConfig key (threaded as `--intended-write-identity` to the snapshot); absent it, the arm is
+  dormant. This is pure plugin-side authorship verification — the token-generation root cause is a
+  cross-repo concern (medley `gh-bot.sh`) and no change there is needed for the finding to fire.
+  Coverage is bounded to the write class the ledger records with a recoverable author (review-trigger
+  comments); drift on reactions, classification replies, and branch pushes awaits ledgering their
+  identifiers with authorship. Covered by unit and full-classify regression tests in
+  `test_babysit_delta.py`. Closes #450.
+
 ## [0.10.0]
 
 ### Changed
