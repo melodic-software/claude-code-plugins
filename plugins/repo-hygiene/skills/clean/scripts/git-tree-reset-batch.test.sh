@@ -228,6 +228,68 @@ assert_exit "child reset failure makes the batch exit 1" 1 "$rc"
 assert_contains "failed repo reported as failed" "$out" "failed"
 assert_contains "summary counts the failure" "$out" "failed=1"
 
+# --- 17. a child clean failure after a successful reset (exit 7) is a failure ---
+# Shim only `git clean` to exit non-zero with a NON-locked-file message: the child
+# reset --hard succeeds, then git clean fails for a reason other than locked files
+# (UNREMOVABLE=0) → child exit 7, a partial destructive apply. The batch must treat
+# it as `failed` (not `blocked`), count it, and exit non-zero — never report a
+# reset-but-not-cleaned repo as a completed batch.
+CLEAN_FAIL_REPO="$(make_repo clean-fail-repo)"
+CLEAN_SHIM="$TEST_TMPDIR/git-clean-fail-shim"
+mkdir -p "$CLEAN_SHIM"
+cat >"$CLEAN_SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clean" ]]; then
+  echo "fatal: simulated clean failure (non-locked cause)" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$CLEAN_SHIM/git"
+rc=0
+out="$(PATH="$CLEAN_SHIM:$PATH" bash "$BATCH" --apply --repo "$CLEAN_FAIL_REPO" 2>&1)" || rc=$?
+assert_exit "child clean failure (exit 7) makes the batch exit 1" 1 "$rc"
+assert_contains "exit-7 repo reported as failed" "$out" "failed"
+assert_contains "exit-7 reason names the partial apply" "$out" "clean failed after a successful reset"
+assert_contains "summary counts the exit-7 failure" "$out" "failed=1"
+
+# --- 18. an incomplete clean (child Unremovable>0, exit 0) is surfaced, not hidden ---
+# Shim `git clean` to print a 'failed to remove' warning and exit non-zero: the
+# child counts it as UNREMOVABLE=1 and, by design, still exits 0 (locked/in-use
+# files are non-fatal). The batch must keep the repo in the reset (success) bucket
+# yet name the incomplete clean in the per-repo Reason so an operator never reads
+# it as a fully realigned tree.
+UNREMOVABLE_REPO="$(make_repo unremovable-repo)"
+UNREMOVABLE_SHIM="$TEST_TMPDIR/git-unremovable-shim"
+mkdir -p "$UNREMOVABLE_SHIM"
+cat >"$UNREMOVABLE_SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clean" ]]; then
+  echo "warning: failed to remove obj/locked.bin: Device or resource busy" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$UNREMOVABLE_SHIM/git"
+rc=0
+out="$(PATH="$UNREMOVABLE_SHIM:$PATH" bash "$BATCH" --apply --repo "$UNREMOVABLE_REPO" 2>&1)" || rc=$?
+assert_exit "incomplete clean still exits 0 (locked files are non-fatal)" 0 "$rc"
+assert_contains "incomplete-clean repo still reported done" "$out" "done"
+assert_contains "incomplete clean named in the reason" "$out" "incomplete clean: 1 path(s) unremovable"
+assert_contains "incomplete clean stays in the reset bucket" "$out" "reset=1"
+assert_contains "incomplete clean is not a failure" "$out" "failed=0"
+
+# --- 19. --include-dirty dry-run names the dirty repos it will discard ---
+# The skill's batch confirmation must name the repos whose uncommitted/untracked
+# edits --include-dirty discards. With the dirty guard bypassed, a plain dry-run
+# would emit would-reset/none; the batch must instead read the child's TrackedDirty
+# and name the count so the confirmation gate has the information it requires.
+DIRTY_DRY_REPO="$(make_repo dirty-dry-repo)"
+echo local-edit >>"$DIRTY_DRY_REPO/tracked.txt"
+out="$(bash "$BATCH" --dry-run --include-dirty --repo "$DIRTY_DRY_REPO" 2>&1)" || true
+assert_contains "include-dirty dry-run still plans the reset" "$out" "would-reset"
+assert_contains "include-dirty dry-run names the discarded dirty edits" "$out" "uncommitted/untracked change(s) would be discarded"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

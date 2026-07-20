@@ -41,7 +41,9 @@
 # vector, so the caller confirms it separately per the skill gate.
 #
 # Exit: 0 batch ran to completion (skips/blocks are normal, reported outcomes);
-#       1 one or more repos failed mid-apply (child exit 5 -- partial reset);
+#       1 one or more repos failed mid-apply -- a partial destructive apply the
+#         child reports non-zero: exit 5 (reset --hard failed) or exit 7 (reset
+#         succeeded but git clean failed, so the tree is reset-but-not-cleaned);
 #       2 usage/validation error (no repos, bad flag).
 set -uo pipefail
 
@@ -85,10 +87,12 @@ Passed through to git-tree-reset.sh per repo:
   --include-deps           also remove node_modules/.venv/vendor.
   --include-secrets        also remove secrets / local config (UNRECOVERABLE).
 
-Per-repo Outcome: would-reset | done | skipped | blocked. Reason names the cause.
+Per-repo Outcome: would-reset | done | skipped | blocked | failed. Reason names
+the cause; a would-reset/done Reason also names discarded dirty edits (include-
+dirty) and any files git clean could not remove (locked / in use).
 Summary line: repos / reset / skipped / blocked / failed counts.
 
-Exit: 0 ran to completion; 1 a repo failed mid-apply (child exit 5); 2 usage error.
+Exit: 0 ran to completion; 1 a repo failed mid-apply (child exit 5 or 7); 2 usage error.
 EOF
 }
 
@@ -279,10 +283,34 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   out="$(cd "$top" && bash "$TREE_RESET" "$([[ "$DRY_RUN" -eq 1 ]] && echo --dry-run || echo --apply)" "${CHILD_PASS[@]}" 2>&1)" || rc=$?
   case "$rc" in
   0)
+    # The child exits 0 for a clean success AND for two success-with-signal cases
+    # the batch must not flatten to a bare outcome: an --include-dirty reset
+    # discards uncommitted/untracked edits (child TrackedDirty>0), and a clean
+    # that hit locked/in-use paths leaves them behind (child Unremovable>0, exit 0
+    # by design). Both are documented child output labels; surface them in the
+    # per-repo Reason so the --include-dirty dry-run confirmation can name the
+    # repos whose edits it will discard, and an operator never reads an incomplete
+    # clean as a completed reset. TrackedDirty is read from child output (not
+    # recomputed) because on apply the repo is already reset by this point.
+    tracked_dirty="$(printf '%s\n' "$out" | sed -n 's/^TrackedDirty: //p' | head -1)"
+    reason=none
+    if [[ "$INCLUDE_DIRTY" -eq 1 && "${tracked_dirty:-0}" -gt 0 ]]; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        reason="$tracked_dirty uncommitted/untracked change(s) would be discarded"
+      else
+        reason="$tracked_dirty uncommitted/untracked change(s) discarded"
+      fi
+    fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      emit "$top" would-reset none
+      emit "$top" would-reset "$reason"
     else
-      emit "$top" "done" none
+      unremovable="$(printf '%s\n' "$out" | sed -n 's/^Unremovable: //p' | head -1)"
+      if [[ "${unremovable:-0}" -gt 0 ]]; then
+        note="incomplete clean: $unremovable path(s) unremovable (locked / in use)"
+        if [[ "$reason" == none ]]; then reason="$note"; else reason="$reason; $note"; fi
+        printf '%s\n' "$out" | grep -E 'could not be removed|failed to remove' >&2 || true
+      fi
+      emit "$top" "done" "$reason"
     fi
     COUNT_RESET=$((COUNT_RESET + 1))
     ;;
@@ -303,6 +331,16 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     ;;
   5)
     emit "$top" failed "reset --hard failed mid-apply (child output below)"
+    printf '%s\n' "$out" >&2
+    COUNT_FAILED=$((COUNT_FAILED + 1))
+    ;;
+  7)
+    # reset --hard succeeded but git clean failed for a non-locked-file reason: a
+    # partial destructive apply (tree reset, untracked removal incomplete), which
+    # the child reports non-zero. Treat it as failed like exit 5 so the batch
+    # summary and exit status never report a repo that was only partly realigned
+    # as a completed reset.
+    emit "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
     printf '%s\n' "$out" >&2
     COUNT_FAILED=$((COUNT_FAILED + 1))
     ;;
