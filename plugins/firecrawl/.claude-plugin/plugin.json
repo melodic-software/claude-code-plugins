@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "firecrawl",
-  "version": "0.3.1",
-  "description": "Web scraping, search, crawling, and file parsing through the firecrawl-cli binary with a write-to-disk-then-Read pattern that keeps large results out of context — plus a gated maintainer update flow tracking the upstream CLI and skill source.",
+  "version": "0.4.0",
+  "description": "Web scraping, search, crawling, and file parsing through the firecrawl-cli binary with a write-to-disk-then-Read pattern that keeps large results out of context — a user-facing wrapper skill, a lazy-install setup skill, and a separate gated maintainer update skill tracking the upstream CLI and skill source.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
