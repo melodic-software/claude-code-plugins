@@ -332,13 +332,18 @@ print_decisions() {
     # RECOMMENDED marker across the body and every comment. Two-tier so the
     # deliberate uppercase marker wins over an incidental lowercase mention
     # (e.g. "not recommended"): tier 1 = the exact uppercase RECOMMENDED token;
-    # tier 2 = case-insensitive fallback, which the process note recorded as
-    # necessary because a case-sensitive-only scan produced false negatives.
+    # tier 2 = a lowercase marker anchored to MARKER POSITION (line start, after
+    # optional list/blockquote/bold decoration), which the process note recorded
+    # as necessary because a case-sensitive-only scan produced false negatives.
+    # The tier-2 anchor is load-bearing: an unanchored `recommended` scan matches
+    # the incidental mention inside "not recommended" and renders the rejected
+    # option (the same false-positive tier 1 exists to avoid), so both tiers must
+    # require marker position, not mere presence.
     local combined
     combined="$(jq -r ".[$i] | (.body // \"\") + \"\n\" + ((.comments // []) | map(.body // \"\") | join(\"\n\"))" \
       <<<"$decisions")"
     rec="$(grep -am1 -E '\bRECOMMENDED\b' <<<"$combined")"
-    [[ -n "$rec" ]] || rec="$(grep -iam1 'recommended' <<<"$combined")"
+    [[ -n "$rec" ]] || rec="$(grep -iam1 -E '^[[:space:]]*([0-9]+[.)][[:space:]]*)?[-*>|#[:space:]]*\**[[:space:]]*recommended' <<<"$combined")"
     # Strip leading list bullets / enumeration / blockquote / bold so the line reads clean.
     rec="$(sed -E 's/^[[:space:]]*//; s/^[0-9]+[.)][[:space:]]*//; s/^[-*>|#[:space:]]*//; s/\*\*//g; s/[[:space:]]*$//' <<<"$rec")"
     # Drop a leading RECOMMENDED/recommended token + its separator: the section

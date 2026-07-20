@@ -76,6 +76,9 @@ cat >"$TMP/decisions.json" <<'EOF'
    "comments": [{"body": "After review, RECOMMENDED: adopt option B."}]},
   {"number": 104, "title": "long rec", "url": "http://x/i/104",
    "body": "RECOMMENDED: alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi.",
+   "comments": []},
+  {"number": 105, "title": "lowercase after rejection", "url": "http://x/i/105",
+   "body": "The bare-clone hub is not recommended here.\nrecommended: keep the sibling worktree layout.",
    "comments": []}
 ]
 EOF
@@ -123,6 +126,10 @@ assert_not_contains "decision #100 ignores 'not recommended'" "$OUT" "not recomm
 assert_contains "decision #101 lowercase fallback" "$OUT" "keep the interim surface for now"
 assert_contains "decision #102 no marker" "$OUT" "(no RECOMMENDED line found)"
 assert_contains "decision #103 scans comments" "$OUT" "adopt option B"
+# #105: the lowercase fallback must anchor to marker position, not grab the
+# incidental "recommended" inside an earlier "not recommended" rejection line.
+assert_contains "decision #105 lowercase marker beats earlier 'not recommended'" "$OUT" "keep the sibling worktree layout"
+assert_not_contains "decision #105 ignores 'not recommended' rejection" "$OUT" "bare-clone hub is not recommended"
 
 # Telemetry — staleness + flags + skips
 assert_contains "telemetry babysit fresh age" "$OUT" "babysit"
