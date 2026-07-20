@@ -187,6 +187,10 @@ issue comment with a machine marker:
   reclaim/back-off by adding `"superseded_at":"<ISO>"` to the JSON.
 - A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours` is in
   the future. `ttl_hours` defaults from binding `config.lease_ttl_hours`.
+- `renew-lease` renews **only a live lease**. A lease that is still the active
+  (non-superseded) lease but already **expired** — `renewed_at + ttl_hours` elapsed with
+  no back-off yet — is refused (exit `7`), never revived: a delayed holder must not undo a
+  TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
 - `session_id` is diagnostic metadata only — optional and collision-prone; a
   missing/duplicate `session_id` still counts as a competing lease.
 - The **lease handle** (`lease_comment_id`, emitted by `claim`/`renew-lease`) is
@@ -210,9 +214,15 @@ Claim sequence (race-safe, same-identity aware):
 Reclaim (idempotent, run at session start — no scheduled sweep): when the latest lease is
 expired, check activity (non-lease comments since `renewed_at`; open cross-referenced
 PRs via the issue timeline). Activity → renew the lease in place, `reclaimed: false`.
-No activity → clear assignees, supersede the lease, append an explanatory comment,
-`reclaimed: true`. A live lease is never reclaimed. Branch-push activity signals are not
-implemented (deferred; comments + PR cross-references carry the check).
+No activity → unassign **only the expired lease's `holder`** (a co-assignee added by a
+human or a concurrent claimer is left in place — removing it would strip a live claim and
+leave the frontier treating the item as unassigned), supersede the lease, append an
+explanatory comment, `reclaimed: true`. Ownership is **revalidated immediately before the
+mutation** — the activity round-trips open a window in which a concurrent claimer can renew
+or supersede the lease; if the active lease is no longer this one, or is now live, reclaim
+is a no-op (`reclaimed: false`), never a mutation. A live lease is never reclaimed.
+Branch-push activity signals are not implemented (deferred; comments + PR cross-references
+carry the check).
 
 ## Containers and state
 

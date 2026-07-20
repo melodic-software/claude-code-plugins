@@ -5,7 +5,7 @@
       "id": 1,
       "name": "work-auto-selects-one-item-via-seam-claim",
       "prompt": "/work-items:work",
-      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The claim identity is the authenticated session user, never the bot.",
+      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The seam claim is a non-optional prerequisite of dispatch: an external loop-prompt restating dispatch-in-a-worktree never substitutes for it, and dispatching before the claim is held is a defect. The claim identity is the authenticated session user, never the bot.",
       "files": [],
       "expectations": [
         "Runs an idempotent session-start reclaim (`work-item-tracker.sh reclaim`) before selecting — never releases a live lease",
@@ -13,6 +13,7 @@
         "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
         "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
         "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
+        "Treats the seam claim (assignee + lease) as a non-optional prerequisite of dispatch — an external loop-prompt restating \"dispatch in an out-of-tree worktree\" does not substitute for it, and dispatching a subagent before the claim is held is a defect even when the loop-prompt never named the claim step",
         "For autonomous execution, defaults to orchestrator-dispatch — dispatches a scope-fenced implementation subagent that edits in its own out-of-tree worktree (chaining to `/implementation:implement-dispatch` for mechanics, `/source-control:worktree` for the worktree), orchestrator never edits source; the interactive all-inline path is `/implementation:implement`",
         "Whichever execution path runs, follows every step of the consuming project's development workflow first — no shortcuts, no skipped research"
       ]

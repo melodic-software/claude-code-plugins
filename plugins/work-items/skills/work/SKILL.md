@@ -127,6 +127,8 @@ Before claiming, verify the item is still actionable:
 
 ### Step 5: Claim and execute
 
+> **The seam claim (assignee + lease) is a non-optional prerequisite of this step — claim-before-dispatch is an invariant this skill enforces, not merely an implication of the sub-step ordering below.** An external loop-prompt or standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree" describes only the execute sub-step; it is **not** a complete execution contract and is **not** a substitute for claiming. Worktree isolation is not a race-safe collision signal between concurrent lanes — the seam claim is. Acquire the claim first, before branching or dispatching a subagent, regardless of whether the invoking loop-prompt mentioned claiming: dispatching a subagent before the claim is held is a defect even when the loop-prompt's own wording never named the claim step.
+
 On user confirmation ("yes"):
 
 1. **Claim via the seam** — the atomic, race-safe acquisition (assign `@me` → lease → back off on a foreign earlier lease):
