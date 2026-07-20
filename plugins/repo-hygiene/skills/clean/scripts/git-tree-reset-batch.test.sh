@@ -302,6 +302,29 @@ out="$(bash "$BATCH" --dry-run --include-dirty --repo "$AHEAD_REPO" 2>&1)" || tr
 assert_contains "include-dirty dry-run still plans the ahead repo reset" "$out" "would-reset"
 assert_contains "include-dirty dry-run names the discarded unpushed commits" "$out" "1 unpushed commit(s) would be discarded"
 
+# --- 21. read_lines_into keeps a FINAL line with no trailing newline (data-loss guard) ---
+# A skip file written without a trailing newline (printf '%s', not '%s\n') must still
+# protect its repo. The dropped-final-line bug silently empties a single-entry skip list,
+# fires no UnmatchedSkip warning (the entry never enters the array), and resets the repo
+# the operator meant to spare — the exact data-loss shape this feature exists to close.
+NOEOL_SKIP="$TEST_TMPDIR/skips-noeol.txt"
+printf '%s' 'acme\keepme' >"$NOEOL_SKIP" # deliberately no trailing newline
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --repo "$SKIP_REPO" --skip-from "$NOEOL_SKIP" 2>&1)" || true
+assert_contains "unterminated skip entry still skips its repo" "$out" "skip-list"
+assert_not_contains "unterminated matched skip not reported unmatched" "$out" "UnmatchedSkip:"
+# A typo'd unterminated entry must still surface as UnmatchedSkip (guard stays active).
+NOEOL_TYPO="$TEST_TMPDIR/skips-noeol-typo.txt"
+printf '%s' 'no/such-repo' >"$NOEOL_TYPO" # no trailing newline
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --skip-from "$NOEOL_TYPO" 2>&1)" || true
+assert_contains "unterminated typo skip surfaced as UnmatchedSkip" "$out" "UnmatchedSkip: no/such-repo"
+
+# --- 22. --repos-from keeps a final unterminated line too (same shared helper) ---
+NOEOL_REPOS="$TEST_TMPDIR/repos-noeol.txt"
+printf '%s' "$CLEAN_REPO" >"$NOEOL_REPOS" # single repo path, no trailing newline
+out="$(bash "$BATCH" --dry-run --repos-from "$NOEOL_REPOS" 2>&1)" || true
+assert_contains "unterminated repos-from still enumerates the repo" "$out" "Repos: 1"
+assert_contains "unterminated repos-from repo would reset" "$out" "would-reset"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

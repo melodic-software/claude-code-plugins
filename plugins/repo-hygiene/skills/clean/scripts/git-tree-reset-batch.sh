@@ -114,13 +114,13 @@ read_lines_into() {
   local -n _dest="$1"
   local src="$2" line
   if [[ "$src" == "-" ]]; then
-    while IFS= read -r line; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -n "$line" ]] && _dest+=("$line")
     done
   else
     [[ -f "$src" ]] || fail_usage "file not found: $src"
-    while IFS= read -r line; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -n "$line" ]] && _dest+=("$line")
     done <"$src"
