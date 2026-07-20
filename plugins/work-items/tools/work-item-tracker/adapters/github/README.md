@@ -168,7 +168,7 @@ is not in flight (bare read):
 
 ```bash
 OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name' | tr -d '\r')
-gh api graphql --paginate \
+open_pr_pages=$(gh api graphql --paginate \
   -f query='query($owner:String!, $repo:String!, $n:Int!, $endCursor:String) {
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
@@ -180,14 +180,24 @@ gh api graphql --paginate \
     }
   }' \
   -f owner="${OWNER_REPO% *}" -f repo="${OWNER_REPO#* }" -F n=<N> \
-  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any' \
-  | tr -d '\r' | grep -qx true && echo true || echo false
+  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any') \
+  || { echo "open-linked-PR check failed for #<N>" >&2; exit 1; }
+if printf '%s\n' "$open_pr_pages" | tr -d '\r' | grep -qx true; then echo true; else echo false; fi
 ```
 
-Emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. `-F n=<N>` passes the
-number as a GraphQL `Int` (typed); `-f` passes the owner/repo strings; the trailing `| tr -d '\r'`
-follows the Windows/Git Bash rule under "Gotchas" (each page's boolean can otherwise arrive as
-`true\r`, which `grep -qx true` would then fail to match).
+On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. **On query
+failure it emits no boolean and exits non-zero — a failed in-flight check is not `false`.** The
+GraphQL call is captured first and its exit status checked before any reduction: if
+`gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor
+page), the snippet propagates that failure instead of letting an empty/partial result collapse to
+`false`. This is **load-bearing for the caller**: `/work-items:work` treats `false` as "not in
+flight → pickable", so silently converting a failed check to `false` would let it re-dispatch an
+item whose in-flight state could not be confirmed — the exact double-dispatch this operation
+exists to prevent. The caller must fail **closed** on a non-zero exit (keep the item out of this
+cycle), never read the absent boolean as "no open PR". `-F n=<N>` passes the number as a GraphQL
+`Int` (typed); `-f` passes the owner/repo strings; the `tr -d '\r'` on the captured output follows
+the Windows/Git Bash rule under "Gotchas" (each page's boolean can otherwise arrive as `true\r`,
+which `grep -qx true` would then fail to match).
 The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `includeClosedPrs:false`**:
 that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
 connection and must be dropped here — otherwise an issue whose only closing PR merged to a
@@ -199,9 +209,12 @@ currently-open PR onto a later page. `--paginate` therefore walks the connection
 `pageInfo { hasNextPage endCursor }` and the `$endCursor` variable until GitHub reports no further
 pages, the GraphQL analogue of the `--limit` note under "List items"; a single-page `first:100`
 read would miss an `OPEN` closing PR sorted past the first 100 nodes and wrongly report the item
-pickable. `gh` applies `--jq` per page, so each page emits its own `true`/`false`; `grep -qx true`
-collapses the stream to one boolean — `true` as soon as any page carries an `OPEN` node, `false`
-once every page is exhausted without one. Why GitHub's computed
+pickable. `gh` applies `--jq` per page, so each page emits its own `true`/`false`; after the
+exit-status guard confirms every page was fetched, `grep -qx true` collapses the captured booleans
+to one result — `true` when any page carried an `OPEN` node, `false` once every page was exhausted
+without one. Capturing the full stream first (rather than piping `gh` straight into `grep`) is what
+lets the exit status be checked: in a bare pipeline `gh`'s non-zero exit is masked by `grep`, so a
+mid-pagination failure would reduce to a spurious `false`. Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
 - **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing

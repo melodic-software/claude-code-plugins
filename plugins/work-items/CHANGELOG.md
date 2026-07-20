@@ -21,6 +21,14 @@ cannot miss an `OPEN` closing PR that sorts past the first page of linked closin
   per-page booleans to a single result — `true` as soon as any page carries an `OPEN` node. The
   connection exposes no server-side OPEN-state filter and no OPEN-first `orderBy`, so pagination is
   the only correct route; a `first:100` bump only moves the boundary. Refs `#668`, `#654`.
+- **Open-linked-PR check now fails closed on query error.** The paginated snippet captures the
+  `gh api graphql` result and checks its exit status before reducing, propagating a non-zero exit
+  (and emitting no boolean) when the query fails — an expired token, rate limit, or a network error
+  on a later cursor page. Previously the `… | grep -qx true && echo true || echo false` tail masked
+  `gh`'s exit code and converted any failure to `false` = pickable, re-introducing the exact
+  double-dispatch this fix targets precisely when the in-flight state could not be confirmed. The
+  `/work-items:work` consumer now excludes the candidate this cycle on such a failure rather than
+  treating an unconfirmed check as "no open PR".
 
 ## [0.17.0]
 
