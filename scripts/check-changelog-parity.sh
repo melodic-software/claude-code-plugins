@@ -141,16 +141,19 @@ for manifest in "${manifests[@]}"; do
 
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
-  # satisfy the gate. Fixed-string match tolerates a trailing "- <date>" and
-  # keeps the dotted version and literal brackets literal.
-  if [[ -f "$changelog" ]] && grep -Fq "## [$head_version]" "$changelog"; then
+  # satisfy the gate. The match is ANCHORED to a line-start Markdown heading
+  # (^## [<v>]) so the version string appearing in prose or a fenced code
+  # example never satisfies — or falsely pre-exists — the release entry.
+  esc="${head_version//./\\.}"
+  heading_re="^## \[${esc}\]"
+  if [[ -f "$changelog" ]] && grep -Eq "$heading_re" "$changelog"; then
     # The release entry must be ADDED by this change set, not merely present:
     # a heading that already existed in the changelog at $base means the bump
     # reused a pre-existing entry and shipped no new release note. Require it
     # absent from the base changelog. (git show fails for a changelog that is
     # new at $base -> empty -> counts as absent, which is correct: it was added
     # here.)
-    if git show "$base:$changelog" 2>/dev/null | grep -Fq "## [$head_version]"; then
+    if git show "$base:$changelog" 2>/dev/null | grep -Eq "$heading_re"; then
       echo "PRE-EXISTING CHANGELOG ENTRY: $name bumped $base_version -> $head_version but '## [$head_version]' already existed in $changelog at $base; add the release entry in this change set." >&2
       preexisting=$((preexisting + 1))
     fi
@@ -159,8 +162,7 @@ for manifest in "${manifests[@]}"; do
 
   # Split the failure: a heading that names the version but omits the brackets
   # (## <version>) is a FORMAT error the author can fix in place, not a missing
-  # release. Escape dots so the version matches literally.
-  esc="${head_version//./\\.}"
+  # release. (esc computed above; dots already escaped.)
   if found="$([[ -f "$changelog" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" "$changelog")"; then
     echo "CHANGELOG FORMAT: $name $head_version is documented as '${found}' but must use the bracketed Keep-a-Changelog heading '## [$head_version]'." >&2
     malformed=$((malformed + 1))
