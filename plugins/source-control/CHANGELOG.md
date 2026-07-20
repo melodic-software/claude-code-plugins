@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2]
+
+### Fixed
+
+- **`babysit-prs` dynamic `/loop` wakeups now map `recommended_cadence` to a concrete
+  `ScheduleWakeup.delaySeconds` instead of falling back to the generic `/loop` heuristic.** The
+  snapshot engine emits `recommended_cadence` (`reference/cadence.md`: active / normal / quiet /
+  idle) and `reference/loop.md` §5.3 told the orchestrator to "derive the wake interval" from it,
+  but never gave the string-to-seconds translation — so orchestrators silently fell back to the
+  generic `/loop` skill's own "lean 1200–1800s" fallback-heartbeat range, overriding the domain
+  skill's tighter adaptive-cadence contract and leaving PRs with pending CI or blocking feedback
+  unchecked 4–5x longer than intended. §5.3 now carries a deterministic mapping table
+  (`active`→300, `normal`→900, `quiet`→3600, `idle`→3600) and states plainly that this signal
+  ALWAYS wins over the generic heuristic whenever a snapshot supplies it — in babysit dynamic mode
+  the `ScheduleWakeup` delay is the primary cadence signal, not a fallback heartbeat. The `idle`
+  row is documented as a ceiling: `ScheduleWakeup` clamps `delaySeconds` to `[60, 3600]`, so
+  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling — a genuine daily cadence
+  needs the durable `/schedule` cron mechanism, not a single-session `/loop` wakeup.
+
 ## [0.13.1]
 
 ### Fixed
