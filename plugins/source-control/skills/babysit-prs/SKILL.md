@@ -176,6 +176,11 @@ it does **not** widen the owner allowlist, and it does not gain force-push, `--a
 settings powers — those still escalate. Run it looped:
 `/loop 15m /source-control:babysit-prs autopilot`.
 
+## Autopilot merge tier (#476)
+
+A config-gated escalation of autopilot's merge authority, **shipped DISABLED** and active only while the operator sets `babysit_autopilot_merge_tier` (enabling it, and the later gate-off flip, are separate announced steps; without it every merge decision is exactly today's). When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the tier flags (`--autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>`) added to `--merge --expected-head <post-push-head-sha>`.
+That gate merges **only when every criterion holds** — the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list — the tier never routes around the gate.
+
 ## Guarded mutations: deterministic gates, agent judgment
 
 The two mutation gates are invoked ONLY by their bare wrapper names (they resolve their own
@@ -288,6 +293,10 @@ tier authority.
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only — gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
+| `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
+| `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
+| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |

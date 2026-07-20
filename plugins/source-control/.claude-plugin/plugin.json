@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
@@ -50,6 +50,30 @@
       "type": "string",
       "title": "Babysit merge method",
       "description": "Merge method for gate-proven merges: merge, squash, or rebase. Absent: repo convention, then squash."
+    },
+    "babysit_autopilot_merge_tier": {
+      "type": "boolean",
+      "title": "Babysit autopilot merge tier",
+      "description": "Enable the #476 autopilot merge tier: a distinct bot account submits a genuine approving review, then the gate merges only when every criterion holds (issue-linked, lane-authored, no do-not-merge label, distinct-bot approval on the live head, no human blocking comment). Ships DISABLED; a deliberate operator opt-in. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels to be set. Absent/false: the tier does not exist and PRs go to the human merge-ready list.",
+      "default": false
+    },
+    "babysit_lane_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit pipeline lane logins",
+      "description": "Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when enabled) refuses fail-closed."
+    },
+    "babysit_approver_bot_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit approver bot logins",
+      "description": "Bot logins whose approving review satisfies the autopilot merge tier's author != approver criterion. Absent: the tier (when enabled) refuses fail-closed."
+    },
+    "babysit_merge_block_labels": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit merge block labels",
+      "description": "Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed."
     },
     "babysit_review_trigger_phrase": {
       "type": "string",

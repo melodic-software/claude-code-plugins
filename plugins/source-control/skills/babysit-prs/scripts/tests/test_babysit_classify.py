@@ -41,6 +41,26 @@ class IsBotTests(unittest.TestCase):
         self.assertFalse(bc.is_bot(None, "User"))
 
 
+class ActorKindTests(unittest.TestCase):
+    def test_configured_login_outranks_user_typename(self) -> None:
+        # A bot account GitHub misreports as a `User` (no `[bot]` suffix) is a bot
+        # when named in extra_bot_logins: the operator's declaration wins over the
+        # structural signal, matching `is_bot`. This is the one case the field
+        # documents itself for, so `actor_kind` must not settle it as human first.
+        config = bc.FeedbackConfig(extra_bot_logins=frozenset({"svc-account"}))
+        item = {"author": {"login": "svc-account", "__typename": "User", "is_bot": False}}
+        self.assertEqual(bc.actor_kind(item, config), "bot")
+
+    def test_unconfigured_user_is_human(self) -> None:
+        config = bc.FeedbackConfig(extra_bot_logins=frozenset({"svc-account"}))
+        item = {"author": {"login": "maintainer", "__typename": "User", "is_bot": False}}
+        self.assertEqual(bc.actor_kind(item, config), "human")
+
+    def test_default_empty_config_relies_on_structure(self) -> None:
+        item = {"author": {"login": "svc-account", "__typename": "User", "is_bot": False}}
+        self.assertEqual(bc.actor_kind(item), "human")
+
+
 class SelfLoginTests(unittest.TestCase):
     def test_normalize_casefolds_and_keeps_bot_suffix(self) -> None:
         # The self set is matched against a raw author login; stripping [bot]

@@ -68,6 +68,38 @@ class MergeGuardFailsClosed(unittest.TestCase):
         code, _ = run(MERGE, "not-a-ref", "--allowed-owners", "owner")
         self.assertEqual(code, 2)
 
+    def test_autopilot_tier_without_required_sets_refuses_exit_3(self):
+        # The tier's fail-closed core: the umbrella flag alone, with none of its
+        # three required sets, refuses before any network access.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autopilot-merge-tier",
+        )
+        self.assertEqual(code, 3)
+        error = payload.get("error", "")
+        for flag in ("--lane-logins", "--approver-bot-logins", "--block-labels"):
+            self.assertIn(flag, error)
+
+    def test_autopilot_tier_partial_config_refuses_exit_3(self):
+        # Two of three supplied still refuses, naming only the missing set.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autopilot-merge-tier", "--lane-logins", "lane",
+            "--approver-bot-logins", "bot",
+        )
+        self.assertEqual(code, 3)
+        self.assertIn("--block-labels", payload.get("error", ""))
+
+    def test_tier_params_without_umbrella_are_usage_error_exit_2(self):
+        # The parameter sets are meaningless without the umbrella flag; supplying
+        # them alone is a usage error, never a silent no-op.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--lane-logins", "lane",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("--autopilot-merge-tier", payload.get("error", ""))
+
 
 class ResolveGuardFailsClosed(unittest.TestCase):
     def test_absent_allowlist_refuses_exit_3(self):

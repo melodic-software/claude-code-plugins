@@ -134,6 +134,13 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   to merge on an unprotected repository — zero required reviews AND zero required status contexts
   — when the PR author is not one of `<self-logins>`, absent `--allow-unprotected`. Both
   overrides are human decisions, never passed autonomously.
+- The merge wrapper's `--autopilot-merge-tier` flag layers the #476 tier criteria (issue-linked,
+  lane-authored, no blocking label, a distinct-bot approval on the live head, no human blocking
+  comment) onto the base gate. It is **fail-closed**: the umbrella flag refuses (exit `3`) unless
+  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all non-empty, and supplying
+  any of those three without the umbrella is a usage error (exit `2`). Absent the flag the gate is
+  exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
+  tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`) and `--resolve --include-human` (autopilot's
   addressed-thread widening).
@@ -221,7 +228,43 @@ as done and re-running the gate.
 ## Never Do Automatically
 
 - Merge in default (safe) mode, or merge through any path other than the pinned merge wrapper's
-  gate.
+  gate. Worker and autopilot merge only a PR that gate proves 100% ready.
+- Generate an approving review to satisfy a required-review ruleset, or merge on a review the
+  fleet produced itself — **except** under the autopilot merge tier (#476), a deliberate,
+  config-gated opt-in that ships **DISABLED**. It engages only when the operator sets
+  `babysit_autopilot_merge_tier`; enabling that flag, and any later gate-off flip, is a
+  separate, loudly-announced operator step, never a default and never a side effect of another
+  change. When the tier is enabled, a second bot account (author ≠ approver) runs a **genuine**
+  review pass and submits an approving review **only when it is clean**, and the pinned merge
+  wrapper's `--autopilot-merge-tier` gate then merges **only when every criterion holds**, each
+  enforced deterministically:
+  - required checks green, including the review workflow, with the base ruleset satisfied
+    (`mergeStateStatus` CLEAN — the ruleset itself is never bypassed);
+  - the PR is issue-linked (carries a closing-issue reference);
+  - the PR is authored by a configured pipeline lane;
+  - no human `CHANGES_REQUESTED`, no human blocking comment, no unresolved review thread;
+  - no configured do-not-merge label is present;
+  - the PR's linked issue carries no unratified `Decision defaulted` marker — the triage lane
+    records a defaulted (maintainer-vetoable) decision only as a `Decision defaulted: X — veto
+    before merge` issue comment, invisible to the gate, so the default rides into an autopilot
+    merge only once a maintainer has **ratified** it: a human `OWNER`/`MEMBER` comment posted
+    after the marker carrying an explicit ratification signal — a closed, whole-word token set
+    (`ratify`/`ratified`, `approve`/`approved`, `confirm`/`confirmed`), and not a
+    withheld-approval negation (`not approved`, `cannot approve`). All maintainer comments
+    after the marker are scanned and the **latest decisive signal wins**: a ratification token
+    ratifies, while a revocation reusing the veto vocabulary (`not approved`, `do not merge`)
+    re-holds, so a maintainer who ratifies and then revokes holds the PR. Matching is strict and
+    fail-closed: an unrelated maintainer comment, a signal appearing before the marker, a
+    ratify/revoke tie at the same timestamp, an unratified marker, or an issue whose comments
+    cannot be read all hold the PR;
+  - the approving review is by a **distinct bot identity** (author ≠ approver) and was
+    submitted against the **live head** (head SHA unchanged since review), pinned as always by
+    `--expected-head`.
+
+  Any criterion failing falls back to today's behavior — the PR is reported on the human
+  merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
+  review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
+  tier does not exist and the first bullet governs unchanged.
 - Enable auto-merge.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.

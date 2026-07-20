@@ -123,6 +123,39 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("a genuinely in-progress draft stays draft", paragraph)
         self.assertIn("reported and escalated with the reason", paragraph)
 
+    def test_autopilot_merge_tier_ships_disabled_and_fail_closed(self) -> None:
+        para = _paragraph_containing(self.skill_text, "config-gated escalation")
+        for marker in (
+            "shipped DISABLED",
+            "separate announced steps",
+            "genuine review pass",
+            "second bot account",
+            "author ≠ approver",
+            "only when clean",
+            "--autopilot-merge-tier",
+            "fail-closed",
+            "never routes around the gate",
+            "reference/safety.md",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, para)
+
+    def test_safety_md_codifies_the_tier_criteria(self) -> None:
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        self.assertIn("ships **DISABLED**", safety)
+        self.assertIn("babysit_autopilot_merge_tier", safety)
+        for criterion in (
+            "issue-linked",
+            "pipeline lane",
+            "do-not-merge label",
+            "distinct bot identity",
+            "head SHA unchanged since review",
+            "review workflow",
+            "Decision defaulted",
+        ):
+            with self.subTest(criterion=criterion):
+                self.assertIn(criterion, safety)
+
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')
         drafts = _paragraph_containing(self.skill_text, "**Draft PRs** are in scope")
