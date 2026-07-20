@@ -19,7 +19,9 @@ reach, the skills say so honestly instead of guessing.
 Areas are **arguments, not skills** — the coverage matrix (rulesets, billing, security model,
 Actions policy, webhooks, packages, and the rest) lives in
 [`reference/areas.md`](reference/areas.md), and every area routes through the same
-[`reference/method-ladder.md`](reference/method-ladder.md).
+[`reference/method-ladder.md`](reference/method-ladder.md). Primary-tier areas additionally carry
+a dedicated method recipe under [`reference/recipes/`](reference/recipes/) — curated audit
+checklists, drift procedures, and posture heuristics, still with zero vendored GitHub mechanics.
 
 ## Verb contract
 

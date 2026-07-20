@@ -37,3 +37,11 @@ All notable changes to the `github` plugin are documented here. Format follows
   advisory gate layered under the per-action confirm), and the method ladder's UI-only rung now
   citing the reference. Gate value surfaced in `audit` and `advise` prose via
   `${user_config.offer_browser_automation}`.
+- Primary-tier method recipes under `reference/recipes/` — `billing.md`,
+  `security-posture.md` (authentication, advanced security, GitHub Apps, OAuth app policy,
+  PATs), `rulesets-repo-drift.md`, `actions-policy.md`. Each carries a credential-and-gate
+  preflight, a curated audit-question checklist, cost-control levers or posture heuristics, a
+  drift-comparison procedure against declared conventions, dated re-verify-live caveats, and
+  stable official-doc entry pointers — zero vendored endpoints, scopes, or prices (mechanics
+  resolve at runtime via the method ladder). `reference/areas.md` primary rows link their
+  recipes.

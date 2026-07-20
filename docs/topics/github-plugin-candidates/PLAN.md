@@ -329,7 +329,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
   (grep for the "if…installed" clause and the fallback sentence adjacency).
 - `grep -c "never auto" plugins/github/reference/browser-automation.md` ≥ 1.
 
-#### Phase 5: Primary-tier recipes [TODO]
+#### Phase 5: Primary-tier recipes [DONE]
 
 - `reference/recipes/billing.md`, `security-posture.md`, `rulesets-repo-drift.md`,
   `actions-policy.md` — per resolution 6.
