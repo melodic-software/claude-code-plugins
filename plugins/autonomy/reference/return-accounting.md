@@ -57,7 +57,12 @@ Aggregation derives avoided cost from the pair; the attestor never prorates.
 The band set and counterfactual enum are contract-stable: any change is a reviewed contract
 migration, never per-org variation (org-custom bands break cross-org aggregation).
 Per-work-class precision graduation (finer bands for a class the guardrail matrix names) is
-deferred with a trigger: aggregate data proving a class needs finer resolution.
+deferred with a trigger: aggregate data proving a class needs finer resolution. The record
+never grows a class field for this: segmentation joins each record to its work item (the
+telemetry contract's join attribute) and reads the item's admission-time class from the
+governed queue's protected admission data — the surface that stamped and verified the class
+at admission — falling back to re-derivation through the security-surface classification
+rules (current-epoch class, a stated approximation) where queue history is not retained.
 
 ## Record lifecycle — attestation is asynchronous
 
