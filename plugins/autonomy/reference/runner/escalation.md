@@ -29,11 +29,20 @@ bundle: a failure summary, the run-transcript link, the run cost, the trace link
 the `resume_handle` ([session-and-resume seam](seams.md)), so the escalation item is a
 resumable takeover, not a cold restart.
 
-**`success` never escalates.** A successful outcome completes through the normal path — the
-per-item disposition ([lifecycle leaf](lifecycle.md)) and the task-boundary return-accounting
-capture ([return-accounting](../return-accounting.md)) — with no escalation item and no
-acknowledgment or re-escalation obligation. Escalation is the non-success path only; if a
-healthy drain filed escalation work, every clean run would generate a false human task.
+**`success` never escalates — the runner's own outcome.** A successful outcome completes
+through the normal path — the per-item disposition ([lifecycle leaf](lifecycle.md)) and the
+task-boundary return-accounting capture ([return-accounting](../return-accounting.md)) — with
+no runner escalation item and no acknowledgment or re-escalation obligation. Escalation is the
+non-success path only; if a healthy drain filed escalation work, every clean run would generate
+a false human task.
+
+**Inherited always-firing classes are untouched by the success exception.** An event class the
+[guardrail escalation contract](../guardrails.md#escalation) fires unconditionally —
+`untrusted-provenance` on every `C5` item — fires regardless of outcome, success included: the
+runner emits it before the run completes, and the resulting item and fan-out follow that
+class's own route and severity, not the runner outcome mapping. The success exception
+suppresses only the runner's own outcome escalation, never an inherited class's standing
+obligation.
 
 ## Stop-criteria taxonomy — two families
 

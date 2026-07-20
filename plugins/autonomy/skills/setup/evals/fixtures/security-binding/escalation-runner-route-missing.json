@@ -47,7 +47,7 @@
     "untrusted-provenance": "queue:escalations/untrusted-provenance"
   },
   "escalation_severity": {
-    "gate-failure": "attention"
+    "runner-needs-human": "attention"
   },
   "admission": {
     "classification": {

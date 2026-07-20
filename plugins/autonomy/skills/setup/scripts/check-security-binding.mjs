@@ -598,27 +598,59 @@ function validateStructure(binding) {
     if (!isPlainObject(binding.escalation_severity)) {
       findings.push("escalation_severity: must be an object mapping escalation event class to severity token");
     } else {
+      const eventRoutes = isPlainObject(binding.escalation_routes) ? binding.escalation_routes : {};
       for (const [eventClass, severity] of Object.entries(binding.escalation_severity)) {
         const where = `escalation_severity.${eventClass}`;
         if (!checkEnum(eventClass, ESCALATION_EVENT_CLASSES, `escalation_severity key ${JSON.stringify(eventClass)}`)) {
           continue;
         }
         checkEnum(severity, SEVERITY_TOKENS, where);
+        // A severity-bound RUNNER class must carry its own queue destination:
+        // severity is notification depth on the FILED item, and unlike the six
+        // inherited classes (whose escalation_routes entries are required), a
+        // runner class with no escalation_routes entry has nowhere to file its
+        // human-gated handoff. Legacy bindings that never key a runner class
+        // stay untouched.
+        if (RUNNER_EVENT_CLASSES.includes(eventClass) && !isNonEmptyString(eventRoutes[eventClass])) {
+          findings.push(
+            `${where}: severity is bound for a runner event class with no escalation_routes.${eventClass} entry — severity only selects notification fan-out on the filed item, so without a queue destination the class's human-gated handoff has nowhere to file (fail-closed); bind escalation_routes.${eventClass}`,
+          );
+        }
       }
     }
   }
 
   if (Object.hasOwn(binding, "escalation_severity_routes")) {
     if (!isPlainObject(binding.escalation_severity_routes)) {
-      findings.push("escalation_severity_routes: must be an object mapping severity token to route");
+      findings.push("escalation_severity_routes: must be an object mapping severity token to notification legs");
     } else {
-      for (const [severity, route] of Object.entries(binding.escalation_severity_routes)) {
+      for (const [severity, legs] of Object.entries(binding.escalation_severity_routes)) {
         if (!checkEnum(severity, SEVERITY_TOKENS, `escalation_severity_routes key ${JSON.stringify(severity)}`)) {
           continue;
         }
-        if (!isNonEmptyString(route)) {
+        if (!isPlainObject(legs)) {
           findings.push(
-            `escalation_severity_routes.${severity}: missing or empty — a bound severity must carry an org-bound route (personal-push is a legal route value at any tier)`,
+            `escalation_severity_routes.${severity}: must be an object binding the notification legs separately ({channel, push}, at least one) — a bare route cannot say which leg it is, and an urgent fan-out carries both`,
+          );
+          continue;
+        }
+        checkAllowedKeys(legs, ["channel", "push"], `escalation_severity_routes.${severity}`);
+        if (Object.keys(legs).length === 0) {
+          findings.push(
+            `escalation_severity_routes.${severity}: empty — a bound severity entry carries at least one notification leg (channel or push)`,
+          );
+        }
+        for (const leg of ["channel", "push"]) {
+          if (Object.hasOwn(legs, leg) && !isNonEmptyString(legs[leg])) {
+            findings.push(`escalation_severity_routes.${severity}.${leg}: missing or empty — a bound leg carries an org-bound route`);
+          }
+        }
+        // The fan-out ladder is cumulative — the personal-push tier rides on
+        // top of the channel notification — so a push leg with no channel leg
+        // skips a rung and leaves the required channel notification unbound.
+        if (isNonEmptyString(legs.push) && !isNonEmptyString(legs.channel)) {
+          findings.push(
+            `escalation_severity_routes.${severity}: binds a push leg with no channel leg — the fan-out ladder is cumulative (tracker item, then channel notification, then the personal-push tier), so a push-only entry leaves the channel notification the contract requires at this tier unbound; bind the channel leg too`,
           );
         }
       }
@@ -1496,13 +1528,14 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
     }
   }
 
-  // No routability rule exists for escalation_severity on purpose: severity
-  // selects only the NOTIFICATION fan-out layered on the filed item — it
-  // never redirects the item, whose queue destination stays the event
-  // class's own escalation_routes entry — and the escalation contract makes
-  // tracker-item-only fan-out the legal degraded form when a severity has no
-  // bound notification route. A severity binding with no route anywhere is
-  // therefore a conforming binding, not a defect.
+  // No notification-routability rule exists for escalation_severity on
+  // purpose: severity selects only the NOTIFICATION fan-out layered on the
+  // filed item — it never redirects the item, whose queue destination stays
+  // the event class's own escalation_routes entry — and the escalation
+  // contract makes tracker-item-only fan-out the legal degraded form when a
+  // severity has no bound notification legs. The one queue-side requirement
+  // (a severity-bound RUNNER class must carry its escalation_routes entry)
+  // is enforced where escalation_severity entries are walked above.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules);

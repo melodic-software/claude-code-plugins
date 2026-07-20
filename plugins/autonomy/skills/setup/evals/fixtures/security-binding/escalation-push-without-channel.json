@@ -47,7 +47,10 @@
     "untrusted-provenance": "queue:escalations/untrusted-provenance"
   },
   "escalation_severity": {
-    "gate-failure": "attention"
+    "untrusted-provenance": "urgent"
+  },
+  "escalation_severity_routes": {
+    "urgent": { "push": "personal-push:oncall-primary" }
   },
   "admission": {
     "classification": {

@@ -44,7 +44,9 @@
     "admission-rejection": "queue:escalations/admission-rejection",
     "demotion": "queue:escalations/demotion",
     "structural-plan-approval": "queue:escalations/structural-plan-approval",
-    "untrusted-provenance": "queue:escalations/untrusted-provenance"
+    "untrusted-provenance": "queue:escalations/untrusted-provenance",
+    "runner-needs-human": "queue:escalations/runner-needs-human",
+    "runner-cap-exceeded": "queue:escalations/runner-cap-exceeded"
   },
   "escalation_severity": {
     "gate-failure": "attention",
@@ -54,9 +56,8 @@
     "runner-cap-exceeded": "notice"
   },
   "escalation_severity_routes": {
-    "notice": "queue:escalations/notice",
-    "attention": "channel:autonomy-escalations",
-    "urgent": "personal-push:oncall-primary"
+    "attention": { "channel": "channel:autonomy-escalations" },
+    "urgent": { "channel": "channel:autonomy-escalations", "push": "personal-push:oncall-primary" }
   },
   "escalation_ack": {
     "staleness_window": 72,

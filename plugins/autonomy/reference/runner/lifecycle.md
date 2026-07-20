@@ -39,11 +39,17 @@ custom-namespace mechanism; that namespace token, and the escalation payload, ar
 
 ## Disposition
 
-Launch disposition is thin: a passing result lands as a per-item PR through the platform's
-native change-proposal flow — one item, one PR, no runner-owned merge machinery. Who lands it
-is the [matrix merge-policy row](../guardrails.md#the-matrix) for the item's class: an
-auto-merge only where that class's cell is promoted AND the run is self-run; human-gated
-everywhere else.
+Launch disposition is thin and follows the class's
+[matrix merge-policy row](../guardrails.md#the-matrix):
+
+- A read-only class — `C1`, whose merge row is not applicable and whose definition forbids
+  repository mutation — never opens a PR: its passing result completes by attaching the
+  produced artifact or report to the governed queue item, the audit trail the matrix names as
+  `C1`'s disposition surface.
+- A mutating class lands as a per-item PR through the platform's native change-proposal flow —
+  one item, one PR, no runner-owned merge machinery. Who lands it is the class's merge-policy
+  cell: an auto-merge only where that cell is promoted AND the run is self-run; human-gated
+  everywhere else.
 
 The vendor-hosted merge cap is restated here, not inherited silently: whenever the executing
 backend is a vendor-hosted executor, every class caps at human-gated regardless of its self-run
