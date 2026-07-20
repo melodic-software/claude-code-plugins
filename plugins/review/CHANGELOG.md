@@ -18,8 +18,16 @@ All notable changes to the `review` plugin are documented here. Format follows
   "No baked repo assumptions, ever". A dynamic resolution rung now sits BEFORE the
   literal `origin/main`: `git ls-remote --symref origin HEAD` queries the remote's
   own default branch over the same transport the clone used — host-agnostic,
-  needing neither a locally-set `origin/HEAD` symref nor `gh` — falling to
-  `origin/main` only as the terminal last resort. Applied identically across the
+  needing neither a locally-set `origin/HEAD` symref nor `gh`. The resolved branch
+  is then fetched and the diff is taken against `FETCH_HEAD`, because `ls-remote`
+  reports only the branch name and does not populate a local `refs/remotes/origin/*`
+  ref — so `origin/<default>` is unresolvable in `--single-branch`/shallow clones
+  (the exact CI scenario), where `merge-base "origin/<default>"` would otherwise
+  still fall through to the empty-diff terminal. This mirrors the existing
+  `PR_BASE` fetch. The rung stays lazy — the network `ls-remote`/fetch fire only
+  when the local `origin/HEAD` rung fails, so the well-connected common case pays
+  no round-trip. Falls to `origin/main` only as the terminal last resort. Applied
+  identically across the
   four reviewer agents (`code-reviewer`, `security-reviewer`, `architecture-guardian`,
   `ecosystem-specialist`), the `fanout` pre-computed diff-size snippet, and the
   `fanout`/`quality-gate` shared-input and subagent-prompt prose. The remote name

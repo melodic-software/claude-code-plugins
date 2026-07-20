@@ -11,7 +11,7 @@ disable-model-invocation: false
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
 Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
-Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat "origin/$(git ls-remote --symref --end-of-options origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')...HEAD" 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || echo "unavailable"`
+Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || { D="$(git ls-remote --symref --end-of-options origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')"; [ -n "$D" ] && git fetch origin "$D" 2>/dev/null && git diff --shortstat FETCH_HEAD...HEAD 2>/dev/null; } || git diff --shortstat origin/main...HEAD 2>/dev/null || echo "unavailable"`
 Uncommitted diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
