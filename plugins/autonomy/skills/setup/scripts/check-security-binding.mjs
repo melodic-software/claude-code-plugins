@@ -49,6 +49,14 @@ import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
 const LEVEL_TOKEN = /^L[0-3]$/;
+// Routine identity: <class-token> or <class-token>/<posture-token> — the
+// posture-qualified form is how a multi-posture routine class binds each
+// posture to its own class and emitting surface.
+const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
+// Schemes that can never anchor a durable platform run-permalink namespace —
+// the same non-durable set the signal-envelope checker rejects for raw links
+// (a data:/javascript:/http: prefix could never match a durable permalink).
+const NON_DURABLE_PREFIX_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
 const DISPOSITIONS = ["autonomous-eligible", "human-gated", "audited-rejection"];
@@ -589,6 +597,10 @@ function validateAdmissionStructure(admission) {
           findings.push(`${where}: must be an object mapping signal markers to work classes`);
           continue;
         }
+        if (surfaceClass === "temporal") {
+          validateTemporalClassificationHome(ruleHome, where);
+          continue;
+        }
         for (const [marker, workClass] of Object.entries(ruleHome)) {
           checkEnum(workClass, WORK_CLASSES, `${where}.${JSON.stringify(marker)}`);
         }
@@ -625,6 +637,96 @@ function validateAdmissionStructure(admission) {
   for (const cap of ["autonomous_concurrency", "items_per_run"]) {
     if (Object.hasOwn(admission, cap) && (!Number.isInteger(admission[cap]) || admission[cap] < 1)) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
+    }
+  }
+}
+
+// The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
+// surface-bound object form: the scheduled workflow that stamps a routine
+// identity is agent-writable in adopting repos, so the identity alone is an
+// unprotected selector — a bare class here would let a swapped selector
+// resolve high-risk scheduled work through a benign class. Only the
+// identity-to-surface association ratified on this agent-unwritable surface
+// lets admission stamp a class; anything less fails closed. Two anchors pin
+// the producing schedule together, because a run-permalink namespace may be
+// repo-scoped and SHARED across every schedule on the platform: the
+// run_link_prefix pins the platform-and-repository namespace (a relative or
+// non-durable prefix could never match a platform-assigned permalink), while
+// the producer_identity — the workflow/unit reference the platform injects
+// into the authenticated run context — pins WHICH schedule within that shared
+// namespace produced the run. Prefixes may therefore overlap or coincide
+// across entries (one shared namespace is the norm on repo-scoped platforms);
+// what must stay unique is the producer_identity, since two routine
+// identities sharing one producer cannot be distinguished at admission. The
+// other classification homes keep their bare-enum entries: their markers
+// arrive on attested event surfaces, not through an agent-writable selector.
+function validateTemporalClassificationHome(ruleHome, where) {
+  const identityBySurface = new Map();
+  const identityByProducer = new Map();
+  for (const [identity, entry] of Object.entries(ruleHome)) {
+    const entryWhere = `${where}.${JSON.stringify(identity)}`;
+    if (!ROUTINE_IDENTITY.test(identity)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(identity)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*; an out-of-grammar key can never match a stamped signal.routine, so its classification is unreachable dead policy`,
+      );
+    }
+    if (!isPlainObject(entry)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(entry)} is a bare work class — a temporal classification with no bound emitting surface is an unprotected selector: the scheduled workflow (agent-writable in adopting repos) would pick the class; bind the object form {class, source_surface, run_link_prefix, producer_identity}`,
+      );
+      continue;
+    }
+    checkAllowedKeys(entry, ["class", "source_surface", "run_link_prefix", "producer_identity"], entryWhere);
+    if (Object.hasOwn(entry, "class")) {
+      checkEnum(entry.class, WORK_CLASSES, `${entryWhere}.class`);
+    } else {
+      findings.push(`${entryWhere}.class: required key missing`);
+    }
+    if (!isNonEmptyString(entry.source_surface)) {
+      findings.push(
+        `${entryWhere}.source_surface: missing or empty — the entry binds its routine identity to the ONE emitting surface admission attests; without the bound surface the classification is an unprotected selector, fail-closed`,
+      );
+    } else if (identityBySurface.has(entry.source_surface)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityBySurface.get(entry.source_surface))} and ${JSON.stringify(identity)} both bind source_surface ${JSON.stringify(entry.source_surface)} — one routine identity per emitting surface: on a shared surface a swapped selector still resolves a different class`,
+      );
+    } else {
+      identityBySurface.set(entry.source_surface, identity);
+    }
+    if (!isNonEmptyString(entry.producer_identity)) {
+      findings.push(
+        `${entryWhere}.producer_identity: missing or empty — with repo-scoped run-permalink namespaces shared across schedules, only the ratified producer identity (the workflow/unit reference the platform injects into the authenticated run context) pins WHICH schedule may emit this identity; without it the class association cannot be attested, fail-closed`,
+      );
+    } else if (identityByProducer.has(entry.producer_identity)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityByProducer.get(entry.producer_identity))} and ${JSON.stringify(identity)} both declare producer_identity ${JSON.stringify(entry.producer_identity)} — two routine identities sharing one producer cannot be distinguished at admission, so the producer that pins the schedule within the shared namespace must be unique per entry`,
+      );
+    } else {
+      identityByProducer.set(entry.producer_identity, identity);
+    }
+    const prefix = entry.run_link_prefix;
+    if (!isNonEmptyString(prefix)) {
+      findings.push(
+        `${entryWhere}.run_link_prefix: missing or empty — the ratified attestation anchor is required: it pins the platform-and-repository run-permalink namespace a raw link must fall under, and without it the producer identity cannot be located within a ratified namespace, so the class association cannot be attested, fail-closed`,
+      );
+      continue;
+    }
+    let prefixUrl = null;
+    if (!/\s/.test(prefix)) {
+      try {
+        prefixUrl = new URL(prefix);
+      } catch {
+        // Not an absolute URI — rejected below.
+      }
+    }
+    if (
+      prefixUrl === null ||
+      (prefixUrl.protocol === "https:" && prefixUrl.hostname.length === 0) ||
+      NON_DURABLE_PREFIX_SCHEMES.has(prefixUrl.protocol.slice(0, -1))
+    ) {
+      findings.push(
+        `${entryWhere}.run_link_prefix: ${JSON.stringify(prefix)} is not an attestable run-permalink namespace — an absolute https URL prefix (ci-cron) or a durable file:/artifact-scheme URI prefix (local-scheduler) is required: a relative or non-durable prefix can never match a platform-assigned run permalink, so it could never anchor the ratified namespace`,
+      );
     }
   }
 }
