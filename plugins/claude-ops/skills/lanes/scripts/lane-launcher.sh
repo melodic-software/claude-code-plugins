@@ -13,6 +13,7 @@
 #   claude --bg -n <name> [--model M] [--effort E] "<prompt>"   launch, return now
 #   claude agents --json                                        list sessions
 #                                                               (pid, cwd, kind,
+#                                                               startedAt,
 #                                                               sessionId, name,
 #                                                               status)
 #   claude stop <sessionId>                                     stop one session
@@ -79,6 +80,17 @@ declare -a TARGET_LANES=()
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 info() { printf '%s\n' "$*"; }
 
+# Guard for a space-separated option that consumes the next token: reject a
+# missing value or one that looks like another flag, so `--config --dry-run`
+# fails loudly instead of silently swallowing `--dry-run` as the config path.
+# Usage: `check_optarg "$1" "${2:-}" || exit 3` (kept out of a subshell so the
+# caller's exit actually fires).
+check_optarg() {
+  [[ -n "${2:-}" && "$2" != -* ]] && return 0
+  err "option '$1' requires a non-option argument"
+  return 1
+}
+
 # Print the leading comment header (everything after the shebang up to the first
 # non-comment line), stripped of the leading '# '. Robust to header length so a
 # reformat never bleeds code into --help.
@@ -98,12 +110,14 @@ parse_args() {
       fi
       ;;
     --config)
-      CONFIG="${2:-}"
+      check_optarg "$1" "${2:-}" || exit 3
+      CONFIG="$2"
       shift
       ;;
     --config=*) CONFIG="${1#*=}" ;;
     --repo)
-      REPO="${2:-}"
+      check_optarg "$1" "${2:-}" || exit 3
+      REPO="$2"
       shift
       ;;
     --repo=*) REPO="${1#*=}" ;;
@@ -111,7 +125,8 @@ parse_args() {
     --no-update) NO_UPDATE=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --agents-json)
-      AGENTS_JSON_FILE="${2:-}"
+      check_optarg "$1" "${2:-}" || exit 3
+      AGENTS_JSON_FILE="$2"
       shift
       ;;
     --agents-json=*) AGENTS_JSON_FILE="${1#*=}" ;;
@@ -213,12 +228,11 @@ resolve_prompt_dir() {
 }
 
 # --- Session list (real CLI or fixture) --------------------------------------
+# Existence of the --agents-json fixture is validated once in main (main shell),
+# not here: sessions_json runs on the left of a `|`, i.e. a subshell, where an
+# `exit` would only kill the subshell and leave the script's status at 0.
 sessions_json() {
   if [[ -n "$AGENTS_JSON_FILE" ]]; then
-    [[ -f "$AGENTS_JSON_FILE" ]] || {
-      err "agents-json file not found: $AGENTS_JSON_FILE"
-      exit 4
-    }
     cat "$AGENTS_JSON_FILE"
   else
     claude agents --json 2>/dev/null || echo '[]'
@@ -294,31 +308,32 @@ launch_lane() {
   (cd "$REPO" && "${cmd[@]}")
 }
 
+# Returns: 0 stopped OK · 2 was not running · other = `claude stop` failed
+# (its exit code). Callers must distinguish 2 (benign) from a real stop failure.
 stop_lane_if_running() {
   local name="$1" sid
   sid="$(running_session_id "$name")"
-  if [[ -n "$sid" ]]; then
-    info "  stop $name ($sid)"
-    run claude stop "$sid"
-    return 0
-  fi
-  return 1
+  [[ -n "$sid" ]] || return 2
+  info "  stop $name ($sid)"
+  run claude stop "$sid"
 }
 
 # --- Refresh step (pull + marketplace update) --------------------------------
 refresh_repo_and_plugins() {
+  local rc=0
   if ((NO_PULL)); then
     info "skip git pull (--no-pull)"
   else
     info "git pull --ff-only ($REPO)"
-    run git -C "$REPO" pull --ff-only
+    run git -C "$REPO" pull --ff-only || rc=1
   fi
   if ((NO_UPDATE)); then
     info "skip plugin marketplace update (--no-update)"
   else
     info "claude plugin marketplace update"
-    run claude plugin marketplace update
+    run claude plugin marketplace update || rc=1
   fi
+  return "$rc"
 }
 
 # --- Lane iteration helper ----------------------------------------------------
@@ -342,7 +357,7 @@ for_each_lane() {
     done
   fi
 
-  local i name model effort prompt_path
+  local i name model effort prompt_path failures=0
   for ((i = 0; i < count; i++)); do
     name="$(lane_field "$i" name)"
     [[ -n "$name" ]] || {
@@ -355,8 +370,11 @@ for_each_lane() {
     model="$(lane_field "$i" model)"
     effort="$(lane_field "$i" effort)"
     prompt_path="$(lane_prompt_path "$(lane_field "$i" prompt)" "$pdir")"
-    "$callback" "$name" "$model" "$effort" "$prompt_path"
+    # A per-lane callback failure must not abort the sweep (other lanes still
+    # get their turn) but must surface in the aggregate exit status.
+    "$callback" "$name" "$model" "$effort" "$prompt_path" || failures=1
   done
+  return "$failures"
 }
 
 # --- Actions ------------------------------------------------------------------
@@ -373,14 +391,30 @@ _start_one() {
 
 _restart_one() {
   local name="$1" model="$2" effort="$3" prompt_path="$4"
-  stop_lane_if_running "$name" || true
+  stop_lane_if_running "$name"
+  local s=$?
+  # A genuine stop failure (not the benign "was not running", 2) means the old
+  # session may still be alive — relaunching would create a second session under
+  # the same name, so refuse and surface the failure.
+  if [[ $s -ne 0 && $s -ne 2 ]]; then
+    err "  $name — stop failed; not relaunching (would duplicate the session name)"
+    return 1
+  fi
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}"
   launch_lane "$name" "$model" "$effort" "$prompt_path"
 }
 
 _stop_one() {
   local name="$1"
-  stop_lane_if_running "$name" || info "  $name — not running"
+  stop_lane_if_running "$name"
+  case $? in
+  0) : ;;
+  2) info "  $name — not running" ;;
+  *)
+    err "  $name — stop failed"
+    return 1
+    ;;
+  esac
 }
 
 _status_one() {
@@ -393,22 +427,29 @@ _status_one() {
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
 }
 
+# scope suffix for the header line, e.g. " (work babysit)" when lanes are named.
+lane_scope() { ((${#TARGET_LANES[@]})) && printf ' (%s)' "${TARGET_LANES[*]}"; }
+
 action_start() {
+  local rc=0
   info "== lanes: start =="
-  refresh_repo_and_plugins
+  refresh_repo_and_plugins || rc=1
   info "lanes:"
-  for_each_lane _start_one
+  for_each_lane _start_one || rc=1
+  return "$rc"
 }
 
 action_restart() {
-  info "== lanes: restart${TARGET_LANES:+ (${TARGET_LANES[*]})} =="
-  refresh_repo_and_plugins
+  local rc=0
+  info "== lanes: restart$(lane_scope) =="
+  refresh_repo_and_plugins || rc=1
   info "lanes:"
-  for_each_lane _restart_one
+  for_each_lane _restart_one || rc=1
+  return "$rc"
 }
 
 action_stop() {
-  info "== lanes: stop${TARGET_LANES:+ (${TARGET_LANES[*]})} =="
+  info "== lanes: stop$(lane_scope) =="
   for_each_lane _stop_one
 }
 
@@ -425,6 +466,10 @@ main() {
   require_claude
   resolve_repo
   resolve_config
+  [[ -z "$AGENTS_JSON_FILE" || -f "$AGENTS_JSON_FILE" ]] || {
+    err "agents-json file not found: $AGENTS_JSON_FILE"
+    exit 4
+  }
   case "$ACTION" in
   start) action_start ;;
   restart) action_restart ;;

@@ -76,6 +76,9 @@ CLAUDE_LOG="$TMP/claude.log"
 cat >"$STUB_BIN/claude" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$CLAUDE_LOG"
+# A test can force a failed \`claude stop\` via STUB_CLAUDE_STOP_RC to exercise
+# the stop-failure paths (no relaunch, non-zero exit).
+if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
 STUB
 cat >"$STUB_BIN/git" <<STUB
 #!/usr/bin/env bash
@@ -198,6 +201,58 @@ assert_contains "missing prompt file skipped" "$out" "prompt file not found"
 assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
 assert_contains "invalid effort skipped" "$out" "invalid effort 'turbo'"
 assert_not_contains "no launch for bad lanes" "$out" "claude --bg -n baddy"
+
+# ============================================================================
+# Medium 1 — an option must not swallow the next flag as its value
+# ============================================================================
+out="$(run_launcher status --config --dry-run --repo "$REPO" 2>&1)"
+rc=$?
+assert_eq "--config --dry-run rejected (exit 3)" 3 "$rc"
+assert_contains "flag-squash message names the option" "$out" "option '--config' requires a non-option argument"
+out="$(run_launcher status --repo --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+assert_eq "--repo followed by a flag rejected (exit 3)" 3 "$rc"
+out="$(run_launcher status --agents-json --config "$CONFIG" --repo "$REPO" 2>&1)"
+rc=$?
+assert_eq "--agents-json followed by a flag rejected (exit 3)" 3 "$rc"
+
+# ============================================================================
+# Medium 3 — partial failure surfaces in the exit status (sweep still completes)
+# ============================================================================
+out="$(run_launcher start --repo "$REPO" --config "$TMP/badprompt.json" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+assert_eq "partial launch failure exits non-zero" 1 "$rc"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+assert_eq "all-lanes-ok start exits 0" 0 "$rc"
+
+# ============================================================================
+# Medium 3 / stop exit code — a failed `claude stop` must not relaunch, exits non-zero
+# ============================================================================
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_STOP_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "restart with failed stop exits non-zero" 1 "$rc"
+assert_contains "restart with failed stop refuses relaunch" "$out" "not relaunching"
+assert_not_contains "no relaunch after failed stop" "$log" "--bg -n work"
+out="$(STUB_CLAUDE_STOP_RC=1 run_launcher stop work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+assert_eq "stop with failed claude stop exits non-zero" 1 "$rc"
+assert_contains "stop failure reported" "$out" "work — stop failed"
+
+# ============================================================================
+# Low-priority carry-forwards — uncovered flag paths
+# ============================================================================
+out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$TMP/no-such-agents.json" 2>&1)"
+rc=$?
+assert_eq "--agents-json missing file exits 4" 4 "$rc"
+assert_contains "--agents-json missing file message" "$out" "agents-json file not found"
+# `--` ends option parsing: tokens after it are lane names (options must precede it).
+out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" -- babysit 2>&1)"
+rc=$?
+assert_eq "-- passthrough: known lane after -- is accepted (exit 0)" 0 "$rc"
+assert_contains "-- passthrough targets the named lane" "$out" "babysit — not running"
 
 # ============================================================================
 echo
