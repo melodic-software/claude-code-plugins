@@ -3,6 +3,21 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **`git-tree-reset` — exit-7 clean-failure path now emits the restore-guard
+  warning identically to the success path.** When `git clean -fdx` fails for a
+  non-locked-file cause (exit 7) after the restore guard recovered one or more
+  tracked files deleted via reparse-point traversal (`RestoredTracked: N`, N>0),
+  the path now prints the same `WARNING: restored N tracked file(s)` message the
+  success path already emits under that condition. Previously the warning was
+  emitted only on the success path, so an operator hitting the failure path saw
+  the machine-readable `RestoredTracked: N` line but not the human-visible signal
+  that data-loss recovery fired — parity between both paths for this specific
+  signal. (#605)
+
 ## [0.4.0]
 
 ### Added

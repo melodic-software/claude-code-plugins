@@ -104,7 +104,7 @@ scheduled trigger adapters behind its queue contract) and WP5 implementation mer
 (`reference/guardrails.md` — the D2 mapping rules derive rows into its matrix). This package
 merges after both.
 
-### Phase 1: Catalog hub + mapping rules [TODO]
+### Phase 1: Catalog hub + mapping rules [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -118,7 +118,7 @@ merges after both.
 - `not-a-routine` rows = 7 (`grep -c 'not-a-routine' plugins/autonomy/reference/routines.md` ≥ 7); the dead-code-sweep row carries the flag (`grep 'dead-code' plugins/autonomy/reference/routines.md | grep -c 'not-a-routine'` = 1 — flagged, never a silent exclusion, and never a v1 leaf)
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: v1 definition leaves [TODO]
+### Phase 2: v1 definition leaves [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -131,7 +131,7 @@ merges after both.
 - Every leaf names a cadence default: `grep -lc 'cadence' plugins/autonomy/reference/routines/*.md | wc -l` = 10
 - Vendor+fleet deny-list sweep exit 0
 
-### Phase 3: Guided-setup routine slice [TODO]
+### Phase 3: Guided-setup routine slice [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -147,7 +147,7 @@ merges after both.
 - `grep -c 'temporal' plugins/autonomy/skills/setup/templates/routine-definitions.md` ≥ 1 (queue-entry via the trigger contract)
 - Fleet-name sweep exit 0
 
-### Phase 4: Derivation demonstration + gates [TODO]
+### Phase 4: Derivation demonstration + gates [DONE]
 
 Acceptance probe: classify one NOVEL routine class end-to-end using only the shipped mapping
 rules (axes → guardrail row → prerequisites) — the acceptance criterion that an org can

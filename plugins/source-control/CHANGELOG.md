@@ -29,6 +29,36 @@ All notable changes to the `source-control` plugin are documented here. Format f
   worker/autopilot's existing gate-proven merges are unchanged. `safety.md`'s "Never do
   automatically: merge" contract is updated deliberately to codify the tier and its criteria.
 
+## [0.13.3]
+
+### Fixed
+
+- **`babysit-readiness-gate` now credits classification rows per comment surface, closing a
+  fail-open where a stale classification could pass the gate past a live unclassified finding
+  (#642).** The gate blocks while source findings outnumber their per-finding classification rows.
+  The shared classifier counted a self-authored classification pipe-row in ANY comment, including
+  PR-level review-summary comments that are never thread-resolved. Because a review thread's
+  findings drop when it resolves (the lifetime-vs-open discount) but a PR-level comment can never
+  resolve, a stale classification posted outside a thread kept counting after its finding was
+  discounted — inflating the classified count past a fresh, still-unclassified open-thread finding
+  and emitting a fail-open `READINESS_OK`. Classification credit is now bucketed by surface
+  (review-thread, PR-level, and an isolated bucket for comments bearing no surface signal) and
+  capped within each bucket, so a classification can only offset a finding on its own surface. The
+  Python-free bash degrade gains the thread-state-free analogue (`classified = min(classified,
+  findings)`); the per-surface refinement is Python-only, mirroring the existing lifetime discount,
+  and stays convergent with the degrade on unsignalled input.
+
+### Changed
+
+- **BEHAVIOR FLIP — a PR whose inline-thread findings are answered only by detached PR-level
+  classification replies now reports `READINESS_BLOCKED` where it previously passed.** With
+  per-surface credit, a PR-level classification row no longer offsets an inline-thread finding, so
+  the gate blocks until each inline finding is answered on its own thread. This enforces
+  `review-discipline.md` §D5's already-ratified reply routing (inline findings MUST reply threaded,
+  "NEVER a detached `pr comment`") mechanically rather than by prose. Runs that already follow §D5
+  routing are unaffected; only runs relying on the previously-tolerated detached-reply shape change
+  verdict, and the fix direction is fail-closed.
+
 ## [0.13.2]
 
 ### Fixed
