@@ -212,9 +212,19 @@ normalize_path() {
   p="$(printf '%s' "$p" | tr '\\' '/')"
   case "$p" in
     [A-Za-z]:/*)
-      drive="$(printf '%s' "${p%%:*}" | tr '[:upper:]' '[:lower:]')"
+      # Windows filesystems are case-insensitive: fold the WHOLE path, not just
+      # the drive letter, so D:/Repos/.Worktrees and /d/repos/.worktrees compare
+      # equal. Non-drive (POSIX) paths stay case-sensitive.
+      p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
+      drive="${p%%:*}"
       rest="${p#*:}"
       p="/$drive$rest"
+      ;;
+    /[A-Za-z]/*)
+      # Git-bash drive spelling (/d/Repos/…) is the same case-insensitive
+      # Windows filesystem — fold it too. A true POSIX single-letter root
+      # directory is the accepted (rare, documented) collision.
+      p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
       ;;
     *) ;;
   esac
