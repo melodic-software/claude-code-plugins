@@ -275,12 +275,19 @@ load_sessions() {
   SESSIONS_JSON="$raw"
 }
 
-# sessionId of a running session with the given name (empty if none). If several
-# match, the most recently started wins.
+# sessionId of a running lane session with the given name (empty if none). If
+# several match, the most recently started wins.
+#
+# Restricted to `kind == "background"`: lanes are always launched with `--bg`, so
+# a lane is by construction a background session. An interactive window that
+# happens to share a lane name (e.g. a hand-started `work`) is therefore never
+# matched — never skipped by `start`, never handed to `claude stop`. Since a real
+# lane is always background, this can only exclude non-lane sessions, never a live
+# lane, so it cannot cause a duplicate launch.
 running_session_id() {
   local name="$1"
   jq -r --arg n "$name" \
-    '[ .[] | select(.name == $n) ] | sort_by(.startedAt) | last | .sessionId // empty' \
+    '[ .[] | select(.name == $n and .kind == "background") ] | sort_by(.startedAt) | last | .sessionId // empty' \
     <<<"$SESSIONS_JSON"
 }
 

@@ -69,6 +69,16 @@ JSON
 AGENTS_EMPTY="$TMP/agents-empty.json"
 echo '[]' >"$AGENTS_EMPTY"
 
+# An INTERACTIVE session that happens to share a lane name ("work") must never be
+# treated as the lane — it is not a `--bg` lane session.
+AGENTS_INTERACTIVE_WORK="$TMP/agents-interactive-work.json"
+cat >"$AGENTS_INTERACTIVE_WORK" <<'JSON'
+[
+  { "pid": 333, "cwd": "/repo", "kind": "interactive", "startedAt": 100,
+    "sessionId": "sid-int-work", "name": "work", "status": "busy" }
+]
+JSON
+
 # --- PATH-stub claude + git (log every invocation) ----------------------------
 STUB_BIN="$TMP/bin"
 mkdir -p "$STUB_BIN"
@@ -272,6 +282,23 @@ out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENT
 rc=$?
 assert_eq "-- passthrough: known lane after -- is accepted (exit 0)" 0 "$rc"
 assert_contains "-- passthrough targets the named lane" "$out" "babysit — not running"
+
+# ============================================================================
+# Codex P1 — an interactive session sharing a lane name is not the lane
+# (kind must be background). `start` launches the lane, `status` shows stopped,
+# `stop` never targets the interactive session.
+# ============================================================================
+out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_INTERACTIVE_WORK" 2>&1)"
+assert_contains "interactive same-name is not a running lane" "$out" "stopped"
+assert_not_contains "interactive same-name sessionId not shown" "$out" "sid-int-work"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_INTERACTIVE_WORK" --dry-run 2>&1)"
+assert_contains "start launches lane despite interactive namesake" "$out" "claude --bg -n work"
+assert_not_contains "start does not skip work for interactive namesake" "$out" "skip work"
+: >"$CLAUDE_LOG"
+out="$(run_launcher stop work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_INTERACTIVE_WORK" 2>&1)"
+log="$(cat "$CLAUDE_LOG")"
+assert_contains "stop treats interactive namesake as not running" "$out" "work — not running"
+assert_not_contains "stop never targets the interactive namesake" "$log" "sid-int-work"
 
 # ============================================================================
 # Codex P1 — a failed live `claude agents --json` must abort a mutating action,
