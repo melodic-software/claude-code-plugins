@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3]
+
+### Added
+
+- **`pull-request` create flow gates the PR-body "Generated with Claude Code" attribution line behind
+  a config seam (#439).** The `🤖 Generated with [Claude Code](https://claude.com/claude-code)` line
+  was hardcoded into the PR-body heredoc `/pull-request create` appends to every skill-created PR, with
+  no config key to change or suppress it — asymmetric with the commit trailer, which `/commit` already
+  externalizes via `.claude/source-control.md`'s `trailer_policy`. A consumer wanting no Claude
+  attribution in PR bodies (or a different line) had to fork or hand-edit the plugin, violating the
+  repo's "configurable without editing the plugin" convention. The line now resolves from a new
+  `pr_body_attribution` key across the same three `source-control.md` layers (per
+  `reference/config-resolution.md`): **absent → the default line (unchanged current behavior, so
+  existing consumers are unaffected)**, `none` → the line is omitted, any other value → that literal
+  line. A **sibling key rather than a reuse of `trailer_policy`** was chosen deliberately: the two
+  govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), and
+  overloading `trailer_policy` would have silently stripped the PR-body line from every consumer who
+  already set `trailer_policy: none` (the plugin's own commit eval fixture is one) — a behavior change
+  the opt-in-only requirement forbids. `create.md` §2.4.1 resolves the effective value at the model
+  level and splices it in as literal text *outside* the quoted heredoc via the same
+  parameter-expansion concat `${CLOSES_LINE}` uses, preserving the section's shell-injection safety
+  (a custom `$`-bearing line stays inert). `/source-control:setup`'s interview, config template, and
+  `check` render the new key; `pull-request` `SKILL.md` and `config-resolution.md` document it. New
+  evals pin both the default-present and `pr_body_attribution: none` opt-out paths.
+
 ## [0.15.2]
 
 ### Fixed
